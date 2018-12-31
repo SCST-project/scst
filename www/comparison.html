@@ -5,18 +5,18 @@
 <meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
 <meta name="author" content="Daniel Fernandes">
 <meta name="Robots" content="index,follow">
-<link rel="stylesheet" href="images/Orange.css" type="text/css">	
+<link rel="stylesheet" href="images/Orange.css" type="text/css">
 <title>SCSI Targets Comparison</title>
 </head>
 
 <body>
 <!-- wrap starts here -->
-<div id="wrap"> 
-	<div id="header">	
+<div id="wrap">
+	<div id="header">
 		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
-		<h2 id=slogan>Generic SCSI Target Subsystem for Linux</h2>	
-	</div>		
-		
+		<h2 id=slogan>Generic SCSI Target Subsystem for Linux</h2>
+	</div>
+
 	<div id="menu">
 		<ul>
 			<li><a href="index.html">Home</a></li>
@@ -25,13 +25,13 @@
 			<li><a href="targets.html">Drivers</a></li>
 			<li><a href="downloads.html">Downloads</a></li>
 			<li><a href="contributing.html">Contributing</a></li>
-			<li id="current"><a href="comparison.html">Comparison</a></li>		
+			<li id="current"><a href="comparison.html">Comparison</a></li>
 			<li><a href="users.html">Users</a></li>
 		</ul>
 	</div>
-	
-	<!-- content-wrap starts here -->	
-	<div id="content-wrap">  
+
+	<!-- content-wrap starts here -->
+	<div id="content-wrap">
 			<div id="sidebar">
 				<h1>Comparison</h1>
 				<ul class="sidemenu">
@@ -40,8 +40,8 @@
 					<li><a href="scstvsstgt.html">SCST vs STGT</a></li>
 					<li><a href="mc_s.html">MC/S vs MPIO</a></li>
 				</ul>
-			</div>		
-	
+			</div>
+
 			<div id="main">
 				<h1>Features comparison between Linux SCSI targets</h1>
 
@@ -69,88 +69,88 @@
 <td colspan="5"> <b>General</b>
 </td></tr>
 <tr>
-<td align="left"><b>Upstream kernel</b></td>				<td> - </td>		<td> - </td>		<td> - </td>		<td> <a href="scstvslio.html">Since 2.6.38</a></td>	
-</tr>                                                                                                                           
-<tr>                                                                                                                            
-<td align="left"><b>Generic Target Engine</b></td>			<td> + </td>		<td> + </td>		<td> iSCSI only </td>	<td> + </td>		
+<td align="left"><b>Upstream kernel</b></td>				<td> - </td>		<td> - </td>		<td> - </td>		<td> <a href="scstvslio.html">Since 2.6.38</a></td>
 </tr>
-<tr>                                                                                            
+<tr>
+<td align="left"><b>Generic Target Engine</b></td>			<td> + </td>		<td> + </td>		<td> iSCSI only </td>	<td> + </td>
+</tr>
+<tr>
 <td align="left"><b>Architecture</b></td>				<td> Kernel only</td>	<td> User space only </td> <td> Split <sup>
 															   <A HREF="#1">1</A>
 															   </sup> </td>		<td> Kernel only </td>
-</tr>                                                                                                                           
-<tr>                                                                                                                           
+</tr>
+<tr>
 <td align="left"><b>Stability</b></td>					<td> + </td>		<td> + </td>		<td> + </td>		<td> Probably </td>
-</tr>                                                                                                                           
-<tr>                                                                                                                           
+</tr>
+<tr>
 <td align="left"><b>Performance <sup><A HREF="#2">2</A></sup></b></td>	<td> ***** <sup>
 									<A HREF="#3">3</A>
 									</sup></td>		<td> ***</td>		<td> **** </td>		<td> ****- </td>
-</tr>                                                                                                                           
-<tr>                                                                                                                           
+</tr>
+<tr>
 <th align="left"> Zero-copy passing data between target and
 backend drivers</th>							<td> + <sup>
 									<A HREF="#4">4</A>
 									</sup></td>		<td> + <sup>
-												<A HREF="#5">5</A>	
-												</sup> </td>		<td> + </td>		<td> + </td>		
+												<A HREF="#5">5</A>
+												</sup> </td>		<td> + </td>		<td> + </td>
 </tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>Support for transports without expecting
 transfer values (Wide (parallel) SCSI, SAS)</b></td>			<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
-</tr>                                                                                                                           
-<tr>                                                                                                                            
+</tr>
+<tr>
 <td align="left"><b>Interface with user space</b></td>			<td> SysFS (or obsolete
 									ProcFS)</td>		<td> Custom </td>	<td> - </td>		<td> ConfigFS/IOCTL/ProcFS </td>
-</tr>                                                                                                                           
+</tr>
 
-                                                                                                
-<tr bgcolor="#E0E0E0">                                                                                                          
+
+<tr bgcolor="#E0E0E0">
 <td colspan="5"><b>Features</b>
 </td></tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>Target drivers in kernel space</b></td>		<td> + </td>		<td> - </td>		<td> - </td>		<td> + </td>
 </tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>Target drivers in user space</b></td>		<td>Via scst_local (e.g.
 									 using STGT
 									 pass-through)</td>	<td> + </td>		<td> - </td>		<td>Via tcm_loop (e.g.
 																		 using STGT pass-through)</td>
 </tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>Backstorage handlers in kernel space</b></td>	<td> + </td>		<td> - </td>		<td> - </td>		<td> + </td>
-</tr>                                                                                                                           
-<tr>                                                                                            
+</tr>
+<tr>
 <td align="left"><b>Backstorage handlers in user space</b></td>		<td>+</td>		<td> + </td>		<td> - </td>		<td> - </td>
-</tr>                                                                                           
-<tr>                                                                                            
-<td align="left"><b>Advanced devices access control 
+</tr>
+<tr>
+<td align="left"><b>Advanced devices access control
 <sup><A HREF="#7">7</A></sup></b></td>				<td> + </td>		<td> - </td>		<td> - </td>		<td> + </td>
 </tr>
 <tr>
 <td align="left"><b>Automatic sessions reassignment (changes in the
 access control immediately seen by initiators)</b></td>		<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>Support for Asynchronous Event Notifications
 (AEN)</b></td>								<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>Notifications for devices added/removed or
 resized through AENs or Unit Attentions (initiators can instantly see
 any target reconfiguration in a PnP-like manner)</b></td>		<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
-<tr>                                                                                                                            
+<tr>
 <td align="left"><b>Bidirectional Commands</b></td>			<td> +</td>		<td> + </td>		<td> - </td>		<td> + </td>
 </tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>Extended CDB (size >16 bytes)</b></td>		<td> +</td>		<td> + </td>		<td> - </td>		<td> + </td>
 </tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>Descriptor sense support</b></td>			<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>
-<td align="left"><b>RESERVE/RELEASE                                                                                                       
+<td align="left"><b>RESERVE/RELEASE
 (Windows 2003 clustering)</b></td>					<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>
 </tr>
 <tr>
@@ -159,12 +159,12 @@ SCSI requirements <sup><A HREF="#9">9</A></sup></b></td>		<td> Safe </td>		<td> 
 															v1.4.18</td>		<td> Not safe </td>
 </tr>
 <tr>
-<td align="left"><b>Safe implementation of Task Management commands 
+<td align="left"><b>Safe implementation of Task Management commands
 <sup><A HREF="#10">10</A></sup></b></td>				<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> LUN RESET - safe.
 																		Other TM commands not
 																		implemented. </td>
 </tr>
-<tr>                                                                                                                            
+<tr>
 <td align="left"><b>Support for SCSI task attributes, including
 ORDERED commands</b></td>						<td> + </td>		<td> + </td>		<td> -, <br> data
 															corruption possible
@@ -173,8 +173,8 @@ ORDERED commands</b></td>						<td> + </td>		<td> + </td>		<td> -, <br> data
 																		corruption possible
 																		<sup><A HREF="#11">
 																		11</A></sup> </td>
-</tr>                                                                                                                           
-<tr>                                                                                                                            
+</tr>
+<tr>
 <td align="left"><b>Persistent (SCSI-3) Reservations
 (Windows 2008 clustering / RHEL5 I/O fencing)</b></td>			<td> + </td>		<td> + <br> (not all
 												functionality
@@ -183,108 +183,108 @@ ORDERED commands</b></td>						<td> + </td>		<td> + </td>		<td> -, <br> data
 <td align="left"><b>Durable, i.e. transactional, save of Persistent
 Through Power Loss Persistent Reservation data</b></td>			<td> Durable </td>	<td>Not supported</td>	<td> - </td>		<td> Not durable </td>
 </tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>ALUA</b></td>					<td> +/- (Implicit
 									only)<sup>
 									<A HREF="#19">19</A>
 									</sup> </td>		<td> - </td>		<td> - </td>		<td> +/-<sup><A HREF="#19">
 																		19</A></sup></td>
-</tr>                                                                                           
-<tr>
-<td align="left"><b>Failover Clustering</b></td>			<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>		
 </tr>
-<tr>                                                                                            
+<tr>
+<td align="left"><b>Failover Clustering</b></td>			<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>
+</tr>
+<tr>
 <td align="left"><b>Different threading models to choose the best
 performing</b></td>							<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
-</tr>                                                                                           
+</tr>
 <tr>
 <td align="left"><b>CPU affinity control</b></td>			<td> + </td>		<td> - </td>		<td> - </td>		<td> + </td>
 </tr>
 <tr>
 <td align="left"><b>I/O context grouping between I/O threads (big
-performance win with CFQ)</b></td>					<td> + </td>		<td> - </td>		<td> + </td>		<td> - </td>		
+performance win with CFQ)</b></td>					<td> + </td>		<td> - </td>		<td> + </td>		<td> - </td>
 </tr>
 <tr>
 <td align="left"><b>Per-initiator I/O context grouping (big
 performance and fairness win if several initiators access the same
-virtual or backend device on the target)</b></td>			<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>		
+virtual or backend device on the target)</b></td>			<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
-<tr>                                                                                                                            
+<tr>
 <td align="left"><b>Protection against commands with
 wrong transfer size or transfer direction (may lead to crash or
-hard lockup of the target)</b></td>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>		
-</tr>                                                                                                                           
-<tr>                                                                                                                            
-<td align="left"><b>Protection against crashing target by making it
-to allocate too much memory for buffers and go into OOM state
-</b></td>								<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>		
-</tr>                                                                                                                           
-<tr>
-<td align="left"><b>Caching of allocated buffers</b></td>		<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>		
+hard lockup of the target)</b></td>					<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>
-<td align="left"><b>Latencies measurement facility</b></td>		<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>		
+<td align="left"><b>Protection against crashing target by making it
+to allocate too much memory for buffers and go into OOM state
+</b></td>								<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>
+<td align="left"><b>Caching of allocated buffers</b></td>		<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
+</tr>
+<tr>
+<td align="left"><b>Latencies measurement facility</b></td>		<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>
 <td align="left"><b>Configuration tool with ability to automatically
 apply changes in the config file on fly without any restarts</b></td>	<td> scstadmin </td>	<td> - </td>		<td> - </td>		<td> rtsadmin? </td>
 </tr>
-<tr>                                                                                                                            
-<td align="left"><b>SCSI MIBs</b></td>					<td> - </td>		<td> - </td>		<td> - </td>		<td>  +- 
+<tr>
+<td align="left"><b>SCSI MIBs</b></td>					<td> - </td>		<td> - </td>		<td> - </td>		<td>  +-
 																		<sup><A HREF="#12">12</A></sup></td>
-</tr>                                                                                                                           
-                                                                                                
-                                                                                                
-<tr bgcolor="#E0E0E0">                                                                                                          
-<td colspan="5"> <b>Supported transports and hardware</b>                                                                                          
-</td></tr>                                                                                                                      
-<tr>                                                                                                                            
+</tr>
+
+
+<tr bgcolor="#E0E0E0">
+<td colspan="5"> <b>Supported transports and hardware</b>
+</td></tr>
+<tr>
 <td align="left"><b>iSCSI</b></td>					<td> + </td>		<td> + </td>		<td> + </td>		<td> + </td>
-</tr>                                                                                                                           
-<tr>                                                                                            
+</tr>
+<tr>
 <td align="left"><b>QLogic (Fibre Channel and FCoE)</b></td>		<td> + </td>		<td> - </td>		<td> - </td>		<td> +</td>
 </tr>
 <tr>
 <td align="left"><b>Emulex (Fibre Channel and FCoE)</b></td>		<td> + </td>		<td> - </td>		<td> - </td>		<td> + </td>
 </tr>
-<tr>                                                                                                                           
+<tr>
 <td align="left"><b>SRP</b></td>					<td> + </td>		<td> - </td>		<td> - </td>		<td> Preliminary </td>
-</tr>                                                                                                                           
-<tr>                                                                                                                            
-<td align="left"><b>iSER</b></td>					<td> + </td>		<td> + </td>		<td> - </td>		<td> + </td>		
-</tr> 
-<tr>                                                                                                                          
-<td align="left"><b>Marvell (SAS)</b></td>				<td> Beta </td>		<td> - </td>		<td> - </td>		<td> - </td>		
+</tr>
+<tr>
+<td align="left"><b>iSER</b></td>					<td> + </td>		<td> + </td>		<td> - </td>		<td> + </td>
+</tr>
+<tr>
+<td align="left"><b>Marvell (SAS)</b></td>				<td> Beta </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>
 <td align="left"><b>FCoE</b></td>					<td> + </td>		<td>Under
-									 			 development</td>	<td> - </td>		<td> Alpha </td>	
-</tr>                                                                                                                                                 
-<tr>                                                                                                                            
+									 			 development</td>	<td> - </td>		<td> Alpha </td>
+</tr>
+<tr>
 <td align="left"><b>LSI (Parallel (Wide) SCSI and Fibre Channel)
 </b></td>								<td> Alpha </td>	<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>
 <td align="left"><b>LSI (SAS)</b></td>					<td> Preliminary
 									(not completed) </td>	<td> - </td>		<td> - </td>		<td> - </td>
-</tr>                                                                                                                            
-<tr>                                                                                            
+</tr>
+<tr>
 <td align="left"><b>IBM pSeries Virtual SCSI</b></td>			<td> + </td>		<td> + </td>		<td> - </td>		<td> Preliminary </td>
 </tr>
-<tr>                                                                                            
-<td align="left"><b>Local access to emulated backstorage devices 
+<tr>
+<td align="left"><b>Local access to emulated backstorage devices
 <sup><A HREF="#6">6</A></sup></b></td>					<td> scst_local </td>	<td> - </td>		<td> - </td>		<td> tcm_loop </td>
 </tr>
-<tr bgcolor="#E0E0E0">                                                                                                          
-<td colspan="5"> <b>Supported backstorage</b>                                                   
+<tr bgcolor="#E0E0E0">
+<td colspan="5"> <b>Supported backstorage</b>
 </td></tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>Kernel side FILEIO</b></td>				<td> + </td>		<td> - </td>		<td> + </td>		<td> + </td>
 </tr>
-<tr>                                                                                            
-<td align="left"><b>Kernel side BLOCKIO</b></td>			<td> + </td>		<td> - </td>		<td> + </td>		<td> + </td>		
+<tr>
+<td align="left"><b>Kernel side BLOCKIO</b></td>			<td> + </td>		<td> - </td>		<td> + </td>		<td> + </td>
 </tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>User space FILEIO</b></td>				<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>
@@ -296,7 +296,7 @@ apply changes in the config file on fly without any restarts</b></td>	<td> scsta
 <tr>
 <td align="left"><b>Native RAMDISK</b></td>				<td> - </td>		<td> - </td>		<td> - </td>		<td> + </td>
 </tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>SCSI pass-through
 	<sup><A HREF="#13">13</A></sup></b></td>			<td> + </td>		<td> Single
 												initiator only, not
@@ -306,17 +306,17 @@ apply changes in the config file on fly without any restarts</b></td>	<td> scsta
 																		limited functionality for tapes
 																		<sup><A HREF="#14">14</A></sup></td>
 </tr>
-<tr>                                                                                                                           
+<tr>
 <td align="left"><b>Zero-copy data read/write to/from backstorage
 </b></td>								<td>BLOCKIO, user space
 									FILEIO in O_DIRECT mode,
 									pass-through <sup>
 									<A HREF="#15">15</A>
 									</sup></td>		<td> - <sup>
-												<A HREF="#5">5</A>	
+												<A HREF="#5">5</A>
 												</sup> </td>		<td> BLOCKIO </td>	<td> BLOCKIO, pass-
-									                                                                        through </td>		
-</tr>                                                                                           
+									                                                                        through </td>
+</tr>
 <tr>
 <td align="left"><b>Cache safe<sup><A HREF="#8">8</A></sup>
 FILEIO</b></td>								<td> Safe </td>		<td>Safe only RDWR
@@ -326,68 +326,68 @@ FILEIO</b></td>								<td> Safe </td>		<td>Safe only RDWR
 <td align="left"><b>Cache safe<sup><A HREF="#8">8</A></sup>
 BLOCKIO</b></td>							<td> Safe </td>		<td> - </td>		<td> Not safe </td>	<td> Safe </td>
 </tr>
-<tr>                                                                                                                            
+<tr>
 <td align="left"><b>4k sectors support in pass-through mode</b></td>	<td> + </td>		<td> - </td>		<td> - </td>		<td> ? </td>
-</tr>                                                                                                                           
-<tr>                                                                                                                            
+</tr>
+<tr>
 <td align="left"><b>4k, 2k, 1k and 512 byte sectors emulation
 in modes, other than pass-through</b></td>				<td> + </td>		<td> + </td>		<td> - </td>		<td> + </td>
 </tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>Virtual CD devices emulation from ISO files
 </b></td>								<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>Possibility to write to emulated from ISO files
 CD devices</b></td>							<td> - </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>Emulation of virtual tape and media changer
 devices (VTL)</b></td>							<td> - </td>		<td>Experimental</td>	<td> - </td>		<td> - </td>
 </tr>
 <tr>
 <td align="left"><b>Thin provisioning support</b></td>			<td>+<br></td>		<td> ? </td>		<td> - </td>		<td> + </td>
 </tr>
-                                                                                                
-<tr bgcolor="#E0E0E0">                                                                                                          
-<td colspan="5"> <b>iSCSI Target</b>                                                                                            
+
+<tr bgcolor="#E0E0E0">
+<td colspan="5"> <b>iSCSI Target</b>
 </td></tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>Architecture</b></td>				<td> Split <sup>
 									<A HREF="#1">1</A>
-									</sup> </td>		<td> User space 
+									</sup> </td>		<td> User space
 												only </td>		<td> Split <sup>
 															<A HREF="#1">1</A>
 															</sup></td>		<td> Kernel only </td>
 </tr>
-<tr>                                                                                                                            
+<tr>
 <td align="left"><b>Interface with user space</b></td>			<td>SysFS (or obsolete
 									ProcFS)/
 									IOCTL/Netlink</td>	<td> - </td>		<td>IOCTL/ProcFS/
 															Netlink</td>	<td> ConfigFS/IOCTL/ProcFS </td>
-</tr>                                                                                                                           
-<tr>                                                                                                                            
+</tr>
+<tr>
 <td align="left"><b>Zero-copy data send/receive</b></td>		<td> Send only<sup>
 									<A HREF="#16">16</A>
 									</sup> </td>		<td> In some cases,
 												send only <sup>
-												<A HREF="#5">5</A>	
+												<A HREF="#5">5</A>
 												</sup> </td>		<td> Send only</td>	<td> Send only </td>
-</tr>                                                                                                                           
-<tr>                                                                                                                            
+</tr>
+<tr>
 <td align="left"><b><a href="mc_s.html">Multiple connections per
 session (MS/C)</a></b></td>						<td> - </td>		<td> - </td>		<td>+</td>		<td> + </td>
-</tr>                                                                                                                           
-<tr>                                                                                                                            
-<td align="left"><b>Max ErrorRecoveryLevel</b></td>			<td> 0 </td>		<td> 0 </td>		<td> 0 </td>		<td> 2 </td>		
-</tr>                                                                                                                           
+</tr>
+<tr>
+<td align="left"><b>Max ErrorRecoveryLevel</b></td>			<td> 0 </td>		<td> 0 </td>		<td> 0 </td>		<td> 2 </td>
+</tr>
 <tr>
 <td align="left"><b>Support for limiting number of initiators
 allowed to connect to a target</b></td>					<td> + </td>		<td> - </td>		<td> + </td>		<td> - </td>
 </tr>
 <tr>
 <td align="left"><b>Per-portal targets visibility control</b></td>	<td> + </td>		<td> - </td>		<td> + </td>		<td> - </td>
-</tr>                                                                                                                           
+</tr>
 <tr>
 <td align="left"><b>Per-initiators targets visibility control</b></td>	<td> + </td>		<td> + </td>		<td> + </td>		<td> - </td>
 </tr>
@@ -397,27 +397,27 @@ allowed to connect to a target</b></td>					<td> + </td>		<td> - </td>		<td> + <
 <tr>
 <td align="left"><b>Support for iSCSI redirects</b></td>		<td> + </td>		<td> + </td>		<td> + </td>		<td> - </td>
 </tr>
-<tr>                                                                                                                            
+<tr>
 <td align="left"><b>Bidirectional Commands</b></td>			<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>Extended CDB (size >16 bytes)</b></td>		<td> + </td>		<td> + </td>		<td> - </td>		<td> - </td>
 </tr>
 <tr>
 <td align="left"><b>Support for AENs (initiators can instantly see any
 target reconfiguration in a PnP-like manner)</b></td>			<td> + </td>		<td> - </td>		<td> - </td>		<td> - </td>
 </tr>
-<tr>                                                                                            
+<tr>
 <td align="left"><b>Support for iSNS</b></td>				<td> + </td>		<td> + </td>		<td> + </td>		<td> - </td>
 </tr>
 <tr>
-<td align="left"><b>Safe implementation of Task Management commands 
+<td align="left"><b>Safe implementation of Task Management commands
 <sup><A HREF="#10">10</A></sup></b></td>				<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> ABORT TASK - not safe,
 																		LUN RESET - safe,
 																		other TM commands not
 																		implemented. </td>
 </tr>
-<tr>                                                                                                                           
+<tr>
 <td align="left"><b>Safe implementation of connections and sessions
 reinstatement <sup><A HREF="#17">17</A></sup></b></td>			<td> Safe </td>		<td> Not safe </td>	<td> Not safe </td>	<td> Not safe </td>
 </tr>
@@ -435,11 +435,11 @@ calculations, if available</b></td>					<td> + </td>		<td> - </td>		<td> - </td>
 															v1.4.18. After -
 															probably safe.</td>	<td> ?</td>
 </tr>
-<tr>                                                                                                                            
-<td align="left"><b>iSCSI MIBs</b></td>					<td> - </td>		<td> - </td>		<td> - </td>		<td> +- 
+<tr>
+<td align="left"><b>iSCSI MIBs</b></td>					<td> - </td>		<td> - </td>		<td> - </td>		<td> +-
 																		<sup><A HREF="#12">12</A></sup></td>
-</tr>                                                                                                                           
-<tr bgcolor="#E0E0E0">                                                                                                          
+</tr>
+<tr bgcolor="#E0E0E0">
 <td colspan="5"> <b>Local access target</b>
 </td></tr>
 <tr>
@@ -487,7 +487,7 @@ target reconfiguration in a PnP-like manner)</b></td>			<td> + </td>		<td> - </t
 
 <p><A NAME="9"></A> 9. SCSI requires that if an initiator clears reservation held by another initiator, the reservation holder must be notified
 		       about the reservation clearance. Otherwise, several initiators can at the same time change supposed to be protected by the
-		       reservation data, which can corrupt them. This is what was called 
+		       reservation data, which can corrupt them. This is what was called
 		       <a href="http://communities.vmware.com/thread/53797?tstart=0&amp;start=15">"Russian roulette with your data"</a> on the VMware
 		       community forum by someone working for VMware. But, sure, it can affect not only VMware, but also any other cluster
 		       implementation, relying on this functionality.</p>
@@ -540,15 +540,15 @@ target reconfiguration in a PnP-like manner)</b></td>			<td> + </td>		<td> - </t
 <p><A NAME="19"></A> 19. Generic implementation, i.e. not coupled to any particular cluster implementation, which means it is needed additional effort
 			to used with each particular cluster setup.</p>
 
-	  		</div> 
+	  		</div>
 	</div>
-</div>		
+</div>
 <!-- wrap ends here -->
-<!-- footer starts here -->		
+<!-- footer starts here -->
 <div id="footer">
 	<p>&copy; Copyright 2004 - 2018 <b><font color="#EC981F">Vladislav Bolkhovitin &amp others</font></b>&nbsp;&nbsp;
-	   Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</p>		
-</div>	
+	   Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</p>
+</div>
 <!-- footer ends here -->
 <!-- Piwik -->
 <script type="text/javascript">

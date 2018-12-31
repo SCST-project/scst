@@ -6,15 +6,15 @@
 <meta name="author" content="Daniel Fernandes">
 <meta name="Robots" content="index,follow">
 <meta name="verify-v1" content="N5TwpSXr8cNkQf0gvE3F3sv+TPHL15k4dTo+ZQCeV9Q=">
-<link rel="stylesheet" href="images/Orange.css" type="text/css">	
+<link rel="stylesheet" href="images/Orange.css" type="text/css">
 <title>SCST: A Generic SCSI Target Subsystem for Linux</title>
 </head>
 
 <body>
-<div id="wrap"> 
-	<div id="header">	
+<div id="wrap">
+	<div id="header">
 		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
-		<h2 id="slogan">Generic SCSI Target Subsystem for Linux</h2>	
+		<h2 id="slogan">Generic SCSI Target Subsystem for Linux</h2>
 	</div>
 	<div id="menu">
 		<ul>
@@ -24,17 +24,17 @@
 			<li><a href="targets.html">Drivers</a></li>
 			<li><a href="downloads.html">Downloads</a></li>
 			<li><a href="contributing.html">Contributing</a></li>
-			<li><a href="comparison.html">Comparison</a></li>			
+			<li><a href="comparison.html">Comparison</a></li>
 			<li><a href="users.html">Users</a></li>
 		</ul>
-	</div>	
+	</div>
 	<div id="content-wrap">
 	  		<div id="main">
 				<h1>Generic SCSI Target Subsystem for Linux</h1>
-						
+
 				<p>The generic SCSI target subsystem for Linux (SCST) allows creation of sophisticated storage devices
 					from any Linux box. Those
-					devices can provide advanced 
+					devices can provide advanced
 					functionality, like replication, thin provisioning,
 					deduplication, high availability,
 					automatic backup, etc. Another class of such devices
@@ -50,48 +50,48 @@
 				<p>SCST project consists from a set of subprojects: generic SCSI target mid-layer itself (SCST core)
 					with a set of device handlers as well as target drivers
 					and user space utilities.
-				
+
 				<h1>Features of SCST Core</h1>
-				<ul>					
+				<ul>
 					<li><span>SCST core provides unified,
-					consistent interface between SCSI target drivers and 
+					consistent interface between SCSI target drivers and
 					Linux kernel as well as between Linux kernel and storage backend
 					handlers, connecting target drivers with real or emulated storage backend.</span></li>
 					<li><span>SCST core performs all required pre- and post- processing of incoming requests as well as
 						 necessary error recovery.</span></li>
-					<li><span>SCST core undertakes most problems, related to execution contexts, thus practically eliminating one of the most 
-								 complicated problem in the kernel drivers development. For example, target drivers for Marvell 
+					<li><span>SCST core undertakes most problems, related to execution contexts, thus practically eliminating one of the most
+								 complicated problem in the kernel drivers development. For example, target drivers for Marvell
 								 SAS adapters or for InfiniBand SRP are less 3000 lines of code long.</span></li>
 					<li><span>Very low overhead and fine-grained locks allow to reach the
-								 maximum performance and scalability. Particularly, incoming requests can be processed in 
+								 maximum performance and scalability. Particularly, incoming requests can be processed in
 								 the caller's context or in one of the internal SCST core's tasklets without any
 								 extra context switches.</span></li>
-					<li><span>Device handlers architecture allows various I/O 
-								 modes in backstorage handling. For example, pass-through device handlers allow to export real 
+					<li><span>Device handlers architecture allows various I/O
+								 modes in backstorage handling. For example, pass-through device handlers allow to export real
 								 SCSI hardware and vdisk device handler allows to export files as virtual disks.</span></li>
-					<li><span>Advanced per-initiator devices visibility management (LUN masking) allows different 
-								 initiators to see different set of devices with different access permissions. For instance, 
-								 initiator A could see exported from target T devices X and Y read-writable, and initiator B from 
+					<li><span>Advanced per-initiator devices visibility management (LUN masking) allows different
+								 initiators to see different set of devices with different access permissions. For instance,
+								 initiator A could see exported from target T devices X and Y read-writable, and initiator B from
 								 the same target T could see devices Y read-only and Z read-writable.
 								 This feature is required for hardware targets, which don't have ability to create
 								 virtual targets (SAS adapters, for instance).</span></li>
-					<li><span>SCST core emulates necessary functionality of SCSI host adapter, because from remote initiators' point of view 
-								 a SCSI target acts as a SCSI host with its own devices. This is especially important in pass-through mode with 
-								 one to many relationship, i.e. when multiple initiators can connect to the exported pass-through 
-								 devices. You can find more deep elaboration why it is needed in <a href="http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html">this</a> 
+					<li><span>SCST core emulates necessary functionality of SCSI host adapter, because from remote initiators' point of view
+								 a SCSI target acts as a SCSI host with its own devices. This is especially important in pass-through mode with
+								 one to many relationship, i.e. when multiple initiators can connect to the exported pass-through
+								 devices. You can find more deep elaboration why it is needed in <a href="http://www.mail-archive.com/linux-scsi@vger.kernel.org/msg06911.html">this</a>
 								 message in thread "Question for pass-through target design" in linux-scsi mailing list. Some of the emulated functions are the following:</span>
 								 <ul>
-									<li><span>Generation of necessary UNIT ATTENTIONs, their storage and delivery to all connected 
-												 remote initiators.</span></li>								 
+									<li><span>Generation of necessary UNIT ATTENTIONs, their storage and delivery to all connected
+												 remote initiators.</span></li>
 
 									<li><span>RESERVE/RELEASE functionality.</span></li>
 
 									<li><span>All types of RESETs and other task management functions.</span></li>
 
-									<li><span>REPORT LUNS command as well as SCSI address space management in order to have consistent 
+									<li><span>REPORT LUNS command as well as SCSI address space management in order to have consistent
 												 address space on all remote initiators, since local SCSI devices could not know about each
-												 other to report via REPORT LUNS command. Additionally, SCST core responds with error on all 
-												 commands to non-existing devices and provides access control, so different remote 
+												 other to report via REPORT LUNS command. Additionally, SCST core responds with error on all
+												 commands to non-existing devices and provides access control, so different remote
 												 initiators could see different set of devices.</span></li>
 
 									<li><span>Other necessary functionality (task attributes, etc.) as specified in SCSI standards.</span></li>
@@ -100,41 +100,41 @@
 
 					<li><span>SCST core has multithreaded design and complete SMP support, so, if necessary, all your CPU cores will participate in the commands
 								 processing.</span></li>
-					<li><span>Well documented.</span></li>							
-				</ul>					
-				<p>Interoperability between remote and local SCSI initiators (i.e. sd, st, etc.) is the additional issue that SCST is going to 
-				address (it is not implemented yet). It is necessary, because local SCSI initiators can change the state of the 
+					<li><span>Well documented.</span></li>
+				</ul>
+				<p>Interoperability between remote and local SCSI initiators (i.e. sd, st, etc.) is the additional issue that SCST is going to
+				address (it is not implemented yet). It is necessary, because local SCSI initiators can change the state of the
 				device, for example RESERVE the device, or some of its parameters and that could be done behind SCST, i.e. remote initiators
-				will not know about it, which could 
-				lead to various problems, including data corruption. Thus, RESERVE/RELEASE commands, locally generated 
-				UNIT ATTENTIONs, etc. should be intercepted and passed through SCST core.</p>			
+				will not know about it, which could
+				lead to various problems, including data corruption. Thus, RESERVE/RELEASE commands, locally generated
+				UNIT ATTENTIONs, etc. should be intercepted and passed through SCST core.</p>
 
 				<p>You can find comparison of SCST with other SCSI targets on the <a href="comparison.html">Comparison</a> page.
 				Some highlights what it can mean for end users you can find on the <a href="target_iscsi.html">iSCSI-SCST</a> page.
 
 				<h1>SCST core supports the following I/O modes</h1>
 				<ul>
-					<li><span>Pass-through mode with one to many relationship, i.e. when multiple initiators can 
-						connect to the exported pass-through devices, for virtually all SCSI devices types: disks (type 0), 
-						tapes (type 1), processors (type 3), CDROMs (type 5), MO disks (type 7), medium changers (type 8) and RAID 
+					<li><span>Pass-through mode with one to many relationship, i.e. when multiple initiators can
+						connect to the exported pass-through devices, for virtually all SCSI devices types: disks (type 0),
+						tapes (type 1), processors (type 3), CDROMs (type 5), MO disks (type 7), medium changers (type 8) and RAID
 						controllers (type 0xC). In this mode you can, for instance, share your parallel SCSI tape or SATA
 						DVD-RW device to your iSCSI network.</span></li>
-    				<li><span>FILEIO mode, which allows to use files on file systems or block devices as virtual 
+    				<li><span>FILEIO mode, which allows to use files on file systems or block devices as virtual
     					remotely available SCSI disks or CDROMs with benefits of the Linux cache.</span></li>
-    				<li><span>BLOCKIO mode, which performs direct block IO with a block device, bypassing 
-    					page-cache for all operations. This mode works well with high-end storage HBAs and for applications that 
+    				<li><span>BLOCKIO mode, which performs direct block IO with a block device, bypassing
+    					page-cache for all operations. This mode works well with high-end storage HBAs and for applications that
     					either do not need caching between application and disk or need the large block throughput.</span></li>
-    				<li><span>User space mode using scst_user device handler, which allows to implement in the 
+    				<li><span>User space mode using scst_user device handler, which allows to implement in the
     					user space high performance virtual SCSI devices. Comparing with fully in-kernel dev handlers
     					this mode has very low overhead (few %%).</span></li>
     				<li><span>Performance testing device handlers as well as NULLIO mode to provide
     					a way for direct performance measurements without overhead of actual data
     				        transfers from/to underlying SCSI devices.
     					</span></li>
-				</ul>			
-				
+				</ul>
+
 				<h1>Certification</h1>
-				
+
 				<p>SCST core engine has passed VMware certification as part of
 				<a href="http://scalecomputing.com/products">Scale&rsquo;s Intelligent Clustered Storage</a> technology
 				and <a href="http://www.iss-integration.com/supercore.html">ISS STORCIUM</a> solution. It also has passed
@@ -142,7 +142,7 @@
 				and storage arrays developed by <a href="http://www.open-e.com/">Open-E, Inc</a>.</p>
 
 				<p>In October 2012 Hewlett-Packard ProLiant BL465c Gen8 witrh SCST-based storage earned the maximum
-				score 59.99@62 tiles in <a href="http://www.vmware.com/a/vmmark">VMmark Version 2.1.1</a>. 
+				score 59.99@62 tiles in <a href="http://www.vmware.com/a/vmmark">VMmark Version 2.1.1</a>.
 				In June 2016 this result was updated by <a href="http://www.vmware.com/content/dam/digitalmarketing/vmware/en/pdf/vmmark/2016-06-07-HPE-ProLiant-DL580G9.pdf">HPE ProLiant DL580 Gen9</a></p>
 	  		</div>
 			<div id="rightbar">
@@ -163,14 +163,14 @@
 				<p><a href="http://marcitland.blogspot.com/2014/07/open-storage-dual-controller-oss-disk.html">Open Storage: Dual-Controller OSS Disk Array</a></p>
 				<h1>SCST 0.9.6 graphs</h1>
 				<p><a href="images/init_scst.png">init_scst</a></p>
-				<p><a href="images/scst_cmd_thread.png">scst_cmd_thread</a></p>				
+				<p><a href="images/scst_cmd_thread.png">scst_cmd_thread</a></p>
 				<p><a href="images/scst_mgmt_cmd_thread.png">scst_mgmt_cmd_thread</a></p>
 				<p><a href="images/scst_mgmt_thread.png">scst_mgmt_thread</a></p>
 				<p>all by Ming Zhang</p>
 				<h1>QUESTIONS</h1>
 				<p>If you have any questions you can ask them via<br><a href="http://lists.sourceforge.net/lists/listinfo/scst-devel">
-					scst-devel mailing list</a><br><br> 
-					See <a href="http://sourceforge.net/mail/?group_id=110471">mailing lists page</a> for more info about SCST mailing 
+					scst-devel mailing list</a><br><br>
+					See <a href="http://sourceforge.net/mail/?group_id=110471">mailing lists page</a> for more info about SCST mailing
 					lists.</p>
 				<h1></h1>
 				<p><a href="http://sourceforge.net/donate/index.php?group_id=110471">
@@ -184,12 +184,12 @@
 				</p>
 			</div>
 	</div>
-</div>		
-<!-- footer starts here -->		
+</div>
+<!-- footer starts here -->
 <div id="footer">
 	<p>&copy; Copyright 2004 - 2018<b><font class="names"> Vladislav Bolkhovitin &amp others</font></b>&nbsp;&nbsp;
-	Design by: <b><font class="names">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</p>		
-</div>	
+	Design by: <b><font class="names">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</p>
+</div>
 <!-- footer ends here -->
 <!-- Piwik -->
 <script type="text/javascript">

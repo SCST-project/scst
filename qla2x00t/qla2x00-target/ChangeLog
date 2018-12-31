@@ -91,7 +91,7 @@ Summary of changes between versions 0.9.5 and 1.0.0
  - Updated to work on 2.6.23.x
 
  - Fixes a race, when an event comes on the driver unload, so DPC thread
-   will try to use already half destroyed data. 
+   will try to use already half destroyed data.
 
  - Fixed problem with SNS, not advertising target mode.
 
@@ -116,7 +116,7 @@ Summary of changes between versions 0.9.3.8 and 0.9.5
  - Ported to 2.6.17.x and 2.6.18.
 
  - Problem with not found WWN on the first login attempt fixed.
- 
+
  - Updated for the latest SCST interfaces changes.
 
  - Cleanups and minor bug fixes.
@@ -130,7 +130,7 @@ Patch vs: qla2xxx v8.01.03-k (in kernels 2.6.15.x+, including 2.6.16-prex)
    which lead to only 1Gbps speed of 23xx cards.
 
  - Removed all code that deals with "use_sg == 0" data, since staring
-   from SCST 0.9.5 commands data are always in SG-vector. 
+   from SCST 0.9.5 commands data are always in SG-vector.
 
  - Fixed hungup on the module unload.
 
@@ -156,20 +156,20 @@ Summary of changes between versions 0.9.3.5 and 0.9.3.6
 Patch vs: qla2xxx v8.01.03-k (in kernels 2.6.15.x+, including 2.6.16-prex)
 
  - Include MEMSET, MEMCPY definitions
-	
+
  - Patched to compile on 64bit cleanly (thanks to Ming Zhang for patch)
 
-- Fixed possible race during initial enabling of Target Mode (thanks to 
+- Fixed possible race during initial enabling of Target Mode (thanks to
 Mark Buechler for finding)
 
-	
+
 Summary of changes between versions 0.9.3.4 and 0.9.3.5
 -------------------------------------------------------
 Patch vs: qla2xxx v8.01.03-k (in kernels 2.6.15.x)
-	
+
  - Reset chip when switching from initiator to initiator/target and back
 implemented
-	
+
  - Use 2K loop_id's for 23xx chips and thus change how sessions are
 tracked.
 

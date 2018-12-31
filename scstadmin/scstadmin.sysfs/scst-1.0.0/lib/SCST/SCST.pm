@@ -2251,7 +2251,7 @@ sub addLun {
 					  SCST_LUNS, SCST_MGMT_IO);
 		}
 	}
-	
+
 	$cmd .= "add $device $lun $o_string";
 
 	my $io = new IO::File $path, O_WRONLY;
@@ -2549,7 +2549,7 @@ sub devices {
 
 		my $isdev = (new_sysfs_interface() ||
 			     -d make_path(SCST_DEVICES_DIR(), $device));
-		if ($isdev && (!defined($handler) || 
+		if ($isdev && (!defined($handler) ||
 			       $handler eq $self->deviceHandler($device))) {
 			push @devices, $device;
 		}

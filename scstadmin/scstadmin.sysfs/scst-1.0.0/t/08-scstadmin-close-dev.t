@@ -57,7 +57,7 @@ sub closeDevs {
 	}
 	$cmd .= "$scstadmin -noprompt -handler vdisk_nullio -close_dev $dev";
     }
-    return system("{ echo " . '"' . "$cmd" . '"' . "; $cmd; } $redirect");    
+    return system("{ echo " . '"' . "$cmd" . '"' . "; $cmd; } $redirect");
 }
 
 sub closeDevTest {

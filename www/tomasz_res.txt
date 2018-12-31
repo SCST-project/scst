@@ -36,7 +36,7 @@ Raw performance (encrypted):  50.21 MB/s
 
 2. Read-ahead on the initiator: 256 (default); md0, crypt - MB/s
 
-                           md0   us  sy  id  wa  | crypt   us  sy  id  wa  
+                           md0   us  sy  id  wa  | crypt   us  sy  id  wa
 STGT                      50.63   4% 45% 18% 33% | 32.52    3% 62% 16% 19%
 SCST (debug + no patches) 43.75   0% 26% 30% 44% | 42.05    0% 84%  1% 15%
 SCST (fullperf + patches) 45.18   0% 25% 33% 42% | 44.12    0% 81%  2% 17%
@@ -44,7 +44,7 @@ SCST (fullperf + patches) 45.18   0% 25% 33% 42% | 44.12    0% 81%  2% 17%
 
 3. Read-ahead on the initiator: 16384; md0, crypt - MB/s
 
-                           md0   us  sy  id  wa  | crypt   us  sy  id  wa  
+                           md0   us  sy  id  wa  | crypt   us  sy  id  wa
 STGT                      56.43   3% 55%  2% 40% | 46.90    3% 90%  3%  4%
 SCST (debug + no patches) 73.85   0% 58%  1% 41% | 42.70    0% 85%  0% 15%
 SCST (fullperf + patches) 76.27   0% 63%  1% 36% | 42.52    0% 85%  0% 15%

@@ -1020,7 +1020,7 @@ static int srpt_adjust_sq_wr_avail(struct srpt_rdma_ch *ch, int delta)
 /**
  * srpt_post_send - post an IB send request
  * @ch: SRPT RDMA channel.
- * @ioctx: I/O context. 
+ * @ioctx: I/O context.
  * @len: Length in bytes of request to send.
  *
  * Returns zero upon success and a non-zero value upon failure.

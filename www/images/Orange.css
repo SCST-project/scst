@@ -1,6 +1,6 @@
 * { margin: 0; padding: 0; } 
 
-body { 
+body {
 	margin: 0; padding: 0;
 	font: 71%/1.5em  Verdana, 'Trebuchet MS', Arial, Sans-serif;
 	background: url(headerbg-orange.gif) repeat-x;
@@ -60,7 +60,7 @@ img.float-left { margin: 5px 15px 5px 0px; }
 a img { border: 0px solid #EC981F; }
 a:hover img { border: 0px solid #806B4D !important;border: 0px solid #EC981F; }
 
-code { 
+code {
 	margin: 5px 0;
 	padding: 10px;
 	text-align: left;
@@ -324,7 +324,7 @@ div.logoimg {
 
 /* Font colors */
 font.names { color: #EC981F ; }
- 
+
 /* Company Logo Boxes */
 .companybox { 
 	border-color : #FFFFFF;

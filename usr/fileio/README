@@ -37,10 +37,10 @@ fileio_tgt [OPTION] name path
 Where:
 
  - OPTION - one or several not required options, see below.
- 
+
  - name - name of the virtual device as it will be seen by SCST and used
    in the subsequent access management using the corresponding SCST interface.
-   
+
  - path - path to the device file.
 
 The following options are supported:

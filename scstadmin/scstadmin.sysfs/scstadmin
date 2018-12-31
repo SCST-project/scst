@@ -32,7 +32,7 @@ Query Operations
      -list_driver [<driver>] : List all available drivers or specific <driver>.
      -list_target [<target>] : List all available targets or specific <target>.
          [-driver <driver>]
-     -list_group [<group>]   : List all configured groups, or specific <group>.  
+     -list_group [<group>]   : List all configured groups, or specific <group>.
          [-driver <driver>]
          [-target <target>]
 
@@ -68,7 +68,7 @@ Set Attribute Operations
          -attributes <p=v,...>
      -set_hnd_attr <hndlr>   : Sets handler attribute(s) <p> to value <v>.
          -attributes <p=v,...>
-     -set_dev_attr <device>  : Sets device attributes(s) <p> to value <v>. 
+     -set_dev_attr <device>  : Sets device attributes(s) <p> to value <v>.
          -attributes <p=v,...>
      -set_drv_attr <driver>  : Sets driver attribute(s) <p> to value <v>.
          -attributes <p=v,...>
@@ -129,7 +129,7 @@ Device Group Operations
      -add_dgrp_dev <device>
          -dev_group <dgroup> : Add device <device> to device group <dgrp>.
      -rem_dgrp_dev <device>
-         -dev_group <dgroup> : Remove device <device> from device group <dgrp>.  
+         -dev_group <dgroup> : Remove device <device> from device group <dgrp>.
      -add_tgrp <tgrp>
          -tgt_group <tgrp>   : Add target group <tgrp> to device group <dgrp>.
      -rem_tgrp <tgrp>
@@ -154,7 +154,7 @@ Group Operations
      -rem_group <group>      : Remove a group from a given driver & target.
          -driver <driver>
          -target <target>
- 
+
 Initiator Operations
      -add_init <init>        : Adds an initiator to a group.
          -driver <driver>
@@ -226,12 +226,12 @@ Examples:
          -attributes filename=/vdisks/disk01.dsk,read_only
 
      Setting the T10 Device ID of a device
-       scstadmin -set_dev_attr DISK01 -attributes t10_dev_id=0x2345 
+       scstadmin -set_dev_attr DISK01 -attributes t10_dev_id=0x2345
 
      Create a new security group:
        scstadmin -add_group HOST01 -driver qla2x00t \
          -target 50:06:0B:00:00:39:71:78
-       
+
      Add a LUN to a group:
        scstadmin -add_lun 1 -driver qla2x00t -target 50:06:0B:00:00:39:71:78 \
          -group HOST01 -device DISK01 -attributes read_only=1
@@ -1410,7 +1410,7 @@ sub readWorkingConfig {
 
 	foreach my $dgroup (@{$dgroups}) {
 		my ($dgd, $errorString) = $SCST->deviceGroupDevices($dgroup);
-		immediateExit($errorString);			
+		immediateExit($errorString);
 		$CURRENT{'dgroups'}->{$dgroup}->{'devices'} = $dgd;
 		my ($tgroups, $errorString) = $SCST->targetGroups($dgroup);
 		immediateExit($errorString);
@@ -1472,7 +1472,7 @@ sub serializeKeyAttr {
     my $attributes = shift;
     my $attr_filter = shift;
     my $result;
-    
+
     foreach my $attribute (sort keys %{$attributes}) {
 	next if defined($$attributes{$attribute}->{'set'});
 	next if ($$attributes{$attribute}->{'static'} &&
@@ -1508,7 +1508,7 @@ sub serializeNkAttr {
     my $attributes = shift;
     my $attr_filter = shift;
     my $result;
-    
+
     foreach my $attribute (sort keys %{$attributes}) {
 	if (!defined($$attributes{$attribute}->{'set'})
 	    && (!$$attributes{$attribute}->{'static'}
@@ -2721,7 +2721,7 @@ sub applyTargetAssignments {
 
 				if (defined($$attributes{'HW_TARGET'})) {
 					condExit("Hardware target '$target' for driver '$driver' does not exist.");
-				}					
+				}
 
 				filterCreateAttributes($possible, $attributes, FALSE);
 
@@ -2994,7 +2994,7 @@ sub removeVirtualTarget {
 	print "done.\n";
 
 	return $rc;
-}	
+}
 
 ####################################################################
 
@@ -3019,7 +3019,7 @@ sub listHandlers {
 
 	foreach my $handler (@{$handlers}) {
 		print "\t$handler\n";
-	}	
+	}
 
 	return FALSE;
 }
@@ -3379,9 +3379,9 @@ sub listSessions {
 
 				my %attributes;
 				foreach my $attr (keys %{$$sessions{$session}}) {
-					if ($attr eq 'luns') {           
+					if ($attr eq 'luns') {
 						foreach my $lun (keys %{$$sessions{$session}->{'luns'}}) {
-							$attributes{"LUN $lun"}->{'value'} =     
+							$attributes{"LUN $lun"}->{'value'} =
 							  $$sessions{$session}->{'luns'}->{$lun};
 						}
 					} else {
@@ -3467,7 +3467,7 @@ sub listGroup {
 			} else {
 				print "\t(none)\n";
 			}
-		}		
+		}
 	} else {
 		if (defined($group)) {
 			print "Group '$group' has no associated LUNs or initiators.\n";
@@ -4679,7 +4679,7 @@ sub addTargetDynamicAttribute {
 	my $rc = $SCST->addTargetDynamicAttribute($driver, $target, $attribute, $value);
 	print "done.\n";
 
-	condExit($SCST->errorString($rc)); 
+	condExit($SCST->errorString($rc));
 
 	return FALSE;
 }
@@ -5373,7 +5373,7 @@ sub readConfigFile {
 				  "I will attempt to convert it for you.\n\n";
 
 				return readOldConfigFile();
-			} 
+			}
 		}
 
 		$line =~ s/\\(.)/\1/g;
@@ -5423,7 +5423,7 @@ sub parseStanza {
 	}
 
 	return \%hash;
-}	
+}
 
 sub parseLine {
 	my $line = shift;
@@ -5459,7 +5459,7 @@ sub readOldConfigFile {
 	my $last_section;
 	my $arg;
 	my $last_arg;
-	my %empty;         
+	my %empty;
 
 	my $io = new IO::File $CONFIGFILE, O_RDONLY;
 
@@ -5479,7 +5479,7 @@ sub readOldConfigFile {
 			$arg = 'default' if ($section eq 'OPTIONS');
 
 			if ($last_arg && ($last_arg ne $arg) &&
-			    !defined($config{$last_section}->{$last_arg})) {         
+			    !defined($config{$last_section}->{$last_arg})) {
 				$config{$last_section}->{$last_arg} = \%empty;
 			}
 
@@ -5779,7 +5779,7 @@ sub configToAttr {
 	}
 
 	return \%attributes;
-}			
+}
 
 sub cacheAttributes {
 	my $attributes = shift;
