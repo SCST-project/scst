@@ -61,7 +61,7 @@ Index: srpt/src/ib_srpt.c
 +	rsp->req_lim_delta = cpu_to_be32(ch->rq_size + 16);
  	ch->req_lim = ch->rq_size;
  	ch->req_lim_delta = 0;
- 
+
 * Verify that a SCSI reset works properly by running the following command
   on an initiator system (note: with kernel version 2.6.37 and before the
   command below triggers a bug in the Linux SRP initiator -- see also

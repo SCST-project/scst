@@ -63,10 +63,10 @@ kernel-ib, kernel-ib-devel and SRP tools packages. An example:
   tar xzf OFED-1.5.1.tgz
   cd OFED-1.5.1
   cat <<EOF >ofed.conf
-  libibverbs=y                                          
-  libibverbs-utils=y                                    
-  libmthca=y                                            
-  libmlx4=y                                             
+  libibverbs=y
+  libibverbs-utils=y
+  libmthca=y
+  libmlx4=y
   libcxgb3=y
   libnes=y
   libipathverbs=y
@@ -93,7 +93,7 @@ kernel-ib, kernel-ib-devel and SRP tools packages. An example:
   srptools=y
   perftest=y
   EOF
-  ./install.pl -c ofed.conf  
+  ./install.pl -c ofed.conf
 
 Now continue with the installation instructions you can find in the
 SCST-SRPT README file. The Makefile included with SCST-SRPT detects

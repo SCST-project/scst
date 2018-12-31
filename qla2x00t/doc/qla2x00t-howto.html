@@ -94,13 +94,13 @@ And on SUSE systems these packages can be installed by running the following com
   from the <a href="http://scst.sourceforge.net/downloads.html">SCST
   downloads page</a> or from the SCST Subversion source code
   repository.<br><br>
-    
+
   In what follows it is assumed that the SCST trunk has been retrieved
   via Subversion. Installing a released SCST version is identical to
   installing the trunk after all downloaded SCST source code archives have
   been extracted in a single directory. The structure of that directory will
   be identical to that of the SCST trunk.
-    
+
 <pre>[root@proj ]# svn co https://svn.code.sf.net/p/scst/svn/trunk scst</pre>
 
   After the above command finished a directory called 'scst' will have been
@@ -133,14 +133,14 @@ Instructions for obtaining a distribution-specific kernel source tree vary. An e
 <pre>[root@proj linux ]# pwd
 /usr/src/linux
 [root@proj linux ]# make menuconfig</pre>
-   
+
   If you have built a 32-bit kernel make sure to disable HIGHMEM4G and
   HIGHMEM64G, i.e.
 <pre>[root@proj linux ]# grep -i highmem .config
 CONFIG_NOHIGHMEM=y
 # CONFIG_HIGHMEM4G is not set
 # CONFIG_HIGHMEM64G is not set</pre>
-   
+
   If you have built a 32-bit kernel on a system with more than 1GB of memory,
   consider to change CONFIG_VMSPLIT option to an appropriate value.
 </li>
@@ -178,7 +178,7 @@ Unload the qla2xxx kernel module provided by your Linux distribution and blackli
   Verify that compilation and installation succeeded:
 	<pre>[root@proj scst]# ls -l /lib/modules/`uname -r`/extra/qla2*
 -rw-r--r--  1 root root  36756 Jun 20 18:46 qla2x00tgt.ko
--rw-r--r--  1 root root 160192 Jun 20 18:46 qla2xxx_scst.ko   
+-rw-r--r--  1 root root 160192 Jun 20 18:46 qla2xxx_scst.ko
 </pre>
 </li>
 
@@ -194,7 +194,7 @@ Unload the qla2xxx kernel module provided by your Linux distribution and blackli
 total 232
 drwxr-xr-x  2 root root   4096 Jun 20 18:43 dev_handlers
 -rw-r--r--  1 root root  36756 Jun 20 18:46 qla2x00tgt.ko
--rw-r--r--  1 root root 160192 Jun 20 18:46 qla2xxx_scst.ko   
+-rw-r--r--  1 root root 160192 Jun 20 18:46 qla2xxx_scst.ko
 -rw-r--r--  1 root root 190848 Jun 20 18:43 scst.ko
 
 [root@proj scst]# ls -l /lib/modules/`uname -r`/extra/dev_handlers
@@ -208,7 +208,7 @@ total 192
 -rw-r--r--  1 root root 12563 Jun 20 18:43 scst_tape.ko
 -rw-r--r--  1 root root 37937 Jun 20 18:43 scst_user.ko
 -rw-r--r--  1 root root 50194 Jun 20 18:43 scst_vdisk.ko</pre>
-   
+
 where:
 <ul>
 <li>scst - SCST itself.</li>
@@ -313,13 +313,13 @@ Collecting current configuration: done.
 
 -> Checking configuration file 'qq' for errors.
 	-> Done, 0 warnings found.
-	
+
 	-> Opening device 'disk1' using handler 'vdisk_fileio': done.
 	-> Adding device 'disk1' at LUN 0 to driver/target 'qla2x00t/25:00:00:f0:98:87:92:f3': done.
 	-> Enabling driver/target 'qla2x00t/25:00:00:f0:98:87:92:f3': done.
-	
+
 	All done.</pre>
-	
+
 
 The same can be done directly via the sysfs interface of SCST:
 <pre>
@@ -376,4 +376,4 @@ where X is the host number.
 </ol>
 
 </body>
-</html>   		
+</html>

@@ -1,7 +1,7 @@
 .\" -*- nroff -*-
 .\" Copyright 2011 Bart Van Assche <bvanassche@acm.org>. All rights reserved.
 .\" Permission is granted to copy, distribute and/or modify this document
-.\" under the terms of the GNU General Public License, version 2 (GPLv2). 
+.\" under the terms of the GNU General Public License, version 2 (GPLv2).
 .TH scstadmin 1 "July 2011" "scstadmin 2.0.0"
 .SH NAME
 scstadmin \- administer the configuration of SCST
@@ -264,7 +264,7 @@ Set one or more attributes of the specified ALUA target.
 .B scstadmin -open_dev disk01 -handler vdisk_fileio -attributes filename=/vdisks/disk01.dsk,read_only
 Lets SCST open the file /vdisks/disk01.dsk as a disk.
 .TP
-.B scstadmin -set_dev_attr disk01 -attributes t10_dev_id=0x2345 
+.B scstadmin -set_dev_attr disk01 -attributes t10_dev_id=0x2345
 Sets the T10 device id of SCST device disk01
 .TP
 .B scstadmin -add_group host01 -driver qla2x00t -target 50:06:0B:00:00:39:71:78

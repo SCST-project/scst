@@ -23,7 +23,7 @@ SHELL=/bin/bash
 SRCS_F = fileio.c common.c debug.c crc32.c
 OBJS_F = $(SRCS_F:.c=.o)
 
-#SRCS_C = 
+#SRCS_C =
 #OBJS_C = $(SRCS_C:.c=.o)
 
 SCST_INC_DIR := $(shell if [ -e "$$PWD/../../scst" ];			\

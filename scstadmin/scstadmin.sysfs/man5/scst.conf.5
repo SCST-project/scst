@@ -1,7 +1,7 @@
 .\" -*- nroff -*-
 .\" Copyright 2011 Bart Van Assche <bvanassche@acm.org>. All rights reserved.
 .\" Permission is granted to copy, distribute and/or modify this document
-.\" under the terms of the GNU General Public License, version 2 (GPLv2). 
+.\" under the terms of the GNU General Public License, version 2 (GPLv2).
 .TH scst.conf 5 "July 2011" "scstadmin 2.0.0"
 .SH NAME
 scst.conf \- Main SCST configuration file.
@@ -56,7 +56,7 @@ quadruplet referring to a local SCSI device or an SCST device name. A
 .B DEVICE
 section is a subsection of a
 .B HANDLER
-section. 
+section.
 .TP
 .B "TARGET_DRIVER <driver>"
 Defines target driver attributes and also which targets are associated with
@@ -371,7 +371,7 @@ module parameter. Parameters for an SCST kernel module can be configured in
 options ib_srpt use_node_guid_in_target_name=1
 .SH FILES
 .IP "/etc/scst.conf"
-The configuration file read by 
+The configuration file read by
 .BR scstadmin (1).
 .SH "SEE ALSO"
 scstadmin(1), scst(5), modprobe.d(5)
