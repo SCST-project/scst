@@ -60,7 +60,6 @@
 #endif
 #include <rdma/ib_cache.h>
 #include "ib_srpt.h"
-#include "srp-ext.h"
 #define LOG_PREFIX "ib_srpt" /* Prefix for SCST tracing macros. */
 #if defined(INSIDE_KERNEL_TREE)
 #include <scst/scst_debug.h>
@@ -1163,7 +1162,8 @@ static int srpt_get_desc_tbl(struct srpt_recv_ioctx *recv_ioctx,
 	 * is four times the value specified in bits 3..7. Hence the "& ~3".
 	 */
 	add_cdb_offset = srp_cmd->add_cdb_len & ~3;
-	if (fmt == SRP_DATA_DESC_IMM) {
+	if (false) {
+#if 0
 		struct srp_imm_buf *imm_buf = (void *)(srp_cmd->add_data
 						       + add_cdb_offset);
 		void *data;
@@ -1193,6 +1193,7 @@ static int srpt_get_desc_tbl(struct srpt_recv_ioctx *recv_ioctx,
 			sg_init_one(&ioctx->imm_sg, ioctx->imm_data, *data_len);
 			scst_cmd_set_tgt_sg(&ioctx->cmd, &ioctx->imm_sg, 1);
 		}
+#endif
 	} else if (fmt == SRP_DATA_DESC_DIRECT) {
 		ioctx->n_rbuf = 1;
 		ioctx->rbufs = &ioctx->single_rbuf;
@@ -2828,8 +2829,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	rsp->max_ti_iu_len = req->req_it_iu_len;
 	ch->max_ti_iu_len = it_iu_len;
 	rsp->buf_fmt = cpu_to_be16(SRP_BUF_FORMAT_DIRECT |
-				   SRP_BUF_FORMAT_INDIRECT |
-				   SRP_BUF_FORMAT_IMM);
+				   SRP_BUF_FORMAT_INDIRECT);
 	rsp->req_lim_delta = cpu_to_be32(ch->rq_size);
 	ch->req_lim = ch->rq_size;
 	ch->req_lim_delta = 0;
@@ -4681,8 +4681,6 @@ static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt)
 static int __init srpt_init_module(void)
 {
 	int ret;
-
-	BUILD_BUG_ON(sizeof(struct srp_imm_buf) != 8);
 
 	ret = -EINVAL;
 	if (srp_max_req_size < MIN_MAX_REQ_SIZE) {

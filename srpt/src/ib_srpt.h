@@ -56,7 +56,6 @@
 #endif
 #include <linux/rtnetlink.h>
 #include <rdma/rdma_cm.h>
-#include "srp-ext.h"
 #include "ib_dm_mad.h"
 
 /*
