@@ -35,7 +35,7 @@ Description: SCST development header and symbol files
 
 Package: scstadmin
 Architecture: any
-Depends: ${misc:Depends}, lsb-base, perl
+Depends: ${misc:Depends}, lsb-base, perl, psmisc
 Description: SCST admininstration tool
  scstadmin is a tool that uses the SCST sysfs interface to query and modify
  SCST settings.

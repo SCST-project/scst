@@ -22,6 +22,9 @@
 
 #include <linux/bio.h>
 #include <linux/blkdev.h>	/* struct request_queue */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0)
+#include <linux/blk-mq.h>
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 #include <linux/bsg-lib.h>	/* struct bsg_job */
 #endif
@@ -114,6 +117,17 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 	return q->max_hw_sectors;
 }
 #endif
+
+/* <linux/blk-mq.h> */
+
+static inline unsigned int scst_blk_rq_cpu(struct request *rq)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0)
+	return rq->cpu;
+#else
+	return blk_mq_rq_cpu(rq);
+#endif
+}
 
 /* <linux/bsg-lib.h> */
 
