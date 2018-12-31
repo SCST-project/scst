@@ -5287,7 +5287,12 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 
 		ini_sg = shost->sg_tablesize;
 		ini_unchecked_isa_dma = shost->unchecked_isa_dma;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0)
 		ini_use_clustering = shost->use_clustering == ENABLE_CLUSTERING;
+#else
+		ini_use_clustering = !(shost->dma_boundary == PAGE_SIZE - 1 &&
+				       shost->max_segment_size == PAGE_SIZE);
+#endif
 	} else {
 		ini_sg = (1 << 15) /* infinite */;
 		ini_unchecked_isa_dma = 0;
@@ -8406,7 +8411,7 @@ static void scsi_end_async(struct request *req, blk_status_t error)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
 	lockdep_assert_held(req->q->queue_lock);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0)
 	if (!req->q->mq_ops)
 		lockdep_assert_held(req->q->queue_lock);
 #endif
@@ -8437,7 +8442,12 @@ static void scsi_end_async(struct request *req, blk_status_t error)
 
 	kmem_cache_free(scsi_io_context_cache, sioc);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0)
+	/* See also commit 92bc5a24844a ("block: remove __blk_put_request()") */
 	__blk_put_request(req->q, req);
+#else
+	blk_put_request(req);
+#endif
 	return;
 }
 
