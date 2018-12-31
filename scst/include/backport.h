@@ -29,6 +29,7 @@
 #include <linux/bsg-lib.h>	/* struct bsg_job */
 #endif
 #include <linux/eventpoll.h>
+#include <linux/iocontext.h>
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/stddef.h>	/* sizeof_field() */
@@ -416,6 +417,39 @@ static inline ssize_t call_write_iter(struct file *file, struct kiocb *kio,
 				      struct iov_iter *iter)
 {
 	return file->f_op->write_iter(kio, iter);
+}
+#endif
+
+/* <linux/iocontext.h> */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25) || \
+	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0)
+
+static inline struct io_context *
+scst_get_task_io_context(struct task_struct *task,
+			 gfp_t gfp_flags, int node)
+{
+	return NULL;
+}
+
+static inline void scst_put_io_context(struct io_context *ioc)
+{
+}
+
+static inline void scst_ioc_task_link(struct io_context *ioc)
+{
+}
+
+#define get_task_io_context scst_get_task_io_context
+#define put_io_context scst_put_io_context
+#define ioc_task_link scst_ioc_task_link
+
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25) && \
+	LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0)
+static inline struct io_context *get_task_io_context(struct task_struct *task,
+						     gfp_t gfp_flags, int node)
+{
+	WARN_ON_ONCE(task != current);
+	return get_io_context(gfp_flags, node);
 }
 #endif
 
