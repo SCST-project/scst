@@ -63,7 +63,7 @@ endif
 ifeq ($(BUILD_2X_MODULE),)
 QLA2XXX_INC_DIR := $(KDIR)/drivers/scsi/qla2xxx
 else
-QLA2XXX_INC_DIR := $(SUBDIRS)/..
+QLA2XXX_INC_DIR := $(KBUILD_EXTMOD)/..
 QLA2XXX_DIR := $(shell pwd)/..
 QLA2XXX_SCST := qla2xxx_scst
 EXTRA_CFLAGS += -DCONFIG_SCSI_QLA2XXX_TARGET=y
@@ -96,21 +96,21 @@ ifneq ($(BUILD_2X_MODULE),)
 endif
 
 all: $(QLA2XXX_SCST) Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
 	  SCST_INC_DIR=$(SCST_INC_DIR)
 
 install: all
 ifneq ($(BUILD_2X_MODULE),)
-	$(MAKE) SUBDIRS=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) $@ \
+	$(MAKE) M=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) $@ \
 	  SCST_INC_DIR=$(SCST_INC_DIR)
 endif
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
 	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
 	  SCST_INC_DIR=$(SCST_INC_DIR) modules_install
 
 uninstall:
 ifneq ($(BUILD_2X_MODULE),)
-	$(MAKE) SUBDIRS=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) $@
+	$(MAKE) M=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) $@
 endif
 	rm -f $(INSTALL_DIR)/qla2[23x]00tgt.ko
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
@@ -118,7 +118,7 @@ endif
 ifneq ($(BUILD_2X_MODULE),)
 qla2xxx_scst:
 	$(MAKE) BUILD_2X_MODULE=$(BUILD_2X_MODULE) CONFIG_SCSI_QLA2XXX_TARGET=y \
-		SUBDIRS=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) all
+		M=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) all
 endif
 
 SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)

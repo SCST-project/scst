@@ -2,7 +2,7 @@ LINUXINCLUDE := $(PRE_CFLAGS) $(LINUXINCLUDE)
 CPPFLAGS     := $(PRE_CFLAGS) $(CPPFLAGS)
 EXTRA_CFLAGS += -I$(SCST_INC_DIR)
 
--include $(SUBDIRS)/../build_mode
+-include $(KBUILD_EXTMOD)/../build_mode
 
 SRPTFLAGS = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
 	-DCONFIG_SCST_EXTRACHECKS -fno-inline -fno-inline-functions

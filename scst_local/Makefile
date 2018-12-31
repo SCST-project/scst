@@ -56,11 +56,11 @@ SCST_DIR := $(shell if [ -e "$$PWD/../scst" ];				\
 		    else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 
 all: Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
 		SCST_INC_DIR=$(SCST_INC_DIR)
 
 install: all
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
 		$$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
 		SCST_INC_DIR=$(SCST_INC_DIR) modules_install
 
@@ -89,7 +89,7 @@ uninstall:
 endif
 
 clean:
-	@$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) clean
+	@$(MAKE) -C $(KDIR) M=$(shell pwd) clean
 	@$(RM) tags Modules.symvers module.symvers Module.markers modules.order
 
 extraclean: clean

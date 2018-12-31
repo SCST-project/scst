@@ -5,7 +5,6 @@
 # removes any old dependencies. DON'T put your own dependencies here
 # unless it's something special (not a .c file).
 
-SUBDIRS := $(shell pwd)
 SBINDIR := /usr/local/sbin
 INITDIR := /etc/init.d
 RCDIR := /etc/rc.d

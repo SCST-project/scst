@@ -11,8 +11,6 @@ endif
 
 SHELL=/bin/bash
 
-SUBDIRS := $(shell pwd)
-
 SCST_INC_DIR := $(shell						\
 	if [ -e "$$PWD/../scst" ]; then				\
 		echo "$$PWD/../scst/include";			\
@@ -113,7 +111,7 @@ else
 endif
 
 # Use make instead of $(MAKE) to get rid of command-line option -i
-run_conftest = $(shell if [ "0$(V)" -gt 0 ]; then output=/dev/stdout; else output=/dev/null; fi; if MAKEFLAGS= make -C $(KDIR) V=$(V) SUBDIRS="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" 1>&2 2>$${output}; then echo "$(strip $2)"; else echo "$(strip $3)"; fi)
+run_conftest = $(shell if [ "0$(V)" -gt 0 ]; then output=/dev/stdout; else output=/dev/null; fi; if MAKEFLAGS= make -C $(KDIR) V=$(V) M="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" 1>&2 2>$${output}; then echo "$(strip $2)"; else echo "$(strip $3)"; fi)
 run_conftest_bool = $(call run_conftest,$1,-D$(strip $2)=1,-D$(strip $2)=0)
 
 CONFTESTS = $(shell ls -d conftest/*)
@@ -131,12 +129,12 @@ ISER_CFLAGS = $(OFED_CFLAGS) -DOFED_FLAVOR=$(OFED_FLAVOR) $(PRE_CFLAGS)
 
 mods: include/iscsi_scst_itf_ver.h Modules.symvers Module.symvers	\
 	$(CONFTEST_OUTPUTS)
-	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD)	\
+	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) M=$(KMOD)	\
 		PRE_CFLAGS="$(PRE_CFLAGS)" modules
 	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
 	if $(INFINIBAND_ENABLED); then					       \
 	  echo "  Building against $(OFED_FLAVOR) InfiniBand kernel headers."; \
-	  $(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD)  \
+	  $(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) M=$(ISERTMOD)  \
 	  PRE_CFLAGS="$(ISER_CFLAGS)"	                                       \
 	  KBUILD_EXTRA_SYMBOLS=$(ISER_SYMVERS) modules;			       \
 	fi
@@ -157,12 +155,12 @@ install: all
 	@install -vD -m 644 doc/manpages/iscsi-scstd.8 $(DESTDIR)$(MANDIR)/man8/iscsi-scstd.8
 	@install -vD -m 755 usr/iscsi-scst-adm $(DESTDIR)$(SBINDIR)/iscsi-scst-adm
 	@install -vD -m 644 doc/manpages/iscsi-scst-adm.8 $(DESTDIR)$(MANDIR)/man8/iscsi-scst-adm.8
-	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(KMOD) \
+	$(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) M=$(KMOD) \
 	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
 	  modules_install
 	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
 	if $(INFINIBAND_ENABLED); then					      \
-	  $(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) SUBDIRS=$(ISERTMOD) \
+	  $(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) M=$(ISERTMOD) \
 	    $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true)    \
 	    modules_install;						      \
 	fi
@@ -204,8 +202,8 @@ endif
 
 clean:
 	$(MAKE) -C usr $@
-	$(MAKE) -C $(KDIR) SUBDIRS=$(KMOD) $@
-	$(MAKE) -C $(KDIR) SUBDIRS=$(ISERTMOD) $@
+	$(MAKE) -C $(KDIR) M=$(KMOD) $@
+	$(MAKE) -C $(KDIR) M=$(ISERTMOD) $@
 	rm -f kernel/Modules.symvers kernel/Module.symvers \
 		kernel/Module.markers kernel/modules.order \
 		kernel/isert-scst/Modules.symvers kernel/isert-scst/Module.symvers \
