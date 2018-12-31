@@ -93,6 +93,9 @@ function evaluate(stmnt, pattern, arg, op, result) {
   gsub("HAVE_DEV_ATTR_MAX_SEND_SGE",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))", stmnt)
 
+  gsub("HAVE_RDMA_DESTROY_AH_WITH_FLAGS",
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0))", stmnt)
+  
   gsub("HAVE_RDMA_DESTROY_AH",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0))", stmnt)
   
@@ -352,6 +355,7 @@ function handle_if(evaluated)
       || $0 ~ "HAVE_IB_QUERY_DEVICE" \
       || $0 ~ "HAVE_IB_SET_CPI_RESP_TIME" \
       || $0 ~ "HAVE_RDMA_DESTROY_AH" \
+      || $0 ~ "HAVE_RDMA_DESTROY_AH_WITH_FLAGS" \
       || $0 ~ "HAVE_RDMA_QUERY_GID" \
       || $0 ~ "HAVE_STRUCT_SRP_LOGIN_REQ_RDMA" \
       || $0 ~ "IB_CLIENT_REMOVE_TAKES_TWO_ARGS" \

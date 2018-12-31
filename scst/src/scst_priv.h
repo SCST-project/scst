@@ -242,7 +242,7 @@ struct scst_cmd_thread_t {
 };
 
 static inline bool scst_set_io_context(struct scst_cmd *cmd,
-	struct io_context **old)
+				       struct io_context **old)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	return false;
@@ -254,7 +254,8 @@ static inline bool scst_set_io_context(struct scst_cmd *cmd,
 
 	EXTRACHECKS_BUG_ON(old == NULL);
 
-	if (cmd->cmd_threads == &scst_main_cmd_threads) {
+	if (cmd->cmd_threads == &scst_main_cmd_threads &&
+	    cmd->tgt_dev->async_io_context) {
 		EXTRACHECKS_BUG_ON(in_interrupt());
 		/*
 		 * No need for any ref counting action, because io_context
@@ -266,8 +267,9 @@ static inline bool scst_set_io_context(struct scst_cmd *cmd,
 		TRACE_DBG("io_context %p (tgt_dev %p)", current->io_context,
 			cmd->tgt_dev);
 		EXTRACHECKS_BUG_ON(current->io_context == NULL);
-	} else
+	} else {
 		res = false;
+	}
 
 	return res;
 #endif
