@@ -82,7 +82,7 @@
 #define DEFAULT_SRPT_ID_STRING	"SCST SRP target"
 
 MODULE_AUTHOR("Vu Pham and Bart Van Assche");
-MODULE_DESCRIPTION("InfiniBand SCSI RDMA Protocol target "
+MODULE_DESCRIPTION("SCSI RDMA Protocol target driver "
 		   "v" DRV_VERSION " (" DRV_RELDATE ")");
 MODULE_LICENSE("Dual BSD/GPL");
 
@@ -163,8 +163,7 @@ static int srpt_get_u64_x(char *buffer, const struct kernel_param *kp)
 module_param_call(srpt_service_guid, NULL, srpt_get_u64_x, &srpt_service_guid,
 		  0444);
 MODULE_PARM_DESC(srpt_service_guid,
-		 "Using this value for ioc_guid, id_ext, and cm_listen_id"
-		 " instead of using the node_guid of the first HCA.");
+		 "Using this value for ioc_guid, id_ext, and cm_listen_id instead of using the node_guid of the first HCA.");
 
 static unsigned int max_sge_delta = 3;
 module_param(max_sge_delta, uint, 0444);
@@ -650,7 +649,7 @@ static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
 				 0, IB_MGMT_DEVICE_HDR, IB_MGMT_DEVICE_DATA,
 				 GFP_KERNEL
 #ifdef CREATE_SEND_MAD_HAS_BASE_ARG
-				 , 0
+				 , IB_MGMT_BASE_VERSION
 #endif
 				 );
 	if (IS_ERR(rsp))
@@ -816,13 +815,12 @@ static void srpt_unregister_mad_agent(struct srpt_device *sdev)
  * srpt_alloc_ioctx - allocate a SRPT I/O context structure
  * @sdev: SRPT HCA pointer.
  * @ioctx_size: I/O context size.
- * @dma_size: Size of I/O context DMA buffer.
- * @alignment_offset: Offset to use to align immediate data.
+ * @buf_cache: I/O buffer cache.
  * @dir: DMA data direction.
  */
 static struct srpt_ioctx *srpt_alloc_ioctx(struct srpt_device *sdev,
-					   int ioctx_size, int dma_size,
-					   int alignment_offset,
+					   int ioctx_size,
+					   struct kmem_cache *buf_cache,
 					   enum dma_data_direction dir)
 {
 	struct srpt_ioctx *ioctx;
@@ -831,27 +829,19 @@ static struct srpt_ioctx *srpt_alloc_ioctx(struct srpt_device *sdev,
 	if (!ioctx)
 		goto err;
 
-	ioctx->buf = kmalloc(dma_size + alignment_offset, GFP_KERNEL);
+	ioctx->buf = kmem_cache_alloc(buf_cache, GFP_KERNEL);
 	if (!ioctx->buf)
 		goto err_free_ioctx;
 
-	if (alignment_offset && ((uintptr_t)ioctx->buf & 511)) {
-		pr_warn("Disabling zero-copy for immediate data\n");
-#ifndef CONFIG_SLUB_DEBUG
-		WARN_ON_ONCE(true);
-#endif
-	}
-
 	ioctx->dma = ib_dma_map_single(sdev->device, ioctx->buf,
-				       dma_size + alignment_offset, dir);
+				       kmem_cache_size(buf_cache), dir);
 	if (ib_dma_mapping_error(sdev->device, ioctx->dma))
 		goto err_free_buf;
-	ioctx->offset = alignment_offset;
 
 	return ioctx;
 
 err_free_buf:
-	kfree(ioctx->buf);
+	kmem_cache_free(buf_cache, ioctx->buf);
 err_free_ioctx:
 	kfree(ioctx);
 err:
@@ -862,32 +852,36 @@ err:
  * srpt_free_ioctx - free a SRPT I/O context structure
  * @sdev: SRPT HCA pointer.
  * @ioctx: I/O context pointer.
- * @dma_size: Size of I/O context DMA buffer.
+ * @buf_cache: I/O buffer cache.
  * @dir: DMA data direction.
  */
 static void srpt_free_ioctx(struct srpt_device *sdev, struct srpt_ioctx *ioctx,
-			    int dma_size, enum dma_data_direction dir)
+			    struct kmem_cache *buf_cache,
+			    enum dma_data_direction dir)
 {
 	if (!ioctx)
 		return;
 
-	ib_dma_unmap_single(sdev->device, ioctx->dma, dma_size, dir);
-	kfree(ioctx->buf);
+	ib_dma_unmap_single(sdev->device, ioctx->dma,
+			    kmem_cache_size(buf_cache), dir);
+	kmem_cache_free(buf_cache, ioctx->buf);
 	kfree(ioctx);
 }
 
 /**
- * srpt_alloc_ioctx_ring - allocate a ring of SRPT I/O context structures.
+ * srpt_alloc_ioctx_ring - allocate a ring of SRPT I/O context structures
  * @sdev:       Device to allocate the I/O context ring for.
  * @ring_size:  Number of elements in the I/O context ring.
  * @ioctx_size: I/O context size.
- * @dma_size:   DMA buffer size.
- * @alignment_offset: Offset to use to align immediate data.
+ * @buf_cache:  I/O buffer cache.
+ * @alignment_offset: Offset in each ring buffer at which the SRP information
+ *		unit starts.
  * @dir:        DMA data direction.
  */
 static struct srpt_ioctx **srpt_alloc_ioctx_ring(struct srpt_device *sdev,
 				int ring_size, int ioctx_size,
-				int dma_size, int alignment_offset,
+				struct kmem_cache *buf_cache,
+				int alignment_offset,
 				enum dma_data_direction dir)
 {
 	struct srpt_ioctx **ring;
@@ -896,22 +890,22 @@ static struct srpt_ioctx **srpt_alloc_ioctx_ring(struct srpt_device *sdev,
 	WARN_ON(ioctx_size != sizeof(struct srpt_recv_ioctx) &&
 		ioctx_size != sizeof(struct srpt_send_ioctx));
 
-	ring = kmalloc_array(ring_size, sizeof(ring[0]), GFP_KERNEL);
+	ring = vmalloc(ring_size * sizeof(ring[0]));
 	if (!ring)
 		goto out;
 	for (i = 0; i < ring_size; ++i) {
-		ring[i] = srpt_alloc_ioctx(sdev, ioctx_size, dma_size,
-					   alignment_offset, dir);
+		ring[i] = srpt_alloc_ioctx(sdev, ioctx_size, buf_cache, dir);
 		if (!ring[i])
 			goto err;
 		ring[i]->index = i;
+		ring[i]->offset = alignment_offset;
 	}
 	goto out;
 
 err:
 	while (--i >= 0)
-		srpt_free_ioctx(sdev, ring[i], dma_size + ring[i]->offset, dir);
-	kfree(ring);
+		srpt_free_ioctx(sdev, ring[i], buf_cache, dir);
+	vfree(ring);
 	ring = NULL;
 out:
 	return ring;
@@ -922,12 +916,13 @@ out:
  * @ioctx_ring: I/O context ring to be freed.
  * @sdev: SRPT HCA pointer.
  * @ring_size: Number of ring elements.
- * @dma_size: Size of I/O context DMA buffer.
+ * @buf_cache: I/O buffer cache.
  * @dir: DMA data direction.
  */
 static void srpt_free_ioctx_ring(struct srpt_ioctx **ioctx_ring,
 				 struct srpt_device *sdev, int ring_size,
-				 int dma_size, enum dma_data_direction dir)
+				 struct kmem_cache *buf_cache,
+				 enum dma_data_direction dir)
 {
 	int i;
 
@@ -935,9 +930,8 @@ static void srpt_free_ioctx_ring(struct srpt_ioctx **ioctx_ring,
 		return;
 
 	for (i = 0; i < ring_size; ++i)
-		srpt_free_ioctx(sdev, ioctx_ring[i],
-				dma_size + ioctx_ring[i]->offset, dir);
-	kfree(ioctx_ring);
+		srpt_free_ioctx(sdev, ioctx_ring[i], buf_cache, dir);
+	vfree(ioctx_ring);
 }
 
 /**
@@ -1098,15 +1092,35 @@ static int srpt_zerolength_write(struct srpt_rdma_ch *ch)
 #endif
 }
 
+static inline void *srpt_get_desc_buf(struct srp_cmd *srp_cmd)
+{
+	/*
+	 * The pointer computations below will only be compiled correctly
+	 * if srp_cmd::add_data is declared as s8*, u8*, s8[] or u8[], so check
+	 * whether srp_cmd::add_data has been declared as a byte pointer.
+	 */
+	BUILD_BUG_ON(!__same_type(srp_cmd->add_data[0], (s8)0) &&
+		     !__same_type(srp_cmd->add_data[0], (u8)0));
+
+	/*
+	 * According to the SRP spec, the lower two bits of the 'ADDITIONAL
+	 * CDB LENGTH' field are reserved and the size in bytes of this field
+	 * is four times the value specified in bits 3..7. Hence the "& ~3".
+	 */
+	return srp_cmd->add_data + (srp_cmd->add_cdb_len & ~3);
+}
+
 /**
- * srpt_get_desc_tbl - parse the data descriptors of an SRP_CMD request
- * @ioctx: Pointer to the I/O context associated with the request.
- * @recv_ioctx: Receive I/O context that may be associated with @ioctx.
+ * srpt_get_desc_tbl - parse the data descriptors of a SRP_CMD request
+ * @recv_ioctx: I/O context associated with the received command @srp_cmd.
+ * @ioctx: I/O context that will be used for responding to the initiator.
  * @srp_cmd: Pointer to the SRP_CMD request data.
  * @dir: Pointer to the variable to which the transfer direction will be
  *   written.
  * @data_len: Pointer to the variable to which the total data length of all
  *   descriptors in the SRP_CMD request will be written.
+ * @imm_data_offset: [in] Offset in SRP_CMD requests at which immediate data
+ *   starts.
  *
  * This function initializes ioctx->nrbuf and ioctx->r_bufs.
  *
@@ -1116,30 +1130,14 @@ static int srpt_zerolength_write(struct srpt_rdma_ch *ch)
 static int srpt_get_desc_tbl(struct srpt_recv_ioctx *recv_ioctx,
 			     struct srpt_send_ioctx *ioctx,
 			     struct srp_cmd *srp_cmd,
-			     scst_data_direction *dir, u64 *data_len)
+			     scst_data_direction *dir, u64 *data_len,
+			     u16 imm_data_offset)
 {
-	struct srp_indirect_buf *idb;
-	struct srp_direct_buf *db;
-	unsigned int add_cdb_offset;
-	int ret;
 	u8 fmt;
-
-	/*
-	 * The pointer computations below will only be compiled correctly
-	 * if srp_cmd::add_data is declared as s8*, u8*, s8[] or u8[], so check
-	 * whether srp_cmd::add_data has been declared as a byte pointer.
-	 */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
-	BUILD_BUG_ON(!__same_type(srp_cmd->add_data[0], (s8)0)
-		     && !__same_type(srp_cmd->add_data[0], (u8)0));
-#else
-	/* Note: the __same_type() macro has been introduced in kernel 2.6.31.*/
-#endif
 
 	BUG_ON(!dir);
 	BUG_ON(!data_len);
 
-	ret = 0;
 	*data_len = 0;
 
 	/*
@@ -1160,55 +1158,18 @@ static int srpt_get_desc_tbl(struct srpt_recv_ioctx *recv_ioctx,
 		*dir = SCST_DATA_NONE;
 	}
 
-	/*
-	 * According to the SRP spec, the lower two bits of the 'ADDITIONAL
-	 * CDB LENGTH' field are reserved and the size in bytes of this field
-	 * is four times the value specified in bits 3..7. Hence the "& ~3".
-	 */
-	add_cdb_offset = srp_cmd->add_cdb_len & ~3;
-	if (false) {
-#if 0
-		struct srp_imm_buf *imm_buf = (void *)(srp_cmd->add_data
-						       + add_cdb_offset);
-		void *data;
-		uint32_t header_size;
-		uint64_t req_size;
+	if (fmt == SRP_DATA_DESC_DIRECT) {
+		struct srp_direct_buf *db = srpt_get_desc_buf(srp_cmd);
 
-		header_size = be32_to_cpu(imm_buf->offset);
-		*data_len = be32_to_cpu(imm_buf->len);
-		req_size = header_size + *data_len;
-		data = (void *)srp_cmd + header_size;
-		if (req_size > srp_max_req_size) {
-			pr_err("Immediate data (length %d + %lld) exceeds request size %d\n",
-			       header_size, *data_len, srp_max_req_size);
-			ret = -EINVAL;
-			goto out;
-		}
-		if (WARN_ONCE(recv_ioctx->byte_len < req_size,
-			      "received too few data - %d < %lld\n",
-			      recv_ioctx->byte_len, req_size)) {
-			print_hex_dump(KERN_DEBUG, "", DUMP_PREFIX_OFFSET, 16,
-				       1, srp_cmd, recv_ioctx->byte_len, 1);
-			ret = -EIO;
-		}
-		ioctx->imm_data = data;
-		ioctx->recv_ioctx = recv_ioctx;
-		if (((uintptr_t)data & 511) == 0) {
-			sg_init_one(&ioctx->imm_sg, ioctx->imm_data, *data_len);
-			scst_cmd_set_tgt_sg(&ioctx->cmd, &ioctx->imm_sg, 1);
-		}
-#endif
-	} else if (fmt == SRP_DATA_DESC_DIRECT) {
 		ioctx->n_rbuf = 1;
 		ioctx->rbufs = &ioctx->single_rbuf;
 
-		db = (struct srp_direct_buf *)(srp_cmd->add_data
-					       + add_cdb_offset);
 		memcpy(ioctx->rbufs, db, sizeof(*db));
 		*data_len = be32_to_cpu(db->len);
+		return 0;
 	} else if (fmt == SRP_DATA_DESC_INDIRECT) {
-		idb = (struct srp_indirect_buf *)(srp_cmd->add_data
-						  + add_cdb_offset);
+		struct srp_indirect_buf *idb = srpt_get_desc_buf(srp_cmd);
+		struct srp_direct_buf *db;
 
 		ioctx->n_rbuf = be32_to_cpu(idb->table_desc.len) / sizeof(*db);
 
@@ -1218,10 +1179,9 @@ static int srpt_get_desc_tbl(struct srpt_recv_ioctx *recv_ioctx,
 			       srp_cmd->data_out_desc_cnt,
 			       srp_cmd->data_in_desc_cnt,
 			       be32_to_cpu(idb->table_desc.len),
-			       sizeof(*db));
+			       sizeof(struct srp_direct_buf));
 			ioctx->n_rbuf = 0;
-			ret = -EINVAL;
-			goto out;
+			return -EINVAL;
 		}
 
 		if (ioctx->n_rbuf == 1)
@@ -1231,21 +1191,54 @@ static int srpt_get_desc_tbl(struct srpt_recv_ioctx *recv_ioctx,
 						     sizeof(*db), GFP_ATOMIC);
 			if (!ioctx->rbufs) {
 				ioctx->n_rbuf = 0;
-				ret = -ENOMEM;
-				goto out;
+				return -ENOMEM;
 			}
 		}
 
 		db = idb->desc_list;
 		memcpy(ioctx->rbufs, db, ioctx->n_rbuf * sizeof(*db));
 		*data_len = be32_to_cpu(idb->len);
+		return 0;
+	} else if (fmt == SRP_DATA_DESC_IMM) {
+		struct srp_imm_buf *imm_buf = srpt_get_desc_buf(srp_cmd);
+		void *data = (void *)srp_cmd + imm_data_offset;
+		uint32_t len = be32_to_cpu(imm_buf->len);
+		uint32_t req_size = imm_data_offset + len;
+
+		if (req_size > srp_max_req_size) {
+			pr_err("Immediate data (length %d + %d) exceeds request size %d\n",
+			       imm_data_offset, len, srp_max_req_size);
+			return -EINVAL;
+		}
+		if (recv_ioctx->byte_len < req_size) {
+			pr_err("Received too few data - %d < %d\n",
+			       recv_ioctx->byte_len, req_size);
+			return -EIO;
+		}
+		/*
+		 * The immediate data buffer descriptor must occur before the
+		 * immediate data itself.
+		 */
+		if ((void *)(imm_buf + 1) > (void *)data) {
+			pr_err("Received invalid write request\n");
+			return -EINVAL;
+		}
+		*data_len = len;
+		ioctx->recv_ioctx = recv_ioctx;
+		if ((uintptr_t)data & 511) {
+			pr_warn_once("Internal error - the receive buffers are not aligned properly.\n");
+			return -EINVAL;
+		}
+		sg_init_one(&ioctx->imm_sg, data, len);
+		scst_cmd_set_tgt_sg(&ioctx->cmd, &ioctx->imm_sg, 1);
+		return 0;
 	} else if (fmt != 0) {
 		pr_err("Unsupported data format %d\n\n", fmt);
-		ret = -EINVAL;
+		return -EINVAL;
+	} else {
+		*data_len = 0;
+		return 0;
 	}
-
-out:
-	return ret;
 }
 
 /**
@@ -1400,7 +1393,6 @@ static struct srpt_send_ioctx *srpt_get_send_ioctx(struct srpt_rdma_ch *ch)
 	EXTRACHECKS_WARN_ON(ioctx->recv_ioctx);
 	ioctx->n_rbuf = 0;
 	ioctx->rbufs = NULL;
-	ioctx->imm_data = NULL;
 	ioctx->n_rdma = 0;
 	ioctx->n_rdma_ius = 0;
 	ioctx->rdma_ius = NULL;
@@ -1473,17 +1465,21 @@ static void srpt_abort_cmd(struct srpt_send_ioctx *ioctx,
 
 	WARN_ON(ioctx != scst_cmd_get_tgt_priv(cmd));
 
-	pr_debug("Aborting cmd with state %d and tag %lld\n", state,
-		 scst_cmd_get_tag(cmd));
+	pr_debug("Aborting cmd with state %d -> %d and tag %lld\n", state,
+		 ioctx->state, scst_cmd_get_tag(cmd));
 
 	switch (state) {
 	case SRPT_STATE_NEW:
 	case SRPT_STATE_DATA_IN:
 	case SRPT_STATE_MGMT:
 	case SRPT_STATE_DONE:
+		/*
+		 * Do nothing - defer abort processing until
+		 * srpt_queue_response() is invoked.
+		 */
 		break;
 	case SRPT_STATE_NEED_DATA:
-		/* SCST_DATA_WRITE - RDMA read error or RDMA read timeout. */
+		pr_debug("tag %#llx: RDMA read error\n", ioctx->cmd.tag);
 		scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_write_error));
 		scst_rx_data(cmd, SCST_RX_STATUS_ERROR_SENSE_SET, context);
@@ -1658,7 +1654,7 @@ static void srpt_handle_rdma_err_comp(struct srpt_rdma_ch *ch,
 }
 
 /**
- * srpt_build_cmd_rsp - build an SRP_RSP response
+ * srpt_build_cmd_rsp - build a SRP_RSP response
  * @ch: RDMA channel through which the request has been received.
  * @ioctx: I/O context associated with the SRP_CMD request. The response will
  *   be built in the buffer ioctx->buf points at and hence this function will
@@ -1806,7 +1802,7 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch,
 	}
 
 	ret = srpt_get_desc_tbl(recv_ioctx, send_ioctx, srp_cmd, &dir,
-				&data_len);
+				&data_len, ch->imm_data_offset);
 	if (ret) {
 		pr_err("0x%llx: parsing SRP descriptor table failed.\n",
 		       srp_cmd->tag);
@@ -2011,8 +2007,7 @@ out:
 
 push:
 	if (list_empty(&recv_ioctx->wait_list))
-		list_add_tail(&recv_ioctx->wait_list,
-			      &ch->cmd_wait_list);
+		list_add_tail(&recv_ioctx->wait_list, &ch->cmd_wait_list);
 	goto out;
 }
 
@@ -2203,13 +2198,13 @@ static void srpt_unreg_ch(struct srpt_rdma_ch *ch)
 
 	kthread_stop(ch->thread);
 
-	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_ring,
-			     sdev, ch->rq_size,
-			     ch->max_rsp_size, DMA_TO_DEVICE);
-
 	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_recv_ring,
 			     sdev, ch->rq_size,
-			     srp_max_req_size, DMA_FROM_DEVICE);
+			     ch->req_buf_cache, DMA_FROM_DEVICE);
+
+	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_ring,
+			     sdev, ch->rq_size,
+			     ch->rsp_buf_cache, DMA_TO_DEVICE);
 
 	/* Wait until CM callbacks have finished and prevent new callbacks. */
 	if (ch->using_rdma_cm)
@@ -2718,14 +2713,20 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	ch->state = CH_CONNECTING;
 	INIT_LIST_HEAD(&ch->cmd_wait_list);
 	ch->max_rsp_size = max_t(uint32_t, srp_max_rsp_size, MIN_MAX_RSP_SIZE);
+
+	ch->rsp_buf_cache = kmem_cache_create("srpt-rsp-buf", ch->max_rsp_size,
+					      512, 0, NULL);
+	if (!ch->rsp_buf_cache)
+		goto free_ch;
+
 	ch->ioctx_ring = (struct srpt_send_ioctx **)
 		srpt_alloc_ioctx_ring(ch->sport->sdev, ch->rq_size,
 				      sizeof(*ch->ioctx_ring[0]),
-				      ch->max_rsp_size, 0, DMA_TO_DEVICE);
+				      ch->rsp_buf_cache, 0, DMA_TO_DEVICE);
 	if (!ch->ioctx_ring) {
 		pr_err("rejected SRP_LOGIN_REQ because creating a new QP SQ ring failed.\n");
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-		goto free_ch;
+		goto free_rsp_cache;
 	}
 
 	INIT_LIST_HEAD(&ch->free_list);
@@ -2734,17 +2735,39 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		list_add_tail(&ch->ioctx_ring[i]->free_list, &ch->free_list);
 	}
 	if (!sdev->use_srq) {
+		u16 imm_data_offset = req->req_flags & SRP_IMMED_REQUESTED ?
+			be16_to_cpu(req->imm_data_offset) : 0;
+		u16 alignment_offset;
+		u32 req_sz;
+
+		if (req->req_flags & SRP_IMMED_REQUESTED)
+			pr_debug("imm_data_offset = %d\n",
+				 be16_to_cpu(req->imm_data_offset));
+		if (imm_data_offset >= sizeof(struct srp_cmd)) {
+			ch->imm_data_offset = imm_data_offset;
+			rsp->rsp_flags |= SRP_LOGIN_RSP_IMMED_SUPP;
+		} else {
+			ch->imm_data_offset = 0;
+		}
+		alignment_offset = round_up(imm_data_offset, 512) -
+			imm_data_offset;
+		req_sz = alignment_offset + imm_data_offset + srp_max_req_size;
+		ch->req_buf_cache = kmem_cache_create("srpt-req-buf", req_sz,
+						      512, 0, NULL);
+		if (!ch->req_buf_cache)
+			goto free_rsp_ring;
+
 		ch->ioctx_recv_ring = (struct srpt_recv_ioctx **)
 			srpt_alloc_ioctx_ring(ch->sport->sdev, ch->rq_size,
 					      sizeof(*ch->ioctx_recv_ring[0]),
-					      srp_max_req_size,
-					      DATA_ALIGNMENT_OFFSET,
+					      ch->req_buf_cache,
+					      alignment_offset,
 					      DMA_FROM_DEVICE);
 		if (!ch->ioctx_recv_ring) {
 			pr_err("rejected SRP_LOGIN_REQ because creating a new QP RQ ring failed.\n");
 			rej->reason =
 			    cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
-			goto free_ring;
+			goto free_recv_cache;
 		}
 		for (i = 0; i < ch->rq_size; i++)
 			INIT_LIST_HEAD(&ch->ioctx_recv_ring[i]->wait_list);
@@ -2787,17 +2810,15 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	if ((req->req_flags & SRP_MTCH_ACTION) == SRP_MULTICHAN_SINGLE) {
 		struct srpt_rdma_ch *ch2;
 
-		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_NO_CHAN;
-
 		list_for_each_entry(ch2, &nexus->ch_list, list) {
 			if (srpt_disconnect_ch(ch2) < 0)
 				continue;
 			pr_info("Relogin - closed existing channel %s\n",
 				ch2->sess_name);
-			rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_TERMINATED;
+			rsp->rsp_flags |= SRP_LOGIN_RSP_MULTICHAN_TERMINATED;
 		}
 	} else {
-		rsp->rsp_flags = SRP_LOGIN_RSP_MULTICHAN_MAINTAINED;
+		rsp->rsp_flags |= SRP_LOGIN_RSP_MULTICHAN_MAINTAINED;
 	}
 
 	list_add_tail_rcu(&ch->list, &nexus->ch_list);
@@ -2896,12 +2917,18 @@ destroy_ib:
 free_recv_ring:
 	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_recv_ring,
 			     ch->sport->sdev, ch->rq_size,
-			     srp_max_req_size, DMA_FROM_DEVICE);
+			     ch->req_buf_cache, DMA_FROM_DEVICE);
 
-free_ring:
+free_recv_cache:
+	kmem_cache_destroy(ch->req_buf_cache);
+
+free_rsp_ring:
 	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_ring,
 			     ch->sport->sdev, ch->rq_size,
-			     ch->max_rsp_size, DMA_TO_DEVICE);
+			     ch->rsp_buf_cache, DMA_TO_DEVICE);
+
+free_rsp_cache:
+	kmem_cache_destroy(ch->rsp_buf_cache);
 
 free_ch:
 	if (rdma_cm_id)
@@ -2999,6 +3026,7 @@ static int srpt_rdma_cm_req_recv(struct rdma_cm_id *cm_id,
 	req.req_flags		= req_rdma->req_flags;
 	memcpy(req.initiator_port_id, req_rdma->initiator_port_id, 16);
 	memcpy(req.target_port_id, req_rdma->target_port_id, 16);
+	req.imm_data_offset	= req_rdma->imm_data_offset;
 
 	inet_ntop(&cm_id->route.addr.src_addr, src_addr, sizeof(src_addr));
 
@@ -3403,7 +3431,7 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	EXTRACHECKS_BUG_ON(!ch);
 	EXTRACHECKS_BUG_ON(!ioctx);
 
-	if (ioctx->imm_data)
+	if (scst_cmd_get_tgt_sg(&ioctx->cmd) == &ioctx->imm_sg)
 		return;
 
 	EXTRACHECKS_BUG_ON(ioctx->n_rdma && !ioctx->rdma_ius);
@@ -3581,29 +3609,13 @@ static int srpt_xfer_data(struct srpt_rdma_ch *ch,
 	struct scst_cmd *cmd = &ioctx->cmd;
 	int ret;
 
-	if (ioctx->imm_data) {
+	if (scst_cmd_get_tgt_sg(&ioctx->cmd) == &ioctx->imm_sg) {
 		bool res;
 
 		res = srpt_test_and_set_cmd_state(ioctx, SRPT_STATE_NEED_DATA,
 						  SRPT_STATE_DATA_IN);
 		BUG_ON(!res);
-		if (unlikely(!scst_cmd_get_tgt_data_buff_alloced(cmd))) {
-			unsigned int offset = 0, len;
-			uint8_t *buf;
-
-			/*
-			 * Copy the immediate data if srpt_get_desc_tbl()
-			 * did not call sg_init_one().
-			 */
-			len = scst_get_buf_first(cmd, &buf);
-			while (len > 0) {
-				memcpy(buf, ioctx->imm_data + offset, len);
-				offset += len;
-				len = scst_get_buf_next(cmd, &buf);
-			}
-			WARN_ON_ONCE(offset !=
-				scst_cmd_get_expected_transfer_len_full(cmd));
-		}
+		WARN_ON_ONCE(!scst_cmd_get_tgt_data_buff_alloced(cmd));
 		scst_rx_data(cmd, SCST_RX_STATUS_SUCCESS,
 			     in_irq() ? SCST_CONTEXT_TASKLET :
 			     in_softirq() ? SCST_CONTEXT_DIRECT_ATOMIC :
@@ -4444,18 +4456,22 @@ static void srpt_add_one(struct ib_device *device)
 			 sdev->srq_size, sdev->dev_attr.max_srq_wr,
 			 device->name);
 
-		sdev->use_srq = true;
+		sdev->req_buf_cache = kmem_cache_create("srpt-srq-req-buf",
+						srp_max_req_size, 0, 0, NULL);
+		if (!sdev->req_buf_cache)
+			goto free_srq;
 
 		sdev->ioctx_ring = (struct srpt_recv_ioctx **)
 			srpt_alloc_ioctx_ring(sdev, sdev->srq_size,
 					      sizeof(*sdev->ioctx_ring[0]),
-					      srp_max_req_size,
-					      DATA_ALIGNMENT_OFFSET,
-					      DMA_FROM_DEVICE);
+					      sdev->req_buf_cache,
+					      0, DMA_FROM_DEVICE);
 		if (!sdev->ioctx_ring) {
 			pr_err("srpt_alloc_ioctx_ring() failed\n");
-			goto err_mr;
+			goto free_cache;
 		}
+
+		sdev->use_srq = true;
 
 		for (i = 0; i < sdev->srq_size; ++i) {
 			INIT_LIST_HEAD(&sdev->ioctx_ring[i]->wait_list);
@@ -4530,12 +4546,16 @@ out:
 err_cm:
 	ib_destroy_cm_id(sdev->cm_id);
 err_ring:
+	srpt_free_ioctx_ring((struct srpt_ioctx **)sdev->ioctx_ring, sdev,
+			     sdev->srq_size, sdev->req_buf_cache,
+			     DMA_FROM_DEVICE);
+free_cache:
+	kmem_cache_destroy(sdev->req_buf_cache);
+
+free_srq:
 	if (sdev->use_srq)
 		ib_destroy_srq(sdev->srq);
-	srpt_free_ioctx_ring((struct srpt_ioctx **)sdev->ioctx_ring, sdev,
-			     sdev->srq_size, srp_max_req_size,
-			     DMA_FROM_DEVICE);
-err_mr:
+
 #ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	ib_dereg_mr(sdev->mr);
 err_pd:
@@ -4608,7 +4628,9 @@ static void srpt_remove_one(struct ib_device *device, void *client_data)
 	if (sdev->use_srq)
 		ib_destroy_srq(sdev->srq);
 	srpt_free_ioctx_ring((struct srpt_ioctx **)sdev->ioctx_ring, sdev,
-			     sdev->srq_size, srp_max_req_size, DMA_FROM_DEVICE);
+			     sdev->srq_size, sdev->req_buf_cache,
+			     DMA_FROM_DEVICE);
+	kmem_cache_destroy(sdev->req_buf_cache);
 #ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	ib_dereg_mr(sdev->mr);
 #endif

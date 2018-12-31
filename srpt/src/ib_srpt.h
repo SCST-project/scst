@@ -66,6 +66,57 @@
 
 struct srpt_nexus;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0)
+enum {
+	SRP_DATA_DESC_IMM	 = 3,
+	SRP_IMMED_REQUESTED	 = 0x80,
+	SRP_LOGIN_RSP_IMMED_SUPP = 0x80,
+};
+
+/* Immediate data buffer descriptor as defined in SRP2. */
+struct srp_imm_buf {
+	__be32	len;
+};
+
+struct srp_login_req_v2 {
+	u8	opcode;
+	u8	reserved1[7];
+	u64	tag;
+	__be32	req_it_iu_len;
+	u8	reserved2[4];
+	__be16	req_buf_fmt;
+	u8	req_flags;
+	u8	reserved3[1];
+	__be16	imm_data_offset;	/* new in SRP2 */
+	u8	reserved4[2];
+	u8	initiator_port_id[16];
+	u8	target_port_id[16];
+};
+
+/**
+ * struct srp_login_req_rdma - RDMA/CM login parameters.
+ *
+ * RDMA/CM over InfiniBand can only carry 92 - 36 = 56 bytes of private
+ * data. srp_login_req_rdma contains the same information as
+ * struct srp_login_req but with the reserved data removed.
+ */
+struct srp_login_req_rdma_v2 {
+	u64	tag;
+	__be16	req_buf_fmt;
+	u8	req_flags;
+	u8	opcode;
+	__be32	req_it_iu_len;
+	u8	initiator_port_id[16];
+	u8	target_port_id[16];
+	__be16	imm_data_offset;
+	u8	reserved[6];
+};
+
+
+#define srp_login_req srp_login_req_v2
+#define srp_login_req_rdma srp_login_req_rdma_v2
+#endif
+
 enum {
 	/*
 	 * SRP IOControllerProfile attributes for SRP target ports that have
@@ -126,10 +177,19 @@ enum {
 	DEFAULT_SRPT_SRQ_SIZE = 4095,
 	MAX_SRPT_SRQ_SIZE = 65535,
 
+	SRP_MAX_ADD_CDB_LEN = 16,
+	SRP_MAX_IMM_DATA_OFFSET = 80,
+	SRP_MAX_IMM_DATA = 8 * 1024,
+
 	MIN_MAX_REQ_SIZE = 996,
-	SRP_IMM_DATA_OUT_OFFSET = 80,
-	DEFAULT_MAX_REQ_SIZE = SRP_IMM_DATA_OUT_OFFSET + 8192,
-	DATA_ALIGNMENT_OFFSET = 512 - SRP_IMM_DATA_OUT_OFFSET,
+	DEFAULT_MAX_REQ_SIZE_1 = sizeof(struct srp_cmd)/*48*/ +
+				 SRP_MAX_ADD_CDB_LEN +
+				 sizeof(struct srp_indirect_buf)/*20*/ +
+				 128 * sizeof(struct srp_direct_buf)/*16*/,
+	DEFAULT_MAX_REQ_SIZE_2 = SRP_MAX_IMM_DATA_OFFSET +
+				 sizeof(struct srp_imm_buf) + SRP_MAX_IMM_DATA,
+	DEFAULT_MAX_REQ_SIZE = DEFAULT_MAX_REQ_SIZE_1 > DEFAULT_MAX_REQ_SIZE_2 ?
+			       DEFAULT_MAX_REQ_SIZE_1 : DEFAULT_MAX_REQ_SIZE_2,
 
 	MIN_MAX_RSP_SIZE = sizeof(struct srp_rsp)/*36*/ + 4,
 	DEFAULT_MAX_RSP_SIZE = 256, /* leaves 220 bytes for sense data */
@@ -267,7 +327,6 @@ struct srpt_send_ioctx {
 	struct srpt_rdma_ch	*ch;
 	struct srpt_recv_ioctx	*recv_ioctx;
 	struct rdma_iu		*rdma_ius;
-	void			*imm_data;
 	struct scatterlist	imm_sg;
 	struct srp_direct_buf	*rbufs;
 	struct srp_direct_buf	single_rbuf;
@@ -327,13 +386,16 @@ enum rdma_ch_state {
  * @req_lim:       request limit: maximum number of requests that may be sent
  *                 by the initiator without having received a response.
  * @req_lim_delta: Number of credits not yet sent back to the initiator.
+ * @imm_data_offset: Offset from start of SRP_CMD for immediate data.
  * @spinlock:      Protects free_list and state.
  * @free_list:     Head of list with free send I/O contexts.
  * @wc:            Work completion array.
  * @state:         channel state. See also enum rdma_ch_state.
  * @using_rdma_cm: Whether the RDMA/CM or IB/CM is used for this channel.
  * @processing_wait_list: Whether or not cmd_wait_list is being processed.
+ * @rsp_buf_cache: kmem_cache for @ioctx_ring.
  * @ioctx_ring:    Send ring.
+ * @req_buf_cache: kmem_cache for @ioctx_recv_ring.
  * @ioctx_recv_ring: Receive I/O context ring.
  * @list:          Node in srpt_nexus.ch_list.
  * @cmd_wait_list: List of SCSI commands that arrived before the RTU event. This
@@ -357,8 +419,8 @@ struct srpt_rdma_ch {
 		} rdma_cm;
 	};
 	struct ib_cq		*cq;
-	struct kref		kref;
 	struct rcu_head		rcu;
+	struct kref		kref;
 	int			rq_size;
 	u32			max_send_sge;
 	u32			max_recv_sge;
@@ -368,10 +430,13 @@ struct srpt_rdma_ch {
 	int			max_ti_iu_len;
 	int			req_lim;
 	int			req_lim_delta;
+	u16			imm_data_offset;
 	spinlock_t		spinlock;
 	struct list_head	free_list;
 	enum rdma_ch_state	state;
+	struct kmem_cache	*rsp_buf_cache;
 	struct srpt_send_ioctx	**ioctx_ring;
+	struct kmem_cache	*req_buf_cache;
 	struct srpt_recv_ioctx	**ioctx_recv_ring;
 	struct ib_wc		wc[16];
 	struct list_head	list;
@@ -439,7 +504,7 @@ struct srpt_port {
 };
 
 /**
- * struct srpt_device - Information associated by SRPT with a single HCA.
+ * struct srpt_device - information associated by SRPT with a single HCA
  * @device:        Backpointer to the struct ib_device managed by the IB core.
  * @pd:            IB protection domain.
  * @mr:            MR with write access to all local memory.
@@ -450,6 +515,7 @@ struct srpt_port {
  *                 ib_client.add() callback.
  * @srq_size:      SRQ size.
  * @use_srq:       Whether or not to use SRQ.
+ * @req_buf_cache: kmem_cache for @ioctx_ring buffers.
  * @ioctx_ring:    Per-HCA SRQ.
  * @port:          Information about the ports owned by this HCA.
  * @event_handler: Per-HCA asynchronous IB event handler.
@@ -466,30 +532,10 @@ struct srpt_device {
 	u32			lkey;
 	int			srq_size;
 	bool			use_srq;
+	struct kmem_cache	*req_buf_cache;
 	struct srpt_recv_ioctx	**ioctx_ring;
 	struct srpt_port	port[2];
 	struct ib_event_handler	event_handler;
 };
-
-#if !HAVE_STRUCT_SRP_LOGIN_REQ_RDMA
-/**
- * struct srp_login_req_rdma - RDMA/CM login parameters.
- *
- * RDMA/CM over InfiniBand can only carry 92 - 36 = 56 bytes of private
- * data. srp_login_req_rdma contains the same information as
- * struct srp_login_req but with the reserved data removed.
- *
- * To do: Move this structure to <scsi/srp.h>.
- */
-struct srp_login_req_rdma {
-	u64	tag;
-	__be16	req_buf_fmt;
-	u8	req_flags;
-	u8	opcode;
-	__be32	req_it_iu_len;
-	u8	initiator_port_id[16];
-	u8	target_port_id[16];
-};
-#endif /* !HAVE_STRUCT_SRP_LOGIN_REQ_RDMA */
 
 #endif				/* IB_SRPT_H */
