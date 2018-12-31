@@ -1074,14 +1074,25 @@ out:
  */
 static int srpt_zerolength_write(struct srpt_rdma_ch *ch)
 {
+#ifdef USE_PRE_440_WR_STRUCTURE
 	struct ib_send_wr wr;
+#else
+	struct ib_rdma_wr wr;
+#endif
 	BAD_WR_MODIFIER struct ib_send_wr *bad_wr;
 
 	memset(&wr, 0, sizeof(wr));
+#ifdef USE_PRE_440_WR_STRUCTURE
 	wr.opcode = IB_WR_RDMA_WRITE;
 	wr.wr_id = encode_wr_id(SRPT_RDMA_ZEROLENGTH_WRITE, 0xffffffffUL);
 	wr.send_flags = IB_SEND_SIGNALED;
 	return ib_post_send(ch->qp, &wr, &bad_wr);
+#else
+	wr.wr.opcode = IB_WR_RDMA_WRITE;
+	wr.wr.wr_id = encode_wr_id(SRPT_RDMA_ZEROLENGTH_WRITE, 0xffffffffUL);
+	wr.wr.send_flags = IB_SEND_SIGNALED;
+	return ib_post_send(ch->qp, &wr.wr, &bad_wr);
+#endif
 }
 
 /**
