@@ -1,4 +1,4 @@
-EXTRA_CFLAGS += -I$(SUBDIRS)/../../scst/include
+EXTRA_CFLAGS += -I$(KBUILD_EXTMOD)/../../scst/include
 EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
 EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG
 #EXTRA_CFLAGS += -g -fno-inline -fno-inline-functions

@@ -26,7 +26,7 @@ endif
 
 #SCST_INC_DIR := $(PREFIX)/include/scst
 #SCST_DIR := $(SCST_INC_DIR)
-SCST_INC_DIR := $(SUBDIRS)/../scst/include
+SCST_INC_DIR := $(KBUILD_EXTMOD)/../scst/include
 SCST_DIR := $(shell pwd)/../scst/src
 
 EXTRA_CFLAGS += -I$(SCST_INC_DIR)
@@ -67,13 +67,13 @@ else
 ######### BEGIN OUT-OF-TREE RULES #########
 
 all: Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m
 
 tgt: Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=n
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=n
 
 install: all
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
 		$$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
 		modules_install
 

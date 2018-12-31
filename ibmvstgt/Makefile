@@ -3,7 +3,6 @@
 #
 
 SCST_DIR := $(shell pwd)/../scst/src
-SUBDIRS := $(shell pwd)
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
@@ -35,10 +34,10 @@ MODULE_SYMVERS:=$(shell if [ -e $(KDIR)/Modules.symvers ]; then \
 
 
 all: src/$(MODULE_SYMVERS)
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src modules
+	$(MAKE) -C $(KDIR) M=$(shell pwd)/src modules
 
 install: all src/ibmvstgt.ko
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src \
+	$(MAKE) -C $(KDIR) M=$(shell pwd)/src \
 		$$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
 		modules_install
 
@@ -50,7 +49,7 @@ src/Module.symvers src/Modules.symvers: $(SCST_DIR)/$(MODULE_SYMVERS)
 	cp $< $@;
 
 clean:
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/src clean
+	$(MAKE) -C $(KDIR) M=$(shell pwd)/src clean
 	rm -f src/Modules.symvers src/Module.symvers src/Module.markers \
 		src/modules.order
 

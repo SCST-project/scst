@@ -44,7 +44,7 @@ EXTRA_CFLAGS += -I$(SCST_INC_DIR) $(FCSTFLAGS$(BUILDMODE))
 MODULE_NAME = fcst
 
 ifneq ($(KERNELRELEASE),)
-include $(SUBDIRS)/Makefile_in-tree
+include $(KBUILD_EXTMOD)/Makefile_in-tree
 else
 ######### BEGIN OUT-OF-TREE RULES #########
 
@@ -78,15 +78,15 @@ SCST_DIR := $(shell if [ -e "$$PWD/../scst" ]; then echo "$$PWD/../scst/src"; \
 		else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 
 all: Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
 	  SCST_INC_DIR=$(SCST_INC_DIR)
 
 tgt: Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=n \
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=n \
 	  SCST_INC_DIR=$(SCST_INC_DIR)
 
 install: all
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
 	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
 	  SCST_INC_DIR=$(SCST_INC_DIR) modules_install
 

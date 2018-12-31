@@ -30,7 +30,7 @@
 SHELL=/bin/bash
 
 ifneq ($(PATCHLEVEL),)
-SCST_INC_DIR := $(SUBDIRS)/../include
+SCST_INC_DIR := $(KBUILD_EXTMOD)/../include
 
 obj-m := scst_cdrom.o scst_changer.o scst_disk.o scst_modisk.o scst_tape.o \
 	scst_vdisk.o scst_raid.o scst_processor.o scst_user.o
@@ -58,11 +58,11 @@ endif
 INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 all:
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)
+	$(MAKE) -C $(KDIR) M=$(shell pwd)
 
 install: all
 	mkdir -p $(DESTDIR)/var/lib/scst/vdev_mode_pages
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) \
+	$(MAKE) -C $(KDIR) M=$(shell pwd) \
 		$$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
 		modules_install
 
@@ -74,7 +74,8 @@ endif
 
 enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
 
-EXTRA_CFLAGS += -I$(SUBDIRS) -I$(SCST_INC_DIR) $(call enable-Wextra,-Wextra \
+EXTRA_CFLAGS += -I$(KBUILD_EXTMOD) -I$(SCST_INC_DIR)			\
+	$(call enable-Wextra,-Wextra					\
 	-Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare)
 
 EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
