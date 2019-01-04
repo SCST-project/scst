@@ -106,6 +106,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define PS				0x80	/* parameter saveable */
 
 #define	DEF_DISK_BLOCK_SHIFT		9
+#define	DEF_OPT_TRANS_LEN		524288
 #define	DEF_CDROM_BLOCK_SHIFT		11
 #define	DEF_SECTORS			56
 #define	DEF_HEADS			255
@@ -150,6 +151,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 
 struct scst_vdisk_dev {
 	uint64_t nblocks;
+	unsigned int opt_trans_len;
 
 	/*
 	 * Not protected, because assignments to aligned 64-bit integers are
@@ -198,6 +200,7 @@ struct scst_vdisk_dev {
 	unsigned int expl_alua:1;
 	unsigned int reexam_pending:1;
 	unsigned int size_key:1;
+	unsigned int opt_trans_len_set:1;
 
 	struct file *fd;
 	struct file *dif_fd;
@@ -412,6 +415,10 @@ static ssize_t vdev_sysfs_size_mb_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_blocksize_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdisk_opt_trans_len_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
+static ssize_t vdisk_opt_trans_len_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_rd_only_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_wt_show(struct kobject *kobj,
@@ -529,6 +536,9 @@ static struct kobj_attribute vdev_size_mb_rw_attr =
 	       vdev_sysfs_size_mb_store);
 static struct kobj_attribute vdisk_blocksize_attr =
 	__ATTR(blocksize, S_IRUGO, vdisk_sysfs_blocksize_show, NULL);
+static struct kobj_attribute vdisk_opt_trans_len_attr =
+	__ATTR(opt_trans_len, S_IWUSR|S_IRUGO, vdisk_opt_trans_len_show,
+	       vdisk_opt_trans_len_store);
 static struct kobj_attribute vdisk_rd_only_attr =
 	__ATTR(read_only, S_IRUGO, vdisk_sysfs_rd_only_show, NULL);
 static struct kobj_attribute vdisk_wt_attr =
@@ -612,6 +622,7 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 	&vdev_size_ro_attr.attr,
 	&vdev_size_mb_ro_attr.attr,
 	&vdisk_blocksize_attr.attr,
+	&vdisk_opt_trans_len_attr.attr,
 	&vdisk_rd_only_attr.attr,
 	&vdisk_wt_attr.attr,
 	&vdisk_tp_attr.attr,
@@ -646,6 +657,7 @@ static const struct attribute *vdisk_blockio_attrs[] = {
 	&vdev_size_rw_attr.attr,
 	&vdev_size_mb_rw_attr.attr,
 	&vdisk_blocksize_attr.attr,
+	&vdisk_opt_trans_len_attr.attr,
 	&vdisk_rd_only_attr.attr,
 	&vdisk_wt_attr.attr,
 	&vdisk_expl_alua_attr.attr,
@@ -675,6 +687,7 @@ static const struct attribute *vdisk_nullio_attrs[] = {
 	&vdev_size_rw_attr.attr,
 	&vdev_size_mb_rw_attr.attr,
 	&vdisk_blocksize_attr.attr,
+	&vdisk_opt_trans_len_attr.attr,
 	&vdisk_rd_only_attr.attr,
 	&vdisk_tst_attr.attr,
 	&vdev_dummy_attr.attr,
@@ -1868,6 +1881,14 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 	}
 	virt_dev->bdev = virt_dev->blockio ? file_inode(virt_dev->fd)->i_bdev : NULL;
 	res = 0;
+
+	/*
+	 * For block devices, get the optimal I/O size from the block device
+	 * characteristics.
+	 */
+	if (virt_dev->bdev && !virt_dev->opt_trans_len_set)
+		virt_dev->opt_trans_len = bdev_io_opt(virt_dev->bdev) ? :
+					  virt_dev->opt_trans_len;
 
 	if (virt_dev->dif_filename != NULL) {
 		virt_dev->dif_fd = vdev_open_fd(virt_dev,
@@ -4041,14 +4062,8 @@ static int vdisk_block_limits(uint8_t *buf, struct scst_cmd *cmd,
 			   8*1024*1024l) / dev->block_size;
 	put_unaligned_be32(max_transfer, &buf[8]);
 
-	/*
-	 * Let's have optimal transfer len 512KB. Better to not
-	 * set it at all, because we don't have such limit,
-	 * but some initiators may not understand that (?).
-	 * From other side, too big transfers  are not optimal,
-	 * because SGV cache supports only <4M buffers.
-	 */
-	put_unaligned_be32(min_t(int, max_transfer, 512*1024 / dev->block_size),
+	put_unaligned_be32(min_t(int, max_transfer,
+				 virt_dev->opt_trans_len >> dev->block_shift),
 			   &buf[12]);
 
 	if (virt_dev->thin_provisioned) {
@@ -7647,6 +7662,7 @@ static int vdev_create_node(struct scst_dev_type *devt,
 	INIT_WORK(&virt_dev->vdev_inq_changed_work, vdev_inq_changed_fn);
 
 	virt_dev->blk_shift = DEF_DISK_BLOCK_SHIFT;
+	virt_dev->opt_trans_len = DEF_OPT_TRANS_LEN;
 	virt_dev->numa_node_id = NUMA_NO_NODE;
 	virt_dev->dev_active = DEF_DEV_ACTIVE;
 	virt_dev->bind_alua_state = DEF_BIND_ALUA_STATE;
@@ -8799,6 +8815,46 @@ static ssize_t vdisk_sysfs_blocksize_show(struct kobject *kobj,
 
 	TRACE_EXIT_RES(pos);
 	return pos;
+}
+
+static ssize_t vdisk_opt_trans_len_store(struct kobject *kobj,
+					 struct kobj_attribute *attr,
+					 const char *buf, size_t count)
+{
+	struct scst_device *dev =
+		container_of(kobj, struct scst_device, dev_kobj);
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	unsigned long val;
+	int res;
+
+	res = kstrtoul(buf, 0, &val);
+	if (res)
+		return res;
+	if (val & (dev->block_size - 1))
+		return -EINVAL;
+
+	/*
+	 * To do: generate a unit attention because of the opt_trans_len
+	 * change.
+	 */
+	spin_lock(&virt_dev->flags_lock);
+	virt_dev->opt_trans_len_set = 1;
+	virt_dev->opt_trans_len = val;
+	spin_unlock(&virt_dev->flags_lock);
+
+	return count;
+}
+
+static ssize_t vdisk_opt_trans_len_show(struct kobject *kobj,
+					struct kobj_attribute *attr, char *buf)
+{
+	struct scst_device *dev =
+		container_of(kobj, struct scst_device, dev_kobj);
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+
+	return sprintf(buf, "%d\n%s", virt_dev->opt_trans_len,
+		       virt_dev->opt_trans_len_set ? SCST_SYSFS_KEY_MARK "\n" :
+		       "");
 }
 
 static ssize_t vdisk_sysfs_rd_only_show(struct kobject *kobj,

@@ -1094,6 +1094,13 @@ cache. The following parameters possible for vdisk_fileio:
  - blocksize - specifies block size used by this virtual device. The
    block size must be power of 2 and >= 512 bytes. Default is 512.
 
+ - opt_trans_len - specifies the optimal transfer length data in the block
+   limits VPD page. Value is in bytes, and must be a multiple of the block
+   size. Default is 524288. Setting this parameter to a multiple of the
+   optimal transfer length below 4 MB may improve performance. Setting this
+   paramter to a value above 4 MB hurts performance because the SGV cache
+   only supports buffers up to 4 MB.
+
  - write_through - disables write back caching. Note, this option
    has sense only if you also *manually* disable write-back cache in
    *all* your backstorage devices and make sure it's actually disabled,
@@ -1260,6 +1267,9 @@ Each vdisk_fileio's device has the following attributes in
 
  - blocksize - contains block size used by this virtual device.
 
+ - opt_trans_len - contains the optimal transfer length used by this virtual
+   device.
+
  - write_through - contains status of write back caching of this virtual
    device.
 
@@ -1371,6 +1381,7 @@ For example:
 /sys/kernel/scst_tgt/devices/disk1
 |-- block
 |-- blocksize
+|-- opt_trans_len
 |-- exported
 |   |-- export0 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt/luns/0
 |   |-- export1 -> ../../../targets/iscsi/iqn.2006-10.net.vlnb:tgt/ini_groups/INI/luns/0
