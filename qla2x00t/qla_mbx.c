@@ -1368,7 +1368,7 @@ qla2x00_get_node_name_list(scsi_qla_host_t *vha, bool include_initiators,
 		mc.mb[7] = LSW(MSD(pmap_dma));
 		mc.mb[8] = dma_size;
 		mc.out_mb = MBX_0|MBX_1|MBX_2|MBX_3|MBX_6|MBX_7|MBX_8;
-		mc.in_mb = MBX_0|MBX_1;
+		mc.in_mb = MBX_0|MBX_1|MBX_2;
 		mc.tov = 30;
 		mc.flags = MBX_DMA_IN;
 
