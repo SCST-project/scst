@@ -2075,16 +2075,19 @@ static int scst_sessions_info_show(struct seq_file *seq, void *v)
 				acg_sess_list_entry) {
 			int active_cmds = 0, t;
 
+			rcu_read_lock();
 			for (t = SESS_TGT_DEV_LIST_HASH_SIZE-1; t >= 0; t--) {
 				struct list_head *head =
 						&sess->sess_tgt_dev_list[t];
 				struct scst_tgt_dev *tgt_dev;
 
-				list_for_each_entry(tgt_dev, head,
+				list_for_each_entry_rcu(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 					active_cmds += atomic_read(&tgt_dev->tgt_dev_cmd_count);
 				}
 			}
+			rcu_read_unlock();
+
 			seq_printf(seq, "%-20s %-45s %-35s %d/%d\n",
 					sess->tgt->tgtt->name,
 					sess->initiator_name,

@@ -1967,10 +1967,14 @@ struct scst_session {
 	/* session's async flags */
 	unsigned long sess_aflags;
 
+	/* protects sess_tgt_dev_list[] modifications */
+	struct mutex tgt_dev_list_mutex;
+
 	/*
-	 * Hash list for tgt_dev's for this session with size and fn. It isn't
-	 * hlist_entry, because we need ability to go over the list in the
-	 * reverse order. Protected by scst_mutex and suspended activity.
+	 * Hash list for tgt_dev's for this session with size and fn. Reading
+	 * is allowed either when holding an RCU read lock or when holding
+	 * tgt_dev_list_mutex. Modifying is only allowed when holding
+	 * tgt_dev_list_mutex.
 	 */
 #define	SESS_TGT_DEV_LIST_HASH_SIZE (1 << 5)
 #define	SESS_TGT_DEV_LIST_HASH_FN(val) ((val) & (SESS_TGT_DEV_LIST_HASH_SIZE - 1))
