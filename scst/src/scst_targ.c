@@ -2132,6 +2132,8 @@ static void scst_do_cmd_done(struct scst_cmd *cmd, int result,
 {
 	TRACE_ENTRY();
 
+	WARN_ON_ONCE(IS_ERR_VALUE((long)result));
+
 	cmd->status = result & 0xff;
 	cmd->msg_status = msg_byte(result);
 	cmd->host_status = host_byte(result);
