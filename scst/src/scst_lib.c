@@ -12332,6 +12332,7 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 {
 	int opcode = cmd->cdb[0];
 	int res = SCST_CMD_STATE_DEFAULT;
+	int sect_sz_off;
 
 	TRACE_ENTRY();
 
@@ -12348,33 +12349,29 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 	 * simplest, yet sufficient way for that.
 	 */
 
-	if (unlikely(opcode == READ_CAPACITY)) {
+	if (unlikely(opcode == READ_CAPACITY ||
+		     (opcode == SERVICE_ACTION_IN_16 &&
+		      cmd->cdb[1] == SAI_READ_CAPACITY_16))) {
 		if (scst_cmd_completed_good(cmd)) {
 			/* Always keep track of disk capacity */
 			int buffer_size, sector_size, sh;
 			uint8_t *buffer;
 
 			buffer_size = scst_get_buf_full(cmd, &buffer);
-			if (unlikely(buffer_size < 8)) {
-				if (buffer_size != 0) {
-					PRINT_ERROR("%s: Unable to get cmd "
-						"buffer (%d)",	__func__,
-						buffer_size);
-				}
+			sect_sz_off = opcode == READ_CAPACITY ? 4 : 8;
+			if (buffer_size < sect_sz_off + 4)
 				goto out;
-			}
-
-			sector_size = get_unaligned_be32(&buffer[4]);
+			sector_size = get_unaligned_be32(&buffer[sect_sz_off]);
 			scst_put_buf_full(cmd, buffer);
-			if (sector_size != 0)
+			if (sector_size != 0) {
 				sh = scst_calc_block_shift(sector_size);
-			else
-				sh = 0;
-			set_block_shift(cmd, sh);
-			TRACE_DBG("block_shift %d", sh);
+				set_block_shift(cmd, sh);
+				TRACE_DBG("block_shift %d", sh);
+			} else {
+				PRINT_ERROR("Sector size in %s response is 0",
+					    cmd->op_name);
+			}
 		}
-	} else /* ToDo: add READ CAPACITY(16) here */ {
-		/* It's all good */
 	}
 
 	TRACE_DBG("cmd->is_send_status=%x, cmd->resp_data_len=%d, "
