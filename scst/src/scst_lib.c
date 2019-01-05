@@ -12447,12 +12447,6 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 	TRACE_ENTRY();
 
 	/*
-	 * SCST sets good defaults for cmd->is_send_status and
-	 * cmd->resp_data_len based on cmd->status and cmd->data_direction,
-	 * therefore change them only if necessary
-	 */
-
-	/*
 	 * Potentially, a pass-through backend device can at any time change
 	 * block size behind us, e.g. after FORMAT command, so we need to
 	 * somehow detect it. Intercepting READ CAPACITY is, probably, the
@@ -12468,15 +12462,6 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 			uint8_t *buffer;
 
 			buffer_size = scst_get_buf_full(cmd, &buffer);
-			if (unlikely(buffer_size < 8)) {
-				if (buffer_size != 0) {
-					PRINT_ERROR("%s: Unable to get cmd "
-						"buffer (%d)",	__func__,
-						buffer_size);
-				}
-				goto out;
-			}
-
 			sect_sz_off = opcode == READ_CAPACITY ? 4 : 8;
 			if (buffer_size < sect_sz_off + 4)
 				goto out;
@@ -12491,8 +12476,6 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 					    cmd->op_name);
 			}
 		}
-	} else /* ToDo: add READ CAPACITY(16) here */ {
-		/* It's all good */
 	}
 
 out:
