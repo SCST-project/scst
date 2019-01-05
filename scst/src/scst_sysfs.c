@@ -3966,7 +3966,7 @@ static ssize_t scst_dev_dif_mode_show(struct kobject *kobj,
 
 		if (dev->dev_dif_mode & SCST_DIF_MODE_TGT)
 			pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
-				"%s%s", (j == pos) ? "" : "|", SCST_DIF_MODE_TGT_STR);
+				"%s", SCST_DIF_MODE_TGT_STR);
 
 		if (dev->dev_dif_mode & SCST_DIF_MODE_SCST)
 			pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
