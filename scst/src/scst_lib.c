@@ -8520,17 +8520,20 @@ static void scsi_end_async(struct request *req, blk_status_t error)
 		lockdep_assert_held(req->q->queue_lock);
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
-	result = scsi_req(req)->result;
-#else
-	result = req->errors;
-#endif
-	result = result && !IS_ERR_VALUE((long)result) ? result :
-		IS_ERR_VALUE((long)result) || error ?
-		SAM_STAT_CHECK_CONDITION : 0;
-
 	if (sioc->done) {
 		int resid_len;
+		long result;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
+		result = scsi_req(req)->result;
+#else
+		result = req->errors;
+#endif
+		TRACE_DBG("error %d / %ld", error, result);
+
+		result = result && !IS_ERR_VALUE(result) ? result :
+			IS_ERR_VALUE(result) || error ?
+			SAM_STAT_CHECK_CONDITION : 0;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 		resid_len = scsi_req(req)->resid_len;

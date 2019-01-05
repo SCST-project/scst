@@ -1533,7 +1533,7 @@ out:
 	return res;
 
 out_unreg:
-	list_del(&dev->dev_list_entry);
+	list_del_init(&dev->dev_list_entry);
 	scst_assign_dev_handler(dev, &scst_null_devtype);
 	goto out_pr_clear_dev;
 
