@@ -12337,12 +12337,6 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 	TRACE_ENTRY();
 
 	/*
-	 * SCST sets good defaults for cmd->is_send_status and
-	 * cmd->resp_data_len based on cmd->status and cmd->data_direction,
-	 * therefore change them only if necessary
-	 */
-
-	/*
 	 * Potentially, a pass-through backend device can at any time change
 	 * block size behind us, e.g. after FORMAT command, so we need to
 	 * somehow detect it. Intercepting READ CAPACITY is, probably, the
@@ -12374,9 +12368,6 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 		}
 	}
 
-	TRACE_DBG("cmd->is_send_status=%x, cmd->resp_data_len=%d, "
-	      "res=%d", cmd->is_send_status, cmd->resp_data_len, res);
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -12397,12 +12388,6 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	uint8_t *buffer = NULL;
 
 	TRACE_ENTRY();
-
-	/*
-	 * SCST sets good defaults for cmd->is_send_status and
-	 * cmd->resp_data_len based on cmd->status and cmd->data_direction,
-	 * therefore change them only if necessary
-	 */
 
 	if (unlikely(!scst_cmd_completed_good(cmd)))
 		goto out;
