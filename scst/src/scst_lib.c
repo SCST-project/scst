@@ -8504,7 +8504,6 @@ static void scsi_end_async(struct request *req, blk_status_t error)
 #endif
 {
 	struct scsi_io_context *sioc = req->end_io_data;
-	int result;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
 	TRACE_DBG("sioc %p, cmd %p, error %d / %d", sioc, sioc->data, error,
