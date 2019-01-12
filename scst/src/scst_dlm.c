@@ -640,7 +640,10 @@ static int scst_dlm_update_nodeids(struct scst_pr_dlm_data *pr_dlm)
 			pr_dlm->local_nodeid = nodeid;
 		pr_dlm->nodeid[i] = nodeid;
 	}
-	ret = 0;
+	if (WARN_ON_ONCE(pr_dlm->local_nodeid == 0))
+		ret = -EINVAL;
+	else
+		ret = 0;
 
 out:
 	kfree(entries);
