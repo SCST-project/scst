@@ -214,11 +214,12 @@ static bool scst_copy_res_from_dlm(struct scst_device *dev, struct pr_lvb *lvb)
 		modified_lvb = true;
 	}
 	if (dev->reserved_by)
-		EXTRACHECKS_BUG_ON(pr_dlm->reserved_by_nodeid !=
-				   pr_dlm->local_nodeid);
+		WARN_ONCE(pr_dlm->reserved_by_nodeid != pr_dlm->local_nodeid,
+			  "%d != %d\n", pr_dlm->reserved_by_nodeid,
+			  pr_dlm->local_nodeid);
 	else
-		EXTRACHECKS_BUG_ON(pr_dlm->reserved_by_nodeid ==
-				   pr_dlm->local_nodeid);
+		WARN_ON_ONCE(pr_dlm->reserved_by_nodeid ==
+			     pr_dlm->local_nodeid);
 	if (dropped_res)
 		scst_sess_get(dropped_res);
 	spin_unlock_bh(&dev->dev_lock);
@@ -1007,7 +1008,7 @@ static void scst_dlm_pr_write_unlock(struct scst_device *dev,
 
 static bool scst_dlm_reserved(struct scst_device *dev)
 {
-	EXTRACHECKS_BUG_ON(in_irq() || irqs_disabled());
+	WARN_ON_ONCE(in_irq() || irqs_disabled());
 
 	get_lockspace(dev);
 	return dev->reserved_by || dev->pr_dlm->reserved_by_nodeid;
@@ -1020,7 +1021,7 @@ static void scst_dlm_res_lock(struct scst_device *dev,
 	struct scst_pr_dlm_data *const pr_dlm = dev->pr_dlm;
 	dlm_lockspace_t *ls;
 
-	EXTRACHECKS_BUG_ON(in_irq() || irqs_disabled());
+	WARN_ON_ONCE(in_irq() || irqs_disabled());
 	memset(pr_lksb, 0, sizeof(*pr_lksb));
 	ls = get_lockspace(dev);
 	if (!ls)
