@@ -1663,7 +1663,12 @@ static struct scsi_host_template scst_lcl_ini_driver_template = {
 	.sg_tablesize			= 0xFFFF,
 	.max_sectors			= 0xffff,
 	/* Possible pass-through backend device may not support clustering */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0)
 	.use_clustering			= DISABLE_CLUSTERING,
+#else
+	.dma_boundary			= PAGE_SIZE - 1,
+	.max_segment_size		= PAGE_SIZE,
+#endif
 	.skip_settle_delay		= 1,
 	.module				= THIS_MODULE,
 };

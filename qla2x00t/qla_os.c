@@ -304,7 +304,9 @@ struct scsi_host_template qla2xxx_driver_template = {
 #endif
 	.this_id		= -1,
 	.cmd_per_lun		= 3,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0)
 	.use_clustering		= ENABLE_CLUSTERING,
+#endif
 	.sg_tablesize		= SG_ALL,
 
 	.max_sectors		= 0xFFFF,
@@ -1160,7 +1162,8 @@ __qla2xxx_eh_generic_reset(char *name, enum nexus_wait_type type,
 		goto eh_reset_failed;
 	}
 	err = 2;
-	if (do_reset(fcport, cmd->device->lun, cmd->request->cpu + 1)
+	if (do_reset(fcport, cmd->device->lun,
+		     scst_blk_rq_cpu(cmd->request) + 1)
 		!= QLA_SUCCESS) {
 		ql_log(ql_log_warn, vha, 0x800c,
 		    "do_reset failed for cmd=%p.\n", cmd);
