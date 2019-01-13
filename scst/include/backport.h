@@ -119,11 +119,25 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
+/* See also commit ac481c20ef8f ("block: Topology ioctls") # v2.6.32 */
+static inline int bdev_io_opt(struct block_device *bdev)
+{
+	return 0;
+}
+#endif
+
 /* <linux/blk-mq.h> */
 
 static inline unsigned int scst_blk_rq_cpu(struct request *rq)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
+	/*
+	 * See also commit c7c22e4d5c1f ("block: add support for IO CPU
+	 * affinity") # v2.6.28.
+	 */
+	return 0;
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0)
 	return rq->cpu;
 #else
 	return blk_mq_rq_cpu(rq);
@@ -418,6 +432,33 @@ static inline ssize_t call_write_iter(struct file *file, struct kiocb *kio,
 {
 	return file->f_op->write_iter(kio, iter);
 }
+#endif
+
+/* See also commit bdd1d2d3d251 ("fs: fix kernel_read prototype") # v4.14 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+static inline ssize_t
+kernel_read_backport(struct file *file, void *buf, size_t count, loff_t *pos)
+{
+	return kernel_read(file, *pos, buf, count);
+}
+
+#define kernel_read(file, buf, count, pos)			\
+	kernel_read_backport((file), (buf), (count), (pos))
+
+/*
+ * See also commit 7bb307e894d5 ("export kernel_write(), convert open-coded
+ * instances") # v3.10.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+static inline ssize_t
+kernel_write_backport(struct file *file, void *buf, size_t count, loff_t *pos)
+{
+	return kernel_write(file, *pos, buf, count);
+}
+
+#define kernel_write(file, buf, count, pos)			\
+	kernel_write_backport((file), (buf), (count), (pos))
+#endif
 #endif
 
 /* <linux/iocontext.h> */
@@ -963,7 +1004,7 @@ struct t10_pi_tuple {
 #undef DEFINE_TIMER
 #define DEFINE_TIMER(_name, _function)					\
 	struct timer_list _name = TIMER_INITIALIZER(			\
-		(void (*)(unsigned long))(_function), 0,		\
+		(void (*)(unsigned long))(unsigned long)(_function), 0,	\
 		(unsigned long)&(_name))
 #endif
 

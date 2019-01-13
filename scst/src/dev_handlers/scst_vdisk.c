@@ -25,6 +25,7 @@
 #ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
 #endif
+#include <linux/wait.h>
 #include <linux/aio.h>
 #include <linux/file.h>
 #include <linux/fs.h>

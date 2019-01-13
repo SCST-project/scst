@@ -156,7 +156,11 @@ module_param(use_node_guid_in_target_name, bool, 0444);
 MODULE_PARM_DESC(use_node_guid_in_target_name,
 		 "Use HCA node GUID as SCST target name.");
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+static int srpt_get_u64_x(char *buffer, struct kernel_param *kp)
+#else
 static int srpt_get_u64_x(char *buffer, const struct kernel_param *kp)
+#endif
 {
 	return sprintf(buffer, "0x%016llx", *(u64 *)kp->arg);
 }
@@ -1094,6 +1098,7 @@ static int srpt_zerolength_write(struct srpt_rdma_ch *ch)
 
 static inline void *srpt_get_desc_buf(struct srp_cmd *srp_cmd)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
 	/*
 	 * The pointer computations below will only be compiled correctly
 	 * if srp_cmd::add_data is declared as s8*, u8*, s8[] or u8[], so check
@@ -1101,6 +1106,7 @@ static inline void *srpt_get_desc_buf(struct srp_cmd *srp_cmd)
 	 */
 	BUILD_BUG_ON(!__same_type(srp_cmd->add_data[0], (s8)0) &&
 		     !__same_type(srp_cmd->add_data[0], (u8)0));
+#endif
 
 	/*
 	 * According to the SRP spec, the lower two bits of the 'ADDITIONAL

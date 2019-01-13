@@ -647,7 +647,10 @@ do
   patchdir="patchdir-${kv}"
   k="${kv}"
 
-  download_kernel "$k" || continue
+  if ! download_kernel "$k"; then
+    echo "Downloading kernel version $k failed"
+    continue
+  fi
   generate_kernel_patch "$k" "${generate_kernel_patch_options}" || continue
   (
       cd "${outputdir}" &&
