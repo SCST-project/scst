@@ -36,7 +36,7 @@ SHELL=/bin/bash
 DEV_HANDLERS_DIR = dev_handlers
 
 ifneq ($(PATCHLEVEL),)
-SCST_INC_DIR := $(SUBDIRS)/../include
+SCST_INC_DIR := $(KBUILD_EXTMOD)/../include
 
 obj-m := scst.o
 
@@ -94,10 +94,10 @@ $(SCST_INTF_VER_FILE): $(SCST_INC_DIR)/scst.h $(SCST_INC_DIR)/scst_const.h $(SCS
 	echo "\"`sha1sum $(SCST_INC_DIR)/scst_user.h|awk '{printf $$1}'`\"" >>$(SCST_INTF_VER_FILE)
 
 all: $(SCST_INTF_VER_FILE)
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_DEV=m
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_DEV=m
 
 scst:
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_DEV=n
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_DEV=n
 
 # The file Modules.symvers has been renamed in the 2.6.18 kernel to
 # Module.symvers. Find out which name to use by looking in $(KDIR).
@@ -110,9 +110,9 @@ install: all
 	echo Error: the scst and/or scst-devel RPMs must be uninstalled first; \
 	false; fi
 	-rm -f $(INSTALL_DIR)/scsi_tgt.ko
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)/dev_handlers		\
+	$(MAKE) -C $(KDIR) M=$(shell pwd)/dev_handlers			\
 	  modules_install
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd)				\
+	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
 	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true)\
 	  modules_install
 	install -d $(INSTALL_DIR_H)

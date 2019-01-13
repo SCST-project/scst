@@ -61,10 +61,10 @@ qla2xxx_scst-objs := qla_os.o qla_init.o qla_mbx.o qla_iocb.o qla_isr.o qla_gs.o
 else
 
 all:
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m EXTRA_CFLAGS="$(EXTRA_CFLAGS)"
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m EXTRA_CFLAGS="$(EXTRA_CFLAGS)"
 
 install: all
-	$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) BUILD_INI=m \
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
 		$$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
 		modules_install
 
@@ -76,7 +76,7 @@ uninstall:
 endif
 
 clean:
-	@$(MAKE) -C $(KDIR) SUBDIRS=$(shell pwd) clean
+	@$(MAKE) -C $(KDIR) M=$(shell pwd) clean
 	@$(RM) tags Modules.symvers module.symvers Module.markers modules.order
 
 extraclean: clean
