@@ -123,7 +123,13 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 
 static inline unsigned int scst_blk_rq_cpu(struct request *rq)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
+	/*
+	 * See also commit c7c22e4d5c1f ("block: add support for IO CPU
+	 * affinity") # v2.6.28.
+	 */
+	return 0;
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0)
 	return rq->cpu;
 #else
 	return blk_mq_rq_cpu(rq);
