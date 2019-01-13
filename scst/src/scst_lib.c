@@ -5966,6 +5966,8 @@ ssize_t scst_read(struct file *file, void *buf, size_t count, loff_t *pos)
 
 	return scst_readv(file, &iov, 1, pos);
 #else
+	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
+
 	return vfs_read(file, (void __force __user *)buf, count, pos);
 #endif
 }
@@ -5984,6 +5986,8 @@ ssize_t scst_write(struct file *file, const void *buf, size_t count,
 
 	return scst_writev(file, &iov, 1, pos);
 #else
+	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
+
 	return vfs_write(file, (void __force __user *)buf, count, pos);
 #endif
 }
@@ -6011,8 +6015,12 @@ ssize_t scst_readv(struct file *file, const struct iovec *vec,
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0) ||	\
 	(defined(CONFIG_SUSE_KERNEL) &&			\
 	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
+	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
+
 	return vfs_readv(file, (const struct iovec __user *)vec, vlen, pos, 0);
 #else
+	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
+
 	return vfs_readv(file, (const struct iovec __user *)vec, vlen, pos);
 #endif
 }
