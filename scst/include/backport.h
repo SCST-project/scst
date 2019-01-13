@@ -119,6 +119,14 @@ static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
+/* See also commit ac481c20ef8f ("block: Topology ioctls") # v2.6.32 */
+static inline int bdev_io_opt(struct block_device *bdev)
+{
+	return 0;
+}
+#endif
+
 /* <linux/blk-mq.h> */
 
 static inline unsigned int scst_blk_rq_cpu(struct request *rq)
