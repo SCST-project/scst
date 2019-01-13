@@ -449,7 +449,7 @@ kernel_read_backport(struct file *file, void *buf, size_t count, loff_t *pos)
  * See also commit 7bb307e894d5 ("export kernel_write(), convert open-coded
  * instances") # v3.10.
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0) && !defined(RHEL_MAJOR)
 static inline ssize_t
 kernel_write_backport(struct file *file, void *buf, size_t count, loff_t *pos)
 {
