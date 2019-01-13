@@ -266,6 +266,12 @@ conftest/rdma_destroy_ah/result-$(KVER).txt:				\
 	echo "$(call run_conftest_bool,rdma_destroy_ah,			\
 		HAVE_RDMA_DESTROY_AH)" >"$@"
 
+conftest/rdma_destroy_ah_with_flags/result-$(KVER).txt:			\
+	conftest/rdma_destroy_ah_with_flags/rdma_destroy_ah_with_flags.c\
+	conftest/rdma_destroy_ah_with_flags/Makefile
+	echo "$(call run_conftest_bool,rdma_destroy_ah_with_flags,	\
+		HAVE_RDMA_DESTROY_AH_WITH_FLAGS)" >"$@"
+
 conftest/rdma_query_gid/result-$(KVER).txt:				\
 	conftest/rdma_query_gid/rdma_query_gid.c			\
 	conftest/rdma_query_gid/Makefile
