@@ -434,6 +434,33 @@ static inline ssize_t call_write_iter(struct file *file, struct kiocb *kio,
 }
 #endif
 
+/* See also commit bdd1d2d3d251 ("fs: fix kernel_read prototype") # v4.14 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+static inline ssize_t
+kernel_read_backport(struct file *file, void *buf, size_t count, loff_t *pos)
+{
+	return kernel_read(file, *pos, buf, count);
+}
+
+#define kernel_read(file, buf, count, pos)			\
+	kernel_read_backport((file), (buf), (count), (pos))
+
+/*
+ * See also commit 7bb307e894d5 ("export kernel_write(), convert open-coded
+ * instances") # v3.10.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0)
+static inline ssize_t
+kernel_write_backport(struct file *file, void *buf, size_t count, loff_t *pos)
+{
+	return kernel_write(file, *pos, buf, count);
+}
+
+#define kernel_write(file, buf, count, pos)			\
+	kernel_write_backport((file), (buf), (count), (pos))
+#endif
+#endif
+
 /* <linux/iocontext.h> */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25) || \
 	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0)
