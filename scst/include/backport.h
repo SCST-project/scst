@@ -893,7 +893,7 @@ struct t10_pi_tuple {
 #undef DEFINE_TIMER
 #define DEFINE_TIMER(_name, _function)					\
 	struct timer_list _name = TIMER_INITIALIZER(			\
-		(void (*)(unsigned long))(_function), 0,		\
+		(void (*)(unsigned long))(unsigned long)(_function), 0,	\
 		(unsigned long)&(_name))
 #endif
 
