@@ -310,23 +310,45 @@ typedef unsigned int __poll_t;
 #define EPOLLNVAL	POLLNVAL
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0) && !defined(EPOLLIN)
 /*
  * See also commit 7e040726850a ("eventpoll.h: add missing epoll event masks").
  * Note: this commit got backported to multiple stable kernels, including
  * v3.18.93.
  */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
+#if !defined(EPOLLIN)
 #define EPOLLIN		POLLIN
+#endif
+#if !defined(EPOLLPRI)
 #define EPOLLPRI	POLLPRI
+#endif
+#if !defined(EPOLLOUT)
 #define EPOLLOUT	POLLOUT
+#endif
+#if !defined(EPOLLERR)
 #define EPOLLERR	POLLERR
+#endif
+#if !defined(EPOLLHUP)
 #define EPOLLHUP	POLLHUP
+#endif
+#if !defined(EPOLLRDNORM)
 #define EPOLLRDNORM	POLLRDNORM
+#endif
+#if !defined(EPOLLRDBAND)
 #define EPOLLRDBAND	POLLRDBAND
+#endif
+#if !defined(EPOLLWRNORM)
 #define EPOLLWRNORM	POLLWRNORM
+#endif
+#if !defined(EPOLLWRBAND)
 #define EPOLLWRBAND	POLLWRBAND
+#endif
+#if !defined(EPOLLMSG)
 #define EPOLLMSG	POLLMSG
+#endif
+#if !defined(EPOLLRDHUP)
 #define EPOLLRDHUP	POLLRDHUP
+#endif
 #endif
 
 /* <linux/fs.h> */
