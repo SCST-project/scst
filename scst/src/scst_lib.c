@@ -5277,10 +5277,11 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	scst_sgv_pool_use_norm(tgt_dev);
 
 	if (dev->scsi_dev != NULL) {
-		ini_sg = dev->scsi_dev->host->sg_tablesize;
-		ini_unchecked_isa_dma = dev->scsi_dev->host->unchecked_isa_dma;
-		ini_use_clustering = (dev->scsi_dev->host->use_clustering ==
-				ENABLE_CLUSTERING);
+		struct Scsi_Host *shost = dev->scsi_dev->host;
+
+		ini_sg = shost->sg_tablesize;
+		ini_unchecked_isa_dma = shost->unchecked_isa_dma;
+		ini_use_clustering = shost->use_clustering == ENABLE_CLUSTERING;
 	} else {
 		ini_sg = (1 << 15) /* infinite */;
 		ini_unchecked_isa_dma = 0;
