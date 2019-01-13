@@ -5843,6 +5843,14 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 	return;
 }
 
+static int scst_cmp_fs_ds(void)
+{
+	mm_segment_t fs = get_fs();
+	mm_segment_t ds = get_ds();
+
+	return memcmp(&fs, &ds, sizeof(fs));
+}
+
 ssize_t scst_read(struct file *file, void *buf, size_t count, loff_t *pos)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
@@ -5850,6 +5858,8 @@ ssize_t scst_read(struct file *file, void *buf, size_t count, loff_t *pos)
 		.iov_base = (void __force __user *)buf,
 		.iov_len = count
 	};
+
+	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
 
 	return scst_readv(file, &iov, 1, pos);
 #else
@@ -5869,6 +5879,8 @@ ssize_t scst_write(struct file *file, const void *buf, size_t count,
 		.iov_len = count
 	};
 
+	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
+
 	return scst_writev(file, &iov, 1, pos);
 #else
 	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
@@ -5886,6 +5898,8 @@ ssize_t scst_readv(struct file *file, const struct iovec *vec,
 	struct iovec *iov = iovstack;
 	struct iov_iter iter;
 	ssize_t ret;
+
+	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
 
 	ret = import_iovec(READ, (const struct iovec __force __user *)vec, vlen,
 			   ARRAY_SIZE(iovstack), &iov, &iter);
@@ -5926,6 +5940,8 @@ ssize_t scst_writev(struct file *file, const struct iovec *vec,
 	struct iovec *iov = iovstack;
 	struct iov_iter iter;
 	ssize_t ret;
+
+	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
 
 	ret = import_iovec(WRITE, (const struct iovec __force __user *)vec,
 			   vlen, ARRAY_SIZE(iovstack), &iov, &iter);
