@@ -6268,9 +6268,9 @@ static inline void blockio_check_finish(struct scst_blockio_work *blockio_work)
 			cmd->deferred_dif_read_check = 1;
 		}
 
-		blockio_work->cmd->completed = 1;
-		blockio_work->cmd->scst_cmd_done(cmd,
-			SCST_CMD_STATE_DEFAULT, scst_estimate_context());
+		cmd->completed = 1;
+		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
+				   scst_estimate_context());
 
 		kmem_cache_free(blockio_work_cachep, blockio_work);
 	}
