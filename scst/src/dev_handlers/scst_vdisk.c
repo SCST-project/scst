@@ -7086,10 +7086,8 @@ static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	}
 }
 
-static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p)
+static enum compl_status_e vdev_verify(struct scst_cmd *cmd, loff_t loff)
 {
-	struct scst_cmd *cmd = p->cmd;
-	loff_t loff = p->loff;
 	loff_t err;
 	ssize_t length, len_mem = 0;
 	uint8_t *address_sav, *address = NULL;
@@ -7185,6 +7183,11 @@ out_free:
 out:
 	TRACE_EXIT();
 	return CMD_SUCCEEDED;
+}
+
+static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p)
+{
+	return vdev_verify(p->cmd, p->loff);
 }
 
 static enum compl_status_e blockio_exec_write_verify(struct vdisk_cmd_params *p)
