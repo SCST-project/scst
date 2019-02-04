@@ -352,6 +352,7 @@ static enum compl_status_e fileio_exec_var_len_cmd(struct vdisk_cmd_params *p);
 static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua);
 static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 	bool report_error, struct scst_cmd *cmd, bool async);
+static enum compl_status_e vdev_verify(struct scst_cmd *cmd, loff_t loff);
 static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e blockio_exec_write_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e fileio_exec_write_verify(struct vdisk_cmd_params *p);
@@ -6244,6 +6245,24 @@ out_nomem:
 	goto out;
 }
 
+struct scst_verify_work {
+	struct work_struct work;
+	struct scst_cmd *cmd;
+};
+
+static void scst_do_verify_work(struct work_struct *work)
+{
+	struct scst_verify_work *w = container_of(work, typeof(*w), work);
+	struct scst_cmd *cmd = w->cmd;
+	struct scst_device *dev = cmd->dev;
+	loff_t loff = scst_cmd_get_lba(cmd) << dev->block_shift;
+
+	kfree(w);
+	WARN_ON_ONCE(vdev_verify(cmd, loff) != CMD_SUCCEEDED);
+	cmd->completed = 1;
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
+}
+
 struct scst_blockio_work {
 	atomic_t bios_inflight;
 	struct scst_cmd *cmd;
@@ -6255,10 +6274,29 @@ struct scst_blockio_work {
 
 static inline void blockio_check_finish(struct scst_blockio_work *blockio_work)
 {
-	/* Decrement the bios in processing, and if zero signal completion */
-	if (atomic_dec_and_test(&blockio_work->bios_inflight)) {
-		struct scst_cmd *cmd = blockio_work->cmd;
+	struct scst_cmd *cmd;
 
+	/* Decrement the bios in processing, and if zero signal completion */
+	if (!atomic_dec_and_test(&blockio_work->bios_inflight))
+		return;
+
+	cmd = blockio_work->cmd;
+
+	if (unlikely(cmd->do_verify)) {
+		struct scst_verify_work *w = kmalloc(sizeof(*w), GFP_ATOMIC);
+
+		cmd->do_verify = false;
+		if (w) {
+			INIT_WORK(&w->work, scst_do_verify_work);
+			w->cmd = cmd;
+			schedule_work(&w->work);
+		} else {
+			scst_set_busy(cmd);
+			cmd->completed = 1;
+			cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
+					   scst_estimate_context());
+		}
+	} else {
 		if ((cmd->data_direction & SCST_DATA_READ) &&
 		    likely(cmd->status == SAM_STAT_GOOD)) {
 			/*
@@ -6271,10 +6309,8 @@ static inline void blockio_check_finish(struct scst_blockio_work *blockio_work)
 		cmd->completed = 1;
 		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
 				   scst_estimate_context());
-
-		kmem_cache_free(blockio_work_cachep, blockio_work);
 	}
-	return;
+	kmem_cache_free(blockio_work_cachep, blockio_work);
 }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)) && (LINUX_VERSION_CODE <= KERNEL_VERSION(3, 6, 0))
@@ -7192,8 +7228,7 @@ static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p)
 
 static enum compl_status_e blockio_exec_write_verify(struct vdisk_cmd_params *p)
 {
-	/* Not yet implemented */
-	PRINT_WARNING("vdisk_blockio: WRITE VERIFY is not yet implemented");
+	p->cmd->do_verify = true;
 	return blockio_exec_write(p);
 }
 

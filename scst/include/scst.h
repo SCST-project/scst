@@ -2397,6 +2397,9 @@ struct scst_cmd {
 	/* Set if cmd was globally STPG blocked in __scst_check_blocked_dev() */
 	unsigned int cmd_global_stpg_blocked:1;
 
+	/* Set by WRITE VERIFY commands to trigger a verify after write */
+	unsigned int do_verify:1;
+
 	/**************************************************************/
 
 	/* cmd's async flags */
