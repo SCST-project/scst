@@ -451,8 +451,21 @@ following entries:
  - measure_latency - whether or not to enable latency measurements.
    Enabling latency measurements has a small impact on performance but
    makes detailed information available about how much time is needed
-   to process SCSI commands. Here is an example of the data produced
-   by this infrastructure:
+   to process SCSI commands. The structure of the paths to files with
+   latency information is as follows:
+
+   /sys/kernel/scst_tgt/targets/${target_driver_name}/${target_port_name}/sessions/${initiator_name}/latency/${io_type}${io_size}
+
+   ${io_type} is n, r, w or b. 'n' means that no data buffer was
+   associated with the command, 'r' stands for read, 'w' for write
+   and 'b' for bidirectional. ${io_size} is a power of two between 512
+   and 524288. Each file contains statistics for I/O requests with a
+   size up to ${io_size} and that exceed a smaller I/O size. The files
+   for ${io_size} 524288 are an exception because these also include
+   data for all larger requests.
+
+   Here is an example of the data produced by this infrastructure (edited for
+   clarity):
     
      $ echo 1 >/sys/kernel/scst_tgt/measure_latency
      $ sleep 10 # Wait until an initiator has submitted multiple I/O requests
