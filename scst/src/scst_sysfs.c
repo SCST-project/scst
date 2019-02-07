@@ -6925,7 +6925,7 @@ static ssize_t scst_measure_latency_store(struct kobject *kobj,
 
 	val = !!val;
 
-	res = scst_suspend_activity(true);
+	res = scst_suspend_activity(10 * HZ);
 	if (res)
 		goto out;
 	res = mutex_lock_interruptible(&scst_mutex);
