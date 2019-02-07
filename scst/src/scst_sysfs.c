@@ -4304,9 +4304,15 @@ void scst_tgt_dev_sysfs_del(struct scst_tgt_dev *tgt_dev)
  ** Sessions subdirectory implementation
  **/
 
+/* Calculate int_sqrt64((sumsq - sum * sum / count) / count) */
 static u64 calc_stddev(u64 sumsq, u64 sum, u32 count)
 {
-	return int_sqrt64((sumsq - sum * sum / count) / count);
+	u64 d = sum * sum;
+
+	do_div(d, count);
+	d = sumsq - d;
+	do_div(d, count);
+	return int_sqrt64(d);
 }
 
 static ssize_t scst_sess_latency_show(struct kobject *kobj,
@@ -4324,6 +4330,8 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj,
 	uint64_t sum = 0, sumsq = 0;
 #endif
 	unsigned count = 0, numst = 0;
+	u64 d_min_div_10, d_max_div_10, avg_div_10, stddev_div_10;
+	u32 d_min_mod_10, d_max_mod_10, avg_mod_10, stddev_mod_10;
 	char state_name[32];
 
 	switch (attr->attr.name[0]) {
@@ -4356,15 +4364,24 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj,
 			continue;
 		scst_get_cmd_state_name(state_name, sizeof(state_name),
 					k);
-		avg = d->sum / d->count;
+		avg = d->sum;
+		do_div(avg, d->count);
 		stddev = calc_stddev(d->sumsq, d->sum, d->count);
+		d_min_div_10 = d->min;
+		d_min_mod_10 = do_div(d_min_div_10, 10);
+		d_max_div_10 = d->max;
+		d_max_mod_10 = do_div(d_max_div_10, 10);
+		avg_div_10 = avg;
+		avg_mod_10 = do_div(avg_div_10, 10);
+		stddev_div_10 = stddev;
+		stddev_mod_10 = do_div(stddev_div_10, 10);
 		res += scnprintf(buf + res, PAGE_SIZE - res,
-				 "%s %d %lld.%01lld %lld.%01lld %lld.%01lld %lld.%01lld us\n",
+				 "%s %d %lld.%01d %lld.%01d %lld.%01d %lld.%01d us\n",
 				 state_name, d->count,
-				 d->min / 10, d->min % 10,
-				 d->max / 10, d->max % 10,
-				 avg / 10, avg % 10,
-				 stddev / 10, stddev % 10);
+				 d_min_div_10, d_min_mod_10,
+				 d_max_div_10, d_max_mod_10,
+				 avg_div_10, avg_mod_10,
+				 stddev_div_10, stddev_mod_10);
 #ifdef SCST_MEASURE_CLOCK_CYCLES
 		min = d->minc * 10000 / (tsc_khz / 100);
 		max = d->maxc * 10000 / (tsc_khz / 100);
@@ -4399,12 +4416,17 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj,
 				 count / numst, avg / 10, avg % 10, stddev / 10,
 				 stddev % 10);
 #else
-		avg = numst * sum / count;
+		avg = numst * sum;
+		do_div(avg, count);
 		stddev = calc_stddev(sumsq, sum, count) * numst;
+		avg_div_10 = avg;
+		avg_mod_10 = do_div(avg_div_10, 10);
+		stddev_div_10 = stddev;
+		stddev_mod_10 = do_div(stddev_div_10, 10);
 		res += scnprintf(buf + res, PAGE_SIZE - res,
-				 "total %d - - %lld.%01lld %lld.%01lld us\n",
-				 count / numst, avg / 10, avg % 10, stddev / 10,
-				 stddev % 10);
+				 "total %d - - %lld.%01d %lld.%01d us\n",
+				 count / numst, avg_div_10, avg_mod_10,
+				 stddev_div_10, stddev_mod_10);
 #endif
 	}
 
