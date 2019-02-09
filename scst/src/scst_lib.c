@@ -15841,7 +15841,7 @@ static void __scst_update_latency_stats(struct scst_cmd *cmd,
 				    cmd->state, delta);
 			delta = 0;
 		}
-		delta /= 100;
+		do_div(delta, 100);
 #ifdef SCST_MEASURE_CLOCK_CYCLES
 		deltac = nowc - stat->last_update_tsc;
 		if (deltac < 0 || deltac > tsc_khz * 1000) {
@@ -15849,7 +15849,7 @@ static void __scst_update_latency_stats(struct scst_cmd *cmd,
 				    cmd->state, deltac);
 			deltac = 0;
 		}
-		deltac /= 100;
+		do_div(deltac, 100);
 #endif
 		if (stat->count++ > 0) {
 			if (delta < stat->min)

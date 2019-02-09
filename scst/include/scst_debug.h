@@ -354,7 +354,7 @@ do {									\
 
 #define TRACE_EXIT_HRES(res)						\
 do {									\
-	unsigned long lres = (unsigned long)res;			\
+	unsigned long lres = (unsigned long)(res);			\
 									\
 	if (trace_flag & TRACE_ENTRYEXIT) {				\
 		if (trace_flag & TRACE_PID) {				\

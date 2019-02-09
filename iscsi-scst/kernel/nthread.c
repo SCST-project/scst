@@ -581,7 +581,7 @@ restart:
 	set_fs(oldfs);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
-	TRACE_DBG("nr_segs %zd, bytes_left %zd, res %d",
+	TRACE_DBG("nr_segs %ld, bytes_left %zd, res %d",
 		  msg->msg_iter.nr_segs, msg->msg_iter.count, res);
 #else
 	TRACE_DBG("msg_iovlen %zd, read_size %d, res %d", msg->msg_iovlen,
