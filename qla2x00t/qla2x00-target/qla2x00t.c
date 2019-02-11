@@ -5752,10 +5752,10 @@ static void q2t_async_event(uint16_t code, scsi_qla_host_t *vha,
 
 	default:
 		TRACE(TRACE_MGMT, "qla2x00t(%ld): Async event %#x occurred: "
-			"ignoring (m[1]=%x, m[2]=%x, m[3]=%x, m[4]=%x)",
+			"ignoring (m[0]=%x, m[1]=%x, m[2]=%x, m[3]=%x)",
 			vha->host_no, code,
-			le16_to_cpu(mailbox[1]), le16_to_cpu(mailbox[2]),
-			le16_to_cpu(mailbox[3]), le16_to_cpu(mailbox[4]));
+			le16_to_cpu(mailbox[0]), le16_to_cpu(mailbox[1]),
+			le16_to_cpu(mailbox[2]), le16_to_cpu(mailbox[3]));
 		break;
 	}
 
