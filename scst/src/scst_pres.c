@@ -762,7 +762,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 	}
 	pos += sizeof(version);
 
-	while (data_size < file_size) {
+	while (data_size + 1 < file_size) {
 		uint8_t *tid;
 
 		data_size++;
@@ -794,7 +794,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 	dev->pr_scope = buf[pos];
 	pos += sizeof(dev->pr_scope);
 
-	while (pos < file_size) {
+	while (pos + 1 < file_size) {
 		uint8_t is_holder;
 		uint8_t *tid;
 		struct scst_dev_registrant *reg = NULL;

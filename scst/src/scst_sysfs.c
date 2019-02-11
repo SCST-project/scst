@@ -4359,8 +4359,10 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj,
 	for (k = 0; k < SCST_CMD_STATE_COUNT; k++) {
 		struct scst_lat_stats *lat_stats = sess->lat_stats;
 
+		if (!lat_stats || res >= PAGE_SIZE)
+			continue;
 		d = &lat_stats->ls[i][j][k];
-		if (!lat_stats || d->count == 0 || res >= PAGE_SIZE)
+		if (d->count == 0)
 			continue;
 		scst_get_cmd_state_name(state_name, sizeof(state_name),
 					k);
