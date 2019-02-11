@@ -5043,9 +5043,7 @@ static inline int __scst_get_buf(struct scst_cmd *cmd, int sg_cnt,
 		goto out;
 	}
 
-	*buf = page_address(sg_page(sg));
-	*buf += sg->offset;
-
+	*buf = sg_virt(sg);
 	res = sg->length;
 
 	cmd->get_sg_buf_entry_num++;
