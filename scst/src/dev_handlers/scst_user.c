@@ -3953,6 +3953,28 @@ out:
 	return 0;
 }
 
+#ifdef CONFIG_SCST_EXTRACHECKS
+static void dev_user_check_lost_ucmds(struct scst_user_dev *dev)
+{
+	int i;
+
+	for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
+		struct list_head *head = &dev->ucmd_hash[i];
+		struct scst_user_cmd *ucmd2, *tmp;
+
+		list_for_each_entry_safe(ucmd2, tmp, head, hash_list_entry) {
+			PRINT_ERROR("Lost ucmd %p (state %x, ref %d)", ucmd2,
+				ucmd2->state, atomic_read(&ucmd2->ucmd_ref));
+			ucmd_put(ucmd2);
+		}
+	}
+}
+#else
+static void dev_user_check_lost_ucmds(struct scst_user_dev *dev)
+{
+}
+#endif
+
 static int dev_user_process_cleanup(struct scst_user_dev *dev)
 {
 	struct scst_user_cmd *ucmd;
@@ -3988,22 +4010,7 @@ static int dev_user_process_cleanup(struct scst_user_dev *dev)
 		}
 	}
 
-#ifdef CONFIG_SCST_EXTRACHECKS
-{
-	int i;
-
-	for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
-		struct list_head *head = &dev->ucmd_hash[i];
-		struct scst_user_cmd *ucmd2, *tmp;
-
-		list_for_each_entry_safe(ucmd2, tmp, head, hash_list_entry) {
-			PRINT_ERROR("Lost ucmd %p (state %x, ref %d)", ucmd2,
-				ucmd2->state, atomic_read(&ucmd2->ucmd_ref));
-			ucmd_put(ucmd2);
-		}
-	}
-}
-#endif
+	dev_user_check_lost_ucmds(dev);
 
 	TRACE_DBG("Cleanuping done (dev %p)", dev);
 	complete_all(&dev->cleanup_cmpl);
