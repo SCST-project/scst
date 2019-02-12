@@ -1327,7 +1327,7 @@ set_res:
 	 * be because of the SCST_TGT_DEV_AFTER_* optimization, but during
 	 * parsing data_direction can change, so we need to recheck.
 	 */
-	if (unlikely(scst_cmd_atomic(cmd) &&
+	if (unlikely(scst_cmd_atomic(cmd) && cmd->status == 0 &&
 		     !(cmd->data_direction & SCST_DATA_WRITE))) {
 		TRACE_DBG_FLAG(TRACE_DEBUG|TRACE_MINOR, "Atomic context and "
 			"non-WRITE data direction, rescheduling (cmd %p)", cmd);
