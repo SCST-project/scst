@@ -1382,12 +1382,6 @@ struct scst_dev_type {
 #endif
 
 	/*
-	 * Should be true, if exec() is synchronous. This is a hint to SCST core
-	 * to optimize commands order management.
-	 */
-	unsigned exec_sync:1;
-
-	/*
 	 * Should be set if the device wants to receive notification of
 	 * Persistent Reservation commands (PR OUT only)
 	 * Note: The notification will not be send if the command failed
@@ -1454,9 +1448,8 @@ struct scst_dev_type {
 	 *  - SCST_EXEC_NOT_COMPLETED - the cmd should be sent to SCSI
 	 *	mid-level.
 	 *
-	 * If this function provides sync execution, you should set
-	 * exec_sync flag and consider to setup dedicated threads by
-	 * setting threads_num > 0.
+	 * If this function provides sync execution, you should to set up
+	 * dedicated threads by setting threads_num > 0.
 	 *
 	 * Dev handlers implementing internal queuing in their exec() callback
 	 * should call scst_check_local_events() just before the actual

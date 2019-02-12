@@ -953,7 +953,7 @@ int scst_pre_parse(struct scst_cmd *cmd)
 #ifdef CONFIG_SCST_STRICT_SERIALIZING
 	cmd->inc_expected_sn_on_done = 1;
 #else
-	cmd->inc_expected_sn_on_done = devt->exec_sync || cmd->cmd_naca ||
+	cmd->inc_expected_sn_on_done = cmd->cmd_naca ||
 		(!dev->has_own_order_mgmt &&
 		 (dev->queue_alg == SCST_QUEUE_ALG_0_RESTRICTED_REORDER ||
 		  cmd->queue_type == SCST_CMD_QUEUE_ORDERED));

@@ -760,7 +760,6 @@ static vdisk_op_fn nullio_ops[256];
 static struct scst_dev_type vdisk_file_devtype = {
 	.name =			"vdisk_fileio",
 	.type =			TYPE_DISK,
-	.exec_sync =		1,
 	.threads_num =		-1,
 	.parse_atomic =		1,
 	.dev_done_atomic =	1,
@@ -922,7 +921,6 @@ static struct scst_dev_type vdisk_null_devtype = {
 static struct scst_dev_type vcdrom_devtype = {
 	.name =			"vcdrom",
 	.type =			TYPE_ROM,
-	.exec_sync =		1,
 	.threads_num =		-1,
 	.parse_atomic =		1,
 	.dev_done_atomic =	1,
