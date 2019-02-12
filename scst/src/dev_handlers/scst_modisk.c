@@ -45,7 +45,7 @@ static int modisk_attach(struct scst_device *);
 static void modisk_detach(struct scst_device *);
 static int modisk_parse(struct scst_cmd *);
 static int modisk_done(struct scst_cmd *);
-static int modisk_perf_exec(struct scst_cmd *);
+static enum scst_exec_res modisk_perf_exec(struct scst_cmd *);
 
 static struct scst_dev_type modisk_devtype = {
 	.name =			MODISK_NAME,
@@ -308,9 +308,9 @@ static int modisk_done(struct scst_cmd *cmd)
 	return res;
 }
 
-static int modisk_perf_exec(struct scst_cmd *cmd)
+static enum scst_exec_res modisk_perf_exec(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_NOT_COMPLETED;
+	enum scst_exec_res res = SCST_EXEC_NOT_COMPLETED;
 	int opcode = cmd->cdb[0];
 
 	TRACE_ENTRY();

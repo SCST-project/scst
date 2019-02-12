@@ -331,10 +331,10 @@ static int vcdrom_get_supported_opcodes(struct scst_cmd *cmd,
 static int vdisk_parse(struct scst_cmd *);
 static int vcdrom_parse(struct scst_cmd *);
 static int non_fileio_parse(struct scst_cmd *);
-static int fileio_exec(struct scst_cmd *cmd);
-static int vcdrom_exec(struct scst_cmd *cmd);
-static int blockio_exec(struct scst_cmd *cmd);
-static int nullio_exec(struct scst_cmd *cmd);
+static enum scst_exec_res fileio_exec(struct scst_cmd *cmd);
+static enum scst_exec_res vcdrom_exec(struct scst_cmd *cmd);
+static enum scst_exec_res blockio_exec(struct scst_cmd *cmd);
+static enum scst_exec_res nullio_exec(struct scst_cmd *cmd);
 static void blockio_on_alua_state_change_start(struct scst_device *dev,
 	enum scst_tg_state old_state, enum scst_tg_state new_state);
 static void blockio_on_alua_state_change_finish(struct scst_device *dev,
@@ -3160,9 +3160,10 @@ out:
 	return res;
 }
 
-static int vdev_do_job(struct scst_cmd *cmd, const vdisk_op_fn *ops)
+static enum scst_exec_res vdev_do_job(struct scst_cmd *cmd,
+				      const vdisk_op_fn *ops)
 {
-	int res;
+	enum scst_exec_res res;
 	uint8_t *cdb = cmd->cdb;
 	int opcode = cdb[0];
 	struct vdisk_cmd_params *p = cmd->dh_priv;
@@ -3224,7 +3225,7 @@ out_invalid_opcode:
 	goto out_compl;
 }
 
-static int fileio_exec(struct scst_cmd *cmd)
+static enum scst_exec_res fileio_exec(struct scst_cmd *cmd)
 {
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	const vdisk_op_fn *ops = virt_dev->vdev_devt->devt_priv;
@@ -3459,12 +3460,12 @@ out:
 	return res;
 }
 
-static int blockio_exec(struct scst_cmd *cmd)
+static enum scst_exec_res blockio_exec(struct scst_cmd *cmd)
 {
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	const vdisk_op_fn *ops = virt_dev->vdev_devt->devt_priv;
 	struct vdisk_cmd_params p;
-	int res;
+	enum scst_exec_res res;
 
 	EXTRACHECKS_BUG_ON(!ops);
 
@@ -3505,12 +3506,12 @@ err:
 	goto out;
 }
 
-static int nullio_exec(struct scst_cmd *cmd)
+static enum scst_exec_res nullio_exec(struct scst_cmd *cmd)
 {
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	const vdisk_op_fn *ops = virt_dev->vdev_devt->devt_priv;
 	struct vdisk_cmd_params p;
-	int res;
+	enum scst_exec_res res;
 
 	EXTRACHECKS_BUG_ON(!ops);
 
@@ -3533,9 +3534,9 @@ err:
 	goto out;
 }
 
-static int vcdrom_exec(struct scst_cmd *cmd)
+static enum scst_exec_res vcdrom_exec(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_COMPLETED;
+	enum scst_exec_res res = SCST_EXEC_COMPLETED;
 	int opcode = cmd->cdb[0];
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 

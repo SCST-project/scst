@@ -913,10 +913,10 @@ out:
 	return;
 }
 
-static int dev_user_exec(struct scst_cmd *cmd)
+static enum scst_exec_res dev_user_exec(struct scst_cmd *cmd)
 {
 	struct scst_user_cmd *ucmd = cmd->dh_priv;
-	int res = SCST_EXEC_COMPLETED;
+	enum scst_exec_res res = SCST_EXEC_COMPLETED;
 
 	TRACE_ENTRY();
 

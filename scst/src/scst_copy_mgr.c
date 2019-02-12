@@ -1616,9 +1616,10 @@ out:
 	return;
 }
 
-int scst_cm_ext_copy_exec(struct scst_cmd *ec_cmd)
+enum scst_exec_res scst_cm_ext_copy_exec(struct scst_cmd *ec_cmd)
 {
-	int res = SCST_EXEC_COMPLETED, rc;
+	enum scst_exec_res res = SCST_EXEC_COMPLETED;
+	int rc;
 	struct scst_cm_ec_cmd_priv *priv = ec_cmd->cmd_data_descriptors;
 
 	TRACE_ENTRY();
@@ -2273,9 +2274,10 @@ out:
 	return;
 }
 
-int scst_cm_rcv_copy_res_exec(struct scst_cmd *cmd)
+enum scst_exec_res scst_cm_rcv_copy_res_exec(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_COMPLETED, action;
+	enum scst_exec_res res = SCST_EXEC_COMPLETED;
+	int action;
 
 	TRACE_ENTRY();
 

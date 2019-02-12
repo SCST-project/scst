@@ -50,7 +50,7 @@ static int tape_attach(struct scst_device *);
 static void tape_detach(struct scst_device *);
 static int tape_parse(struct scst_cmd *);
 static int tape_done(struct scst_cmd *);
-static int tape_perf_exec(struct scst_cmd *);
+static enum scst_exec_res tape_perf_exec(struct scst_cmd *);
 
 static struct scst_dev_type tape_devtype = {
 	.name =			TAPE_NAME,
@@ -336,9 +336,9 @@ out:
 	return res;
 }
 
-static int tape_perf_exec(struct scst_cmd *cmd)
+static enum scst_exec_res tape_perf_exec(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_NOT_COMPLETED;
+	enum scst_exec_res res = SCST_EXEC_NOT_COMPLETED;
 	int opcode = cmd->cdb[0];
 
 	TRACE_ENTRY();

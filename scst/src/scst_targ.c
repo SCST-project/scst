@@ -2247,9 +2247,9 @@ static void scst_cmd_done_local(struct scst_cmd *cmd, int next_state,
 	return;
 }
 
-static int scst_report_luns_local(struct scst_cmd *cmd)
+static enum scst_exec_res scst_report_luns_local(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_COMPLETED;
+	enum scst_exec_res res = SCST_EXEC_COMPLETED;
 	int dev_cnt = 0;
 	int buffer_size;
 	int i;
@@ -2348,9 +2348,9 @@ out_put_err:
 	goto out_compl;
 }
 
-static int scst_request_sense_local(struct scst_cmd *cmd)
+static enum scst_exec_res scst_request_sense_local(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_COMPLETED;
+	enum scst_exec_res res = SCST_EXEC_COMPLETED;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	uint8_t *buffer;
 	int buffer_size = 0, sl = 0;
@@ -2720,9 +2720,9 @@ out_err_put:
 	goto out_compl;
 }
 
-static int scst_maintenance_in(struct scst_cmd *cmd)
+static enum scst_exec_res scst_maintenance_in(struct scst_cmd *cmd)
 {
-	int res;
+	enum scst_exec_res res;
 
 	TRACE_ENTRY();
 
@@ -2742,9 +2742,9 @@ static int scst_maintenance_in(struct scst_cmd *cmd)
 	return res;
 }
 
-static int scst_reserve_local(struct scst_cmd *cmd)
+static enum scst_exec_res scst_reserve_local(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_NOT_COMPLETED;
+	enum scst_exec_res res = SCST_EXEC_NOT_COMPLETED;
 	struct scst_device *dev;
 	struct scst_lksb pr_lksb;
 
@@ -2818,9 +2818,9 @@ out_done:
 	goto out;
 }
 
-static int scst_release_local(struct scst_cmd *cmd)
+static enum scst_exec_res scst_release_local(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_NOT_COMPLETED;
+	enum scst_exec_res res = SCST_EXEC_NOT_COMPLETED;
 	struct scst_device *dev;
 	struct scst_lksb pr_lksb;
 
@@ -2894,7 +2894,7 @@ out_done:
 }
 
 /* No locks, no IRQ or IRQ-disabled context allowed */
-static int scst_persistent_reserve_in_local(struct scst_cmd *cmd)
+static enum scst_exec_res scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 {
 	struct scst_device *dev;
 	struct scst_tgt_dev *tgt_dev;
@@ -3002,9 +3002,10 @@ out_unsup_act:
 }
 
 /* No locks, no IRQ or IRQ-disabled context allowed */
-static int scst_persistent_reserve_out_local(struct scst_cmd *cmd)
+static enum scst_exec_res
+scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_COMPLETED;
+	enum scst_exec_res res = SCST_EXEC_COMPLETED;
 	struct scst_device *dev;
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_session *session;
@@ -3401,9 +3402,9 @@ out:
 }
 
 /* cmd must be additionally referenced to not die inside */
-static int scst_do_real_exec(struct scst_cmd *cmd)
+static enum scst_exec_res scst_do_real_exec(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_NOT_COMPLETED;
+	enum scst_exec_res res = SCST_EXEC_NOT_COMPLETED;
 	int rc;
 	struct scst_device *dev = cmd->dev;
 	struct scst_dev_type *devt = cmd->devt;
@@ -3523,7 +3524,7 @@ out_done:
 	goto out;
 }
 
-typedef int (*scst_local_exec_fn)(struct scst_cmd *cmd);
+typedef enum scst_exec_res (*scst_local_exec_fn)(struct scst_cmd *cmd);
 
 static scst_local_exec_fn scst_local_fns[256] = {
 	[RESERVE] = scst_reserve_local,
@@ -3540,9 +3541,9 @@ static scst_local_exec_fn scst_local_fns[256] = {
 	[MAINTENANCE_IN] = scst_maintenance_in,
 };
 
-static int scst_do_local_exec(struct scst_cmd *cmd)
+static enum scst_exec_res scst_do_local_exec(struct scst_cmd *cmd)
 {
-	int res;
+	enum scst_exec_res res;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 
 	TRACE_ENTRY();
@@ -3577,9 +3578,10 @@ out_done:
 	goto out;
 }
 
-static int scst_local_exec(struct scst_cmd *cmd)
+static enum scst_exec_res scst_local_exec(struct scst_cmd *cmd)
 {
-	int res, rc;
+	enum scst_exec_res res;
+	int rc;
 
 	TRACE_ENTRY();
 

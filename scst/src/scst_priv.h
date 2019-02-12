@@ -862,7 +862,7 @@ void scst_unthrottle_cmd(struct scst_cmd *cmd);
 int scst_do_internal_parsing(struct scst_cmd *cmd);
 int scst_parse_descriptors(struct scst_cmd *cmd);
 
-int scst_cmp_wr_local(struct scst_cmd *cmd);
+enum scst_exec_res scst_cmp_wr_local(struct scst_cmd *cmd);
 
 int scst_pr_init(struct scst_device *dev);
 void scst_pr_cleanup(struct scst_device *dev);
@@ -912,8 +912,8 @@ bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev,
 int scst_cm_parse_descriptors(struct scst_cmd *cmd);
 void scst_cm_free_descriptors(struct scst_cmd *cmd);
 
-int scst_cm_ext_copy_exec(struct scst_cmd *cmd);
-int scst_cm_rcv_copy_res_exec(struct scst_cmd *cmd);
+enum scst_exec_res scst_cm_ext_copy_exec(struct scst_cmd *cmd);
+enum scst_exec_res scst_cm_rcv_copy_res_exec(struct scst_cmd *cmd);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 void sess_cm_list_id_cleanup_work_fn(void *p);
@@ -965,11 +965,12 @@ static inline int scst_cm_parse_descriptors(struct scst_cmd *cmd)
 }
 static inline void scst_cm_free_descriptors(struct scst_cmd *cmd) {}
 
-static inline int scst_cm_ext_copy_exec(struct scst_cmd *cmd)
+static inline enum scst_exec_res scst_cm_ext_copy_exec(struct scst_cmd *cmd)
 {
 	return SCST_EXEC_NOT_COMPLETED;
 }
-static inline int scst_cm_rcv_copy_res_exec(struct scst_cmd *cmd)
+
+static inline enum scst_exec_res scst_cm_rcv_copy_res_exec(struct scst_cmd *cmd)
 {
 	return SCST_EXEC_NOT_COMPLETED;
 }

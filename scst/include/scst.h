@@ -448,17 +448,16 @@ enum scst_exec_context {
  ** Return codes for dev handler's exec()
  *************************************************************/
 
-/*
- * The cmd is completed, go to other ones. It doesn't necessary to be really
- * completed, it can still be being processed. This code means that SCST
- * core should start performing post processing actions for this cmd, like
- * increase SN and reactivate deferred commands, if allowed, and start
- * processing other commands.
- */
-#define SCST_EXEC_COMPLETED          0
+enum scst_exec_res {
+	/*
+	 * The device handler has finished executing the command or has
+	 * started executing the command asynchronously.
+	 */
+	SCST_EXEC_COMPLETED	= 0,
 
-/* The cmd should continue staying on the EXEC phase */
-#define SCST_EXEC_NOT_COMPLETED      1
+	/* Pass through the command to the SCSI mid-level. */
+	SCST_EXEC_NOT_COMPLETED	= 1,
+};
 
 /*************************************************************
  ** Session initialization phases
@@ -1458,7 +1457,7 @@ struct scst_dev_type {
 	 * OPTIONAL, if not set, the commands will be sent directly to SCSI
 	 * device.
 	 */
-	int (*exec)(struct scst_cmd *cmd);
+	enum scst_exec_res (*exec)(struct scst_cmd *cmd);
 
 	/*
 	 * Called to notify dev handler about the result of cmd execution

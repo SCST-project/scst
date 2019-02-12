@@ -6859,9 +6859,9 @@ out_finish:
 	goto out;
 }
 
-int scst_cmp_wr_local(struct scst_cmd *cmd)
+enum scst_exec_res scst_cmp_wr_local(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_COMPLETED;
+	enum scst_exec_res res = SCST_EXEC_COMPLETED;
 	struct scst_cwr_priv *cwrp;
 	uint8_t read16_cdb[16];
 	struct scst_cmd *rcmd;
