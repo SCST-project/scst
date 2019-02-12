@@ -3092,7 +3092,8 @@ static int fileio_alloc_and_parse(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	p = kmem_cache_zalloc(vdisk_cmd_param_cachep, cmd->cmd_gfp_mask);
+	p = kmem_cache_zalloc(vdisk_cmd_param_cachep,
+			      in_interrupt() ? GFP_ATOMIC : cmd->cmd_gfp_mask);
 	if (!p) {
 		scst_set_busy(cmd);
 		goto out_err;
