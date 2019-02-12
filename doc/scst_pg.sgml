@@ -563,8 +563,6 @@ struct scst_dev_type
 
 	unsigned no_proc:1;
 
-	unsigned exec_sync:1;
-
 	unsigned pr_cmds_notifications:1;
 
 	int threads_num;
@@ -606,9 +604,6 @@ execution in the atomic (non-sleeping) context.
 
 <item> <bf/no_proc/ - true, if no /proc files should be automatically
 created by SCST for this dev handler
-
-<item> <bf/exec_sync/ - should be true, if exec() is synchronous. This
-is a hint to SCST core to optimize commands order management.
 
 <item> <bf/pr_cmds_notifications/ - should be set if the device wants to
 receive notification of Persistent Reservation commands (PR OUT only)
@@ -682,9 +677,8 @@ Returns:
 	mid-level.
 </itemize>
 
-If this function provides sync execution, you should set
-exec_sync flag and consider to setup dedicated threads by
-setting <it/threads_num/ > 0.
+If this function provides sync execution, you should consider to setup
+dedicated threads by setting <it/threads_num/ > 0.
 
 Optional, if not set, the commands will be sent directly to SCSI
 device.

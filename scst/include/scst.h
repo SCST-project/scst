@@ -448,17 +448,16 @@ enum scst_exec_context {
  ** Return codes for dev handler's exec()
  *************************************************************/
 
-/*
- * The cmd is completed, go to other ones. It doesn't necessary to be really
- * completed, it can still be being processed. This code means that SCST
- * core should start performing post processing actions for this cmd, like
- * increase SN and reactivate deferred commands, if allowed, and start
- * processing other commands.
- */
-#define SCST_EXEC_COMPLETED          0
+enum scst_exec_res {
+	/*
+	 * The device handler has finished executing the command or has
+	 * started executing the command asynchronously.
+	 */
+	SCST_EXEC_COMPLETED	= 0,
 
-/* The cmd should continue staying on the EXEC phase */
-#define SCST_EXEC_NOT_COMPLETED      1
+	/* Pass through the command to the SCSI mid-level. */
+	SCST_EXEC_NOT_COMPLETED	= 1,
+};
 
 /*************************************************************
  ** Session initialization phases
@@ -1382,12 +1381,6 @@ struct scst_dev_type {
 #endif
 
 	/*
-	 * Should be true, if exec() is synchronous. This is a hint to SCST core
-	 * to optimize commands order management.
-	 */
-	unsigned exec_sync:1;
-
-	/*
 	 * Should be set if the device wants to receive notification of
 	 * Persistent Reservation commands (PR OUT only)
 	 * Note: The notification will not be send if the command failed
@@ -1454,9 +1447,8 @@ struct scst_dev_type {
 	 *  - SCST_EXEC_NOT_COMPLETED - the cmd should be sent to SCSI
 	 *	mid-level.
 	 *
-	 * If this function provides sync execution, you should set
-	 * exec_sync flag and consider to setup dedicated threads by
-	 * setting threads_num > 0.
+	 * If this function provides sync execution, you should to set up
+	 * dedicated threads by setting threads_num > 0.
 	 *
 	 * Dev handlers implementing internal queuing in their exec() callback
 	 * should call scst_check_local_events() just before the actual
@@ -1465,7 +1457,7 @@ struct scst_dev_type {
 	 * OPTIONAL, if not set, the commands will be sent directly to SCSI
 	 * device.
 	 */
-	int (*exec)(struct scst_cmd *cmd);
+	enum scst_exec_res (*exec)(struct scst_cmd *cmd);
 
 	/*
 	 * Called to notify dev handler about the result of cmd execution

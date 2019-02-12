@@ -45,10 +45,10 @@
 static int disk_attach(struct scst_device *dev);
 static void disk_detach(struct scst_device *dev);
 static int disk_parse(struct scst_cmd *cmd);
-static int disk_perf_exec(struct scst_cmd *cmd);
+static enum scst_exec_res disk_perf_exec(struct scst_cmd *cmd);
 static int disk_done(struct scst_cmd *cmd);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-static int disk_exec(struct scst_cmd *cmd);
+static enum scst_exec_res disk_exec(struct scst_cmd *cmd);
 static bool disk_on_sg_tablesize_low(struct scst_cmd *cmd);
 #endif
 
@@ -396,9 +396,10 @@ out_complete:
 }
 
 /* Executes command and split CDB, if necessary */
-static int disk_exec(struct scst_cmd *cmd)
+static enum scst_exec_res disk_exec(struct scst_cmd *cmd)
 {
-	int res, rc;
+	enum scst_exec_res res;
+	int rc;
 	struct disk_work work;
 	struct scst_device *dev = cmd->dev;
 	unsigned int offset, cur_len; /* in blocks */
@@ -583,9 +584,9 @@ out_error:
 
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30) */
 
-static int disk_perf_exec(struct scst_cmd *cmd)
+static enum scst_exec_res disk_perf_exec(struct scst_cmd *cmd)
 {
-	int res;
+	enum scst_exec_res res;
 	int opcode = cmd->cdb[0];
 
 	TRACE_ENTRY();
