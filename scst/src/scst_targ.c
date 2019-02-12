@@ -5042,68 +5042,69 @@ static void scst_handle_aca(struct scst_cmd *cmd)
 	unsigned long flags;
 
 again:
-	if (unlikely(order_data->aca_tgt_dev != 0)) {
-		spin_lock_irqsave(&order_data->sn_lock, flags);
-		if (order_data->aca_tgt_dev == 0) {
-			spin_unlock_irqrestore(&order_data->sn_lock, flags);
-			goto again;
+	if (likely(!order_data->aca_tgt_dev)) {
+		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_ACA)) {
+			TRACE_MGMT_DBG("Refusing ACA cmd %p, because there's no ACA, tgt_dev %p",
+				       cmd, cmd->tgt_dev);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_invalid_message));
+			scst_set_cmd_abnormal_done_state(cmd);
 		}
+		return;
+	}
 
-		if (order_data->aca_tgt_dev == (unsigned long)cmd->tgt_dev) {
-			if (cmd->queue_type != SCST_CMD_QUEUE_ACA ||
-			    order_data->aca_cmd || cmd->dev->tmf_only) {
-				TRACE_DBG("Refusing cmd %p, because ACA active (aca_cmd %p, tgt_dev %p)",
-					  cmd, order_data->aca_cmd,
-					  cmd->tgt_dev);
-				goto out_unlock_aca_active;
-			} else {
-				TRACE_MGMT_DBG("ACA cmd %p (tgt_dev %p)",
-					       cmd, cmd->tgt_dev);
-				order_data->aca_cmd = cmd;
-				/* allow it */
-			}
+	spin_lock_irqsave(&order_data->sn_lock, flags);
+	if (!order_data->aca_tgt_dev) {
+		spin_unlock_irqrestore(&order_data->sn_lock, flags);
+		goto again;
+	}
+
+	if (order_data->aca_tgt_dev == (unsigned long)cmd->tgt_dev) {
+		if (cmd->queue_type != SCST_CMD_QUEUE_ACA ||
+		    order_data->aca_cmd || cmd->dev->tmf_only) {
+			TRACE_DBG("Refusing cmd %p, because ACA active (aca_cmd %p, tgt_dev %p)",
+				  cmd, order_data->aca_cmd,
+				  cmd->tgt_dev);
+			goto out_unlock_aca_active;
 		} else {
-			/* Non-faulted I_T nexus */
-			EXTRACHECKS_BUG_ON(cmd->dev->tst !=
-					   SCST_TST_0_SINGLE_TASK_SET);
-			if (cmd->queue_type == SCST_CMD_QUEUE_ACA) {
-				TRACE_MGMT_DBG("Refusing ACA cmd %p from wrong I_T nexus (aca_tgt_dev %ld, cmd->tgt_dev %p)",
-					       cmd, order_data->aca_tgt_dev,
-					       cmd->tgt_dev);
-				scst_set_cmd_error(cmd,
-					SCST_LOAD_SENSE(scst_sense_invalid_message));
-				goto out_unlock_aca_active;
+			TRACE_MGMT_DBG("ACA cmd %p (tgt_dev %p)",
+				       cmd, cmd->tgt_dev);
+			order_data->aca_cmd = cmd;
+			/* allow it */
+		}
+	} else {
+		/* Non-faulted I_T nexus */
+		EXTRACHECKS_BUG_ON(cmd->dev->tst != SCST_TST_0_SINGLE_TASK_SET);
+		if (cmd->queue_type == SCST_CMD_QUEUE_ACA) {
+			TRACE_MGMT_DBG("Refusing ACA cmd %p from wrong I_T nexus (aca_tgt_dev %ld, cmd->tgt_dev %p)",
+				       cmd, order_data->aca_tgt_dev,
+				       cmd->tgt_dev);
+			scst_set_cmd_error(cmd,
+					   SCST_LOAD_SENSE(scst_sense_invalid_message));
+			goto out_unlock_aca_active;
+		} else {
+			if (cmd->cdb[0] == PERSISTENT_RESERVE_OUT &&
+			    (cmd->cdb[1] & 0x1f) == PR_PREEMPT_AND_ABORT) {
+				TRACE_MGMT_DBG("Allow PR PREEMPT AND ABORT cmd %p during ACA (tgt_dev %p)",
+					       cmd, cmd->tgt_dev);
+				/* allow it */
 			} else {
-				if (cmd->cdb[0] == PERSISTENT_RESERVE_OUT &&
-				    (cmd->cdb[1] & 0x1f) ==
-				    PR_PREEMPT_AND_ABORT) {
-					TRACE_MGMT_DBG("Allow PR PREEMPT AND ABORT cmd %p during ACA (tgt_dev %p)",
-						       cmd, cmd->tgt_dev);
-					/* allow it */
+				TRACE_DBG("Refusing other IT-nexus cmd %p, because ACA active (tgt_dev %p)",
+					  cmd, cmd->tgt_dev);
+				if (cmd->cmd_naca) {
+					goto out_unlock_aca_active;
 				} else {
-					TRACE_DBG("Refusing other IT-nexus cmd %p, because ACA active (tgt_dev %p)",
-						  cmd, cmd->tgt_dev);
-					if (cmd->cmd_naca)
-						goto out_unlock_aca_active;
-					else {
-						spin_unlock_irqrestore(&order_data->sn_lock, flags);
-						scst_set_cmd_error_status(cmd, SAM_STAT_BUSY);
-						goto out_bypass_aca;
-					}
+					spin_unlock_irqrestore(&order_data->sn_lock, flags);
+					scst_set_cmd_error_status(cmd, SAM_STAT_BUSY);
+					goto out_bypass_aca;
 				}
 			}
 		}
-
-		cmd->cmd_aca_allowed = 1;
-
-		spin_unlock_irqrestore(&order_data->sn_lock, flags);
-	} else if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_ACA)) {
-		TRACE_MGMT_DBG("Refusing ACA cmd %p, because there's no ACA, tgt_dev %p",
-			       cmd, cmd->tgt_dev);
-		scst_set_cmd_error(cmd,
-				   SCST_LOAD_SENSE(scst_sense_invalid_message));
-		goto out_abnormal;
 	}
+
+	cmd->cmd_aca_allowed = 1;
+
+	spin_unlock_irqrestore(&order_data->sn_lock, flags);
 
 	return;
 
@@ -5113,8 +5114,6 @@ out_unlock_aca_active:
 
 out_bypass_aca:
 	cmd->cmd_aca_allowed = 1; /* for check in scst_pre_xmit_response2() */
-
-out_abnormal:
 	scst_set_cmd_abnormal_done_state(cmd);
 	return;
 }
