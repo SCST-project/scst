@@ -3234,6 +3234,24 @@ static enum scst_exec_res fileio_exec(struct scst_cmd *cmd)
 	return vdev_do_job(cmd, ops);
 }
 
+struct scst_verify_work {
+	struct work_struct work;
+	struct scst_cmd *cmd;
+};
+
+static void scst_do_verify_work(struct work_struct *work)
+{
+	struct scst_verify_work *w = container_of(work, typeof(*w), work);
+	struct scst_cmd *cmd = w->cmd;
+	struct scst_device *dev = cmd->dev;
+	loff_t loff = scst_cmd_get_lba(cmd) << dev->block_shift;
+
+	kfree(w);
+	WARN_ON_ONCE(vdev_verify(cmd, loff) != CMD_SUCCEEDED);
+	cmd->completed = 1;
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
+}
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
 static bool do_fileio_async(const struct vdisk_cmd_params *p)
 {
@@ -3241,7 +3259,15 @@ static bool do_fileio_async(const struct vdisk_cmd_params *p)
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 
-	return virt_dev->async && dev->dev_dif_mode == SCST_DIF_MODE_NONE;
+	if (!virt_dev->async || dev->dev_dif_mode != SCST_DIF_MODE_NONE)
+		return false;
+	switch (cmd->data_direction) {
+	case SCST_DATA_READ:
+	case SCST_DATA_WRITE:
+		return true;
+	default:
+		return false;
+	}
 }
 
 static bool vdisk_alloc_kvec(struct scst_cmd *cmd, struct vdisk_cmd_params *p)
@@ -3272,14 +3298,27 @@ static void fileio_async_complete(struct kiocb *iocb, long ret, long ret2)
 	WARN_ON_ONCE(ret >= 0 && ret != cmd->bufflen);
 
 	if (ret < 0 &&
-	    scst_cmd_get_data_direction(cmd) & SCST_DATA_WRITE)
+	    scst_cmd_get_data_direction(cmd) & SCST_DATA_WRITE) {
 		scst_set_cmd_error(cmd,
 				   SCST_LOAD_SENSE(scst_sense_write_error));
-	else if (ret < 0)
+	} else if (ret < 0) {
 		scst_set_cmd_error(cmd,
 				   SCST_LOAD_SENSE(scst_sense_hardw_error));
-	else
+	} else if (cmd->do_verify) {
+		struct scst_verify_work *w = kmalloc(sizeof(*w), GFP_ATOMIC);
+
+		cmd->do_verify = false;
+		if (w) {
+			INIT_WORK(&w->work, scst_do_verify_work);
+			w->cmd = cmd;
+			schedule_work(&w->work);
+			return;
+		} else {
+			scst_set_busy(cmd);
+		}
+	} else {
 		scst_set_resp_data_len(cmd, ret);
+	}
 	cmd->completed = 1;
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 }
@@ -6249,24 +6288,6 @@ out_nomem:
 	goto out;
 }
 
-struct scst_verify_work {
-	struct work_struct work;
-	struct scst_cmd *cmd;
-};
-
-static void scst_do_verify_work(struct work_struct *work)
-{
-	struct scst_verify_work *w = container_of(work, typeof(*w), work);
-	struct scst_cmd *cmd = w->cmd;
-	struct scst_device *dev = cmd->dev;
-	loff_t loff = scst_cmd_get_lba(cmd) << dev->block_shift;
-
-	kfree(w);
-	WARN_ON_ONCE(vdev_verify(cmd, loff) != CMD_SUCCEEDED);
-	cmd->completed = 1;
-	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
-}
-
 struct scst_blockio_work {
 	atomic_t bios_inflight;
 	struct scst_cmd *cmd;
@@ -7238,7 +7259,13 @@ static enum compl_status_e blockio_exec_write_verify(struct vdisk_cmd_params *p)
 
 static enum compl_status_e fileio_exec_write_verify(struct vdisk_cmd_params *p)
 {
-	fileio_exec_write(p);
+	enum compl_status_e ret;
+
+	p->cmd->do_verify = true;
+	ret = fileio_exec_write(p);
+	if (ret != CMD_SUCCEEDED)
+		return ret;
+	p->cmd->do_verify = false;
 	/* O_DSYNC flag is used for WT devices */
 	if (scsi_status_is_good(p->cmd->status))
 		vdev_exec_verify(p);
