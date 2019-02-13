@@ -3241,7 +3241,15 @@ static bool do_fileio_async(const struct vdisk_cmd_params *p)
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 
-	return virt_dev->async && dev->dev_dif_mode == SCST_DIF_MODE_NONE;
+	if (!virt_dev->async || dev->dev_dif_mode != SCST_DIF_MODE_NONE)
+		return false;
+	switch (cmd->data_direction) {
+	case SCST_DATA_READ:
+	case SCST_DATA_WRITE:
+		return true;
+	default:
+		return false;
+	}
 }
 
 static bool vdisk_alloc_kvec(struct scst_cmd *cmd, struct vdisk_cmd_params *p)
