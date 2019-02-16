@@ -3011,10 +3011,11 @@ sub addVirtualTarget {
 	my $driver = shift;
 	my $target = shift;
 	my $attributes = shift;
+	my $errorString;
+	my $targets;
 
 	# Enable all hardware targets before creating virtual ones
-	my ($targets, $errorString) = $SCST->targets($driver);
-
+	($targets, $errorString) = $SCST->targets($driver);
 	foreach my $_target (@{$targets}) {
 		my $attributes;
 
