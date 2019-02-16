@@ -768,10 +768,14 @@ sub aluaAttributes {
 			my $io = new IO::File $pPath, O_RDONLY;
 
 			if (!$io) {
-				return (undef, "deviceGroupsAttributes(): Unable to read device attribute '$attribute': $!");
+				return (undef, "aluaAttributes(): Unable to read device attribute '$attribute': $!");
 			}
 
 			my $value = <$io>;
+			if (!defined($value)) {
+				$value = "";
+			}
+
 			chomp $value;
 
 			my $second_line = <$io>;
