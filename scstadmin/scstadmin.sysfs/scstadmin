@@ -5242,14 +5242,17 @@ sub clearLuns {
 
 sub clearDriverDynamicAttributes {
 	my $driver = shift;
+	my $errorString;
 
 	return TRUE if (!$SCST->driverIsVirtualCapable($driver));
 
 	print "\t-> Removing all dynamic attributes from driver '$driver': ";
 
-	my ($attributes, $errorString) = $SCST->driverAttributes($driver);
-	my ($dynamic, $errorString) = $SCST->driverDynamicAttributes($driver);
+	my $attributes;
+	my $dynamic;
 
+	($attributes, $errorString) = $SCST->driverAttributes($driver);
+	($dynamic, $errorString) = $SCST->driverDynamicAttributes($driver);
 	foreach my $attribute (keys %{$attributes}) {
 		if (defined($$dynamic{$attribute})) {
 			if (defined($$attributes{$attribute}->{'keys'})) {
@@ -5271,14 +5274,17 @@ sub clearDriverDynamicAttributes {
 sub clearTargetDynamicAttributes {
 	my $driver = shift;
 	my $target = shift;
+	my $errorString;
 
 	return TRUE if (!$SCST->driverIsVirtualCapable($driver));
 
 	print "\t-> Removing all dynamic attributes from driver/target '$driver/$target': ";
 
-	my ($attributes, $errorString) = $SCST->targetAttributes($driver, $target);
-	my ($dynamic, $errorString) = $SCST->targetDynamicAttributes($driver);
+	my $attributes;
+	my $dynamic;
 
+	($attributes, $errorString) = $SCST->targetAttributes($driver, $target);
+	($dynamic, $errorString) = $SCST->targetDynamicAttributes($driver);
 	foreach my $attribute (keys %{$attributes}) {
 		if (defined($$dynamic{$attribute})) {
 			if (defined($$attributes{$attribute}->{'keys'})) {
