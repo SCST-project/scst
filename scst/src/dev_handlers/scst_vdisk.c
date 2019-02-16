@@ -7833,6 +7833,13 @@ static void vdev_check_node(struct scst_vdisk_dev **pvirt_dev, int orig_nodeid)
 		}
 		*v = *virt_dev;
 		kfree(virt_dev);
+		/*
+		 * Since the address of the virtual device changed, update all
+		 * pointers in the virtual device that point to the virtual
+		 * device itself.
+		 */
+		INIT_WORK(&virt_dev->vdev_inq_changed_work,
+			  vdev_inq_changed_fn);
 		*pvirt_dev = v;
 	}
 
