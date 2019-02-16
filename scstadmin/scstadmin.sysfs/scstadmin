@@ -3062,7 +3062,7 @@ sub listHandler {
 		};
 		print "\n";
 
-		foreach my $handler (keys %toprint) {
+		foreach my $handler (sort keys %toprint) {
 			my ($devices, $errorString) = $SCST->devicesByHandler($handler);
 			my $first = TRUE;
 
@@ -3070,7 +3070,7 @@ sub listHandler {
 				push @{$devices}, '-';
 			}
 
-			foreach my $device (@{$devices}) {
+			foreach my $device (sort @{$devices}) {
 				if ($first) {
 					printf("\t%-*s    %-*s\n", $l_handler, $handler, $l_device, $device);
 					$first = FALSE;
@@ -3343,7 +3343,7 @@ sub listTargets {
 
 		my %p;
 
-		foreach my $driver (keys %toprint) {
+		foreach my $driver (sort keys %toprint) {
 			my ($targets, $errorString) = $SCST->targets($driver);
 
 			foreach my $target (@{$targets}) {
@@ -3739,7 +3739,7 @@ sub listHandlerAttributes {
 	print "\n\tDevice CREATE attributes available\n";
 	print "\t----------------------------------\n";
 
-	foreach my $attribute (keys %{$attributes}) {
+	foreach my $attribute (sort keys %{$attributes}) {
 		print "\t$attribute\n";
 	}
 
@@ -3765,7 +3765,7 @@ sub listDriverAttributes {
 			print "\n\tDynamic attributes available\n";
 			print "\t----------------------------\n";
 
-			foreach my $attribute (keys %{$attributes}) {
+			foreach my $attribute (sort keys %{$attributes}) {
 				print "\t$attribute\n";
 			}
 		}
@@ -3778,7 +3778,7 @@ sub listDriverAttributes {
 		print "\n\tTarget CREATE attributes available:\n";
 		print "\t-----------------------------------\n";
 
-		foreach my $attribute (keys %{$attributes}) {
+		foreach my $attribute (sort keys %{$attributes}) {
 			print "\t$attribute\n";
 		}
 	}
@@ -3811,7 +3811,7 @@ sub listTargetAttributes {
 			print "\n\tDynamic attributes available\n";
 			print "\t----------------------------\n";
 
-			foreach my $attribute (keys %{$attributes}) {
+			foreach my $attribute (sort keys %{$attributes}) {
 				print "\t$attribute\n";
 			}
 		}
@@ -3825,7 +3825,7 @@ sub listTargetAttributes {
 	print "\n\tLUN CREATE attributes available\n";
 	print "\t-------------------------------\n";
 
-	foreach my $attribute (keys %{$attributes}) {
+	foreach my $attribute (sort keys %{$attributes}) {
 		print "\t$attribute\n";
 	}
 
@@ -3858,7 +3858,7 @@ sub listGroupAttributes {
 	print "\n\tLUN CREATE attributes available\n";
 	print "\t-------------------------------\n";
 
-	foreach my $attribute (keys %{$attributes}) {
+	foreach my $attribute (sort keys %{$attributes}) {
 		print "\t$attribute\n";
 	}
 

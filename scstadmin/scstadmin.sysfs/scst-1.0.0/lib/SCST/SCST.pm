@@ -556,6 +556,7 @@ sub drivers {
 				push @drivers, $driver;
 			}
 		}
+		@drivers = sort(@drivers);
 		close $dHandle;
 	} else {
 		return (undef, "drivers(): Unable to read directory '$_path': $!");
@@ -3833,6 +3834,8 @@ sub handlers {
 	}
 
 	close $hHandle;
+
+	@handlers = sort(@handlers);
 
 	return (\@handlers, undef);
 }
