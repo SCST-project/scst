@@ -2988,7 +2988,8 @@ sub clearConfiguration {
 
 	# Todo - check return code
 
-	my ($drivers, $errorString) = $SCST->drivers();
+	my $drivers;
+	($drivers, $errorString) = $SCST->drivers();
 
 	foreach my $driver (@{$drivers}) {
 		my $targets;
