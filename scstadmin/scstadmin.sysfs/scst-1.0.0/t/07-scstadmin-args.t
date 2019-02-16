@@ -1,6 +1,7 @@
 #!perl
 
 use strict;
+use warnings;
 use Cwd qw(abs_path);
 use File::Basename;
 use File::Spec;
