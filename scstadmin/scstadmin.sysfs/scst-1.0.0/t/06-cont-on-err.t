@@ -11,8 +11,12 @@ my $testdir;
 my $scstadmin_pm_dir;
 my $scstadmin_dir;
 my $scstadmin;
+my $redirect_file;
+my $redirect;
 
 BEGIN {
+    $redirect_file = "/tmp/scstadmin-test-06-output.txt";
+    unlink($redirect_file);
     $testdir = dirname(abs_path($0));
     $scstadmin_pm_dir = dirname($testdir);
     $scstadmin_dir = dirname($scstadmin_pm_dir);
@@ -45,7 +49,7 @@ sub testRestoreConfig {
     my $diff         = File::Spec->catfile(File::Spec->tmpdir(),
 					   "scstadmin-test-06-$$-diff");
 
-    ok(system("$scstadmin -clear_config -force -noprompt -no_lip >/dev/null"), 0);
+    ok(system("$scstadmin -clear_config -force -noprompt -no_lip $redirect"), 0);
     system("$scstadmin -cont_on_err -no_lip -config $to_be_restored" .
 	   " >/dev/null");
     ok(system("$scstadmin -write_config $tmpfilename1 >/dev/null"), 0);
@@ -66,6 +70,13 @@ sub testRestoreConfig {
 }
 
 my $_DEBUG_ = 0;
+if ($_DEBUG_) {
+    $redirect = ">>$redirect_file";
+    open(my $logfile, '>>', $redirect_file);
+    select $logfile;
+} else {
+    $redirect = ">/dev/null";
+}
 
 my $SCST = eval { new SCST::SCST($_DEBUG_) };
 die("Creation of SCST object failed") if (!defined($SCST));
