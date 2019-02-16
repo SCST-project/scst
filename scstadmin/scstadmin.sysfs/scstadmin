@@ -1380,7 +1380,8 @@ sub readWorkingConfig {
 
 	# Get current assignments
 
-	my ($drivers, $errorString) = $SCST->drivers();
+	my $drivers;
+	($drivers, $errorString) = $SCST->drivers();
 	immediateExit($errorString);
 
 	foreach my $driver (@{$drivers}) {
