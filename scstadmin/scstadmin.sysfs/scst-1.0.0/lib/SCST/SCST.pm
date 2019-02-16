@@ -1730,6 +1730,7 @@ sub addDeviceGroupDevice {
 	my $self = shift;
 	my $group = shift;
 	my $device = shift;
+	my $dgroups;
 	my $errorString;
 
 	return SCST_C_DGRP_ADD_DEV_FAIL if (!defined($group) || !defined($device));
@@ -1769,8 +1770,7 @@ sub addDeviceGroupDevice {
 	return $rc if ($rc > 1);
 
 	# Check all device groups for this device
-	my ($dgroups, $errorString) = $self->deviceGroups();
-
+	($dgroups, $errorString) = $self->deviceGroups();
 	foreach my $dgroup (@{$dgroups}) {
 		my $devs;
 
@@ -3900,8 +3900,9 @@ sub handlerAttributes {
 	my $handler = shift;
 	my %attributes;
 	my $errorString;
+	my $a;
 
-	my ($a, $errorString) = devices($self, $handler);
+	($a, $errorString) = devices($self, $handler);
 	$attributes{'devices'}->{'value'} = $a;
 
 	my $hHandle = new IO::Handle;
@@ -4048,9 +4049,9 @@ sub devicesByHandler {
 	my $self = shift;
 	my $handler = shift;
 	my $errorString;
+	my $attributes;
 
-	my ($attributes, $errorString) = $self->handlerAttributes($handler);
-
+	($attributes, $errorString) = $self->handlerAttributes($handler);
 	if (!defined($attributes)) {
 		if ($self->handlerExists($handler) != TRUE) {
 			$errorString = "devicesByHandler(): Handler '$handler' is not available";
