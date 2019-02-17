@@ -536,177 +536,177 @@ sub getArgs {
 		exit 1;
 	}
 
-	if (defined($listTargetGroup) && ($deviceGroup eq '')) {
+	if (defined($listTargetGroup) && !defined($deviceGroup)) {
 		print "Please specify -dev_group with -list_tgrp.\n";
 		exit 1;
 	}
 
-	if (defined($listTargetAttr) && ($driver eq '')) {
+	if (defined($listTargetAttr) && !defined($driver)) {
 		print "Please specify -driver with -list_tgt_attr.\n";
 		exit 1;
 	}
 
-	if (defined($listGroupAttr) && (($driver eq '') || ($target eq ''))) {
+	if (defined($listGroupAttr) && (!defined($driver) || !defined($target))) {
 		print "Please specify -driver, -target and group with -list_grp_attr.\n";
 		exit 1;
 	}
 
-	if (defined($listLunAttr) && (($driver eq '') || ($target eq ''))) {
+	if (defined($listLunAttr) && (!defined($driver) || !defined($target))) {
 		print "Please specify -driver and -target with -list_lun_attr.\n";
 		exit 1;
 	}
 
-	if (defined($listInitiatorAttr) && (($driver eq '') || ($target eq '') || ($group eq ''))) {
+	if (defined($listInitiatorAttr) && (!defined($driver) || !defined($target) || !defined($group))) {
 		print "Please specify -driver, -target and -group with -list_init_attr.\n";
 		exit 1;
 	}
 
-	if (defined($listTargetGroupAttr) && ($deviceGroup eq '')) {
+	if (defined($listTargetGroupAttr) && !defined($deviceGroup)) {
 		print "Please specify -dev_group with -list_tgrp_attr.\n";
 		exit 1;
 	}
 
-	if (defined($listTargetGroupTargetAttr) && (($deviceGroup eq '') || ($targetGroup eq ''))) {
+	if (defined($listTargetGroupTargetAttr) && (!defined($deviceGroup) || !defined($targetGroup))) {
 		print "Please specify -dev_group and -tgt_group with -list_ttgt_attr.\n";
 		exit 1;
 	}
 
-	if (defined($setScstAttr) && ($attributes eq '')) {
+	if (defined($setScstAttr) && !defined($attributes)) {
 		print "Please specify -attributes with -set_scst_attr.\n";
 		exit 1;
 	}
 
-	if (defined($setHandlerAttr) && ($attributes eq '')) {
+	if (defined($setHandlerAttr) && !defined($attributes)) {
 		print "Please specify -attributes with -set_hnd_attr.\n";
 		exit 1;
 	}
 
-	if (defined($setDeviceAttr) && ($attributes eq '')) {
+	if (defined($setDeviceAttr) && !defined($attributes)) {
 		print "Please specify -attributes with -set_dev_attr.\n";
 		exit 1;
 	}
 
-	if (defined($setDeviceGroupAttr) && ($attributes eq '')) {
+	if (defined($setDeviceGroupAttr) && !defined($attributes)) {
 		print "Please specify -attributes with -set_dgrp_attr.\n";
 		exit 1;
 	}
 
-	if (defined($setTargetGroupAttr) && (($deviceGroup eq '') || ($attributes eq ''))) {
+	if (defined($setTargetGroupAttr) && (!defined($deviceGroup) || !defined($attributes))) {
 		print "Please specify -dev_group and -attributes with -set_tgrp_attr.\n";
 		exit 1;
 	}
 
-	if (defined($setTargetGroupTargetAttr) && (($deviceGroup eq '') || ($targetGroup eq '') || ($attributes eq ''))) {
+	if (defined($setTargetGroupTargetAttr) && (!defined($deviceGroup) || !defined($targetGroup) || !defined($attributes))) {
 		print "Please specify -dev_group -tgt_group and -attributes with -set_ttgt_attr.\n";
 		exit 1;
 	}
 
-	if (defined($setDriverAttr) && ($attributes eq '')) {
+	if (defined($setDriverAttr) && !defined($attributes)) {
 		print "Please specify -attributes with -set_drv_attr.\n";
 		exit 1;
 	}
 
-	if (defined($setTargetAttr) && (($driver eq '') || ($attributes eq ''))) {
+	if (defined($setTargetAttr) && (!defined($driver) || !defined($attributes))) {
 		print "Please specify -driver and -attributes with -set_tgt_attr.\n";
 		exit 1;
 	}
 
-	if (defined($setGroupAttr) && (($driver eq '') || ($target eq '') || ($attributes eq ''))) {
+	if (defined($setGroupAttr) && (!defined($driver) || !defined($target) || !defined($attributes))) {
 		print "Please specify -driver -target and -attributes with -set_grp_attr.\n";
 		exit 1;
 	}
 
 	if (defined($setLunAttr) &&
-	    (($driver eq '') || ($target eq '') || ($attributes eq ''))) {
+	    (!defined($driver) || !defined($target) || !defined($attributes))) {
 		print "Please specify -driver -target -group and -attributes with -set_lun_attr.\n";
 		exit 1;
 	}
 
 	if (defined($setInitiatorAttr) &&
-	    (($driver eq '') || ($target eq '') || ($group eq '') || ($attributes eq ''))) {
+	    (!defined($driver) || !defined($target) || !defined($group) || !defined($attributes))) {
 		print "Please specify -driver -target -group and -attributes with -set_init_attr.\n";
 		exit 1;
 	}
 
-	if (defined($addDriverAttr) && ($attributes eq '')) {
+	if (defined($addDriverAttr) && !defined($attributes)) {
 		print "Please specify -attributes with -add_drv_attr.\n";
 		exit 1;
 	}
 
 	if (defined($addTargetAttr) &&
-	    (($driver eq '') || ($attributes eq ''))) {
+	    (!defined($driver) || !defined($attributes))) {
 		print "Please specify -driver and -attributes with -add_tgt_attr.\n";
 		exit 1;
 	}
 
-	if (defined($remDriverAttr) && ($attributes eq '')) {
+	if (defined($remDriverAttr) && !defined($attributes)) {
 		print "Please specify -attributes with -rem_drv_attr.\n";
 		exit 1;
 	}
 
 	if (defined($remTargetAttr) &&
-	    (($driver eq '') || ($attributes eq ''))) {
+	    (!defined($driver) || !defined($attributes))) {
 		print "Please specify -driver and -attributes with -rem_tgt_attr.\n";
 		exit 1;
 	}
 
-	if ((defined($openDev) || defined($closeDev)) && ($handler eq '')) {
+	if ((defined($openDev) || defined($closeDev)) && !defined($handler)) {
 		print "Please specify -handler with -open_dev/-close_dev.\n";
 		exit 1;
 	}
 
-	if (defined($addTarget) && ($driver eq '')) {
+	if (defined($addTarget) && !defined($driver)) {
 		print "Please specify -driver with -add_target.\n";
 		exit 1;
 	}
 
-	if (defined($removeTarget) && ($driver eq '')) {
+	if (defined($removeTarget) && !defined($driver)) {
 		print "Please specify -driver with -rem_target.\n";
 		exit 1;
 	}
 
 	if ((defined($addGroup) || defined($removeGroup)) &&
-	    (($driver eq '') || ($target eq ''))) {
+	    (!defined($driver) || !defined($target))) {
 		print "Please specify -driver and -target with -add_group/-rem_group.\n";
 		exit 1;
 	}
 
 	if ((defined($addInitiator) || defined($removeInitiator) || defined($clearInitiators)) &&
-	    (($target eq '') || ($driver eq '') || ($group eq ''))) {
+	    (!defined($target) || !defined($driver) || !defined($group))) {
 		print "Please specify -driver -target and -group with ".
 		  "-add_init/-rem_init/-clear_inits.\n";
 		exit 1;
 	}
 
 	if (defined($moveInitiator) &&
-	    (($driver eq '') || ($target eq '') || ($group eq '') || ($to eq ''))) {
+	    (!defined($driver) || !defined($target) || !defined($group) || !defined($to))) {
 		print "Please specify -driver -target -group and -to with -move_init.\n";
 		exit 1;
 	}
 
 	if ((defined($addLun) || defined($replaceLun)) &&
-	    (($driver eq '') || ($target eq '') || ($device eq ''))) {
+	    (!defined($driver) || !defined($target) || !defined($device))) {
 		print "Please specify -driver -target and -device with -add_lun/-replace_lun.\n";
 		exit 1;
 	}
 
-	if ((defined($clearLuns) || defined($removeLun)) && (($driver eq '') || ($target eq ''))) {
+	if ((defined($clearLuns) || defined($removeLun)) && (!defined($driver) || !defined($target))) {
 		print "Please specify -driver and -target with -rem_lun/-clear_luns.\n";
 		exit 1;
 	}
 
-	if ((defined($addDevGroupDevice) || defined($removeDevGroupDevice)) && ($deviceGroup eq '')) {
+	if ((defined($addDevGroupDevice) || defined($removeDevGroupDevice)) && !defined($deviceGroup)) {
 		print "Please specify -dev_group with -add_dgrp_dev/-rem_dgrp_dev.\n";
 		exit 1;
 	}
 
-	if ((defined($addTargetGroup) || defined($removeTargetGroup)) && ($deviceGroup eq '')) {
+	if ((defined($addTargetGroup) || defined($removeTargetGroup)) && !defined($deviceGroup)) {
 		print "Please specify -dev_group with -add_tgrp/-rem_tgrp.\n";
 		exit 1;
 	}
 
 	if ((defined($addTargetGroupTarget) || defined($removeTargetGroupTarget)) &&
-	    (($deviceGroup eq '') || ($targetGroup eq ''))) {
+	    (!defined($deviceGroup) || !defined($targetGroup))) {
 		print "Please specify -dev_group and -tgt_group with -add_tgrp_tgt/-rem_tgrp_tgt.\n";
 		exit 1;
 	}
