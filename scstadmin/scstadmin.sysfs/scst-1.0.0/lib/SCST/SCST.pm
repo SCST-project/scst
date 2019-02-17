@@ -458,7 +458,8 @@ sub scstAttributes {
 				}
 
 				my $value = <$io>;
-				chomp $value if (defined($value));
+				$value = "" if (!defined($value));
+				chomp $value;
 
 				my $is_key = <$io>;
 				$is_key = new_sysfs_interface() && !$is_static ||
@@ -772,10 +773,7 @@ sub aluaAttributes {
 			}
 
 			my $value = <$io>;
-			if (!defined($value)) {
-				$value = "";
-			}
-
+			$value = "" if (!defined($value));
 			chomp $value;
 
 			my $second_line = <$io>;
@@ -2768,6 +2766,7 @@ sub driverAttributes {
 				}
 
 				my $value = <$io>;
+				$value = "" if (!defined($value));
 				chomp $value;
 
 				my $is_key = <$io>;
@@ -2924,7 +2923,8 @@ sub targetAttributes {
 				}
 
 				my $value = <$io>;
-				chomp $value if (defined($value));
+				$value = "" if (!defined($value));
+				chomp $value;
 
 				my $is_key = <$io>;
 				close $io;
@@ -3058,6 +3058,7 @@ sub groupAttributes {
 				}
 
 				my $value = <$io>;
+				$value = "" if (!defined($value));
 				chomp $value;
 
 				my $is_key = <$io>;
@@ -3213,6 +3214,7 @@ sub lunAttributes {
 				}
 
 				my $value = <$io>;
+				$value = "" if (!defined($value));
 				chomp $value;
 
 				my $is_key = <$io>;
@@ -3367,6 +3369,7 @@ sub initiatorAttributes {
 				}
 
 				my $value = <$io>;
+				$value = "" if (!defined($value));
 				chomp $value;
 
 				my $is_key = <$io>;
@@ -3489,6 +3492,7 @@ sub deviceGroupAttributes {
 				}
 
 				my $value = <$io>;
+				$value = "" if (!defined($value));
 				chomp $value;
 
 				my $is_key = <$io>;
@@ -3569,6 +3573,7 @@ sub targetGroupAttributes {
 				}
 
 				my $value = <$io>;
+				$value = "" if (!defined($value));
 				chomp $value;
 
 				my $is_key = <$io>;
@@ -3658,6 +3663,7 @@ sub targetGroupTargetAttributes {
 				}
 
 				my $value = <$io>;
+				$value = "" if (!defined($value));
 				chomp $value;
 
 				my $is_key = <$io>;
@@ -3940,7 +3946,8 @@ sub handlerAttributes {
 		}
 
 		my $value = <$io>;
-		chomp $value if (defined($value));
+		$value = "" if (!defined($value));
+		chomp $value;
 
 		my $is_key = <$io>;
 		$is_key = new_sysfs_interface() && !$is_static ||
@@ -4757,8 +4764,9 @@ sub sessions {
 						}
 
 						my $value = <$io>;
-						close $io;
+						$value = "" if (!defined($value));
 						chomp $value;
+						close $io;
 
 						$_sessions{$session}->{$attribute}->{'value'} = $value;
 						$_sessions{$session}->{$attribute}->{'static'} = $is_static;
