@@ -707,7 +707,7 @@ sub getArgs {
 
 	if ((defined($addTargetGroupTarget) || defined($removeTargetGroupTarget)) &&
 	    (($deviceGroup eq '') || ($targetGroup eq ''))) {
-		print "Please specify -dev_group and -tgt_group with -add_tgrp_init/-rem_tgrp_init.\n";
+		print "Please specify -dev_group and -tgt_group with -add_tgrp_tgt/-rem_tgrp_tgt.\n";
 		exit 1;
 	}
 
