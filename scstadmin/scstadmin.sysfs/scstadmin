@@ -3671,8 +3671,8 @@ sub listAttributes {
 		}
 	}
 
-	printf("\t%-*s     %-*s     %-*s     %-*s\n", $l_attr, 'Attribute', $l_value,
-	  'Value', 9, 'Writable', 3, 'KEY');
+	printf("\t%-*s     %-*s     %-*s     %-*s\n", $l_attr, 'Attribute',
+	       $l_value, 'Value', 9, 'Writable', 3, 'KEY');
 	print "\t";
 	for (my $x = 0; $x < ($l_attr + $l_value + 27); $x++) {
 		print "-";
