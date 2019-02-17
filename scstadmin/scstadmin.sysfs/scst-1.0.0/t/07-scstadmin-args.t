@@ -112,9 +112,7 @@ sub run {
     my $rc;
 
     $rc = system("$cmd >$tmpfile 2>&1");
-    if ($rc != 0) {
-	$res = "exit code $rc";
-    } elsif (!open(my $file, $tmpfile)) {
+    if (!open(my $file, $tmpfile)) {
 	$res = "failed to read $tmpfile";
     } else {
 	local $/ = undef;
@@ -193,8 +191,15 @@ All done.
 EOS
     ok(run("$scstadmin -list_dgrp"), $result);
 
-    $result = "exit code 256";
-    ok(run("$scstadmin -list_tgrp tgrp"), $result);
+    $result = "
+Collecting current configuration: done.
+
+	Targets
+	-------
+
+All done.
+";
+    ok(run("$scstadmin -list_tgrp tgrp -dev_group dgroup1"), $result);
 
     $result = <<'EOS';
 
@@ -389,9 +394,30 @@ All done.
 EOS
     ok(run("$scstadmin -list_hnd_attr vdisk_nullio"), $result);
 
-    $result = "exit code 256";
-    ok(run("$scstadmin -list_dev_attr disk00"), $result);
-    ok(run("$scstadmin -list_dev_attr disk01"), $result);
+    $result = "
+Collecting current configuration: done.
+
+	Attribute     Value                                    Writable      KEY
+	------------------------------------------------------------------------
+	filename      /dev/scstadmin-regression-test-vdisk     Yes           Yes
+	read_only     1                                        No            Yes
+	size          1048576                                  No            Yes
+
+All done.
+";
+    ok(run("$scstadmin -list_dev_attr disk0"), $result);
+    $result = "
+Collecting current configuration: done.
+
+	Attribute     Value                                    Writable      KEY
+	------------------------------------------------------------------------
+	filename      /dev/scstadmin-regression-test-vdisk     Yes           Yes
+	nv_cache      1                                        No            Yes
+	size          1048576                                  No            Yes
+
+All done.
+";
+    ok(run("$scstadmin -list_dev_attr disk1"), $result);
 
     $result = <<'EOS';
 
@@ -405,15 +431,93 @@ All done.
 EOS
     ok(run("$scstadmin -list_drv_attr ib_srpt"), $result);
 
-    $result = "exit code 256";
-    ok(run("$scstadmin -list_tgrp_attr"), $result);
-    ok(run("$scstadmin -list_tgtt_attr"), $result);
-    ok(run("$scstadmin -list_tgt_attr local"), $result);
-    ok(run("$scstadmin -list_grp_attr ig"), $result);
-    ok(run("$scstadmin -list_lun_attr 0"), $result);
-    ok(run("$scstadmin -list_lun_attr 1"), $result);
-    ok(run("$scstadmin -list_init_attr ini1"), $result);
-    ok(run("$scstadmin -list_init_attr ini2"), $result);
+    $result = "
+Collecting current configuration: done.
+
+	Attribute     Value      Writable      KEY
+	------------------------------------------
+	group_id      256        Yes           Yes
+	state         active     Yes           Yes
+
+All done.
+";
+    ok(run("$scstadmin -list_tgrp_attr tgroup1 -dev_group dgroup1"), $result);
+    $result = "
+Collecting current configuration: done.
+
+	Attribute     Value     Writable      KEY
+	-----------------------------------------
+	(none)
+
+All done.
+";
+    ok(run("$scstadmin -list_ttgt_attr local -tgt_group tgroup1 -dev_group dgroup1"), $result);
+    $result = "
+Collecting current configuration: done.
+
+	Attribute     Value     Writable      KEY
+	-----------------------------------------
+	(none)
+
+	LUN CREATE attributes available
+	-------------------------------
+	read_only
+
+All done.
+";
+    ok(run("$scstadmin -list_tgt_attr local -driver scst_local"), $result);
+    $result = "
+Collecting current configuration: done.
+
+	Attribute     Value     Writable      KEY
+	-----------------------------------------
+	(none)
+
+	LUN CREATE attributes available
+	-------------------------------
+	read_only
+
+All done.
+";
+    ok(run("$scstadmin -list_grp_attr ig -driver scst_local -target local -group ip"), $result);
+    $result = "
+Collecting current configuration: done.
+
+	Attribute     Value     Writable      KEY
+	-----------------------------------------
+	(none)
+
+All done.
+";
+    ok(run("$scstadmin -list_lun_attr 0 -driver scst_local -target local"), $result);
+    $result = "\nCollecting current configuration: done.\n\n\tAttribute     Value     Writable      KEY\n\t-----------------------------------------\n\t(none)\n\nAll done.\n";
+    ok(run("$scstadmin -list_lun_attr 1 -driver scst_local -target local -group ig"), $result);
+    $result = "
+Collecting current configuration: done.
+
+
+
+WARNING: Received the following error:
+
+	initiatorAttributes(): Unable to read directory '/sys/kernel/scst_tgt/targets/scst_local/local/ini_groups/ig/initiators/ini1': Bad file descriptor
+
+
+All done.
+";
+    ok(run("$scstadmin -list_init_attr ini1 -driver scst_local -target local -group ig"), $result);
+    $result = "
+Collecting current configuration: done.
+
+
+
+WARNING: Received the following error:
+
+	initiatorAttributes(): Unable to read directory '/sys/kernel/scst_tgt/targets/scst_local/local/ini_groups/ig/initiators/ini2': Bad file descriptor
+
+
+All done.
+";
+    ok(run("$scstadmin -list_init_attr ini2 -driver scst_local -target local -group ig"), $result);
     $result = <<'EOS';
 
 Collecting current configuration: done.
