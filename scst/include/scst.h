@@ -759,8 +759,6 @@ struct scst_opcode_descriptor;
  */
 #define NO_SUCH_LUN ((uint64_t)-1)
 
-typedef enum dma_data_direction scst_data_direction;
-
 /*
  * SCST target template: defines target driver's parameters and callback
  * functions.
