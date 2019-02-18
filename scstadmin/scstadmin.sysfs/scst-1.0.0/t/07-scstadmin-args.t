@@ -198,14 +198,15 @@ All done.
 EOS
     ok(run("$scstadmin -list_dgrp"), $result);
 
-    $result = "
+    $result = <<'EOS';
+
 Collecting current configuration: done.
 
 	Targets
 	-------
 
 All done.
-";
+EOS
     ok(run("$scstadmin -list_tgrp tgrp -dev_group dgroup1"), $result);
 
     $result = <<'EOS';
@@ -222,6 +223,7 @@ Collecting current configuration: done.
 All done.
 EOS
     ok(run("$scstadmin -list_driver"), $result);
+
     $result = <<'EOS';
 
 Collecting current configuration: done.
@@ -281,7 +283,6 @@ All done.
 EOS
     ok(run("$scstadmin -list_group"), $result);
 
-
     $result = <<'EOS';
 
 Collecting current configuration: done.
@@ -293,6 +294,7 @@ Collecting current configuration: done.
 All done.
 EOS
     ok(run("$scstadmin -list_scst_attr"), $result);
+
     $result = <<'EOS';
 
 Collecting current configuration: done.
@@ -373,6 +375,7 @@ Collecting current configuration: done.
 All done.
 EOS
     ok(run("$scstadmin -list_hnd_attr vdisk_fileio"), $result);
+
     $result = <<'EOS';
 
 Collecting current configuration: done.
@@ -401,7 +404,8 @@ All done.
 EOS
     ok(run("$scstadmin -list_hnd_attr vdisk_nullio"), $result);
 
-    $result = "
+    $result = <<'EOS';
+
 Collecting current configuration: done.
 
 	Attribute     Value                                    Writable      KEY
@@ -411,9 +415,11 @@ Collecting current configuration: done.
 	size          1048576                                  No            Yes
 
 All done.
-";
+EOS
     ok(run("$scstadmin -list_dev_attr disk0"), $result);
-    $result = "
+
+    $result = <<'EOS';
+
 Collecting current configuration: done.
 
 	Attribute     Value                                    Writable      KEY
@@ -423,7 +429,7 @@ Collecting current configuration: done.
 	size          1048576                                  No            Yes
 
 All done.
-";
+EOS
     ok(run("$scstadmin -list_dev_attr disk1"), $result);
 
     $result = <<'EOS';
@@ -438,7 +444,8 @@ All done.
 EOS
     ok(run("$scstadmin -list_drv_attr ib_srpt"), $result);
 
-    $result = "
+    $result = <<'EOS';
+
 Collecting current configuration: done.
 
 	Attribute     Value      Writable      KEY
@@ -447,9 +454,11 @@ Collecting current configuration: done.
 	state         active     Yes           Yes
 
 All done.
-";
+EOS
     ok(run("$scstadmin -list_tgrp_attr tgroup1 -dev_group dgroup1"), $result);
-    $result = "
+
+    $result = <<'EOS';
+
 Collecting current configuration: done.
 
 	Attribute     Value     Writable      KEY
@@ -457,9 +466,11 @@ Collecting current configuration: done.
 	(none)
 
 All done.
-";
+EOS
     ok(run("$scstadmin -list_ttgt_attr local -tgt_group tgroup1 -dev_group dgroup1"), $result);
-    $result = "
+
+    $result = <<'EOS';
+
 Collecting current configuration: done.
 
 	Attribute     Value     Writable      KEY
@@ -471,9 +482,11 @@ Collecting current configuration: done.
 	read_only
 
 All done.
-";
+EOS
     ok(run("$scstadmin -list_tgt_attr local -driver scst_local"), $result);
-    $result = "
+
+    $result = <<'EOS';
+
 Collecting current configuration: done.
 
 	Attribute     Value     Writable      KEY
@@ -485,9 +498,11 @@ Collecting current configuration: done.
 	read_only
 
 All done.
-";
+EOS
     ok(run("$scstadmin -list_grp_attr ig -driver scst_local -target local -group ip"), $result);
-    $result = "
+
+    $result = <<'EOS';
+
 Collecting current configuration: done.
 
 	Attribute     Value     Writable      KEY
@@ -495,11 +510,23 @@ Collecting current configuration: done.
 	(none)
 
 All done.
-";
+EOS
     ok(run("$scstadmin -list_lun_attr 0 -driver scst_local -target local"), $result);
-    $result = "\nCollecting current configuration: done.\n\n\tAttribute     Value     Writable      KEY\n\t-----------------------------------------\n\t(none)\n\nAll done.\n";
+
+    $result = <<'EOS';
+
+Collecting current configuration: done.
+
+	Attribute     Value     Writable      KEY
+	-----------------------------------------
+	(none)
+
+All done.
+EOS
     ok(run("$scstadmin -list_lun_attr 1 -driver scst_local -target local -group ig"), $result);
-    $result = "
+
+    $result = <<'EOS';
+
 Collecting current configuration: done.
 
 
@@ -510,9 +537,11 @@ WARNING: Received the following error:
 
 
 All done.
-";
+EOS
     ok(run("$scstadmin -list_init_attr ini1 -driver scst_local -target local -group ig"), $result);
-    $result = "
+
+    $result = <<'EOS';
+
 Collecting current configuration: done.
 
 
@@ -523,8 +552,9 @@ WARNING: Received the following error:
 
 
 All done.
-";
+EOS
     ok(run("$scstadmin -list_init_attr ini2 -driver scst_local -target local -group ig"), $result);
+
     $result = <<'EOS';
 
 Collecting current configuration: done.
