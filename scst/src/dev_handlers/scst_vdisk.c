@@ -511,6 +511,8 @@ static ssize_t vdev_sysfs_inq_vend_specific_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_zero_copy_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_async_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_async_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_dif_filename_show(struct kobject *kobj,
@@ -612,7 +614,7 @@ static struct kobj_attribute vdev_inq_vend_specific_attr =
 static struct kobj_attribute vdev_zero_copy_attr =
 	__ATTR(zero_copy, S_IRUGO, vdev_zero_copy_show, NULL);
 static struct kobj_attribute vdev_async_attr =
-	__ATTR(async, S_IRUGO, vdev_async_show, NULL);
+	__ATTR(async, S_IWUSR|S_IRUGO, vdev_async_show, vdev_async_store);
 static struct kobj_attribute vdev_dif_filename_attr =
 	__ATTR(dif_filename, S_IRUGO, vdev_dif_filename_show, NULL);
 
@@ -10439,6 +10441,28 @@ static ssize_t vdev_zero_copy_show(struct kobject *kobj,
 
 	TRACE_EXIT_RES(pos);
 	return pos;
+}
+
+static ssize_t vdev_async_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_device *dev =
+		container_of(kobj, struct scst_device, dev_kobj);
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	long val;
+	int res;
+
+	res = kstrtol(buf, 0, &val);
+	if (res)
+		return res;
+	if (val != !!val)
+		return -EINVAL;
+
+	spin_lock(&virt_dev->flags_lock);
+	virt_dev->async = val;
+	spin_unlock(&virt_dev->flags_lock);
+
+	return count;
 }
 
 static ssize_t vdev_async_show(struct kobject *kobj,
