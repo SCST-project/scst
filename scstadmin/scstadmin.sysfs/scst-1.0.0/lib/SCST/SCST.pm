@@ -5,7 +5,7 @@ package SCST::SCST;
 # Author:	Mark R. Buechler
 # License:	GPLv2
 # Copyright (c) 2005-2011 Mark R. Buechler
-# Copyright (c) 2011-2015 Bart Van Assche <bvanassche@acm.org>.
+# Copyright (c) 2011-2019 Bart Van Assche <bvanassche@acm.org>.
 
 use 5.005;
 use Fcntl ':mode';

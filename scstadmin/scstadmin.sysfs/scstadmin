@@ -7,7 +7,7 @@ $Version  = 'SCST Configurator v3.3.0-pre1';
 # Author:       Mark R. Buechler
 # License:      GPLv2
 # Copyright (c) 2005-2011 Mark R. Buechler
-# Copyright (C) 2011-2015 Bart Van Assche <bvanassche@acm.org>
+# Copyright (C) 2011-2019 Bart Van Assche <bvanassche@acm.org>
 
 sub usage
   {
