@@ -7850,6 +7850,10 @@ out:
 	return;
 }
 
+/*
+ * Parse the add_device parameters. @allowed_params restricts which
+ * parameters can be specified at device creation time.
+ */
 static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 	char *params, const char *const allowed_params[])
 {
