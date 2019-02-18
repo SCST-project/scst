@@ -3467,7 +3467,7 @@ sub listGroup {
 	my $errorString;
 
 	($luns, $errorString) = $SCST->luns($driver, $target, $group) if (!$luns);
-	if (($initiators eq '') && defined($group)) {
+	if (!defined($initiators) && defined($group)) {
 		($initiators, $errorString) = $SCST->initiators($driver, $target, $group);
 		return TRUE if issueWarning($errorString);
 	}
