@@ -5929,7 +5929,8 @@ sub prompt {
 	  "are you sure you wish to continue (y/[n]) ? ";
 	my $answer = <STDIN>;
 
-	if (($answer =~ /^y$/i) || ($answer =~ /^yes$/i)) {
+	if (defined($answer) &&
+	    (($answer =~ /^y$/i) || ($answer =~ /^yes$/i))) {
 		return FALSE;
 	}
 
