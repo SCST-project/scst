@@ -8193,14 +8193,6 @@ out_destroy:
 static int vdev_blockio_add_device(const char *device_name, char *params)
 {
 	int res = 0;
-	const char *const allowed_params[] = { "filename", "read_only", "write_through",
-					 "removable", "blocksize", "nv_cache",
-					 "rotational", "cluster_mode",
-					 "thin_provisioned", "tst", "active",
-					 "bind_alua_state", "numa_node_id",
-					 "dif_mode",
-					 "dif_type", "dif_static_app_tag",
-					 "dif_filename", NULL };
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
@@ -8216,7 +8208,8 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 	sprintf(virt_dev->t10_vend_id, "%.*s",
 		(int)sizeof(virt_dev->t10_vend_id) - 1, SCST_BIO_VENDOR);
 
-	res = vdev_parse_add_dev_params(virt_dev, params, allowed_params);
+	res = vdev_parse_add_dev_params(virt_dev, params,
+			virt_dev->vdev_devt->add_device_parameters);
 	if (res != 0)
 		goto out_destroy;
 
@@ -8264,11 +8257,6 @@ out_destroy:
 static int vdev_nullio_add_device(const char *device_name, char *params)
 {
 	int res = 0;
-	static const char *const allowed_params[] = {
-		"read_only", "dummy", "removable", "blocksize", "rotational",
-		"size", "size_mb", "tst", "numa_node_id",
-		"cluster_mode", "dif_mode", "dif_type", "dif_static_app_tag", NULL
-	};
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
@@ -8282,7 +8270,8 @@ static int vdev_nullio_add_device(const char *device_name, char *params)
 	virt_dev->nullio = 1;
 	virt_dev->file_size = VDISK_NULLIO_SIZE;
 
-	res = vdev_parse_add_dev_params(virt_dev, params, allowed_params);
+	res = vdev_parse_add_dev_params(virt_dev, params,
+			virt_dev->vdev_devt->add_device_parameters);
 	if (res != 0)
 		goto out_destroy;
 
@@ -8441,7 +8430,6 @@ out:
 static ssize_t __vcdrom_add_device(const char *device_name, char *params)
 {
 	int res = 0;
-	static const char *const allowed_params[] = { "tst", NULL };
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
@@ -8464,7 +8452,8 @@ static ssize_t __vcdrom_add_device(const char *device_name, char *params)
 
 	virt_dev->blk_shift = DEF_CDROM_BLOCK_SHIFT;
 
-	res = vdev_parse_add_dev_params(virt_dev, params, allowed_params);
+	res = vdev_parse_add_dev_params(virt_dev, params,
+			virt_dev->vdev_devt->add_device_parameters);
 	if (res != 0)
 		goto out_destroy;
 
