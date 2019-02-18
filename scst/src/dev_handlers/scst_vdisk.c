@@ -754,6 +754,28 @@ static vdisk_op_fn fileio_ops[256];
 static vdisk_op_fn blockio_ops[256];
 static vdisk_op_fn nullio_ops[256];
 
+static const char *fileio_add_dev_params[] = {
+	"async",
+	"blocksize",
+	"cluster_mode",
+	"dif_filename",
+	"dif_mode",
+	"dif_static_app_tag",
+	"dif_type",
+	"filename",
+	"numa_node_id",
+	"nv_cache",
+	"o_direct",
+	"read_only",
+	"removable",
+	"rotational",
+	"thin_provisioned",
+	"tst",
+	"write_through",
+	"zero_copy",
+	NULL
+};
+
 /*
  * Be careful changing "name" field, since it is the name of the corresponding
  * /sys/kernel/scst_tgt entry, hence a part of user space ABI.
@@ -786,25 +808,7 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.add_device =		vdisk_add_fileio_device,
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_fileio_attrs,
-	.add_device_parameters =
-		"async, "
-		"blocksize, "
-		"cluster_mode, "
-		"filename, "
-		"numa_node_id, "
-		"nv_cache, "
-		"o_direct, "
-		"read_only, "
-		"removable, "
-		"rotational, "
-		"thin_provisioned, "
-		"tst, "
-		"write_through, "
-		"zero_copy, "
-		"dif_mode, "
-		"dif_type, "
-		"dif_static_app_tag, "
-		"dif_filename",
+	.add_device_parameters = fileio_add_dev_params,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -817,6 +821,27 @@ static struct scst_dev_type vdisk_file_devtype = {
 };
 
 static struct kmem_cache *blockio_work_cachep;
+
+static const char *blockio_add_dev_params[] = {
+	"active",
+	"bind_alua_state",
+	"blocksize",
+	"cluster_mode",
+	"dif_filename",
+	"dif_mode",
+	"dif_static_app_tag",
+	"dif_type",
+	"filename",
+	"numa_node_id",
+	"nv_cache",
+	"read_only",
+	"removable",
+	"rotational",
+	"thin_provisioned",
+	"tst",
+	"write_through",
+	NULL
+};
 
 static struct scst_dev_type vdisk_blk_devtype = {
 	.name =			"vdisk_blockio",
@@ -843,24 +868,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.add_device =		vdisk_add_blockio_device,
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_blockio_attrs,
-	.add_device_parameters =
-		"active, "
-		"bind_alua_state, "
-		"blocksize, "
-		"dif_mode, "
-		"dif_type, "
-		"dif_static_app_tag, "
-		"dif_filename, "
-		"filename, "
-		"numa_node_id, "
-		"nv_cache, "
-		"cluster_mode, "
-		"read_only, "
-		"removable, "
-		"rotational, "
-		"thin_provisioned, "
-		"tst, "
-		"write_through",
+	.add_device_parameters = blockio_add_dev_params,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -870,6 +878,23 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.trace_tbl_help =	VDISK_TRACE_TBL_HELP,
 #endif
 #endif
+};
+
+static const char *nullio_add_dev_params[] = {
+	"blocksize",
+	"cluster_mode",
+	"dif_mode",
+	"dif_static_app_tag",
+	"dif_type",
+	"dummy",
+	"numa_node_id",
+	"read_only",
+	"removable",
+	"rotational",
+	"size",
+	"size_mb",
+	"tst",
+	NULL
 };
 
 static struct scst_dev_type vdisk_null_devtype = {
@@ -895,20 +920,7 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.add_device =		vdisk_add_nullio_device,
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_nullio_attrs,
-	.add_device_parameters =
-		"blocksize, "
-		"dif_mode, "
-		"dif_type, "
-		"dif_static_app_tag, "
-		"dummy, "
-		"numa_node_id, "
-		"cluster_mode, "
-		"read_only, "
-		"removable, "
-		"rotational, "
-		"size, "
-		"size_mb, "
-		"tst",
+	.add_device_parameters = nullio_add_dev_params,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -918,6 +930,11 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.trace_tbl_help =	VDISK_TRACE_TBL_HELP,
 #endif
 #endif
+};
+
+static const char *cdrom_add_dev_params[] = {
+	"tst",
+	NULL,
 };
 
 static struct scst_dev_type vcdrom_devtype = {
@@ -943,7 +960,7 @@ static struct scst_dev_type vcdrom_devtype = {
 	.add_device =		vcdrom_add_device,
 	.del_device =		vcdrom_del_device,
 	.dev_attrs =		vcdrom_attrs,
-	.add_device_parameters = "tst",
+	.add_device_parameters = cdrom_add_dev_params,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,

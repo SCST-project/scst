@@ -1734,8 +1734,11 @@ struct scst_dev_type {
 	/* Optional help string for mgmt_cmd commands */
 	const char *mgmt_cmd_help;
 
-	/* List of parameters for add_device command, if any */
-	const char *add_device_parameters;
+	/*
+	 * Array with parameters for add_device command, if any. NULL
+	 * terminated.
+	 */
+	const char *const *add_device_parameters;
 
 	/*
 	 * List of optional, i.e. which could be added by add_attribute command
