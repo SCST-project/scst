@@ -22,7 +22,7 @@ BEGIN {
     unless(grep /blib/, @INC) {
 	unshift(@INC, File::Spec->catdir($scstadmin_pm_dir, "lib"));
     }
-    plan tests => 58;
+    plan tests => 59;
 }
 
 use Data::Dumper;
@@ -132,6 +132,16 @@ sub run {
     }
     unlink($tmpfile);
     return $res;
+}
+
+# Trigger the scstadmin prompt() subroutine.
+sub testPrompt {
+    my $result;
+
+    $result = <<'EOS';
+are you sure you wish to continue (y/[n]) ? 
+EOS
+    ok(run("$scstadmin -clear_config -force </dev/null"), $result);
 }
 
 # Test the scstadmin -list_* options.
@@ -606,6 +616,8 @@ die("Creation of SCST object failed") if (!defined($SCST));
 setup($SCST);
 
 attributeTest(File::Spec->catfile($testdir, "07-result.conf"));
+
+testPrompt();
 
 listTest();
 
