@@ -1466,7 +1466,7 @@ sub readWorkingConfig {
 sub escapeMeta {
 	my $value = shift;
 
-	$value =~ s/([\\\#])/\\\1/g;
+	$value =~ s/([\\\#])/\\$1/g;
 	if ($value =~ / /) {
 		$value = "\"$value\"";
 	}
@@ -1548,10 +1548,11 @@ sub isPassthroughDev {
 	foreach my $handler (keys %{$CURRENT{'handler'}}) {
 		my $ha;
 		($ha, $errorString) = $SCST->handlerAttributes($handler);
-		next if ($ha->{'mgmt'} !~ 'echo "add_device H:C:I:L"');
+		next if (defined($ha->{'mgmt'}) &&
+			 $ha->{'mgmt'} !~ 'echo "add_device H:C:I:L"');
 		my @devs = @{$CURRENT{'handler'}->{$handler}};
 		for my $i (0 .. $#devs) {
-			if ($dev eq @devs[$i]) {
+			if ($dev eq $devs[$i]) {
 				$pt = TRUE;
 				last;
 			}
@@ -3074,7 +3075,7 @@ sub listHandler {
 	my $handler = shift;
 	my %toprint;
 
-	my $got_handler = ($handler ne '');
+	my $got_handler = defined($handler);
 	my ($handlers, $errorString) = $SCST->handlers();
 
 	my $l_device = 0;
@@ -3189,10 +3190,11 @@ sub listDeviceGroups {
 
 sub listDeviceGroup {
 	my $group = shift;
-
-	my ($devices, $errorString) = $SCST->deviceGroupDevices($group);
-
+	my $errorString;
+	my $devices;
 	my $l_device = 0;
+
+	($devices, $errorString) = $SCST->deviceGroupDevices($group);
 	foreach my $device (@{$devices}) {
 		$l_device = length($device) if ($l_device < length($device));
 	}
@@ -3210,9 +3212,10 @@ sub listDeviceGroup {
 		print "\t$device\n";
 	}
 
-	my ($tgroups, $errorString) = $SCST->targetGroups($group);
-
+	my $tgroups;
 	my $l_tgroup = 0;
+
+	($tgroups, $errorString) = $SCST->targetGroups($group);
 	foreach my $tgroup (@{$tgroups}) {
 		$l_tgroup = length($tgroup) if ($l_tgroup < length($tgroup));
 	}
@@ -3357,7 +3360,7 @@ sub listTargets {
 
 	return listGroups($driver, $target, undef) if (($target ne '') && ($driver ne ''));
 
-	my $got_driver = ($driver ne '');
+	my $got_driver = defined($driver);
 
 	my ($drivers, $errorString) = $SCST->drivers();
 
@@ -3464,7 +3467,7 @@ sub listGroup {
 	my $errorString;
 
 	($luns, $errorString) = $SCST->luns($driver, $target, $group) if (!$luns);
-	if (($initiators eq '') && ($group ne '')) {
+	if (($initiators eq '') && defined($group)) {
 		($initiators, $errorString) = $SCST->initiators($driver, $target, $group);
 		return TRUE if issueWarning($errorString);
 	}
@@ -5450,7 +5453,7 @@ sub readConfigFile {
 			}
 		}
 
-		$line =~ s/\\(.)/\1/g;
+		$line =~ s/\\(.)/$1/g;
 		$buffer .= $line;
 	}
 
@@ -5489,8 +5492,11 @@ sub parseStanza {
 
 		if ($char eq "\n") {
 			my %empty;
-			parseLine($line, \%hash, \%empty);
-			$line = undef;
+
+			if ($line) {
+				parseLine($line, \%hash, \%empty);
+				$line = undef;
+			}
 		} else {
 			$line .= $char;
 		}
@@ -5513,9 +5519,9 @@ sub parseLine {
 		push @elements, defined($1) ? $1:$3;
 	}
 
-	my $attribute = @elements[0];
-	my $value     = @elements[1];
-	my $value2    = @elements[2];
+	my $attribute = $elements[0];
+	my $value     = $elements[1];
+	my $value2    = $elements[2];
 
 	if (defined($attribute) && defined($value) && defined($value2)) {
 		$$hash{$attribute}->{$value}->{$value2} = $child;
