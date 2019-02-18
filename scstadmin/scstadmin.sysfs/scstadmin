@@ -831,8 +831,6 @@ sub getArgs {
 }
 
 sub main {
-	my $rc = 0;
-
 	STDOUT->autoflush(1);
 
 	# We need to run as root
