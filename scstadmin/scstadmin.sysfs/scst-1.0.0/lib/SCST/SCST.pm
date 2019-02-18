@@ -777,6 +777,7 @@ sub aluaAttributes {
 			chomp $value;
 
 			my $second_line = <$io>;
+			$second_line = "" if (!defined($second_line));
 			if (new_sysfs_interface() && !$is_static
 			    || ($second_line =~ /\[key\]/)) {
 				my $key = 0;
@@ -2633,6 +2634,7 @@ sub deviceAttributes {
 				} elsif ($linked =~ /^(\.\.\/)*$t\/([^\/]+)\/([^\/]+)\/$l\/(\d+)$/) {
 					$driver = $2;
 					$target = $3;
+					$group = "";
 					$lun = $4;
 				} else {
 					print("internal error: could not parse $linked\n");
