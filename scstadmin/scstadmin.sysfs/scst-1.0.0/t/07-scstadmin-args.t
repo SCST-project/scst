@@ -139,7 +139,12 @@ sub testPrompt {
     my $result;
 
     $result = <<'EOS';
-are you sure you wish to continue (y/[n]) ? 
+
+Collecting current configuration: done.
+
+Performing this action may result in lost or corrupt data, are you sure you wish to continue (y/[n]) ? Aborting action.
+
+All done.
 EOS
     ok(run("$scstadmin -clear_config -force </dev/null"), $result);
 }
