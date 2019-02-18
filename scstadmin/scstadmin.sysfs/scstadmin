@@ -1484,7 +1484,7 @@ sub serializeKeyAttr {
     my $prefix = shift;
     my $attributes = shift;
     my $attr_filter = shift;
-    my $result;
+    my $result = "";
 
     foreach my $attribute (sort keys %{$attributes}) {
 	next if defined($$attributes{$attribute}->{'set'});
@@ -1520,7 +1520,7 @@ sub serializeNkAttr {
     my $prefix = shift;
     my $attributes = shift;
     my $attr_filter = shift;
-    my $result;
+    my $result = "";
 
     foreach my $attribute (sort keys %{$attributes}) {
 	if (!defined($$attributes{$attribute}->{'set'})
@@ -3431,7 +3431,7 @@ sub listSessions {
 			foreach my $session (keys %{$sessions}) {
 				print "\tSession: $session\n\n";
 
-				my %attributes;
+				my %attributes = ( );
 				foreach my $attr (keys %{$$sessions{$session}}) {
 					if ($attr eq 'luns') {
 						foreach my $lun (keys %{$$sessions{$session}->{'luns'}}) {
@@ -5840,7 +5840,7 @@ sub arrayHasValue {
 
 sub configToAttr {
 	my $config = shift;
-	my %attributes;
+	my %attributes = ( );
 
 	foreach my $attr (keys %{$config}) {
 		if (!scalar keys %{$$config{$attr}}) {

@@ -422,7 +422,7 @@ sub scstVersion {
 
 sub scstAttributes {
 	my $self = shift;
-	my %attributes;
+	my %attributes = ( );
 
 	my $pHandle = new IO::Handle;
 	my $_path = SCST_ROOT_DIR();
@@ -747,7 +747,7 @@ sub luns {
 
 sub aluaAttributes {
 	my $self = shift;
-	my %attributes;
+	my %attributes = ( );
 
 	my $pHandle = new IO::Handle;
 	my $_path = SCST_DEV_GROUP_DIR();
@@ -940,7 +940,7 @@ sub driverExists {
 sub driverDynamicAttributes {
 	my $self = shift;
 	my $driver = shift;
-	my %attributes;
+	my %attributes = ( );
 	my $available;
 	my $errorString;
 
@@ -1223,7 +1223,7 @@ sub addVirtualTarget {
 sub targetDynamicAttributes {
 	my $self = shift;
 	my $driver = shift;
-	my %attributes;
+	my %attributes = ( );
 	my $available;
 	my $errorString;
 
@@ -2588,7 +2588,7 @@ sub deviceOpen {
 sub deviceAttributes {
 	my $self = shift;
 	my $device = shift;
-	my %attributes;
+	my %attributes = ( );
 	my $errorString;
 	my $dca;
 
@@ -2726,7 +2726,7 @@ sub deviceAttributes {
 sub driverAttributes {
 	my $self = shift;
 	my $driver = shift;
-	my %attributes;
+	my %attributes = ( );
 	my $errorString;
 
 	my $pHandle = new IO::Handle;
@@ -2858,7 +2858,7 @@ sub targetAttributes {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
-	my %attributes;
+	my %attributes = ( );
 	my $errorString;
 
 	return (undef, "Too few arguments") if (!defined($driver) || !defined($target));
@@ -3011,7 +3011,7 @@ sub groupAttributes {
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
-	my %attributes;
+	my %attributes = ( );
 	my $errorString;
 
 	my $pHandle = new IO::Handle;
@@ -3151,7 +3151,7 @@ sub lunAttributes {
 	my $lun = shift;
 	my $group = shift;
 	my $errorString;
-	my %attributes;
+	my %attributes = ( );
 
 	my ($_path, $luncrattr);
 
@@ -3321,7 +3321,7 @@ sub initiatorAttributes {
 	my $target = shift;
 	my $group = shift;
 	my $initiator = shift;
-	my %attributes;
+	my %attributes = ( );
 	my $errorString;
 
 	my $pHandle = new IO::Handle;
@@ -3453,7 +3453,7 @@ sub setInitiatorAttribute {
 sub deviceGroupAttributes {
 	my $self = shift;
 	my $group = shift;
-	my %attributes;
+	my %attributes = ( );
 	my $errorString;
 
 	my $pHandle = new IO::Handle;
@@ -3532,7 +3532,7 @@ sub targetGroupAttributes {
 	my $self = shift;
 	my $group = shift;
 	my $tgroup = shift;
-	my %attributes;
+	my %attributes = ( );
 	my $errorString;
 
 	my $pHandle = new IO::Handle;
@@ -3615,7 +3615,7 @@ sub targetGroupTargetAttributes {
 	my $tgroup = shift;
 	my $tgt = shift;
 	my $local_tgt = shift;
-	my %attributes;
+	my %attributes = ( );
 	my $errorString;
 
 	my $pHandle = new IO::Handle;
@@ -3906,7 +3906,7 @@ sub setHandlerAttribute {
 sub handlerAttributes {
 	my $self = shift;
 	my $handler = shift;
-	my %attributes;
+	my %attributes = ( );
 	my $errorString;
 	my $a;
 
@@ -4108,7 +4108,7 @@ sub deviceCreateAttributes {
 	my $self = shift;
 	my $handler = shift;
 	my $available;
-	my %attributes;
+	my %attributes = ( );
 	my $errorString;
 
 	if (new_sysfs_interface()) {
@@ -4328,7 +4328,7 @@ sub targetCreateAttributes {
 	my $self = shift;
 	my $driver = shift;
 	my $available;
-	my %attributes;
+	my %attributes = ( );
 	my $errorString;
 
 	if (new_sysfs_interface()) {
@@ -4520,7 +4520,7 @@ sub lunCreateAttributes {
 	my $target = shift;
 	my $group = shift;
 	my $available;
-	my %attributes;
+	my %attributes = ( );
 	my $errorString;
 
 	my $_path;
@@ -4642,7 +4642,7 @@ sub initiatorCreateAttributes {
 	my $target = shift;
 	my $group = shift;
 	my $available;
-	my %attributes;
+	my %attributes = ( );
 	my $errorString;
 
 	if (new_sysfs_interface()) {
