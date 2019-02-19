@@ -284,7 +284,8 @@ struct vdisk_cmd_params {
 	};
 	struct scst_cmd *cmd;
 	loff_t loff;
-	int fua;
+	unsigned int fua:1;
+	unsigned int execute_async:1;
 };
 
 static bool vdev_saved_mode_pages_enabled = true;
@@ -3010,7 +3011,7 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	bool res;
-	int fua = 0;
+	bool fua = false;
 
 	TRACE_ENTRY();
 
@@ -3371,6 +3372,8 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 		return CMD_SUCCEEDED;
 	}
 
+	p->execute_async = true;
+
 	kvec = p->async.kvec;
 	length = scst_get_buf_first(cmd, &address);
 	while (length) {
@@ -3429,7 +3432,7 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 
 static void vdisk_on_free_cmd_params(const struct vdisk_cmd_params *p)
 {
-	if (!do_fileio_async(p)) {
+	if (!p->execute_async) {
 		if (p->sync.iv != p->sync.small_iv)
 			kfree(p->sync.iv);
 	}
