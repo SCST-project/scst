@@ -42,118 +42,6 @@
 
 #define DISK_DEF_BLOCK_SHIFT	9
 
-static int disk_attach(struct scst_device *dev);
-static void disk_detach(struct scst_device *dev);
-static int disk_parse(struct scst_cmd *cmd);
-static enum scst_exec_res disk_perf_exec(struct scst_cmd *cmd);
-static int disk_done(struct scst_cmd *cmd);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-static enum scst_exec_res disk_exec(struct scst_cmd *cmd);
-static bool disk_on_sg_tablesize_low(struct scst_cmd *cmd);
-#endif
-
-static struct scst_dev_type disk_devtype = {
-	.name =			DISK_NAME,
-	.type =			TYPE_DISK,
-	.threads_num =		1,
-	.parse_atomic =		1,
-	.dev_done_atomic =	1,
-	.attach =		disk_attach,
-	.detach =		disk_detach,
-	.parse =		disk_parse,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-	.exec =			disk_exec,
-	.on_sg_tablesize_low = disk_on_sg_tablesize_low,
-#endif
-	.dev_done =		disk_done,
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-	.default_trace_flags = SCST_DEFAULT_DEV_LOG_FLAGS,
-	.trace_flags = &trace_flag,
-#endif
-};
-
-static struct scst_dev_type disk_devtype_perf = {
-	.name =			DISK_PERF_NAME,
-	.type =			TYPE_DISK,
-	.parse_atomic =		1,
-	.dev_done_atomic =	1,
-	.attach =		disk_attach,
-	.detach =		disk_detach,
-	.parse =		disk_parse,
-	.exec =			disk_perf_exec,
-	.dev_done =		disk_done,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-	.on_sg_tablesize_low = disk_on_sg_tablesize_low,
-#endif
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
-	.trace_flags =		&trace_flag,
-#endif
-};
-
-static int __init init_scst_disk_driver(void)
-{
-	int res = 0;
-
-	TRACE_ENTRY();
-
-	disk_devtype.module = THIS_MODULE;
-
-	res = scst_register_dev_driver(&disk_devtype);
-	if (res < 0)
-		goto out;
-
-	disk_devtype_perf.module = THIS_MODULE;
-
-	res = scst_register_dev_driver(&disk_devtype_perf);
-	if (res < 0)
-		goto out_unreg;
-
-#ifdef CONFIG_SCST_PROC
-	res = scst_dev_handler_build_std_proc(&disk_devtype);
-	if (res != 0)
-		goto out_unreg1;
-
-	res = scst_dev_handler_build_std_proc(&disk_devtype_perf);
-	if (res != 0)
-		goto out_unreg2;
-#endif
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-
-#ifdef CONFIG_SCST_PROC
-out_unreg2:
-	scst_dev_handler_destroy_std_proc(&disk_devtype);
-
-out_unreg1:
-	scst_unregister_dev_driver(&disk_devtype_perf);
-#endif
-
-out_unreg:
-	scst_unregister_dev_driver(&disk_devtype);
-	goto out;
-}
-
-static void __exit exit_scst_disk_driver(void)
-{
-	TRACE_ENTRY();
-
-#ifdef CONFIG_SCST_PROC
-	scst_dev_handler_destroy_std_proc(&disk_devtype_perf);
-	scst_dev_handler_destroy_std_proc(&disk_devtype);
-#endif
-	scst_unregister_dev_driver(&disk_devtype_perf);
-	scst_unregister_dev_driver(&disk_devtype);
-
-	TRACE_EXIT();
-	return;
-}
-
-module_init(init_scst_disk_driver);
-module_exit(exit_scst_disk_driver);
-
 static int disk_attach(struct scst_device *dev)
 {
 	int res, rc;
@@ -623,6 +511,108 @@ out_complete:
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 	goto out;
 }
+
+static struct scst_dev_type disk_devtype = {
+	.name =			DISK_NAME,
+	.type =			TYPE_DISK,
+	.threads_num =		1,
+	.parse_atomic =		1,
+	.dev_done_atomic =	1,
+	.attach =		disk_attach,
+	.detach =		disk_detach,
+	.parse =		disk_parse,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+	.exec =			disk_exec,
+	.on_sg_tablesize_low = disk_on_sg_tablesize_low,
+#endif
+	.dev_done =		disk_done,
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags = SCST_DEFAULT_DEV_LOG_FLAGS,
+	.trace_flags = &trace_flag,
+#endif
+};
+
+static struct scst_dev_type disk_devtype_perf = {
+	.name =			DISK_PERF_NAME,
+	.type =			TYPE_DISK,
+	.parse_atomic =		1,
+	.dev_done_atomic =	1,
+	.attach =		disk_attach,
+	.detach =		disk_detach,
+	.parse =		disk_parse,
+	.exec =			disk_perf_exec,
+	.dev_done =		disk_done,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
+	.on_sg_tablesize_low = disk_on_sg_tablesize_low,
+#endif
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
+	.trace_flags =		&trace_flag,
+#endif
+};
+
+static int __init init_scst_disk_driver(void)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	disk_devtype.module = THIS_MODULE;
+
+	res = scst_register_dev_driver(&disk_devtype);
+	if (res < 0)
+		goto out;
+
+	disk_devtype_perf.module = THIS_MODULE;
+
+	res = scst_register_dev_driver(&disk_devtype_perf);
+	if (res < 0)
+		goto out_unreg;
+
+#ifdef CONFIG_SCST_PROC
+	res = scst_dev_handler_build_std_proc(&disk_devtype);
+	if (res != 0)
+		goto out_unreg1;
+
+	res = scst_dev_handler_build_std_proc(&disk_devtype_perf);
+	if (res != 0)
+		goto out_unreg2;
+#endif
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+
+#ifdef CONFIG_SCST_PROC
+out_unreg2:
+	scst_dev_handler_destroy_std_proc(&disk_devtype);
+
+out_unreg1:
+	scst_unregister_dev_driver(&disk_devtype_perf);
+#endif
+
+out_unreg:
+	scst_unregister_dev_driver(&disk_devtype);
+	goto out;
+}
+
+static void __exit exit_scst_disk_driver(void)
+{
+	TRACE_ENTRY();
+
+#ifdef CONFIG_SCST_PROC
+	scst_dev_handler_destroy_std_proc(&disk_devtype_perf);
+	scst_dev_handler_destroy_std_proc(&disk_devtype);
+#endif
+	scst_unregister_dev_driver(&disk_devtype_perf);
+	scst_unregister_dev_driver(&disk_devtype);
+
+	TRACE_EXIT();
+	return;
+}
+
+module_init(init_scst_disk_driver);
+module_exit(exit_scst_disk_driver);
 
 MODULE_AUTHOR("Vladislav Bolkhovitin & Leonid Stoljar");
 MODULE_LICENSE("GPL");
