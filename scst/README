@@ -1948,23 +1948,50 @@ information about ALUA support in Windows Server, see also:
 Active/Non-Optimized via internal redirection
 .............................................
 
-The Active-Standby configuration is simple to understand and setup,
-however, it might have serious interoperability issues, because not all
-initiators handle Standby state correctly. For instance, some versions
-of VMware reported to have such issues. Same for Windows.
+The Active-Standby configuration is simple to understand and to set up.
+However, it might cause serious interoperability issues because not all
+initiators handle the ALUA state 'standby' state correctly. For instance,
+some versions of VMware reported to have such issues. Same for Windows.
 
-Hence, it is better to use Non-Optimized state on the passive node
-instead of Standby with internal commands redirection to the active
-node. This is what the vast majority of storage vendors are doing, which
-is, actually, the reason why Standby and Unavailable states have all
-those initiator issues. Simply, they have had too few testing, because
-only marginally used.
+It is better to use the 'nonoptimized' state on the passive node instead
+of 'standby' with internal commands redirection to the active node. This
+is what the vast majority of storage vendors are doing. This is actually
+the reason why the 'standby' and 'unavailable' states have all those
+initiator interoperability issues. The latter combination has received
+too few testing because it is only marginally used.
 
-SCST has necessary support for such redirection, it just needs to be
+SCST has the necessary support for such redirection, it just needs to be
 configured correctly. It's a little bit of effort, especially to
 understand how it's going to function, but then it would work MUCH more
 reliable for full range of initiators. Ever poor initiators, who have no
-idea about ALUA (boot from SAN, e.g.) would work now.
+idea about ALUA (boot from SAN, e.g.) would work now. The following
+diagram illustrates this approach:
+
+................................................................
+.                               .                              .
+.          Initiator A          .         Initiator B          .
+.               |               .              |               .
+................................................................
+.               |               .              |               .
+.         target port C         .        target port D         .
+.               |               .              |               .
+.              SCST             .             SCST             .
+.           Instance E - target . target - Instance F          .
+.              /  \      port G . port H     /  \              .
+.             /    \           \./          /    \             .
+.            /      \          /.\         /      \            .
+. vdisk_blockio   dev_disk    / . \  dev_disk    vdisk_blockio .
+.    handler      handler    /  .  \ handler        handler    .
+.       |            |      /   .   \ |                |       .
+. block device    SCSI     /    .  SCSI          block device  .
+.       I         initiator     .  initiator           J       .
+.       |         node K        .  node L              |       .
+.       |______________________ .______________________|       .
+................................................................
+The link between block devices I and J stands for synchronous replication.
+
+
+Such a setup can be configured as follows:
 
 1. Build SCST with CONFIG_SCST_FORWARD_MODE_PASS_THROUGH enabled in scst.h
 
