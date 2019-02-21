@@ -1549,7 +1549,44 @@ out:
 	return res;
 }
 
-/* Called with dev_pr_mutex locked, no IRQ */
+/* Add registrants for remote ports. Called with dev_pr_mutex locked, no IRQ. */
+static int scst_register_remote_ports(struct scst_cmd *cmd, uint8_t *buffer,
+	int buffer_size, bool spec_i_pt, struct list_head *rollback_list)
+{
+	struct scst_dev_group *dg;
+	struct scst_target_group *tg;
+	struct scst_tg_tgt *tgtgt;
+	int res = 0;
+
+	scst_alua_lock();
+
+	dg = scst_lookup_dg_by_dev(cmd->dev);
+	if (!dg)
+		goto out_unlock;
+
+	list_for_each_entry(tg, &dg->tg_list, entry) {
+		list_for_each_entry(tgtgt, &tg->tgt_list, entry) {
+			/* Skip local target ports */
+			if (tgtgt->tgt)
+				continue;
+			/* To do: check the initiator port transport ID. */
+			if (tgtgt->rel_tgt_id == 0)
+				continue;
+			res = scst_pr_register_on_tgt_id(cmd, tgtgt->rel_tgt_id,
+							 buffer, buffer_size,
+							 spec_i_pt,
+							 rollback_list);
+			if (res != 0)
+				goto out_unlock;
+		}
+	}
+out_unlock:
+	scst_alua_unlock();
+
+	return res;
+}
+
+/* Register all target ports. Called with dev_pr_mutex locked, no IRQ. */
 static int scst_pr_register_all_tg_pt(struct scst_cmd *cmd, uint8_t *buffer,
 	int buffer_size, bool spec_i_pt, struct list_head *rollback_list)
 {
@@ -1593,6 +1630,9 @@ static int scst_pr_register_all_tg_pt(struct scst_cmd *cmd, uint8_t *buffer,
 				goto out_unlock;
 		}
 	}
+
+	res = scst_register_remote_ports(cmd, buffer, buffer_size, spec_i_pt,
+					 rollback_list);
 
 out_unlock:
 	mutex_unlock(&scst_mutex2);
