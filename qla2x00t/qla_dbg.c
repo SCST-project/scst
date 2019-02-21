@@ -141,7 +141,7 @@ qla24xx_dump_ram(struct qla_hw_data *ha, uint32_t addr, uint32_t *ram,
 		}
 	}
 
-	*nxt = rval == QLA_SUCCESS ? &ram[cnt]: NULL;
+	*nxt = rval == QLA_SUCCESS ? &ram[cnt] : NULL;
 	return rval;
 }
 
@@ -326,7 +326,7 @@ qla2xxx_dump_ram(struct qla_hw_data *ha, uint32_t addr, uint16_t *ram,
 		}
 	}
 
-	*nxt = rval == QLA_SUCCESS ? &ram[cnt]: NULL;
+	*nxt = rval == QLA_SUCCESS ? &ram[cnt] : NULL;
 	return rval;
 }
 

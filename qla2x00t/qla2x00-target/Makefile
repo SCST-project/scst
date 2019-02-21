@@ -9,7 +9,7 @@
 #  modify it under the terms of the GNU General Public License
 #  as published by the Free Software Foundation, version 2
 #  of the License.
-# 
+#
 #  This program is distributed in the hope that it will be useful,
 #  but WITHOUT ANY WARRANTY; without even the implied warranty of
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
@@ -20,8 +20,8 @@
 #    all (the default) : make all
 #    clean             : clean files
 #    extraclean        : clean + clean dependencies
-#    install           : install 
-#    uninstall         : uninstall 
+#    install           : install
+#    uninstall         : uninstall
 #
 # Notes :
 #    - install and uninstall must be made as root
@@ -33,7 +33,7 @@ EXTRA_CFLAGS += -I$(SCST_INC_DIR)
 
 EXTRA_CFLAGS += -W -Wno-unused-parameter -Wno-missing-field-initializers
 
-EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS 
+EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
 #EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
 EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
 #EXTRA_CFLAGS += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
