@@ -5,7 +5,7 @@ package SCST::SCST;
 # Author:	Mark R. Buechler
 # License:	GPLv2
 # Copyright (c) 2005-2011 Mark R. Buechler
-# Copyright (c) 2011-2015 Bart Van Assche <bvanassche@acm.org>.
+# Copyright (c) 2011-2019 Bart Van Assche <bvanassche@acm.org>.
 
 use 5.005;
 use Fcntl ':mode';
@@ -422,7 +422,7 @@ sub scstVersion {
 
 sub scstAttributes {
 	my $self = shift;
-	my %attributes;
+	my %attributes = ( );
 
 	my $pHandle = new IO::Handle;
 	my $_path = SCST_ROOT_DIR();
@@ -458,7 +458,8 @@ sub scstAttributes {
 				}
 
 				my $value = <$io>;
-				chomp $value if (defined($value));
+				$value = "" if (!defined($value));
+				chomp $value;
 
 				my $is_key = <$io>;
 				$is_key = new_sysfs_interface() && !$is_static ||
@@ -556,6 +557,7 @@ sub drivers {
 				push @drivers, $driver;
 			}
 		}
+		@drivers = sort(@drivers);
 		close $dHandle;
 	} else {
 		return (undef, "drivers(): Unable to read directory '$_path': $!");
@@ -643,6 +645,7 @@ sub initiators {
 	my $target = shift;
 	my $group = shift;
 	my @initiators;
+	my $errorString;
 
 	return (undef, "Too few arguments") if (!defined($driver) || !defined($target) ||
 			 !defined($group));
@@ -651,7 +654,6 @@ sub initiators {
 	my $_path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
 			      $group, SCST_INITIATORS);
 	if (!(opendir $iHandle, $_path)) {
-		my $errorString;
 		if ($self->driverExists($driver) != TRUE) {
 			$errorString = "initiators(): Driver '$driver' is not available";
 		} elsif ($self->targetExists($driver, $target) != TRUE) {
@@ -681,6 +683,7 @@ sub luns {
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
+	my $errorString;
 
 	return (undef, "Too few arguments") if (!defined($driver) || !defined($target));
 
@@ -697,7 +700,6 @@ sub luns {
 	my $lHandle = new IO::Handle;
 
 	if (!(opendir $lHandle, $_path)) {
-		my $errorString;
 		if (defined($group) && $self->groupExists($driver, $target, $group) != TRUE) {
 			$errorString = "initiators(): Group '$group' does not exist";
 		} elsif ($self->driverExists($driver) != TRUE) {
@@ -745,7 +747,7 @@ sub luns {
 
 sub aluaAttributes {
 	my $self = shift;
-	my %attributes;
+	my %attributes = ( );
 
 	my $pHandle = new IO::Handle;
 	my $_path = SCST_DEV_GROUP_DIR();
@@ -767,13 +769,15 @@ sub aluaAttributes {
 			my $io = new IO::File $pPath, O_RDONLY;
 
 			if (!$io) {
-				return (undef, "deviceGroupsAttributes(): Unable to read device attribute '$attribute': $!");
+				return (undef, "aluaAttributes(): Unable to read device attribute '$attribute': $!");
 			}
 
 			my $value = <$io>;
+			$value = "" if (!defined($value));
 			chomp $value;
 
 			my $second_line = <$io>;
+			$second_line = "" if (!defined($second_line));
 			if (new_sysfs_interface() && !$is_static
 			    || ($second_line =~ /\[key\]/)) {
 				my $key = 0;
@@ -823,13 +827,13 @@ sub deviceGroupDevices {
 	my $self = shift;
 	my $group = shift;
 	my @devices;
+	my $errorString;
 
 	return (undef, "Too few arguments") if (!defined($group));
 
 	my $dHandle = new IO::Handle;
 	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_DEVICES);
 	if (!(opendir $dHandle, $_path)) {
-		my $errorString;
 		if ($self->deviceGroupExists($group) != TRUE) {
 			$errorString = "deviceGroupDevices(): Device group '$group' does not exist";
 		} else {
@@ -855,13 +859,13 @@ sub targetGroups {
 	my $self = shift;
 	my $group = shift;
 	my @tgroups;
+	my $errorString;
 
 	return (undef, "Too few arguments") if (!defined($group));
 
 	my $dHandle = new IO::Handle;
 	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS);
 	if (!(opendir $dHandle, $_path)) {
-		my $errorString;
 		if ($self->deviceGroupExists($group) != TRUE) {
 			$errorString = "targetGroups(): Device group '$group' does not exist";
 		} else {
@@ -888,13 +892,13 @@ sub targetGroupTargets {
 	my $group = shift;
 	my $tgroup = shift;
 	my @targets;
+	my $errorString;
 
 	return (undef, "Too few arguments") if (!defined($group) || !defined($tgroup));
 
 	my $dHandle = new IO::Handle;
 	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, $tgroup);
 	if (!(opendir $dHandle, $_path)) {
-		my $errorString;
 		if ($self->deviceGroupExists($group) != TRUE) {
 			$errorString = "targetGroupTargets(): Device group '$group' does not exist";
 		} elsif ($self->targetGroupExists($group, $tgroup) != TRUE) {
@@ -936,8 +940,9 @@ sub driverExists {
 sub driverDynamicAttributes {
 	my $self = shift;
 	my $driver = shift;
-	my %attributes;
+	my %attributes = ( );
 	my $available;
+	my $errorString;
 
 	return (undef, "Too few arguments") if (!defined($driver));
 
@@ -956,7 +961,6 @@ sub driverDynamicAttributes {
 						SCST_MGMT_IO), O_RDONLY;
 
 		if (!$io) {
-			my $errorString;
 			if ($self->driverExists($driver) != TRUE) {
 				$errorString = "driverDynamicAttributes(): Driver '$driver' ".
 				    "is not available";
@@ -1139,11 +1143,13 @@ sub targetType {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
+	my $errorString;
 
 	return (undef, "Too few arguments") if (!defined($driver) || !defined($target));
 
 	if ($self->driverIsVirtualCapable($driver)) {
-		my ($attribs, $errorString) = $self->targetAttributes($driver, $target);
+		my $attribs;
+		($attribs, $errorString) = $self->targetAttributes($driver, $target);
 
 		if (defined($$attribs{'hw_target'}) &&
 		    ($$attribs{'hw_target'}->{'value'} == TRUE)) {
@@ -1217,8 +1223,9 @@ sub addVirtualTarget {
 sub targetDynamicAttributes {
 	my $self = shift;
 	my $driver = shift;
-	my %attributes;
+	my %attributes = ( );
 	my $available;
+	my $errorString;
 
 	return (undef, "Too few arguments") if (!defined($driver));
 
@@ -1237,7 +1244,6 @@ sub targetDynamicAttributes {
 						SCST_MGMT_IO), O_RDONLY;
 
 		if (!$io) {
-			my $errorString;
 			if ($self->driverExists($driver) != TRUE) {
 				$errorString = "targetDynamicAttributes(): Driver '$driver' ".
 				    "is not available";
@@ -1723,6 +1729,8 @@ sub addDeviceGroupDevice {
 	my $self = shift;
 	my $group = shift;
 	my $device = shift;
+	my $dgroups;
+	my $errorString;
 
 	return SCST_C_DGRP_ADD_DEV_FAIL if (!defined($group) || !defined($device));
 
@@ -1761,11 +1769,11 @@ sub addDeviceGroupDevice {
 	return $rc if ($rc > 1);
 
 	# Check all device groups for this device
-	my ($dgroups, $errorString) = $self->deviceGroups();
-
+	($dgroups, $errorString) = $self->deviceGroups();
 	foreach my $dgroup (@{$dgroups}) {
-		my ($devs, $errorString) = $self->deviceGroupDevices($dgroup);
+		my $devs;
 
+		($devs, $errorString) = $self->deviceGroupDevices($dgroup);
 		foreach my $dev (@{$devs}) {
 			return SCST_C_DGRP_DEVICE_OTHER if ($dev eq $device);
 		}
@@ -2580,12 +2588,13 @@ sub deviceOpen {
 sub deviceAttributes {
 	my $self = shift;
 	my $device = shift;
-	my %attributes;
+	my %attributes = ( );
+	my $errorString;
+	my $dca;
 
 	my $pHandle = new IO::Handle;
 	my $_path = make_path(SCST_DEVICES_DIR(), $device);
 	if (!(opendir $pHandle, $_path)) {
-		my $errorString;
 		if ($self->deviceOpen($device) != TRUE) {
 			$errorString = "deviceAttributes(): Device '$device' is not open";
 		} else {
@@ -2594,7 +2603,7 @@ sub deviceAttributes {
 		return (undef, $errorString);
 	}
 
-	my ($dca, $errorString) = $self->deviceCreateAttributes($self->deviceHandler($device));
+	($dca, $errorString) = $self->deviceCreateAttributes($self->deviceHandler($device));
 
 	foreach my $attribute (readdir($pHandle)) {
 		next if ($attribute eq '.' || $attribute eq '..' ||
@@ -2625,6 +2634,7 @@ sub deviceAttributes {
 				} elsif ($linked =~ /^(\.\.\/)*$t\/([^\/]+)\/([^\/]+)\/$l\/(\d+)$/) {
 					$driver = $2;
 					$target = $3;
+					$group = "";
 					$lun = $4;
 				} else {
 					print("internal error: could not parse $linked\n");
@@ -2716,12 +2726,12 @@ sub deviceAttributes {
 sub driverAttributes {
 	my $self = shift;
 	my $driver = shift;
-	my %attributes;
+	my %attributes = ( );
+	my $errorString;
 
 	my $pHandle = new IO::Handle;
 	my $_path = make_path(SCST_TARGETS_DIR(), $driver);
 	if (!(opendir $pHandle, $_path)) {
-		my $errorString;
 		if ($self->driverExists($driver) != TRUE) {
 			$errorString = "driverAttributes(): Driver '$driver' is not available";
 		} else {
@@ -2758,6 +2768,7 @@ sub driverAttributes {
 				}
 
 				my $value = <$io>;
+				$value = "" if (!defined($value));
 				chomp $value;
 
 				my $is_key = <$io>;
@@ -2847,14 +2858,14 @@ sub targetAttributes {
 	my $self = shift;
 	my $driver = shift;
 	my $target = shift;
-	my %attributes;
+	my %attributes = ( );
+	my $errorString;
 
 	return (undef, "Too few arguments") if (!defined($driver) || !defined($target));
 
 	my $pHandle = new IO::Handle;
 	my $_path = make_path(SCST_TARGETS_DIR(), $driver, $target);
 	if (!(opendir $pHandle, $_path)) {
-		my $errorString;
 		if ($self->driverExists($driver) != TRUE) {
 			$errorString = "targetAttributes(): Driver '$driver' is not available";
 		} elsif ($self->targetExists($driver, $target) != TRUE) {
@@ -2914,7 +2925,8 @@ sub targetAttributes {
 				}
 
 				my $value = <$io>;
-				chomp $value if (defined($value));
+				$value = "" if (!defined($value));
+				chomp $value;
 
 				my $is_key = <$io>;
 				close $io;
@@ -2999,13 +3011,13 @@ sub groupAttributes {
 	my $driver = shift;
 	my $target = shift;
 	my $group = shift;
-	my %attributes;
+	my %attributes = ( );
+	my $errorString;
 
 	my $pHandle = new IO::Handle;
 	my $_path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
 			      $group);
 	if (!(opendir $pHandle, $_path)) {
-		my $errorString;
 		if ($self->driverExists($driver) != TRUE) {
 			$errorString = "groupAttributes(): Driver '$driver' is not available";
 		} elsif ($self->targetExists($driver, $target) != TRUE) {
@@ -3048,6 +3060,7 @@ sub groupAttributes {
 				}
 
 				my $value = <$io>;
+				$value = "" if (!defined($value));
 				chomp $value;
 
 				my $is_key = <$io>;
@@ -3138,7 +3151,7 @@ sub lunAttributes {
 	my $lun = shift;
 	my $group = shift;
 	my $errorString;
-	my %attributes;
+	my %attributes = ( );
 
 	my ($_path, $luncrattr);
 
@@ -3203,6 +3216,7 @@ sub lunAttributes {
 				}
 
 				my $value = <$io>;
+				$value = "" if (!defined($value));
 				chomp $value;
 
 				my $is_key = <$io>;
@@ -3307,13 +3321,13 @@ sub initiatorAttributes {
 	my $target = shift;
 	my $group = shift;
 	my $initiator = shift;
-	my %attributes;
+	my %attributes = ( );
+	my $errorString;
 
 	my $pHandle = new IO::Handle;
 	my $_path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
 			      $group, SCST_INITIATORS, $initiator);
 	if (!(opendir $pHandle, $_path)) {
-		my $errorString;
 		if ($self->driverExists($driver) != TRUE) {
 			$errorString = "initiatorAttributes(): Driver '$driver' is not available";
 		} elsif ($self->targetExists($driver, $target) != TRUE) {
@@ -3357,6 +3371,7 @@ sub initiatorAttributes {
 				}
 
 				my $value = <$io>;
+				$value = "" if (!defined($value));
 				chomp $value;
 
 				my $is_key = <$io>;
@@ -3438,12 +3453,12 @@ sub setInitiatorAttribute {
 sub deviceGroupAttributes {
 	my $self = shift;
 	my $group = shift;
-	my %attributes;
+	my %attributes = ( );
+	my $errorString;
 
 	my $pHandle = new IO::Handle;
 	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group);
 	if (!(opendir $pHandle, $_path)) {
-		my $errorString;
 		if ($self->deviceGroupExists($group) != TRUE) {
 			$errorString = "deviceGroupAttributes(): Device group '$group' does not exist";
 		} else {
@@ -3479,6 +3494,7 @@ sub deviceGroupAttributes {
 				}
 
 				my $value = <$io>;
+				$value = "" if (!defined($value));
 				chomp $value;
 
 				my $is_key = <$io>;
@@ -3516,12 +3532,12 @@ sub targetGroupAttributes {
 	my $self = shift;
 	my $group = shift;
 	my $tgroup = shift;
-	my %attributes;
+	my %attributes = ( );
+	my $errorString;
 
 	my $pHandle = new IO::Handle;
 	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, $tgroup);
 	if (!(opendir $pHandle, $_path)) {
-		my $errorString;
 		if ($self->deviceGroupExists($group) != TRUE) {
 			$errorString = "targetGroupAttributes(): Device group '$group' does not exist";
 		} elsif ($self->targetGroupExists($group, $tgroup) != TRUE) {
@@ -3559,6 +3575,7 @@ sub targetGroupAttributes {
 				}
 
 				my $value = <$io>;
+				$value = "" if (!defined($value));
 				chomp $value;
 
 				my $is_key = <$io>;
@@ -3598,7 +3615,8 @@ sub targetGroupTargetAttributes {
 	my $tgroup = shift;
 	my $tgt = shift;
 	my $local_tgt = shift;
-	my %attributes;
+	my %attributes = ( );
+	my $errorString;
 
 	my $pHandle = new IO::Handle;
 	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, $tgroup, $tgt);
@@ -3607,7 +3625,6 @@ sub targetGroupTargetAttributes {
 	}
 
 	if (!(opendir $pHandle, $_path)) {
-		my $errorString;
 		if ($self->deviceGroupExists($group) != TRUE) {
 			$errorString = "targetGroupTargetAttributes(): Device group '$group' does not exist";
 		} elsif ($self->targetGroupExists($group, $tgroup) != TRUE) {
@@ -3648,6 +3665,7 @@ sub targetGroupTargetAttributes {
 				}
 
 				my $value = <$io>;
+				$value = "" if (!defined($value));
 				chomp $value;
 
 				my $is_key = <$io>;
@@ -3834,6 +3852,8 @@ sub handlers {
 
 	close $hHandle;
 
+	@handlers = sort(@handlers);
+
 	return (\@handlers, undef);
 }
 
@@ -3886,15 +3906,16 @@ sub setHandlerAttribute {
 sub handlerAttributes {
 	my $self = shift;
 	my $handler = shift;
-	my %attributes;
+	my %attributes = ( );
+	my $errorString;
+	my $a;
 
-	my ($a, $errorString) = devices($self, $handler);
+	($a, $errorString) = devices($self, $handler);
 	$attributes{'devices'}->{'value'} = $a;
 
 	my $hHandle = new IO::Handle;
 	my $_path = make_path(SCST_HANDLERS_DIR(), $handler);
 	if (!(opendir $hHandle, $_path)) {
-		my $errorString;
 		if ($self->handlerExists($handler) != TRUE) {
 			$errorString = "handlerAttributes(): Handler '$handler' is not available";
 		} else {
@@ -3927,7 +3948,8 @@ sub handlerAttributes {
 		}
 
 		my $value = <$io>;
-		chomp $value if (defined($value));
+		$value = "" if (!defined($value));
+		chomp $value;
 
 		my $is_key = <$io>;
 		$is_key = new_sysfs_interface() && !$is_static ||
@@ -4035,11 +4057,11 @@ sub handlerDeviceExists {
 sub devicesByHandler {
 	my $self = shift;
 	my $handler = shift;
+	my $errorString;
+	my $attributes;
 
-	my ($attributes, $errorString) = $self->handlerAttributes($handler);
-
+	($attributes, $errorString) = $self->handlerAttributes($handler);
 	if (!defined($attributes)) {
-		my $errorString;
 		if ($self->handlerExists($handler) != TRUE) {
 			$errorString = "devicesByHandler(): Handler '$handler' is not available";
 		} else {
@@ -4086,7 +4108,8 @@ sub deviceCreateAttributes {
 	my $self = shift;
 	my $handler = shift;
 	my $available;
-	my %attributes;
+	my %attributes = ( );
+	my $errorString;
 
 	if (new_sysfs_interface()) {
 		my $io = new IO::File make_path(SCST_HANDLERS_DIR(), $handler,
@@ -4102,7 +4125,6 @@ sub deviceCreateAttributes {
 						SCST_MGMT_IO), O_RDONLY;
 
 		if (!$io) {
-			my $errorString;
 			if ($self->handlerExists($handler) != TRUE) {
 				$errorString = "deviceCreateAttributes(): Handler '$handler' ".
 				    "is not available";
@@ -4306,7 +4328,8 @@ sub targetCreateAttributes {
 	my $self = shift;
 	my $driver = shift;
 	my $available;
-	my %attributes;
+	my %attributes = ( );
+	my $errorString;
 
 	if (new_sysfs_interface()) {
 		my $io = new IO::File make_path(SCST_TARGETS_DIR(), $driver,
@@ -4321,7 +4344,6 @@ sub targetCreateAttributes {
 						SCST_MGMT_IO), O_RDONLY;
 
 		if (!$io) {
-			my $errorString;
 			if ($self->driverExists($driver) != TRUE) {
 				$errorString = "targetCreateAttributes(): Driver '$driver' ".
 				    "is not available";
@@ -4498,7 +4520,8 @@ sub lunCreateAttributes {
 	my $target = shift;
 	my $group = shift;
 	my $available;
-	my %attributes;
+	my %attributes = ( );
+	my $errorString;
 
 	my $_path;
 
@@ -4536,7 +4559,6 @@ sub lunCreateAttributes {
 		my $io = new IO::File $_path, O_RDONLY;
 
 		if (!$io) {
-			my $errorString;
 			if ($self->driverExists($driver) != TRUE) {
 				$errorString = "lunCreateAttributes(): Driver '$driver' ".
 				    "is not available";
@@ -4620,7 +4642,8 @@ sub initiatorCreateAttributes {
 	my $target = shift;
 	my $group = shift;
 	my $available;
-	my %attributes;
+	my %attributes = ( );
+	my $errorString;
 
 	if (new_sysfs_interface()) {
 		# Do nothing - there are no initiator attributes (yet).
@@ -4631,7 +4654,6 @@ sub initiatorCreateAttributes {
 				O_RDONLY;
 
 		if (!$io) {
-			my $errorString;
 			if ($self->driverExists($driver) != TRUE) {
 				$errorString = "initiatorCreateAttributes(): Driver '$driver' ".
 				    "is not available";
@@ -4673,6 +4695,7 @@ sub sessions {
 	my $driver = shift;
 	my $target = shift;
 	my %_sessions;
+	my $errorString;
 
 	return (undef, "Too few arguments") if (!defined($driver) || !defined($target));
 
@@ -4680,7 +4703,6 @@ sub sessions {
 	my $_path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 			      SCST_SESSIONS);
 	if (!(opendir $sHandle, $_path)) {
-		my $errorString;
 		if ($self->driverExists($driver) != TRUE) {
 			$errorString = "sessions(): Driver '$driver' ".
 			    "is not available";
@@ -4744,8 +4766,9 @@ sub sessions {
 						}
 
 						my $value = <$io>;
-						close $io;
+						$value = "" if (!defined($value));
 						chomp $value;
+						close $io;
 
 						$_sessions{$session}->{$attribute}->{'value'} = $value;
 						$_sessions{$session}->{$attribute}->{'static'} = $is_static;

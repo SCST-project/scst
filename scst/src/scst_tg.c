@@ -1403,6 +1403,11 @@ out:
 	return dg;
 }
 
+struct scst_dev_group *scst_lookup_dg_by_dev(struct scst_device *dev)
+{
+	return __lookup_dg_by_dev(dev);
+}
+
 
 /*
  * Target group module management.

@@ -5771,6 +5771,28 @@ static struct kobj_type scst_devt_ktype = {
 	.default_attrs = scst_devt_default_attrs,
 };
 
+static char *scst_dev_params(struct scst_dev_type *devt)
+{
+	char *p, *r;
+	const char *const *q;
+	bool comma = false;
+
+	if (!devt->add_device_parameters)
+		return NULL;
+	p = kstrdup("The following parameters available: ", GFP_KERNEL);
+	if (!p)
+		return NULL;
+	for (q = devt->add_device_parameters; *q; q++) {
+		r = kasprintf(GFP_KERNEL, "%s%s%s", p, comma ? ", " : "", *q);
+		kfree(p);
+		if (!r)
+			return NULL;
+		p = r;
+		comma = true;
+	}
+	return p;
+}
+
 static ssize_t scst_devt_mgmt_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -5782,12 +5804,14 @@ static ssize_t scst_devt_mgmt_show(struct kobject *kobj,
 		"\n"
 		"where parameters are one or more "
 		"param_name=value pairs separated by ';'\n\n"
-		"%s%s%s%s%s%s%s%s%s%s\n";
+		"%s%s%s%s%s%s%s%s%s\n";
 	struct scst_dev_type *devt;
+	char *p;
+	int res;
 
 	devt = container_of(kobj, struct scst_dev_type, devt_kobj);
-
-	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, help,
+	p = scst_dev_params(devt);
+	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, help,
 		(devt->devt_optional_attributes != NULL) ?
 			"       echo \"add_attribute <attribute> <value>\" >mgmt\n"
 			"       echo \"del_attribute <attribute> <value>\" >mgmt\n" : "",
@@ -5796,10 +5820,7 @@ static ssize_t scst_devt_mgmt_show(struct kobject *kobj,
 			"       echo \"del_device_attribute device_name <attribute> <value>\" >mgmt\n" : "",
 		(devt->mgmt_cmd_help) ? devt->mgmt_cmd_help : "",
 		(devt->mgmt_cmd_help) ? "\n" : "",
-		(devt->add_device_parameters != NULL) ?
-			"The following parameters available: " : "",
-		(devt->add_device_parameters != NULL) ?
-			devt->add_device_parameters : "",
+		p ? : "",
 		(devt->add_device_parameters != NULL) ? "\n" : "",
 		(devt->devt_optional_attributes != NULL) ?
 			"The following dev handler attributes available: " : "",
@@ -5811,6 +5832,8 @@ static ssize_t scst_devt_mgmt_show(struct kobject *kobj,
 		(devt->dev_optional_attributes != NULL) ?
 			devt->dev_optional_attributes : "",
 		(devt->dev_optional_attributes != NULL) ? "\n" : "");
+	kfree(p);
+	return res;
 }
 
 static int scst_process_devt_mgmt_store(char *buffer,

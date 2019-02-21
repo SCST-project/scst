@@ -488,6 +488,7 @@ void scst_tg_cleanup(void);
 int scst_dg_add(struct kobject *parent, const char *name);
 int scst_dg_remove(const char *name);
 struct scst_dev_group *scst_lookup_dg_by_kobj(struct kobject *kobj);
+struct scst_dev_group *scst_lookup_dg_by_dev(struct scst_device *dev);
 int scst_dg_dev_add(struct scst_dev_group *dg, const char *name);
 int scst_dg_dev_remove_by_name(struct scst_dev_group *dg, const char *name);
 int scst_dg_dev_remove_by_dev(struct scst_device *dev);

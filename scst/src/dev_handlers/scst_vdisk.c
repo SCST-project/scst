@@ -284,7 +284,8 @@ struct vdisk_cmd_params {
 	};
 	struct scst_cmd *cmd;
 	loff_t loff;
-	int fua;
+	unsigned int fua:1;
+	unsigned int execute_async:1;
 };
 
 static bool vdev_saved_mode_pages_enabled = true;
@@ -511,6 +512,8 @@ static ssize_t vdev_sysfs_inq_vend_specific_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_zero_copy_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
+static ssize_t vdev_async_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count);
 static ssize_t vdev_async_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_dif_filename_show(struct kobject *kobj,
@@ -612,7 +615,7 @@ static struct kobj_attribute vdev_inq_vend_specific_attr =
 static struct kobj_attribute vdev_zero_copy_attr =
 	__ATTR(zero_copy, S_IRUGO, vdev_zero_copy_show, NULL);
 static struct kobj_attribute vdev_async_attr =
-	__ATTR(async, S_IRUGO, vdev_async_show, NULL);
+	__ATTR(async, S_IWUSR|S_IRUGO, vdev_async_show, vdev_async_store);
 static struct kobj_attribute vdev_dif_filename_attr =
 	__ATTR(dif_filename, S_IRUGO, vdev_dif_filename_show, NULL);
 
@@ -752,6 +755,28 @@ static vdisk_op_fn fileio_ops[256];
 static vdisk_op_fn blockio_ops[256];
 static vdisk_op_fn nullio_ops[256];
 
+static const char *fileio_add_dev_params[] = {
+	"async",
+	"blocksize",
+	"cluster_mode",
+	"dif_filename",
+	"dif_mode",
+	"dif_static_app_tag",
+	"dif_type",
+	"filename",
+	"numa_node_id",
+	"nv_cache",
+	"o_direct",
+	"read_only",
+	"removable",
+	"rotational",
+	"thin_provisioned",
+	"tst",
+	"write_through",
+	"zero_copy",
+	NULL
+};
+
 /*
  * Be careful changing "name" field, since it is the name of the corresponding
  * /sys/kernel/scst_tgt entry, hence a part of user space ABI.
@@ -784,25 +809,7 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.add_device =		vdisk_add_fileio_device,
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_fileio_attrs,
-	.add_device_parameters =
-		"async, "
-		"blocksize, "
-		"cluster_mode, "
-		"filename, "
-		"numa_node_id, "
-		"nv_cache, "
-		"o_direct, "
-		"read_only, "
-		"removable, "
-		"rotational, "
-		"thin_provisioned, "
-		"tst, "
-		"write_through, "
-		"zero_copy, "
-		"dif_mode, "
-		"dif_type, "
-		"dif_static_app_tag, "
-		"dif_filename",
+	.add_device_parameters = fileio_add_dev_params,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -815,6 +822,27 @@ static struct scst_dev_type vdisk_file_devtype = {
 };
 
 static struct kmem_cache *blockio_work_cachep;
+
+static const char *blockio_add_dev_params[] = {
+	"active",
+	"bind_alua_state",
+	"blocksize",
+	"cluster_mode",
+	"dif_filename",
+	"dif_mode",
+	"dif_static_app_tag",
+	"dif_type",
+	"filename",
+	"numa_node_id",
+	"nv_cache",
+	"read_only",
+	"removable",
+	"rotational",
+	"thin_provisioned",
+	"tst",
+	"write_through",
+	NULL
+};
 
 static struct scst_dev_type vdisk_blk_devtype = {
 	.name =			"vdisk_blockio",
@@ -841,24 +869,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.add_device =		vdisk_add_blockio_device,
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_blockio_attrs,
-	.add_device_parameters =
-		"active, "
-		"bind_alua_state, "
-		"blocksize, "
-		"dif_mode, "
-		"dif_type, "
-		"dif_static_app_tag, "
-		"dif_filename, "
-		"filename, "
-		"numa_node_id, "
-		"nv_cache, "
-		"cluster_mode, "
-		"read_only, "
-		"removable, "
-		"rotational, "
-		"thin_provisioned, "
-		"tst, "
-		"write_through",
+	.add_device_parameters = blockio_add_dev_params,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -868,6 +879,23 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.trace_tbl_help =	VDISK_TRACE_TBL_HELP,
 #endif
 #endif
+};
+
+static const char *nullio_add_dev_params[] = {
+	"blocksize",
+	"cluster_mode",
+	"dif_mode",
+	"dif_static_app_tag",
+	"dif_type",
+	"dummy",
+	"numa_node_id",
+	"read_only",
+	"removable",
+	"rotational",
+	"size",
+	"size_mb",
+	"tst",
+	NULL
 };
 
 static struct scst_dev_type vdisk_null_devtype = {
@@ -893,20 +921,7 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.add_device =		vdisk_add_nullio_device,
 	.del_device =		vdisk_del_device,
 	.dev_attrs =		vdisk_nullio_attrs,
-	.add_device_parameters =
-		"blocksize, "
-		"dif_mode, "
-		"dif_type, "
-		"dif_static_app_tag, "
-		"dummy, "
-		"numa_node_id, "
-		"cluster_mode, "
-		"read_only, "
-		"removable, "
-		"rotational, "
-		"size, "
-		"size_mb, "
-		"tst",
+	.add_device_parameters = nullio_add_dev_params,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -916,6 +931,11 @@ static struct scst_dev_type vdisk_null_devtype = {
 	.trace_tbl_help =	VDISK_TRACE_TBL_HELP,
 #endif
 #endif
+};
+
+static const char *cdrom_add_dev_params[] = {
+	"tst",
+	NULL,
 };
 
 static struct scst_dev_type vcdrom_devtype = {
@@ -941,7 +961,7 @@ static struct scst_dev_type vcdrom_devtype = {
 	.add_device =		vcdrom_add_device,
 	.del_device =		vcdrom_del_device,
 	.dev_attrs =		vcdrom_attrs,
-	.add_device_parameters = "tst",
+	.add_device_parameters = cdrom_add_dev_params,
 #endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -2991,7 +3011,7 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	bool res;
-	int fua = 0;
+	bool fua = false;
 
 	TRACE_ENTRY();
 
@@ -3352,6 +3372,8 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 		return CMD_SUCCEEDED;
 	}
 
+	p->execute_async = true;
+
 	kvec = p->async.kvec;
 	length = scst_get_buf_first(cmd, &address);
 	while (length) {
@@ -3410,7 +3432,7 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 
 static void vdisk_on_free_cmd_params(const struct vdisk_cmd_params *p)
 {
-	if (!do_fileio_async(p)) {
+	if (!p->execute_async) {
 		if (p->sync.iv != p->sync.small_iv)
 			kfree(p->sync.iv);
 	}
@@ -7833,6 +7855,13 @@ static void vdev_check_node(struct scst_vdisk_dev **pvirt_dev, int orig_nodeid)
 		}
 		*v = *virt_dev;
 		kfree(virt_dev);
+		/*
+		 * Since the address of the virtual device changed, update all
+		 * pointers in the virtual device that point to the virtual
+		 * device itself.
+		 */
+		INIT_WORK(&virt_dev->vdev_inq_changed_work,
+			  vdev_inq_changed_fn);
 		*pvirt_dev = v;
 	}
 
@@ -7841,6 +7870,10 @@ out:
 	return;
 }
 
+/*
+ * Parse the add_device parameters. @allowed_params restricts which
+ * parameters can be specified at device creation time.
+ */
 static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 	char *params, const char *const allowed_params[])
 {
@@ -8163,14 +8196,6 @@ out_destroy:
 static int vdev_blockio_add_device(const char *device_name, char *params)
 {
 	int res = 0;
-	const char *const allowed_params[] = { "filename", "read_only", "write_through",
-					 "removable", "blocksize", "nv_cache",
-					 "rotational", "cluster_mode",
-					 "thin_provisioned", "tst", "active",
-					 "bind_alua_state", "numa_node_id",
-					 "dif_mode",
-					 "dif_type", "dif_static_app_tag",
-					 "dif_filename", NULL };
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
@@ -8186,7 +8211,8 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 	sprintf(virt_dev->t10_vend_id, "%.*s",
 		(int)sizeof(virt_dev->t10_vend_id) - 1, SCST_BIO_VENDOR);
 
-	res = vdev_parse_add_dev_params(virt_dev, params, allowed_params);
+	res = vdev_parse_add_dev_params(virt_dev, params,
+			virt_dev->vdev_devt->add_device_parameters);
 	if (res != 0)
 		goto out_destroy;
 
@@ -8234,11 +8260,6 @@ out_destroy:
 static int vdev_nullio_add_device(const char *device_name, char *params)
 {
 	int res = 0;
-	static const char *const allowed_params[] = {
-		"read_only", "dummy", "removable", "blocksize", "rotational",
-		"size", "size_mb", "tst", "numa_node_id",
-		"cluster_mode", "dif_mode", "dif_type", "dif_static_app_tag", NULL
-	};
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
@@ -8252,7 +8273,8 @@ static int vdev_nullio_add_device(const char *device_name, char *params)
 	virt_dev->nullio = 1;
 	virt_dev->file_size = VDISK_NULLIO_SIZE;
 
-	res = vdev_parse_add_dev_params(virt_dev, params, allowed_params);
+	res = vdev_parse_add_dev_params(virt_dev, params,
+			virt_dev->vdev_devt->add_device_parameters);
 	if (res != 0)
 		goto out_destroy;
 
@@ -8411,7 +8433,6 @@ out:
 static ssize_t __vcdrom_add_device(const char *device_name, char *params)
 {
 	int res = 0;
-	static const char *const allowed_params[] = { "tst", NULL };
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
@@ -8434,7 +8455,8 @@ static ssize_t __vcdrom_add_device(const char *device_name, char *params)
 
 	virt_dev->blk_shift = DEF_CDROM_BLOCK_SHIFT;
 
-	res = vdev_parse_add_dev_params(virt_dev, params, allowed_params);
+	res = vdev_parse_add_dev_params(virt_dev, params,
+			virt_dev->vdev_devt->add_device_parameters);
 	if (res != 0)
 		goto out_destroy;
 
@@ -10432,6 +10454,28 @@ static ssize_t vdev_zero_copy_show(struct kobject *kobj,
 
 	TRACE_EXIT_RES(pos);
 	return pos;
+}
+
+static ssize_t vdev_async_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_device *dev =
+		container_of(kobj, struct scst_device, dev_kobj);
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	long val;
+	int res;
+
+	res = kstrtol(buf, 0, &val);
+	if (res)
+		return res;
+	if (val != !!val)
+		return -EINVAL;
+
+	spin_lock(&virt_dev->flags_lock);
+	virt_dev->async = val;
+	spin_unlock(&virt_dev->flags_lock);
+
+	return count;
 }
 
 static ssize_t vdev_async_show(struct kobject *kobj,
