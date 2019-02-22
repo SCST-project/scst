@@ -308,28 +308,6 @@ MODULE_PARM_DESC(num_threads, "vdisk threads count");
  */
 static spinlock_t vdev_err_lock;
 
-static int vdisk_attach(struct scst_device *dev);
-static void vdisk_detach(struct scst_device *dev);
-static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev);
-static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev);
-static int vdisk_get_supported_opcodes(struct scst_cmd *cmd,
-	const struct scst_opcode_descriptor ***out_supp_opcodes,
-	int *out_supp_opcodes_cnt);
-static int vcdrom_get_supported_opcodes(struct scst_cmd *cmd,
-	const struct scst_opcode_descriptor ***out_supp_opcodes,
-	int *out_supp_opcodes_cnt);
-static int vdisk_parse(struct scst_cmd *);
-static int vcdrom_parse(struct scst_cmd *);
-static int non_fileio_parse(struct scst_cmd *);
-static enum scst_exec_res fileio_exec(struct scst_cmd *cmd);
-static enum scst_exec_res vcdrom_exec(struct scst_cmd *cmd);
-static enum scst_exec_res blockio_exec(struct scst_cmd *cmd);
-static enum scst_exec_res nullio_exec(struct scst_cmd *cmd);
-static void blockio_on_alua_state_change_start(struct scst_device *dev,
-	enum scst_tg_state old_state, enum scst_tg_state new_state);
-static void blockio_on_alua_state_change_finish(struct scst_device *dev,
-	enum scst_tg_state old_state, enum scst_tg_state new_state);
-static void fileio_on_free_cmd(struct scst_cmd *cmd);
 static enum compl_status_e nullio_exec_read(struct vdisk_cmd_params *p);
 static enum compl_status_e blockio_exec_read(struct vdisk_cmd_params *p);
 static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p);
@@ -364,31 +342,6 @@ static enum compl_status_e vdisk_exec_write_same(struct vdisk_cmd_params *p);
 static int vdisk_fsync(loff_t loff,
 	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
 	struct scst_cmd *cmd, bool async);
-static void vdev_on_free(struct scst_device *dev, void *arg);
-#ifdef CONFIG_SCST_PROC
-static int vdisk_read_proc(struct seq_file *seq,
-	struct scst_dev_type *dev_type);
-static int vdisk_write_proc(char *buffer, char **start, off_t offset,
-	int length, int *eof, struct scst_dev_type *dev_type);
-static int vcdrom_read_proc(struct seq_file *seq,
-	struct scst_dev_type *dev_type);
-static int vcdrom_write_proc(char *buffer, char **start, off_t offset,
-	int length, int *eof, struct scst_dev_type *dev_type);
-#else
-static ssize_t vdisk_add_fileio_device(const char *device_name, char *params);
-static ssize_t vdisk_add_blockio_device(const char *device_name, char *params);
-static ssize_t vdisk_add_nullio_device(const char *device_name, char *params);
-static ssize_t vdisk_del_device(const char *device_name);
-static ssize_t vcdrom_add_device(const char *device_name, char *params);
-static ssize_t vcdrom_del_device(const char *device_name);
-#endif
-static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
-	struct scst_tgt_dev *tgt_dev);
-static uint64_t vdisk_gen_dev_id_num(const char *virt_dev_name);
-#ifdef CONFIG_DEBUG_EXT_COPY_REMAP
-static void vdev_ext_copy_remap(struct scst_cmd *cmd,
-	struct scst_ext_copy_seg_descr *descr);
-#endif
 static int vdisk_unmap_range(struct scst_cmd *cmd,
 	struct scst_vdisk_dev *virt_dev, uint64_t start_lba, uint32_t blocks);
 
@@ -396,328 +349,16 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 
 #ifndef CONFIG_SCST_PROC
 
-static ssize_t vdev_sysfs_size_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_sysfs_size_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_size_mb_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_sysfs_size_mb_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdisk_sysfs_blocksize_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdisk_opt_trans_len_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdisk_opt_trans_len_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdisk_sysfs_rd_only_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdisk_sysfs_wt_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdisk_sysfs_tp_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
 static ssize_t vdisk_sysfs_gen_tp_soft_threshold_reached_UA(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdisk_sysfs_tst_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdisk_sysfs_rotational_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdisk_sysfs_expl_alua_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdisk_sysfs_expl_alua_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdisk_sysfs_nv_cache_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdisk_sysfs_o_direct_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_active_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_active_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_sysfs_bind_alua_state_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_bind_alua_state_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_sysfs_dummy_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_rz_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_rz_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdisk_sysfs_removable_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_filename_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_filename_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_sysfs_cluster_mode_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_cluster_mode_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdisk_sysfs_resync_size_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdisk_sysfs_sync_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_sysfs_t10_vend_id_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_sysfs_t10_vend_id_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_vend_specific_id_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_sysfs_vend_specific_id_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_prod_id_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_sysfs_prod_id_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_prod_rev_lvl_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_sysfs_prod_rev_lvl_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_scsi_device_name_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_sysfs_scsi_device_name_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_sysfs_t10_dev_id_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_eui64_id_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_sysfs_eui64_id_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_naa_id_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_sysfs_naa_id_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_usn_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_sysfs_usn_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_sysfs_inq_vend_specific_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_sysfs_inq_vend_specific_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_zero_copy_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
-static ssize_t vdev_async_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_async_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
 static ssize_t vdev_dif_filename_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
-
-static ssize_t vcdrom_sysfs_filename_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-
-static struct kobj_attribute vdev_active_attr =
-	__ATTR(active, S_IWUSR|S_IRUGO, vdev_sysfs_active_show,
-	       vdev_sysfs_active_store);
-static struct kobj_attribute vdev_bind_alua_state_attr =
-	__ATTR(bind_alua_state, S_IWUSR|S_IRUGO,
-	       vdev_sysfs_bind_alua_state_show,
-	       vdev_sysfs_bind_alua_state_store);
-static struct kobj_attribute vdev_size_ro_attr =
-	__ATTR(size, S_IRUGO, vdev_sysfs_size_show, NULL);
-static struct kobj_attribute vdev_size_rw_attr =
-	__ATTR(size, S_IWUSR|S_IRUGO, vdev_sysfs_size_show,
-	       vdev_sysfs_size_store);
-static struct kobj_attribute vdev_size_mb_ro_attr =
-	__ATTR(size_mb, S_IRUGO, vdev_sysfs_size_mb_show, NULL);
-static struct kobj_attribute vdev_size_mb_rw_attr =
-	__ATTR(size_mb, S_IWUSR|S_IRUGO, vdev_sysfs_size_mb_show,
-	       vdev_sysfs_size_mb_store);
-static struct kobj_attribute vdisk_blocksize_attr =
-	__ATTR(blocksize, S_IRUGO, vdisk_sysfs_blocksize_show, NULL);
-static struct kobj_attribute vdisk_opt_trans_len_attr =
-	__ATTR(opt_trans_len, S_IWUSR|S_IRUGO, vdisk_opt_trans_len_show,
-	       vdisk_opt_trans_len_store);
-static struct kobj_attribute vdisk_rd_only_attr =
-	__ATTR(read_only, S_IRUGO, vdisk_sysfs_rd_only_show, NULL);
-static struct kobj_attribute vdisk_wt_attr =
-	__ATTR(write_through, S_IRUGO, vdisk_sysfs_wt_show, NULL);
-static struct kobj_attribute vdisk_tp_attr =
-	__ATTR(thin_provisioned, S_IRUGO, vdisk_sysfs_tp_show, NULL);
 static struct kobj_attribute gen_tp_soft_threshold_reached_UA_attr =
 	__ATTR(gen_tp_soft_threshold_reached_UA, S_IWUSR, NULL,
 		vdisk_sysfs_gen_tp_soft_threshold_reached_UA);
-static struct kobj_attribute vdisk_tst_attr =
-	__ATTR(tst, S_IRUGO, vdisk_sysfs_tst_show, NULL);
-static struct kobj_attribute vdisk_rotational_attr =
-	__ATTR(rotational, S_IRUGO, vdisk_sysfs_rotational_show, NULL);
-static struct kobj_attribute vdisk_expl_alua_attr =
-	__ATTR(expl_alua, S_IWUSR|S_IRUGO, vdisk_sysfs_expl_alua_show,
-	       vdisk_sysfs_expl_alua_store);
-static struct kobj_attribute vdisk_nv_cache_attr =
-	__ATTR(nv_cache, S_IRUGO, vdisk_sysfs_nv_cache_show, NULL);
-static struct kobj_attribute vdisk_o_direct_attr =
-	__ATTR(o_direct, S_IRUGO, vdisk_sysfs_o_direct_show, NULL);
-static struct kobj_attribute vdev_dummy_attr =
-	__ATTR(dummy, S_IRUGO, vdev_sysfs_dummy_show, NULL);
-static struct kobj_attribute vdev_read_zero_attr =
-	__ATTR(read_zero, S_IWUSR|S_IRUGO, vdev_sysfs_rz_show,
-	       vdev_sysfs_rz_store);
-static struct kobj_attribute vdisk_removable_attr =
-	__ATTR(removable, S_IRUGO, vdisk_sysfs_removable_show, NULL);
-static struct kobj_attribute vdisk_filename_attr =
-	__ATTR(filename, S_IWUSR|S_IRUGO, vdev_sysfs_filename_show,
-	       vdev_sysfs_filename_store);
-static struct kobj_attribute vdisk_cluster_mode_attr =
-	__ATTR(cluster_mode, S_IWUSR|S_IRUGO, vdev_sysfs_cluster_mode_show,
-	       vdev_sysfs_cluster_mode_store);
-static struct kobj_attribute vdisk_resync_size_attr =
-	__ATTR(resync_size, S_IWUSR, NULL, vdisk_sysfs_resync_size_store);
-static struct kobj_attribute vdisk_sync_attr =
-	__ATTR(sync, S_IWUSR, NULL, vdisk_sysfs_sync_store);
-static struct kobj_attribute vdev_t10_vend_id_attr =
-	__ATTR(t10_vend_id, S_IWUSR|S_IRUGO, vdev_sysfs_t10_vend_id_show,
-	       vdev_sysfs_t10_vend_id_store);
-static struct kobj_attribute vdev_vend_specific_id_attr =
-	__ATTR(vend_specific_id, S_IWUSR|S_IRUGO,
-	       vdev_sysfs_vend_specific_id_show,
-	       vdev_sysfs_vend_specific_id_store);
-static struct kobj_attribute vdev_prod_id_attr =
-	__ATTR(prod_id, S_IWUSR|S_IRUGO, vdev_sysfs_prod_id_show,
-	       vdev_sysfs_prod_id_store);
-static struct kobj_attribute vdev_prod_rev_lvl_attr =
-	__ATTR(prod_rev_lvl, S_IWUSR|S_IRUGO, vdev_sysfs_prod_rev_lvl_show,
-	       vdev_sysfs_prod_rev_lvl_store);
-static struct kobj_attribute vdev_scsi_device_name_attr =
-	__ATTR(scsi_device_name, S_IWUSR|S_IRUGO, vdev_sysfs_scsi_device_name_show,
-	       vdev_sysfs_scsi_device_name_store);
-static struct kobj_attribute vdev_t10_dev_id_attr =
-	__ATTR(t10_dev_id, S_IWUSR|S_IRUGO, vdev_sysfs_t10_dev_id_show,
-		vdev_sysfs_t10_dev_id_store);
-static struct kobj_attribute vdev_eui64_id_attr =
-	__ATTR(eui64_id, S_IWUSR|S_IRUGO, vdev_sysfs_eui64_id_show,
-	       vdev_sysfs_eui64_id_store);
-static struct kobj_attribute vdev_naa_id_attr =
-	__ATTR(naa_id, S_IWUSR|S_IRUGO, vdev_sysfs_naa_id_show,
-	       vdev_sysfs_naa_id_store);
-static struct kobj_attribute vdev_usn_attr =
-	__ATTR(usn, S_IWUSR|S_IRUGO, vdev_sysfs_usn_show, vdev_sysfs_usn_store);
-static struct kobj_attribute vdev_inq_vend_specific_attr =
-	__ATTR(inq_vend_specific, S_IWUSR|S_IRUGO,
-	       vdev_sysfs_inq_vend_specific_show,
-	       vdev_sysfs_inq_vend_specific_store);
-static struct kobj_attribute vdev_zero_copy_attr =
-	__ATTR(zero_copy, S_IRUGO, vdev_zero_copy_show, NULL);
-static struct kobj_attribute vdev_async_attr =
-	__ATTR(async, S_IWUSR|S_IRUGO, vdev_async_show, vdev_async_store);
 static struct kobj_attribute vdev_dif_filename_attr =
 	__ATTR(dif_filename, S_IRUGO, vdev_dif_filename_show, NULL);
 
-static struct kobj_attribute vcdrom_filename_attr =
-	__ATTR(filename, S_IRUGO|S_IWUSR, vdev_sysfs_filename_show,
-		vcdrom_sysfs_filename_store);
-
-static const struct attribute *vdisk_fileio_attrs[] = {
-	&vdev_size_ro_attr.attr,
-	&vdev_size_mb_ro_attr.attr,
-	&vdisk_blocksize_attr.attr,
-	&vdisk_opt_trans_len_attr.attr,
-	&vdisk_rd_only_attr.attr,
-	&vdisk_wt_attr.attr,
-	&vdisk_tp_attr.attr,
-	&vdisk_tst_attr.attr,
-	&vdisk_rotational_attr.attr,
-	&vdisk_expl_alua_attr.attr,
-	&vdisk_nv_cache_attr.attr,
-	&vdisk_o_direct_attr.attr,
-	&vdisk_removable_attr.attr,
-	&vdisk_filename_attr.attr,
-	&vdisk_cluster_mode_attr.attr,
-	&vdisk_resync_size_attr.attr,
-	&vdisk_sync_attr.attr,
-	&vdev_t10_vend_id_attr.attr,
-	&vdev_vend_specific_id_attr.attr,
-	&vdev_prod_id_attr.attr,
-	&vdev_prod_rev_lvl_attr.attr,
-	&vdev_scsi_device_name_attr.attr,
-	&vdev_t10_dev_id_attr.attr,
-	&vdev_naa_id_attr.attr,
-	&vdev_eui64_id_attr.attr,
-	&vdev_usn_attr.attr,
-	&vdev_inq_vend_specific_attr.attr,
-	&vdev_zero_copy_attr.attr,
-	&vdev_async_attr.attr,
-	NULL,
-};
-
-static const struct attribute *vdisk_blockio_attrs[] = {
-	&vdev_active_attr.attr,
-	&vdev_bind_alua_state_attr.attr,
-	&vdev_size_rw_attr.attr,
-	&vdev_size_mb_rw_attr.attr,
-	&vdisk_blocksize_attr.attr,
-	&vdisk_opt_trans_len_attr.attr,
-	&vdisk_rd_only_attr.attr,
-	&vdisk_wt_attr.attr,
-	&vdisk_expl_alua_attr.attr,
-	&vdisk_nv_cache_attr.attr,
-	&vdisk_tst_attr.attr,
-	&vdisk_removable_attr.attr,
-	&vdisk_rotational_attr.attr,
-	&vdisk_filename_attr.attr,
-	&vdisk_cluster_mode_attr.attr,
-	&vdisk_resync_size_attr.attr,
-	&vdisk_sync_attr.attr,
-	&vdev_t10_vend_id_attr.attr,
-	&vdev_vend_specific_id_attr.attr,
-	&vdev_prod_id_attr.attr,
-	&vdev_prod_rev_lvl_attr.attr,
-	&vdev_scsi_device_name_attr.attr,
-	&vdev_t10_dev_id_attr.attr,
-	&vdev_naa_id_attr.attr,
-	&vdev_eui64_id_attr.attr,
-	&vdev_usn_attr.attr,
-	&vdev_inq_vend_specific_attr.attr,
-	&vdisk_tp_attr.attr,
-	NULL,
-};
-
-static const struct attribute *vdisk_nullio_attrs[] = {
-	&vdev_size_rw_attr.attr,
-	&vdev_size_mb_rw_attr.attr,
-	&vdisk_blocksize_attr.attr,
-	&vdisk_opt_trans_len_attr.attr,
-	&vdisk_rd_only_attr.attr,
-	&vdisk_tst_attr.attr,
-	&vdev_dummy_attr.attr,
-	&vdev_read_zero_attr.attr,
-	&vdisk_removable_attr.attr,
-	&vdisk_cluster_mode_attr.attr,
-	&vdev_t10_vend_id_attr.attr,
-	&vdev_vend_specific_id_attr.attr,
-	&vdev_prod_id_attr.attr,
-	&vdev_prod_rev_lvl_attr.attr,
-	&vdev_scsi_device_name_attr.attr,
-	&vdev_t10_dev_id_attr.attr,
-	&vdev_naa_id_attr.attr,
-	&vdev_eui64_id_attr.attr,
-	&vdev_usn_attr.attr,
-	&vdev_inq_vend_specific_attr.attr,
-	&vdisk_rotational_attr.attr,
-	NULL,
-};
-
-static const struct attribute *vcdrom_attrs[] = {
-	&vdev_size_ro_attr.attr,
-	&vdev_size_mb_ro_attr.attr,
-	&vcdrom_filename_attr.attr,
-	&vdisk_tst_attr.attr,
-	&vdev_t10_vend_id_attr.attr,
-	&vdev_vend_specific_id_attr.attr,
-	&vdev_prod_id_attr.attr,
-	&vdev_prod_rev_lvl_attr.attr,
-	&vdev_scsi_device_name_attr.attr,
-	&vdev_t10_dev_id_attr.attr,
-	&vdev_naa_id_attr.attr,
-	&vdev_eui64_id_attr.attr,
-	&vdev_usn_attr.attr,
-	&vdev_inq_vend_specific_attr.attr,
-	NULL,
-};
 
 #endif /* CONFIG_SCST_PROC */
 
@@ -10926,6 +10567,104 @@ static void vdisk_proc_help_destroy(struct scst_dev_type *dev_type)
 
 #endif /* CONFIG_SCST_PROC */
 
+#ifndef CONFIG_SCST_PROC
+static struct kobj_attribute vdev_active_attr =
+	__ATTR(active, S_IWUSR|S_IRUGO, vdev_sysfs_active_show,
+	       vdev_sysfs_active_store);
+static struct kobj_attribute vdev_bind_alua_state_attr =
+	__ATTR(bind_alua_state, S_IWUSR|S_IRUGO,
+	       vdev_sysfs_bind_alua_state_show,
+	       vdev_sysfs_bind_alua_state_store);
+static struct kobj_attribute vdev_size_ro_attr =
+	__ATTR(size, S_IRUGO, vdev_sysfs_size_show, NULL);
+static struct kobj_attribute vdev_size_rw_attr =
+	__ATTR(size, S_IWUSR|S_IRUGO, vdev_sysfs_size_show,
+	       vdev_sysfs_size_store);
+static struct kobj_attribute vdev_size_mb_ro_attr =
+	__ATTR(size_mb, S_IRUGO, vdev_sysfs_size_mb_show, NULL);
+static struct kobj_attribute vdev_size_mb_rw_attr =
+	__ATTR(size_mb, S_IWUSR|S_IRUGO, vdev_sysfs_size_mb_show,
+	       vdev_sysfs_size_mb_store);
+static struct kobj_attribute vdisk_blocksize_attr =
+	__ATTR(blocksize, S_IRUGO, vdisk_sysfs_blocksize_show, NULL);
+static struct kobj_attribute vdisk_opt_trans_len_attr =
+	__ATTR(opt_trans_len, S_IWUSR|S_IRUGO, vdisk_opt_trans_len_show,
+	       vdisk_opt_trans_len_store);
+static struct kobj_attribute vdisk_rd_only_attr =
+	__ATTR(read_only, S_IRUGO, vdisk_sysfs_rd_only_show, NULL);
+static struct kobj_attribute vdisk_wt_attr =
+	__ATTR(write_through, S_IRUGO, vdisk_sysfs_wt_show, NULL);
+static struct kobj_attribute vdisk_tp_attr =
+	__ATTR(thin_provisioned, S_IRUGO, vdisk_sysfs_tp_show, NULL);
+static struct kobj_attribute vdisk_tst_attr =
+	__ATTR(tst, S_IRUGO, vdisk_sysfs_tst_show, NULL);
+static struct kobj_attribute vdisk_rotational_attr =
+	__ATTR(rotational, S_IRUGO, vdisk_sysfs_rotational_show, NULL);
+static struct kobj_attribute vdisk_expl_alua_attr =
+	__ATTR(expl_alua, S_IWUSR|S_IRUGO, vdisk_sysfs_expl_alua_show,
+	       vdisk_sysfs_expl_alua_store);
+static struct kobj_attribute vdisk_nv_cache_attr =
+	__ATTR(nv_cache, S_IRUGO, vdisk_sysfs_nv_cache_show, NULL);
+static struct kobj_attribute vdisk_o_direct_attr =
+	__ATTR(o_direct, S_IRUGO, vdisk_sysfs_o_direct_show, NULL);
+static struct kobj_attribute vdev_dummy_attr =
+	__ATTR(dummy, S_IRUGO, vdev_sysfs_dummy_show, NULL);
+static struct kobj_attribute vdev_read_zero_attr =
+	__ATTR(read_zero, S_IWUSR|S_IRUGO, vdev_sysfs_rz_show,
+	       vdev_sysfs_rz_store);
+static struct kobj_attribute vdisk_removable_attr =
+	__ATTR(removable, S_IRUGO, vdisk_sysfs_removable_show, NULL);
+static struct kobj_attribute vdisk_filename_attr =
+	__ATTR(filename, S_IWUSR|S_IRUGO, vdev_sysfs_filename_show,
+	       vdev_sysfs_filename_store);
+static struct kobj_attribute vdisk_cluster_mode_attr =
+	__ATTR(cluster_mode, S_IWUSR|S_IRUGO, vdev_sysfs_cluster_mode_show,
+	       vdev_sysfs_cluster_mode_store);
+static struct kobj_attribute vdisk_resync_size_attr =
+	__ATTR(resync_size, S_IWUSR, NULL, vdisk_sysfs_resync_size_store);
+static struct kobj_attribute vdisk_sync_attr =
+	__ATTR(sync, S_IWUSR, NULL, vdisk_sysfs_sync_store);
+static struct kobj_attribute vdev_t10_vend_id_attr =
+	__ATTR(t10_vend_id, S_IWUSR|S_IRUGO, vdev_sysfs_t10_vend_id_show,
+	       vdev_sysfs_t10_vend_id_store);
+static struct kobj_attribute vdev_vend_specific_id_attr =
+	__ATTR(vend_specific_id, S_IWUSR|S_IRUGO,
+	       vdev_sysfs_vend_specific_id_show,
+	       vdev_sysfs_vend_specific_id_store);
+static struct kobj_attribute vdev_prod_id_attr =
+	__ATTR(prod_id, S_IWUSR|S_IRUGO, vdev_sysfs_prod_id_show,
+	       vdev_sysfs_prod_id_store);
+static struct kobj_attribute vdev_prod_rev_lvl_attr =
+	__ATTR(prod_rev_lvl, S_IWUSR|S_IRUGO, vdev_sysfs_prod_rev_lvl_show,
+	       vdev_sysfs_prod_rev_lvl_store);
+static struct kobj_attribute vdev_scsi_device_name_attr =
+	__ATTR(scsi_device_name, S_IWUSR|S_IRUGO, vdev_sysfs_scsi_device_name_show,
+	       vdev_sysfs_scsi_device_name_store);
+static struct kobj_attribute vdev_t10_dev_id_attr =
+	__ATTR(t10_dev_id, S_IWUSR|S_IRUGO, vdev_sysfs_t10_dev_id_show,
+		vdev_sysfs_t10_dev_id_store);
+static struct kobj_attribute vdev_eui64_id_attr =
+	__ATTR(eui64_id, S_IWUSR|S_IRUGO, vdev_sysfs_eui64_id_show,
+	       vdev_sysfs_eui64_id_store);
+static struct kobj_attribute vdev_naa_id_attr =
+	__ATTR(naa_id, S_IWUSR|S_IRUGO, vdev_sysfs_naa_id_show,
+	       vdev_sysfs_naa_id_store);
+static struct kobj_attribute vdev_usn_attr =
+	__ATTR(usn, S_IWUSR|S_IRUGO, vdev_sysfs_usn_show, vdev_sysfs_usn_store);
+static struct kobj_attribute vdev_inq_vend_specific_attr =
+	__ATTR(inq_vend_specific, S_IWUSR|S_IRUGO,
+	       vdev_sysfs_inq_vend_specific_show,
+	       vdev_sysfs_inq_vend_specific_store);
+static struct kobj_attribute vdev_zero_copy_attr =
+	__ATTR(zero_copy, S_IRUGO, vdev_zero_copy_show, NULL);
+static struct kobj_attribute vdev_async_attr =
+	__ATTR(async, S_IWUSR|S_IRUGO, vdev_async_show, vdev_async_store);
+
+static struct kobj_attribute vcdrom_filename_attr =
+	__ATTR(filename, S_IRUGO|S_IWUSR, vdev_sysfs_filename_show,
+		vcdrom_sysfs_filename_store);
+#endif
+
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static struct scst_trace_log vdisk_local_trace_tbl[] = {
 	{ TRACE_ORDER,		"order" },
@@ -10936,6 +10675,41 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #define VDISK_TRACE_TBL_HELP	", order"
 
 #endif
+
+#ifndef CONFIG_SCST_PROC
+static const struct attribute *vdisk_fileio_attrs[] = {
+	&vdev_size_ro_attr.attr,
+	&vdev_size_mb_ro_attr.attr,
+	&vdisk_blocksize_attr.attr,
+	&vdisk_opt_trans_len_attr.attr,
+	&vdisk_rd_only_attr.attr,
+	&vdisk_wt_attr.attr,
+	&vdisk_tp_attr.attr,
+	&vdisk_tst_attr.attr,
+	&vdisk_rotational_attr.attr,
+	&vdisk_expl_alua_attr.attr,
+	&vdisk_nv_cache_attr.attr,
+	&vdisk_o_direct_attr.attr,
+	&vdisk_removable_attr.attr,
+	&vdisk_filename_attr.attr,
+	&vdisk_cluster_mode_attr.attr,
+	&vdisk_resync_size_attr.attr,
+	&vdisk_sync_attr.attr,
+	&vdev_t10_vend_id_attr.attr,
+	&vdev_vend_specific_id_attr.attr,
+	&vdev_prod_id_attr.attr,
+	&vdev_prod_rev_lvl_attr.attr,
+	&vdev_scsi_device_name_attr.attr,
+	&vdev_t10_dev_id_attr.attr,
+	&vdev_naa_id_attr.attr,
+	&vdev_eui64_id_attr.attr,
+	&vdev_usn_attr.attr,
+	&vdev_inq_vend_specific_attr.attr,
+	&vdev_zero_copy_attr.attr,
+	&vdev_async_attr.attr,
+	NULL,
+};
+#endif /* CONFIG_SCST_PROC */
 
 static const char *fileio_add_dev_params[] = {
 	"async",
@@ -11003,6 +10777,40 @@ static struct scst_dev_type vdisk_file_devtype = {
 #endif
 };
 
+#ifndef CONFIG_SCST_PROC
+static const struct attribute *vdisk_blockio_attrs[] = {
+	&vdev_active_attr.attr,
+	&vdev_bind_alua_state_attr.attr,
+	&vdev_size_rw_attr.attr,
+	&vdev_size_mb_rw_attr.attr,
+	&vdisk_blocksize_attr.attr,
+	&vdisk_opt_trans_len_attr.attr,
+	&vdisk_rd_only_attr.attr,
+	&vdisk_wt_attr.attr,
+	&vdisk_expl_alua_attr.attr,
+	&vdisk_nv_cache_attr.attr,
+	&vdisk_tst_attr.attr,
+	&vdisk_removable_attr.attr,
+	&vdisk_rotational_attr.attr,
+	&vdisk_filename_attr.attr,
+	&vdisk_cluster_mode_attr.attr,
+	&vdisk_resync_size_attr.attr,
+	&vdisk_sync_attr.attr,
+	&vdev_t10_vend_id_attr.attr,
+	&vdev_vend_specific_id_attr.attr,
+	&vdev_prod_id_attr.attr,
+	&vdev_prod_rev_lvl_attr.attr,
+	&vdev_scsi_device_name_attr.attr,
+	&vdev_t10_dev_id_attr.attr,
+	&vdev_naa_id_attr.attr,
+	&vdev_eui64_id_attr.attr,
+	&vdev_usn_attr.attr,
+	&vdev_inq_vend_specific_attr.attr,
+	&vdisk_tp_attr.attr,
+	NULL,
+};
+#endif /* CONFIG_SCST_PROC */
+
 static const char *blockio_add_dev_params[] = {
 	"active",
 	"bind_alua_state",
@@ -11061,6 +10869,33 @@ static struct scst_dev_type vdisk_blk_devtype = {
 #endif
 };
 
+#ifndef CONFIG_SCST_PROC
+static const struct attribute *vdisk_nullio_attrs[] = {
+	&vdev_size_rw_attr.attr,
+	&vdev_size_mb_rw_attr.attr,
+	&vdisk_blocksize_attr.attr,
+	&vdisk_opt_trans_len_attr.attr,
+	&vdisk_rd_only_attr.attr,
+	&vdisk_tst_attr.attr,
+	&vdev_dummy_attr.attr,
+	&vdev_read_zero_attr.attr,
+	&vdisk_removable_attr.attr,
+	&vdisk_cluster_mode_attr.attr,
+	&vdev_t10_vend_id_attr.attr,
+	&vdev_vend_specific_id_attr.attr,
+	&vdev_prod_id_attr.attr,
+	&vdev_prod_rev_lvl_attr.attr,
+	&vdev_scsi_device_name_attr.attr,
+	&vdev_t10_dev_id_attr.attr,
+	&vdev_naa_id_attr.attr,
+	&vdev_eui64_id_attr.attr,
+	&vdev_usn_attr.attr,
+	&vdev_inq_vend_specific_attr.attr,
+	&vdisk_rotational_attr.attr,
+	NULL,
+};
+#endif /* CONFIG_SCST_PROC */
+
 static const char *nullio_add_dev_params[] = {
 	"blocksize",
 	"cluster_mode",
@@ -11112,6 +10947,26 @@ static struct scst_dev_type vdisk_null_devtype = {
 #endif
 #endif
 };
+
+#ifndef CONFIG_SCST_PROC
+static const struct attribute *vcdrom_attrs[] = {
+	&vdev_size_ro_attr.attr,
+	&vdev_size_mb_ro_attr.attr,
+	&vcdrom_filename_attr.attr,
+	&vdisk_tst_attr.attr,
+	&vdev_t10_vend_id_attr.attr,
+	&vdev_vend_specific_id_attr.attr,
+	&vdev_prod_id_attr.attr,
+	&vdev_prod_rev_lvl_attr.attr,
+	&vdev_scsi_device_name_attr.attr,
+	&vdev_t10_dev_id_attr.attr,
+	&vdev_naa_id_attr.attr,
+	&vdev_eui64_id_attr.attr,
+	&vdev_usn_attr.attr,
+	&vdev_inq_vend_specific_attr.attr,
+	NULL,
+};
+#endif /* CONFIG_SCST_PROC */
 
 static const char *cdrom_add_dev_params[] = {
 	"tst",
