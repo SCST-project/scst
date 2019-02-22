@@ -350,7 +350,6 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p);
 static enum compl_status_e nullio_exec_var_len_cmd(struct vdisk_cmd_params *p);
 static enum compl_status_e blockio_exec_var_len_cmd(struct vdisk_cmd_params *p);
 static enum compl_status_e fileio_exec_var_len_cmd(struct vdisk_cmd_params *p);
-static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua);
 static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 	bool report_error, struct scst_cmd *cmd, bool async);
 static enum compl_status_e vdev_verify(struct scst_cmd *cmd, loff_t loff);
@@ -5961,159 +5960,6 @@ out_set_fs:
 	goto out;
 }
 
-static enum compl_status_e blockio_exec_read(struct vdisk_cmd_params *p)
-{
-	blockio_exec_rw(p, false, false);
-	return RUNNING_ASYNC;
-}
-
-static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
-{
-	struct scst_cmd *cmd = p->cmd;
-	loff_t loff = p->loff;
-	mm_segment_t old_fs;
-	loff_t err = 0;
-	ssize_t length, full_len;
-	uint8_t __user *address;
-	struct scst_device *dev = cmd->dev;
-	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
-	struct file *fd = virt_dev->fd;
-	struct iovec *iv;
-	int iv_count, i, max_iv_count;
-	bool finished = false;
-
-	TRACE_ENTRY();
-
-	EXTRACHECKS_BUG_ON(virt_dev->nullio);
-
-	if (do_fileio_async(p))
-		return fileio_exec_async(p);
-
-	iv = vdisk_alloc_iv(cmd, p);
-	if (iv == NULL)
-		goto out_nomem;
-
-	max_iv_count = p->sync.iv_count;
-
-	length = scst_get_buf_first(cmd, (uint8_t __force **)&address);
-	if (unlikely(length < 0)) {
-		PRINT_ERROR("scst_get_buf_first() failed: %zd", length);
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_internal_failure));
-		goto out;
-	}
-
-	old_fs = get_fs();
-	set_fs(get_ds());
-
-	while (1) {
-		iv_count = 0;
-		full_len = 0;
-		i = -1;
-		while (length > 0) {
-			full_len += length;
-			i++;
-			iv_count++;
-			iv[i].iov_base = address;
-			iv[i].iov_len = length;
-			if (iv_count == max_iv_count)
-				break;
-			length = scst_get_buf_next(cmd,
-				(uint8_t __force **)&address);
-		}
-		if (length == 0) {
-			finished = true;
-			if (unlikely(iv_count == 0))
-				break;
-		} else if (unlikely(length < 0)) {
-			PRINT_ERROR("scst_get_buf_next() failed: %zd", length);
-			scst_set_cmd_error(cmd,
-			    SCST_LOAD_SENSE(scst_sense_internal_failure));
-			goto out_set_fs;
-		}
-
-		TRACE_DBG("Reading iv_count %d, full_len %zd", iv_count, full_len);
-
-		/* READ */
-		err = scst_readv(fd, iv, iv_count, &loff);
-		if ((err < 0) || (err < full_len)) {
-			PRINT_ERROR("readv() returned %lld from %zd",
-				    (unsigned long long)err,
-				    full_len);
-			if (err == -EAGAIN)
-				scst_set_busy(cmd);
-			else {
-				scst_set_cmd_error(cmd,
-				    SCST_LOAD_SENSE(scst_sense_read_error));
-			}
-			goto out_set_fs;
-		}
-
-		for (i = 0; i < iv_count; i++)
-			scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
-
-		if (finished)
-			break;
-
-		length = scst_get_buf_next(cmd, (uint8_t __force **)&address);
-	}
-
-	set_fs(old_fs);
-
-	if ((dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) &&
-	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE)) {
-		err = vdev_read_dif_tags(p);
-		if (err != 0)
-			goto out;
-	}
-
-	scst_dif_process_read(cmd);
-
-out:
-	TRACE_EXIT();
-	return CMD_SUCCEEDED;
-
-out_set_fs:
-	set_fs(old_fs);
-	for (i = 0; i < iv_count; i++)
-		scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
-	goto out;
-
-out_nomem:
-	scst_set_busy(cmd);
-	err = 0;
-	goto out;
-}
-
-static enum compl_status_e nullio_exec_write(struct vdisk_cmd_params *p)
-{
-	scst_dif_process_write(p->cmd);
-	return CMD_SUCCEEDED;
-}
-
-static enum compl_status_e blockio_exec_write(struct vdisk_cmd_params *p)
-{
-	struct scst_cmd *cmd = p->cmd;
-	struct scst_device *dev = cmd->dev;
-	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
-	int res, rc;
-
-	TRACE_ENTRY();
-
-	rc = scst_dif_process_write(cmd);
-	if (unlikely(rc != 0)) {
-		res = CMD_SUCCEEDED;
-		goto out;
-	}
-
-	blockio_exec_rw(p, true, p->fua || virt_dev->wt_flag);
-	res = RUNNING_ASYNC;
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
 static enum compl_status_e blockio_exec_var_len_cmd(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
@@ -6863,6 +6709,159 @@ finish_cmd:
 	cmd->completed = 1;
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 	goto out;
+}
+
+static enum compl_status_e blockio_exec_read(struct vdisk_cmd_params *p)
+{
+	blockio_exec_rw(p, false, false);
+	return RUNNING_ASYNC;
+}
+
+static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
+{
+	struct scst_cmd *cmd = p->cmd;
+	loff_t loff = p->loff;
+	mm_segment_t old_fs;
+	loff_t err = 0;
+	ssize_t length, full_len;
+	uint8_t __user *address;
+	struct scst_device *dev = cmd->dev;
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	struct file *fd = virt_dev->fd;
+	struct iovec *iv;
+	int iv_count, i, max_iv_count;
+	bool finished = false;
+
+	TRACE_ENTRY();
+
+	EXTRACHECKS_BUG_ON(virt_dev->nullio);
+
+	if (do_fileio_async(p))
+		return fileio_exec_async(p);
+
+	iv = vdisk_alloc_iv(cmd, p);
+	if (iv == NULL)
+		goto out_nomem;
+
+	max_iv_count = p->sync.iv_count;
+
+	length = scst_get_buf_first(cmd, (uint8_t __force **)&address);
+	if (unlikely(length < 0)) {
+		PRINT_ERROR("scst_get_buf_first() failed: %zd", length);
+		scst_set_cmd_error(cmd,
+		    SCST_LOAD_SENSE(scst_sense_internal_failure));
+		goto out;
+	}
+
+	old_fs = get_fs();
+	set_fs(get_ds());
+
+	while (1) {
+		iv_count = 0;
+		full_len = 0;
+		i = -1;
+		while (length > 0) {
+			full_len += length;
+			i++;
+			iv_count++;
+			iv[i].iov_base = address;
+			iv[i].iov_len = length;
+			if (iv_count == max_iv_count)
+				break;
+			length = scst_get_buf_next(cmd,
+				(uint8_t __force **)&address);
+		}
+		if (length == 0) {
+			finished = true;
+			if (unlikely(iv_count == 0))
+				break;
+		} else if (unlikely(length < 0)) {
+			PRINT_ERROR("scst_get_buf_next() failed: %zd", length);
+			scst_set_cmd_error(cmd,
+			    SCST_LOAD_SENSE(scst_sense_internal_failure));
+			goto out_set_fs;
+		}
+
+		TRACE_DBG("Reading iv_count %d, full_len %zd", iv_count, full_len);
+
+		/* READ */
+		err = scst_readv(fd, iv, iv_count, &loff);
+		if ((err < 0) || (err < full_len)) {
+			PRINT_ERROR("readv() returned %lld from %zd",
+				    (unsigned long long)err,
+				    full_len);
+			if (err == -EAGAIN)
+				scst_set_busy(cmd);
+			else {
+				scst_set_cmd_error(cmd,
+				    SCST_LOAD_SENSE(scst_sense_read_error));
+			}
+			goto out_set_fs;
+		}
+
+		for (i = 0; i < iv_count; i++)
+			scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
+
+		if (finished)
+			break;
+
+		length = scst_get_buf_next(cmd, (uint8_t __force **)&address);
+	}
+
+	set_fs(old_fs);
+
+	if ((dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) &&
+	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE)) {
+		err = vdev_read_dif_tags(p);
+		if (err != 0)
+			goto out;
+	}
+
+	scst_dif_process_read(cmd);
+
+out:
+	TRACE_EXIT();
+	return CMD_SUCCEEDED;
+
+out_set_fs:
+	set_fs(old_fs);
+	for (i = 0; i < iv_count; i++)
+		scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
+	goto out;
+
+out_nomem:
+	scst_set_busy(cmd);
+	err = 0;
+	goto out;
+}
+
+static enum compl_status_e nullio_exec_write(struct vdisk_cmd_params *p)
+{
+	scst_dif_process_write(p->cmd);
+	return CMD_SUCCEEDED;
+}
+
+static enum compl_status_e blockio_exec_write(struct vdisk_cmd_params *p)
+{
+	struct scst_cmd *cmd = p->cmd;
+	struct scst_device *dev = cmd->dev;
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	int res, rc;
+
+	TRACE_ENTRY();
+
+	rc = scst_dif_process_write(cmd);
+	if (unlikely(rc != 0)) {
+		res = CMD_SUCCEEDED;
+		goto out;
+	}
+
+	blockio_exec_rw(p, true, p->fua || virt_dev->wt_flag);
+	res = RUNNING_ASYNC;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
