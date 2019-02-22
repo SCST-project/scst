@@ -70,17 +70,6 @@
 
 #define TRACE_ORDER	0x80000000
 
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-static struct scst_trace_log vdisk_local_trace_tbl[] = {
-	{ TRACE_ORDER,		"order" },
-	{ 0,			NULL }
-};
-#define trace_log_tbl			vdisk_local_trace_tbl
-
-#define VDISK_TRACE_TBL_HELP	", order"
-
-#endif
-
 #include "scst_dev_handler.h"
 
 /* 8 byte ASCII Vendor */
@@ -749,228 +738,16 @@ static DEFINE_RWLOCK(vdisk_serial_rwlock);
 static LIST_HEAD(vdev_list);
 
 static struct kmem_cache *vdisk_cmd_param_cachep;
+static struct kmem_cache *blockio_work_cachep;
 
 static vdisk_op_fn fileio_ops[256];
 static vdisk_op_fn blockio_ops[256];
 static vdisk_op_fn nullio_ops[256];
 
-static const char *fileio_add_dev_params[] = {
-	"async",
-	"blocksize",
-	"cluster_mode",
-	"dif_filename",
-	"dif_mode",
-	"dif_static_app_tag",
-	"dif_type",
-	"filename",
-	"numa_node_id",
-	"nv_cache",
-	"o_direct",
-	"read_only",
-	"removable",
-	"rotational",
-	"thin_provisioned",
-	"tst",
-	"write_through",
-	"zero_copy",
-	NULL
-};
-
-/*
- * Be careful changing "name" field, since it is the name of the corresponding
- * /sys/kernel/scst_tgt entry, hence a part of user space ABI.
- */
-
-static struct scst_dev_type vdisk_file_devtype = {
-	.name =			"vdisk_fileio",
-	.type =			TYPE_DISK,
-	.threads_num =		-1,
-	.parse_atomic =		1,
-	.dev_done_atomic =	1,
-	.auto_cm_assignment_possible = 1,
-	.attach =		vdisk_attach,
-	.detach =		vdisk_detach,
-	.attach_tgt =		vdisk_attach_tgt,
-	.detach_tgt =		vdisk_detach_tgt,
-	.parse =		vdisk_parse,
-	.exec =			fileio_exec,
-	.on_free_cmd =		fileio_on_free_cmd,
-	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
-#ifdef CONFIG_DEBUG_EXT_COPY_REMAP
-	.ext_copy_remap =	vdev_ext_copy_remap,
-#endif
-	.get_supported_opcodes = vdisk_get_supported_opcodes,
-	.devt_priv =		(void *)fileio_ops,
-#ifdef CONFIG_SCST_PROC
-	.read_proc =		vdisk_read_proc,
-	.write_proc =		vdisk_write_proc,
-#else
-	.add_device =		vdisk_add_fileio_device,
-	.del_device =		vdisk_del_device,
-	.dev_attrs =		vdisk_fileio_attrs,
-	.add_device_parameters = fileio_add_dev_params,
-#endif
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
-	.trace_flags =		&trace_flag,
-	.trace_tbl =		vdisk_local_trace_tbl,
-#ifndef CONFIG_SCST_PROC
-	.trace_tbl_help =	VDISK_TRACE_TBL_HELP,
-#endif
-#endif
-};
-
-static struct kmem_cache *blockio_work_cachep;
-
-static const char *blockio_add_dev_params[] = {
-	"active",
-	"bind_alua_state",
-	"blocksize",
-	"cluster_mode",
-	"dif_filename",
-	"dif_mode",
-	"dif_static_app_tag",
-	"dif_type",
-	"filename",
-	"numa_node_id",
-	"nv_cache",
-	"read_only",
-	"removable",
-	"rotational",
-	"thin_provisioned",
-	"tst",
-	"write_through",
-	NULL
-};
-
-static struct scst_dev_type vdisk_blk_devtype = {
-	.name =			"vdisk_blockio",
-	.type =			TYPE_DISK,
-	.threads_num =		1,
-	.parse_atomic =		1,
-	.dev_done_atomic =	1,
-#ifdef CONFIG_SCST_PROC
-	.no_proc =		1,
-#endif
-	.auto_cm_assignment_possible = 1,
-	.attach =		vdisk_attach,
-	.detach =		vdisk_detach,
-	.attach_tgt =		vdisk_attach_tgt,
-	.detach_tgt =		vdisk_detach_tgt,
-	.parse =		non_fileio_parse,
-	.exec =			blockio_exec,
-	.on_alua_state_change_start = blockio_on_alua_state_change_start,
-	.on_alua_state_change_finish = blockio_on_alua_state_change_finish,
-	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
-	.get_supported_opcodes = vdisk_get_supported_opcodes,
-	.devt_priv =		(void *)blockio_ops,
-#ifndef CONFIG_SCST_PROC
-	.add_device =		vdisk_add_blockio_device,
-	.del_device =		vdisk_del_device,
-	.dev_attrs =		vdisk_blockio_attrs,
-	.add_device_parameters = blockio_add_dev_params,
-#endif
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
-	.trace_flags =		&trace_flag,
-	.trace_tbl =		vdisk_local_trace_tbl,
-#ifndef CONFIG_SCST_PROC
-	.trace_tbl_help =	VDISK_TRACE_TBL_HELP,
-#endif
-#endif
-};
-
-static const char *nullio_add_dev_params[] = {
-	"blocksize",
-	"cluster_mode",
-	"dif_mode",
-	"dif_static_app_tag",
-	"dif_type",
-	"dummy",
-	"numa_node_id",
-	"read_only",
-	"removable",
-	"rotational",
-	"size",
-	"size_mb",
-	"tst",
-	NULL
-};
-
-static struct scst_dev_type vdisk_null_devtype = {
-	.name =			"vdisk_nullio",
-	.type =			TYPE_DISK,
-	.threads_num =		1,
-	.parse_atomic =		1,
-	.dev_done_atomic =	1,
-#ifdef CONFIG_SCST_PROC
-	.no_proc =		1,
-#endif
-	.auto_cm_assignment_possible = 1,
-	.attach =		vdisk_attach,
-	.detach =		vdisk_detach,
-	.attach_tgt =		vdisk_attach_tgt,
-	.detach_tgt =		vdisk_detach_tgt,
-	.parse =		non_fileio_parse,
-	.exec =			nullio_exec,
-	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
-	.devt_priv =		(void *)nullio_ops,
-	.get_supported_opcodes = vdisk_get_supported_opcodes,
-#ifndef CONFIG_SCST_PROC
-	.add_device =		vdisk_add_nullio_device,
-	.del_device =		vdisk_del_device,
-	.dev_attrs =		vdisk_nullio_attrs,
-	.add_device_parameters = nullio_add_dev_params,
-#endif
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
-	.trace_flags =		&trace_flag,
-	.trace_tbl =		vdisk_local_trace_tbl,
-#ifndef CONFIG_SCST_PROC
-	.trace_tbl_help =	VDISK_TRACE_TBL_HELP,
-#endif
-#endif
-};
-
-static const char *cdrom_add_dev_params[] = {
-	"tst",
-	NULL,
-};
-
-static struct scst_dev_type vcdrom_devtype = {
-	.name =			"vcdrom",
-	.type =			TYPE_ROM,
-	.threads_num =		-1,
-	.parse_atomic =		1,
-	.dev_done_atomic =	1,
-	.auto_cm_assignment_possible = 1,
-	.attach =		vdisk_attach,
-	.detach =		vdisk_detach,
-	.attach_tgt =		vdisk_attach_tgt,
-	.detach_tgt =		vdisk_detach_tgt,
-	.parse =		vcdrom_parse,
-	.exec =			vcdrom_exec,
-	.on_free_cmd =		fileio_on_free_cmd,
-	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
-	.get_supported_opcodes = vcdrom_get_supported_opcodes,
-#ifdef CONFIG_SCST_PROC
-	.read_proc =		vcdrom_read_proc,
-	.write_proc =		vcdrom_write_proc,
-#else
-	.add_device =		vcdrom_add_device,
-	.del_device =		vcdrom_del_device,
-	.dev_attrs =		vcdrom_attrs,
-	.add_device_parameters = cdrom_add_dev_params,
-#endif
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
-	.trace_flags =		&trace_flag,
-	.trace_tbl =		vdisk_local_trace_tbl,
-#ifndef CONFIG_SCST_PROC
-	.trace_tbl_help =	VDISK_TRACE_TBL_HELP,
-#endif
-#endif
-};
+static struct scst_dev_type vdisk_file_devtype;
+static struct scst_dev_type vdisk_blk_devtype;
+static struct scst_dev_type vdisk_null_devtype;
+static struct scst_dev_type vcdrom_devtype;
 
 #ifdef CONFIG_SCST_PROC
 
@@ -11148,6 +10925,233 @@ static void vdisk_proc_help_destroy(struct scst_dev_type *dev_type)
 }
 
 #endif /* CONFIG_SCST_PROC */
+
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+static struct scst_trace_log vdisk_local_trace_tbl[] = {
+	{ TRACE_ORDER,		"order" },
+	{ 0,			NULL }
+};
+#define trace_log_tbl			vdisk_local_trace_tbl
+
+#define VDISK_TRACE_TBL_HELP	", order"
+
+#endif
+
+static const char *fileio_add_dev_params[] = {
+	"async",
+	"blocksize",
+	"cluster_mode",
+	"dif_filename",
+	"dif_mode",
+	"dif_static_app_tag",
+	"dif_type",
+	"filename",
+	"numa_node_id",
+	"nv_cache",
+	"o_direct",
+	"read_only",
+	"removable",
+	"rotational",
+	"thin_provisioned",
+	"tst",
+	"write_through",
+	"zero_copy",
+	NULL
+};
+
+/*
+ * Be careful changing "name" field, since it is the name of the corresponding
+ * /sys/kernel/scst_tgt entry, hence a part of user space ABI.
+ */
+
+static struct scst_dev_type vdisk_file_devtype = {
+	.name =			"vdisk_fileio",
+	.type =			TYPE_DISK,
+	.threads_num =		-1,
+	.parse_atomic =		1,
+	.dev_done_atomic =	1,
+	.auto_cm_assignment_possible = 1,
+	.attach =		vdisk_attach,
+	.detach =		vdisk_detach,
+	.attach_tgt =		vdisk_attach_tgt,
+	.detach_tgt =		vdisk_detach_tgt,
+	.parse =		vdisk_parse,
+	.exec =			fileio_exec,
+	.on_free_cmd =		fileio_on_free_cmd,
+	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
+#ifdef CONFIG_DEBUG_EXT_COPY_REMAP
+	.ext_copy_remap =	vdev_ext_copy_remap,
+#endif
+	.get_supported_opcodes = vdisk_get_supported_opcodes,
+	.devt_priv =		(void *)fileio_ops,
+#ifdef CONFIG_SCST_PROC
+	.read_proc =		vdisk_read_proc,
+	.write_proc =		vdisk_write_proc,
+#else
+	.add_device =		vdisk_add_fileio_device,
+	.del_device =		vdisk_del_device,
+	.dev_attrs =		vdisk_fileio_attrs,
+	.add_device_parameters = fileio_add_dev_params,
+#endif
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
+	.trace_flags =		&trace_flag,
+	.trace_tbl =		vdisk_local_trace_tbl,
+#ifndef CONFIG_SCST_PROC
+	.trace_tbl_help =	VDISK_TRACE_TBL_HELP,
+#endif
+#endif
+};
+
+static const char *blockio_add_dev_params[] = {
+	"active",
+	"bind_alua_state",
+	"blocksize",
+	"cluster_mode",
+	"dif_filename",
+	"dif_mode",
+	"dif_static_app_tag",
+	"dif_type",
+	"filename",
+	"numa_node_id",
+	"nv_cache",
+	"read_only",
+	"removable",
+	"rotational",
+	"thin_provisioned",
+	"tst",
+	"write_through",
+	NULL
+};
+
+static struct scst_dev_type vdisk_blk_devtype = {
+	.name =			"vdisk_blockio",
+	.type =			TYPE_DISK,
+	.threads_num =		1,
+	.parse_atomic =		1,
+	.dev_done_atomic =	1,
+#ifdef CONFIG_SCST_PROC
+	.no_proc =		1,
+#endif
+	.auto_cm_assignment_possible = 1,
+	.attach =		vdisk_attach,
+	.detach =		vdisk_detach,
+	.attach_tgt =		vdisk_attach_tgt,
+	.detach_tgt =		vdisk_detach_tgt,
+	.parse =		non_fileio_parse,
+	.exec =			blockio_exec,
+	.on_alua_state_change_start = blockio_on_alua_state_change_start,
+	.on_alua_state_change_finish = blockio_on_alua_state_change_finish,
+	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
+	.get_supported_opcodes = vdisk_get_supported_opcodes,
+	.devt_priv =		(void *)blockio_ops,
+#ifndef CONFIG_SCST_PROC
+	.add_device =		vdisk_add_blockio_device,
+	.del_device =		vdisk_del_device,
+	.dev_attrs =		vdisk_blockio_attrs,
+	.add_device_parameters = blockio_add_dev_params,
+#endif
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
+	.trace_flags =		&trace_flag,
+	.trace_tbl =		vdisk_local_trace_tbl,
+#ifndef CONFIG_SCST_PROC
+	.trace_tbl_help =	VDISK_TRACE_TBL_HELP,
+#endif
+#endif
+};
+
+static const char *nullio_add_dev_params[] = {
+	"blocksize",
+	"cluster_mode",
+	"dif_mode",
+	"dif_static_app_tag",
+	"dif_type",
+	"dummy",
+	"numa_node_id",
+	"read_only",
+	"removable",
+	"rotational",
+	"size",
+	"size_mb",
+	"tst",
+	NULL
+};
+
+static struct scst_dev_type vdisk_null_devtype = {
+	.name =			"vdisk_nullio",
+	.type =			TYPE_DISK,
+	.threads_num =		1,
+	.parse_atomic =		1,
+	.dev_done_atomic =	1,
+#ifdef CONFIG_SCST_PROC
+	.no_proc =		1,
+#endif
+	.auto_cm_assignment_possible = 1,
+	.attach =		vdisk_attach,
+	.detach =		vdisk_detach,
+	.attach_tgt =		vdisk_attach_tgt,
+	.detach_tgt =		vdisk_detach_tgt,
+	.parse =		non_fileio_parse,
+	.exec =			nullio_exec,
+	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
+	.devt_priv =		(void *)nullio_ops,
+	.get_supported_opcodes = vdisk_get_supported_opcodes,
+#ifndef CONFIG_SCST_PROC
+	.add_device =		vdisk_add_nullio_device,
+	.del_device =		vdisk_del_device,
+	.dev_attrs =		vdisk_nullio_attrs,
+	.add_device_parameters = nullio_add_dev_params,
+#endif
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
+	.trace_flags =		&trace_flag,
+	.trace_tbl =		vdisk_local_trace_tbl,
+#ifndef CONFIG_SCST_PROC
+	.trace_tbl_help =	VDISK_TRACE_TBL_HELP,
+#endif
+#endif
+};
+
+static const char *cdrom_add_dev_params[] = {
+	"tst",
+	NULL,
+};
+
+static struct scst_dev_type vcdrom_devtype = {
+	.name =			"vcdrom",
+	.type =			TYPE_ROM,
+	.threads_num =		-1,
+	.parse_atomic =		1,
+	.dev_done_atomic =	1,
+	.auto_cm_assignment_possible = 1,
+	.attach =		vdisk_attach,
+	.detach =		vdisk_detach,
+	.attach_tgt =		vdisk_attach_tgt,
+	.detach_tgt =		vdisk_detach_tgt,
+	.parse =		vcdrom_parse,
+	.exec =			vcdrom_exec,
+	.on_free_cmd =		fileio_on_free_cmd,
+	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
+	.get_supported_opcodes = vcdrom_get_supported_opcodes,
+#ifdef CONFIG_SCST_PROC
+	.read_proc =		vcdrom_read_proc,
+	.write_proc =		vcdrom_write_proc,
+#else
+	.add_device =		vcdrom_add_device,
+	.del_device =		vcdrom_del_device,
+	.dev_attrs =		vcdrom_attrs,
+	.add_device_parameters = cdrom_add_dev_params,
+#endif
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
+	.trace_flags =		&trace_flag,
+	.trace_tbl =		vdisk_local_trace_tbl,
+#ifndef CONFIG_SCST_PROC
+	.trace_tbl_help =	VDISK_TRACE_TBL_HELP,
+#endif
+#endif
+};
 
 static int __init init_scst_vdisk(struct scst_dev_type *devtype)
 {
