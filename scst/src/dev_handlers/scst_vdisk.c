@@ -308,37 +308,14 @@ MODULE_PARM_DESC(num_threads, "vdisk threads count");
  */
 static spinlock_t vdev_err_lock;
 
-static enum compl_status_e nullio_exec_read(struct vdisk_cmd_params *p);
-static enum compl_status_e blockio_exec_read(struct vdisk_cmd_params *p);
-static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p);
-static enum compl_status_e nullio_exec_write(struct vdisk_cmd_params *p);
-static enum compl_status_e blockio_exec_write(struct vdisk_cmd_params *p);
-static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p);
-static enum compl_status_e nullio_exec_var_len_cmd(struct vdisk_cmd_params *p);
-static enum compl_status_e blockio_exec_var_len_cmd(struct vdisk_cmd_params *p);
-static enum compl_status_e fileio_exec_var_len_cmd(struct vdisk_cmd_params *p);
 static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 	bool report_error, struct scst_cmd *cmd, bool async);
 static enum compl_status_e vdev_verify(struct scst_cmd *cmd, loff_t loff);
-static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p);
-static enum compl_status_e blockio_exec_write_verify(struct vdisk_cmd_params *p);
-static enum compl_status_e fileio_exec_write_verify(struct vdisk_cmd_params *p);
-static enum compl_status_e nullio_exec_write_verify(struct vdisk_cmd_params *p);
-static enum compl_status_e nullio_exec_verify(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_read_capacity(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_get_lba_status(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_report_tpgs(struct vdisk_cmd_params *p);
 static enum compl_status_e vdisk_exec_set_tpgs(struct vdisk_cmd_params *p);
-static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p);
-static enum compl_status_e vdisk_exec_request_sense(struct vdisk_cmd_params *p);
-static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p);
-static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p);
-static enum compl_status_e vdisk_exec_log(struct vdisk_cmd_params *p);
-static enum compl_status_e vdisk_exec_read_toc(struct vdisk_cmd_params *p);
-static enum compl_status_e vdisk_exec_prevent_allow_medium_removal(struct vdisk_cmd_params *p);
-static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p);
-static enum compl_status_e vdisk_exec_write_same(struct vdisk_cmd_params *p);
 static int vdisk_fsync(loff_t loff,
 	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
 	struct scst_cmd *cmd, bool async);
@@ -382,8 +359,11 @@ static struct kmem_cache *vdisk_cmd_param_cachep;
 static struct kmem_cache *blockio_work_cachep;
 
 static vdisk_op_fn fileio_ops[256];
+static const vdisk_op_fn fileio_var_len_ops[256];
 static vdisk_op_fn blockio_ops[256];
+static const vdisk_op_fn blockio_var_len_ops[256];
 static vdisk_op_fn nullio_ops[256];
+static const vdisk_op_fn nullio_var_len_ops[256];
 
 static struct scst_dev_type vdisk_file_devtype;
 static struct scst_dev_type vdisk_blk_devtype;
@@ -2211,35 +2191,6 @@ static const struct scst_opcode_descriptor scst_op_descr_read_toc = {
 			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 
-#define SHARED_OPS							\
-	[SYNCHRONIZE_CACHE] = vdisk_synchronize_cache,			\
-	[SYNCHRONIZE_CACHE_16] = vdisk_synchronize_cache,		\
-	[MODE_SENSE] = vdisk_exec_mode_sense,				\
-	[MODE_SENSE_10] = vdisk_exec_mode_sense,			\
-	[MODE_SELECT] = vdisk_exec_mode_select,				\
-	[MODE_SELECT_10] = vdisk_exec_mode_select,			\
-	[LOG_SELECT] = vdisk_exec_log,					\
-	[LOG_SENSE] = vdisk_exec_log,					\
-	[ALLOW_MEDIUM_REMOVAL] = vdisk_exec_prevent_allow_medium_removal, \
-	[READ_TOC] = vdisk_exec_read_toc,				\
-	[START_STOP] = vdisk_exec_start_stop,				\
-	[RESERVE] = vdisk_nop,						\
-	[RESERVE_10] = vdisk_nop,					\
-	[RELEASE] = vdisk_nop,						\
-	[RELEASE_10] = vdisk_nop,					\
-	[TEST_UNIT_READY] = vdisk_nop,					\
-	[INQUIRY] = vdisk_exec_inquiry,					\
-	[REQUEST_SENSE] = vdisk_exec_request_sense,			\
-	[READ_CAPACITY] = vdisk_exec_read_capacity,			\
-	[SERVICE_ACTION_IN_16] = vdisk_exec_sai_16,			\
-	[UNMAP] = vdisk_exec_unmap,					\
-	[WRITE_SAME] = vdisk_exec_write_same,				\
-	[WRITE_SAME_16] = vdisk_exec_write_same,			\
-	[MAINTENANCE_IN] = vdisk_exec_maintenance_in,			\
-	[MAINTENANCE_OUT] = vdisk_exec_maintenance_out,			\
-	[SEND_DIAGNOSTIC] = vdisk_exec_send_diagnostic,			\
-	[FORMAT_UNIT] = vdisk_exec_format_unit,
-
 #define SHARED_OPCODE_DESCRIPTORS					\
 	&scst_op_descr_sync_cache10,					\
 	&scst_op_descr_sync_cache16,					\
@@ -2267,86 +2218,6 @@ static const struct scst_opcode_descriptor scst_op_descr_read_toc = {
 	&scst_op_descr_verify10,					\
 	&scst_op_descr_verify12,					\
 	&scst_op_descr_verify16,
-
-static const vdisk_op_fn blockio_var_len_ops[] = {
-	[SUBCODE_READ_32] = blockio_exec_read,
-	[SUBCODE_WRITE_32] = blockio_exec_write,
-	[SUBCODE_WRITE_VERIFY_32] = blockio_exec_write_verify,
-	[SUBCODE_VERIFY_32] = vdev_exec_verify,
-	[SUBCODE_WRITE_SAME_32] = vdisk_exec_write_same,
-};
-
-static vdisk_op_fn blockio_ops[256] = {
-	[READ_6] = blockio_exec_read,
-	[READ_10] = blockio_exec_read,
-	[READ_12] = blockio_exec_read,
-	[READ_16] = blockio_exec_read,
-	[WRITE_6] = blockio_exec_write,
-	[WRITE_10] = blockio_exec_write,
-	[WRITE_12] = blockio_exec_write,
-	[WRITE_16] = blockio_exec_write,
-	[WRITE_VERIFY] = blockio_exec_write_verify,
-	[WRITE_VERIFY_12] = blockio_exec_write_verify,
-	[WRITE_VERIFY_16] = blockio_exec_write_verify,
-	[VARIABLE_LENGTH_CMD] = blockio_exec_var_len_cmd,
-	[VERIFY] = vdev_exec_verify,
-	[VERIFY_12] = vdev_exec_verify,
-	[VERIFY_16] = vdev_exec_verify,
-	SHARED_OPS
-};
-
-static const vdisk_op_fn fileio_var_len_ops[] = {
-	[SUBCODE_READ_32] = fileio_exec_read,
-	[SUBCODE_WRITE_32] = fileio_exec_write,
-	[SUBCODE_WRITE_VERIFY_32] = fileio_exec_write_verify,
-	[SUBCODE_VERIFY_32] = vdev_exec_verify,
-	[SUBCODE_WRITE_SAME_32] = vdisk_exec_write_same,
-};
-
-static vdisk_op_fn fileio_ops[256] = {
-	[READ_6] = fileio_exec_read,
-	[READ_10] = fileio_exec_read,
-	[READ_12] = fileio_exec_read,
-	[READ_16] = fileio_exec_read,
-	[WRITE_6] = fileio_exec_write,
-	[WRITE_10] = fileio_exec_write,
-	[WRITE_12] = fileio_exec_write,
-	[WRITE_16] = fileio_exec_write,
-	[WRITE_VERIFY] = fileio_exec_write_verify,
-	[WRITE_VERIFY_12] = fileio_exec_write_verify,
-	[WRITE_VERIFY_16] = fileio_exec_write_verify,
-	[VARIABLE_LENGTH_CMD] = fileio_exec_var_len_cmd,
-	[VERIFY] = vdev_exec_verify,
-	[VERIFY_12] = vdev_exec_verify,
-	[VERIFY_16] = vdev_exec_verify,
-	SHARED_OPS
-};
-
-static const vdisk_op_fn nullio_var_len_ops[] = {
-	[SUBCODE_READ_32] = nullio_exec_read,
-	[SUBCODE_WRITE_32] = nullio_exec_write,
-	[SUBCODE_WRITE_VERIFY_32] = nullio_exec_write_verify,
-	[SUBCODE_WRITE_SAME_32] = vdisk_exec_write_same,
-};
-
-static vdisk_op_fn nullio_ops[256] = {
-	[READ_6] = nullio_exec_read,
-	[READ_10] = nullio_exec_read,
-	[READ_12] = nullio_exec_read,
-	[READ_16] = nullio_exec_read,
-	[WRITE_6] = nullio_exec_write,
-	[WRITE_10] = nullio_exec_write,
-	[WRITE_12] = nullio_exec_write,
-	[WRITE_16] = nullio_exec_write,
-	[WRITE_VERIFY] = nullio_exec_write_verify,
-	[WRITE_VERIFY_12] = nullio_exec_write_verify,
-	[WRITE_VERIFY_16] = nullio_exec_write_verify,
-	[VARIABLE_LENGTH_CMD] = nullio_exec_var_len_cmd,
-	[VERIFY] = nullio_exec_verify,
-	[VERIFY_12] = nullio_exec_verify,
-	[VERIFY_16] = nullio_exec_verify,
-	SHARED_OPS
-};
 
 #define VDISK_OPCODE_DESCRIPTORS					\
 	/* &scst_op_descr_get_lba_status, */				\
@@ -11127,6 +10998,115 @@ out_setfs:
 	TRACE_EXIT_RES(res);
 	return res;
 }
+
+#define SHARED_OPS							\
+	[SYNCHRONIZE_CACHE] = vdisk_synchronize_cache,			\
+	[SYNCHRONIZE_CACHE_16] = vdisk_synchronize_cache,		\
+	[MODE_SENSE] = vdisk_exec_mode_sense,				\
+	[MODE_SENSE_10] = vdisk_exec_mode_sense,			\
+	[MODE_SELECT] = vdisk_exec_mode_select,				\
+	[MODE_SELECT_10] = vdisk_exec_mode_select,			\
+	[LOG_SELECT] = vdisk_exec_log,					\
+	[LOG_SENSE] = vdisk_exec_log,					\
+	[ALLOW_MEDIUM_REMOVAL] = vdisk_exec_prevent_allow_medium_removal, \
+	[READ_TOC] = vdisk_exec_read_toc,				\
+	[START_STOP] = vdisk_exec_start_stop,				\
+	[RESERVE] = vdisk_nop,						\
+	[RESERVE_10] = vdisk_nop,					\
+	[RELEASE] = vdisk_nop,						\
+	[RELEASE_10] = vdisk_nop,					\
+	[TEST_UNIT_READY] = vdisk_nop,					\
+	[INQUIRY] = vdisk_exec_inquiry,					\
+	[REQUEST_SENSE] = vdisk_exec_request_sense,			\
+	[READ_CAPACITY] = vdisk_exec_read_capacity,			\
+	[SERVICE_ACTION_IN_16] = vdisk_exec_sai_16,			\
+	[UNMAP] = vdisk_exec_unmap,					\
+	[WRITE_SAME] = vdisk_exec_write_same,				\
+	[WRITE_SAME_16] = vdisk_exec_write_same,			\
+	[MAINTENANCE_IN] = vdisk_exec_maintenance_in,			\
+	[MAINTENANCE_OUT] = vdisk_exec_maintenance_out,			\
+	[SEND_DIAGNOSTIC] = vdisk_exec_send_diagnostic,			\
+	[FORMAT_UNIT] = vdisk_exec_format_unit,
+
+static const vdisk_op_fn blockio_var_len_ops[] = {
+	[SUBCODE_READ_32] = blockio_exec_read,
+	[SUBCODE_WRITE_32] = blockio_exec_write,
+	[SUBCODE_WRITE_VERIFY_32] = blockio_exec_write_verify,
+	[SUBCODE_VERIFY_32] = vdev_exec_verify,
+	[SUBCODE_WRITE_SAME_32] = vdisk_exec_write_same,
+};
+
+static vdisk_op_fn blockio_ops[256] = {
+	[READ_6] = blockio_exec_read,
+	[READ_10] = blockio_exec_read,
+	[READ_12] = blockio_exec_read,
+	[READ_16] = blockio_exec_read,
+	[WRITE_6] = blockio_exec_write,
+	[WRITE_10] = blockio_exec_write,
+	[WRITE_12] = blockio_exec_write,
+	[WRITE_16] = blockio_exec_write,
+	[WRITE_VERIFY] = blockio_exec_write_verify,
+	[WRITE_VERIFY_12] = blockio_exec_write_verify,
+	[WRITE_VERIFY_16] = blockio_exec_write_verify,
+	[VARIABLE_LENGTH_CMD] = blockio_exec_var_len_cmd,
+	[VERIFY] = vdev_exec_verify,
+	[VERIFY_12] = vdev_exec_verify,
+	[VERIFY_16] = vdev_exec_verify,
+	SHARED_OPS
+};
+
+static const vdisk_op_fn fileio_var_len_ops[] = {
+	[SUBCODE_READ_32] = fileio_exec_read,
+	[SUBCODE_WRITE_32] = fileio_exec_write,
+	[SUBCODE_WRITE_VERIFY_32] = fileio_exec_write_verify,
+	[SUBCODE_VERIFY_32] = vdev_exec_verify,
+	[SUBCODE_WRITE_SAME_32] = vdisk_exec_write_same,
+};
+
+static vdisk_op_fn fileio_ops[256] = {
+	[READ_6] = fileio_exec_read,
+	[READ_10] = fileio_exec_read,
+	[READ_12] = fileio_exec_read,
+	[READ_16] = fileio_exec_read,
+	[WRITE_6] = fileio_exec_write,
+	[WRITE_10] = fileio_exec_write,
+	[WRITE_12] = fileio_exec_write,
+	[WRITE_16] = fileio_exec_write,
+	[WRITE_VERIFY] = fileio_exec_write_verify,
+	[WRITE_VERIFY_12] = fileio_exec_write_verify,
+	[WRITE_VERIFY_16] = fileio_exec_write_verify,
+	[VARIABLE_LENGTH_CMD] = fileio_exec_var_len_cmd,
+	[VERIFY] = vdev_exec_verify,
+	[VERIFY_12] = vdev_exec_verify,
+	[VERIFY_16] = vdev_exec_verify,
+	SHARED_OPS
+};
+
+static const vdisk_op_fn nullio_var_len_ops[] = {
+	[SUBCODE_READ_32] = nullio_exec_read,
+	[SUBCODE_WRITE_32] = nullio_exec_write,
+	[SUBCODE_WRITE_VERIFY_32] = nullio_exec_write_verify,
+	[SUBCODE_WRITE_SAME_32] = vdisk_exec_write_same,
+};
+
+static vdisk_op_fn nullio_ops[256] = {
+	[READ_6] = nullio_exec_read,
+	[READ_10] = nullio_exec_read,
+	[READ_12] = nullio_exec_read,
+	[READ_16] = nullio_exec_read,
+	[WRITE_6] = nullio_exec_write,
+	[WRITE_10] = nullio_exec_write,
+	[WRITE_12] = nullio_exec_write,
+	[WRITE_16] = nullio_exec_write,
+	[WRITE_VERIFY] = nullio_exec_write_verify,
+	[WRITE_VERIFY_12] = nullio_exec_write_verify,
+	[WRITE_VERIFY_16] = nullio_exec_write_verify,
+	[VARIABLE_LENGTH_CMD] = nullio_exec_var_len_cmd,
+	[VERIFY] = nullio_exec_verify,
+	[VERIFY_12] = nullio_exec_verify,
+	[VERIFY_16] = nullio_exec_verify,
+	SHARED_OPS
+};
 
 static int __init init_scst_vdisk_driver(void)
 {
