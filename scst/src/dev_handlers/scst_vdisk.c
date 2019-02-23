@@ -308,8 +308,6 @@ MODULE_PARM_DESC(num_threads, "vdisk threads count");
  */
 static spinlock_t vdev_err_lock;
 
-static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
-	bool report_error, struct scst_cmd *cmd, bool async);
 static enum compl_status_e vdev_verify(struct scst_cmd *cmd, loff_t loff);
 
 /** SYSFS **/
@@ -426,6 +424,106 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev,
 out:
 	TRACE_EXIT();
 	return fd;
+}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
+static void vdev_flush_end_io(struct bio *bio, int error)
+{
+#else
+static void vdev_flush_end_io(struct bio *bio)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+	int error = bio->bi_error;
+#else
+	int error = blk_status_to_errno(bio->bi_status);
+#endif
+#endif
+	struct scst_cmd *cmd = bio->bi_private;
+
+	TRACE_ENTRY();
+
+	if (unlikely(error != 0)) {
+		PRINT_ERROR("FLUSH bio failed: %d (cmd %p)",
+			error, cmd);
+		if (cmd != NULL)
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
+	}
+
+	if (cmd == NULL)
+		goto out_put;
+
+	cmd->completed = 1;
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, scst_estimate_context());
+
+out_put:
+	bio_put(bio);
+
+	TRACE_EXIT();
+	return;
+}
+#endif
+
+static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
+	bool report_error, struct scst_cmd *cmd, bool async)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+	if (async) {
+		struct bio *bio = bio_alloc(gfp_mask, 0);
+
+		if (bio == NULL) {
+			res = -ENOMEM;
+			goto out_rep;
+		}
+		bio->bi_end_io = vdev_flush_end_io;
+		bio->bi_private = cmd;
+		bio_set_dev(bio, bdev);
+#if (!defined(CONFIG_SUSE_KERNEL) &&			\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)) || \
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+		submit_bio(WRITE_FLUSH, bio);
+#else
+		bio_set_op_attrs(bio, REQ_OP_FLUSH, 0);
+		submit_bio(bio);
+#endif
+		goto out;
+	} else {
+#else
+	{
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)           \
+    && !(defined(CONFIG_SUSE_KERNEL)                        \
+	 && LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 34))
+		res = blkdev_issue_flush(bdev, NULL);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
+		res = blkdev_issue_flush(bdev, gfp_mask, NULL, BLKDEV_IFL_WAIT);
+#else
+		res = blkdev_issue_flush(bdev, gfp_mask, NULL);
+#endif
+	}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+out_rep:
+#endif
+	if ((res != 0) && report_error)
+		PRINT_ERROR("%s() failed: %d",
+			async ? "bio_alloc" : "blkdev_issue_flush", res);
+
+	if (async && (cmd != NULL)) {
+		cmd->completed = 1;
+		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
+			scst_estimate_context());
+	}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
+out:
+#endif
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
@@ -6139,106 +6237,6 @@ static enum compl_status_e blockio_exec_write(struct vdisk_cmd_params *p)
 	res = RUNNING_ASYNC;
 
 out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
-static void vdev_flush_end_io(struct bio *bio, int error)
-{
-#else
-static void vdev_flush_end_io(struct bio *bio)
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
-	int error = bio->bi_error;
-#else
-	int error = blk_status_to_errno(bio->bi_status);
-#endif
-#endif
-	struct scst_cmd *cmd = bio->bi_private;
-
-	TRACE_ENTRY();
-
-	if (unlikely(error != 0)) {
-		PRINT_ERROR("FLUSH bio failed: %d (cmd %p)",
-			error, cmd);
-		if (cmd != NULL)
-			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
-	}
-
-	if (cmd == NULL)
-		goto out_put;
-
-	cmd->completed = 1;
-	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, scst_estimate_context());
-
-out_put:
-	bio_put(bio);
-
-	TRACE_EXIT();
-	return;
-}
-#endif
-
-static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
-	bool report_error, struct scst_cmd *cmd, bool async)
-{
-	int res = 0;
-
-	TRACE_ENTRY();
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
-	if (async) {
-		struct bio *bio = bio_alloc(gfp_mask, 0);
-
-		if (bio == NULL) {
-			res = -ENOMEM;
-			goto out_rep;
-		}
-		bio->bi_end_io = vdev_flush_end_io;
-		bio->bi_private = cmd;
-		bio_set_dev(bio, bdev);
-#if (!defined(CONFIG_SUSE_KERNEL) &&			\
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)) || \
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
-		submit_bio(WRITE_FLUSH, bio);
-#else
-		bio_set_op_attrs(bio, REQ_OP_FLUSH, 0);
-		submit_bio(bio);
-#endif
-		goto out;
-	} else {
-#else
-	{
-#endif
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)           \
-    && !(defined(CONFIG_SUSE_KERNEL)                        \
-	 && LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 34))
-		res = blkdev_issue_flush(bdev, NULL);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
-		res = blkdev_issue_flush(bdev, gfp_mask, NULL, BLKDEV_IFL_WAIT);
-#else
-		res = blkdev_issue_flush(bdev, gfp_mask, NULL);
-#endif
-	}
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
-out_rep:
-#endif
-	if ((res != 0) && report_error)
-		PRINT_ERROR("%s() failed: %d",
-			async ? "bio_alloc" : "blkdev_issue_flush", res);
-
-	if (async && (cmd != NULL)) {
-		cmd->completed = 1;
-		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
-			scst_estimate_context());
-	}
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
-out:
-#endif
 	TRACE_EXIT_RES(res);
 	return res;
 }
