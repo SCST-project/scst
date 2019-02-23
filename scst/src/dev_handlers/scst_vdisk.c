@@ -311,11 +311,6 @@ static spinlock_t vdev_err_lock;
 static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 	bool report_error, struct scst_cmd *cmd, bool async);
 static enum compl_status_e vdev_verify(struct scst_cmd *cmd, loff_t loff);
-static enum compl_status_e vdisk_exec_read_capacity(struct vdisk_cmd_params *p);
-static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p);
-static enum compl_status_e vdisk_exec_get_lba_status(struct vdisk_cmd_params *p);
-static enum compl_status_e vdisk_exec_report_tpgs(struct vdisk_cmd_params *p);
-static enum compl_status_e vdisk_exec_set_tpgs(struct vdisk_cmd_params *p);
 static int vdisk_unmap_range(struct scst_cmd *cmd,
 	struct scst_vdisk_dev *virt_dev, uint64_t start_lba, uint32_t blocks);
 
@@ -1599,43 +1594,6 @@ static enum compl_status_e vdisk_exec_start_stop(struct vdisk_cmd_params *p)
 
 static enum compl_status_e vdisk_nop(struct vdisk_cmd_params *p)
 {
-	return CMD_SUCCEEDED;
-}
-
-static enum compl_status_e vdisk_exec_sai_16(struct vdisk_cmd_params *p)
-{
-	switch (p->cmd->cdb[1] & 0x1f) {
-	case SAI_READ_CAPACITY_16:
-		vdisk_exec_read_capacity16(p);
-		return CMD_SUCCEEDED;
-	case SAI_GET_LBA_STATUS:
-		return vdisk_exec_get_lba_status(p);
-	}
-	scst_set_invalid_field_in_cdb(p->cmd, 1,
-			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
-	return CMD_SUCCEEDED;
-}
-
-static enum compl_status_e vdisk_exec_maintenance_in(struct vdisk_cmd_params *p)
-{
-	switch (p->cmd->cdb[1] & 0x1f) {
-	case MI_REPORT_TARGET_PGS:
-		vdisk_exec_report_tpgs(p);
-		return CMD_SUCCEEDED;
-	}
-	scst_set_invalid_field_in_cdb(p->cmd, 1,
-			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
-	return CMD_SUCCEEDED;
-}
-
-static enum compl_status_e vdisk_exec_maintenance_out(struct vdisk_cmd_params *p)
-{
-	switch (p->cmd->cdb[1] & 0x1f) {
-	case MO_SET_TARGET_PGS:
-		return vdisk_exec_set_tpgs(p);
-	}
-	scst_set_invalid_field_in_cdb(p->cmd, 1,
-			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
 	return CMD_SUCCEEDED;
 }
 
@@ -4818,6 +4776,43 @@ static enum compl_status_e vdisk_exec_set_tpgs(struct vdisk_cmd_params *p)
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+}
+
+static enum compl_status_e vdisk_exec_sai_16(struct vdisk_cmd_params *p)
+{
+	switch (p->cmd->cdb[1] & 0x1f) {
+	case SAI_READ_CAPACITY_16:
+		vdisk_exec_read_capacity16(p);
+		return CMD_SUCCEEDED;
+	case SAI_GET_LBA_STATUS:
+		return vdisk_exec_get_lba_status(p);
+	}
+	scst_set_invalid_field_in_cdb(p->cmd, 1,
+			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+	return CMD_SUCCEEDED;
+}
+
+static enum compl_status_e vdisk_exec_maintenance_in(struct vdisk_cmd_params *p)
+{
+	switch (p->cmd->cdb[1] & 0x1f) {
+	case MI_REPORT_TARGET_PGS:
+		vdisk_exec_report_tpgs(p);
+		return CMD_SUCCEEDED;
+	}
+	scst_set_invalid_field_in_cdb(p->cmd, 1,
+			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+	return CMD_SUCCEEDED;
+}
+
+static enum compl_status_e vdisk_exec_maintenance_out(struct vdisk_cmd_params *p)
+{
+	switch (p->cmd->cdb[1] & 0x1f) {
+	case MO_SET_TARGET_PGS:
+		return vdisk_exec_set_tpgs(p);
+	}
+	scst_set_invalid_field_in_cdb(p->cmd, 1,
+			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+	return CMD_SUCCEEDED;
 }
 
 static enum compl_status_e vdisk_exec_read_toc(struct vdisk_cmd_params *p)
