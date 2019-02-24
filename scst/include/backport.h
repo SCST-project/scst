@@ -434,6 +434,14 @@ static inline ssize_t call_write_iter(struct file *file, struct kiocb *kio,
 }
 #endif
 
+/*
+ * See also commit b745fafaf70c ("fs: Introduce RWF_NOWAIT and
+ * FMODE_AIO_NOWAIT") # v4.13.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+#define IOCB_NOWAIT 0
+#endif
+
 /* See also commit bdd1d2d3d251 ("fs: fix kernel_read prototype") # v4.14 */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
 static inline ssize_t

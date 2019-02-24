@@ -3303,13 +3303,20 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 		.ki_complete = fileio_async_complete,
 	};
 	if (virt_dev->o_direct_flag)
-		iocb->ki_flags |= IOCB_DIRECT;
-	if (dir == WRITE) {
-		if (virt_dev->wt_flag && !virt_dev->nv_cache)
-			iocb->ki_flags |= IOCB_DSYNC;
-		ret = call_write_iter(fd, iocb, &iter);
-	} else {
-		ret = call_read_iter(fd, iocb, &iter);
+		iocb->ki_flags |= IOCB_DIRECT | IOCB_NOWAIT;
+	if (dir == WRITE && virt_dev->wt_flag && !virt_dev->nv_cache)
+		iocb->ki_flags |= IOCB_DSYNC;
+	for (;;) {
+		if (dir == WRITE)
+			ret = call_write_iter(fd, iocb, &iter);
+		else
+			ret = call_read_iter(fd, iocb, &iter);
+		if (ret >= 0 || (ret != -EOPNOTSUPP && ret != -EAGAIN))
+			break;
+		if (iocb->ki_flags & IOCB_NOWAIT)
+			iocb->ki_flags &= ~IOCB_NOWAIT;
+		else
+			break;
 	}
 	if (p->async.bvec != p->async.small_bvec)
 		kfree(p->async.bvec);
