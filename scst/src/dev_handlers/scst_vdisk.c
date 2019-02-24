@@ -5677,6 +5677,11 @@ static enum compl_status_e fileio_exec_var_len_cmd(struct vdisk_cmd_params *p)
 	return res;
 }
 
+/*
+ * Execute a SCSI write command against a file. If this function returns
+ * RUNNING_ASYNC the SCST command may already have completed before this
+ * function returns.
+ */
 static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
