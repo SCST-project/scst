@@ -3311,8 +3311,8 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 	} else {
 		ret = call_read_iter(fd, iocb, &iter);
 	}
-	if (p->async.kvec != p->async.small_kvec)
-		kfree(p->async.kvec);
+	if (p->async.bvec != p->async.small_bvec)
+		kfree(p->async.bvec);
 	if (ret != -EIOCBQUEUED)
 		fileio_async_complete(iocb, ret, 0);
 	/*
