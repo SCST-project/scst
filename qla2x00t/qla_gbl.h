@@ -79,7 +79,7 @@ extern void qla2x00_async_adisc_done(struct scsi_qla_host *, fc_port_t *,
 extern void *qla2x00_alloc_iocbs(struct scsi_qla_host *, srb_t *);
 
 extern fc_port_t *
-qla2x00_alloc_fcport(scsi_qla_host_t *, gfp_t );
+qla2x00_alloc_fcport(scsi_qla_host_t *, gfp_t);
 /*
  * Global Data in qla_os.c source file.
  */
@@ -150,7 +150,7 @@ extern void qla24xx_deallocate_vp_id(scsi_qla_host_t *);
 extern int qla24xx_init_vp(scsi_qla_host_t *);
 extern int qla24xx_disable_vp(scsi_qla_host_t *);
 extern int qla24xx_enable_vp(scsi_qla_host_t *);
-extern int qla24xx_control_vp(scsi_qla_host_t *, int );
+extern int qla24xx_control_vp(scsi_qla_host_t *, int);
 extern int qla24xx_modify_vp_config(scsi_qla_host_t *);
 extern int qla2x00_send_change_request(scsi_qla_host_t *, uint16_t, uint16_t);
 extern void qla2x00_vp_stop_timer(scsi_qla_host_t *);

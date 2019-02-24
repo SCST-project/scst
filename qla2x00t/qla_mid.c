@@ -502,7 +502,7 @@ qla24xx_create_vhost(struct fc_vport *fc_vport)
 	if (!vha) {
 		ql_log(ql_log_warn, vha, 0xa005,
 		    "scsi_host_alloc() failed for vport.\n");
-		return(NULL);
+		return NULL;
 	}
 
 	host = vha->host;

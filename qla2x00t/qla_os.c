@@ -130,7 +130,7 @@ MODULE_PARM_DESC(ql2xshiftctondsd,
 
 static void qla2x00_free_device(scsi_qla_host_t *);
 
-int ql2xfdmienable=1;
+int ql2xfdmienable = 1;
 module_param(ql2xfdmienable, int, S_IRUGO);
 MODULE_PARM_DESC(ql2xfdmienable,
 		"Enables FDMI registrations "
@@ -159,7 +159,7 @@ MODULE_PARM_DESC(ql2xenablehba_err_chk,
 		"  1 -- Error isolation enabled only for DIX Type 0\n"
 		"  2 -- Error isolation enabled for all Types\n");
 
-int ql2xiidmaenable=1;
+int ql2xiidmaenable = 1;
 module_param(ql2xiidmaenable, int, S_IRUGO);
 MODULE_PARM_DESC(ql2xiidmaenable,
 		"Enables iIDMA settings "
@@ -248,7 +248,7 @@ MODULE_PARM_DESC(ql2xmdenable,
 /*
  * SCSI host template entry points
  */
-static int qla2xxx_slave_configure(struct scsi_device * device);
+static int qla2xxx_slave_configure(struct scsi_device *device);
 static int qla2xxx_slave_alloc(struct scsi_device *);
 static int qla2xxx_scan_finished(struct Scsi_Host *, unsigned long time);
 static void qla2xxx_scan_start(struct Scsi_Host *);
@@ -316,8 +316,8 @@ struct scsi_host_template qla2xxx_driver_template = {
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 };
 
-static struct scsi_transport_template *qla2xxx_transport_template = NULL;
-struct scsi_transport_template *qla2xxx_transport_vport_template = NULL;
+static struct scsi_transport_template *qla2xxx_transport_template;
+struct scsi_transport_template *qla2xxx_transport_vport_template;
 
 /* TODO Convert to inlines
  *

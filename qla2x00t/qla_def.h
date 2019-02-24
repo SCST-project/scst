@@ -128,9 +128,9 @@
 #define RD_REG_BYTE_RELAXED(addr)	readb_relaxed(addr)
 #define RD_REG_WORD_RELAXED(addr)	readw_relaxed(addr)
 #define RD_REG_DWORD_RELAXED(addr)	readl_relaxed(addr)
-#define WRT_REG_BYTE(addr, data)	writeb(data,addr)
-#define WRT_REG_WORD(addr, data)	writew(data,addr)
-#define WRT_REG_DWORD(addr, data)	writel(data,addr)
+#define WRT_REG_BYTE(addr, data)	writeb(data, addr)
+#define WRT_REG_WORD(addr, data)	writew(data, addr)
+#define WRT_REG_DWORD(addr, data)	writel(data, addr)
 
 /*
  * The ISP2312 v2 chip cannot access the FLASH/GPIO registers via MMIO in an
@@ -1407,7 +1407,7 @@ typedef struct {
 	uint32_t dseg_0_length;		/* Data segment 0 length. */
 	uint32_t dseg_1_address[2];	/* Data segment 1 address. */
 	uint32_t dseg_1_length;		/* Data segment 1 length. */
-	uint32_t dseg_2_address	[2];	/* Data segment 2 address. */
+	uint32_t dseg_2_address[2];	/* Data segment 2 address. */
 	uint32_t dseg_2_length;		/* Data segment 2 length. */
 	uint32_t dseg_3_address[2];	/* Data segment 3 address. */
 	uint32_t dseg_3_length;		/* Data segment 3 length. */
@@ -2328,7 +2328,7 @@ struct isp_operations {
 	int (*get_flash_version) (struct scsi_qla_host *, void *);
 	int (*start_scsi) (srb_t *);
 	int (*abort_isp) (struct scsi_qla_host *);
-	int (*iospace_config)(struct qla_hw_data*);
+	int (*iospace_config)(struct qla_hw_data *);
 };
 
 /* MSI-X Support *************************************************************/

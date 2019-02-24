@@ -434,6 +434,14 @@ static inline ssize_t call_write_iter(struct file *file, struct kiocb *kio,
 }
 #endif
 
+/*
+ * See also commit b745fafaf70c ("fs: Introduce RWF_NOWAIT and
+ * FMODE_AIO_NOWAIT") # v4.13.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+#define IOCB_NOWAIT 0
+#endif
+
 /* See also commit bdd1d2d3d251 ("fs: fix kernel_read prototype") # v4.14 */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
 static inline ssize_t
@@ -444,21 +452,6 @@ kernel_read_backport(struct file *file, void *buf, size_t count, loff_t *pos)
 
 #define kernel_read(file, buf, count, pos)			\
 	kernel_read_backport((file), (buf), (count), (pos))
-
-/*
- * See also commit 7bb307e894d5 ("export kernel_write(), convert open-coded
- * instances") # v3.10.
- */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 10, 0) && !defined(RHEL_MAJOR)
-static inline ssize_t
-kernel_write_backport(struct file *file, void *buf, size_t count, loff_t *pos)
-{
-	return kernel_write(file, *pos, buf, count);
-}
-
-#define kernel_write(file, buf, count, pos)			\
-	kernel_write_backport((file), (buf), (count), (pos))
-#endif
 #endif
 
 /* <linux/iocontext.h> */
@@ -875,6 +868,10 @@ static inline void sg_mark_end(struct scatterlist *sg)
 {
 }
 
+static inline void sg_unmark_end(struct scatterlist *sg)
+{
+}
+
 #ifndef __BACKPORT_LINUX_SCATTERLIST_H_TO_2_6_23__
 
 static inline void sg_init_table(struct scatterlist *sgl, unsigned int nents)
@@ -902,6 +899,15 @@ static inline void sg_set_page(struct scatterlist *sg, struct page *page,
 #endif /* for_each_sg */
 
 #endif /* __BACKPORT_LINUX_SCATTERLIST_H_TO_2_6_23__ */
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
+/*
+ * See also commit c8164d8931fd ("scatterlist: introduce sg_unmark_end";
+ * v3.10).
+ */
+static inline void sg_unmark_end(struct scatterlist *sg)
+{
+	sg->page_link &= ~0x02;
+}
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) */
 
 /* <linux/slab.h> */

@@ -2148,7 +2148,7 @@ qla2x00_configure_hba(scsi_qla_host_t *vha)
 
 	ql_dbg(ql_dbg_disc, vha, 0x2012, "%s success\n", __func__);
 
-	return(rval);
+	return rval;
 }
 
 inline void
@@ -2620,7 +2620,7 @@ qla2x00_nvram_config(scsi_qla_host_t *vha)
 			ha->zio_mode = icb->add_firmware_options[0] &
 			    (BIT_3 | BIT_2 | BIT_1 | BIT_0);
 			ha->zio_timer = icb->interrupt_delay_timer ?
-			    icb->interrupt_delay_timer: 2;
+			    icb->interrupt_delay_timer : 2;
 		}
 		icb->add_firmware_options[0] &=
 		    ~(BIT_3 | BIT_2 | BIT_1 | BIT_0);
@@ -2653,7 +2653,7 @@ qla2x00_rport_del(void *data)
 	unsigned long flags;
 
 	spin_lock_irqsave(fcport->vha->host->host_lock, flags);
-	rport = fcport->drport ? fcport->drport: fcport->rport;
+	rport = fcport->drport ? fcport->drport : fcport->rport;
 	fcport->drport = NULL;
 	spin_unlock_irqrestore(fcport->vha->host->host_lock, flags);
 	if (rport) {
@@ -2771,9 +2771,9 @@ qla2x00_configure_loop(scsi_qla_host_t *vha)
 			ql_dbg(ql_dbg_disc, vha, 0x201e,
 			    "Needs RSCN update and loop transition.\n");
 			rval = QLA_FUNCTION_FAILED;
-		}
-		else
+		} else {
 			rval = qla2x00_configure_fabric(vha);
+		}
 	}
 
 	if (rval == QLA_SUCCESS) {
@@ -4625,11 +4625,11 @@ qla24xx_nvram_config(scsi_qla_host_t *vha)
 	ha->flags.disable_risc_code_load = 0;
 	ha->flags.enable_lip_reset = 0;
 	ha->flags.enable_lip_full_login =
-	    le32_to_cpu(nv->host_p) & BIT_10 ? 1: 0;
+	    le32_to_cpu(nv->host_p) & BIT_10 ? 1 : 0;
 	ha->flags.enable_target_reset =
-	    le32_to_cpu(nv->host_p) & BIT_11 ? 1: 0;
+	    le32_to_cpu(nv->host_p) & BIT_11 ? 1 : 0;
 	ha->flags.enable_led_scheme = 0;
-	ha->flags.disable_serdes = le32_to_cpu(nv->host_p) & BIT_5 ? 1: 0;
+	ha->flags.disable_serdes = le32_to_cpu(nv->host_p) & BIT_5 ? 1 : 0;
 
 	ha->operating_mode = (le32_to_cpu(icb->firmware_options_2) &
 	    (BIT_6 | BIT_5 | BIT_4)) >> 4;
@@ -4704,7 +4704,7 @@ qla24xx_nvram_config(scsi_qla_host_t *vha)
 		ha->zio_mode = le32_to_cpu(icb->firmware_options_2) &
 		    (BIT_3 | BIT_2 | BIT_1 | BIT_0);
 		ha->zio_timer = le16_to_cpu(icb->interrupt_delay_timer) ?
-		    le16_to_cpu(icb->interrupt_delay_timer): 2;
+		    le16_to_cpu(icb->interrupt_delay_timer) : 2;
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 	}
 	icb->firmware_options_2 &= cpu_to_le32(
@@ -5352,7 +5352,7 @@ qla84xx_init_chip(scsi_qla_host_t *vha)
 
 	mutex_unlock(&ha->cs84xx->fw_update_mutex);
 
-	return rval != QLA_SUCCESS || status[0] ? QLA_FUNCTION_FAILED:
+	return rval != QLA_SUCCESS || status[0] ? QLA_FUNCTION_FAILED :
 	    QLA_SUCCESS;
 }
 
@@ -5589,11 +5589,11 @@ qla81xx_nvram_config(scsi_qla_host_t *vha)
 	ha->flags.disable_risc_code_load = 0;
 	ha->flags.enable_lip_reset = 0;
 	ha->flags.enable_lip_full_login =
-	    le32_to_cpu(nv->host_p) & BIT_10 ? 1: 0;
+	    le32_to_cpu(nv->host_p) & BIT_10 ? 1 : 0;
 	ha->flags.enable_target_reset =
-	    le32_to_cpu(nv->host_p) & BIT_11 ? 1: 0;
+	    le32_to_cpu(nv->host_p) & BIT_11 ? 1 : 0;
 	ha->flags.enable_led_scheme = 0;
-	ha->flags.disable_serdes = le32_to_cpu(nv->host_p) & BIT_5 ? 1: 0;
+	ha->flags.disable_serdes = le32_to_cpu(nv->host_p) & BIT_5 ? 1 : 0;
 
 	ha->operating_mode = (le32_to_cpu(icb->firmware_options_2) &
 	    (BIT_6 | BIT_5 | BIT_4)) >> 4;
@@ -5669,7 +5669,7 @@ qla81xx_nvram_config(scsi_qla_host_t *vha)
 		ha->zio_mode = le32_to_cpu(icb->firmware_options_2) &
 		    (BIT_3 | BIT_2 | BIT_1 | BIT_0);
 		ha->zio_timer = le16_to_cpu(icb->interrupt_delay_timer) ?
-		    le16_to_cpu(icb->interrupt_delay_timer): 2;
+		    le16_to_cpu(icb->interrupt_delay_timer) : 2;
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 	}
 	icb->firmware_options_2 &= cpu_to_le32(
