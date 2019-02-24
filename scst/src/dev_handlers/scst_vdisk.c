@@ -3254,6 +3254,7 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 	struct iov_iter iter = { };
 	ssize_t length, total = 0;
 	struct kvec *kvec;
+	struct kiocb *iocb = &p->async.iocb;
 	uint8_t *address;
 	int dir, ret;
 
@@ -3295,24 +3296,24 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 	iov_iter_kvec(&iter, ITER_KVEC | dir, p->async.kvec,
 		      kvec - p->async.kvec, total);
 #endif
-	p->async.iocb = (struct kiocb) {
+	*iocb = (struct kiocb) {
 		.ki_pos = p->loff,
 		.ki_filp = fd,
 		.ki_complete = fileio_async_complete,
 	};
 	if (virt_dev->o_direct_flag)
-		p->async.iocb.ki_flags |= IOCB_DIRECT;
+		iocb->ki_flags |= IOCB_DIRECT;
 	if (dir == WRITE) {
 		if (virt_dev->wt_flag && !virt_dev->nv_cache)
-			p->async.iocb.ki_flags |= IOCB_DSYNC;
-		ret = call_write_iter(fd, &p->async.iocb, &iter);
+			iocb->ki_flags |= IOCB_DSYNC;
+		ret = call_write_iter(fd, iocb, &iter);
 	} else {
-		ret = call_read_iter(fd, &p->async.iocb, &iter);
+		ret = call_read_iter(fd, iocb, &iter);
 	}
 	if (p->async.kvec != p->async.small_kvec)
 		kfree(p->async.kvec);
 	if (ret != -EIOCBQUEUED)
-		fileio_async_complete(&p->async.iocb, ret, 0);
+		fileio_async_complete(iocb, ret, 0);
 	/*
 	 * Return RUNNING_ASYNC even if fileio_async_complete() has been
 	 * called because that function calls cmd->scst_cmd_done().
