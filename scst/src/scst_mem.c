@@ -1099,6 +1099,7 @@ success:
 	*sgv = obj;
 
 	obj->sg_entries[cnt-1].length -= PAGE_ALIGN(size) - size;
+	sg_mark_end(&obj->sg_entries[cnt-1]);
 
 	TRACE_MEM("obj=%p, sg_entries %p (size=%d, pages=%d, sg_count=%d, "
 		"count=%d, last_len=%d)", obj, obj->sg_entries, size, pages,
@@ -1224,6 +1225,7 @@ void sgv_pool_free(struct sgv_pool_obj *obj, struct scst_mem_lim *mem_lim)
 
 	if (obj->cache_num >= 0) {
 		obj->sg_entries[obj->orig_sg].length = obj->orig_length;
+		sg_unmark_end(&obj->sg_entries[obj->orig_sg]);
 		sgv_put_obj(obj);
 	} else {
 		obj->owner_pool->alloc_fns.free_pages_fn(obj->sg_entries,

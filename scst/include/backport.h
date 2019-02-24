@@ -868,6 +868,10 @@ static inline void sg_mark_end(struct scatterlist *sg)
 {
 }
 
+static inline void sg_unmark_end(struct scatterlist *sg)
+{
+}
+
 #ifndef __BACKPORT_LINUX_SCATTERLIST_H_TO_2_6_23__
 
 static inline void sg_init_table(struct scatterlist *sgl, unsigned int nents)
@@ -895,6 +899,15 @@ static inline void sg_set_page(struct scatterlist *sg, struct page *page,
 #endif /* for_each_sg */
 
 #endif /* __BACKPORT_LINUX_SCATTERLIST_H_TO_2_6_23__ */
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
+/*
+ * See also commit c8164d8931fd ("scatterlist: introduce sg_unmark_end";
+ * v3.10).
+ */
+static inline void sg_unmark_end(struct scatterlist *sg)
+{
+	sg->page_link &= ~0x02;
+}
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) */
 
 /* <linux/slab.h> */
