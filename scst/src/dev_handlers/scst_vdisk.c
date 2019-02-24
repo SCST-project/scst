@@ -3239,7 +3239,7 @@ static void fileio_async_complete(struct kiocb *iocb, long ret, long ret2)
 			scst_set_busy(cmd);
 		}
 	} else {
-		scst_set_resp_data_len(cmd, ret);
+		WARN_ON_ONCE(ret < scst_cmd_get_data_len(cmd));
 	}
 	cmd->completed = 1;
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
