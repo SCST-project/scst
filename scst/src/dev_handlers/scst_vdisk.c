@@ -7147,8 +7147,7 @@ static void vdev_check_node(struct scst_vdisk_dev **pvirt_dev, int orig_nodeid)
 		 * pointers in the virtual device that point to the virtual
 		 * device itself.
 		 */
-		INIT_WORK(&virt_dev->vdev_inq_changed_work,
-			  vdev_inq_changed_fn);
+		INIT_WORK(&v->vdev_inq_changed_work, vdev_inq_changed_fn);
 		*pvirt_dev = v;
 	}
 
