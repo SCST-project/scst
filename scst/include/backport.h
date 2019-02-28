@@ -664,17 +664,60 @@ static inline bool list_entry_in_list(const struct list_head *entry)
 
 /* <linux/kernel.h> */
 
-#if (!defined(CONFIG_SUSE_KERNEL) &&				\
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)) ||	\
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+#if LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(4, 4, 0) >> 8 &&	\
+	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 168)
+/*
+ * See also commit 8e50b8b07f46 ("mm: replace get_user_pages() write/force
+ * parameters with gup_flags") # v4.4.168.
+ */
 static inline long get_user_pages_backport(unsigned long start,
 					   unsigned long nr_pages,
-					   int write, int force,
+					   unsigned int gup_flags,
 					   struct page **pages,
 					   struct vm_area_struct **vmas)
 {
+	return get_user_pages(current, current->mm, start, nr_pages, gup_flags,
+			      pages, vmas);
+}
+#define get_user_pages get_user_pages_backport
+#elif !defined(CONFIG_SUSE_KERNEL) &&				\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+/*
+ * See also commit cde70140fed8 ("mm/gup: Overload get_user_pages() functions")
+ * # v4.6.
+ */
+static inline long get_user_pages_backport(unsigned long start,
+					   unsigned long nr_pages,
+					   unsigned int gup_flags,
+					   struct page **pages,
+					   struct vm_area_struct **vmas)
+{
+	const bool write = gup_flags & FOLL_WRITE;
+	const bool force = 0;
+
+	WARN_ON_ONCE(gup_flags & ~FOLL_WRITE);
 	return get_user_pages(current, current->mm, start, nr_pages, write,
 			      force, pages, vmas);
+}
+#define get_user_pages get_user_pages_backport
+#elif (!defined(CONFIG_SUSE_KERNEL) &&				\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)) ||	\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+/*
+ * See also commit 768ae309a961 ("mm: replace get_user_pages() write/force
+ * parameters with gup_flags") # v4.9.
+ */
+static inline long get_user_pages_backport(unsigned long start,
+					   unsigned long nr_pages,
+					   unsigned int gup_flags,
+					   struct page **pages,
+					   struct vm_area_struct **vmas)
+{
+	const bool write = gup_flags & FOLL_WRITE;
+	const bool force = 0;
+
+	WARN_ON_ONCE(gup_flags & ~FOLL_WRITE);
+	return get_user_pages(start, nr_pages, write, force, pages, vmas);
 }
 #define get_user_pages get_user_pages_backport
 #endif
