@@ -320,6 +320,109 @@ index d6d65537b0d9..6aad8308a0ac 100644
  }
 EOF
     fi
+    case "$1" in
+	3.19.*|4.[023567].*)
+	    patch -p1 <<'EOF'
+From c6a385539175ebc603da53aafb7753d39089f32e Mon Sep 17 00:00:00 2001
+From: Borislav Petkov <bp@suse.de>
+Date: Mon, 14 Nov 2016 19:41:31 +0100
+Subject: [PATCH] kbuild: Steal gcc's pie from the very beginning
+
+So Sebastian turned off the PIE for kernel builds but that was too late
+- Kbuild.include already uses KBUILD_CFLAGS and trying to disable gcc
+options with, say cc-disable-warning, fails:
+
+  gcc -D__KERNEL__ -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs
+  ...
+  -Wno-sign-compare -fno-asynchronous-unwind-tables -Wframe-address -c -x c /dev/null -o .31392.tmp
+  /dev/null:1:0: error: code model kernel does not support PIC mode
+
+because that returns an error and we can't disable the warning. For
+example in this case:
+
+KBUILD_CFLAGS   += $(call cc-disable-warning,frame-address,)
+
+which leads to gcc issuing all those warnings again.
+
+So let's turn off PIE/PIC at the earliest possible moment, when we
+declare KBUILD_CFLAGS so that cc-disable-warning picks it up too.
+
+Also, we need the $(call cc-option ...) because -fno-PIE is supported
+since gcc v3.4 and our lowest supported gcc version is 3.2 right now.
+
+Signed-off-by: Borislav Petkov <bp@suse.de>
+Cc: stable@vger.kernel.org
+Cc: Ben Hutchings <ben@decadent.org.uk>
+Cc: Sebastian Andrzej Siewior <bigeasy@linutronix.de>
+Signed-off-by: Michal Marek <mmarek@suse.com>
+---
+ Makefile | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/Makefile b/Makefile
+index 58fc5d935ce6..77ac3f88ec37 100644
+--- a/Makefile
++++ b/Makefile
+@@ -399,11 +399,12 @@ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
+ 		   -fno-strict-aliasing -fno-common \
+ 		   -Werror-implicit-function-declaration \
+ 		   -Wno-format-security \
+-		   -std=gnu89
++		   -std=gnu89 $(call cc-option,-fno-PIE)
++
+ 
+ KBUILD_AFLAGS_KERNEL :=
+ KBUILD_CFLAGS_KERNEL :=
+-KBUILD_AFLAGS   := -D__ASSEMBLY__
++KBUILD_AFLAGS   := -D__ASSEMBLY__ $(call cc-option,-fno-PIE)
+ KBUILD_AFLAGS_MODULE  := -DMODULE
+ KBUILD_CFLAGS_MODULE  := -DMODULE
+ KBUILD_LDFLAGS_MODULE := -T $(srctree)/scripts/module-common.lds
+EOF
+	    ;;
+	3.17.*)
+	    patch -p1 <<'EOF'
+diff --git a/Makefile b/Makefile
+index 656f0b0cff53..82c569c05d18 100644
+--- a/Makefile
++++ b/Makefile
+@@ -407,11 +407,11 @@ KBUILD_CPPFLAGS := -D__KERNEL__
+ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
+ 		   -fno-strict-aliasing -fno-common \
+ 		   -Werror-implicit-function-declaration \
+-		   -Wno-format-security
++		   -Wno-format-security $(call cc-option,-fno-PIE)
+ 
+ KBUILD_AFLAGS_KERNEL :=
+ KBUILD_CFLAGS_KERNEL :=
+-KBUILD_AFLAGS   := -D__ASSEMBLY__
++KBUILD_AFLAGS   := -D__ASSEMBLY__ $(call cc-option,-fno-PIE)
+ KBUILD_AFLAGS_MODULE  := -DMODULE
+ KBUILD_CFLAGS_MODULE  := -DMODULE
+ KBUILD_LDFLAGS_MODULE := -T $(srctree)/scripts/module-common.lds
+EOF
+	    ;;
+	3.[0-9].*|3.1[01345].*)
+	    patch -p1 <<'EOF'
+--- linux-3.15/Makefile.orig	2019-02-28 19:10:25.026779069 +0100
++++ linux-3.15/Makefile	2019-02-28 19:12:04.532860857 +0100
+@@ -395,11 +395,11 @@
+ KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
+ 		   -fno-strict-aliasing -fno-common \
+ 		   -Werror-implicit-function-declaration \
+-		   -Wno-format-security \
++		   -Wno-format-security $(call cc-option,-fno-PIE)\
+ 		   $(call cc-option,-fno-delete-null-pointer-checks,)
+ KBUILD_AFLAGS_KERNEL :=
+ KBUILD_CFLAGS_KERNEL :=
+-KBUILD_AFLAGS   := -D__ASSEMBLY__
++KBUILD_AFLAGS   := -D__ASSEMBLY__ $(call cc-option,-fno-PIE)
+ KBUILD_AFLAGS_MODULE  := -DMODULE
+ KBUILD_CFLAGS_MODULE  := -DMODULE
+ KBUILD_LDFLAGS_MODULE := -T $(srctree)/scripts/module-common.lds
+EOF
+	    ;;
+    esac
     # After patch-v4.14.1[12] has been applied, the execute bit has to be
     # set for sync-check.sh since patch can't do that.
     for f in "tools/objtool/sync-check.sh"; do
