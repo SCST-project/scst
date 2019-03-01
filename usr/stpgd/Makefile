@@ -65,7 +65,6 @@ install: all
 
 uninstall:
 	rm -f $(INSTALL_DIR)/$(PROGS)
-	rm -rf $(INSTALL_DIR)
 
 clean:
 	rm -f *.o $(PROGS) .depend*
