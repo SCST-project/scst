@@ -102,14 +102,12 @@ struct iscsi_thread_pool {
 struct iscsi_target;
 struct iscsi_cmnd;
 
-#ifndef CONFIG_SCST_PROC
 struct iscsi_attr {
 	struct list_head attrs_list_entry;
 	struct kobj_attribute attr;
 	struct iscsi_target *target;
 	const char *name;
 };
-#endif
 
 struct iscsi_target {
 	struct scst_tgt *scst_tgt;
@@ -123,10 +121,8 @@ struct iscsi_target {
 
 	unsigned int tgt_enabled:1;
 
-#ifndef CONFIG_SCST_PROC
 	/* Protected by target_mutex */
 	struct list_head attrs_list;
-#endif
 
 	char name[ISCSI_NAME_LEN];
 };
@@ -329,11 +325,9 @@ struct iscsi_conn {
 	spinlock_t nop_req_list_lock;
 	u32 nop_in_ttt;
 
-#ifndef CONFIG_SCST_PROC
 	/* Don't need any protection */
 	struct kobject conn_kobj;
 	struct completion *conn_kobj_release_cmpl;
-#endif /* CONFIG_SCST_PROC */
 };
 
 struct iscsi_pdu {
@@ -566,9 +560,7 @@ extern int iscsi_threads_pool_get(bool dedicated, const cpumask_t *cpu_mask,
 extern void iscsi_threads_pool_put(struct iscsi_thread_pool *p);
 
 /* conn.c */
-#ifndef CONFIG_SCST_PROC
 extern struct kobj_type iscsi_conn_ktype;
-#endif
 extern struct iscsi_conn *conn_lookup(struct iscsi_session *session, u16 cid);
 extern void conn_reinst_finished(struct iscsi_conn *conn);
 extern int __add_conn(struct iscsi_session *session,
@@ -582,9 +574,6 @@ extern void iscsi_make_conn_rd_active(struct iscsi_conn *conn);
 extern void __mark_conn_closed(struct iscsi_conn *conn, int flags);
 extern void mark_conn_closed(struct iscsi_conn *conn);
 extern void iscsi_make_conn_wr_active(struct iscsi_conn *conn);
-#ifdef CONFIG_SCST_PROC
-extern void conn_info_show(struct seq_file *seq, struct iscsi_session *session);
-#endif
 extern void iscsi_check_tm_data_wait_timeouts(struct iscsi_conn *conn,
 	bool force);
 extern void __iscsi_write_space_ready(struct iscsi_conn *conn);
@@ -597,16 +586,12 @@ extern void iscsi_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *scst_mcmd);
 extern void req_add_to_write_timeout_list(struct iscsi_cmnd *req);
 
 /* target.c */
-#ifdef CONFIG_SCST_PROC
-extern const struct seq_operations iscsi_seq_op;
-#else
 extern const struct attribute *iscsi_tgt_attrs[];
 extern int iscsi_enable_target(struct scst_tgt *scst_tgt, bool enable);
 extern bool iscsi_is_target_enabled(struct scst_tgt *scst_tgt);
 extern ssize_t iscsi_sysfs_send_event(uint32_t tid,
 	enum iscsi_kern_event_code code,
 	const char *param1, const char *param2, void **data);
-#endif
 extern struct iscsi_target *target_lookup_by_id(u32 id);
 extern int __add_target(struct iscsi_kern_target_info *info);
 extern int __del_target(u32 id);
@@ -619,23 +604,16 @@ extern void target_del_all_sess(struct iscsi_target *target, int flags);
 extern void target_del_all(void);
 
 /* config.c */
-#ifdef CONFIG_SCST_PROC
-extern int iscsi_procfs_init(void);
-extern void iscsi_procfs_exit(void);
-#else
 extern int conn_sysfs_add(struct iscsi_conn *conn);
 extern const struct attribute *iscsi_attrs[];
 extern int iscsi_add_attr(struct iscsi_target *target,
 	const struct iscsi_kern_attr *user_info);
 extern void __iscsi_del_attr(struct iscsi_target *target,
 	struct iscsi_attr *tgt_attr);
-#endif
 
 /* session.c */
-#ifndef CONFIG_SCST_PROC
 extern const struct attribute *iscsi_sess_attrs[];
 extern const struct attribute *iscsi_acg_attrs[];
-#endif
 extern const struct file_operations session_seq_fops;
 extern struct iscsi_session *session_lookup(struct iscsi_target *target,
 					    u64 sid);

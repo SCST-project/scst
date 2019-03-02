@@ -190,7 +190,6 @@ int kernel_target_destroy(u32 tid, u32 cookie)
 	return res;
 }
 
-#ifndef CONFIG_SCST_PROC
 
 int kernel_attr_add(struct target *target, const char *name, u32 mode,
 	u32 cookie)
@@ -242,7 +241,6 @@ int kernel_user_del(struct target *target, struct iscsi_attr *user, u32 cookie)
 	return kernel_attr_del(target, user->sysfs_name, cookie);
 }
 
-#endif /* CONFIG_SCST_PROC */
 
 int kernel_initiator_allowed(u32 tid, const char *full_initiator_name)
 {
@@ -369,12 +367,6 @@ int kernel_session_create(struct connection *conn)
 	info.exp_cmd_sn = conn->exp_cmd_sn;
 	strlcpy(info.initiator_name, conn->sess->initiator, sizeof(info.initiator_name));
 
-#ifdef CONFIG_SCST_PROC
-	if (conn->user != NULL)
-		strlcpy(info.user_name, conn->user, sizeof(info.user_name));
-	else
-		info.user_name[0] = '\0';
-#endif
 
 	iscsi_make_full_initiator_name(target->per_portal_acl,
 		conn->sess->initiator, conn->target_portal,

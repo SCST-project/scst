@@ -447,14 +447,8 @@ int target_add(struct target *target, u32 *tid, u32 cookie)
 	if (err != 0)
 		goto out;
 
-#ifdef CONFIG_SCST_PROC
-	target->tgt_enabled = 1;
-#endif
 	list_add_tail(&target->tlist, &targets_list);
 
-#ifdef CONFIG_SCST_PROC
-	isns_target_register(target->name);
-#endif
 
 out:
 	return err;

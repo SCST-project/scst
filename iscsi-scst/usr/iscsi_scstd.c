@@ -834,9 +834,6 @@ int main(int argc, char **argv)
 	gid_t gid = 0;
 	int err;
 
-#ifdef CONFIG_SCST_PROC
-	iscsi_enabled = 1;
-#endif
 
 	if (pipe(init_report_pipe) == -1) {
 		perror("pipe failed");
@@ -904,7 +901,6 @@ int main(int argc, char **argv)
 		exit(-1);
 	};
 
-#ifndef CONFIG_SCST_PROC
 	err = kernel_attr_add(NULL, ISCSI_ISNS_SERVER_ATTR_NAME,
 			S_IRUSR|S_IRGRP|S_IROTH|S_IWUSR, 0);
 	if (err != 0)
@@ -918,7 +914,6 @@ int main(int argc, char **argv)
 			S_IRUSR|S_IRGRP|S_IROTH|S_IWUSR, 0);
 	if (err != 0)
 		exit(err);
-#endif
 
 	if ((ipc_fd = iscsi_adm_request_listen()) < 0) {
 		perror("Opening AF_LOCAL socket failed");

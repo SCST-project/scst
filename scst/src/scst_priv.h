@@ -189,12 +189,7 @@ extern wait_queue_head_t scst_dev_cmd_waitQ;
 extern const struct scst_cl_ops scst_no_dlm_cl_ops;
 extern const struct scst_cl_ops scst_dlm_cl_ops;
 
-#ifdef CONFIG_SCST_PROC
-extern struct list_head scst_acg_list;
-extern struct scst_acg *scst_default_acg;
-#else
 extern unsigned int scst_setup_id;
-#endif
 
 #define SCST_DEF_MAX_TASKLET_CMD 10
 extern int scst_max_tasklet_cmd;
@@ -404,9 +399,6 @@ int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 		      unsigned int flags);
 
 int scst_acg_add_acn(struct scst_acg *acg, const char *name);
-#ifdef CONFIG_SCST_PROC
-int scst_acg_remove_name(struct scst_acg *acg, const char *name, bool reassign);
-#endif
 void scst_del_free_acn(struct scst_acn *acn, bool reassign);
 struct scst_acn *scst_find_acn(struct scst_acg *acg, const char *name);
 
@@ -501,7 +493,6 @@ int scst_tg_set_preferred(struct scst_target_group *tg, bool preferred);
 int scst_tg_tgt_add(struct scst_target_group *tg, const char *name);
 int scst_tg_tgt_remove_by_name(struct scst_target_group *tg, const char *name);
 void scst_tg_tgt_remove_by_tgt(struct scst_tgt *tgt);
-#ifndef CONFIG_SCST_PROC
 int scst_dg_sysfs_add(struct kobject *parent, struct scst_dev_group *dg);
 void scst_dg_sysfs_del(struct scst_dev_group *dg);
 void scst_tgt_sysfs_put(struct scst_tgt *tgt);
@@ -515,99 +506,7 @@ int scst_tg_tgt_sysfs_add(struct scst_target_group *tg,
 			  struct scst_tg_tgt *tg_tgt);
 void scst_tg_tgt_sysfs_del(struct scst_target_group *tg,
 			   struct scst_tg_tgt *tg_tgt);
-#else
-static inline int scst_dg_sysfs_add(struct kobject *parent,
-				    struct scst_dev_group *dg)
-{
-	return 0;
-}
-static inline void scst_dg_sysfs_del(struct scst_dev_group *dg)
-{
-}
-static inline int scst_dg_dev_sysfs_add(struct scst_dev_group *dg,
-					struct scst_dg_dev *dgdev)
-{
-	return 0;
-}
-static inline void scst_dg_dev_sysfs_del(struct scst_dev_group *dg,
-					 struct scst_dg_dev *dgdev)
-{
-}
-static inline int scst_tg_sysfs_add(struct scst_dev_group *dg,
-					struct scst_target_group *tg)
-{
-	return 0;
-}
-static inline void scst_tg_sysfs_del(struct scst_target_group *tg)
-{
-}
-static inline int scst_tg_tgt_sysfs_add(struct scst_target_group *tg,
-					struct scst_tg_tgt *tg_tgt)
-{
-	return 0;
-}
-static inline void scst_tg_tgt_sysfs_del(struct scst_target_group *tg,
-					 struct scst_tg_tgt *tg_tgt)
-{
-}
-#endif
 
-#ifdef CONFIG_SCST_PROC
-
-int scst_proc_init_module(void);
-void scst_proc_cleanup_module(void);
-int scst_build_proc_target_dir_entries(struct scst_tgt_template *vtt);
-void scst_cleanup_proc_target_dir_entries(struct scst_tgt_template *vtt);
-int scst_build_proc_target_entries(struct scst_tgt *vtt);
-void scst_cleanup_proc_target_entries(struct scst_tgt *vtt);
-int scst_build_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type);
-void scst_cleanup_proc_dev_handler_dir_entries(struct scst_dev_type *dev_type);
-
-static inline int scst_sysfs_init(void)
-{
-	return 0;
-}
-static inline void scst_sysfs_cleanup(void) { }
-
-static inline int scst_devt_dev_sysfs_create(struct scst_device *dev)
-{
-	return 0;
-}
-static inline void scst_devt_dev_sysfs_del(struct scst_device *dev) { }
-
-static inline void scst_dev_sysfs_del(struct scst_device *dev) { }
-
-static inline int scst_dev_sysfs_dif_create(struct scst_device *dev)
-{
-	return 0;
-}
-
-static inline int scst_tgt_dev_sysfs_create(struct scst_tgt_dev *tgt_dev)
-{
-	return 0;
-}
-static inline void scst_tgt_dev_sysfs_del(struct scst_tgt_dev *tgt_dev) { }
-
-static inline int scst_sess_sysfs_create(struct scst_session *sess)
-{
-	return 0;
-}
-
-static inline int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev,
-	struct kobject *parent)
-{
-	return 0;
-}
-
-static inline void scst_acg_dev_sysfs_del(struct scst_acg_dev *acg_dev) { }
-
-static inline int scst_acn_sysfs_create(struct scst_acn *acn)
-{
-	return 0;
-}
-static inline void scst_acn_sysfs_del(struct scst_acn *acn) { }
-
-#else /* CONFIG_SCST_PROC */
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
 extern const struct sysfs_ops scst_sysfs_ops;
@@ -644,7 +543,6 @@ void scst_acg_dev_sysfs_del(struct scst_acg_dev *acg_dev);
 int scst_acn_sysfs_create(struct scst_acn *acn);
 void scst_acn_sysfs_del(struct scst_acn *acn);
 
-#endif /* CONFIG_SCST_PROC */
 
 /*
  * Check SPC-2 reservation state.
@@ -897,7 +795,6 @@ static inline bool scst_lba1_inside_lba2(int64_t lba1,
 	return res;
 }
 
-#ifndef CONFIG_SCST_PROC
 
 void scst_cm_update_dev(struct scst_device *dev);
 int scst_cm_on_dev_register(struct scst_device *dev);
@@ -931,70 +828,6 @@ bool scst_cm_ec_cmd_overlap(struct scst_cmd *ec_cmd, struct scst_cmd *cmd);
 int scst_cm_init(void);
 void scst_cm_exit(void);
 
-#else /* #ifndef CONFIG_SCST_PROC */
-
-static inline void scst_cm_update_dev(struct scst_device *dev) {}
-static inline int scst_cm_on_dev_register(struct scst_device *dev) { return 0; }
-static inline void scst_cm_on_dev_unregister(struct scst_device *dev) {}
-
-static inline int scst_cm_on_add_acg(struct scst_acg *acg)
-{
-	return 0;
-}
-
-static inline void scst_cm_on_del_acg(struct scst_acg *acg)
-{
-}
-
-static inline int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun,
-				     unsigned int *flags)
-{
-	return 0;
-}
-
-static inline bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev,
-				      bool gen_report_luns_changed)
-{
-	return gen_report_luns_changed;
-}
-
-static inline int scst_cm_parse_descriptors(struct scst_cmd *cmd)
-{
-	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
-	scst_set_cmd_abnormal_done_state(cmd);
-	return -1;
-}
-static inline void scst_cm_free_descriptors(struct scst_cmd *cmd) {}
-
-static inline enum scst_exec_res scst_cm_ext_copy_exec(struct scst_cmd *cmd)
-{
-	return SCST_EXEC_NOT_COMPLETED;
-}
-
-static inline enum scst_exec_res scst_cm_rcv_copy_res_exec(struct scst_cmd *cmd)
-{
-	return SCST_EXEC_NOT_COMPLETED;
-}
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static inline void sess_cm_list_id_cleanup_work_fn(void *p) {}
-#else
-static inline void sess_cm_list_id_cleanup_work_fn(struct work_struct *work) {}
-#endif
-static inline void scst_cm_free_pending_list_ids(struct scst_session *sess) {}
-
-static inline bool scst_cm_check_block_all_devs(struct scst_cmd *cmd) { return false; }
-static inline void scst_cm_abort_ec_cmd(struct scst_cmd *ec_cmd) {}
-
-static inline bool scst_cm_ec_cmd_overlap(struct scst_cmd *ec_cmd, struct scst_cmd *cmd)
-{
-	return false;
-}
-
-static inline int scst_cm_init(void) { return 0; }
-static inline void scst_cm_exit(void) {}
-
-#endif /* #ifndef CONFIG_SCST_PROC */
 
 #ifdef CONFIG_SCST_DEBUG_TM
 extern void tm_dbg_check_released_cmds(void);

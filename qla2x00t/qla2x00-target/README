@@ -244,9 +244,7 @@ in/out in Makefile:
 Sysfs interface
 ---------------
 
-Starting from 2.0.0 this driver has sysfs interface. The procfs
-interface from version 2.0.0 is obsolete and will be removed in one of
-the next versions.
+Starting from 2.0.0 this driver has sysfs interface.
 
 Root of SCST sysfs interface is /sys/kernel/scst_tgt. Root of this
 driver is /sys/kernel/scst_tgt/targets/qla2x00t. It has the following

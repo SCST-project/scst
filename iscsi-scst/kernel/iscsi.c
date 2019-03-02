@@ -4025,7 +4025,6 @@ out_err:
 	return;
 }
 
-#ifndef CONFIG_SCST_PROC
 static int iscsi_close_sess(struct scst_session *scst_sess)
 {
 	struct iscsi_session *sess = scst_sess_get_tgt_priv(scst_sess);
@@ -4043,7 +4042,6 @@ static int iscsi_close_sess(struct scst_session *scst_sess)
 out:
 	return res;
 }
-#endif
 
 static int iscsi_target_release(struct scst_tgt *scst_tgt)
 {
@@ -4077,7 +4075,6 @@ struct scst_tgt_template iscsi_template = {
 	.threads_num = 0,
 	.no_clustering = 1,
 	.xmit_response_atomic = 0,
-#ifndef CONFIG_SCST_PROC
 	.tgtt_attrs = iscsi_attrs,
 	.tgt_attrs = iscsi_tgt_attrs,
 	.sess_attrs = iscsi_sess_attrs,
@@ -4090,7 +4087,6 @@ struct scst_tgt_template iscsi_template = {
 	.close_session = iscsi_close_sess,
 	.tgtt_optional_attributes = "IncomingUser, OutgoingUser",
 	.tgt_optional_attributes = "IncomingUser, OutgoingUser, allowed_portal",
-#endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags = ISCSI_DEFAULT_LOG_FLAGS,
 	.trace_flags = &trace_flag,
@@ -4370,13 +4366,7 @@ static int __init iscsi_init(void)
 	if (err < 0)
 		goto out_kmem;
 
-#ifdef CONFIG_SCST_PROC
-	err = iscsi_procfs_init();
-	if (err < 0)
-		goto out_reg_tmpl;
-#else
 	iscsi_conn_ktype.sysfs_ops = scst_sysfs_get_sysfs_ops();
-#endif
 
 	err = iscsi_threads_pool_get(false, NULL, &iscsi_main_thread_pool);
 	if (err != 0)
@@ -4386,13 +4376,7 @@ out:
 	return err;
 
 out_thr:
-#ifdef CONFIG_SCST_PROC
-	iscsi_procfs_exit();
-#endif
 
-#ifdef CONFIG_SCST_PROC
-out_reg_tmpl:
-#endif
 	scst_unregister_target_template(&iscsi_template);
 
 out_kmem:
@@ -4429,9 +4413,6 @@ static void __exit iscsi_exit(void)
 
 	unregister_chrdev(ctr_major, ctr_name);
 
-#ifdef CONFIG_SCST_PROC
-	iscsi_procfs_exit();
-#endif
 	event_exit();
 
 	kmem_cache_destroy(iscsi_sess_cache);

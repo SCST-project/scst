@@ -57,10 +57,7 @@ your compiler complains about redefinition of some symbol, you should
 either switch to vanilla kernel, or add or change as necessary the
 corresponding to that symbol "#if LINUX_VERSION_CODE" statement.
 
-Default sysfs interface supports only kernels 2.6.26 and higher, because
-in 2.6.26 internal kernel's sysfs interface had a major change, which
-made it heavily incompatible with pre-2.6.26 version. But with the
-obsolete procfs interface kernels 2.6.16+ are supported.
+Kernel version 2.6.26 and higher are supported.
 
 At first, make sure that the link "/lib/modules/`you_kernel_version`/build"
 points to the source code for your currently running kernel.
@@ -413,8 +410,7 @@ SCST sysfs interface
 Starting from 2.0.0 SCST has sysfs interface. It supports only kernels
 2.6.26 and higher, because in 2.6.26 internal kernel's sysfs interface
 had a major change, which made it heavily incompatible with pre-2.6.26
-version. If you need pre-2.6.26 kernel, you need to use obsolete procfs
-interface (see below).
+version.
 
 SCST sysfs interface designed to be self descriptive and self
 containing. This means that a high level management tool for it can be
@@ -1101,9 +1097,7 @@ created, i.e. before the target enabled.
 VDISK device handler
 --------------------
 
-Starting from 2.0.0 VDISK device handler uses sysfs interface. The
-procfs interface is obsolete and will be removed in one of the next
-versions.
+Starting from 2.0.0 VDISK device handler uses sysfs interface.
 
 VDISK has 4 built-in dev handlers: vdisk_fileio, vdisk_blockio,
 vdisk_nullio and vcdrom. Roots of their sysfs interface are
@@ -1574,11 +1568,6 @@ with suffix ".1". Those backup files are used in case of power or other
 failure to prevent Persistent Reservation information from corruption
 during update. It is safe to assume that each of those files can be up
 to 1KB big.
-
-The "Persistence Through Power Loss" feature is not available in the
-procfs build, because the SCST proc interface doesn't allow to keep
-persistent Relative Target IDs of each target between reboots/reloads
-(they are load and initialization order dependent).
 
 The Persistent Reservations available on all transports implementing
 get_initiator_port_transport_id() callback. Transports not implementing

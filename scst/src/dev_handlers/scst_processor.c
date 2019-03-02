@@ -172,28 +172,15 @@ static int __init processor_init(void)
 	if (res < 0)
 		goto out;
 
-#ifdef CONFIG_SCST_PROC
-	res = scst_dev_handler_build_std_proc(&processor_devtype);
-	if (res != 0)
-		goto out_err;
-#endif
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-#ifdef CONFIG_SCST_PROC
-out_err:
-	scst_unregister_dev_driver(&processor_devtype);
-	goto out;
-#endif
 }
 
 static void __exit processor_exit(void)
 {
 	TRACE_ENTRY();
-#ifdef CONFIG_SCST_PROC
-	scst_dev_handler_destroy_std_proc(&processor_devtype);
-#endif
 	scst_unregister_dev_driver(&processor_devtype);
 	TRACE_EXIT();
 	return;

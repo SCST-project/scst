@@ -263,11 +263,9 @@ int isert_conn_alloc(struct iscsi_session *session,
 	if (unlikely(res))
 		goto cleanup_iscsi_conn;
 
-#ifndef CONFIG_SCST_PROC
 	res = conn_sysfs_add(conn);
 	if (unlikely(res))
 		goto cleanup_iscsi_conn;
-#endif
 
 	list_add_tail(&conn->conn_list_entry, &session->conn_list);
 

@@ -99,9 +99,7 @@ the scstadmin tool as follows:
 Now configure SCST using scstadmin - see also the scstadmin documentation for
 further information. Once finished, save the configuration to /etc/scst.conf:
 
-  scstadmin -write_config /etc/scst.conf  (sysfs version)
-or
-  scstadmin -WriteConfig /etc/scst.conf   (procfs version)
+  scstadmin -write_config /etc/scst.conf
 
 One can verify the contents of scst.conf e.g. as follows:
 

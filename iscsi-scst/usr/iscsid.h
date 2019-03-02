@@ -332,7 +332,6 @@ extern int kernel_params_set(u32 tid, u64 sid, int type, u32 partial,
 	const struct iscsi_param *params);
 extern int kernel_target_create(struct target *target, u32 *tid, u32 cookie);
 extern int kernel_target_destroy(u32 tid, u32 cookie);
-#ifndef CONFIG_SCST_PROC
 extern int kernel_user_add(struct target *target, struct iscsi_attr *attr,
 		u32 cookie);
 extern int kernel_user_del(struct target *target, struct iscsi_attr *attr,
@@ -340,7 +339,6 @@ extern int kernel_user_del(struct target *target, struct iscsi_attr *attr,
 extern int kernel_attr_add(struct target *target, const char *name,
 	u32 mode, u32 cookie);
 extern int kernel_attr_del(struct target *target, const char *name, u32 cookie);
-#endif
 extern int kernel_initiator_allowed(u32 tid, const char *initiator_name);
 extern int kernel_session_create(struct connection *conn);
 extern int kernel_session_destroy(u32 tid, u64 sid);

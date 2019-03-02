@@ -93,9 +93,7 @@ static int iscsi_target_create(struct iscsi_kern_target_info *info, u32 tid,
 
 	mutex_init(&target->target_mutex);
 	INIT_LIST_HEAD(&target->session_list);
-#ifndef CONFIG_SCST_PROC
 	INIT_LIST_HEAD(&target->attrs_list);
-#endif
 
 	target->scst_tgt = scst_register_target(&iscsi_template, target->name);
 	if (!target->scst_tgt) {
@@ -132,11 +130,9 @@ int __add_target(struct iscsi_kern_target_info *info)
 		struct iscsi_kern_params_info params_info;
 		struct iscsi_kern_attr attr_info;
 	} *add_info;
-#ifndef CONFIG_SCST_PROC
 	int i, rc;
 	unsigned long attrs_ptr_long;
 	struct iscsi_kern_attr __user *attrs_ptr;
-#endif
 
 	lockdep_assert_held(&target_mgmt_mutex);
 
@@ -180,7 +176,6 @@ int __add_target(struct iscsi_kern_target_info *info)
 
 	nr_targets++;
 
-#ifndef CONFIG_SCST_PROC
 	{
 	struct iscsi_kern_attr *attr_info = &add_info->attr_info;
 
@@ -210,7 +205,6 @@ int __add_target(struct iscsi_kern_target_info *info)
 
 	mutex_unlock(&target->target_mutex);
 	}
-#endif
 
 	err = tid;
 
@@ -220,28 +214,22 @@ out_free:
 out:
 	return err;
 
-#ifndef CONFIG_SCST_PROC
 out_del_unlock:
 	mutex_unlock(&target->target_mutex);
 	__del_target(tid);
 	goto out_free;
-#endif
 }
 
 static void target_destroy(struct iscsi_target *target)
 {
-#ifndef CONFIG_SCST_PROC
 	struct iscsi_attr *attr, *t;
-#endif
 
 	TRACE_MGMT_DBG("Destroying target tid %u", target->tid);
 
-#ifndef CONFIG_SCST_PROC
 	list_for_each_entry_safe(attr, t, &target->attrs_list,
 				attrs_list_entry) {
 		__iscsi_del_attr(target, attr);
 	}
-#endif
 
 	scst_unregister_target(target->scst_tgt);
 
@@ -408,76 +396,6 @@ void target_del_all(void)
 	return;
 }
 
-#ifdef CONFIG_SCST_PROC
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5 && RHEL_MINOR -0 <= 6)
-static struct list_head *seq_list_start(struct list_head *head, loff_t pos)
-{
-	struct list_head *lh;
-
-	list_for_each(lh, head)
-		if (pos-- == 0)
-			return lh;
-
-	return NULL;
-}
-
-static struct list_head *seq_list_next(void *v, struct list_head *head,
-				       loff_t *ppos)
-{
-	struct list_head *lh;
-
-	lh = ((struct list_head *)v)->next;
-	++*ppos;
-	return lh == head ? NULL : lh;
-}
-#endif
-
-static void *iscsi_seq_start(struct seq_file *m, loff_t *pos)
-{
-	int err;
-
-	err = mutex_lock_interruptible(&target_mgmt_mutex);
-	if (err < 0)
-		return ERR_PTR(err);
-
-	return seq_list_start(&target_list, *pos);
-}
-
-static void *iscsi_seq_next(struct seq_file *m, void *v, loff_t *pos)
-{
-	return seq_list_next(v, &target_list, pos);
-}
-
-static void iscsi_seq_stop(struct seq_file *m, void *v)
-{
-	mutex_unlock(&target_mgmt_mutex);
-}
-
-static int iscsi_seq_show(struct seq_file *m, void *p)
-{
-	iscsi_show_info_t *func = (iscsi_show_info_t *)m->private;
-	struct iscsi_target *target =
-		list_entry(p, struct iscsi_target, target_list_entry);
-
-	seq_printf(m, "tid:%u name:%s\n", target->tid, target->name);
-
-	mutex_lock(&target->target_mutex);
-	func(m, target);
-	mutex_unlock(&target->target_mutex);
-
-	return 0;
-}
-
-const struct seq_operations iscsi_seq_op = {
-	.start = iscsi_seq_start,
-	.next = iscsi_seq_next,
-	.stop = iscsi_seq_stop,
-	.show = iscsi_seq_show,
-};
-
-#else /* CONFIG_SCST_PROC */
 
 static ssize_t iscsi_tgt_tid_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
@@ -710,4 +628,3 @@ const struct attribute *iscsi_acg_attrs[] = {
 	NULL,
 };
 
-#endif /* CONFIG_SCST_PROC */
