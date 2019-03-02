@@ -94,11 +94,9 @@ static struct kmem_cache *sgv_pool_cachep;
  */
 static LIST_HEAD(sgv_pools_list);
 
-#ifndef CONFIG_SCST_PROC
 static struct kobject *scst_sgv_kobj;
 static int scst_sgv_sysfs_create(struct sgv_pool *pool);
 static void scst_sgv_sysfs_del(struct sgv_pool *pool);
-#endif
 
 static inline bool sgv_pool_clustered(const struct sgv_pool *pool)
 {
@@ -1468,11 +1466,9 @@ static int sgv_pool_init(struct sgv_pool *pool, const char *name,
 	list_add_tail(&pool->sgv_pools_list_entry, &sgv_pools_list);
 	spin_unlock_bh(&sgv_pools_lock);
 
-#ifndef CONFIG_SCST_PROC
 	res = scst_sgv_sysfs_create(pool);
 	if (res != 0)
 		goto out_del;
-#endif
 
 	res = 0;
 
@@ -1480,14 +1476,12 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-#ifndef CONFIG_SCST_PROC
 out_del:
 	spin_lock_bh(&sgv_pools_lock);
 	list_del(&pool->sgv_pools_list_entry);
 	spin_unlock_bh(&sgv_pools_lock);
 
 	synchronize_rcu();
-#endif
 
 out_free:
 	for (i = 0; i < pool->max_caches; i++) {
@@ -1567,9 +1561,7 @@ static void sgv_pool_destroy(struct sgv_pool *pool)
 
 	synchronize_rcu();
 
-#ifndef CONFIG_SCST_PROC
 	scst_sgv_sysfs_del(pool);
-#endif
 
 	cancel_delayed_work_sync(&pool->sgv_purge_work);
 
@@ -1918,104 +1910,6 @@ void scst_sgv_pools_deinit(void)
 	return;
 }
 
-#ifdef CONFIG_SCST_PROC
-
-static void sgv_do_proc_read(struct seq_file *seq, const struct sgv_pool *pool)
-{
-	int i, total = 0, hit = 0, merged = 0, allocated = 0;
-	int oa, om;
-
-	for (i = 0; i < pool->max_caches; i++) {
-		int t;
-
-		hit += atomic_read(&pool->cache_acc[i].hit_alloc);
-		total += atomic_read(&pool->cache_acc[i].total_alloc);
-
-		t = atomic_read(&pool->cache_acc[i].total_alloc) -
-			atomic_read(&pool->cache_acc[i].hit_alloc);
-		if (pool->single_alloc_pages == 0)
-			allocated += t * (1 << i);
-		else
-			allocated += t * pool->single_alloc_pages;
-		merged += atomic_read(&pool->cache_acc[i].merged);
-	}
-
-	seq_printf(seq, "\n%-30s %-11d %-11d %-11d %d/%d/%d\n", pool->name,
-		hit, total, (allocated != 0) ? merged*100/allocated : 0,
-		pool->cached_pages, pool->inactive_cached_pages,
-		pool->cached_entries);
-
-	for (i = 0; i < pool->max_caches; i++) {
-		int t = atomic_read(&pool->cache_acc[i].total_alloc) -
-			atomic_read(&pool->cache_acc[i].hit_alloc);
-		if (pool->single_alloc_pages == 0)
-			allocated = t * (1 << i);
-		else
-			allocated = t * pool->single_alloc_pages;
-		merged = atomic_read(&pool->cache_acc[i].merged);
-
-		seq_printf(seq, "  %-28s %-11d %-11d %d\n",
-			pool->cache_names[i],
-			atomic_read(&pool->cache_acc[i].hit_alloc),
-			atomic_read(&pool->cache_acc[i].total_alloc),
-			(allocated != 0) ? merged*100/allocated : 0);
-	}
-
-	allocated = atomic_read(&pool->big_pages);
-	merged = atomic_read(&pool->big_merged);
-	oa = atomic_read(&pool->other_pages);
-	om = atomic_read(&pool->other_merged);
-
-	seq_printf(seq, "  %-40s %d/%-9d %d/%d\n", "big/other",
-		atomic_read(&pool->big_alloc), atomic_read(&pool->other_alloc),
-		(allocated != 0) ? merged*100/allocated : 0,
-		(oa != 0) ? om/oa : 0);
-
-	return;
-}
-
-int sgv_procinfo_show(struct seq_file *seq, void *v)
-{
-	struct sgv_pool *pool;
-	int inactive_pages = 0;
-
-	TRACE_ENTRY();
-
-	spin_lock_bh(&sgv_pools_lock);
-	list_for_each_entry(pool, &sgv_pools_list, sgv_pools_list_entry) {
-		inactive_pages += pool->inactive_cached_pages;
-	}
-	spin_unlock_bh(&sgv_pools_lock);
-
-#ifndef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
-	seq_printf(seq, "%-42s %d/%d\n%-42s %d/%d\n%-42s %d/%d\n\n",
-		"Inactive/active pages", inactive_pages,
-		atomic_read(&sgv_pages_total) - inactive_pages,
-		"Hi/lo watermarks [pages]", sgv_hi_wmk, sgv_lo_wmk,
-		"Hi watermark releases/failures",
-		atomic_read(&sgv_releases_on_hiwmk),
-		atomic_read(&sgv_releases_on_hiwmk_failed));
-#endif
-
-	seq_printf(seq, "%-30s %-11s %-11s %-11s %-11s", "Name", "Hit", "Total",
-		"% merged", "Cached (P/I/O)");
-
-	mutex_lock(&sgv_pools_mutex);
-	list_for_each_entry(pool, &sgv_pools_list, sgv_pools_list_entry) {
-		sgv_do_proc_read(seq, pool);
-	}
-	mutex_unlock(&sgv_pools_mutex);
-
-#ifndef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
-	seq_printf(seq, "\n%-42s %-11d\n", "other",
-		atomic_read(&sgv_other_total_alloc));
-#endif
-
-	TRACE_EXIT();
-	return 0;
-}
-
-#else /* CONFIG_SCST_PROC */
 
 static ssize_t sgv_sysfs_stat_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
@@ -2268,4 +2162,3 @@ void scst_del_put_sgv_kobj(void)
 	scst_sgv_kobj = NULL;
 }
 
-#endif /* CONFIG_SCST_PROC */

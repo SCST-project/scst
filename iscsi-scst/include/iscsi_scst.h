@@ -97,9 +97,6 @@ struct iscsi_kern_session_info {
 	u32 tid;
 	aligned_u64 sid;
 	char initiator_name[ISCSI_NAME_LEN];
-#ifdef CONFIG_SCST_PROC
-	char user_name[ISCSI_NAME_LEN];
-#endif
 	char full_initiator_name[ISCSI_FULL_NAME_LEN];
 	u32 exp_cmd_sn;
 	s32 session_params[session_key_last];
@@ -145,7 +142,6 @@ struct iscsi_kern_params_info {
 };
 
 enum iscsi_kern_event_code {
-#ifndef CONFIG_SCST_PROC
 	E_ADD_TARGET,
 	E_DEL_TARGET,
 	E_MGMT_CMD,
@@ -153,7 +149,6 @@ enum iscsi_kern_event_code {
 	E_DISABLE_TARGET,
 	E_GET_ATTR_VALUE,
 	E_SET_ATTR_VALUE,
-#endif
 	E_CONN_CLOSE,
 };
 
@@ -217,11 +212,9 @@ struct iscsi_kern_initiator_info {
 #define ISCSI_PARAM_SET		_IOW('s', 7, struct iscsi_kern_params_info)
 #define ISCSI_PARAM_GET		_IOWR('s', 8, struct iscsi_kern_params_info)
 
-#ifndef CONFIG_SCST_PROC
 #define ISCSI_ATTR_ADD		_IOW('s', 9, struct iscsi_kern_attr_info)
 #define ISCSI_ATTR_DEL		_IOW('s', 10, struct iscsi_kern_attr_info)
 #define MGMT_CMD_CALLBACK	_IOW('s', 11, struct iscsi_kern_mgmt_cmd_res_info)
-#endif
 
 #define ISCSI_INITIATOR_ALLOWED	_IOW('s', 12, struct iscsi_kern_initiator_info)
 

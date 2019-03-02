@@ -45,11 +45,7 @@
  */
 #define SCST_VERSION(a, b, c, d)    (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
 #define SCST_VERSION_CODE	    SCST_VERSION(3, 4, 0, 0)
-#ifdef CONFIG_SCST_PROC
-#define SCST_VERSION_STRING_SUFFIX  "-procfs"
-#else
 #define SCST_VERSION_STRING_SUFFIX
-#endif
 #define SCST_VERSION_NAME	    "3.4.0-pre1"
 #define SCST_VERSION_STRING	    SCST_VERSION_NAME SCST_VERSION_STRING_SUFFIX
 
@@ -249,14 +245,6 @@ typedef enum scst_data_direction {
 
 #define SCST_DATA_DIR_MAX		(SCST_DATA_NONE+1)
 
-#ifdef CONFIG_SCST_PROC
-
-/*************************************************************
- ** Name of the "Default" security group
- *************************************************************/
-#define SCST_DEFAULT_ACG_NAME			"Default"
-
-#endif
 
 /*************************************************************
  ** Default suffix for targets with NULL names

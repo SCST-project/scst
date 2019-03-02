@@ -101,12 +101,7 @@ struct kmem_cache *scst_sess_cachep;
 struct kmem_cache *scst_acgd_cachep;
 static struct kmem_cache *scst_thr_cachep;
 
-#ifdef CONFIG_SCST_PROC
-struct list_head scst_acg_list;
-struct scst_acg *scst_default_acg;
-#else
 unsigned int scst_setup_id;
-#endif
 
 spinlock_t scst_init_lock;
 wait_queue_head_t scst_init_cmd_list_waitQ;
@@ -268,7 +263,6 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 		goto out;
 	}
 
-#ifndef CONFIG_SCST_PROC
 	if ((!vtt->enable_target || !vtt->is_target_enabled) &&
 	    !vtt->enabled_attr_not_needed)
 		PRINT_WARNING("Target driver %s doesn't have enable_target() "
@@ -284,7 +278,6 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 		res = -EINVAL;
 		goto out;
 	}
-#endif
 
 	if (vtt->rdy_to_xfer == NULL)
 		vtt->rdy_to_xfer_atomic = 1;
@@ -301,17 +294,9 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 	}
 	mutex_unlock(&scst_mutex);
 
-#ifndef CONFIG_SCST_PROC
 	res = scst_tgtt_sysfs_create(vtt);
 	if (res != 0)
 		goto out;
-#else
-	if (!vtt->no_proc_entry) {
-		res = scst_build_proc_target_dir_entries(vtt);
-		if (res < 0)
-			goto out;
-	}
-#endif
 
 	mutex_lock(&scst_mutex);
 	mutex_lock(&scst_mutex2);
@@ -335,11 +320,7 @@ out:
 	return res;
 
 out_del:
-#ifdef CONFIG_SCST_PROC
-	scst_cleanup_proc_target_dir_entries(vtt);
-#else
 	scst_tgtt_sysfs_del(vtt);
-#endif
 
 	mutex_lock(&scst_mutex);
 
@@ -440,14 +421,12 @@ void scst_unregister_target_template(struct scst_tgt_template *vtt)
 	list_del(&vtt->scst_template_list_entry);
 	mutex_unlock(&scst_mutex2);
 
-#ifndef CONFIG_SCST_PROC
 	/* Wait for outstanding sysfs mgmt calls completed */
 	while (vtt->tgtt_active_sysfs_works_count > 0) {
 		mutex_unlock(&scst_mutex);
 		msleep(100);
 		mutex_lock(&scst_mutex);
 	}
-#endif
 
 	while (!list_empty(&vtt->tgt_list)) {
 		tgt = list_first_entry(&vtt->tgt_list, typeof(*tgt),
@@ -459,11 +438,7 @@ void scst_unregister_target_template(struct scst_tgt_template *vtt)
 
 	mutex_unlock(&scst_mutex);
 
-#ifdef CONFIG_SCST_PROC
-	scst_cleanup_proc_target_dir_entries(vtt);
-#else
 	scst_tgtt_sysfs_del(vtt);
-#endif
 
 	PRINT_INFO("Target template %s unregistered successfully", vtt->name);
 
@@ -496,18 +471,6 @@ struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 		goto out;
 
 	if (target_name != NULL) {
-#ifdef CONFIG_SCST_PROC
-		tgt->default_group_name = kasprintf(GFP_KERNEL, "%s_%s",
-						    SCST_DEFAULT_ACG_NAME,
-						    target_name);
-		if (tgt->default_group_name == NULL) {
-			PRINT_ERROR("Allocation of default "
-				"group name failed (tgt %s)", target_name);
-			rc = -ENOMEM;
-			goto out_free_tgt;
-		}
-		/* In case of error default_group_name will be freed in scst_free_tgt() */
-#endif
 
 		tgt->tgt_name = kstrdup(target_name, GFP_KERNEL);
 		if (tgt->tgt_name == NULL) {
@@ -548,11 +511,6 @@ struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 		}
 	}
 
-#ifdef CONFIG_SCST_PROC
-	rc = scst_build_proc_target_entries(tgt);
-	if (rc < 0)
-		goto out_unlock;
-#else
 	rc = scst_tgt_sysfs_create(tgt);
 	if (rc < 0)
 		goto out_unlock;
@@ -560,7 +518,6 @@ struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 	rc = scst_alloc_add_acg(tgt, tgt->tgt_name, false, &tgt->default_acg);
 	if (rc != 0)
 		goto out_sysfs_del;
-#endif
 
 	mutex_lock(&scst_mutex2);
 	list_add_tail(&tgt->tgt_list_entry, &vtt->tgt_list);
@@ -568,13 +525,8 @@ struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 
 	mutex_unlock(&scst_mutex);
 
-#ifdef CONFIG_SCST_PROC
-	PRINT_INFO("Target %s (relative target id %d) for template %s registered "
-		"successfully", tgt->tgt_name, tgt->rel_tgt_id, vtt->name);
-#else
 	PRINT_INFO("Target %s for template %s registered successfully",
 		tgt->tgt_name, vtt->name);
-#endif
 
 	TRACE_DBG("tgt %p", tgt);
 
@@ -582,12 +534,10 @@ out:
 	TRACE_EXIT();
 	return tgt;
 
-#ifndef CONFIG_SCST_PROC
 out_sysfs_del:
 	mutex_unlock(&scst_mutex);
 	scst_tgt_sysfs_del(tgt);
 	goto out_free_tgt;
-#endif
 
 out_unlock:
 	mutex_unlock(&scst_mutex);
@@ -609,9 +559,7 @@ EXPORT_SYMBOL(scst_register_target);
 void scst_unregister_target(struct scst_tgt *tgt)
 {
 	struct scst_tgt_template *vtt = tgt->tgtt;
-#ifndef CONFIG_SCST_PROC
 	struct scst_acg *acg, *acg_tmp;
-#endif
 
 	TRACE_ENTRY();
 
@@ -620,11 +568,7 @@ void scst_unregister_target(struct scst_tgt *tgt)
 	 * tgt->tgtt->release(tgt) such that the "enabled" attribute can't be
 	 * accessed during or after the tgt->tgtt->release(tgt) call.
 	 */
-#ifdef CONFIG_SCST_PROC
-	scst_cleanup_proc_target_entries(tgt);
-#else
 	scst_tgt_sysfs_del(tgt);
-#endif
 
 	TRACE_DBG("%s", "Calling target driver's release()");
 	tgt->tgtt->release(tgt);
@@ -679,21 +623,17 @@ again:
 
 	scst_tg_tgt_remove_by_tgt(tgt);
 
-#ifndef CONFIG_SCST_PROC
 	scst_del_free_acg(tgt->default_acg, false);
 
 	list_for_each_entry_safe(acg, acg_tmp, &tgt->tgt_acg_list,
 					acg_list_entry) {
 		scst_del_free_acg(acg, false);
 	}
-#endif
 
 	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
-#ifndef CONFIG_SCST_PROC
 	scst_tgt_sysfs_put(tgt);
-#endif
 
 	PRINT_INFO("Target %s for template %s unregistered successfully",
 		tgt->tgt_name, vtt->name);
@@ -1145,25 +1085,13 @@ static int scst_register_device(struct scsi_device *scsidp)
 {
 	int res;
 	struct scst_device *dev, *d;
-#ifdef CONFIG_SCST_PROC
-	struct scst_dev_type *dt;
-#endif
 
 	TRACE_ENTRY();
 
-#ifdef CONFIG_SCST_PROC
-	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
-	if (res != 0)
-		goto out;
-#endif
 
 	res = mutex_lock_interruptible(&scst_mutex);
 	if (res != 0)
-#ifdef CONFIG_SCST_PROC
-		goto out_resume;
-#else
 		goto out;
-#endif
 
 	res = scst_alloc_device(GFP_KERNEL, NUMA_NO_NODE, &dev);
 	if (res != 0)
@@ -1203,29 +1131,11 @@ static int scst_register_device(struct scsi_device *scsidp)
 
 	list_add_tail(&dev->dev_list_entry, &scst_dev_list);
 
-#ifdef CONFIG_SCST_PROC
-	/*
-	 * Let's don't attach to dev handler by default, but keep this code in
-	 * for compatibility in the proc build only.
-	 */
-	list_for_each_entry(dt, &scst_dev_type_list, dev_type_list_entry) {
-		if (dt->type == scsidp->type) {
-			res = scst_assign_dev_handler(dev, dt);
-			if (res != 0)
-				goto out_del_locked;
-			break;
-		}
-	}
-
-	mutex_unlock(&scst_mutex);
-	scst_resume_activity();
-#else
 	mutex_unlock(&scst_mutex);
 
 	res = scst_dev_sysfs_create(dev);
 	if (res != 0)
 		goto out_del_unlocked;
-#endif
 
 	PRINT_INFO("Attached to scsi%d, channel %d, id %d, lun %lld, type %d",
 		   scsidp->host->host_no, scsidp->channel, scsidp->id,
@@ -1235,7 +1145,6 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-#ifndef CONFIG_SCST_PROC
 out_del_unlocked:
 	mutex_lock(&scst_mutex);
 	list_del_init(&dev->dev_list_entry);
@@ -1243,10 +1152,6 @@ out_del_unlocked:
 
 	scst_free_device(dev);
 	goto out;
-#else
-out_del_locked:
-	list_del_init(&dev->dev_list_entry);
-#endif
 
 #ifdef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
 	scst_pr_clear_dev(dev);
@@ -1257,10 +1162,6 @@ out_free_dev:
 
 out_unlock:
 	mutex_unlock(&scst_mutex);
-#ifdef CONFIG_SCST_PROC
-out_resume:
-	scst_resume_activity();
-#endif
 	goto out;
 }
 
@@ -1357,7 +1258,6 @@ static int scst_dev_handler_check(struct scst_dev_type *dev_handler)
 		goto out;
 	}
 
-#ifndef CONFIG_SCST_PROC
 	if (((dev_handler->add_device != NULL) &&
 	     (dev_handler->del_device == NULL)) ||
 	    ((dev_handler->add_device == NULL) &&
@@ -1368,7 +1268,6 @@ static int scst_dev_handler_check(struct scst_dev_type *dev_handler)
 		res = -EINVAL;
 		goto out;
 	}
-#endif
 
 	if (dev_handler->dev_alloc_data_buf == NULL)
 		dev_handler->dev_alloc_data_buf_atomic = 1;
@@ -1486,7 +1385,6 @@ int scst_register_virtual_device_node(struct scst_dev_type *dev_handler,
 	if (res != 0)
 		goto out_free_dev;
 
-#ifndef CONFIG_SCST_PROC
 	/*
 	 * We can drop scst_mutex, because we have not yet added the dev in
 	 * scst_dev_list, so it "doesn't exist" yet.
@@ -1498,7 +1396,6 @@ int scst_register_virtual_device_node(struct scst_dev_type *dev_handler,
 		goto out_lock_pr_clear_dev;
 
 	mutex_lock(&scst_mutex);
-#endif
 
 	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
 		if (strcmp(d->virt_name, dev_name) == 0) {
@@ -1537,10 +1434,8 @@ out_unreg:
 	scst_assign_dev_handler(dev, &scst_null_devtype);
 	goto out_pr_clear_dev;
 
-#ifndef CONFIG_SCST_PROC
 out_lock_pr_clear_dev:
 	mutex_lock(&scst_mutex);
-#endif
 
 out_pr_clear_dev:
 	scst_pr_clear_dev(dev);
@@ -1645,9 +1540,6 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 {
 	int res, exist;
 	struct scst_dev_type *dt;
-#ifdef CONFIG_SCST_PROC
-	struct scst_device *dev;
-#endif
 
 	TRACE_ENTRY();
 
@@ -1675,19 +1567,10 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	}
 #endif
 
-#ifdef CONFIG_SCST_PROC
-	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
-	if (res != 0)
-		goto out;
-#endif
 
 	res = mutex_lock_interruptible(&scst_mutex);
 	if (res != 0)
-#ifdef CONFIG_SCST_PROC
-		goto out_resume;
-#else
 		goto out;
-#endif
 
 	exist = 0;
 	list_for_each_entry(dt, &scst_dev_type_list, dev_type_list_entry) {
@@ -1703,33 +1586,11 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 
 	list_add_tail(&dev_type->dev_type_list_entry, &scst_dev_type_list);
 
-#ifdef CONFIG_SCST_PROC
-	if (!dev_type->no_proc) {
-		res = scst_build_proc_dev_handler_dir_entries(dev_type);
-		if (res < 0)
-			goto out_unlock;
-	}
-
-	/*
-	 * Let's don't attach to all devices by default, but keep this code
-	 * for compatibility in the proc build only.
-	 */
-	list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
-		if (dev->scsi_dev == NULL || dev->handler != &scst_null_devtype)
-			continue;
-		if (dev->scsi_dev->type == dev_type->type)
-			scst_assign_dev_handler(dev, dev_type);
-	}
-
-	mutex_unlock(&scst_mutex);
-	scst_resume_activity();
-#else
 	mutex_unlock(&scst_mutex);
 
 	res = scst_devt_sysfs_create(dev_type);
 	if (res < 0)
 		goto out;
-#endif
 
 	PRINT_INFO("Device handler \"%s\" for type %d registered "
 		"successfully", dev_type->name, dev_type->type);
@@ -1740,10 +1601,6 @@ out:
 
 out_unlock:
 	mutex_unlock(&scst_mutex);
-#ifdef CONFIG_SCST_PROC
-out_resume:
-	scst_resume_activity();
-#endif
 	goto out;
 }
 EXPORT_SYMBOL_GPL(__scst_register_dev_driver);
@@ -1786,11 +1643,7 @@ void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
-#ifdef CONFIG_SCST_PROC
-	scst_cleanup_proc_dev_handler_dir_entries(dev_type);
-#else
 	scst_devt_sysfs_del(dev_type);
-#endif
 
 	PRINT_INFO("Device handler \"%s\" for type %d unloaded",
 		   dev_type->name, dev_type->type);
@@ -1841,17 +1694,9 @@ int __scst_register_virtual_dev_driver(struct scst_dev_type *dev_type,
 	list_add_tail(&dev_type->dev_type_list_entry, &scst_virtual_dev_type_list);
 	mutex_unlock(&scst_mutex);
 
-#ifdef CONFIG_SCST_PROC
-	if (!dev_type->no_proc) {
-		res = scst_build_proc_dev_handler_dir_entries(dev_type);
-		if (res < 0)
-			goto out;
-	}
-#else
 	res = scst_devt_sysfs_create(dev_type);
 	if (res < 0)
 		goto out;
-#endif
 
 	if (dev_type->type != -1) {
 		PRINT_INFO("Virtual device handler %s for type %d "
@@ -1880,23 +1725,16 @@ void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type)
 	/* Disable sysfs mgmt calls (e.g. addition of new devices) */
 	list_del(&dev_type->dev_type_list_entry);
 
-#ifndef CONFIG_SCST_PROC
 	/* Wait for outstanding sysfs mgmt calls completed */
 	while (dev_type->devt_active_sysfs_works_count > 0) {
 		mutex_unlock(&scst_mutex);
 		msleep(100);
 		mutex_lock(&scst_mutex);
 	}
-#endif
 
 	mutex_unlock(&scst_mutex);
 
-#ifdef CONFIG_SCST_PROC
-	if (!dev_type->no_proc)
-		scst_cleanup_proc_dev_handler_dir_entries(dev_type);
-#else
 	scst_devt_sysfs_del(dev_type);
-#endif
 
 	PRINT_INFO("Device handler \"%s\" unloaded", dev_type->name);
 
@@ -2359,7 +2197,6 @@ out_unlock:
 	return res;
 }
 
-#ifndef CONFIG_SCST_PROC
 /**
  * scst_get_setup_id() - return SCST setup ID
  *
@@ -2371,7 +2208,6 @@ unsigned int scst_get_setup_id(void)
 	return scst_setup_id;
 }
 EXPORT_SYMBOL_GPL(scst_get_setup_id);
-#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
 static int scst_add(struct class_device *cdev, struct class_interface *intf)
@@ -2524,9 +2360,6 @@ static int __init init_scst(void)
 	INIT_LIST_HEAD(&scst_dev_list);
 	INIT_LIST_HEAD(&scst_dev_type_list);
 	INIT_LIST_HEAD(&scst_virtual_dev_type_list);
-#ifdef CONFIG_SCST_PROC
-	INIT_LIST_HEAD(&scst_acg_list);
-#endif
 	spin_lock_init(&scst_init_lock);
 	init_waitqueue_head(&scst_init_cmd_list_waitQ);
 	INIT_LIST_HEAD(&scst_init_cmd_list);
@@ -2707,21 +2540,10 @@ static int __init init_scst(void)
 	if (res != 0)
 		goto out_sysfs_cleanup;
 
-#ifdef CONFIG_SCST_PROC
-	mutex_lock(&scst_mutex);
-	res = scst_alloc_add_acg(NULL, SCST_DEFAULT_ACG_NAME, false, &scst_default_acg);
-	mutex_unlock(&scst_mutex);
-	if (res != 0)
-		goto out_destroy_sgv_pool;
-#endif
 
 	res = scsi_register_interface(&scst_interface);
 	if (res != 0)
-#ifdef CONFIG_SCST_PROC
-		goto out_free_acg;
-#else
 		goto out_destroy_sgv_pool;
-#endif
 
 	for (i = 0; i < (int)ARRAY_SIZE(scst_percpu_infos); i++) {
 		atomic_set(&scst_percpu_infos[i].cpu_cmd_count, 0);
@@ -2739,19 +2561,10 @@ static int __init init_scst(void)
 	if (res < 0)
 		goto out_thread_free;
 
-#ifdef CONFIG_SCST_PROC
-	res = scst_proc_init_module();
-	if (res != 0)
-		goto out_thread_free;
-#endif
 
 	res = scst_cm_init();
 	if (res != 0)
-#ifdef CONFIG_SCST_PROC
-		goto out_proc_cleanup;
-#else
 		goto out_thread_free;
-#endif
 
 #ifdef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
 	PRINT_INFO("SCST version %s loaded successfully (global max mem for commands "
@@ -2768,20 +2581,12 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-#ifdef CONFIG_SCST_PROC
-out_proc_cleanup:
-	scst_proc_cleanup_module();
-#endif
 
 out_thread_free:
 	scst_stop_global_threads();
 
 	scsi_unregister_interface(&scst_interface);
 
-#ifdef CONFIG_SCST_PROC
-out_free_acg:
-	scst_del_free_acg(scst_default_acg, false);
-#endif
 
 out_destroy_sgv_pool:
 	scst_sgv_pools_deinit();
@@ -2860,9 +2665,6 @@ static void __exit exit_scst(void)
 
 	scst_cm_exit();
 
-#ifdef CONFIG_SCST_PROC
-	scst_proc_cleanup_module();
-#endif
 
 	scst_stop_global_threads();
 
@@ -2870,11 +2672,6 @@ static void __exit exit_scst(void)
 
 	scsi_unregister_interface(&scst_interface);
 
-#ifdef CONFIG_SCST_PROC
-	mutex_lock(&scst_mutex);
-	scst_del_free_acg(scst_default_acg, false);
-	mutex_unlock(&scst_mutex);
-#endif
 
 	scst_sgv_pools_deinit();
 

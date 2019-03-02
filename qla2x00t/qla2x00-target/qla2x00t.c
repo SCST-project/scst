@@ -107,7 +107,6 @@ static int q2t_close_session(struct scst_session *scst_sess);
 static uint16_t q2t_get_scsi_transport_version(struct scst_tgt *scst_tgt);
 static uint16_t q2t_get_phys_transport_version(struct scst_tgt *scst_tgt);
 
-#ifndef CONFIG_SCST_PROC
 
 /** SYSFS **/
 
@@ -191,7 +190,6 @@ static const struct attribute *q2t_npiv_tgt_attrs[] = {
 	NULL,
 };
 
-#endif /* CONFIG_SCST_PROC */
 
 static int q2t_enable_tgt(struct scst_tgt *tgt, bool enable);
 static bool q2t_is_tgt_enabled(struct scst_tgt *tgt);
@@ -220,11 +218,7 @@ static unsigned long q2t_trace_flag = Q2T_DEFAULT_LOG_FLAGS;
 #endif
 
 static struct scst_tgt_template tgt2x_template = {
-#ifdef CONFIG_SCST_PROC
-	.name = "qla2x00tgt",
-#else
 	.name = "qla2x00t",
-#endif
 	.sg_tablesize = 0,
 	.use_clustering = 1,
 #ifdef CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
@@ -248,7 +242,6 @@ static struct scst_tgt_template tgt2x_template = {
 	.enable_target = q2t_enable_tgt,
 	.is_target_enabled = q2t_is_tgt_enabled,
 #if ENABLE_NPIV
-#ifndef CONFIG_SCST_PROC
 #if ((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
      defined(FC_VPORT_CREATE_DEFINED))
 	.add_target = q2t_add_vtarget,
@@ -256,11 +249,8 @@ static struct scst_tgt_template tgt2x_template = {
 #endif /*((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
 	  defined(FC_VPORT_CREATE_DEFINED))*/
 	.add_target_parameters = "node_name, parent_host",
-	.tgtt_attrs = q2tt_attrs,
 #endif
-#elif !defined(CONFIG_SCST_PROC)
 	.tgtt_attrs = q2tt_attrs,
-#endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags = Q2T_DEFAULT_LOG_FLAGS,
 	.trace_flags = &trace_flag,
@@ -6173,9 +6163,7 @@ out_unlock:
 static int q2t_add_target(scsi_qla_host_t *vha)
 {
 	int res;
-#ifndef CONFIG_SCST_PROC
 	int rc;
-#endif
 	char *wwn;
 	int sg_tablesize;
 	struct q2t_tgt *tgt;
@@ -6249,7 +6237,6 @@ static int q2t_add_target(scsi_qla_host_t *vha)
 		}
 	}
 
-#ifndef CONFIG_SCST_PROC
 	rc = sysfs_create_link(scst_sysfs_get_tgt_kobj(tgt->scst_tgt),
 		&vha->host->shost_dev.kobj, "host");
 	if (rc != 0)
@@ -6289,7 +6276,6 @@ static int q2t_add_target(scsi_qla_host_t *vha)
 			i++;
 		}
 	}
-#endif
 
 	scst_tgt_set_sg_tablesize(tgt->scst_tgt, sg_tablesize);
 	scst_tgt_set_tgt_priv(tgt->scst_tgt, tgt);
@@ -6437,9 +6423,6 @@ static bool q2t_is_tgt_enabled(struct scst_tgt *scst_tgt)
 	return qla_tgt_mode_enabled(tgt->vha);
 }
 
-#if ((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
-     defined(FC_VPORT_CREATE_DEFINED)) || \
-     !defined(CONFIG_SCST_PROC)
 static int q2t_parse_wwn(const char *ns, u64 *nm)
 {
 	unsigned int i, j;
@@ -6473,7 +6456,6 @@ static int q2t_parse_wwn(const char *ns, u64 *nm)
 
 	return 0;
 }
-#endif
 
 #if ENABLE_NPIV
 #if ((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
@@ -6634,7 +6616,6 @@ out:
 	return res;
 }
 
-#ifndef CONFIG_SCST_PROC
 
 static ssize_t q2t_show_expl_conf_enabled(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buffer)
@@ -7001,147 +6982,6 @@ out:
 	return res;
 }
 
-#else /* CONFIG_SCST_PROC */
-
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-
-#define Q2T_PROC_LOG_ENTRY_NAME     "trace_level"
-
-#include <linux/proc_fs.h>
-
-static int q2t_log_info_show(struct seq_file *seq, void *v)
-{
-	int res = 0;
-
-	TRACE_ENTRY();
-
-	res = scst_proc_log_entry_read(seq, trace_flag, NULL);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static ssize_t q2t_proc_log_entry_write(struct file *file,
-	const char __user *buf, size_t length, loff_t *off)
-{
-	int res = 0;
-
-	TRACE_ENTRY();
-
-	res = scst_proc_log_entry_write(file, buf, length, &trace_flag,
-		Q2T_DEFAULT_LOG_FLAGS, NULL);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-#endif
-
-static int q2t_version_info_show(struct seq_file *seq, void *v)
-{
-	TRACE_ENTRY();
-
-	seq_printf(seq, "%s\n", Q2T_VERSION_STRING);
-
-#ifdef CONFIG_SCST_EXTRACHECKS
-	seq_printf(seq, "EXTRACHECKS\n");
-#endif
-
-#ifdef CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
-	seq_printf(seq, "DEBUG_WORK_IN_THREAD\n");
-#endif
-
-#ifdef CONFIG_SCST_TRACING
-	seq_printf(seq, "TRACING\n");
-#endif
-
-#ifdef CONFIG_SCST_DEBUG
-	seq_printf(seq, "DEBUG\n");
-#endif
-
-#ifdef CONFIG_QLA_TGT_DEBUG_SRR
-	seq_printf(seq, "DEBUG_SRR\n");
-#endif
-
-	TRACE_EXIT();
-	return 0;
-}
-
-static struct scst_proc_data q2t_version_proc_data = {
-	SCST_DEF_RW_SEQ_OP(NULL)
-	.show = q2t_version_info_show,
-};
-
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-static struct scst_proc_data q2t_log_proc_data = {
-	SCST_DEF_RW_SEQ_OP(q2t_proc_log_entry_write)
-	.show = q2t_log_info_show,
-};
-#endif
-
-static __init int q2t_proc_log_entry_build(struct scst_tgt_template *templ)
-{
-	int res = 0;
-	struct proc_dir_entry *p, *root;
-
-	TRACE_ENTRY();
-
-	root = scst_proc_get_tgt_root(templ);
-	if (root) {
-		p = scst_create_proc_entry(root, Q2T_PROC_VERSION_NAME,
-					 &q2t_version_proc_data);
-		if (p == NULL) {
-			PRINT_ERROR("qla2x00t: Not enough memory to register "
-			     "target driver %s entry %s in /proc",
-			      templ->name, Q2T_PROC_VERSION_NAME);
-			res = -ENOMEM;
-			goto out;
-		}
-
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-		/* create the proc file entry for the device */
-		q2t_log_proc_data.data = (void *)templ->name;
-		p = scst_create_proc_entry(root, Q2T_PROC_LOG_ENTRY_NAME,
-					&q2t_log_proc_data);
-		if (p == NULL) {
-			PRINT_ERROR("qla2x00t: Not enough memory to register "
-			     "target driver %s entry %s in /proc",
-			      templ->name, Q2T_PROC_LOG_ENTRY_NAME);
-			res = -ENOMEM;
-			goto out_remove_ver;
-		}
-#endif
-	}
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-out_remove_ver:
-	remove_proc_entry(Q2T_PROC_VERSION_NAME, root);
-	goto out;
-#endif
-}
-
-static void q2t_proc_log_entry_clean(struct scst_tgt_template *templ)
-{
-	struct proc_dir_entry *root;
-
-	TRACE_ENTRY();
-
-	root = scst_proc_get_tgt_root(templ);
-	if (root) {
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-		remove_proc_entry(Q2T_PROC_LOG_ENTRY_NAME, root);
-#endif
-		remove_proc_entry(Q2T_PROC_VERSION_NAME, root);
-	}
-
-	TRACE_EXIT();
-	return;
-}
-
-#endif /* CONFIG_SCST_PROC */
 
 static uint16_t q2t_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
@@ -7206,21 +7046,11 @@ static int __init q2t_init(void)
 
 	qla2xxx_add_targets();
 
-#ifdef CONFIG_SCST_PROC
-	res = q2t_proc_log_entry_build(&tgt2x_template);
-	if (res < 0)
-		goto out_unreg_target2x;
-#endif
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-#ifdef CONFIG_SCST_PROC
-out_unreg_target2x:
-	scst_unregister_target_template(&tgt2x_template);
-	qla2xxx_tgt_unregister_driver();
-#endif
 
 out_mempool_free:
 	mempool_destroy(q2t_mgmt_cmd_mempool);
@@ -7249,9 +7079,6 @@ static void __exit q2t_exit(void)
 	/* To sync with q2t_host_action() */
 	down_write(&q2t_unreg_rwsem);
 
-#ifdef CONFIG_SCST_PROC
-	q2t_proc_log_entry_clean(&tgt2x_template);
-#endif
 
 	scst_unregister_target_template(&tgt2x_template);
 

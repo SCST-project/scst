@@ -16,9 +16,6 @@
 #include <linux/errno.h>
 #include <linux/types.h>
 #include <linux/init.h>
-#ifdef CONFIG_SCST_PROC
-#include <linux/proc_fs.h>
-#endif
 #include <linux/moduleparam.h>
 #include <linux/scatterlist.h>
 #include <linux/slab.h>
@@ -293,68 +290,6 @@ out:
 	return res;
 }
 
-#ifdef CONFIG_SCST_PROC
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
-static int scst_local_proc_info(struct Scsi_Host *host, char *buffer,
-				char **start, off_t offset, int length,
-				int inout)
-{
-	int len, pos, begin;
-
-	TRACE_ENTRY();
-
-	if (inout == 1)
-		return -EACCES;
-
-	begin = 0;
-	pos = len = sprintf(buffer, "scst_local adapter driver, version "
-		"%s [%s]\nAborts=%d, Device Resets=%d, Target Resets=%d\n",
-		SCST_LOCAL_VERSION, scst_local_version_date,
-		atomic_read(&num_aborts), atomic_read(&num_dev_resets),
-		atomic_read(&num_target_resets));
-	if (pos < offset) {
-		len = 0;
-		begin = pos;
-	}
-	if (start)
-		*start = buffer + (offset - begin);
-	len -= (offset - begin);
-	if (len > length)
-		len = length;
-
-	TRACE_EXIT_RES(len);
-	return len;
-}
-#else
-static int scst_local_show_info(struct seq_file *file, struct Scsi_Host *host)
-{
-	seq_printf(file, "scst_local adapter driver, version "
-		"%s [%s]\nAborts=%d, Device Resets=%d, Target Resets=%d\n",
-		SCST_LOCAL_VERSION, scst_local_version_date,
-		atomic_read(&num_aborts), atomic_read(&num_dev_resets),
-		atomic_read(&num_target_resets));
-	return 0;
-}
-#endif
-
-static const char *scst_local_info(struct Scsi_Host *shp)
-{
-	static char scst_local_info_buf[256];
-
-	TRACE_ENTRY();
-
-	sprintf(scst_local_info_buf, "scst_local, version %s [%s], "
-		"Aborts: %d, Device Resets: %d, Target Resets: %d",
-		SCST_LOCAL_VERSION, scst_local_version_date,
-		atomic_read(&num_aborts), atomic_read(&num_dev_resets),
-		atomic_read(&num_target_resets));
-
-	TRACE_EXIT();
-	return scst_local_info_buf;
-}
-
-#else /* CONFIG_SCST_PROC */
 
 /*
  ** Tgtt attributes
@@ -805,7 +740,6 @@ out_up:
 	return res;
 }
 
-#endif /* CONFIG_SCST_PROC */
 
 static int scst_local_abort(struct scsi_cmnd *scmd)
 {
@@ -1582,7 +1516,6 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 #endif
 	.xmit_response_atomic	= 1,
 	.multithreaded_init_done = 1,
-#ifndef CONFIG_SCST_PROC
 	.enabled_attr_not_needed = 1,
 	.tgtt_attrs		= scst_local_tgtt_attrs,
 	.tgt_attrs		= scst_local_tgt_attrs,
@@ -1593,7 +1526,6 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 	.add_target_parameters	= "session_name",
 	.mgmt_cmd_help		= "       echo \"add_session target_name session_name\" >mgmt\n"
 				  "       echo \"del_session target_name session_name\" >mgmt\n",
-#endif
 	.release		= scst_local_targ_release,
 	.close_session		= scst_local_close_session,
 	.pre_exec		= scst_local_targ_pre_exec,
@@ -1613,19 +1545,6 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 };
 
 static struct scsi_host_template scst_lcl_ini_driver_template = {
-#ifdef CONFIG_SCST_PROC
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
-	/*
-	 * scsi_host_template.proc_info has been removed via commit "scsi: bury
-	 * ->proc_info()" (70ef457dc92bdd03c0c8d640fce45909166983a1).
-	 */
-	.proc_info			= scst_local_proc_info,
-#else
-	.show_info			= scst_local_show_info,
-#endif
-	.proc_name			= SCST_LOCAL_NAME,
-	.info				= scst_local_info,
-#endif
 	.name				= SCST_LOCAL_NAME,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
 	.queuecommand			= scst_local_queuecommand_lck,
@@ -1723,10 +1642,6 @@ static int scst_local_driver_probe(struct device *dev)
 		ret = -ENODEV;
 		scsi_host_put(hpnt);
 		goto out;
-#ifdef CONFIG_SCST_PROC
-	} else {
-		scsi_scan_host(hpnt);
-#endif
 	}
 
 out:
@@ -1899,18 +1814,13 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
 	snprintf(sess->dev.bus_id, sizeof(sess->dev.bus_id), initiator_name);
 #else
-# ifdef CONFIG_SCST_PROC
-	sess->dev.init_name = sess->scst_sess->initiator_name;
-# else
 	sess->dev.init_name = kobject_name(&sess->scst_sess->sess_kobj);
-#endif
 #endif
 
 	res = device_register(&sess->dev);
 	if (res != 0)
 		goto unregister_session;
 
-#ifndef CONFIG_SCST_PROC
 	res = sysfs_create_link(scst_sysfs_get_sess_kobj(sess->scst_sess),
 		&sess->shost->shost_dev.kobj, "host");
 	if (res != 0) {
@@ -1918,7 +1828,6 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 			"%s", scst_get_tgt_name(tgt->scst_tgt));
 		goto unregister_dev;
 	}
-#endif
 
 	if (!locked)
 		mutex_lock(&scst_local_mutex);
@@ -1934,11 +1843,9 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-#ifndef CONFIG_SCST_PROC
 unregister_dev:
 	device_unregister(&sess->dev);
 	goto out;
-#endif
 
 unregister_session:
 	scst_unregister_session(sess->scst_sess, true, NULL);
@@ -2129,7 +2036,6 @@ static int __init scst_local_init(void)
 		goto tgt_templ_unreg;
 	}
 
-#ifndef CONFIG_SCST_PROC
 	/*
 	 *  If we are using sysfs, then don't add a default target unless
 	 *  we are told to do so. When using procfs, we always add a default
@@ -2138,7 +2044,6 @@ static int __init scst_local_init(void)
 	 */
 	if (!scst_local_add_default_tgt)
 		goto out;
-#endif
 
 	ret = scst_local_add_target("scst_local_tgt", &tgt);
 	if (ret != 0)

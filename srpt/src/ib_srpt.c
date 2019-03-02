@@ -52,12 +52,6 @@
 #else
 #include <asm/atomic.h>
 #endif
-#if defined(CONFIG_SCST_PROC)
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-#include <linux/proc_fs.h>
-#include <linux/seq_file.h>
-#endif
-#endif
 #include <rdma/ib_cache.h>
 #include "ib_srpt.h"
 #define LOG_PREFIX "ib_srpt" /* Prefix for SCST tracing macros. */
@@ -2541,7 +2535,6 @@ static struct srpt_nexus *srpt_get_nexus(struct srpt_port *sport,
 	return nexus;
 }
 
-#if !defined(CONFIG_SCST_PROC)
 /*
  * srpt_enable_target - Set the "enabled" status of a target.
  */
@@ -2579,7 +2572,6 @@ static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 
 	return sport && sport->enabled;
 }
-#endif /* CONFIG_SCST_PROC */
 
 /*
  * srpt_next_comp_vector() - Next completion vector >= sport->comp_vector
@@ -4028,7 +4020,6 @@ static uint16_t srpt_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 	return 0x0940; /* SRP */
 }
 
-#if !defined(CONFIG_SCST_PROC)
 static ssize_t show_comp_v_mask(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
 {
@@ -4327,7 +4318,6 @@ static const struct attribute *srpt_sess_attrs[] = {
 #endif
 	NULL
 };
-#endif /* CONFIG_SCST_PROC */
 
 /* SCST target template for the SRP target implementation. */
 static struct scst_tgt_template srpt_template = {
@@ -4335,12 +4325,10 @@ static struct scst_tgt_template srpt_template = {
 	.sg_tablesize			 = 1 << 16,
 	.use_clustering			 = true,
 	.max_hw_pending_time		 = RDMA_COMPL_TIMEOUT_S,
-#if !defined(CONFIG_SCST_PROC)
 	.enable_target			 = srpt_enable_target,
 	.is_target_enabled		 = srpt_is_target_enabled,
 	.tgt_attrs			 = srpt_tgt_attrs,
 	.sess_attrs			 = srpt_sess_attrs,
-#endif
 	.release			 = srpt_release,
 	.close_session			 = srpt_close_session,
 	.xmit_response			 = srpt_xmit_response,
@@ -4352,28 +4340,6 @@ static struct scst_tgt_template srpt_template = {
 	.get_scsi_transport_version	 = srpt_get_scsi_transport_version,
 };
 
-#ifdef CONFIG_SCST_PROC
-
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-static int srpt_trace_level_show(struct seq_file *seq, void *v)
-{
-	return scst_proc_log_entry_read(seq, trace_flag, NULL);
-}
-
-static ssize_t srpt_proc_trace_level_write(struct file *file,
-	const char __user *buf, size_t length, loff_t *off)
-{
-	return scst_proc_log_entry_write(file, buf, length, &trace_flag,
-		DEFAULT_SRPT_TRACE_FLAGS, NULL);
-}
-
-static struct scst_proc_data srpt_log_proc_data = {
-	SCST_DEF_RW_SEQ_OP(srpt_proc_trace_level_write)
-	.show = srpt_trace_level_show,
-};
-#endif
-
-#endif /* CONFIG_SCST_PROC */
 
 /* Note: the caller must have zero-initialized *@sport. */
 static void srpt_init_sport(struct srpt_port *sport, struct ib_device *ib_dev)
@@ -4651,56 +4617,6 @@ static struct ib_client srpt_client = {
 	.remove = srpt_remove_one
 };
 
-#ifdef CONFIG_SCST_PROC
-
-/*
- * srpt_register_procfs_entry() - Create SRPT procfs entries.
- *
- * Currently the only procfs entry created by this function is the
- * "trace_level" entry.
- */
-static int srpt_register_procfs_entry(struct scst_tgt_template *tgt)
-{
-	int res = 0;
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-	struct proc_dir_entry *p, *root;
-
-	root = scst_proc_get_tgt_root(tgt);
-	WARN_ON(!root);
-	if (root) {
-		/*
-		 * Fill in the scst_proc_data::data pointer, which is used in
-		 * a printk(KERN_INFO ...) statement in
-		 * scst_proc_log_entry_write() in scst_proc.c.
-		 */
-		srpt_log_proc_data.data = (char *)tgt->name;
-		p = scst_create_proc_entry(root, SRPT_PROC_TRACE_LEVEL_NAME,
-					   &srpt_log_proc_data);
-		if (!p)
-			res = -ENOMEM;
-	} else
-		res = -ENOMEM;
-
-#endif
-	return res;
-}
-
-/*
- * srpt_unregister_procfs_entry() - Unregister SRPT procfs entries.
- */
-static void srpt_unregister_procfs_entry(struct scst_tgt_template *tgt)
-{
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-	struct proc_dir_entry *root;
-
-	root = scst_proc_get_tgt_root(tgt);
-	WARN_ON(!root);
-	if (root)
-		remove_proc_entry(SRPT_PROC_TRACE_LEVEL_NAME, root);
-#endif
-}
-
-#endif /* CONFIG_SCST_PROC */
 
 /**
  * srpt_init_module - kernel module initialization
@@ -4789,20 +4705,9 @@ static int __init srpt_init_module(void)
 		}
 	}
 
-#ifdef CONFIG_SCST_PROC
-	ret = srpt_register_procfs_entry(&srpt_template);
-	if (ret) {
-		pr_err("couldn't register procfs entry\n");
-		goto out_rdma_cm;
-	}
-#endif /* CONFIG_SCST_PROC */
 
 	return 0;
 
-#ifdef CONFIG_SCST_PROC
-out_rdma_cm:
-	rdma_destroy_id(rdma_cm_id);
-#endif /* CONFIG_SCST_PROC */
 out_unregister_client:
 	ib_unregister_client(&srpt_client);
 out_unregister_target:
@@ -4818,9 +4723,6 @@ static void __exit srpt_cleanup_module(void)
 	if (rdma_cm_id)
 		rdma_destroy_id(rdma_cm_id);
 	ib_unregister_client(&srpt_client);
-#ifdef CONFIG_SCST_PROC
-	srpt_unregister_procfs_entry(&srpt_template);
-#endif /* CONFIG_SCST_PROC */
 	scst_unregister_target_template(&srpt_template);
 }
 

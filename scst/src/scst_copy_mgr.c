@@ -19,9 +19,6 @@
 #include "scst_priv.h"
 #include "scst_pres.h"
 
-#ifdef CONFIG_SCST_PROC
-#warning In the PROCFS build EXTENDED COPY not supported
-#else
 
 #define SCST_CM_NAME		"copy_manager"
 #define SCST_CM_TGT_NAME	(SCST_CM_NAME "_tgt")
@@ -3628,7 +3625,6 @@ out:
 	return;
 }
 
-#ifndef CONFIG_SCST_PROC
 
 static ssize_t scst_cm_allow_not_conn_copy_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
@@ -3678,7 +3674,6 @@ static const struct attribute *scst_cm_tgtt_attrs[] = {
 	NULL,
 };
 
-#endif /* #ifndef CONFIG_SCST_PROC */
 
 static int scst_cm_get_initiator_port_transport_id(struct scst_tgt *tgt,
 	struct scst_session *scst_sess, uint8_t **transport_id)
@@ -3760,9 +3755,7 @@ static struct scst_tgt_template scst_cm_tgtt = {
 #else
 	.sg_tablesize		= 0xffff,
 #endif
-#ifndef CONFIG_SCST_PROC
 	.enabled_attr_not_needed = 1,
-#endif
 	.dif_supported		= 1,
 	.hw_dif_type1_supported = 1,
 	.hw_dif_type2_supported = 1,
@@ -3772,9 +3765,7 @@ static struct scst_tgt_template scst_cm_tgtt = {
 	.task_mgmt_fn_done	= scst_cm_task_mgmt_fn_done,
 	.report_aen             = scst_cm_report_aen,
 	.get_initiator_port_transport_id = scst_cm_get_initiator_port_transport_id,
-#ifndef CONFIG_SCST_PROC
 	.tgtt_attrs = scst_cm_tgtt_attrs,
-#endif
 };
 
 int __init scst_cm_init(void)
@@ -3830,4 +3821,3 @@ void __exit scst_cm_exit(void)
 	return;
 }
 
-#endif /* #ifndef CONFIG_SCST_PROC */

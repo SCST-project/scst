@@ -569,27 +569,11 @@ static int __init init_scst_disk_driver(void)
 	if (res < 0)
 		goto out_unreg;
 
-#ifdef CONFIG_SCST_PROC
-	res = scst_dev_handler_build_std_proc(&disk_devtype);
-	if (res != 0)
-		goto out_unreg1;
-
-	res = scst_dev_handler_build_std_proc(&disk_devtype_perf);
-	if (res != 0)
-		goto out_unreg2;
-#endif
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-#ifdef CONFIG_SCST_PROC
-out_unreg2:
-	scst_dev_handler_destroy_std_proc(&disk_devtype);
-
-out_unreg1:
-	scst_unregister_dev_driver(&disk_devtype_perf);
-#endif
 
 out_unreg:
 	scst_unregister_dev_driver(&disk_devtype);
@@ -600,10 +584,6 @@ static void __exit exit_scst_disk_driver(void)
 {
 	TRACE_ENTRY();
 
-#ifdef CONFIG_SCST_PROC
-	scst_dev_handler_destroy_std_proc(&disk_devtype_perf);
-	scst_dev_handler_destroy_std_proc(&disk_devtype);
-#endif
 	scst_unregister_dev_driver(&disk_devtype_perf);
 	scst_unregister_dev_driver(&disk_devtype);
 

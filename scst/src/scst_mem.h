@@ -145,9 +145,6 @@ static inline struct scatterlist *sgv_pool_sg(struct sgv_pool_obj *obj)
 int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark);
 void scst_sgv_pools_deinit(void);
 
-#ifdef CONFIG_SCST_PROC
-int sgv_procinfo_show(struct seq_file *seq, void *v);
-#endif
 
 void scst_sgv_pool_use_norm(struct scst_tgt_dev *tgt_dev);
 void scst_sgv_pool_use_norm_clust(struct scst_tgt_dev *tgt_dev);

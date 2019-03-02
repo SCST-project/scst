@@ -147,9 +147,7 @@ void scst_pr_set_holder(struct scst_device *dev,
 			uint8_t type);
 void scst_pr_clear_holder(struct scst_device *dev);
 
-#ifndef CONFIG_SCST_PROC
 void scst_pr_sync_device_file(struct scst_device *dev);
-#endif
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 void scst_pr_dump_prs(struct scst_device *dev, bool force);

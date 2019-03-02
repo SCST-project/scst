@@ -97,7 +97,6 @@ static int nl_read(int fd, void *data, int len, bool wait)
 	return res;
 }
 
-#ifndef CONFIG_SCST_PROC
 
 static int strncasecmp_numwild(const char *name, const char *mask)
 {
@@ -1039,16 +1038,13 @@ out_free_server:
 	goto out;
 }
 
-#endif /* CONFIG_SCST_PROC */
 
 int handle_iscsi_events(int fd, bool wait)
 {
 	struct session *session;
 	struct connection *conn;
 	struct iscsi_kern_event event;
-#ifndef CONFIG_SCST_PROC
 	struct target *target;
-#endif
 	int rc;
 
 	/*
@@ -1089,7 +1085,6 @@ retry:
 	 */
 
 	switch (event.code) {
-#ifndef CONFIG_SCST_PROC
 	case E_ADD_TARGET:
 		rc = handle_e_add_target(fd, &event);
 		if (rc != 0)
@@ -1147,7 +1142,6 @@ retry:
 		if (rc != 0)
 			send_mgmt_cmd_res(event.tid, event.cookie, E_SET_ATTR_VALUE, rc, NULL);
 		break;
-#endif /* CONFIG_SCST_PROC */
 
 	case E_CONN_CLOSE:
 		session = session_find_id(event.tid, event.sid);

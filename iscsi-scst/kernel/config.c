@@ -20,231 +20,6 @@
 /* Protected by target_mgmt_mutex */
 int ctr_open_state;
 
-#ifdef CONFIG_SCST_PROC
-
-#include <linux/proc_fs.h>
-
-#define ISCSI_PROC_VERSION_NAME		"version"
-
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-
-#define ISCSI_PROC_LOG_ENTRY_NAME	"trace_level"
-
-static struct scst_trace_log iscsi_local_trace_tbl[] = {
-	{ TRACE_D_WRITE,	"d_write"	},
-	{ TRACE_CONN_OC,	"conn"		},
-	{ TRACE_CONN_OC_DBG,	"conn_dbg"	},
-	{ TRACE_D_IOV,		"iov"		},
-	{ TRACE_D_DUMP_PDU,	"pdu"		},
-	{ TRACE_NET_PG,		"net_page"	},
-	{ 0,			NULL		}
-};
-
-static int iscsi_log_info_show(struct seq_file *seq, void *v)
-{
-	int res = 0;
-
-	TRACE_ENTRY();
-
-	res = scst_proc_log_entry_read(seq, trace_flag,
-		iscsi_local_trace_tbl);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static ssize_t iscsi_proc_log_entry_write(struct file *file,
-	const char __user *buf, size_t length, loff_t *off)
-{
-	int res = 0;
-
-	TRACE_ENTRY();
-
-	res = scst_proc_log_entry_write(file, buf, length, &trace_flag,
-		ISCSI_DEFAULT_LOG_FLAGS, iscsi_local_trace_tbl);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
-#endif /* DEBUG or TRACE */
-
-static int iscsi_version_info_show(struct seq_file *seq, void *v)
-{
-	TRACE_ENTRY();
-
-	seq_printf(seq, "%s\n", ISCSI_VERSION_STRING);
-
-#ifdef CONFIG_SCST_EXTRACHECKS
-	seq_printf(seq, "EXTRACHECKS\n");
-#endif
-
-#ifdef CONFIG_SCST_TRACING
-	seq_printf(seq, "TRACING\n");
-#endif
-
-#ifdef CONFIG_SCST_DEBUG
-	seq_printf(seq, "DEBUG\n");
-#endif
-
-#ifdef CONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES
-	seq_printf(seq, "DEBUG_DIGEST_FAILURES\n");
-#endif
-
-	TRACE_EXIT();
-	return 0;
-}
-
-static struct scst_proc_data iscsi_version_proc_data = {
-	SCST_DEF_RW_SEQ_OP(NULL)
-	.show = iscsi_version_info_show,
-};
-
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-static struct scst_proc_data iscsi_log_proc_data = {
-	SCST_DEF_RW_SEQ_OP(iscsi_proc_log_entry_write)
-	.show = iscsi_log_info_show,
-};
-#endif
-
-static __init int iscsi_proc_log_entry_build(struct scst_tgt_template *templ)
-{
-	int res = 0;
-	struct proc_dir_entry *p, *root;
-
-	TRACE_ENTRY();
-
-	root = scst_proc_get_tgt_root(templ);
-	if (root) {
-		p = scst_create_proc_entry(root, ISCSI_PROC_VERSION_NAME,
-					   &iscsi_version_proc_data);
-		if (p == NULL) {
-			PRINT_ERROR("Not enough memory to register "
-			     "target driver %s entry %s in /proc",
-			      templ->name, ISCSI_PROC_VERSION_NAME);
-			res = -ENOMEM;
-			goto out;
-		}
-
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-		/* create the proc file entry for the device */
-		iscsi_log_proc_data.data = (void *)templ->name;
-		p = scst_create_proc_entry(root, ISCSI_PROC_LOG_ENTRY_NAME,
-					   &iscsi_log_proc_data);
-		if (p == NULL) {
-			PRINT_ERROR("Not enough memory to register "
-			     "target driver %s entry %s in /proc",
-			      templ->name, ISCSI_PROC_LOG_ENTRY_NAME);
-			res = -ENOMEM;
-			goto out_remove_ver;
-		}
-#endif
-	}
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-out_remove_ver:
-	remove_proc_entry(ISCSI_PROC_VERSION_NAME, root);
-	goto out;
-#endif
-}
-
-static void iscsi_proc_log_entry_clean(struct scst_tgt_template *templ)
-{
-	struct proc_dir_entry *root;
-
-	TRACE_ENTRY();
-
-	root = scst_proc_get_tgt_root(templ);
-	if (root) {
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-		remove_proc_entry(ISCSI_PROC_LOG_ENTRY_NAME, root);
-#endif
-		remove_proc_entry(ISCSI_PROC_VERSION_NAME, root);
-	}
-
-	TRACE_EXIT();
-	return;
-}
-
-struct proc_entries {
-	const char *name;
-	const struct file_operations *const fops;
-};
-
-static struct proc_entries iscsi_proc_entries[] = {
-	{"session", &session_seq_fops},
-};
-
-static struct proc_dir_entry *proc_iscsi_dir;
-
-void iscsi_procfs_exit(void)
-{
-	unsigned int i;
-
-	if (!proc_iscsi_dir)
-		return;
-
-	for (i = 0; i < ARRAY_SIZE(iscsi_proc_entries); i++)
-		remove_proc_entry(iscsi_proc_entries[i].name, proc_iscsi_dir);
-
-	iscsi_proc_log_entry_clean(&iscsi_template);
-}
-
-int __init iscsi_procfs_init(void)
-{
-	unsigned int i;
-	int err = 0;
-	struct proc_dir_entry *ent;
-
-	proc_iscsi_dir = scst_proc_get_tgt_root(&iscsi_template);
-	if (proc_iscsi_dir == NULL) {
-		err = -ESRCH;
-		goto out;
-	}
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
-	proc_iscsi_dir->owner = THIS_MODULE;
-#endif
-
-	err = iscsi_proc_log_entry_build(&iscsi_template);
-	if (err < 0)
-		goto out;
-
-	for (i = 0; i < ARRAY_SIZE(iscsi_proc_entries); i++) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
-		ent = proc_create(iscsi_proc_entries[i].name, 0, proc_iscsi_dir,
-				  iscsi_proc_entries[i].fops);
-#else
-		/*
-		 * proc_create() was introduced via commit "proc: fix
-		 * ->open'less usage due to ->proc_fops flip"
-		 * (2d3a4e3666325a9709cc8ea2e88151394e8f20fc).
-		 */
-		ent = create_proc_entry(iscsi_proc_entries[i].name, 0,
-					proc_iscsi_dir);
-		if (ent)
-			ent->proc_fops = iscsi_proc_entries[i].fops;
-#endif
-		if (!ent) {
-			err = -ENOMEM;
-			goto err;
-		}
-	}
-
-out:
-	return err;
-
-err:
-	if (proc_iscsi_dir)
-		iscsi_procfs_exit();
-	goto out;
-}
-
-#else /* CONFIG_SCST_PROC */
 
 /* Protected by target_mgmt_mutex */
 static LIST_HEAD(iscsi_attrs_list);
@@ -309,7 +84,6 @@ const struct attribute *iscsi_attrs[] = {
 	NULL,
 };
 
-#endif /* CONFIG_SCST_PROC */
 
 /* target_mgmt_mutex supposed to be locked */
 static int add_conn(void __user *ptr)
@@ -425,9 +199,6 @@ static int add_session(void __user *ptr)
 	}
 
 	info->initiator_name[sizeof(info->initiator_name)-1] = '\0';
-#ifdef CONFIG_SCST_PROC
-	info->user_name[sizeof(info->user_name)-1] = '\0';
-#endif
 	info->full_initiator_name[sizeof(info->full_initiator_name)-1] = '\0';
 
 	target = target_lookup_by_id(info->tid);
@@ -471,9 +242,6 @@ static int del_session(void __user *ptr)
 	}
 
 	info->initiator_name[sizeof(info->initiator_name)-1] = '\0';
-#ifdef CONFIG_SCST_PROC
-	info->user_name[sizeof(info->user_name)-1] = '\0';
-#endif
 
 	target = target_lookup_by_id(info->tid);
 	if (target == NULL) {
@@ -571,7 +339,6 @@ out:
 	return err;
 }
 
-#ifndef CONFIG_SCST_PROC
 
 /* target_mgmt_mutex supposed to be locked */
 static int mgmt_cmd_callback(void __user *ptr)
@@ -926,16 +693,13 @@ out:
 	return err;
 }
 
-#endif /* CONFIG_SCST_PROC */
 
 /* target_mgmt_mutex supposed to be locked */
 static int add_target(void __user *ptr)
 {
 	int err, rc;
 	struct iscsi_kern_target_info *info;
-#ifndef CONFIG_SCST_PROC
 	struct scst_sysfs_user_info *uinfo;
-#endif
 
 	TRACE_ENTRY();
 
@@ -961,7 +725,6 @@ static int add_target(void __user *ptr)
 
 	info->name[sizeof(info->name)-1] = '\0';
 
-#ifndef CONFIG_SCST_PROC
 	if (info->cookie != 0) {
 		uinfo = scst_sysfs_user_get_info(info->cookie);
 		TRACE_DBG("cookie %u, uinfo %p", info->cookie, uinfo);
@@ -971,16 +734,13 @@ static int add_target(void __user *ptr)
 		}
 	} else
 		uinfo = NULL;
-#endif
 
 	err = __add_target(info);
 
-#ifndef CONFIG_SCST_PROC
 	if (uinfo != NULL) {
 		uinfo->info_status = err;
 		complete(&uinfo->info_completion);
 	}
-#endif
 
 out_free:
 	kfree(info);
@@ -995,9 +755,7 @@ static int del_target(void __user *ptr)
 {
 	int err, rc;
 	struct iscsi_kern_target_info info;
-#ifndef CONFIG_SCST_PROC
 	struct scst_sysfs_user_info *uinfo;
-#endif
 
 	TRACE_ENTRY();
 
@@ -1010,7 +768,6 @@ static int del_target(void __user *ptr)
 
 	info.name[sizeof(info.name)-1] = '\0';
 
-#ifndef CONFIG_SCST_PROC
 	if (info.cookie != 0) {
 		uinfo = scst_sysfs_user_get_info(info.cookie);
 		TRACE_DBG("cookie %u, uinfo %p", info.cookie, uinfo);
@@ -1020,16 +777,13 @@ static int del_target(void __user *ptr)
 		}
 	} else
 		uinfo = NULL;
-#endif
 
 	err = __del_target(info.tid);
 
-#ifndef CONFIG_SCST_PROC
 	if (uinfo != NULL) {
 		uinfo->info_status = err;
 		complete(&uinfo->info_completion);
 	}
-#endif
 
 out:
 	TRACE_EXIT_RES(err);
@@ -1119,7 +873,6 @@ static long iscsi_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 		err = del_target((void __user *)arg);
 		break;
 
-#ifndef CONFIG_SCST_PROC
 	case ISCSI_ATTR_ADD:
 	case ISCSI_ATTR_DEL:
 		err = iscsi_attr_cmd((void __user *)arg, cmd);
@@ -1128,7 +881,6 @@ static long iscsi_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 	case MGMT_CMD_CALLBACK:
 		err = mgmt_cmd_callback((void __user *)arg);
 		break;
-#endif
 
 	case ISCSI_INITIATOR_ALLOWED:
 		err = iscsi_initiator_allowed((void __user *)arg);
@@ -1192,9 +944,7 @@ static int iscsi_open(struct inode *inode, struct file *file)
 
 static int iscsi_release(struct inode *inode, struct file *filp)
 {
-#ifndef CONFIG_SCST_PROC
 	struct iscsi_attr *attr, *t;
-#endif
 
 	TRACE(TRACE_MGMT, "%s", "Releasing allocated resources");
 
@@ -1206,12 +956,10 @@ static int iscsi_release(struct inode *inode, struct file *filp)
 
 	mutex_lock(&target_mgmt_mutex);
 
-#ifndef CONFIG_SCST_PROC
 	list_for_each_entry_safe(attr, t, &iscsi_attrs_list,
 					attrs_list_entry) {
 		__iscsi_del_attr(NULL, attr);
 	}
-#endif
 
 	ctr_open_state = ISCSI_CTR_OPEN_STATE_CLOSED;
 

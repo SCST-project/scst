@@ -449,11 +449,9 @@ int config_account_del(u32 tid, int dir, char *name, u32 cookie)
 		ISCSI_USER_NAME(user), user, target ? target->name : "discovery",
 		user->sysfs_name);
 
-#ifndef CONFIG_SCST_PROC
 	res = kernel_user_del(target, user, cookie);
 	if (res != 0)
 		goto out;
-#endif
 
 	account_destroy(user);
 
@@ -528,13 +526,11 @@ int __config_account_add(struct target *target, int dir, char *name, char *pass,
 	if (err != 0)
 		goto out;
 
-#ifndef CONFIG_SCST_PROC
 	if (send_to_kern && (sysfs_name != NULL)) {
 		err = kernel_user_add(target, user, cookie);
 		if (err != 0)
 			goto out_destroy;
 	}
-#endif
 
 	log_debug(1, "User %s (%p, sysfs name %s) added to target %s "
 		"(direction %s)", ISCSI_USER_NAME(user), user, user->sysfs_name,
@@ -544,9 +540,7 @@ int __config_account_add(struct target *target, int dir, char *name, char *pass,
 out:
 	return err;
 
-#ifndef CONFIG_SCST_PROC
 out_destroy:
-#endif
 	account_destroy(user);
 	goto out;
 }
@@ -1093,10 +1087,6 @@ int config_load(const char *config_name)
 	config = open(cname, O_RDONLY);
 	if (config == -1) {
 		if ((errno == ENOENT) && (config_name == NULL)) {
-#ifdef CONFIG_SCST_PROC
-			log_debug(3, "Default config file %s not found",
-				CONFIG_FILE);
-#endif
 			goto out;
 		} else {
 			err = -errno;

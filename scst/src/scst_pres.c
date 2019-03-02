@@ -27,10 +27,6 @@
 #include <linux/string.h>
 #include <linux/kthread.h>
 #include <linux/delay.h>
-#ifdef CONFIG_SCST_PROC
-#include <linux/proc_fs.h>
-#include <linux/seq_file.h>
-#endif
 #include <linux/time.h>
 #include <linux/ctype.h>
 #include <asm/byteorder.h>
@@ -657,7 +653,6 @@ out:
 	return;
 }
 
-#ifndef CONFIG_SCST_PROC
 
 /* Called under scst_mutex */
 static int scst_pr_do_load_device_file(struct scst_device *dev,
@@ -1065,7 +1060,6 @@ write_error_close:
 	goto out_set_fs;
 }
 
-#endif /* CONFIG_SCST_PROC */
 
 /**
  * scst_pr_set_file_name - set name of file in which to save PR information
@@ -1206,11 +1200,9 @@ int scst_pr_init_dev(struct scst_device *dev)
 
 	sBUG_ON(!dev->pr_file_name || !dev->pr_file_name1);
 
-#ifndef CONFIG_SCST_PROC
 	res = scst_pr_load_device_file(dev);
 	if (res == -ENOENT)
 		res = 0;
-#endif
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1714,14 +1706,6 @@ void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 		goto out;
 	}
 
-#ifdef CONFIG_SCST_PROC
-	if (aptpl) {
-		TRACE_PR("%s", "APTPL not supported");
-		scst_set_invalid_field_in_parm_list(cmd, 20,
-				SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
-		goto out;
-	}
-#endif
 
 	reg = tgt_dev->registrant;
 
@@ -1808,14 +1792,6 @@ void scst_pr_register_and_ignore(struct scst_cmd *cmd, uint8_t *buffer,
 		goto out;
 	}
 
-#ifdef CONFIG_SCST_PROC
-	if (aptpl) {
-		TRACE_PR("%s", "APTPL not supported");
-		scst_set_invalid_field_in_parm_list(cmd, 20,
-				SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
-		goto out;
-	}
-#endif
 
 	reg = tgt_dev->registrant;
 
@@ -1883,14 +1859,6 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 	unreg = (buffer[17] >> 1) & 0x01;
 	tid_buffer_size = get_unaligned_be32(&buffer[20]);
 
-#ifdef CONFIG_SCST_PROC
-	if (aptpl) {
-		TRACE_PR("%s", "APTPL not supported");
-		scst_set_invalid_field_in_parm_list(cmd, 17,
-				SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
-		goto out;
-	}
-#endif
 
 	if ((tid_buffer_size + 24) > buffer_size) {
 		TRACE_PR("Invalid buffer size %d (%d)",
@@ -2721,11 +2689,7 @@ void scst_pr_report_caps(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 	unsigned int crh = 1;
 	unsigned int atp_c = 1;
 	unsigned int sip_c = 1;
-#ifdef CONFIG_SCST_PROC
-	unsigned int ptpl_c = 0;
-#else
 	unsigned int ptpl_c = 1;
-#endif
 	struct scst_device *dev = cmd->dev;
 
 	TRACE_ENTRY();

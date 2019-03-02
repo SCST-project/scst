@@ -46,15 +46,10 @@
 #define CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 #endif
 
-/* #define CONFIG_SCST_PROC */
-
-#ifdef CONFIG_SCST_PROC
-#include <linux/proc_fs.h>
-#include <linux/seq_file.h>
-#elif defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
-#error The SCST sysfs interface is not supported on RHEL 5. Please run make enable_proc.
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
+#error RHEL 5 is no longer supported. Please upgrade to RHEL 6 or later.
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-#error The SCST sysfs interface is supported from kernel version 2.6.26 on. Please run make enable_proc.
+#error The SCST sysfs interface is supported from kernel version 2.6.26 on. Please upgrade to a newer kernel version.
 #endif
 
 #include <scsi/scsi_cmnd.h>
@@ -564,14 +559,6 @@ enum scst_exec_res {
 /* Each initiator connected to this group will have own IO context */
 #define SCST_IO_GROUPING_NEVER			-2
 
-#ifdef CONFIG_SCST_PROC
-
-/*************************************************************
- ** Name of the entry in /proc
- *************************************************************/
-#define SCST_PROC_ENTRY_NAME         "scsi_tgt"
-
-#endif
 
 /*************************************************************
  ** Valid_mask constants for scst_analyze_sense()
@@ -825,13 +812,8 @@ struct scst_tgt_template {
 	unsigned xmit_response_atomic:1;
 	unsigned rdy_to_xfer_atomic:1;
 
-#ifdef CONFIG_SCST_PROC
-	/* True, if the template doesn't need the entry in /proc */
-	unsigned no_proc_entry:1;
-#else
 	/* True, if this target doesn't need "enabled" attribute */
 	unsigned enabled_attr_not_needed:1;
-#endif
 
 	/*
 	 * True, if this target adapter can call scst_cmd_init_done() from
@@ -1123,18 +1105,6 @@ struct scst_tgt_template {
 	 */
 	int (*report_aen)(struct scst_aen *aen);
 
-#ifdef CONFIG_SCST_PROC
-	/*
-	 * Those functions can be used to export the driver's statistics and
-	 * other infos to the world outside the kernel as well as to get some
-	 * management commands from it.
-	 *
-	 * OPTIONAL
-	 */
-	int (*read_proc)(struct seq_file *seq, struct scst_tgt *tgt);
-	int (*write_proc)(char *buffer, char **start, off_t offset,
-		int length, int *eof, struct scst_tgt *tgt);
-#endif
 
 	/*
 	 * This function returns in tr_id the corresponding to sess initiator
@@ -1266,7 +1236,6 @@ struct scst_tgt_template {
 	/* Optional local trace table help string */
 	const char *trace_tbl_help;
 
-#ifndef CONFIG_SCST_PROC
 	/* sysfs attributes, if any */
 	const struct attribute **tgtt_attrs;
 
@@ -1278,7 +1247,6 @@ struct scst_tgt_template {
 
 	/* sysfs ACG attributes, if any */
 	const struct attribute **acg_attrs;
-#endif
 
 	/* Optional help string for mgmt_cmd commands */
 	const char *mgmt_cmd_help;
@@ -1308,13 +1276,6 @@ struct scst_tgt_template {
 	/* List entry of global templates list */
 	struct list_head scst_template_list_entry;
 
-#ifdef CONFIG_SCST_PROC
-	/* The pointer to the /proc directory entry */
-	struct proc_dir_entry *proc_tgt_root;
-
-	/* Device number in /proc */
-	int proc_dev_num;
-#else
 	struct kobject tgtt_kobj; /* target driver sysfs entry */
 
 	/* Number of currently active sysfs mgmt works (scst_sysfs_work_item) */
@@ -1322,7 +1283,6 @@ struct scst_tgt_template {
 
 	/* sysfs release completion */
 	struct completion *tgtt_kobj_release_cmpl;
-#endif
 
 	/*
 	 * Optional method that writes the serial number of a target device in
@@ -1373,10 +1333,6 @@ struct scst_dev_type {
 	unsigned dev_alloc_data_buf_atomic:1;
 	unsigned dev_done_atomic:1;
 
-#ifdef CONFIG_SCST_PROC
-	/* True, if no /proc files should be automatically created by SCST */
-	unsigned no_proc:1;
-#endif
 
 	/*
 	 * Should be set if the device wants to receive notification of
@@ -1644,18 +1600,6 @@ struct scst_dev_type {
 	 */
 	void (*detach_tgt)(struct scst_tgt_dev *tgt_dev);
 
-#ifdef CONFIG_SCST_PROC
-	/*
-	 * Those functions can be used to export the handler's statistics and
-	 * other infos to the world outside the kernel as well as to get some
-	 * management commands from it.
-	 *
-	 * OPTIONAL
-	 */
-	int (*read_proc)(struct seq_file *seq, struct scst_dev_type *dev_type);
-	int (*write_proc)(char *buffer, char **start, off_t offset,
-		int length, int *eof, struct scst_dev_type *dev_type);
-#else
 	/*
 	 * This function adds a virtual device.
 	 *
@@ -1692,7 +1636,6 @@ struct scst_dev_type {
 	 * OPTIONAL.
 	 */
 	ssize_t (*mgmt_cmd)(char *cmd);
-#endif
 
 	/*
 	 * Name of the dev handler. Must be unique. MUST HAVE.
@@ -1727,7 +1670,6 @@ struct scst_dev_type {
 	/* Optional local trace table */
 	struct scst_trace_log *trace_tbl;
 
-#ifndef CONFIG_SCST_PROC
 	/* Optional local trace table help string */
 	const char *trace_tbl_help;
 
@@ -1759,7 +1701,6 @@ struct scst_dev_type {
 
 	/* sysfs device attributes, if any */
 	const struct attribute **dev_attrs;
-#endif
 
 	/* Pointer to dev handler's private data */
 	void *devt_priv;
@@ -1774,10 +1715,6 @@ struct scst_dev_type {
 	/* list entry in scst_(virtual_)dev_type_list */
 	struct list_head dev_type_list_entry;
 
-#ifdef CONFIG_SCST_PROC
-	/* The pointer to the /proc directory entry */
-	struct proc_dir_entry *proc_dev_type_root;
-#else
 	struct kobject devt_kobj; /* main handlers/driver */
 
 	/* Number of currently active sysfs mgmt works (scst_sysfs_work_item) */
@@ -1785,7 +1722,6 @@ struct scst_dev_type {
 
 	/* To wait until devt_kobj released */
 	struct completion *devt_kobj_release_compl;
-#endif
 };
 
 /*
@@ -1806,11 +1742,9 @@ struct scst_tgt {
 
 	struct scst_tgt_template *tgtt;	/* corresponding target template */
 
-#ifndef CONFIG_SCST_PROC
 	struct scst_acg *default_acg; /* default acg for this target */
 
 	struct list_head tgt_acg_list; /* target ACG groups */
-#endif
 
 	/*
 	 * Set, if this target is forwarding target, i.e. does not check
@@ -1853,10 +1787,6 @@ struct scst_tgt {
 	/* Used to wait until session finished to unregister */
 	wait_queue_head_t unreg_waitQ;
 
-#ifdef CONFIG_SCST_PROC
-	/* Device number in /proc */
-	int proc_num;
-#endif
 
 	/* Name of the target */
 	char *tgt_name;
@@ -1871,10 +1801,6 @@ struct scst_tgt {
 	atomic_t tgt_dif_app_failed_scst, tgt_dif_ref_failed_scst, tgt_dif_guard_failed_scst;
 	atomic_t tgt_dif_app_failed_dev, tgt_dif_ref_failed_dev, tgt_dif_guard_failed_dev;
 
-#ifdef CONFIG_SCST_PROC
-	/* Name of the default security group ("Default_target_name") */
-	char *default_group_name;
-#else
 	/* sysfs release completion */
 	struct completion *tgt_kobj_release_cmpl;
 
@@ -1882,7 +1808,6 @@ struct scst_tgt {
 	struct kobject *tgt_sess_kobj; /* target/sessions/ */
 	struct kobject *tgt_luns_kobj; /* target/luns/ */
 	struct kobject *tgt_ini_grp_kobj; /* target/ini_groups/ */
-#endif
 };
 
 /**
@@ -2063,12 +1988,10 @@ struct scst_session {
 	struct completion *sess_kobj_release_cmpl;
 
 	unsigned int sess_mq:1; /* Multi-queue session, i.e. >1 sessions per same initiator */
-#ifndef CONFIG_SCST_PROC
 	unsigned int sess_kobj_ready:1;
 
 	struct kobject sess_kobj; /* session sysfs entry */
 	struct kobject *lat_kobj;
-#endif
 
 	/*
 	 * Functions and data for user callbacks from scst_register_session()
@@ -3141,7 +3064,6 @@ struct scst_device {
 	/* Threads pool type of the device. Valid only if threads_num > 0. */
 	enum scst_dev_type_threads_pool_type threads_pool_type;
 
-#ifndef CONFIG_SCST_PROC
 	/* sysfs release completion */
 	struct completion *dev_kobj_release_cmpl;
 
@@ -3150,7 +3072,6 @@ struct scst_device {
 
 	/* Export number in the dev's sysfs list. Protected by scst_mutex */
 	int dev_exported_lun_num;
-#endif
 };
 
 /*
@@ -3294,12 +3215,10 @@ struct scst_tgt_dev {
 	 */
 	int thread_index;
 
-#ifndef CONFIG_SCST_PROC
 	/* sysfs release completion */
 	struct completion *tgt_dev_kobj_release_cmpl;
 
 	struct kobject tgt_dev_kobj; /* sessions' LUNs sysfs entry */
-#endif
 };
 
 /*
@@ -3324,7 +3243,6 @@ struct scst_acg_dev {
 	/* List entry in acg->acg_dev_list */
 	struct list_head acg_dev_list_entry;
 
-#ifndef CONFIG_SCST_PROC
 	struct kobject acg_dev_kobj; /* targets' LUNs sysfs entry */
 
 	/* sysfs release completion */
@@ -3332,7 +3250,6 @@ struct scst_acg_dev {
 
 	/* Name of the link to the corresponding LUN */
 	char acg_dev_link_name[20];
-#endif
 };
 
 /*
@@ -3361,10 +3278,6 @@ struct scst_acg {
 	/* Name of this acg */
 	const char *acg_name;
 
-#ifdef CONFIG_SCST_PROC
-	/* The pointer to the /proc directory entry */
-	struct proc_dir_entry *acg_proc_root;
-#endif
 
 	/* Type of I/O initiators grouping */
 	int acg_io_grouping_type;
@@ -3404,12 +3317,10 @@ struct scst_acg {
 	/* sysfs release completion */
 	struct completion *acg_kobj_release_cmpl;
 
-#ifndef CONFIG_SCST_PROC
 	struct kobject acg_kobj; /* targets' ini_groups sysfs entry */
 
 	struct kobject *luns_kobj;
 	struct kobject *initiators_kobj;
-#endif
 
 	/* LUNS addressing method for all LUNs in this ACG */
 	enum scst_lun_addr_method addr_method;
@@ -5318,65 +5229,6 @@ struct scst_trace_log {
 
 extern struct mutex scst_mutex;
 
-#ifdef CONFIG_SCST_PROC
-
-/*
- * Returns target driver's root entry in SCST's /proc hierarchy.
- * The driver can create own files/directories here, which should
- * be deleted in the driver's release().
- */
-struct proc_dir_entry *scst_proc_get_tgt_root(
-	struct scst_tgt_template *vtt);
-
-/*
- * Returns device handler's root entry in SCST's /proc hierarchy.
- * The driver can create own files/directories here, which should
- * be deleted in the driver's detach()/release().
- */
-struct proc_dir_entry *scst_proc_get_dev_type_root(
-	struct scst_dev_type *dtt);
-
-/**
- ** Two library functions and the structure to help the drivers
- ** that use scst_debug.* facilities manage "trace_level" /proc entry.
- ** The functions service "standard" log levels and allow to work
- ** with driver specific levels, which should be passed inside as
- ** NULL-terminated array of struct scst_trace_log's, where:
- **   - val - the level's numeric value
- **   - token - its string representation
- **/
-
-int scst_proc_log_entry_read(struct seq_file *seq, unsigned long log_level,
-	const struct scst_trace_log *tbl);
-int scst_proc_log_entry_write(struct file *file, const char __user *buf,
-	unsigned long length, unsigned long *log_level,
-	unsigned long default_level, const struct scst_trace_log *tbl);
-
-/*
- * helper data structure and function to create proc entry.
- */
-struct scst_proc_data {
-	const struct file_operations seq_op;
-	int (*show)(struct seq_file *, void *);
-	void *data;
-};
-
-int scst_single_seq_open(struct inode *inode, struct file *file);
-
-struct proc_dir_entry *scst_create_proc_entry(struct proc_dir_entry *root,
-	const char *name, struct scst_proc_data *pdata);
-
-#define SCST_DEF_RW_SEQ_OP(x)                          \
-	.seq_op = {                                    \
-		.owner          = THIS_MODULE,         \
-		.open           = scst_single_seq_open,\
-		.read           = seq_read,            \
-		.write          = x,                   \
-		.llseek         = seq_lseek,           \
-		.release        = single_release,      \
-	},
-
-#else /* CONFIG_SCST_PROC */
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34))
 const struct sysfs_ops *scst_sysfs_get_sysfs_ops(void);
@@ -5461,7 +5313,6 @@ static inline struct kobject *scst_sysfs_get_sess_kobj(
 	return &sess->sess_kobj;
 }
 
-#endif /* CONFIG_SCST_PROC */
 
 /* Returns target name */
 static inline const char *scst_get_tgt_name(const struct scst_tgt *tgt)
@@ -5602,7 +5453,6 @@ static inline const char *scst_get_opcode_name(struct scst_cmd *cmd)
 }
 #endif
 
-#ifndef CONFIG_SCST_PROC
 
 /*
  * Structure to match events to user space and replies on them
@@ -5716,7 +5566,6 @@ extern struct lockdep_map scst_dev_dep_map;
 #endif
 #endif
 
-#endif /* CONFIG_SCST_PROC */
 
 char *scst_get_next_lexem(char **token_str);
 void scst_restore_token_str(char *prev_lexem, char *token_str);
@@ -5835,10 +5684,8 @@ struct scst_ext_copy_seg_descr {
 	int tgt_descr_offs;
 };
 
-#ifndef CONFIG_SCST_PROC
 void scst_ext_copy_remap_done(struct scst_cmd *ec_cmd,
 	struct scst_ext_copy_data_descr *dds, int dds_cnt);
 int scst_ext_copy_get_cur_seg_data_len(struct scst_cmd *ec_cmd);
-#endif
 
 #endif /* __SCST_H */

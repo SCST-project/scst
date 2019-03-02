@@ -3019,10 +3019,8 @@ next:
 	scst_get_acg(acg);
 	scst_put_acg(old_acg);
 
-#ifndef CONFIG_SCST_PROC
 	scst_recreate_sess_luns_link(sess);
 	/* Ignore possible error, since we can't do anything on it */
-#endif
 
 	if (luns_changed) {
 		scst_report_luns_changed_sess(sess);
@@ -4131,15 +4129,7 @@ int scst_alloc_tgt(struct scst_tgt_template *tgtt, struct scst_tgt **tgt)
 	atomic_set(&t->tgt_dif_ref_failed_dev, 0);
 	atomic_set(&t->tgt_dif_guard_failed_dev, 0);
 
-#ifdef CONFIG_SCST_PROC
-	res = gen_relative_target_port_id(&t->rel_tgt_id);
-	if (res != 0) {
-		scst_free_tgt(t);
-		goto out;
-	}
-#else
 	INIT_LIST_HEAD(&t->tgt_acg_list);
-#endif
 
 	*tgt = t;
 
@@ -4155,9 +4145,6 @@ void scst_free_tgt(struct scst_tgt *tgt)
 
 	kfree(tgt->tgt_name);
 	kfree(tgt->tgt_comment);
-#ifdef CONFIG_SCST_PROC
-	kfree(tgt->default_group_name);
-#endif
 
 	kmem_cache_free(scst_tgt_cachep, tgt);
 
@@ -4710,15 +4697,6 @@ int scst_alloc_add_acg(struct scst_tgt *tgt, const char *acg_name,
 	if (res != 0)
 		goto out_undup;
 
-#ifdef CONFIG_SCST_PROC
-	acg->addr_method = tgt && tgt->tgtt ? tgt->tgtt->preferred_addr_method
-		: SCST_LUN_ADDR_METHOD_PERIPHERAL;
-
-	TRACE_DBG("Adding acg %s to scst_acg_list", acg_name);
-	list_add_tail(&acg->acg_list_entry, &scst_acg_list);
-
-	scst_check_reassign_sessions();
-#else
 	acg->addr_method = tgt->tgtt->preferred_addr_method;
 
 	if (tgt_acg) {
@@ -4733,7 +4711,6 @@ int scst_alloc_add_acg(struct scst_tgt *tgt, const char *acg_name,
 	}
 
 	kobject_get(&tgt->tgt_kobj);
-#endif
 
 	res = 0;
 
@@ -4743,10 +4720,8 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-#ifndef CONFIG_SCST_PROC
 out_del:
 	list_del(&acg->acg_list_entry);
-#endif
 
 out_undup:
 	kfree(acg->acg_name);
@@ -4782,9 +4757,6 @@ static void scst_del_acg(struct scst_acg *acg)
 	list_for_each_entry(acn, &acg->acn_list, acn_list_entry)
 		scst_acn_sysfs_del(acn);
 
-#ifdef CONFIG_SCST_PROC
-	list_del(&acg->acg_list_entry);
-#else
 	if (acg->tgt_acg) {
 		TRACE_DBG("Removing acg %s from list", acg->acg_name);
 		list_del(&acg->acg_list_entry);
@@ -4793,7 +4765,6 @@ static void scst_del_acg(struct scst_acg *acg)
 	} else {
 		acg->tgt->default_acg = NULL;
 	}
-#endif
 }
 
 /*
@@ -4839,9 +4810,7 @@ static void scst_free_acg(struct scst_acg *acg)
 	kfree(acg->acg_name);
 	kfree(acg);
 
-#ifndef CONFIG_SCST_PROC
 	kobject_put(&tgt->tgt_kobj);
-#endif
 }
 
 static void scst_release_acg(struct kref *kref)
@@ -4943,7 +4912,6 @@ int scst_del_free_acg(struct scst_acg *acg, bool close_sessions)
 	return 0;
 }
 
-#ifndef CONFIG_SCST_PROC
 
 /* The activity supposed to be suspended and scst_mutex held */
 struct scst_acg *scst_tgt_find_acg(struct scst_tgt *tgt, const char *name)
@@ -4963,7 +4931,6 @@ struct scst_acg *scst_tgt_find_acg(struct scst_tgt *tgt, const char *name)
 	return acg_ret;
 }
 
-#endif
 
 /* scst_mutex supposed to be held */
 static struct scst_tgt_dev *scst_find_shared_io_tgt_dev(
@@ -5721,36 +5688,6 @@ out:
 	return acn;
 }
 
-#ifdef CONFIG_SCST_PROC
-/* The activity supposed to be suspended and scst_mutex held */
-int scst_acg_remove_name(struct scst_acg *acg, const char *name, bool reassign)
-{
-	int res = -EINVAL;
-	struct scst_acn *acn;
-
-	TRACE_ENTRY();
-
-	list_for_each_entry(acn, &acg->acn_list, acn_list_entry) {
-		if (strcmp(acn->name, name) == 0) {
-			scst_del_free_acn(acn, false);
-			res = 0;
-			break;
-		}
-	}
-
-	if (res == 0) {
-		PRINT_INFO("Removed name %s from group %s (target %s)", name,
-			acg->acg_name, acg->tgt ? acg->tgt->tgt_name : "?");
-		if (reassign)
-			scst_check_reassign_sessions();
-	} else
-		PRINT_ERROR("Unable to find name '%s' in group '%s'", name,
-			acg->acg_name);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-#endif
 
 struct scst_cmd *__scst_create_prepare_internal_cmd(const uint8_t *cdb,
 	unsigned int cdb_len, enum scst_cmd_queue_type queue_type,
@@ -7140,9 +7077,7 @@ void scst_free_session(struct scst_session *sess)
 
 	mutex_unlock(&scst_mutex);
 
-#ifndef CONFIG_SCST_PROC
 	scst_sess_sysfs_del(sess);
-#endif
 	if (sess->unreg_done_fn) {
 		TRACE_DBG("Calling unreg_done_fn(%p)", sess);
 		sess->unreg_done_fn(sess);

@@ -73,73 +73,6 @@ out:
 	return pos;
 }
 
-#ifdef CONFIG_SCST_PROC
-
-static int print_digest_state(char *p, size_t size, unsigned long flags)
-{
-	int pos;
-
-	if (DIGEST_NONE & flags)
-		pos = scnprintf(p, size, "%s", "none");
-	else if (DIGEST_CRC32C & flags)
-		pos = scnprintf(p, size, "%s", "crc32c");
-	else
-		pos = scnprintf(p, size, "%s", "unknown");
-
-	return pos;
-}
-
-/* target_mutex supposed to be locked */
-void conn_info_show(struct seq_file *seq, struct iscsi_session *session)
-{
-	struct iscsi_conn *conn;
-	struct sock *sk;
-	char buf[64];
-
-	lockdep_assert_held(&session->target->target_mutex);
-
-	list_for_each_entry(conn, &session->conn_list, conn_list_entry) {
-		sk = conn->sock->sk;
-		switch (sk->sk_family) {
-		case AF_INET:
-			snprintf(buf, sizeof(buf),
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
-				 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->daddr));
-#else
-				 "%pI4", &inet_sk(sk)->inet_daddr);
-#endif
-			break;
-#if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
-		case AF_INET6:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-			snprintf(buf, sizeof(buf),
-				 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
-				 NIP6(inet6_sk(sk)->daddr));
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
-			snprintf(buf, sizeof(buf), "[%pI6]",
-				&inet6_sk(sk)->daddr);
-#else
-			snprintf(buf, sizeof(buf), "[%pI6]",
-				&sk->sk_v6_daddr);
-#endif
-			break;
-#endif
-		default:
-			snprintf(buf, sizeof(buf), "Unknown family %d",
-				sk->sk_family);
-			break;
-		}
-		seq_printf(seq, "\t\tcid:%u ip:%s ", conn->cid, buf);
-		print_conn_state(buf, sizeof(buf), conn);
-		seq_printf(seq, "state:%s ", buf);
-		print_digest_state(buf, sizeof(buf), conn->hdigest_type);
-		seq_printf(seq, "hd:%s ", buf);
-		print_digest_state(buf, sizeof(buf), conn->ddigest_type);
-		seq_printf(seq, "dd:%s\n", buf);
-	}
-}
-
-#else /* CONFIG_SCST_PROC */
 
 static void iscsi_conn_release(struct kobject *kobj)
 {
@@ -382,7 +315,6 @@ out_err:
 }
 EXPORT_SYMBOL(conn_sysfs_add);
 
-#endif /* CONFIG_SCST_PROC */
 
 /* target_mutex supposed to be locked */
 struct iscsi_conn *conn_lookup(struct iscsi_session *session, u16 cid)
@@ -889,9 +821,7 @@ void conn_free(struct iscsi_conn *conn)
 
 	del_timer_sync(&conn->rsp_timer);
 
-#ifndef CONFIG_SCST_PROC
 	conn_sysfs_del(conn);
-#endif
 
 	sBUG_ON(atomic_read(&conn->conn_ref_cnt) != 0);
 	sBUG_ON(!list_empty(&conn->cmd_list));
@@ -1022,11 +952,9 @@ int iscsi_conn_alloc(struct iscsi_session *session,
 	if (res != 0)
 		goto out_fput;
 
-#ifndef CONFIG_SCST_PROC
 	res = conn_sysfs_add(conn);
 	if (res != 0)
 		goto out_fput;
-#endif
 
 	list_add_tail(&conn->conn_list_entry, &session->conn_list);
 

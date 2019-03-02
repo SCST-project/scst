@@ -3137,10 +3137,8 @@ scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 		goto out_unlock;
 	}
 
-#ifndef CONFIG_SCST_PROC
 	if (cmd->status == SAM_STAT_GOOD)
 		scst_pr_sync_device_file(dev);
-#endif
 
 	if ((cmd->devt->pr_cmds_notifications) &&
 	    (cmd->status == SAM_STAT_GOOD)) /* sync file may change status */
@@ -7921,54 +7919,6 @@ static bool wildcmp(const char *wild, const char *string)
 	return __wildcmp(wild, string, 0);
 }
 
-#ifdef CONFIG_SCST_PROC
-
-/* scst_mutex supposed to be held */
-static struct scst_acg *scst_find_acg_by_name_wild(const char *initiator_name)
-{
-	struct scst_acg *acg, *res = NULL;
-	struct scst_acn *n;
-
-	TRACE_ENTRY();
-
-	list_for_each_entry(acg, &scst_acg_list, acg_list_entry) {
-		list_for_each_entry(n, &acg->acn_list, acn_list_entry) {
-			if (wildcmp(n->name, initiator_name)) {
-				TRACE_DBG("Access control group %s found",
-					acg->acg_name);
-				res = acg;
-				goto out;
-			}
-		}
-	}
-
-out:
-	TRACE_EXIT_HRES(res);
-	return res;
-}
-
-/* scst_mutex supposed to be held */
-static struct scst_acg *scst_find_acg_by_name(const char *acg_name)
-{
-	struct scst_acg *acg, *res = NULL;
-
-	TRACE_ENTRY();
-
-	list_for_each_entry(acg, &scst_acg_list, acg_list_entry) {
-		if (strcmp(acg->acg_name, acg_name) == 0) {
-			TRACE_DBG("Access control group %s found",
-				acg->acg_name);
-			res = acg;
-			goto out;
-		}
-	}
-
-out:
-	TRACE_EXIT_HRES(res);
-	return res;
-}
-
-#else /* CONFIG_SCST_PROC */
 
 /* scst_mutex supposed to be held */
 static struct scst_acg *scst_find_tgt_acg_by_name_wild(struct scst_tgt *tgt,
@@ -7998,7 +7948,6 @@ out:
 	return res;
 }
 
-#endif /* CONFIG_SCST_PROC */
 
 /* Must be called under scst_mutex */
 static struct scst_acg *__scst_find_acg(struct scst_tgt *tgt,
@@ -8008,18 +7957,9 @@ static struct scst_acg *__scst_find_acg(struct scst_tgt *tgt,
 
 	TRACE_ENTRY();
 
-#ifdef CONFIG_SCST_PROC
-	if (initiator_name)
-		acg = scst_find_acg_by_name_wild(initiator_name);
-	if ((acg == NULL) && (tgt->default_group_name != NULL))
-		acg = scst_find_acg_by_name(tgt->default_group_name);
-	if (acg == NULL)
-		acg = scst_default_acg;
-#else
 	acg = scst_find_tgt_acg_by_name_wild(tgt, initiator_name);
 	if (acg == NULL)
 		acg = tgt->default_acg;
-#endif
 
 	TRACE_EXIT_HRES((unsigned long)acg);
 	return acg;

@@ -195,14 +195,6 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd,
 static int dev_user_release(struct inode *inode, struct file *file);
 static int dev_user_exit_dev(struct scst_user_dev *dev);
 
-#ifdef CONFIG_SCST_PROC
-
-#ifdef CONFIG_SCST_DEBUG
-static int dev_user_read_proc(struct seq_file *seq,
-	struct scst_dev_type *dev_type);
-#endif
-
-#else /* CONFIG_SCST_PROC */
 
 static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf);
@@ -215,7 +207,6 @@ static const struct attribute *dev_user_dev_attrs[] = {
 	NULL,
 };
 
-#endif /* CONFIG_SCST_PROC */
 
 static int dev_usr_parse(struct scst_cmd *cmd);
 
@@ -239,9 +230,6 @@ static struct scst_dev_type dev_user_devtype = {
 	.name =		DEV_USER_NAME,
 	.type =		-1,
 	.parse =	dev_usr_parse,
-#if defined(CONFIG_SCST_PROC) && defined(CONFIG_SCST_DEBUG)
-	.read_proc =    dev_user_read_proc,
-#endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags = SCST_DEFAULT_DEV_LOG_FLAGS,
 	.trace_flags = &trace_flag,
@@ -962,7 +950,6 @@ static enum scst_exec_res dev_user_exec(struct scst_cmd *cmd)
 	return res;
 }
 
-#ifndef CONFIG_SCST_PROC
 static void dev_user_ext_copy_remap(struct scst_cmd *cmd,
 	struct scst_ext_copy_seg_descr *seg)
 {
@@ -993,7 +980,6 @@ static void dev_user_ext_copy_remap(struct scst_cmd *cmd,
 	TRACE_EXIT();
 	return;
 }
-#endif
 
 static void dev_user_free_sgv(struct scst_user_cmd *ucmd)
 {
@@ -1492,7 +1478,6 @@ static int dev_user_process_reply_on_cache_free(struct scst_user_cmd *ucmd)
 	return res;
 }
 
-#ifndef CONFIG_SCST_PROC
 static int dev_user_process_reply_ext_copy_remap(struct scst_user_cmd *ucmd,
 	struct scst_user_reply_cmd *reply)
 {
@@ -1636,7 +1621,6 @@ out_status:
 	scst_set_cmd_error_status(cmd, rreply->status);
 	goto out_done;
 }
-#endif
 
 static int dev_user_process_ws_reply(struct scst_user_cmd *ucmd,
 	struct scst_user_scsi_cmd_reply_exec *ereply)
@@ -1967,11 +1951,9 @@ unlock_process:
 		res = dev_user_process_reply_on_cache_free(ucmd);
 		break;
 
-#ifndef CONFIG_SCST_PROC
 	case UCMD_STATE_EXT_COPY_REMAPPING:
 		res = dev_user_process_reply_ext_copy_remap(ucmd, reply);
 		break;
-#endif
 
 	case UCMD_STATE_TM_RECEIVED_EXECING:
 	case UCMD_STATE_TM_DONE_EXECING:
@@ -2691,11 +2673,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy,
 					SCST_CONTEXT_THREAD);
 		else {
 			sBUG_ON(state != UCMD_STATE_EXT_COPY_REMAPPING);
-#ifndef CONFIG_SCST_PROC
 			scst_ext_copy_remap_done(ucmd->cmd, NULL, 0);
-#else
-			sBUG();
-#endif
 		}
 		/* !! At this point cmd and ucmd can be already freed !! */
 
@@ -3236,10 +3214,8 @@ static void dev_user_setup_functions(struct scst_user_dev *dev)
 	dev->devtype.dev_done = NULL;
 
 	dev->devtype.ext_copy_remap = NULL;
-#ifndef CONFIG_SCST_PROC
 	if (dev->ext_copy_remap_supported)
 		dev->devtype.ext_copy_remap = dev_user_ext_copy_remap;
-#endif
 
 	if (dev->parse_type != SCST_USER_PARSE_CALL) {
 		switch (dev->devtype.type) {
@@ -3443,11 +3419,7 @@ static int dev_user_register_dev(struct file *file,
 	dev->devtype.parse_atomic = 1;
 	dev->devtype.dev_alloc_data_buf_atomic = 1;
 	dev->devtype.dev_done_atomic = 1;
-#ifdef CONFIG_SCST_PROC
-	dev->devtype.no_proc = 1;
-#else
 	dev->devtype.dev_attrs = dev_user_dev_attrs;
-#endif
 	dev->devtype.attach = dev_user_attach;
 	dev->devtype.detach = dev_user_detach;
 	dev->devtype.attach_tgt = dev_user_attach_tgt;
@@ -4014,7 +3986,6 @@ out:
 	return res;
 }
 
-#ifndef CONFIG_SCST_PROC
 
 static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
@@ -4059,50 +4030,6 @@ static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj,
 	return pos;
 }
 
-#else /* CONFIG_SCST_PROC */
-
-#ifdef CONFIG_SCST_DEBUG
-/*
- * Called when a file in the /proc/scsi_tgt/scst_user is read
- */
-static int dev_user_read_proc(struct seq_file *seq, struct scst_dev_type *dev_type)
-{
-	int res = 0;
-	struct scst_user_dev *dev;
-	unsigned long flags;
-
-	TRACE_ENTRY();
-
-	spin_lock(&dev_list_lock);
-
-	list_for_each_entry(dev, &dev_list, dev_list_entry) {
-		int i;
-
-		seq_printf(seq, "Device %s commands:\n", dev->name);
-		spin_lock_irqsave(&dev->udev_cmd_threads.cmd_list_lock, flags);
-		for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
-			struct list_head *head = &dev->ucmd_hash[i];
-			struct scst_user_cmd *ucmd;
-
-			list_for_each_entry(ucmd, head, hash_list_entry) {
-				seq_printf(seq, "ucmd %p (state %x, ref %d), "
-					"sent_to_user %d, seen_by_user %d, "
-					"aborted %d, jammed %d, scst_cmd %p\n",
-					ucmd, ucmd->state,
-					atomic_read(&ucmd->ucmd_ref),
-					ucmd->sent_to_user, ucmd->seen_by_user,
-					ucmd->aborted, ucmd->jammed, ucmd->cmd);
-			}
-		}
-		spin_unlock_irqrestore(&dev->udev_cmd_threads.cmd_list_lock, flags);
-	}
-	spin_unlock(&dev_list_lock);
-
-	TRACE_EXIT_RES(res);
-	return res;
-}
-#endif /* CONFIG_SCST_DEBUG */
-#endif /* CONFIG_SCST_PROC */
 
 static inline int test_cleanup_list(void)
 {
@@ -4226,22 +4153,13 @@ static int __init init_scst_user(void)
 	if (res < 0)
 		goto out_cache;
 
-#ifdef CONFIG_SCST_PROC
-	res = scst_dev_handler_build_std_proc(&dev_user_devtype);
-	if (res != 0)
-		goto out_unreg;
-#endif
 
 	dev_user_sysfs_class = class_create(THIS_MODULE, DEV_USER_NAME);
 	if (IS_ERR(dev_user_sysfs_class)) {
 		PRINT_ERROR("%s", "Unable create sysfs class for SCST user "
 			"space handler");
 		res = PTR_ERR(dev_user_sysfs_class);
-#ifdef CONFIG_SCST_PROC
-		goto out_proc;
-#else
 		goto out_unreg;
-#endif
 	}
 
 	dev_user_major = register_chrdev(0, DEV_USER_NAME, &dev_user_fops);
@@ -4296,10 +4214,6 @@ out_chrdev:
 out_class:
 	class_destroy(dev_user_sysfs_class);
 
-#ifdef CONFIG_SCST_PROC
-out_proc:
-	scst_dev_handler_destroy_std_proc(&dev_user_devtype);
-#endif
 
 out_unreg:
 	scst_unregister_dev_driver(&dev_user_devtype);
@@ -4330,9 +4244,6 @@ static void __exit exit_scst_user(void)
 #endif
 	class_destroy(dev_user_sysfs_class);
 
-#ifdef CONFIG_SCST_PROC
-	scst_dev_handler_destroy_std_proc(&dev_user_devtype);
-#endif
 	scst_unregister_virtual_dev_driver(&dev_user_devtype);
 
 	kmem_cache_destroy(user_cmd_cachep);

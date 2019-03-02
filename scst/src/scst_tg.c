@@ -286,9 +286,7 @@ static void scst_release_tg_tgt(struct kobject *kobj)
 }
 
 static struct kobj_type scst_tg_tgt_ktype = {
-#ifndef CONFIG_SCST_PROC
 	.sysfs_ops = &scst_sysfs_ops,
-#endif
 	.release = scst_release_tg_tgt,
 };
 
@@ -794,9 +792,7 @@ static void scst_release_tg(struct kobject *kobj)
 }
 
 static struct kobj_type scst_tg_ktype = {
-#ifndef CONFIG_SCST_PROC
 	.sysfs_ops = &scst_sysfs_ops,
-#endif
 	.release = scst_release_tg,
 };
 
@@ -1278,9 +1274,7 @@ static void scst_release_dg(struct kobject *kobj)
 }
 
 static struct kobj_type scst_dg_ktype = {
-#ifndef CONFIG_SCST_PROC
 	.sysfs_ops = &scst_sysfs_ops,
-#endif
 	.release = scst_release_dg,
 };
 

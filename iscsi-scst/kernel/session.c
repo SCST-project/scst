@@ -65,21 +65,7 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 		goto err;
 	}
 
-#ifdef CONFIG_SCST_PROC
-	name = kmalloc(strlen(info->user_name) + strlen(info->initiator_name) +
-			2, GFP_KERNEL);	/* +1 (for '\0') +1 (for '@') */
-	if (name == NULL) {
-		err = -ENOMEM;
-		goto err;
-	}
-
-	if (info->user_name[0] != '\0')
-		sprintf(name, "%s@%s", info->user_name, info->initiator_name);
-	else
-		sprintf(name, "%s", info->initiator_name);
-#else
 	name = info->full_initiator_name;
-#endif
 
 	INIT_LIST_HEAD(&session->conn_list);
 	INIT_LIST_HEAD(&session->pending_list);
@@ -109,9 +95,6 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 			goto err_unreg;
 	}
 
-#ifdef CONFIG_SCST_PROC
-	kfree(name);
-#endif
 
 	TRACE(TRACE_MGMT, "Session %p created: target %p, tid %u, sid %#Lx, "
 		"initiator %s", session, target, target->tid, info->sid,
@@ -127,9 +110,6 @@ err:
 	if (session) {
 		kfree(session->initiator_name);
 		kmem_cache_free(iscsi_sess_cache, session);
-#ifdef CONFIG_SCST_PROC
-		kfree(name);
-#endif
 	}
 	return err;
 }
@@ -410,51 +390,6 @@ void iscsi_sess_force_close(struct iscsi_session *sess)
 	return;
 }
 
-#ifdef CONFIG_SCST_PROC
-
-/* target_mutex supposed to be locked */
-static void iscsi_session_info_show(struct seq_file *seq,
-				    struct iscsi_target *target)
-{
-	struct iscsi_session *session;
-
-	lockdep_assert_held(&target->target_mutex);
-
-	list_for_each_entry(session, &target->session_list,
-			    session_list_entry) {
-		seq_printf(seq, "\tsid:%llx initiator:%s (reinstating %s)\n",
-			(unsigned long long)session->sid,
-			session->initiator_name,
-			session->sess_reinstating ? "yes" : "no");
-		conn_info_show(seq, session);
-	}
-	return;
-}
-
-static int iscsi_session_seq_open(struct inode *inode, struct file *file)
-{
-	int res;
-
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
-	res = seq_open(file, (struct seq_operations *)&iscsi_seq_op);
-#else
-	res = seq_open(file, &iscsi_seq_op);
-#endif
-	if (!res)
-		((struct seq_file *)file->private_data)->private =
-			iscsi_session_info_show;
-	return res;
-}
-
-const struct file_operations session_seq_fops = {
-	.owner		= THIS_MODULE,
-	.open		= iscsi_session_seq_open,
-	.read		= seq_read,
-	.llseek		= seq_lseek,
-	.release	= seq_release,
-};
-
-#else /* CONFIG_SCST_PROC */
 
 #define ISCSI_SESS_BOOL_PARAM_ATTR(name, exported_name)				\
 static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
@@ -615,4 +550,3 @@ const struct attribute *iscsi_sess_attrs[] = {
 	NULL,
 };
 
-#endif /* CONFIG_SCST_PROC */
