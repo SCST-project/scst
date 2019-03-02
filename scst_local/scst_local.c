@@ -2036,12 +2036,7 @@ static int __init scst_local_init(void)
 		goto tgt_templ_unreg;
 	}
 
-	/*
-	 *  If we are using sysfs, then don't add a default target unless
-	 *  we are told to do so. When using procfs, we always add a default
-	 *  target because that was what the earliest versions did. Just
-	 *  remove the preprocessor directives when no longer needed.
-	 */
+	/* Don't add a default target unless we are told to do so. */
 	if (!scst_local_add_default_tgt)
 		goto out;
 

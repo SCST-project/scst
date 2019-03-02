@@ -15,12 +15,6 @@ Specifies which command-line options will be passed to iscsi-scstd by the SCST
 init script when SCST is started. This variable is ignored if no iSCSI target
 entries have been defined in /etc/scst.conf. See also the iscsi-scstd man page
 for more information about the supported command-line options.
-.TP
-.B SCST_TARGET_MODULES
-This variable has only to be set when the procfs interface of SCST is being
-used instead of the sysfs interface. It defines which target modules should be
-loaded by the SCST init script when SCST is started and also which target
-modules should be unloaded when SCST is stopped.
 .P
 The format of the /etc/default/scst file is as follows:
 .br
@@ -38,14 +32,6 @@ An example:
 ISCSID_OPTIONS="-u0 -g0 -p3260"
 .br
 
-.br
-# When using the procfs interface, the /etc/init.d/scst script
-.br
-# cannot derive from /etc/scst.conf which target modules will
-.br
-# be used and hence these have to be specified explicitly.
-.br
-SCST_TARGET_MODULES="scst_local iscsi_scst ib_srpt"
 .SH FILES
 .IP /etc/default/scst
 Configuration file that controls the behavior of some aspects of
