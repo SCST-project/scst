@@ -362,7 +362,6 @@ function handle_if(evaluated)
       || $0 ~ "IB_CM_LISTEN_TAKES_FOURTH_ARG" \
       || $0 ~ "IB_CREATE_CQ_HAS_INIT_ATTR" \
       || $0 ~ "IB_PD_HAS_LOCAL_DMA_LKEY" \
-      || $0 ~ "IB_PD_HAS_LOCAL_DMA_LKEY" \
       || $0 ~ "IB_QUERY_GID_HAS_ATTR_ARG" \
       || $0 ~ "INSIDE_KERNEL_TREE" \
       || $0 ~ "MAD_HANDLER_TAKES_SEND_BUF" \
