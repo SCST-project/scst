@@ -1669,7 +1669,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .get_cdb_info = get_cdb_info_len_10}
 };
 
-#define SCST_CDB_TBL_SIZE	((int)ARRAY_SIZE(scst_scsi_op_table))
+#define SCST_CDB_TBL_SIZE	(ARRAY_SIZE(scst_scsi_op_table))
 
 static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev);
 static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev);
@@ -4162,7 +4162,7 @@ static void scst_init_order_data(struct scst_order_data *order_data)
 	order_data->curr_sn = (typeof(order_data->curr_sn))(-20);
 	order_data->expected_sn = order_data->curr_sn;
 	order_data->cur_sn_slot = &order_data->sn_slots[0];
-	for (i = 0; i < (int)ARRAY_SIZE(order_data->sn_slots); i++)
+	for (i = 0; i < ARRAY_SIZE(order_data->sn_slots); i++)
 		atomic_set(&order_data->sn_slots[i], 0);
 	spin_lock_init(&order_data->init_done_lock);
 	return;
@@ -15337,7 +15337,7 @@ static void __init scst_scsi_op_list_init(void)
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("tblsize=%d", SCST_CDB_TBL_SIZE);
+	TRACE_DBG("tblsize=%zd", SCST_CDB_TBL_SIZE);
 
 	for (i = 0; i < 256; i++)
 		scst_scsi_op_list[i] = SCST_CDB_TBL_SIZE;

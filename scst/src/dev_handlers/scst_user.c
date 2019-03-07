@@ -2754,7 +2754,7 @@ static int dev_user_unjam_dev(struct scst_user_dev *dev)
 	spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 repeat:
-	for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
+	for (i = 0; i < ARRAY_SIZE(dev->ucmd_hash); i++) {
 		struct list_head *head = &dev->ucmd_hash[i];
 
 		list_for_each_entry(ucmd, head, hash_list_entry) {
@@ -3368,7 +3368,7 @@ static int dev_user_register_dev(struct file *file,
 		dev->blocking = 0;
 	} else
 		dev->blocking = 1;
-	for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++)
+	for (i = 0; i < ARRAY_SIZE(dev->ucmd_hash); i++)
 		INIT_LIST_HEAD(&dev->ucmd_hash[i]);
 
 	scst_init_threads(&dev->udev_cmd_threads);
@@ -3923,7 +3923,7 @@ static void dev_user_check_lost_ucmds(struct scst_user_dev *dev)
 {
 	int i;
 
-	for (i = 0; i < (int)ARRAY_SIZE(dev->ucmd_hash); i++) {
+	for (i = 0; i < ARRAY_SIZE(dev->ucmd_hash); i++) {
 		struct list_head *head = &dev->ucmd_hash[i];
 		struct scst_user_cmd *ucmd2, *tmp;
 
@@ -4001,7 +4001,7 @@ static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj,
 	udev = dev->dh_priv;
 
 	spin_lock_irqsave(&udev->udev_cmd_threads.cmd_list_lock, flags);
-	for (i = 0; i < (int)ARRAY_SIZE(udev->ucmd_hash); i++) {
+	for (i = 0; i < ARRAY_SIZE(udev->ucmd_hash); i++) {
 		struct list_head *head = &udev->ucmd_hash[i];
 		struct scst_user_cmd *ucmd;
 
