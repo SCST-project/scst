@@ -173,7 +173,6 @@ bool ft_test_and_set_cmd_state(struct ft_cmd *fcmd, enum ft_cmd_state old,
 void ft_recv_req(struct ft_sess *sess, struct fc_frame *fp);
 void ft_recv_write_data(struct scst_cmd *cmd, struct fc_frame *fp);
 int ft_send_read_data(struct scst_cmd *cmd);
-void ft_cmd_dump(struct scst_cmd *cmd, const char *caller);
 
 /* #define FCST_INJECT_SEND_ERRORS 2 */
 

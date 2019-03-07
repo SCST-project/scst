@@ -32,144 +32,6 @@ static void ft_cmd_flag(char *buf, size_t len, const char *desc)
 }
 
 /*
- * Debug: dump command.
- */
-void ft_cmd_dump(struct scst_cmd *cmd, const char *caller)
-{
-	static atomic_t serial;
-	struct ft_cmd *fcmd;
-	struct fc_frame_header *fh;
-	char prefix[30];
-	char buf[150];
-
-	if (!(ft_debug_logging & FT_DEBUG_IO))
-		return;
-
-	fcmd = scst_cmd_get_tgt_priv(cmd);
-	fh = fc_frame_header_get(fcmd->req_frame);
-	snprintf(prefix, sizeof(prefix), FT_MODULE ": cmd %2x",
-		atomic_inc_return(&serial) & 0xff);
-
-	pr_info("%s %s oid %x oxid %x resp_len %u\n",
-		prefix, caller, ntoh24(fh->fh_s_id), ntohs(fh->fh_ox_id),
-		scst_cmd_get_resp_data_len(cmd));
-	pr_info("%s scst_cmd %p wlen %u rlen %u\n",
-		prefix, cmd, fcmd->write_data_len, fcmd->read_data_len);
-	pr_info("%s exp_dir %x exp_xfer_len %d exp_in_len %d\n",
-		prefix, cmd->expected_data_direction,
-		cmd->expected_transfer_len_full,
-		cmd->expected_out_transfer_len);
-	pr_info("%s dir %x data_len %lld bufflen %d out_bufflen %d\n",
-		prefix, cmd->data_direction, cmd->data_len,
-		cmd->bufflen, cmd->out_bufflen);
-	pr_info("%s sg_cnt reg %d in %d tgt %d tgt_in %d\n",
-		prefix, cmd->sg_cnt, cmd->out_sg_cnt,
-		cmd->tgt_i_sg_cnt, cmd->tgt_out_sg_cnt);
-
-	buf[0] = '\0';
-	if (cmd->sent_for_exec)
-		ft_cmd_flag(buf, sizeof(buf), "sent");
-	if (cmd->completed)
-		ft_cmd_flag(buf, sizeof(buf), "comp");
-	if (cmd->ua_ignore)
-		ft_cmd_flag(buf, sizeof(buf), "ua_ign");
-	if (cmd->atomic)
-		ft_cmd_flag(buf, sizeof(buf), "atom");
-	if (cmd->double_ua_possible)
-		ft_cmd_flag(buf, sizeof(buf), "dbl_ua_poss");
-	if (cmd->is_send_status)
-		ft_cmd_flag(buf, sizeof(buf), "send_stat");
-	if (cmd->retry)
-		ft_cmd_flag(buf, sizeof(buf), "retry");
-	if (cmd->internal)
-		ft_cmd_flag(buf, sizeof(buf), "internal");
-	if (cmd->unblock_dev)
-		ft_cmd_flag(buf, sizeof(buf), "unblock_dev");
-	if (cmd->cmd_hw_pending)
-		ft_cmd_flag(buf, sizeof(buf), "hw_pend");
-	if (cmd->tgt_need_alloc_data_buf)
-		ft_cmd_flag(buf, sizeof(buf), "tgt_need_alloc");
-	if (cmd->tgt_i_data_buf_alloced)
-		ft_cmd_flag(buf, sizeof(buf), "tgt_i_alloced");
-	if (cmd->dh_data_buf_alloced)
-		ft_cmd_flag(buf, sizeof(buf), "dh_alloced");
-	if (cmd->expected_values_set)
-		ft_cmd_flag(buf, sizeof(buf), "exp_val");
-	if (cmd->sg_buff_modified)
-		ft_cmd_flag(buf, sizeof(buf), "sg_buf_mod");
-	if (cmd->preprocessing_only)
-		ft_cmd_flag(buf, sizeof(buf), "pre_only");
-	if (cmd->sn_set)
-		ft_cmd_flag(buf, sizeof(buf), "sn_set");
-	if (cmd->hq_cmd_inced)
-		ft_cmd_flag(buf, sizeof(buf), "hq_cmd_inc");
-	if (cmd->set_sn_on_restart_cmd)
-		ft_cmd_flag(buf, sizeof(buf), "set_sn_on_restart");
-	if (cmd->no_sgv)
-		ft_cmd_flag(buf, sizeof(buf), "no_sgv");
-	if (cmd->may_need_dma_sync)
-		ft_cmd_flag(buf, sizeof(buf), "dma_sync");
-	if (cmd->out_of_sn)
-		ft_cmd_flag(buf, sizeof(buf), "oo_sn");
-	if (cmd->inc_expected_sn_on_done)
-		ft_cmd_flag(buf, sizeof(buf), "inc_sn_exp");
-	if (cmd->done)
-		ft_cmd_flag(buf, sizeof(buf), "done");
-	if (cmd->finished)
-		ft_cmd_flag(buf, sizeof(buf), "fin");
-
-	pr_info("%s flags %s\n", prefix, buf);
-	pr_info("%s lun %lld sn %d tag %lld cmd_flags %lx\n",
-		prefix, cmd->lun, cmd->sn, cmd->tag, cmd->cmd_flags);
-	pr_info("%s tgt_sn %d op_flags %x op %s\n",
-		prefix, cmd->tgt_sn, cmd->op_flags, cmd->op_name);
-	pr_info("%s status %x msg_status %x "
-		"host_status %x driver_status %x\n",
-		prefix, cmd->status, cmd->msg_status,
-		cmd->host_status, cmd->driver_status);
-	pr_info("%s cdb_len %d\n", prefix, cmd->cdb_len);
-	snprintf(buf, sizeof(buf), "%s cdb ", prefix);
-	print_hex_dump(KERN_INFO, buf, DUMP_PREFIX_NONE,
-		16, 4, cmd->cdb, SCST_MAX_CDB_SIZE, 0);
-}
-
-/*
- * Debug: dump mgmt command.
- */
-static void ft_cmd_tm_dump(struct scst_mgmt_cmd *mcmd, const char *caller)
-{
-	struct ft_cmd *fcmd;
-	struct fc_frame_header *fh;
-	char prefix[30];
-	char buf[150];
-
-	if (!(ft_debug_logging & FT_DEBUG_IO))
-		return;
-	fcmd = scst_mgmt_cmd_get_tgt_priv(mcmd);
-	fh = fc_frame_header_get(fcmd->req_frame);
-
-	snprintf(prefix, sizeof(prefix), FT_MODULE ": mcmd");
-
-	pr_info("%s %s oid %x oxid %x lun %lld\n",
-		prefix, caller, ntoh24(fh->fh_s_id), ntohs(fh->fh_ox_id),
-		(unsigned long long)mcmd->lun);
-	pr_info("%s state %d fn %d fin_wait %d done_wait %d comp %d\n",
-		prefix, mcmd->state, mcmd->fn,
-		mcmd->cmd_finish_wait_count, mcmd->cmd_done_wait_count,
-		mcmd->completed_cmd_count);
-	buf[0] = '\0';
-	if (mcmd->needs_unblocking)
-		ft_cmd_flag(buf, sizeof(buf), "needs_unblock");
-	if (mcmd->lun_set)
-		ft_cmd_flag(buf, sizeof(buf), "lun_set");
-	if (mcmd->cmd_sn_set)
-		ft_cmd_flag(buf, sizeof(buf), "cmd_sn_set");
-	pr_info("%s flags %s\n", prefix, buf);
-	if (mcmd->cmd_to_abort)
-		ft_cmd_dump(mcmd->cmd_to_abort, caller);
-}
-
-/*
  * ft_set_cmd_state() - set the state of a command
  */
 static enum ft_cmd_state ft_set_cmd_state(struct ft_cmd *fcmd,
@@ -309,7 +171,6 @@ int ft_send_response(struct scst_cmd *cmd)
 	int dir;
 	u32 status;
 
-	ft_cmd_dump(cmd, __func__);
 	fcmd = scst_cmd_get_tgt_priv(cmd);
 	ep = fc_seq_exch(fcmd->seq);
 	lport = ep->lp;
@@ -611,7 +472,6 @@ void ft_cmd_tm_done(struct scst_mgmt_cmd *mcmd)
 	struct ft_cmd *fcmd;
 	enum fcp_resp_rsp_codes code;
 
-	ft_cmd_tm_dump(mcmd, __func__);
 	fcmd = scst_mgmt_cmd_get_tgt_priv(mcmd);
 	if (!fcmd)
 		return;
