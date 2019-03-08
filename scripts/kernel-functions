@@ -321,7 +321,7 @@ index d6d65537b0d9..6aad8308a0ac 100644
 EOF
     fi
     case "$1" in
-	3.[0-9].*|3.1[01345].*|3.17.*|3.19.*|4.[023567].*)
+	2.6.3[6-9]*|3.[0-9].*|3.1[01345].*|3.17.*|3.19.*|4.[023567].*)
 	    patch -p1 <<'EOF'
 From c6a385539175ebc603da53aafb7753d39089f32e Mon Sep 17 00:00:00 2001
 From: Borislav Petkov <bp@suse.de>
@@ -383,6 +383,30 @@ index 0ed6ce300543..c324b43712f0 100644
  KBUILD_AFLAGS_MODULE  := -DMODULE
  KBUILD_CFLAGS_MODULE  := -DMODULE
  KBUILD_LDFLAGS_MODULE := -T $(srctree)/scripts/module-common.lds
+EOF
+	    ;;
+	2.6.3[1-5]*)
+	    patch -p1 <<'EOF'
+diff --git a/Makefile b/Makefile
+index 141da26fda4b..343ec388ae2e 100644
+--- a/Makefile
++++ b/Makefile
+@@ -349,12 +349,13 @@ LINUXINCLUDE    := -I$(srctree)/arch/$(hdr-arch)/include -Iinclude \
+ 
+ KBUILD_CPPFLAGS := -D__KERNEL__
+ 
+-KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
++KBUILD_CFLAGS   := $(call cc-option,-fno-PIE) \
++		   -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
+ 		   -fno-strict-aliasing -fno-common \
+ 		   -Werror-implicit-function-declaration \
+ 		   -Wno-format-security \
+ 		   -fno-delete-null-pointer-checks
+-KBUILD_AFLAGS   := -D__ASSEMBLY__
++KBUILD_AFLAGS   := -D__ASSEMBLY__ $(call cc-option,-fno-PIE)
+ 
+ # Read KERNELRELEASE from include/config/kernel.release (if it exists)
+ KERNELRELEASE = $(shell cat include/config/kernel.release 2> /dev/null)
 EOF
 	    ;;
     esac
