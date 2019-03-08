@@ -21,17 +21,6 @@
 #include "fcst.h"
 
 /*
- * Append string to buffer safely.
- * Also prepends a space if there's already something the buf.
- */
-static void ft_cmd_flag(char *buf, size_t len, const char *desc)
-{
-	if (buf[0])
-		strlcat(buf, " ", len);
-	strlcat(buf, desc, len);
-}
-
-/*
  * ft_set_cmd_state() - set the state of a command
  */
 static enum ft_cmd_state ft_set_cmd_state(struct ft_cmd *fcmd,

@@ -826,7 +826,7 @@ int scst_get_cmd_counter(void)
 {
 	int i, res = 0;
 
-	for (i = 0; i < (int)ARRAY_SIZE(scst_percpu_infos); i++)
+	for (i = 0; i < ARRAY_SIZE(scst_percpu_infos); i++)
 		res += atomic_read(&scst_percpu_infos[i].cpu_cmd_count);
 	return res;
 }
@@ -2545,7 +2545,7 @@ static int __init init_scst(void)
 	if (res != 0)
 		goto out_destroy_sgv_pool;
 
-	for (i = 0; i < (int)ARRAY_SIZE(scst_percpu_infos); i++) {
+	for (i = 0; i < ARRAY_SIZE(scst_percpu_infos); i++) {
 		atomic_set(&scst_percpu_infos[i].cpu_cmd_count, 0);
 		spin_lock_init(&scst_percpu_infos[i].tasklet_lock);
 		INIT_LIST_HEAD(&scst_percpu_infos[i].tasklet_cmd_list);
