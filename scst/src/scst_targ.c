@@ -5132,13 +5132,15 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 
 	res = scst_translate_lun(cmd);
 	if (likely(res == 0)) {
-		int cnt;
+		struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+		struct scst_device *dev = cmd->dev;
 		bool failure = false;
+		int cnt;
 
 		scst_set_cmd_state(cmd, SCST_CMD_STATE_PARSE);
 
-		cnt = atomic_inc_return(&cmd->tgt_dev->tgt_dev_cmd_count);
-		if (unlikely(cnt > cmd->dev->max_tgt_dev_commands)) {
+		cnt = atomic_inc_return(&tgt_dev->tgt_dev_cmd_count);
+		if (unlikely(cnt > dev->max_tgt_dev_commands)) {
 			TRACE(TRACE_FLOW_CONTROL,
 				"Too many pending commands (%d) in "
 				"session, returning BUSY to initiator \"%s\"",
@@ -5148,7 +5150,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 		}
 
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
-		cnt = atomic_inc_return(&cmd->dev->dev_cmd_count);
+		cnt = atomic_inc_return(&dev->dev_cmd_count);
 		if (unlikely(cnt > SCST_MAX_DEV_COMMANDS)) {
 			if (!failure) {
 				TRACE(TRACE_FLOW_CONTROL,
