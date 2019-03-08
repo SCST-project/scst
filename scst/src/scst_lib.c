@@ -7338,11 +7338,10 @@ static void scst_destroy_cmd(struct scst_cmd *cmd)
 
 	scst_sess_put(cmd->sess);
 
-	/*
-	 * At this point tgt_dev can be dead, but the pointer remains non-NULL
-	 */
-	if (likely(cmd->tgt_dev != NULL))
+	if (likely(cmd->cpu_cmd_counter)) {
 		scst_put(cmd->cpu_cmd_counter);
+		cmd->cpu_cmd_counter = NULL;
+	}
 
 	EXTRACHECKS_BUG_ON(cmd->pre_alloced && cmd->internal);
 
@@ -7582,8 +7581,10 @@ void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 
 	scst_sess_put(mcmd->sess);
 
-	if ((mcmd->mcmd_tgt_dev != NULL) || mcmd->scst_get_called)
+	if (mcmd->cpu_cmd_counter) {
 		scst_put(mcmd->cpu_cmd_counter);
+		mcmd->cpu_cmd_counter = NULL;
+	}
 
 	mempool_free(mcmd, scst_mgmt_mempool);
 

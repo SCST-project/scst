@@ -5023,9 +5023,11 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 				scst_event_queue_lun_not_found(cmd);
 			}
 			scst_put(cmd->cpu_cmd_counter);
+			cmd->cpu_cmd_counter = NULL;
 		}
 	} else {
 		scst_put(cmd->cpu_cmd_counter);
+		cmd->cpu_cmd_counter = NULL;
 		TRACE_MGMT_DBG("%s", "FLAG SUSPENDED set, skipping");
 		res = 1;
 	}
@@ -5831,6 +5833,7 @@ static int scst_get_mgmt(struct scst_mgmt_cmd *mcmd)
 	if (unlikely(test_bit(SCST_FLAG_SUSPENDED, &scst_flags) &&
 		     !test_bit(SCST_FLAG_SUSPENDING, &scst_flags))) {
 		scst_put(mcmd->cpu_cmd_counter);
+		mcmd->cpu_cmd_counter = NULL;
 		TRACE_MGMT_DBG("%s", "FLAG SUSPENDED set, skipping");
 		res = 1;
 		goto out;
@@ -5870,6 +5873,7 @@ static int scst_mgmt_translate_lun(struct scst_mgmt_cmd *mcmd)
 		res = 0;
 	} else {
 		scst_put(mcmd->cpu_cmd_counter);
+		mcmd->cpu_cmd_counter = NULL;
 		res = -1;
 	}
 
@@ -6718,7 +6722,6 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 		rc = scst_get_mgmt(mcmd);
 		if (rc == 0) {
 			mcmd->state = SCST_MCMD_STATE_EXEC;
-			mcmd->scst_get_called = 1;
 		} else {
 			EXTRACHECKS_BUG_ON(rc < 0);
 			res = rc;
