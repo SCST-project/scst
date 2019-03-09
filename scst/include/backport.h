@@ -986,7 +986,8 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 {
 	return kmem_cache_create(name, size, align, flags, ctor, NULL);
 }
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0)
+/* UEKR5 is based on kernel v4.14.35 but has a backport of the v4.16 API. */
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0) && !defined(UEK_KABI_RENAME)
 static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 			unsigned int size, unsigned int align,
 			unsigned long flags,
