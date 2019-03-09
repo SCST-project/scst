@@ -72,6 +72,8 @@ static int __init ft_module_init(void)
 
 static void __exit ft_module_exit(void)
 {
+	rcu_barrier();
+
 	blocking_notifier_chain_unregister(&fc_lport_notifier_head,
 					   &ft_notifier);
 	fc_fc4_deregister_provider(FC_TYPE_FCP, &ft_prov);
