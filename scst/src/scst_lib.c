@@ -4344,6 +4344,8 @@ static struct scst_acg_dev *scst_alloc_acg_dev(struct scst_acg *acg,
 	res->acg = acg;
 	res->lun = lun;
 
+	percpu_ref_get(&dev->refcnt);
+
 out:
 	TRACE_EXIT_HRES(res);
 	return res;
@@ -4374,6 +4376,7 @@ static void scst_del_acg_dev(struct scst_acg_dev *acg_dev,
  */
 static void scst_free_acg_dev(struct scst_acg_dev *acg_dev)
 {
+	percpu_ref_put(&acg_dev->dev->refcnt);
 	kmem_cache_free(scst_acgd_cachep, acg_dev);
 }
 
@@ -5467,6 +5470,8 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 
 	*out_tgt_dev = tgt_dev;
 
+	percpu_ref_get(&dev->refcnt);
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -5568,6 +5573,8 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	scst_tgt_dev_stop_threads(tgt_dev);
 
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
+
+	percpu_ref_put(&dev->refcnt);
 
 	TRACE_EXIT();
 	return;
@@ -5770,8 +5777,7 @@ struct scst_cmd *__scst_create_prepare_internal_cmd(const uint8_t *cdb,
 	}
 
 	scst_sess_get(res->sess);
-	if (res->tgt_dev != NULL)
-		res->cpu_cmd_counter = scst_get();
+	res->cpu_cmd_counter = scst_get();
 
 	TRACE(TRACE_SCSI, "New internal cmd %p (op %s)", res,
 		scst_get_opcode_name(res));

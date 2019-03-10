@@ -2441,6 +2441,7 @@ out_put:
 	scst_put_buf_full(cmd, buf);
 
 out:
+	percpu_ref_put(&dev->refcnt);
 	TRACE_EXIT();
 	return;
 }
@@ -2464,6 +2465,7 @@ static int scst_cm_send_init_inquiry(struct scst_device *dev,
 		}
 		priv->cm_init_inq_finish_fn = scst_cm_init_inq_finish;
 		priv->dev = dev;
+		percpu_ref_get(&dev->refcnt);
 	}
 
 	lun = scst_pack_lun(unpacked_lun, scst_cm_sess->acg->addr_method);

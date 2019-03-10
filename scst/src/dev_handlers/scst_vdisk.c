@@ -1308,13 +1308,17 @@ next:
 
 	res = scst_pr_set_cluster_mode(dev, dev->cluster_mode,
 				       virt_dev->t10_dev_id);
+	if (res)
+		goto out;
+
+	percpu_ref_get(&dev->refcnt);
 
 out:
 	TRACE_EXIT();
 	return res;
 }
 
-/* scst_mutex supposed to be held */
+/* Detach a virtual device from a device. scst_mutex is supposed to be held. */
 static void vdisk_detach(struct scst_device *dev)
 {
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
@@ -1332,6 +1336,8 @@ static void vdisk_detach(struct scst_device *dev)
 
 	/* virt_dev will be freed by the caller */
 	dev->dh_priv = NULL;
+	virt_dev->dev = NULL;
+	percpu_ref_put(&dev->refcnt);
 
 	TRACE_EXIT();
 	return;
