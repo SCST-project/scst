@@ -462,7 +462,7 @@ following entries:
 
    Here is an example of the data produced by this infrastructure (edited for
    clarity):
-    
+
      $ echo 1 >/sys/kernel/scst_tgt/measure_latency
      $ sleep 10 # Wait until an initiator has submitted multiple I/O requests
      $ (cd /sys/kernel/scst_tgt/targets &&
