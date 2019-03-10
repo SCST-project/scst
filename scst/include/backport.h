@@ -875,7 +875,7 @@ static inline struct ib_pd *ib_alloc_pd_backport(struct ib_device *device)
 #endif
 
 /* <linux/percpu-refcount.h> */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0) && RHEL_MAJOR -0 <= 6
 struct percpu_ref;
 typedef void (percpu_ref_func_t)(struct percpu_ref *);
 
