@@ -291,6 +291,7 @@ CONFIG_MAC80211_DRIVER_API_TRACER		\
 CONFIG_MMIOTRACE				\
 CONFIG_NET_DROP_MONITOR				\
 CONFIG_NOP_TRACER				\
+CONFIG_RETPOLINE				\
 CONFIG_SCHED_TRACER				\
 CONFIG_SECURITY_SELINUX				\
 CONFIG_STACK_TRACER				\
@@ -298,9 +299,11 @@ CONFIG_STACK_VALIDATION				\
 CONFIG_TRACEPOINTS				\
 CONFIG_TRACER_MAX_TRACE				\
 CONFIG_TRACING					\
+CONFIG_UNWINDER_ORC				\
 CONFIG_X86_32					\
 CONFIG_X86_X32					\
 "
+  local enable="CONFIG_UNWINDER_FRAME_POINTER"
 
   echo "Patching and configuring kernel ..."
   if [ "$ipv6" = "false" ]; then
@@ -319,6 +322,7 @@ CONFIG_X86_X32					\
     fi &&
     make -s allmodconfig &>"${outputdir}/make-config-output.txt" &&
     for c in $disable; do sed -i.tmp "s/^$c=[ym]\$/$c=n/" .config; done &&
+    for c in $enable; do sed -i.tmp "s/^\(# \)*$c\(=.*\| is not set\)\$/$c=y/" .config; done &&
     make -s oldconfig </dev/null &>/dev/null
   )
 }
