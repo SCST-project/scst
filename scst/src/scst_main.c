@@ -1347,10 +1347,6 @@ int scst_register_virtual_device_node(struct scst_dev_type *dev_handler,
 	if (res != 0)
 		goto out;
 
-	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
-	if (res != 0)
-		goto out;
-
 	res = mutex_lock_interruptible(&scst_mutex);
 	if (res != 0)
 		goto out_resume;
@@ -1419,7 +1415,6 @@ int scst_register_virtual_device_node(struct scst_dev_type *dev_handler,
 		goto out_unreg;
 
 	mutex_unlock(&scst_mutex);
-	scst_resume_activity();
 
 	res = dev->virt_id;
 

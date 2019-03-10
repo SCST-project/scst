@@ -4181,14 +4181,14 @@ static int scst_dif_none_type1(struct scst_cmd *cmd);
 #define scst_dif_none_type1 scst_dif_none
 #endif
 
-/* Called under scst_mutex and suspended activity */
-int scst_alloc_device(gfp_t gfp_mask, int nodeid,
-	struct scst_device **out_dev)
+int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev)
 {
 	struct scst_device *dev;
 	int res = 0;
 
 	TRACE_ENTRY();
+
+	lockdep_assert_held(&scst_mutex);
 
 	dev = kmem_cache_alloc_node(scst_dev_cachep, gfp_mask, nodeid);
 	if (dev == NULL) {

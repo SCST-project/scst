@@ -2547,7 +2547,6 @@ out:
 	return res;
 }
 
-/* scst_mutex supposed to be held and activities suspended */
 static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 {
 	int res, i;
@@ -2556,7 +2555,6 @@ static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 
 	TRACE_ENTRY();
 
-	scst_assert_activity_suspended();
 	lockdep_assert_held(&scst_mutex);
 
 	TRACE_DBG("dev %s, LUN %ld", dev->virt_name, (unsigned long)lun);
@@ -2709,14 +2707,12 @@ out_unblock:
 	goto out_resume;
 }
 
-/* scst_mutex supposed to be held and activities suspended */
 int scst_cm_on_dev_register(struct scst_device *dev)
 {
 	int res = 0;
 
 	TRACE_ENTRY();
 
-	scst_assert_activity_suspended();
 	lockdep_assert_held(&scst_mutex);
 
 	if (!scst_auto_cm_assignment || !dev->handler->auto_cm_assignment_possible)
