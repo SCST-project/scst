@@ -4181,6 +4181,32 @@ static int scst_dif_none_type1(struct scst_cmd *cmd);
 #define scst_dif_none_type1 scst_dif_none
 #endif
 
+/* Called from thread context and hence may sleep. */
+static void scst_finally_free_device(struct work_struct *work)
+{
+	struct scst_device *dev = container_of(work, typeof(*dev),
+					       free_work);
+	struct completion *c = dev->dev_freed_cmpl;
+
+	scst_pr_cleanup(dev);
+
+	kfree(dev->virt_name);
+	percpu_ref_exit(&dev->dev_cmd_count);
+	kmem_cache_free(scst_dev_cachep, dev);
+
+	if (c)
+		complete(c);
+}
+
+/* RCU callback. Must not sleep. */
+static void scst_release_device(struct percpu_ref *ref)
+{
+	struct scst_device *dev;
+
+	dev = container_of(ref, typeof(*dev), dev_cmd_count);
+	schedule_work(&dev->free_work);
+}
+
 int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev)
 {
 	struct scst_device *dev;
@@ -4199,8 +4225,13 @@ int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev)
 	memset(dev, 0, sizeof(*dev));
 
 	dev->handler = &scst_null_devtype;
-#ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
-	atomic_set(&dev->dev_cmd_count, 0);
+	INIT_WORK(&dev->free_work, scst_finally_free_device);
+	res = percpu_ref_init(&dev->dev_cmd_count, scst_release_device,
+			      PERCPU_REF_INIT_ATOMIC, GFP_KERNEL);
+	if (res < 0)
+		goto free_dev;
+#ifndef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
+	percpu_ref_switch_to_percpu(&dev->dev_cmd_count);
 #endif
 	scst_init_mem_lim(&dev->dev_mem_lim);
 	spin_lock_init(&dev->dev_lock);
@@ -4234,10 +4265,16 @@ int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev)
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+free_dev:
+	kmem_cache_free(scst_dev_cachep, dev);
+	goto out;
 }
 
 void scst_free_device(struct scst_device *dev)
 {
+	DECLARE_COMPLETION_ONSTACK(c);
+
 	TRACE_ENTRY();
 
 	EXTRACHECKS_BUG_ON(dev->dev_scsi_atomic_cmd_active != 0);
@@ -4257,11 +4294,11 @@ void scst_free_device(struct scst_device *dev)
 
 	scst_deinit_threads(&dev->dev_cmd_threads);
 
-	scst_pr_cleanup(dev);
+	dev->dev_freed_cmpl = &c;
+	percpu_ref_kill(&dev->dev_cmd_count);
 
-	kfree(dev->virt_name);
-	kmem_cache_free(scst_dev_cachep, dev);
-
+	wait_for_completion(&c);
+	
 	TRACE_EXIT();
 	return;
 }
