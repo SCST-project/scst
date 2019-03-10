@@ -5770,8 +5770,7 @@ struct scst_cmd *__scst_create_prepare_internal_cmd(const uint8_t *cdb,
 	}
 
 	scst_sess_get(res->sess);
-	if (res->tgt_dev != NULL)
-		res->cpu_cmd_counter = scst_get();
+	res->cpu_cmd_counter = scst_get();
 
 	TRACE(TRACE_SCSI, "New internal cmd %p (op %s)", res,
 		scst_get_opcode_name(res));
