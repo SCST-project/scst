@@ -5470,6 +5470,8 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 
 	*out_tgt_dev = tgt_dev;
 
+	percpu_ref_get(&dev->refcnt);
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -5571,6 +5573,8 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	scst_tgt_dev_stop_threads(tgt_dev);
 
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
+
+	percpu_ref_put(&dev->refcnt);
 
 	TRACE_EXIT();
 	return;
