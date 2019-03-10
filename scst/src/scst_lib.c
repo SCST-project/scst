@@ -4344,6 +4344,8 @@ static struct scst_acg_dev *scst_alloc_acg_dev(struct scst_acg *acg,
 	res->acg = acg;
 	res->lun = lun;
 
+	percpu_ref_get(&dev->refcnt);
+
 out:
 	TRACE_EXIT_HRES(res);
 	return res;
@@ -4374,6 +4376,7 @@ static void scst_del_acg_dev(struct scst_acg_dev *acg_dev,
  */
 static void scst_free_acg_dev(struct scst_acg_dev *acg_dev)
 {
+	percpu_ref_put(&acg_dev->dev->refcnt);
 	kmem_cache_free(scst_acgd_cachep, acg_dev);
 }
 
