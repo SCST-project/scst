@@ -1,7 +1,0 @@
-# applies to 2.6.35
-15-fc4
-16-seq-set-resp
-17-lport-hook
-18-lport-notify
-14-fc-frame-sparse-workaround
-23-softirq

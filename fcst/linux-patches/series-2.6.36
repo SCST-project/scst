@@ -1,8 +1,0 @@
-# applies to linux 2.6.36
-19-fc4-v2
-20-seq-set-resp
-21-lport-hook
-22-lport-notify
-24-softirq
-25-fip-union
-26-exch-alloc2
