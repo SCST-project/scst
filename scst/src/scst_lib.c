@@ -4697,7 +4697,8 @@ int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 				 extra_tgt_dev_list_entry) {
 		scst_free_tgt_dev(tgt_dev);
 	}
-	scst_free_acg_dev(acg_dev);
+	if (acg_dev)
+		scst_free_acg_dev(acg_dev);
 
 out:
 	return res;
