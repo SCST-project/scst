@@ -4298,7 +4298,7 @@ void scst_free_device(struct scst_device *dev)
 	percpu_ref_kill(&dev->refcnt);
 
 	wait_for_completion(&c);
-	
+
 	TRACE_EXIT();
 	return;
 }

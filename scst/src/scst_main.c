@@ -2677,7 +2677,7 @@ static void __exit exit_scst(void)
 	scst_event_exit();
 
 	rcu_barrier();
-	
+
 #define DEINIT_CACHEP(p) do {		\
 		kmem_cache_destroy(p);	\
 		p = NULL;		\
