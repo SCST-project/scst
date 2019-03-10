@@ -558,6 +558,8 @@ static void __scst_rx_cmd(struct scst_cmd *cmd, struct scst_session *sess,
 {
 	TRACE_ENTRY();
 
+	WARN_ON_ONCE(cmd->cpu_cmd_counter);
+
 	cmd->sess = sess;
 	scst_sess_get(sess);
 
