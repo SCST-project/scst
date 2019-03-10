@@ -30,6 +30,9 @@
 #endif
 #include <linux/eventpoll.h>
 #include <linux/iocontext.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+#include <linux/percpu-refcount.h>
+#endif
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/stddef.h>	/* sizeof_field() */
@@ -869,6 +872,71 @@ static inline struct ib_pd *ib_alloc_pd_backport(struct ib_device *device)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) && \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
 #define set_cpus_allowed_ptr(p, new_mask) set_cpus_allowed((p), *(new_mask))
+#endif
+
+/* <linux/percpu-refcount.h> */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
+struct percpu_ref;
+typedef void (percpu_ref_func_t)(struct percpu_ref *);
+
+struct percpu_ref {
+	atomic_long_t		count;
+	percpu_ref_func_t	*release;
+};
+
+/* @flags for percpu_ref_init() */
+enum {
+	PERCPU_REF_INIT_ATOMIC	= 1 << 0,
+	PERCPU_REF_INIT_DEAD	= 1 << 1,
+};
+
+static inline int __must_check percpu_ref_init(struct percpu_ref *ref,
+				 percpu_ref_func_t *release, unsigned int flags,
+				 gfp_t gfp)
+{
+	WARN_ON_ONCE(flags != PERCPU_REF_INIT_ATOMIC);
+	atomic_long_set(&ref->count, 1);
+	ref->release = release;
+	return 0;
+}
+
+static inline void percpu_ref_exit(struct percpu_ref *ref)
+{
+}
+
+static inline void percpu_ref_switch_to_atomic(struct percpu_ref *ref,
+				 percpu_ref_func_t *confirm_switch)
+{
+}
+
+static inline void percpu_ref_switch_to_atomic_sync(struct percpu_ref *ref)
+{
+}
+
+static inline void percpu_ref_switch_to_percpu(struct percpu_ref *ref)
+{
+}
+
+static inline void percpu_ref_get(struct percpu_ref *ref)
+{
+	atomic_long_inc(&ref->count);
+}
+
+static inline void percpu_ref_put(struct percpu_ref *ref)
+{
+	if (unlikely(atomic_long_dec_and_test(&ref->count)))
+		ref->release(ref);
+}
+
+static inline void percpu_ref_kill(struct percpu_ref *ref)
+{
+	percpu_ref_put(ref);
+}
+
+static inline bool percpu_ref_is_zero(struct percpu_ref *ref)
+{
+	return !atomic_long_read(&ref->count);
+}
 #endif
 
 /* <linux/scatterlist.h> */
