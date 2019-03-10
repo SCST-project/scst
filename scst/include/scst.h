@@ -1909,7 +1909,7 @@ struct scst_session {
 
 	spinlock_t sess_list_lock; /* protects sess_cmd_list, etc */
 
-	atomic_t refcnt;		/* get/put counter */
+	struct percpu_ref refcnt;	/* get/put counter */
 
 	/*
 	 * Alive commands for this session. ToDo: make it part of the common

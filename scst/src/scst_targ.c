@@ -8173,7 +8173,6 @@ static struct scst_session *__scst_register_session(struct scst_tgt *tgt, int at
 	scst_sess_set_tgt_priv(sess, tgt_priv);
 	sess->sess_mq = mq;
 
-	scst_sess_get(sess); /* one for registered session */
 	scst_sess_get(sess); /* one held until sess is inited */
 
 	if (atomic) {
@@ -8372,7 +8371,7 @@ void scst_unregister_session(struct scst_session *sess, int wait,
 
 	spin_unlock_irqrestore(&scst_mgmt_lock, flags);
 
-	scst_sess_put(sess);
+	percpu_ref_kill(&sess->refcnt);
 
 	if (wait) {
 		TRACE_DBG("Waiting for session %p to complete", sess);
@@ -8464,7 +8463,7 @@ int scst_global_mgmt_thread(void *arg)
 
 			switch (sess->shut_phase) {
 			case SCST_SESS_SPH_SHUTDOWN:
-				sBUG_ON(atomic_read(&sess->refcnt) != 0);
+				sBUG_ON(!percpu_ref_is_zero(&sess->refcnt));
 				scst_free_session_callback(sess);
 				break;
 			default:

@@ -6995,11 +6995,18 @@ static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev)
 	return;
 }
 
+static void scst_sess_release(struct percpu_ref *ref)
+{
+	struct scst_session *sess = container_of(ref, typeof(*sess), refcnt);
+
+	scst_sched_session_free(sess);
+}
+
 struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	const char *initiator_name)
 {
 	struct scst_session *sess;
-	int i;
+	int i, ret;
 
 	TRACE_ENTRY();
 
@@ -7011,7 +7018,11 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 
 	sess->init_phase = SCST_SESS_IPH_INITING;
 	sess->shut_phase = SCST_SESS_SPH_READY;
-	atomic_set(&sess->refcnt, 0);
+	ret = percpu_ref_init(&sess->refcnt, scst_sess_release,
+			      PERCPU_REF_INIT_ATOMIC, GFP_KERNEL);
+	if (ret < 0)
+		goto out_free;
+	percpu_ref_switch_to_percpu(&sess->refcnt);
 	mutex_init(&sess->tgt_dev_list_mutex);
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct list_head *head = &sess->sess_tgt_dev_list[i];
@@ -7038,7 +7049,7 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	sess->initiator_name = kstrdup(initiator_name, gfp_mask);
 	if (sess->initiator_name == NULL) {
 		PRINT_ERROR("%s", "Unable to dup sess->initiator_name");
-		goto out_free;
+		goto out_free_refcnt;
 	}
 
 	if (atomic_read(&scst_measure_latency)) {
@@ -7053,6 +7064,9 @@ out:
 
 out_free_name:
 	kfree(sess->initiator_name);
+
+out_free_refcnt:
+	percpu_ref_exit(&sess->refcnt);
 
 out_free:
 	kmem_cache_free(scst_sess_cachep, sess);
@@ -7102,6 +7116,8 @@ void scst_free_session(struct scst_session *sess)
 	kfree(sess->initiator_name);
 	if (sess->sess_name != sess->initiator_name)
 		kfree(sess->sess_name);
+
+	percpu_ref_exit(&sess->refcnt);
 
 	kmem_cache_free(scst_sess_cachep, sess);
 
