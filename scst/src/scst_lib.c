@@ -4191,7 +4191,7 @@ static void scst_finally_free_device(struct work_struct *work)
 	scst_pr_cleanup(dev);
 
 	kfree(dev->virt_name);
-	percpu_ref_exit(&dev->dev_cmd_count);
+	percpu_ref_exit(&dev->refcnt);
 	kmem_cache_free(scst_dev_cachep, dev);
 
 	if (c)
@@ -4201,9 +4201,8 @@ static void scst_finally_free_device(struct work_struct *work)
 /* RCU callback. Must not sleep. */
 static void scst_release_device(struct percpu_ref *ref)
 {
-	struct scst_device *dev;
+	struct scst_device *dev = container_of(ref, typeof(*dev), refcnt);
 
-	dev = container_of(ref, typeof(*dev), dev_cmd_count);
 	schedule_work(&dev->free_work);
 }
 
@@ -4226,12 +4225,13 @@ int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev)
 
 	dev->handler = &scst_null_devtype;
 	INIT_WORK(&dev->free_work, scst_finally_free_device);
-	res = percpu_ref_init(&dev->dev_cmd_count, scst_release_device,
+	res = percpu_ref_init(&dev->refcnt, scst_release_device,
 			      PERCPU_REF_INIT_ATOMIC, GFP_KERNEL);
 	if (res < 0)
 		goto free_dev;
-#ifndef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
-	percpu_ref_switch_to_percpu(&dev->dev_cmd_count);
+	percpu_ref_switch_to_percpu(&dev->refcnt);
+#ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
+	atomic_set(&dev->dev_cmd_count, 0);
 #endif
 	scst_init_mem_lim(&dev->dev_mem_lim);
 	spin_lock_init(&dev->dev_lock);
@@ -4295,7 +4295,7 @@ void scst_free_device(struct scst_device *dev)
 	scst_deinit_threads(&dev->dev_cmd_threads);
 
 	dev->dev_freed_cmpl = &c;
-	percpu_ref_kill(&dev->dev_cmd_count);
+	percpu_ref_kill(&dev->refcnt);
 
 	wait_for_completion(&c);
 	
