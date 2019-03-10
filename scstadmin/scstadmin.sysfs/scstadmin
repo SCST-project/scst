@@ -1,5 +1,8 @@
 #!/usr/bin/perl
 
+use strict;
+use warnings;
+
 my $Version  = 'SCST Configurator v3.3.0-pre1';
 
 # Configures SCST
@@ -242,7 +245,6 @@ Examples:
 EndUsage
   }
 
-use strict;
 use Cwd qw(abs_path);
 use File::Basename;
 use File::Spec;

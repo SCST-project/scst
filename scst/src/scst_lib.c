@@ -4181,14 +4181,40 @@ static int scst_dif_none_type1(struct scst_cmd *cmd);
 #define scst_dif_none_type1 scst_dif_none
 #endif
 
-/* Called under scst_mutex and suspended activity */
-int scst_alloc_device(gfp_t gfp_mask, int nodeid,
-	struct scst_device **out_dev)
+/* Called from thread context and hence may sleep. */
+static void scst_finally_free_device(struct work_struct *work)
+{
+	struct scst_device *dev = container_of(work, typeof(*dev),
+					       free_work);
+	struct completion *c = dev->dev_freed_cmpl;
+
+	scst_pr_cleanup(dev);
+
+	kfree(dev->virt_name);
+	percpu_ref_exit(&dev->dev_cmd_count);
+	kmem_cache_free(scst_dev_cachep, dev);
+
+	if (c)
+		complete(c);
+}
+
+/* RCU callback. Must not sleep. */
+static void scst_release_device(struct percpu_ref *ref)
+{
+	struct scst_device *dev;
+
+	dev = container_of(ref, typeof(*dev), dev_cmd_count);
+	schedule_work(&dev->free_work);
+}
+
+int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev)
 {
 	struct scst_device *dev;
 	int res = 0;
 
 	TRACE_ENTRY();
+
+	lockdep_assert_held(&scst_mutex);
 
 	dev = kmem_cache_alloc_node(scst_dev_cachep, gfp_mask, nodeid);
 	if (dev == NULL) {
@@ -4199,8 +4225,13 @@ int scst_alloc_device(gfp_t gfp_mask, int nodeid,
 	memset(dev, 0, sizeof(*dev));
 
 	dev->handler = &scst_null_devtype;
-#ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
-	atomic_set(&dev->dev_cmd_count, 0);
+	INIT_WORK(&dev->free_work, scst_finally_free_device);
+	res = percpu_ref_init(&dev->dev_cmd_count, scst_release_device,
+			      PERCPU_REF_INIT_ATOMIC, GFP_KERNEL);
+	if (res < 0)
+		goto free_dev;
+#ifndef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
+	percpu_ref_switch_to_percpu(&dev->dev_cmd_count);
 #endif
 	scst_init_mem_lim(&dev->dev_mem_lim);
 	spin_lock_init(&dev->dev_lock);
@@ -4234,10 +4265,16 @@ int scst_alloc_device(gfp_t gfp_mask, int nodeid,
 out:
 	TRACE_EXIT_RES(res);
 	return res;
+
+free_dev:
+	kmem_cache_free(scst_dev_cachep, dev);
+	goto out;
 }
 
 void scst_free_device(struct scst_device *dev)
 {
+	DECLARE_COMPLETION_ONSTACK(c);
+
 	TRACE_ENTRY();
 
 	EXTRACHECKS_BUG_ON(dev->dev_scsi_atomic_cmd_active != 0);
@@ -4257,11 +4294,11 @@ void scst_free_device(struct scst_device *dev)
 
 	scst_deinit_threads(&dev->dev_cmd_threads);
 
-	scst_pr_cleanup(dev);
+	dev->dev_freed_cmpl = &c;
+	percpu_ref_kill(&dev->dev_cmd_count);
 
-	kfree(dev->virt_name);
-	kmem_cache_free(scst_dev_cachep, dev);
-
+	wait_for_completion(&c);
+	
 	TRACE_EXIT();
 	return;
 }
@@ -6995,11 +7032,18 @@ static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev)
 	return;
 }
 
+static void scst_sess_release(struct percpu_ref *ref)
+{
+	struct scst_session *sess = container_of(ref, typeof(*sess), refcnt);
+
+	scst_sched_session_free(sess);
+}
+
 struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	const char *initiator_name)
 {
 	struct scst_session *sess;
-	int i;
+	int i, ret;
 
 	TRACE_ENTRY();
 
@@ -7011,7 +7055,11 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 
 	sess->init_phase = SCST_SESS_IPH_INITING;
 	sess->shut_phase = SCST_SESS_SPH_READY;
-	atomic_set(&sess->refcnt, 0);
+	ret = percpu_ref_init(&sess->refcnt, scst_sess_release,
+			      PERCPU_REF_INIT_ATOMIC, GFP_KERNEL);
+	if (ret < 0)
+		goto out_free;
+	percpu_ref_switch_to_percpu(&sess->refcnt);
 	mutex_init(&sess->tgt_dev_list_mutex);
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct list_head *head = &sess->sess_tgt_dev_list[i];
@@ -7038,7 +7086,7 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	sess->initiator_name = kstrdup(initiator_name, gfp_mask);
 	if (sess->initiator_name == NULL) {
 		PRINT_ERROR("%s", "Unable to dup sess->initiator_name");
-		goto out_free;
+		goto out_free_refcnt;
 	}
 
 	if (atomic_read(&scst_measure_latency)) {
@@ -7053,6 +7101,9 @@ out:
 
 out_free_name:
 	kfree(sess->initiator_name);
+
+out_free_refcnt:
+	percpu_ref_exit(&sess->refcnt);
 
 out_free:
 	kmem_cache_free(scst_sess_cachep, sess);
@@ -7102,6 +7153,8 @@ void scst_free_session(struct scst_session *sess)
 	kfree(sess->initiator_name);
 	if (sess->sess_name != sess->initiator_name)
 		kfree(sess->sess_name);
+
+	percpu_ref_exit(&sess->refcnt);
 
 	kmem_cache_free(scst_sess_cachep, sess);
 

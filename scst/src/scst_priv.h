@@ -720,17 +720,12 @@ void scst_sched_session_free(struct scst_session *sess);
 
 static inline void scst_sess_get(struct scst_session *sess)
 {
-	atomic_inc(&sess->refcnt);
-	TRACE_DBG("Incrementing sess %p refcnt (new value %d)",
-		sess, atomic_read(&sess->refcnt));
+	percpu_ref_get(&sess->refcnt);
 }
 
 static inline void scst_sess_put(struct scst_session *sess)
 {
-	TRACE_DBG("Decrementing sess %p refcnt (new value %d)",
-		sess, atomic_read(&sess->refcnt)-1);
-	if (atomic_dec_and_test(&sess->refcnt))
-		scst_sched_session_free(sess);
+	percpu_ref_put(&sess->refcnt);
 }
 
 struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb,

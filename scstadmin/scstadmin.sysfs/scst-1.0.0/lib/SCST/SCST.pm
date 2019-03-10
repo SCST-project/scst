@@ -7,11 +7,12 @@ package SCST::SCST;
 # Copyright (c) 2005-2011 Mark R. Buechler
 # Copyright (c) 2011-2019 Bart Van Assche <bvanassche@acm.org>.
 
+use strict;
+use warnings;
 use 5.005;
 use Fcntl ':mode';
 use IO::Handle;
 use IO::File;
-use strict;
 use Carp qw(cluck);
 
 use POSIX;
