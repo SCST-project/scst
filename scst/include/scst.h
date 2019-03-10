@@ -2876,13 +2876,22 @@ struct scst_device {
 	/* Device lock */
 	spinlock_t dev_lock ____cacheline_aligned_in_smp;
 
-	/* One more than the number of commands associated with this device. */
-	struct percpu_ref dev_cmd_count;
+#ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
+	/* Number of commands associated with this device. */
+	atomic_t dev_cmd_count;
+#endif
+
+	/*
+	 * One more than the number of commands associated with this device
+	 * and the number of SCST data structures holding a reference on this
+	 * data structure.
+	 */
+	struct percpu_ref refcnt;
 
 	struct work_struct free_work;
 
 	struct completion *dev_freed_cmpl;
-	
+
 	/*
 	 * Maximum count of uncompleted commands that an initiator could
 	 * queue on this device. Then it will start getting TASK QUEUE FULL

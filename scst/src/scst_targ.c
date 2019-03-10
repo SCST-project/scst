@@ -4505,7 +4505,10 @@ static int scst_pre_xmit_response1(struct scst_cmd *cmd)
 		 */
 		smp_mb__before_atomic_dec();
 		atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
-		percpu_ref_put(&cmd->dev->dev_cmd_count);
+		percpu_ref_put(&cmd->dev->refcnt);
+#ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
+		atomic_dec(&cmd->dev->dev_cmd_count);
+#endif
 		if (unlikely(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE))
 			scst_on_hq_cmd_response(cmd);
 		else if (unlikely(!cmd->sent_for_exec)) {
@@ -5134,7 +5137,6 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 	if (likely(res == 0)) {
 		struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 		struct scst_device *dev = cmd->dev;
-		unsigned long __percpu *a __maybe_unused;
 		bool failure = false;
 		int cnt;
 
@@ -5150,10 +5152,10 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 			failure = true;
 		}
 
-		percpu_ref_get(&dev->dev_cmd_count);
+		percpu_ref_get(&dev->refcnt);
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
-		sBUG_ON(__ref_is_percpu(&dev->dev_cmd_count, &a));
-		cnt = atomic_long_read(&dev->dev_cmd_count.count);
+		atomic_inc(&dev->dev_cmd_count);
+		cnt = atomic_read(&dev->dev_cmd_count);
 		if (unlikely(cnt > SCST_MAX_DEV_COMMANDS)) {
 			if (!failure) {
 				TRACE(TRACE_FLOW_CONTROL,
