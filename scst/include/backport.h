@@ -30,9 +30,6 @@
 #endif
 #include <linux/eventpoll.h>
 #include <linux/iocontext.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
-#include <linux/percpu-refcount.h>
-#endif
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/stddef.h>	/* sizeof_field() */
@@ -875,7 +872,9 @@ static inline struct ib_pd *ib_alloc_pd_backport(struct ib_device *device)
 #endif
 
 /* <linux/percpu-refcount.h> */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0) && RHEL_MAJOR -0 <= 6
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0) || RHEL_MAJOR -0 >= 7
+#include <linux/percpu-refcount.h>
+#else
 struct percpu_ref;
 typedef void (percpu_ref_func_t)(struct percpu_ref *);
 
