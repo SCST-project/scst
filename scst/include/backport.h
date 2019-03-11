@@ -30,9 +30,6 @@
 #endif
 #include <linux/eventpoll.h>
 #include <linux/iocontext.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
-#include <linux/percpu-refcount.h>
-#endif
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/stddef.h>	/* sizeof_field() */
@@ -875,7 +872,43 @@ static inline struct ib_pd *ib_alloc_pd_backport(struct ib_device *device)
 #endif
 
 /* <linux/percpu-refcount.h> */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0) && RHEL_MAJOR -0 <= 6
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7
+#include <linux/percpu-refcount.h>
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+#include <linux/percpu-refcount.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
+/*
+ * See also commit 2aad2a86f668 ("percpu_ref: add PERCPU_REF_INIT_* flags")
+ * # v3.18.
+ */
+static inline int __must_check percpu_ref_init_backport(struct percpu_ref *ref,
+				 percpu_ref_func_t *release, unsigned int flags,
+				 gfp_t gfp)
+{
+	WARN_ON_ONCE(flags != 0);
+	WARN_ON_ONCE(gfp != GFP_KERNEL);
+	return percpu_ref_init(ref, release);
+}
+#define percpu_ref_init percpu_ref_init_backport
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+/*
+ * See also commit 2d7227828e14 ("percpu-refcount: implement percpu_ref_reinit()
+ * and percpu_ref_is_zero()") # v3.17.
+ */
+static inline bool percpu_ref_is_zero(struct percpu_ref *ref)
+{
+	return !atomic_read(&ref->count);
+}
+/*
+ * See also commit 9a1049da9bd2 ("percpu-refcount: require percpu_ref to be
+ * exited explicitly") # v3.17.
+ */
+static inline void percpu_ref_exit(struct percpu_ref *ref)
+{
+}
+#endif
+#else
 struct percpu_ref;
 typedef void (percpu_ref_func_t)(struct percpu_ref *);
 
@@ -884,36 +917,17 @@ struct percpu_ref {
 	percpu_ref_func_t	*release;
 };
 
-/* @flags for percpu_ref_init() */
-enum {
-	PERCPU_REF_INIT_ATOMIC	= 1 << 0,
-	PERCPU_REF_INIT_DEAD	= 1 << 1,
-};
-
 static inline int __must_check percpu_ref_init(struct percpu_ref *ref,
 				 percpu_ref_func_t *release, unsigned int flags,
 				 gfp_t gfp)
 {
-	WARN_ON_ONCE(flags != PERCPU_REF_INIT_ATOMIC);
+	WARN_ON_ONCE(flags != 0);
 	atomic_long_set(&ref->count, 1);
 	ref->release = release;
 	return 0;
 }
 
 static inline void percpu_ref_exit(struct percpu_ref *ref)
-{
-}
-
-static inline void percpu_ref_switch_to_atomic(struct percpu_ref *ref,
-				 percpu_ref_func_t *confirm_switch)
-{
-}
-
-static inline void percpu_ref_switch_to_atomic_sync(struct percpu_ref *ref)
-{
-}
-
-static inline void percpu_ref_switch_to_percpu(struct percpu_ref *ref)
 {
 }
 
