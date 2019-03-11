@@ -125,6 +125,9 @@ static ssize_t iscsi_get_target_ip(struct iscsi_conn *conn,
 
 	TRACE_ENTRY();
 
+	if (!conn->sock)
+		return -ENOENT;
+
 	sk = conn->sock->sk;
 	switch (sk->sk_family) {
 	case AF_INET:
