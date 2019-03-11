@@ -33,8 +33,7 @@ void digest_alg_available(int *val)
 #endif
 
 	if ((*val & DIGEST_CRC32C) && !crc32c) {
-		PRINT_ERROR("%s", "CRC32C digest algorithm not available "
-			"in kernel");
+		PRINT_ERROR("CRC32C digest algorithm not available in kernel");
 		*val |= ~DIGEST_CRC32C;
 	}
 }
@@ -121,8 +120,8 @@ static __be32 digest_data(struct iscsi_cmnd *cmd, u32 size, u32 offset,
 
 	count = get_pgcnt(size, offset);
 
-	TRACE_DBG("req %p, idx %d, count %d, sg_cnt %d, size %d, "
-		"offset %d", cmd, idx, count, cmd->sg_cnt, size, offset);
+	TRACE_DBG("req %p, idx %d, count %d, sg_cnt %d, size %d, offset %d",
+		  cmd, idx, count, cmd->sg_cnt, size, offset);
 	sBUG_ON(idx + count > cmd->sg_cnt);
 
 	saved_sg = sg[idx];
@@ -143,8 +142,9 @@ int digest_rx_header(struct iscsi_cmnd *cmnd)
 	if (unlikely(crc != cmnd->hdigest)) {
 		PRINT_ERROR("%s", "RX header digest failed");
 		return -EIO;
-	} else
+	} else {
 		TRACE_DBG("RX header digest OK for cmd %p", cmnd);
+	}
 
 	return 0;
 }
@@ -199,8 +199,7 @@ int digest_rx_data(struct iscsi_cmnd *cmnd)
 	 * when it gets needed.
 	 */
 	if (unlikely(offset + cmnd->pdu.datasize > req->bufflen)) {
-		PRINT_WARNING("Skipping RX data digest check for residual "
-			"overflow command op %x (data size %d, buffer size %d)",
+		PRINT_WARNING("Skipping RX data digest check for residual overflow command op %x (data size %d, buffer size %d)",
 			cmnd_hdr(req)->scb[0], offset + cmnd->pdu.datasize,
 			req->bufflen);
 		goto out;
@@ -227,8 +226,8 @@ void digest_tx_data(struct iscsi_cmnd *cmnd)
 	struct iscsi_data_in_hdr *hdr;
 	u32 offset;
 
-	TRACE_DBG("%s:%d req %p, own_sg %d, sg %p, sgcnt %d cmnd %p, "
-		"own_sg %d, sg %p, sgcnt %d", __func__, __LINE__,
+	TRACE_DBG("%s:%d req %p, own_sg %d, sg %p, sgcnt %d cmnd %p, own_sg %d, sg %p, sgcnt %d",
+		  __func__, __LINE__,
 		cmnd->parent_req, cmnd->parent_req->own_sg,
 		cmnd->parent_req->sg, cmnd->parent_req->sg_cnt,
 		cmnd, cmnd->own_sg, cmnd->sg, cmnd->sg_cnt);

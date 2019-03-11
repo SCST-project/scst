@@ -82,24 +82,20 @@ static void log_params(struct iscsi_sess_params *params)
 {
 	char hdigest_name[64], ddigest_name[64];
 
-	PRINT_INFO("Negotiated parameters: InitialR2T %s, ImmediateData %s, "
-		"MaxConnections %d, MaxRecvDataSegmentLength %d, "
-		"MaxXmitDataSegmentLength %d, ",
+	PRINT_INFO("Negotiated parameters: InitialR2T %s, ImmediateData %s, MaxConnections %d, MaxRecvDataSegmentLength %d, MaxXmitDataSegmentLength %d, ",
 		iscsi_get_bool_value(params->initial_r2t),
-		iscsi_get_bool_value(params->immediate_data), params->max_connections,
+		iscsi_get_bool_value(params->immediate_data),
+		params->max_connections,
 		params->max_recv_data_length, params->max_xmit_data_length);
-	PRINT_INFO("    MaxBurstLength %d, FirstBurstLength %d, "
-		"DefaultTime2Wait %d, DefaultTime2Retain %d, ",
+	PRINT_INFO("    MaxBurstLength %d, FirstBurstLength %d, DefaultTime2Wait %d, DefaultTime2Retain %d, ",
 		params->max_burst_length, params->first_burst_length,
 		params->default_wait_time, params->default_retain_time);
-	PRINT_INFO("    MaxOutstandingR2T %d, DataPDUInOrder %s, "
-		"DataSequenceInOrder %s, ErrorRecoveryLevel %d, ",
+	PRINT_INFO("    MaxOutstandingR2T %d, DataPDUInOrder %s, DataSequenceInOrder %s, ErrorRecoveryLevel %d, ",
 		params->max_outstanding_r2t,
 		iscsi_get_bool_value(params->data_pdu_inorder),
 		iscsi_get_bool_value(params->data_sequence_inorder),
 		params->error_recovery_level);
-	PRINT_INFO("    HeaderDigest %s, DataDigest %s, OFMarker %s, "
-		"IFMarker %s, OFMarkInt %d, IFMarkInt %d, RDMAExtensions %s",
+	PRINT_INFO("    HeaderDigest %s, DataDigest %s, OFMarker %s, IFMarker %s, OFMarkInt %d, IFMarkInt %d, RDMAExtensions %s",
 		iscsi_get_digest_name(params->header_digest, hdigest_name),
 		iscsi_get_digest_name(params->data_digest, ddigest_name),
 		iscsi_get_bool_value(params->ofmarker),
@@ -244,9 +240,7 @@ static void tgt_params_check(struct iscsi_session *session,
 	else
 		nop_in_timeout = session->tgt_params.nop_in_timeout;
 	if (nop_in_timeout > rsp_timeout)
-		PRINT_WARNING("%s", "RspTimeout should be >= NopInTimeout, "
-			"otherwise data transfer failure could take up to "
-			"NopInTimeout long to detect");
+		PRINT_WARNING("%s", "RspTimeout should be >= NopInTimeout, otherwise data transfer failure could take up to NopInTimeout long to detect");
 
 	return;
 }
@@ -270,20 +264,22 @@ static int iscsi_tgt_params_set(struct iscsi_session *session,
 		SET_PARAM(params, info, iparams, nop_in_interval);
 		SET_PARAM(params, info, iparams, nop_in_timeout);
 
-		PRINT_INFO("Target parameters set for session %llx: "
-			"QueuedCommands %d, Response timeout %d, Nop-In "
-			"interval %d, Nop-In timeout %d", session->sid,
+		PRINT_INFO("Target parameters set for session %llx: QueuedCommands %d, Response timeout %d, Nop-In interval %d, Nop-In timeout %d", session->sid,
 			params->queued_cmnds, params->rsp_timeout,
 			params->nop_in_interval, params->nop_in_timeout);
 
 		list_for_each_entry(conn, &session->conn_list,
 					conn_list_entry) {
-			conn->data_rsp_timeout = session->tgt_params.rsp_timeout * HZ;
-			conn->nop_in_interval = session->tgt_params.nop_in_interval * HZ;
-			conn->nop_in_timeout = session->tgt_params.nop_in_timeout * HZ;
+			conn->data_rsp_timeout =
+				session->tgt_params.rsp_timeout * HZ;
+			conn->nop_in_interval =
+				session->tgt_params.nop_in_interval * HZ;
+			conn->nop_in_timeout =
+				session->tgt_params.nop_in_timeout * HZ;
 			spin_lock_bh(&conn->conn_thr_pool->rd_lock);
 			if (!conn->closing && (conn->nop_in_interval > 0)) {
-				TRACE_DBG("Schedule Nop-In work for conn %p", conn);
+				TRACE_DBG("Schedule Nop-In work for conn %p",
+					  conn);
 				schedule_delayed_work(&conn->nop_in_delayed_work,
 					conn->nop_in_interval + ISCSI_ADD_SCHED_TIME);
 			}

@@ -45,29 +45,29 @@ static int print_conn_state(char *p, size_t size, struct iscsi_conn *conn)
 
 	switch (conn->rd_state) {
 	case ISCSI_CONN_RD_STATE_PROCESSING:
-		pos += scnprintf(&p[pos], size - pos, "%s", "read_processing ");
+		pos += scnprintf(&p[pos], size - pos, "read_processing ");
 		break;
 	case ISCSI_CONN_RD_STATE_IN_LIST:
-		pos += scnprintf(&p[pos], size - pos, "%s", "in_read_list ");
+		pos += scnprintf(&p[pos], size - pos, "in_read_list ");
 		break;
 	}
 
 	switch (conn->wr_state) {
 	case ISCSI_CONN_WR_STATE_PROCESSING:
-		pos += scnprintf(&p[pos], size - pos, "%s", "write_processing ");
+		pos += scnprintf(&p[pos], size - pos, "write_processing ");
 		break;
 	case ISCSI_CONN_WR_STATE_IN_LIST:
-		pos += scnprintf(&p[pos], size - pos, "%s", "in_write_list ");
+		pos += scnprintf(&p[pos], size - pos, "in_write_list ");
 		break;
 	case ISCSI_CONN_WR_STATE_SPACE_WAIT:
-		pos += scnprintf(&p[pos], size - pos, "%s", "space_waiting ");
+		pos += scnprintf(&p[pos], size - pos, "space_waiting ");
 		break;
 	}
 
 	if (test_bit(ISCSI_CONN_REINSTATING, &conn->conn_aflags))
-		pos += scnprintf(&p[pos], size - pos, "%s", "reinstating ");
+		pos += scnprintf(&p[pos], size - pos, "reinstating ");
 	else if (pos == 0)
-		pos += scnprintf(&p[pos], size - pos, "%s", "established idle ");
+		pos += scnprintf(&p[pos], size - pos, "established idle ");
 
 out:
 	return pos;
@@ -254,8 +254,8 @@ restart:
 
 			iscsi_get_initiator_ip(conn, c_addr, sizeof(c_addr));
 
-			TRACE_DBG("Duplicated conn from the same initiator "
-				"%s found", c_addr);
+			TRACE_DBG("Duplicated conn from the same initiator %s found",
+				  c_addr);
 
 			snprintf(addr, sizeof(addr), "%s_%d", c_addr, n);
 			n++;
@@ -429,9 +429,8 @@ static void __iscsi_state_change(struct sock *sk)
 
 	if (unlikely(sk->sk_state != TCP_ESTABLISHED)) {
 		if (!conn->closing) {
-			PRINT_ERROR("Connection %p with initiator %s "
-				"unexpectedly closed!", conn,
-				conn->session->initiator_name);
+			PRINT_ERROR("Connection %p with initiator %s unexpectedly closed!",
+				    conn, conn->session->initiator_name);
 			TRACE_MGMT_DBG("conn %p, sk state %d", conn,
 				sk->sk_state);
 			__mark_conn_closed(conn, 0);
@@ -529,13 +528,12 @@ static void conn_rsp_timer_fn(struct timer_list *timer)
 		cmnd = list_first_entry(&conn->write_timeout_list,
 				struct iscsi_cmnd, write_timeout_list_entry);
 
-		timeout_time = iscsi_get_timeout_time(cmnd) + ISCSI_ADD_SCHED_TIME;
+		timeout_time = iscsi_get_timeout_time(cmnd) +
+				ISCSI_ADD_SCHED_TIME;
 
 		if (unlikely(time_after_eq(j, iscsi_get_timeout_time(cmnd)))) {
 			if (!conn->closing) {
-				PRINT_ERROR("Timeout %ld sec sending data/waiting "
-					"for reply to/from initiator "
-					"%s (SID %llx), closing connection %p",
+				PRINT_ERROR("Timeout %ld sec sending data/waiting for reply to/from initiator %s (SID %llx), closing connection %p",
 					iscsi_get_timeout(cmnd)/HZ,
 					conn->session->initiator_name,
 					(unsigned long long)conn->session->sid,
@@ -626,9 +624,9 @@ void iscsi_check_tm_data_wait_timeouts(struct iscsi_conn *conn, bool force)
 
 	TRACE_ENTRY();
 
-	TRACE_DBG_FLAG(TRACE_MGMT_DEBUG, "conn %p, read_cmnd %p, read_state "
-		"%d, j %ld (TIMEOUT %d, force %d)", conn, conn->read_cmnd,
-		conn->read_state, j,
+	TRACE_DBG_FLAG(TRACE_MGMT_DEBUG,
+		"conn %p, read_cmnd %p, read_state %d, j %ld (TIMEOUT %d, force %d)",
+		conn, conn->read_cmnd, conn->read_state, j,
 		ISCSI_TM_DATA_WAIT_TIMEOUT + ISCSI_ADD_SCHED_TIME, force);
 
 	iscsi_extracheck_is_rd_thread(conn);
@@ -647,9 +645,8 @@ again:
 		sBUG_ON(cmnd->cmd_req != NULL);
 
 		if (test_bit(ISCSI_CMD_ABORTED, &cmnd->prelim_compl_flags)) {
-			TRACE_MGMT_DBG("Checking aborted cmnd %p (scst_state "
-				"%d, on_write_timeout_list %d, write_start "
-				"%ld, r2t_len_to_receive %d)", cmnd,
+			TRACE_MGMT_DBG("Checking aborted cmnd %p (scst_state %d, on_write_timeout_list %d, write_start %ld, r2t_len_to_receive %d)",
+				cmnd,
 				cmnd->scst_state, cmnd->on_write_timeout_list,
 				cmnd->write_start, cmnd->r2t_len_to_receive);
 			if ((cmnd == conn->read_cmnd) ||
@@ -662,14 +659,15 @@ again:
 				 * to wait until the timeout timer gets into the
 				 * action and close this connection.
 				 */
-				TRACE_MGMT_DBG("Aborted cmnd %p is %s, "
-					"keep waiting", cmnd,
+				TRACE_MGMT_DBG("Aborted cmnd %p is %s, keep waiting",
+					cmnd,
 					(cmnd == conn->read_cmnd) ? "RX cmnd" :
 						"waiting for DATA OUT data");
 				goto cont;
 			}
 			if ((cmnd->r2t_len_to_receive != 0) &&
-			    (time_after_eq(j, cmnd->write_start + ISCSI_TM_DATA_WAIT_TIMEOUT) ||
+			    (time_after_eq(j, cmnd->write_start +
+					   ISCSI_TM_DATA_WAIT_TIMEOUT) ||
 			     force)) {
 				spin_unlock(&conn->write_list_lock);
 				spin_unlock_bh(&conn->conn_thr_pool->rd_lock);
@@ -929,9 +927,10 @@ int iscsi_conn_alloc(struct iscsi_session *session,
 		goto out_err;
 	}
 
-	TRACE(TRACE_MGMT, "Creating connection %p for sid %#Lx, cid %u "
-		"(initiator %s)", conn, (unsigned long long)session->sid,
-		 info->cid, session->scst_sess->initiator_name);
+	TRACE(TRACE_MGMT,
+	      "Creating connection %p for sid %#Lx, cid %u (initiator %s)",
+	      conn, (unsigned long long)session->sid,
+	      info->cid, session->scst_sess->initiator_name);
 
 	conn->transport = t;
 

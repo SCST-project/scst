@@ -748,8 +748,8 @@ static inline void cmd_del_from_write_list(struct iscsi_cmnd *cmnd)
 static inline void cmd_add_on_rx_ddigest_list(struct iscsi_cmnd *req,
 	struct iscsi_cmnd *cmnd)
 {
-	TRACE_DBG("Adding RX ddigest cmd %p to digest list "
-			"of req %p", cmnd, req);
+	TRACE_DBG("Adding RX ddigest cmd %p to digest list of req %p", cmnd,
+		  req);
 	list_add_tail(&cmnd->rx_ddigest_cmd_list_entry,
 			&req->rx_ddigest_cmd_list);
 #ifdef CONFIG_SCST_EXTRACHECKS

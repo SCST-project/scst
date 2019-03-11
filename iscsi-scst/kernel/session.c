@@ -96,8 +96,8 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 	}
 
 
-	TRACE(TRACE_MGMT, "Session %p created: target %p, tid %u, sid %#Lx, "
-		"initiator %s", session, target, target->tid, info->sid,
+	TRACE(TRACE_MGMT, "Session %p created: target %p, tid %u, sid %#Lx, initiator %s",
+		session, target, target->tid, info->sid,
 		session->scst_sess->initiator_name);
 
 	*result = session;
@@ -226,9 +226,8 @@ int __add_session(struct iscsi_target *target,
 	if (old_sess != NULL) {
 		reinstatement = true;
 
-		TRACE_MGMT_DBG("Reinstating sess %p with SID %llx (old %p, "
-			"SID %llx)", new_sess, new_sess->sid, old_sess,
-			old_sess->sid);
+		TRACE_MGMT_DBG("Reinstating sess %p with SID %llx (old %p, SID %llx)",
+			new_sess, new_sess->sid, old_sess, old_sess->sid);
 
 		new_sess->sess_reinstating = 1;
 		old_sess->sess_reinst_successor = new_sess;
@@ -383,7 +382,8 @@ void iscsi_sess_force_close(struct iscsi_session *sess)
 
 	list_for_each_entry(conn, &sess->conn_list, conn_list_entry) {
 		TRACE(TRACE_MGMT, "Force closing connection %p", conn);
-		__mark_conn_closed(conn, ISCSI_CONN_ACTIVE_CLOSE|ISCSI_CONN_DELETING);
+		__mark_conn_closed(conn,
+				   ISCSI_CONN_ACTIVE_CLOSE|ISCSI_CONN_DELETING);
 	}
 
 	TRACE_EXIT();
