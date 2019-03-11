@@ -188,8 +188,8 @@ int __add_target(struct iscsi_kern_target_info *info)
 
 		rc = copy_from_user(attr_info, attrs_ptr, sizeof(*attr_info));
 		if (rc != 0) {
-			PRINT_ERROR("Failed to copy users of target %s "
-				"failed", info->name);
+			PRINT_ERROR("Failed to copy users of target %s failed",
+				    info->name);
 			err = -EFAULT;
 			goto out_del_unlock;
 		}
@@ -444,8 +444,8 @@ ssize_t iscsi_sysfs_send_event(uint32_t tid, enum iscsi_kern_event_code code,
 	if (res != 0)
 		goto out;
 
-	TRACE_DBG("Sending event %d (tid %d, param1 %s, param2 %s, cookie %d, "
-		"info %p)", code, tid, param1, param2, info->info_cookie, info);
+	TRACE_DBG("Sending event %d (tid %d, param1 %s, param2 %s, cookie %d, info %p)",
+		  code, tid, param1, param2, info->info_cookie, info);
 
 	res = event_send(tid, 0, 0, info->info_cookie, code, param1, param2);
 	if (res <= 0) {

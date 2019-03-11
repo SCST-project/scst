@@ -67,14 +67,12 @@ static void free_pending_commands(struct iscsi_conn *conn)
 	do {
 		req_freed = 0;
 		list_for_each_entry(cmnd, pending_list, pending_list_entry) {
-			TRACE_CONN_CLOSE_DBG("Pending cmd %p"
-				"(conn %p, cmd_sn %u, exp_cmd_sn %u)",
+			TRACE_CONN_CLOSE_DBG("Pending cmd %p (conn %p, cmd_sn %u, exp_cmd_sn %u)",
 				cmnd, conn, cmnd->pdu.bhs.sn,
 				session->exp_cmd_sn);
 			if ((cmnd->conn == conn) &&
 			    (session->exp_cmd_sn == cmnd->pdu.bhs.sn)) {
-				TRACE_MGMT_DBG("Freeing pending cmd %p "
-					"(cmd_sn %u, exp_cmd_sn %u)",
+				TRACE_MGMT_DBG("Freeing pending cmd %p (cmd_sn %u, exp_cmd_sn %u)",
 					cmnd, cmnd->pdu.bhs.sn,
 					session->exp_cmd_sn);
 
@@ -109,13 +107,11 @@ static void free_orphaned_pending_commands(struct iscsi_conn *conn)
 	do {
 		req_freed = 0;
 		list_for_each_entry(cmnd, pending_list, pending_list_entry) {
-			TRACE_CONN_CLOSE_DBG("Pending cmd %p"
-				"(conn %p, cmd_sn %u, exp_cmd_sn %u)",
+			TRACE_CONN_CLOSE_DBG("Pending cmd %p (conn %p, cmd_sn %u, exp_cmd_sn %u)",
 				cmnd, conn, cmnd->pdu.bhs.sn,
 				session->exp_cmd_sn);
 			if (cmnd->conn == conn) {
-				TRACE_MGMT_DBG("Freeing orphaned pending "
-					"cmnd %p (cmd_sn %u, exp_cmd_sn %u)",
+				TRACE_MGMT_DBG("Freeing orphaned pending cmnd %p (cmd_sn %u, exp_cmd_sn %u)",
 					cmnd, cmnd->pdu.bhs.sn,
 					session->exp_cmd_sn);
 
@@ -154,9 +150,7 @@ static void trace_conn_close(struct iscsi_conn *conn)
 	list_for_each_entry(cmnd, &conn->cmd_list,
 			cmd_list_entry) {
 		TRACE_CONN_CLOSE_DBG(
-			"cmd %p, scst_cmd %p, scst_state %x, scst_cmd state "
-			"%d, r2t_len_to_receive %d, ref_cnt %d, sn %u, "
-			"parent_req %p, pending %d",
+			"cmd %p, scst_cmd %p, scst_state %x, scst_cmd state %d, r2t_len_to_receive %d, ref_cnt %d, sn %u, parent_req %p, pending %d",
 			cmnd, cmnd->scst_cmd, cmnd->scst_state,
 			((cmnd->parent_req == NULL) && cmnd->scst_cmd) ?
 				cmnd->scst_cmd->state : -1,
@@ -200,7 +194,8 @@ void iscsi_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *scst_mcmd)
 		 */
 		sess->sess_shutting_down = 1;
 		list_for_each_entry(c, &sess->conn_list, conn_list_entry) {
-			if (!test_bit(ISCSI_CONN_SHUTTINGDOWN, &c->conn_aflags)) {
+			if (!test_bit(ISCSI_CONN_SHUTTINGDOWN,
+				      &c->conn_aflags)) {
 				sess->sess_shutting_down = 0;
 				break;
 			}
@@ -284,8 +279,8 @@ static void close_conn(struct iscsi_conn *conn)
 		struct iscsi_cmnd *cmnd = conn->read_cmnd;
 
 		if (cmnd->scst_state == ISCSI_CMD_STATE_RX_CMD) {
-			TRACE_CONN_CLOSE_DBG("Going to wait for cmnd %p to "
-				"change state from RX_CMD", cmnd);
+			TRACE_CONN_CLOSE_DBG("Going to wait for cmnd %p to change state from RX_CMD",
+					     cmnd);
 		}
 		wait_event(conn->read_state_waitQ,
 			cmnd->scst_state != ISCSI_CMD_STATE_RX_CMD);
@@ -322,9 +317,8 @@ static void close_conn(struct iscsi_conn *conn)
 
 		/* It's safe to check it without sn_lock */
 		if (!list_empty(&session->pending_list)) {
-			TRACE_CONN_CLOSE_DBG("Disposing pending commands on "
-				"connection %p (conn_ref_cnt=%d)", conn,
-				atomic_read(&conn->conn_ref_cnt));
+			TRACE_CONN_CLOSE_DBG("Disposing pending commands on connection %p (conn_ref_cnt=%d)",
+				conn, atomic_read(&conn->conn_ref_cnt));
 
 			free_pending_commands(conn);
 
@@ -354,8 +348,8 @@ static void close_conn(struct iscsi_conn *conn)
 		    time_after(jiffies, shut_start_waiting +
 				conn->deleting ? CONN_DEL_SHUT_TIMEOUT :
 						 CONN_REG_SHUT_TIMEOUT)) {
-			TRACE_CONN_CLOSE("Wait time after shutdown expired "
-				"(conn %p)", conn);
+			TRACE_CONN_CLOSE("Wait time after shutdown expired (conn %p)",
+					 conn);
 			conn->transport->iscsit_conn_close(conn, 0);
 			shut_expired = 1;
 		}
@@ -365,8 +359,7 @@ static void close_conn(struct iscsi_conn *conn)
 		else
 			msleep(1000);
 
-		TRACE_CONN_CLOSE_DBG("conn %p, conn_ref_cnt %d left, "
-			"wr_state %d, exp_cmd_sn %u",
+		TRACE_CONN_CLOSE_DBG("conn %p, conn_ref_cnt %d left, wr_state %d, exp_cmd_sn %u",
 			conn, atomic_read(&conn->conn_ref_cnt),
 			conn->wr_state, session->exp_cmd_sn);
 
@@ -396,8 +389,8 @@ static void close_conn(struct iscsi_conn *conn)
 		if (t && (atomic_read(&conn->conn_ref_cnt) == 0))
 			break;
 
-		TRACE_CONN_CLOSE_DBG("Waiting for wr thread (conn %p), "
-			"wr_state %x", conn, conn->wr_state);
+		TRACE_CONN_CLOSE_DBG("Waiting for wr thread (conn %p), wr_state %x",
+				     conn, conn->wr_state);
 		msleep(50);
 	}
 
@@ -455,8 +448,8 @@ void start_close_conn(struct iscsi_conn *conn)
 
 	t = kthread_run(close_conn_thr, conn, "iscsi_conn_cleanup");
 	if (IS_ERR(t)) {
-		PRINT_ERROR("kthread_run() failed (%ld), closing conn %p "
-			"directly", PTR_ERR(t), conn);
+		PRINT_ERROR("kthread_run() failed (%ld), closing conn %p directly",
+			    PTR_ERR(t), conn);
 		close_conn(conn);
 	}
 
@@ -513,9 +506,9 @@ struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn)
 
 	if (unlikely(test_bit(ISCSI_CMD_ABORTED,
 			&cmnd->parent_req->prelim_compl_flags))) {
-		TRACE_MGMT_DBG("Going to send acmd %p (scst cmd %p, "
-			"state %d, parent_req %p)", cmnd, cmnd->scst_cmd,
-			cmnd->scst_state, cmnd->parent_req);
+		TRACE_MGMT_DBG("Going to send acmd %p (scst cmd %p, state %d, parent_req %p)",
+			       cmnd, cmnd->scst_cmd, cmnd->scst_state,
+			       cmnd->parent_req);
 	}
 
 	if (unlikely(cmnd_opcode(cmnd) == ISCSI_OP_SCSI_TASK_MGT_RSP)) {
@@ -643,8 +636,8 @@ static int iscsi_rx_check_ddigest(struct iscsi_conn *conn)
 			 * choice here about what will expose more latency:
 			 * possible cache misses or the digest calculation.
 			 */
-			TRACE_DBG("cmnd %p, opcode %x: checking RX "
-				"ddigest inline", cmnd, cmnd_opcode(cmnd));
+			TRACE_DBG("cmnd %p, opcode %x: checking RX ddigest inline",
+				  cmnd, cmnd_opcode(cmnd));
 			cmnd->ddigest_checked = 1;
 			res = digest_rx_data(cmnd);
 			if (unlikely(res != 0)) {
@@ -656,7 +649,9 @@ static int iscsi_rx_check_ddigest(struct iscsi_conn *conn)
 					orig_req = cmnd;
 				if (unlikely(orig_req->scst_cmd == NULL)) {
 					/* Just drop it */
-					iscsi_preliminary_complete(cmnd, orig_req, false);
+					iscsi_preliminary_complete(cmnd,
+								   orig_req,
+								   false);
 				} else {
 					set_scst_preliminary_status_rsp(orig_req, false,
 						SCST_LOAD_SENSE(iscsi_sense_crc_error));
@@ -664,7 +659,9 @@ static int iscsi_rx_check_ddigest(struct iscsi_conn *conn)
 					 * Let's prelim complete cmnd too to
 					 * handle the DATA OUT case
 					 */
-					iscsi_preliminary_complete(cmnd, orig_req, false);
+					iscsi_preliminary_complete(cmnd,
+								   orig_req,
+								   false);
 				}
 				res = 0;
 			}
@@ -677,8 +674,8 @@ static int iscsi_rx_check_ddigest(struct iscsi_conn *conn)
 			 * doesn't specify how to deal with digest errors in
 			 * this case. Let's just drop the command.
 			 */
-			TRACE_DBG("cmnd %p, opcode %x: checking NOP RX "
-				"ddigest", cmnd, cmnd_opcode(cmnd));
+			TRACE_DBG("cmnd %p, opcode %x: checking NOP RX ddigest",
+				  cmnd, cmnd_opcode(cmnd));
 			res = digest_rx_data(cmnd);
 			if (unlikely(res != 0)) {
 				iscsi_preliminary_complete(cmnd, cmnd, false);
@@ -715,14 +712,15 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 			res = do_recv(conn);
 			if (res == 0) {
 				/*
-				 * This command not yet received on the aborted
-				 * time, so shouldn't be affected by any abort.
-				 * It should not be affected by conn_abort()
-				 * as well, because close connection is initiated
-				 * from single (this) read thread, so conn_abort()
-				 * call stack can not be initiated in parallel to
-				 * receive all the data event (do_recv() has check
-				 * of conn->closing in the beginning)
+				 * This command not yet received on the
+				 * aborted time, so shouldn't be affected by
+				 * any abort.  It should not be affected by
+				 * conn_abort() as well, because close
+				 * connection is initiated from single (this)
+				 * read thread, so conn_abort() call stack can
+				 * not be initiated in parallel to receive all
+				 * the data event (do_recv() has check of
+				 * conn->closing in the beginning)
 				 */
 				EXTRACHECKS_BUG_ON(cmnd->prelim_compl_flags != 0);
 
@@ -774,7 +772,8 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 		case RX_DATA:
 			res = do_recv(conn);
 			if (res == 0) {
-				int psz = ((cmnd->pdu.datasize + 3) & -4) - cmnd->pdu.datasize;
+				int psz = ((cmnd->pdu.datasize + 3) & -4) -
+					cmnd->pdu.datasize;
 
 				if (psz != 0) {
 					TRACE_DBG("padding %d bytes", psz);
@@ -795,9 +794,9 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 			bytes_left = conn->read_size;
 #endif
 			if (unlikely(bytes_left != 0)) {
-				PRINT_CRIT_ERROR("conn read_size !=0 on RX_END "
-					"(conn %p, op %x, read_size %d)", conn,
-					cmnd_opcode(cmnd), bytes_left);
+				PRINT_CRIT_ERROR("conn read_size !=0 on RX_END (conn %p, op %x, read_size %d)",
+						 conn, cmnd_opcode(cmnd),
+						 bytes_left);
 				sBUG();
 			}
 			conn->read_cmnd = NULL;
@@ -829,8 +828,7 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 			if (res == 0) {
 				res = digest_rx_header(cmnd);
 				if (unlikely(res != 0)) {
-					PRINT_ERROR("rx header digest for "
-						"initiator %s (conn %p) failed (%d)",
+					PRINT_ERROR("rx header digest for initiator %s (conn %p) failed (%d)",
 						conn->session->initiator_name,
 						conn, res);
 					mark_conn_closed(conn);
@@ -869,7 +867,8 @@ static int process_read_io(struct iscsi_conn *conn, int *closed)
 			break;
 
 		default:
-			PRINT_CRIT_ERROR("%d %x", conn->read_state, cmnd_opcode(cmnd));
+			PRINT_CRIT_ERROR("%d %x", conn->read_state,
+					 cmnd_opcode(cmnd));
 			res = -1; /* to keep compiler happy */
 			sBUG();
 		}
@@ -1018,15 +1017,16 @@ void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
 			unsigned long tt = iscsi_get_timeout_time(r);
 
 			if (time_after(tt, req_tt)) {
-				TRACE_DBG("Add NOP IN req %p (tt %ld) before "
-					"req %p (tt %ld)", req, req_tt, r, tt);
+				TRACE_DBG("Add NOP IN req %p (tt %ld) before req %p (tt %ld)",
+					  req, req_tt, r, tt);
 				list_add_tail(&req->write_timeout_list_entry,
 					&r->write_timeout_list_entry);
 				inserted = true;
 				break;
-			} else
+			} else {
 				TRACE_DBG("Skipping op %x req %p (tt %ld)",
 					cmnd_opcode(r), r, tt);
+			}
 		}
 		if (!inserted) {
 			TRACE_DBG("Add NOP IN req %p in the tail", req);
@@ -1038,8 +1038,8 @@ void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
 		req_tt += ISCSI_ADD_SCHED_TIME;
 		if (timer_pending(&conn->rsp_timer) &&
 		    time_after(conn->rsp_timer.expires, req_tt)) {
-			TRACE_DBG("Timer adjusted for sooner expired NOP IN "
-				"req %p", req);
+			TRACE_DBG("Timer adjusted for sooner expired NOP IN req %p",
+				  req);
 			mod_timer(&conn->rsp_timer, req_tt);
 		}
 	} else
@@ -1209,9 +1209,8 @@ retry:
 		idx = offset >> PAGE_SHIFT;
 		offset &= ~PAGE_MASK;
 		length = min(size, (int)PAGE_SIZE - offset);
-		TRACE_WRITE("write_offset %d, sg_size %d, idx %d, offset %d, "
-			"length %d", conn->write_offset, sg_size, idx, offset,
-			length);
+		TRACE_WRITE("write_offset %d, sg_size %d, idx %d, offset %d, length %d",
+			    conn->write_offset, sg_size, idx, offset, length);
 	} else {
 		/*
 		 * Response scatterlist. No assumptions are made about the
@@ -1239,10 +1238,9 @@ retry:
 		if (size <= sendsize) {
 retry2:
 			res = sendpage(sock, page, offset, size, flags);
-			TRACE_WRITE("Final %s sid %#Lx, cid %u, res %d (page "
-				"index %lu, offset %u, size %u, cmd %p, "
-				"page %p)", (sendpage != sock_no_sendpage) ?
-						"sendpage" : "sock_no_sendpage",
+			TRACE_WRITE("Final %s sid %#Lx, cid %u, res %d (page index %lu, offset %u, size %u, cmd %p, page %p)",
+				(sendpage != sock_no_sendpage) ?
+				"sendpage" : "sock_no_sendpage",
 				(unsigned long long)conn->session->sid,
 				conn->cid, res, page->index,
 				offset, size, write_cmnd, page);
@@ -1266,8 +1264,7 @@ retry2:
 
 retry1:
 		res = sendpage(sock, page, offset, sendsize, flags | MSG_MORE);
-		TRACE_WRITE("%s sid %#Lx, cid %u, res %d (page index %lu, "
-			"offset %u, sendsize %u, size %u, cmd %p, page %p)",
+		TRACE_WRITE("%s sid %#Lx, cid %u, res %d (page index %lu, offset %u, sendsize %u, size %u, cmd %p, page %p)",
 			(sendpage != sock_no_sendpage) ? "sendpage" :
 							 "sock_no_sendpage",
 			(unsigned long long)conn->session->sid, conn->cid,
@@ -1350,8 +1347,7 @@ static int exit_tx(struct iscsi_conn *conn, int res)
 #else
 		{
 #endif
-			PRINT_ERROR("Sending data failed: initiator %s (conn %p), "
-				"write_size %d, write_state %d, res %d",
+			PRINT_ERROR("Sending data failed: initiator %s (conn %p), write_size %d, write_state %d, res %d",
 				conn->session->initiator_name, conn,
 				conn->write_size,
 				conn->write_state, res);
@@ -1558,8 +1554,8 @@ static void scst_do_job_wr(struct iscsi_thread_pool *p)
 		struct iscsi_conn *conn = list_first_entry(&p->wr_list,
 			typeof(*conn), wr_list_entry);
 
-		TRACE_DBG("conn %p, wr_state %x, wr_space_ready %d, "
-			"write ready %d", conn, conn->wr_state,
+		TRACE_DBG("conn %p, wr_state %x, wr_space_ready %d, write ready %d",
+			conn, conn->wr_state,
 			conn->wr_space_ready, test_write_ready(conn));
 
 		list_del(&conn->wr_list_entry);
@@ -1582,8 +1578,8 @@ static void scst_do_job_wr(struct iscsi_thread_pool *p)
 		conn->wr_task = NULL;
 #endif
 		if ((rc == -EAGAIN) && !conn->wr_space_ready) {
-			TRACE_DBG("EAGAIN, setting WR_STATE_SPACE_WAIT "
-				"(conn %p)", conn);
+			TRACE_DBG("EAGAIN, setting WR_STATE_SPACE_WAIT (conn %p)",
+				  conn);
 			conn->wr_state = ISCSI_CONN_WR_STATE_SPACE_WAIT;
 		} else if (test_write_ready(conn)) {
 			list_add_tail(&conn->wr_list_entry, &p->wr_list);

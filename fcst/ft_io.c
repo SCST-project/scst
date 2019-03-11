@@ -110,8 +110,7 @@ int ft_send_read_data(struct scst_cmd *cmd)
 
 	while (remaining) {
 		if (!loop_limit) {
-			FT_ERR("hit loop limit.  remaining %zx mem_len %zx "
-			       "frame_len %zx tlen %zx\n",
+			FT_ERR("hit loop limit.  remaining %zx mem_len %zx frame_len %zx tlen %zx\n",
 			       remaining, mem_len, frame_len, tlen);
 			break;
 		}
@@ -130,8 +129,7 @@ int ft_send_read_data(struct scst_cmd *cmd)
 			frame_len = min(frame_len, remaining);
 			fp = fc_frame_alloc(lport, use_sg ? 0 : frame_len);
 			if (!fp) {
-				FT_IO_DBG("frame_alloc failed. "
-					  "use_sg %d frame_len %zd\n",
+				FT_IO_DBG("frame_alloc failed. use_sg %d frame_len %zd\n",
 					  use_sg, frame_len);
 				break;
 			}
@@ -186,9 +184,8 @@ int ft_send_read_data(struct scst_cmd *cmd)
 							     fp));
 #endif
 		if (error) {
-			pr_warn("Sending frame with oid %#x oxid %#x resp_len"
-				" %d failed at frame_off %u / remaining %zu"
-				" with error code %d  - %s", ep->oid, ep->oxid,
+			pr_warn("Sending frame with oid %#x oxid %#x resp_len %d failed at frame_off %u / remaining %zu with error code %d  - %s",
+				ep->oid, ep->oxid,
 				scst_cmd_get_resp_data_len(cmd), frame_off,
 				remaining, error, error == -ENOMEM ?
 				"retrying" : "giving up");

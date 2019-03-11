@@ -386,7 +386,7 @@ static int mgmt_cmd_callback(void __user *ptr)
 			goto out_status;
 		}
 
-		target->tgt_enabled = (cinfo.req_cmd == E_ENABLE_TARGET) ? 1 : 0;
+		target->tgt_enabled = cinfo.req_cmd == E_ENABLE_TARGET;
 		break;
 	}
 
@@ -935,8 +935,7 @@ static int iscsi_open(struct inode *inode, struct file *file)
 	mutex_unlock(&target_mgmt_mutex);
 
 	if (already) {
-		PRINT_WARNING("%s", "Attempt to second open the control "
-			"device!");
+		PRINT_WARNING("Attempt to second open the control device!");
 		return -EBUSY;
 	} else
 		return 0;

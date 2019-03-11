@@ -259,8 +259,8 @@ int ft_send_response(struct scst_cmd *cmd)
 	error = FCST_INJ_SEND_ERR(lport->tt.seq_send(lport, fcmd->seq, fp));
 #endif
 	if (error < 0) {
-		pr_err("Sending response for exchange with OX_ID %#x and RX_ID"
-		       " %#x failed: %d\n", ep->oxid, ep->rxid, error);
+		pr_err("Sending response for exchange with OX_ID %#x and RX_ID %#x failed: %d\n",
+		       ep->oxid, ep->rxid, error);
 		error = error == -ENOMEM ? SCST_TGT_RES_QUEUE_FULL :
 			SCST_TGT_RES_FATAL_ERROR;
 		goto err;

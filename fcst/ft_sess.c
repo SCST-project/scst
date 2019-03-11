@@ -406,8 +406,8 @@ static int ft_prli_locked(struct fc_rport_priv *rdata, u32 spp_len,
 			return FC_SPP_RESP_CONF;
 		}
 		if (!tport->enabled) {
-			pr_err("Refused login from %#x because target port %s"
-			       " not yet enabled", rdata->ids.port_id,
+			pr_err("Refused login from %#x because target port %s not yet enabled",
+			       rdata->ids.port_id,
 			       tport->tgt->tgt_name);
 			return FC_SPP_RESP_CONF;
 		}

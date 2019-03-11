@@ -135,9 +135,9 @@ static int __event_send(const void *buf, int buf_len)
 		if (res != -ECONNREFUSED)
 			PRINT_ERROR("netlink_unicast() failed: %d", res);
 		else
-			TRACE(TRACE_MINOR, "netlink_unicast() failed: %s. "
-				"Not functioning user space?",
-				"Connection refused");
+			TRACE(TRACE_MINOR,
+			      "netlink_unicast() failed: %s. Not functioning user space?",
+			      "Connection refused");
 		goto out;
 	}
 
