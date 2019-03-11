@@ -4225,11 +4225,9 @@ int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev)
 
 	dev->handler = &scst_null_devtype;
 	INIT_WORK(&dev->free_work, scst_finally_free_device);
-	res = percpu_ref_init(&dev->refcnt, scst_release_device,
-			      PERCPU_REF_INIT_ATOMIC, GFP_KERNEL);
+	res = percpu_ref_init(&dev->refcnt, scst_release_device, 0, GFP_KERNEL);
 	if (res < 0)
 		goto free_dev;
-	percpu_ref_switch_to_percpu(&dev->refcnt);
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 	atomic_set(&dev->dev_cmd_count, 0);
 #endif
@@ -7062,11 +7060,9 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 
 	sess->init_phase = SCST_SESS_IPH_INITING;
 	sess->shut_phase = SCST_SESS_SPH_READY;
-	ret = percpu_ref_init(&sess->refcnt, scst_sess_release,
-			      PERCPU_REF_INIT_ATOMIC, GFP_KERNEL);
+	ret = percpu_ref_init(&sess->refcnt, scst_sess_release, 0, GFP_KERNEL);
 	if (ret < 0)
 		goto out_free;
-	percpu_ref_switch_to_percpu(&sess->refcnt);
 	mutex_init(&sess->tgt_dev_list_mutex);
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct list_head *head = &sess->sess_tgt_dev_list[i];
