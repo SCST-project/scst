@@ -1,3 +1,11 @@
 #!/bin/bash
 
-../linux-kernel/scripts/checkpatch.pl -f --show-types --ignore SPDX_LICENSE_TAG,LINUX_VERSION_CODE,SYMBOLIC_PERMS,CONSTANT_COMPARISON,RETURN_VOID $(list-source-files | grep -vE 'fcst/linux-patches|patch$|pdf$|png$|^ibmvstgt/|^mpt/|^qla_isp/|^mvsas_tgt/') | sed 's/^#[0-9]*: FILE: \(.*\):/\1:1:/'
+ignore=(
+    CONSTANT_COMPARISON
+    LINUX_VERSION_CODE
+    LONG_LINE_STRING
+    RETURN_VOID
+    SPDX_LICENSE_TAG
+    SYMBOLIC_PERMS
+)
+../linux-kernel/scripts/checkpatch.pl -f --show-types --ignore="$(echo "${ignore[@]}" | sed 's/ /,/g')" $(list-source-files | grep -vE 'fcst/linux-patches|patch$|pdf$|png$|^ibmvstgt/|^mpt/|^qla_isp/|^mvsas_tgt/') | sed 's/^#[0-9]*: FILE: \(.*\):/\1:1:/'
