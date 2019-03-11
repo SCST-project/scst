@@ -197,7 +197,8 @@ int isert_login_rsp_tx(struct iscsi_cmnd *login_rsp, int last, int discovery)
 					  &isert_conn->login_req_pdu->wr[0],
 					  1);
 		if (unlikely(err)) {
-			PRINT_ERROR("Failed to post recv login req rx buf, err:%d", err);
+			PRINT_ERROR("Failed to post recv login req rx buf, err:%d",
+				    err);
 			return err;
 		}
 	}

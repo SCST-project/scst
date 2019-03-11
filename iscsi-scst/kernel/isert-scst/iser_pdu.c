@@ -255,7 +255,8 @@ int isert_prepare_rdma(struct isert_cmnd *isert_pdu,
 		isert_buf->dma_dir = DMA_FROM_DEVICE;
 
 	if (unlikely(isert_buf->sg_cnt > isert_pdu->n_sge)) {
-		wr_cnt = isert_alloc_for_rdma(isert_pdu, isert_buf->sg_cnt, isert_conn);
+		wr_cnt = isert_alloc_for_rdma(isert_pdu, isert_buf->sg_cnt,
+					      isert_conn);
 		if (unlikely(wr_cnt))
 			goto out;
 	}
@@ -271,7 +272,8 @@ int isert_prepare_rdma(struct isert_cmnd *isert_pdu,
 
 	buff_offset = 0;
 	sg_cnt = 0;
-	for (wr_cnt = 0, sg_offset = 0; sg_offset < isert_buf->sg_cnt; ++wr_cnt) {
+	for (wr_cnt = 0, sg_offset = 0; sg_offset < isert_buf->sg_cnt;
+	     ++wr_cnt) {
 		sg_cnt = min((int)isert_conn->max_sge,
 			     isert_buf->sg_cnt - sg_offset);
 		err = isert_wr_init(&isert_pdu->wr[wr_cnt], op, isert_buf,
@@ -438,7 +440,8 @@ static inline void isert_link_recv_pdu_wrs(struct isert_cmnd *from_pdu,
 int isert_alloc_conn_resources(struct isert_connection *isert_conn)
 {
 	struct isert_cmnd *pdu, *prev_pdu = NULL, *first_pdu = NULL;
-	int t_datasz = 512; /* RFC states that minimum receive data size is 512 */
+	/* RFC states that minimum receive data size is 512 */
+	int t_datasz = 512;
 	int i_datasz = ISER_HDRS_SZ + SCST_SENSE_BUFFERSIZE;
 	int i, err = 0;
 	int to_alloc;

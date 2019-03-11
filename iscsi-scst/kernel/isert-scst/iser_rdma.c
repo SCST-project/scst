@@ -164,7 +164,8 @@ static void isert_post_drain_sq(struct isert_connection *isert_conn)
 			   &drain_wr_sq->send_wr.wr, &bad_wr);
 #endif
 	if (unlikely(err)) {
-		PRINT_ERROR("Failed to post drain wr to send queue, err:%d", err);
+		PRINT_ERROR("Failed to post drain wr to send queue, err:%d",
+			    err);
 		/*
 		 * We need to decrement iser_conn->kref in order to be able to
 		 * clean up the connection.
@@ -622,7 +623,8 @@ static void isert_conn_drained_do_work(struct work_struct *work)
 static void isert_sched_conn_drained(struct isert_connection *isert_conn)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	INIT_WORK(&isert_conn->drain_work, isert_conn_drained_do_work, isert_conn);
+	INIT_WORK(&isert_conn->drain_work, isert_conn_drained_do_work,
+		  isert_conn);
 #else
 	INIT_WORK(&isert_conn->drain_work, isert_conn_drained_do_work);
 #endif
@@ -724,8 +726,8 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 		break;
 	case ISER_WR_RDMA_READ:
 		if (isert_buf->sg_cnt != 0) {
-			ib_dma_unmap_sg(ib_dev, isert_buf->sg, isert_buf->sg_cnt,
-				isert_buf->dma_dir);
+			ib_dma_unmap_sg(ib_dev, isert_buf->sg,
+					isert_buf->sg_cnt, isert_buf->dma_dir);
 			isert_buf->sg_cnt = 0;
 		}
 		if (!isert_pdu->is_fake_rx)
@@ -785,7 +787,8 @@ static int isert_poll_cq(struct isert_cq *cq)
 }
 
 /* callback function for isert_dev->[cq]->cq_comp_work */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && \
+	!defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 /* A vanilla 2.6.19 or older kernel without backported OFED kernel headers. */
 static void isert_cq_comp_work_cb(void *ctx)
 {
@@ -1263,7 +1266,7 @@ fail_create_qp:
 }
 
 static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
-						  struct isert_device *isert_dev)
+						struct isert_device *isert_dev)
 {
 	struct isert_connection *isert_conn;
 	int err;
@@ -1526,8 +1529,8 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 			   NIPQUAD(((struct sockaddr_in *)&isert_conn->peer_addr)->sin_addr.s_addr),
 			   NIPQUAD(((struct sockaddr_in *)&isert_conn->self_addr)->sin_addr.s_addr));
 #else
-		PRINT_INFO("iser accepted connection cm_id:%p "
-			   "%pI4->%pI4", cm_id,
+		PRINT_INFO("iser accepted connection cm_id:%p %pI4->%pI4",
+			   cm_id,
 			   &((struct sockaddr_in *)&isert_conn->peer_addr)->sin_addr.s_addr,
 			   &((struct sockaddr_in *)&isert_conn->self_addr)->sin_addr.s_addr);
 #endif
@@ -1539,8 +1542,8 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 			   NIP6(((struct sockaddr_in6 *)&isert_conn->peer_addr)->sin6_addr),
 			   NIP6(((struct sockaddr_in6 *)&isert_conn->self_addr)->sin6_addr));
 #else
-		PRINT_INFO("iser accepted connection cm_id:%p "
-			   "%pI6->%pI6", cm_id,
+		PRINT_INFO("iser accepted connection cm_id:%p %pI6->%pI6",
+			   cm_id,
 			   &((struct sockaddr_in6 *)&isert_conn->peer_addr)->sin6_addr,
 			   &((struct sockaddr_in6 *)&isert_conn->self_addr)->sin6_addr);
 #endif
