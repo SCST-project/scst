@@ -219,7 +219,7 @@ else
 fi
 
 # Include fcst in the patch for kernel versions 2.6.33 and later.
-if kernel_version_le "2.6.33" "${kver}"; then
+if kernel_version_le "2.6.37" "${kver}"; then
   include_fcst="true"
 else
   include_fcst="false"
