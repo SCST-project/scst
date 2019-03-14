@@ -789,6 +789,15 @@ static inline long get_user_pages_backport(unsigned long start,
 })
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38)
+/*
+ * See also commit 16cb839f1332 ("include/linux/printk.h: add pr_<level>_once
+ * macros") # v2.6.38.
+ */
+#define pr_warn_once(fmt, ...)					\
+	printk_once(KERN_WARNING pr_fmt(fmt), ##__VA_ARGS__)
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 /*
  * See also patch "kernel.h: add pr_warn for symmetry to dev_warn,
