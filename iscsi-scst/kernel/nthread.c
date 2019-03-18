@@ -565,7 +565,7 @@ restart:
 #endif
 
 	oldfs = get_fs();
-	set_fs(get_ds());
+	set_fs(KERNEL_DS);
 	res = sock_recvmsg(conn->sock, msg,
 #if SOCK_RECVMSG_HAS_FOUR_ARGS
 			   read_size,
@@ -1189,7 +1189,8 @@ retry:
 
 	sock = conn->sock;
 
-	if ((write_cmnd->parent_req->scst_cmd != NULL) &&
+	if (write_cmnd->parent_req->scst_cmd &&
+	    write_cmnd->parent_req->scst_state != ISCSI_CMD_STATE_AEN &&
 	    scst_cmd_get_dh_data_buff_alloced(write_cmnd->parent_req->scst_cmd))
 		sock_sendpage = sock_no_sendpage;
 	else

@@ -5928,7 +5928,7 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 static int scst_cmp_fs_ds(void)
 {
 	mm_segment_t fs = get_fs();
-	mm_segment_t ds = get_ds();
+	mm_segment_t ds = KERNEL_DS;
 
 	return memcmp(&fs, &ds, sizeof(fs));
 }
