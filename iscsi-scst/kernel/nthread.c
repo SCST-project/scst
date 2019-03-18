@@ -565,7 +565,7 @@ restart:
 #endif
 
 	oldfs = get_fs();
-	set_fs(get_ds());
+	set_fs(KERNEL_DS);
 	res = sock_recvmsg(conn->sock, msg,
 #if SOCK_RECVMSG_HAS_FOUR_ARGS
 			   read_size,

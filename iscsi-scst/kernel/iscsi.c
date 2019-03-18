@@ -2899,7 +2899,7 @@ static inline void set_cork(struct socket *sock, int on)
 	mm_segment_t oldfs;
 
 	oldfs = get_fs();
-	set_fs(get_ds());
+	set_fs(KERNEL_DS);
 	sock->ops->setsockopt(sock, SOL_TCP, TCP_CORK,
 			      (void __force __user *)&opt, sizeof(opt));
 	set_fs(oldfs);
