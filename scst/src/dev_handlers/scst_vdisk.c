@@ -2133,7 +2133,7 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 		iv[i].iov_base = (uint8_t __force __user *)data_buf;
 
 	old_fs = get_fs();
-	set_fs(get_ds());
+	set_fs(KERNEL_DS);
 
 	loff = start_lba << SCST_DIF_TAG_SHIFT;
 	left = blocks << SCST_DIF_TAG_SHIFT;
@@ -5671,7 +5671,7 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 	max_iv_count = p->sync.iv_count;
 
 	old_fs = get_fs();
-	set_fs(get_ds());
+	set_fs(KERNEL_DS);
 
 	tags_sg = NULL;
 	loff = (p->loff >> cmd->dev->block_shift) << SCST_DIF_TAG_SHIFT;
@@ -5792,7 +5792,7 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 	max_iv_count = p->sync.iv_count;
 
 	old_fs = get_fs();
-	set_fs(get_ds());
+	set_fs(KERNEL_DS);
 
 	tags_sg = NULL;
 	loff = (p->loff >> cmd->dev->block_shift) << SCST_DIF_TAG_SHIFT;
@@ -5936,7 +5936,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 	}
 
 	old_fs = get_fs();
-	set_fs(get_ds());
+	set_fs(KERNEL_DS);
 
 	while (1) {
 		iv_count = 0;
@@ -6126,7 +6126,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 	}
 
 	old_fs = get_fs();
-	set_fs(get_ds());
+	set_fs(KERNEL_DS);
 
 	while (1) {
 		iv_count = 0;
@@ -7056,7 +7056,7 @@ static ssize_t fileio_read_sync(struct file *fd, void *buf, size_t len,
 	ssize_t ret;
 
 	old_fs = get_fs();
-	set_fs(get_ds());
+	set_fs(KERNEL_DS);
 	ret = scst_read(fd, buf, len, loff);
 	set_fs(old_fs);
 
