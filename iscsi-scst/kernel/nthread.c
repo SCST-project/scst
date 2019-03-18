@@ -1426,7 +1426,8 @@ retry:
 #if defined(CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION)
 	sock_sendpage = sock->ops->sendpage;
 #else
-	if ((write_cmnd->parent_req->scst_cmd != NULL) &&
+	if (write_cmnd->parent_req->scst_cmd &&
+	    write_cmnd->parent_req->scst_state != ISCSI_CMD_STATE_AEN &&
 	    scst_cmd_get_dh_data_buff_alloced(write_cmnd->parent_req->scst_cmd))
 		sock_sendpage = sock_no_sendpage;
 	else
