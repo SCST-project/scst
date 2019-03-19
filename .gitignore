@@ -49,6 +49,8 @@ nightly/nohup.out
 nightly/old.short
 nightly/old.verbose
 nightly/sendmail.log
+qla2x00t/in-tree-patches/
+qla2x00t/qla2xxx-orig/
 scst/include/scst_itf_ver.h
 scst/src/.tmp_versions/
 scstadmin/scstadmin.*/scst-*/blib
