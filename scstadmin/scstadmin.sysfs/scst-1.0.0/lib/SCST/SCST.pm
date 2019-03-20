@@ -2685,6 +2685,7 @@ sub deviceAttributes {
 
 				my ($value, $is_key) = split("\n", _sysread($io) , 2);
 				close $io;
+				$value = "" if (!defined($value));
 				chomp $value;
 
 				$is_key = new_sysfs_interface() &&
