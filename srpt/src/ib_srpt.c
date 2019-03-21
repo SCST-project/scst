@@ -3231,7 +3231,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				 struct srpt_send_ioctx *ioctx,
 				 struct scst_cmd *cmd)
 {
-	struct ib_device *dev;
+	struct ib_device *dev __maybe_unused;
 	struct scatterlist *sg, *cur_sg;
 	int sg_cnt;
 	scst_data_direction dir;

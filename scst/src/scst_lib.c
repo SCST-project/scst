@@ -5933,75 +5933,66 @@ static int scst_cmp_fs_ds(void)
 	return memcmp(&fs, &ds, sizeof(fs));
 }
 
-ssize_t scst_read(struct file *file, void *buf, size_t count, loff_t *pos)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0) && !defined(RHEL_MAJOR)
+ssize_t kernel_write(struct file *file, const void *buf, size_t count,
+		     loff_t *pos)
 {
+	mm_segment_t old_fs = get_fs();
+	ssize_t result;
+	set_fs(KERNEL_DS);
+	{
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
 	struct iovec iov = {
 		.iov_base = (void __force __user *)buf,
 		.iov_len = count
 	};
 
-	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
-
-	return scst_readv(file, &iov, 1, pos);
+	result = scst_writev(file, &iov, 1, pos);
 #else
-	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
-
-	return vfs_read(file, (void __force __user *)buf, count, pos);
+	result = vfs_write(file, (void __force __user *)buf, count, pos);
 #endif
+	}
+	set_fs(old_fs);
+
+	return result;
 }
-EXPORT_SYMBOL(scst_read);
-
-ssize_t scst_write(struct file *file, const void *buf, size_t count,
-		   loff_t *pos)
-{
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
-	struct iovec iov = {
-		.iov_base = (void __force __user *)buf,
-		.iov_len = count
-	};
-
-	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
-
-	return scst_writev(file, &iov, 1, pos);
-#else
-	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
-
-	return vfs_write(file, (void __force __user *)buf, count, pos);
+EXPORT_SYMBOL(kernel_write);
 #endif
-}
-EXPORT_SYMBOL(scst_write);
 
 ssize_t scst_readv(struct file *file, const struct iovec *vec,
 		   unsigned long vlen, loff_t *pos)
 {
+	mm_segment_t old_fs = get_fs();
+	ssize_t result;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
 	struct iovec iovstack[UIO_FASTIOV];
 	struct iovec *iov = iovstack;
 	struct iov_iter iter;
-	ssize_t ret;
 
 	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
 
-	ret = import_iovec(READ, (const struct iovec __force __user *)vec, vlen,
-			   ARRAY_SIZE(iovstack), &iov, &iter);
-	if (ret < 0)
-		return ret;
-	ret = vfs_iter_read(file, &iter, pos, 0);
-	BUG_ON(iov == iovstack);
-	kfree(iov);
-	return ret;
+	result = import_iovec(READ, (const struct iovec __force __user *)vec,
+			      vlen, ARRAY_SIZE(iovstack), &iov, &iter);
+	if (result >= 0) {
+		result = vfs_iter_read(file, &iter, pos, 0);
+		BUG_ON(iov == iovstack);
+		kfree(iov);
+	}
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0) ||	\
 	(defined(CONFIG_SUSE_KERNEL) &&			\
 	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
 
-	return vfs_readv(file, (const struct iovec __user *)vec, vlen, pos, 0);
+	result = vfs_readv(file, (const struct iovec __user *)vec, vlen, pos,
+			   0);
 #else
 	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
 
-	return vfs_readv(file, (const struct iovec __user *)vec, vlen, pos);
+	result = vfs_readv(file, (const struct iovec __user *)vec, vlen, pos);
 #endif
+	set_fs(old_fs);
+
+	return result;
 }
 EXPORT_SYMBOL(scst_readv);
 
@@ -6018,31 +6009,35 @@ EXPORT_SYMBOL(scst_readv);
 ssize_t scst_writev(struct file *file, const struct iovec *vec,
 		    unsigned long vlen, loff_t *pos)
 {
+	mm_segment_t old_fs = get_fs();
+	ssize_t result;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
 	struct iovec iovstack[UIO_FASTIOV];
 	struct iovec *iov = iovstack;
 	struct iov_iter iter;
-	ssize_t ret;
 
 	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
 
-	ret = import_iovec(WRITE, (const struct iovec __force __user *)vec,
-			   vlen, ARRAY_SIZE(iovstack), &iov, &iter);
-	if (ret < 0)
-		return ret;
-	file_start_write(file);
-	ret = vfs_iter_write(file, &iter, pos, 0);
-	file_end_write(file);
-	BUG_ON(iov == iovstack);
-	kfree(iov);
-	return ret;
+	result = import_iovec(WRITE, (const struct iovec __force __user *)vec,
+			      vlen, ARRAY_SIZE(iovstack), &iov, &iter);
+	if (result >= 0) {
+		file_start_write(file);
+		result = vfs_iter_write(file, &iter, pos, 0);
+		file_end_write(file);
+		BUG_ON(iov == iovstack);
+		kfree(iov);
+	}
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0) ||	\
 	(defined(CONFIG_SUSE_KERNEL) &&			\
 	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
-	return vfs_writev(file, (const struct iovec __user *)vec, vlen, pos, 0);
+	result = vfs_writev(file, (const struct iovec __user *)vec, vlen, pos,
+			    0);
 #else
-	return vfs_writev(file, (const struct iovec __user *)vec, vlen, pos);
+	result = vfs_writev(file, (const struct iovec __user *)vec, vlen, pos);
 #endif
+	set_fs(old_fs);
+
+	return result;
 }
 EXPORT_SYMBOL(scst_writev);
 
@@ -8606,6 +8601,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	}
 
 	if (cmd->data_direction == SCST_DATA_BIDI) {
+#ifdef QUEUE_FLAG_BIDI
 		struct request *next_rq;
 
 		if (!test_bit(QUEUE_FLAG_BIDI, &q->queue_flags)) {
@@ -8628,6 +8624,9 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 			goto out_free_unmap;
 		}
 		rq->next_rq = next_rq;
+#else
+		return -EOPNOTSUPP;
+#endif
 	} else {
 		rq = blk_map_kern_sg(q, cmd->sg, cmd->sg_cnt, gfp, reading);
 		if (IS_ERR(rq)) {
@@ -8668,6 +8667,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 out:
 	return res;
 
+#ifdef QUEUE_FLAG_BIDI
 out_free_unmap:
 	{
 	struct bio *bio = rq->bio, *b;
@@ -8690,6 +8690,7 @@ out_free_unmap:
 	rq->bio = NULL;
 
 	blk_put_request(rq);
+#endif
 
 out_free_sioc:
 	kmem_cache_free(scsi_io_context_cache, sioc);
@@ -15038,7 +15039,6 @@ int scst_copy_file(const char *src, const char *dest)
 	loff_t file_size, pos;
 	uint8_t *buf = NULL;
 	struct file *file_src = NULL, *file_dest = NULL;
-	mm_segment_t old_fs = get_fs();
 
 	TRACE_ENTRY();
 
@@ -15050,8 +15050,6 @@ int scst_copy_file(const char *src, const char *dest)
 	}
 
 	TRACE_DBG("Copying '%s' into '%s'", src, dest);
-
-	set_fs(KERNEL_DS);
 
 	file_src = filp_open(src, O_RDONLY, 0);
 	if (IS_ERR(file_src)) {
@@ -15077,7 +15075,6 @@ int scst_copy_file(const char *src, const char *dest)
 	} else {
 		PRINT_ERROR("Invalid file mode 0x%x", inode->i_mode);
 		res = -EINVAL;
-		set_fs(old_fs);
 		goto out_skip;
 	}
 
@@ -15091,14 +15088,14 @@ int scst_copy_file(const char *src, const char *dest)
 	}
 
 	pos = 0;
-	res = scst_read(file_src, buf, file_size, &pos);
+	res = kernel_read(file_src, buf, file_size, &pos);
 	if (res != file_size) {
 		PRINT_ERROR("Unable to read file '%s' - error %d", src, res);
 		goto out_skip;
 	}
 
 	pos = 0;
-	res = scst_write(file_dest, buf, file_size, &pos);
+	res = kernel_write(file_dest, buf, file_size, &pos);
 	if (res != file_size) {
 		PRINT_ERROR("Unable to write to '%s' - error %d", dest, res);
 		goto out_skip;
@@ -15119,8 +15116,6 @@ out_close:
 out_free:
 	if (buf != NULL)
 		vfree(buf);
-
-	set_fs(old_fs);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -15168,7 +15163,6 @@ int scst_write_file_transactional(const char *name, const char *name1,
 {
 	int res;
 	struct file *file;
-	mm_segment_t old_fs = get_fs();
 	loff_t pos = 0;
 	char n = '\n';
 
@@ -15177,8 +15171,6 @@ int scst_write_file_transactional(const char *name, const char *name1,
 	res = scst_copy_file(name, name1);
 	if ((res != 0) && (res != -ENOENT))
 		goto out;
-
-	set_fs(KERNEL_DS);
 
 	file = filp_open(name, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (IS_ERR(file)) {
@@ -15192,7 +15184,7 @@ int scst_write_file_transactional(const char *name, const char *name1,
 
 	pos = signature_len+1;
 
-	res = scst_write(file, buf, size, &pos);
+	res = kernel_write(file, buf, size, &pos);
 	if (res != size)
 		goto write_error;
 
@@ -15203,11 +15195,11 @@ int scst_write_file_transactional(const char *name, const char *name1,
 	}
 
 	pos = 0;
-	res = scst_write(file, signature, signature_len, &pos);
+	res = kernel_write(file, signature, signature_len, &pos);
 	if (res != signature_len)
 		goto write_error;
 
-	res = scst_write(file, &n, sizeof(n), &pos);
+	res = kernel_write(file, &n, sizeof(n), &pos);
 	if (res != sizeof(n))
 		goto write_error;
 
@@ -15222,8 +15214,6 @@ int scst_write_file_transactional(const char *name, const char *name1,
 	filp_close(file, NULL);
 
 out_set_fs:
-	set_fs(old_fs);
-
 	if (res == 0)
 		scst_remove_file(name1);
 	else
@@ -15251,12 +15241,8 @@ static int __scst_read_file_transactional(const char *file_name,
 	struct file *file = NULL;
 	struct inode *inode;
 	loff_t file_size, pos;
-	mm_segment_t old_fs;
 
 	TRACE_ENTRY();
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
 
 	TRACE_DBG("Loading file '%s'", file_name);
 
@@ -15289,7 +15275,7 @@ static int __scst_read_file_transactional(const char *file_name,
 	}
 
 	pos = 0;
-	res = scst_read(file, buf, file_size, &pos);
+	res = kernel_read(file, buf, file_size, &pos);
 	if (res != file_size) {
 		PRINT_ERROR("Unable to read file '%s' - error %d", file_name, res);
 		if (res > 0)
@@ -15307,8 +15293,6 @@ out_close:
 	filp_close(file, NULL);
 
 out:
-	set_fs(old_fs);
-
 	TRACE_EXIT_RES(res);
 	return res;
 }

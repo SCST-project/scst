@@ -15,7 +15,7 @@ my $redirect_file;
 my $redirect;
 
 BEGIN {
-    $redirect_file = "/tmp/scstadmin-test-06-output.txt";
+    $redirect_file = "/tmp/scstadmin-test-09-output.txt";
     unlink($redirect_file);
     $testdir = dirname(abs_path($0));
     $scstadmin_pm_dir = dirname($testdir);

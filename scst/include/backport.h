@@ -452,6 +452,24 @@ kernel_read_backport(struct file *file, void *buf, size_t count, loff_t *pos)
 
 #define kernel_read(file, buf, count, pos)			\
 	kernel_read_backport((file), (buf), (count), (pos))
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
+/*
+ * See also commit 7bb307e894d5 ("export kernel_write(), convert open-coded
+ * instances") # v3.9.
+ */
+static inline ssize_t
+kernel_write_backport(struct file *file, const void *buf, size_t count,
+		      loff_t *pos)
+{
+	return kernel_write(file, buf, count, *pos);
+}
+
+#define kernel_write kernel_write_backport
+#else
+ssize_t kernel_write(struct file *file, const void *buf, size_t count,
+		     loff_t *pos);
+#endif
 #endif
 
 /* <linux/iocontext.h> */
@@ -902,6 +920,11 @@ static inline struct ib_pd *ib_alloc_pd_backport(struct ib_device *device)
 	})
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
+#define ib_sg_dma_len(dev, sg) sg_dma_len(sg)
+#define ib_sg_dma_address(dev, sg) sg_dma_address(sg)
+#endif
+
 /* <linux/sched.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) && \
@@ -1245,10 +1268,12 @@ static inline void *vzalloc(unsigned long size)
 
 /* <scsi/scsi_cmnd.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) || \
+	LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
 /*
- * See also patch "[SCSI] bidirectional command support"
- * (commit ID 6f9a35e2dafa).
+ * See also patch "[SCSI] bidirectional command support" (commit ID
+ * 6f9a35e2dafa). See also commit ae3d56d81507 ("scsi: remove bidirectional
+ * command support") # v5.1.
  */
 static inline int scsi_bidi_cmnd(struct scsi_cmnd *cmd)
 {
