@@ -1099,7 +1099,6 @@ out:
 
 static int write_data(struct iscsi_conn *conn)
 {
-	mm_segment_t oldfs;
 	struct file *file;
 	struct iovec *iop;
 	struct socket *sock;
@@ -1142,10 +1141,7 @@ static int write_data(struct iscsi_conn *conn)
 
 			sBUG_ON(count > ARRAY_SIZE(conn->write_iov));
 retry:
-			oldfs = get_fs();
-			set_fs(KERNEL_DS);
 			res = scst_writev(file, iop, count, &off);
-			set_fs(oldfs);
 			TRACE_WRITE("sid %#Lx, cid %u, res %d, iov_len %zd",
 				    (unsigned long long)conn->session->sid,
 				    conn->cid, res, iop->iov_len);

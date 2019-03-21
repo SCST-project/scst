@@ -1677,7 +1677,6 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	loff_t loff;
-	mm_segment_t old_fs;
 	loff_t err = 0;
 	ssize_t full_len;
 	struct file *fd = virt_dev->dif_fd;
@@ -1719,9 +1718,6 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 	for (i = 0; i < max_iv_count; i++)
 		iv[i].iov_base = (uint8_t __force __user *)data_buf;
 
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
 	loff = start_lba << SCST_DIF_TAG_SHIFT;
 	left = blocks << SCST_DIF_TAG_SHIFT;
 	done = 0;
@@ -1757,7 +1753,7 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 				scst_set_cmd_error(cmd,
 				    SCST_LOAD_SENSE(scst_sense_write_error));
 			res = err;
-			goto out_set_fs;
+			goto out_free_data_page;
 		} else if (err < full_len) {
 			/*
 			 * If a write() is interrupted by a signal handler before
@@ -1773,9 +1769,7 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 		virt_dev->format_progress_done = done;
 	}
 
-out_set_fs:
-	set_fs(old_fs);
-
+out_free_data_page:
 	__free_page(data_page);
 
 out_free_iv:
@@ -5335,7 +5329,6 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 	int res = 0;
 	struct scst_cmd *cmd = p->cmd;
 	loff_t loff;
-	mm_segment_t old_fs;
 	loff_t err = 0;
 	ssize_t length, full_len;
 	uint8_t *address;
@@ -5377,9 +5370,6 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 		}
 	}
 	max_iv_count = p->sync.iv_count;
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
 
 	tags_sg = NULL;
 	loff = (p->loff >> cmd->dev->block_shift) << SCST_DIF_TAG_SHIFT;
@@ -5428,7 +5418,7 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 			}
 			spin_unlock_irqrestore(&vdev_err_lock, flags);
 			res = err;
-			goto out_set_fs;
+			goto out_put_dif_buf;
 		}
 
 		for (i = 0; i < iv_count; i++)
@@ -5438,14 +5428,11 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 			break;
 	}
 
-	set_fs(old_fs);
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-out_set_fs:
-	set_fs(old_fs);
+out_put_dif_buf:
 	for (i = 0; i < iv_count; i++)
 		scst_put_dif_buf(cmd, (void __force *)(iv[i].iov_base));
 	goto out;
@@ -5456,7 +5443,6 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 	int res = 0;
 	struct scst_cmd *cmd = p->cmd;
 	loff_t loff;
-	mm_segment_t old_fs;
 	loff_t err = 0;
 	ssize_t length, full_len;
 	uint8_t *address;
@@ -5498,9 +5484,6 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 		}
 	}
 	max_iv_count = p->sync.iv_count;
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
 
 	tags_sg = NULL;
 	loff = (p->loff >> cmd->dev->block_shift) << SCST_DIF_TAG_SHIFT;
@@ -5550,7 +5533,7 @@ restart:
 			}
 			spin_unlock_irqrestore(&vdev_err_lock, flags);
 			res = err;
-			goto out_set_fs;
+			goto out_put_dif_buf;
 		} else if (err < full_len) {
 			/*
 			 * Probably that's wrong, but sometimes write() returns
@@ -5588,14 +5571,11 @@ restart:
 			break;
 	}
 
-	set_fs(old_fs);
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-out_set_fs:
-	set_fs(old_fs);
+out_put_dif_buf:
 	for (i = 0; i < iv_count; i++)
 		scst_put_dif_buf(cmd, (void __force *)(iv[i].iov_base));
 	goto out;
@@ -5650,7 +5630,6 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 	struct scst_cmd *cmd = p->cmd;
 	struct scst_device *dev = cmd->dev;
 	loff_t loff = p->loff;
-	mm_segment_t old_fs;
 	loff_t err = 0;
 	ssize_t length, full_len;
 	uint8_t *address;
@@ -5685,9 +5664,6 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 		goto out;
 	}
 
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
 	while (1) {
 		iv_count = 0;
 		full_len = 0;
@@ -5710,7 +5686,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 			PRINT_ERROR("scst_get_buf_next() failed: %zd", length);
 			scst_set_cmd_error(cmd,
 			    SCST_LOAD_SENSE(scst_sense_internal_failure));
-			goto out_set_fs;
+			goto out_put_buf;
 		}
 
 		eiv = iv;
@@ -5733,7 +5709,7 @@ restart:
 			} else
 				scst_set_cmd_error(cmd,
 				    SCST_LOAD_SENSE(scst_sense_write_error));
-			goto out_set_fs;
+			goto out_put_buf;
 		} else if (err < full_len) {
 			/*
 			 * Probably that's wrong, but sometimes write() returns
@@ -5772,8 +5748,6 @@ restart:
 		length = scst_get_buf_next(cmd, &address);
 	}
 
-	set_fs(old_fs);
-
 	if ((dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) &&
 	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE)) {
 		err = vdev_write_dif_tags(p);
@@ -5790,8 +5764,7 @@ out:
 	TRACE_EXIT();
 	return CMD_SUCCEEDED;
 
-out_set_fs:
-	set_fs(old_fs);
+out_put_buf:
 	for (i = 0; i < iv_count; i++)
 		scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
 	goto out_sync;
@@ -6367,7 +6340,6 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
 	loff_t loff = p->loff;
-	mm_segment_t old_fs;
 	loff_t err = 0;
 	ssize_t length, full_len;
 	uint8_t __user *address;
@@ -6399,9 +6371,6 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 		goto out;
 	}
 
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-
 	while (1) {
 		iv_count = 0;
 		full_len = 0;
@@ -6425,7 +6394,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 			PRINT_ERROR("scst_get_buf_next() failed: %zd", length);
 			scst_set_cmd_error(cmd,
 			    SCST_LOAD_SENSE(scst_sense_internal_failure));
-			goto out_set_fs;
+			goto out_put_buf;
 		}
 
 		TRACE_DBG("Reading iv_count %d, full_len %zd", iv_count, full_len);
@@ -6442,7 +6411,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 				scst_set_cmd_error(cmd,
 				    SCST_LOAD_SENSE(scst_sense_read_error));
 			}
-			goto out_set_fs;
+			goto out_put_buf;
 		}
 
 		for (i = 0; i < iv_count; i++)
@@ -6453,8 +6422,6 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 
 		length = scst_get_buf_next(cmd, (uint8_t __force **)&address);
 	}
-
-	set_fs(old_fs);
 
 	if ((dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) &&
 	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE)) {
@@ -6469,8 +6436,7 @@ out:
 	TRACE_EXIT();
 	return CMD_SUCCEEDED;
 
-out_set_fs:
-	set_fs(old_fs);
+out_put_buf:
 	for (i = 0; i < iv_count; i++)
 		scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
 	goto out;
