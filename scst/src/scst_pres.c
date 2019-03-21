@@ -664,7 +664,6 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 	char *buf = NULL;
 	loff_t file_size, pos, data_size;
 	uint64_t sign, version;
-	mm_segment_t old_fs;
 	uint8_t pr_is_set, aptpl;
 	__be64 key;
 	uint16_t rel_tgt_id;
@@ -674,9 +673,6 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 	scst_assert_pr_mutex_held(dev);
 
 	scst_pr_remove_registrants(dev);
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
 
 	TRACE_PR("Loading persistent file '%s'", file_name);
 
@@ -715,7 +711,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 	}
 
 	pos = 0;
-	rc = scst_read(file, buf, file_size, &pos);
+	rc = kernel_read(file, buf, file_size, &pos);
 	if (rc != file_size) {
 		PRINT_ERROR("Unable to read file '%s' - error %d", file_name,
 			rc);
@@ -822,8 +818,6 @@ out:
 	if (buf != NULL)
 		vfree(buf);
 
-	set_fs(old_fs);
-
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -885,7 +879,6 @@ void scst_pr_sync_device_file(struct scst_device *dev)
 {
 	int res = 0;
 	struct file *file;
-	mm_segment_t old_fs = get_fs();
 	loff_t pos = 0;
 	uint64_t sign;
 	uint64_t version;
@@ -903,14 +896,12 @@ void scst_pr_sync_device_file(struct scst_device *dev)
 
 	scst_copy_file(dev->pr_file_name, dev->pr_file_name1);
 
-	set_fs(KERNEL_DS);
-
 	file = filp_open(dev->pr_file_name, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (IS_ERR(file)) {
 		res = PTR_ERR(file);
 		PRINT_ERROR("Unable to (re)create PR file '%s' - error %d",
 			dev->pr_file_name, res);
-		goto out_set_fs;
+		goto out;
 	}
 
 	TRACE_PR("Updating pr file '%s'", dev->pr_file_name);
@@ -920,7 +911,7 @@ void scst_pr_sync_device_file(struct scst_device *dev)
 	 */
 	sign = 0;
 	pos = 0;
-	res = scst_write(file, &sign, sizeof(sign), &pos);
+	res = kernel_write(file, &sign, sizeof(sign), &pos);
 	if (res != sizeof(sign))
 		goto write_error;
 
@@ -928,7 +919,7 @@ void scst_pr_sync_device_file(struct scst_device *dev)
 	 * version
 	 */
 	version = SCST_PR_FILE_VERSION;
-	res = scst_write(file, &version, sizeof(version), &pos);
+	res = kernel_write(file, &version, sizeof(version), &pos);
 	if (res != sizeof(version))
 		goto write_error;
 
@@ -936,7 +927,7 @@ void scst_pr_sync_device_file(struct scst_device *dev)
 	 * APTPL
 	 */
 	aptpl = dev->pr_aptpl;
-	res = scst_write(file, &aptpl, sizeof(aptpl), &pos);
+	res = kernel_write(file, &aptpl, sizeof(aptpl), &pos);
 	if (res != sizeof(aptpl))
 		goto write_error;
 
@@ -944,15 +935,15 @@ void scst_pr_sync_device_file(struct scst_device *dev)
 	 * reservation
 	 */
 	pr_is_set = dev->pr_is_set;
-	res = scst_write(file, &pr_is_set, sizeof(pr_is_set), &pos);
+	res = kernel_write(file, &pr_is_set, sizeof(pr_is_set), &pos);
 	if (res != sizeof(pr_is_set))
 		goto write_error;
 
-	res = scst_write(file, &dev->pr_type, sizeof(dev->pr_type), &pos);
+	res = kernel_write(file, &dev->pr_type, sizeof(dev->pr_type), &pos);
 	if (res != sizeof(dev->pr_type))
 		goto write_error;
 
-	res = scst_write(file, &dev->pr_scope, sizeof(dev->pr_scope), &pos);
+	res = kernel_write(file, &dev->pr_scope, sizeof(dev->pr_scope), &pos);
 	if (res != sizeof(dev->pr_scope))
 		goto write_error;
 
@@ -966,24 +957,21 @@ void scst_pr_sync_device_file(struct scst_device *dev)
 
 		is_holder = (dev->pr_holder == reg);
 
-		res = scst_write(file, &is_holder,
-				sizeof(is_holder), &pos);
+		res = kernel_write(file, &is_holder, sizeof(is_holder), &pos);
 		if (res != sizeof(is_holder))
 			goto write_error;
 
 		size = scst_tid_size(reg->transport_id);
-		res = scst_write(file, reg->transport_id,
-				size, &pos);
+		res = kernel_write(file, reg->transport_id, size, &pos);
 		if (res != size)
 			goto write_error;
 
-		res = scst_write(file, &reg->key,
-				sizeof(reg->key), &pos);
+		res = kernel_write(file, &reg->key, sizeof(reg->key), &pos);
 		if (res != sizeof(reg->key))
 			goto write_error;
 
-		res = scst_write(file, &reg->rel_tgt_id,
-				sizeof(reg->rel_tgt_id), &pos);
+		res = kernel_write(file, &reg->rel_tgt_id,
+				   sizeof(reg->rel_tgt_id), &pos);
 		if (res != sizeof(reg->rel_tgt_id))
 			goto write_error;
 	}
@@ -996,7 +984,7 @@ void scst_pr_sync_device_file(struct scst_device *dev)
 
 	sign = SCST_PR_FILE_SIGN;
 	pos = 0;
-	res = scst_write(file, &sign, sizeof(sign), &pos);
+	res = kernel_write(file, &sign, sizeof(sign), &pos);
 	if (res != sizeof(sign))
 		goto write_error;
 
@@ -1009,9 +997,6 @@ void scst_pr_sync_device_file(struct scst_device *dev)
 	res = 0;
 
 	filp_close(file, NULL);
-
-out_set_fs:
-	set_fs(old_fs);
 
 out:
 	if (res != 0) {
@@ -1057,7 +1042,7 @@ write_error_close:
 				dev->pr_file_name, rc);
 	}
 #endif
-	goto out_set_fs;
+	goto out;
 }
 
 

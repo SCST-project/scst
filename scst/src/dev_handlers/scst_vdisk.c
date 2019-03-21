@@ -2995,21 +2995,6 @@ out:
 	return ret;
 }
 
-/* Note: Updates *@loff if reading succeeded. */
-static ssize_t fileio_read_sync(struct file *fd, void *buf, size_t len,
-				loff_t *loff)
-{
-	mm_segment_t old_fs;
-	ssize_t ret;
-
-	old_fs = get_fs();
-	set_fs(KERNEL_DS);
-	ret = scst_read(fd, buf, len, loff);
-	set_fs(old_fs);
-
-	return ret;
-}
-
 /* Note: Updates *@loff if reading succeeded except for NULLIO devices. */
 static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			      size_t len, loff_t *loff)
@@ -3027,7 +3012,7 @@ static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 		}
 		return read;
 	} else {
-		return fileio_read_sync(virt_dev->fd, buf, len, loff);
+		return kernel_read(virt_dev->fd, buf, len, loff);
 	}
 }
 

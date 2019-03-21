@@ -5599,9 +5599,6 @@ struct scst_data_descriptor {
 	uint64_t sdd_blocks;
 };
 
-ssize_t scst_read(struct file *file, void *buf, size_t count, loff_t *pos);
-ssize_t scst_write(struct file *file, const void *buf, size_t count,
-		   loff_t *pos);
 ssize_t scst_readv(struct file *file, const struct iovec *vec,
 		   unsigned long vlen, loff_t *pos);
 ssize_t scst_writev(struct file *file, const struct iovec *vec,
