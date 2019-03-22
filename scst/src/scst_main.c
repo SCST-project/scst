@@ -1182,25 +1182,12 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 {
 	struct scst_device *dev;
 	struct scst_acg_dev *acg_dev, *aa;
-	bool activity_suspended = false;
 
 	TRACE_ENTRY();
 
 	mutex_lock(&scst_mutex);
 
 	dev = __scst_lookup_device(scsidp);
-
-	if (dev &&
-	    (!list_empty(&dev->dev_tgt_dev_list) ||
-	     !list_empty(&dev->dev_acg_dev_list))) {
-		mutex_unlock(&scst_mutex);
-
-		scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
-		activity_suspended = true;
-		mutex_lock(&scst_mutex);
-		dev = __scst_lookup_device(scsidp);
-	}
-
 	if (dev == NULL) {
 		PRINT_ERROR("SCST device for SCSI device %d:%d:%d:%lld not found",
 			    scsidp->host->host_no, scsidp->channel, scsidp->id,
@@ -1225,9 +1212,6 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 
 	mutex_unlock(&scst_mutex);
 
-	if (activity_suspended)
-		scst_resume_activity();
-
 	scst_dev_sysfs_del(dev);
 
 	PRINT_INFO("Detached from scsi%d, channel %d, id %d, lun %lld, type %d",
@@ -1242,8 +1226,6 @@ out:
 
 out_unlock:
 	mutex_unlock(&scst_mutex);
-	if (activity_suspended)
-		scst_resume_activity();
 	goto out;
 }
 
