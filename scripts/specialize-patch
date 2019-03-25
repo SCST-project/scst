@@ -525,9 +525,8 @@ function process_preprocessor_statement(evaluated, condition) {
               ei = substr(ei, 6)
             else if (ei ~ "^+#ifdef")
               ei = substr(ei, 9)
-            evaluated = sprintf("%s /* %s */",
-                                $0 ~ " " ? substr($0, 1, index($0, " ")) : $0,
-                                ei);
+            match($0, "([^/ ]*)[[:blank:]]*/\\*[^*]*\\*/[[:blank:]]*", arg)
+            evaluated = sprintf("%s /* %s */", arg[1], ei);
             if (match(evaluated, "([^/ ]*) */\\* defined\\(([^()]*)\\) \\*/",
                       arg))
             {
