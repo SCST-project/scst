@@ -1,6 +1,6 @@
 LINUXINCLUDE := $(PRE_CFLAGS) $(LINUXINCLUDE)
 CPPFLAGS     := $(PRE_CFLAGS) $(CPPFLAGS)
-ccflags-y    += -I$(SCST_INC_DIR)
+ccflags-y    += -I$(KBUILD_EXTMOD)/../../scst/include
 
 -include $(KBUILD_EXTMOD)/../../build_mode
 

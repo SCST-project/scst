@@ -7,7 +7,8 @@ BUILD_MODE_CFLAGS_ = -DDEBUG_WORK_IN_THREAD -DCONFIG_SCST_TRACING	\
 	-fno-inline -fno-inline-functions
 BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
 BUILD_MODE_CFLAGS_PERF =
-ccflags-y += -I$(SCST_INC_DIR) $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
+ccflags-y += -I$(KBUILD_EXTMOD)/../scst/include
+ccflags-y += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
 
 obj-$(CONFIG_FCST) += fcst.o
 

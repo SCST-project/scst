@@ -33,7 +33,7 @@ CFLAGS += -O2 -Wall -Wextra -Wstrict-prototypes -Wno-sign-compare \
 	-Wimplicit-function-declaration -Wno-unused-parameter \
 	-Wno-missing-field-initializers \
 	$(call cc-option,-Wno-format-truncation) \
-	-g -I../include -I$(SCST_INC_DIR)
+	-g -I../include -I../../scst/include
 CFLAGS += -D_GNU_SOURCE # required for glibc >= 2.8
 CFLAGS += $(LOCAL_CFLAGS)
 

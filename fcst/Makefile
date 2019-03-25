@@ -60,24 +60,18 @@ endif
 
 INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
-SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
-                  then echo "$$PWD/../scst/include";			\
-                  else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
-SCST_DIR := $(shell if [ -e "$$PWD/../scst" ]; then echo "$$PWD/../scst/src"; \
-		else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
+SCST_DIR := $(shell echo "$$PWD")/../scst
 
 all: Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
-	  SCST_INC_DIR=$(SCST_INC_DIR)
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m
 
 tgt: Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=n \
-	  SCST_INC_DIR=$(SCST_INC_DIR)
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=n
 
 install: all
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
 	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
-	  SCST_INC_DIR=$(SCST_INC_DIR) modules_install
+	  modules_install
 
 ins:
 	./config

@@ -36,9 +36,7 @@ SHELL=/bin/bash
 DEV_HANDLERS_DIR = dev_handlers
 
 ifneq ($(PATCHLEVEL),)
-SCST_INC_DIR := $(KBUILD_EXTMOD)/../include
-
-ccflags-y += -I$(SCST_INC_DIR) $(call cc-option,-Wextra) \
+ccflags-y += -I$(KBUILD_EXTMOD)/../include $(call cc-option,-Wextra) \
 	-Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare\
 	$(shell [ -n "${CONFIG_SCST_NO_DLM}" ] && echo -DCONFIG_SCST_NO_DLM)
 
