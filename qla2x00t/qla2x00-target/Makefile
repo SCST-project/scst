@@ -91,7 +91,7 @@ endif
 
 INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
-SCST_DIR := $(shell echo "$$PWD")/../../scst
+SCST_DIR := $(shell echo "$$PWD/../../scst/src")
 
 ifneq ($(BUILD_2X_MODULE),)
 # We need to make qla2xxx_scst before Module.symvers
