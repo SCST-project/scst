@@ -46,11 +46,11 @@ endif
 INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 ifneq ($(PATCHLEVEL),)
-EXTRA_CFLAGS += $(call cc-option,-Wextra) -Wno-unused-parameter \
+ccflags-y += $(call cc-option,-Wextra) -Wno-unused-parameter \
 	-Wno-missing-field-initializers -I$(SCST_INC_DIR)
 
 ifneq ($(CONFIG_SCSI_QLA2XXX_TARGET),)
-EXTRA_CFLAGS += -DCONFIG_SCSI_QLA2XXX_TARGET=$(CONFIG_SCSI_QLA2XXX_TARGET)
+ccflags-y += -DCONFIG_SCSI_QLA2XXX_TARGET=$(CONFIG_SCSI_QLA2XXX_TARGET)
 endif
 
 obj-m := qla2xxx_scst.o

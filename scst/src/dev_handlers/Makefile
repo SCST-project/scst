@@ -32,10 +32,10 @@ SHELL=/bin/bash
 ifneq ($(PATCHLEVEL),)
 SCST_INC_DIR := $(KBUILD_EXTMOD)/../include
 
-EXTRA_CFLAGS += -I$(SCST_INC_DIR)					\
+ccflags-y += -I$(SCST_INC_DIR)						\
 	$(call cc-option,-Wextra)					\
 	-Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare
-#EXTRA_CFLAGS += -DCONFIG_DEBUG_EXT_COPY_REMAP
+#ccflags-y += -DCONFIG_DEBUG_EXT_COPY_REMAP
 
 -include $(KBUILD_EXTMOD)/../../build_mode
 
@@ -45,7 +45,7 @@ BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
 	-DCONFIG_SCST_EXTRACHECKS -fno-inline -fno-inline-functions
 BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
 BUILD_MODE_CFLAGS_PERF =
-EXTRA_CFLAGS += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
+ccflags-y += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
 
 obj-m := scst_cdrom.o scst_changer.o scst_disk.o scst_modisk.o scst_tape.o \
 	scst_vdisk.o scst_raid.o scst_processor.o scst_user.o

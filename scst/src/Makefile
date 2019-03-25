@@ -38,24 +38,24 @@ DEV_HANDLERS_DIR = dev_handlers
 ifneq ($(PATCHLEVEL),)
 SCST_INC_DIR := $(KBUILD_EXTMOD)/../include
 
-EXTRA_CFLAGS += -I$(SCST_INC_DIR) $(call cc-option,-Wextra) \
+ccflags-y += -I$(SCST_INC_DIR) $(call cc-option,-Wextra) \
 	-Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare\
 	$(shell [ -n "${CONFIG_SCST_NO_DLM}" ] && echo -DCONFIG_SCST_NO_DLM)
 
-#EXTRA_CFLAGS += -DCONFIG_SCST_STRICT_SERIALIZING
-#EXTRA_CFLAGS += -DCONFIG_SCST_USE_EXPECTED_VALUES
-#EXTRA_CFLAGS += -DCONFIG_SCST_TEST_IO_IN_SIRQ
-#EXTRA_CFLAGS += -DCONFIG_SCST_ABORT_CONSIDER_FINISHED_TASKS_AS_NOT_EXISTING
-#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_RETRY
-#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_OOM
-#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_SN
-#EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_SYSFS_EAGAIN
+#ccflags-y += -DCONFIG_SCST_STRICT_SERIALIZING
+#ccflags-y += -DCONFIG_SCST_USE_EXPECTED_VALUES
+#ccflags-y += -DCONFIG_SCST_TEST_IO_IN_SIRQ
+#ccflags-y += -DCONFIG_SCST_ABORT_CONSIDER_FINISHED_TASKS_AS_NOT_EXISTING
+#ccflags-y += -DCONFIG_SCST_DEBUG_RETRY
+#ccflags-y += -DCONFIG_SCST_DEBUG_OOM
+#ccflags-y += -DCONFIG_SCST_DEBUG_SN
+#ccflags-y += -DCONFIG_SCST_DEBUG_SYSFS_EAGAIN
 
 # If defined, makes SCST zero allocated data buffers.
 # Undefining it considerably improves performance and eases CPU load,
 # but could create a security hole (information leakage), so
 # enable it if you have strict security requirements.
-#EXTRA_CFLAGS += -DSCST_STRICT_SECURITY
+#ccflags-y += -DSCST_STRICT_SECURITY
 
 -include $(KBUILD_EXTMOD)/../../build_mode
 
@@ -65,7 +65,7 @@ BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
 	-DCONFIG_SCST_EXTRACHECKS -fno-inline -fno-inline-functions
 BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
 BUILD_MODE_CFLAGS_PERF =
-EXTRA_CFLAGS += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
+ccflags-y += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
 
 obj-m := scst.o
 

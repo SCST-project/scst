@@ -1,6 +1,6 @@
 LINUXINCLUDE := $(PRE_CFLAGS) $(LINUXINCLUDE)
 CPPFLAGS     := $(PRE_CFLAGS) $(CPPFLAGS)
-EXTRA_CFLAGS += -I$(SCST_INC_DIR)
+ccflags-y    += -I$(SCST_INC_DIR)
 
 -include $(KBUILD_EXTMOD)/../../build_mode
 
@@ -10,8 +10,8 @@ BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
 	-DCONFIG_SCST_EXTRACHECKS -fno-inline -fno-inline-functions
 BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
 BUILD_MODE_CFLAGS_PERF =
-EXTRA_CFLAGS += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
+ccflags-y += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
 
-#EXTRA_CFLAGS += -Wextra -Wno-unused-parameter
+#ccflags-y += -Wextra -Wno-unused-parameter
 
 obj-m		+= ib_srpt.o

@@ -108,8 +108,8 @@ Index: srpt/src/ib_srpt.c
 * Test the state machine for SCST commands in SRPT by using SCST's error
   injection mechanism. Add the following to scst/src/Makefile, log in from
   an initiator system and trigger SRP I/O:
-    EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g
-    EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG_TM -DCONFIG_SCST_TM_DBG_GO_OFFLINE
+    ccflags-y += -DCONFIG_SCST_DEBUG -g
+    ccflags-y += -DCONFIG_SCST_DEBUG_TM -DCONFIG_SCST_TM_DBG_GO_OFFLINE
 
 * Test with multiple values of ib_srp_tablesize in the range 1..128.
 

@@ -1,4 +1,4 @@
-EXTRA_CFLAGS += -Iinclude/scst -Wno-unused-parameter
+ccflags-y += -Iinclude/scst -Wno-unused-parameter
 
 obj-$(CONFIG_SCST_DISK)		+= scst_disk.o
 obj-$(CONFIG_SCST_TAPE)		+= scst_tape.o

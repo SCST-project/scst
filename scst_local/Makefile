@@ -7,11 +7,11 @@ SHELL=/bin/bash
 KMOD 		:= $(shell pwd)/kernel
 
 ifneq ($(PATCHLEVEL),)
-EXTRA_CFLAGS	+= -I$(SCST_INC_DIR)
-EXTRA_CFLAGS	+= $(call cc-option,-Wextra) -Wno-unused-parameter\
+ccflags-y	+= -I$(SCST_INC_DIR)
+ccflags-y	+= $(call cc-option,-Wextra) -Wno-unused-parameter\
 	-Wno-missing-field-initializers
 
-#EXTRA_CFLAGS += -DCONFIG_SCST_LOCAL_DIRECT_PROCESSING
+#ccflags-y += -DCONFIG_SCST_LOCAL_DIRECT_PROCESSING
 
 -include $(KBUILD_EXTMOD)/../build_mode
 
@@ -21,7 +21,7 @@ BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
 	-DCONFIG_SCST_EXTRACHECKS -fno-inline -fno-inline-functions
 BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
 BUILD_MODE_CFLAGS_PERF =
-EXTRA_CFLAGS += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
+ccflags-y += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
 
 obj-m	:= scst_local.o
 else

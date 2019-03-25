@@ -59,10 +59,10 @@ QLA2XXX_SCST := qla2xxx_scst
 endif
 
 ifneq ($(PATCHLEVEL),)
-EXTRA_CFLAGS += -I$(SCST_INC_DIR)
-EXTRA_CFLAGS += -W -Wno-unused-parameter -Wno-missing-field-initializers
-#EXTRA_CFLAGS += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
-#EXTRA_CFLAGS += -DCONFIG_QLA_TGT_DEBUG_SRR
+ccflags-y += -I$(SCST_INC_DIR)
+ccflags-y += -W -Wno-unused-parameter -Wno-missing-field-initializers
+#ccflags-y += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
+#ccflags-y += -DCONFIG_QLA_TGT_DEBUG_SRR
 
 -include $(KBUILD_EXTMOD)/../../build_mode
 
@@ -72,13 +72,13 @@ BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
 	-DCONFIG_SCST_EXTRACHECKS -fno-inline -fno-inline-functions
 BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
 BUILD_MODE_CFLAGS_PERF =
-EXTRA_CFLAGS += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
+ccflags-y += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
 
 ifneq ($(BUILD_2X_MODULE),)
-EXTRA_CFLAGS += -DCONFIG_SCSI_QLA2XXX_TARGET=y
+ccflags-y += -DCONFIG_SCSI_QLA2XXX_TARGET=y
 endif
 
-EXTRA_CFLAGS += -I$(QLA2XXX_INC_DIR)
+ccflags-y += -I$(QLA2XXX_INC_DIR)
 
 obj-m := qla2x00tgt.o
 qla2x00tgt-objs := qla2x00t.o
