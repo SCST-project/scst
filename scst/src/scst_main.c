@@ -1331,7 +1331,7 @@ int scst_register_virtual_device_node(struct scst_dev_type *dev_handler,
 
 	res = mutex_lock_interruptible(&scst_mutex);
 	if (res != 0)
-		goto out_resume;
+		goto out;
 
 	res = scst_alloc_device(GFP_KERNEL, nodeid, &dev);
 	if (res != 0)
@@ -1422,13 +1422,10 @@ out_free_dev:
 	if (sysfs_del)
 		scst_dev_sysfs_del(dev);
 	scst_free_device(dev);
-	goto out_resume;
+	goto out;
 
 out_unlock:
 	mutex_unlock(&scst_mutex);
-
-out_resume:
-	scst_resume_activity();
 	goto out;
 }
 EXPORT_SYMBOL_GPL(scst_register_virtual_device_node);
