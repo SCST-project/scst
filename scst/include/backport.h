@@ -20,6 +20,7 @@
  *  GNU General Public License for more details.
  */
 
+#include <linux/version.h>
 #include <linux/bio.h>
 #include <linux/blkdev.h>	/* struct request_queue */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0)
@@ -34,7 +35,6 @@
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/stddef.h>	/* sizeof_field() */
 #include <linux/timer.h>
-#include <linux/version.h>
 #include <linux/vmalloc.h>
 #include <linux/writeback.h>	/* sync_page_range() */
 #include <rdma/ib_verbs.h>
