@@ -6,6 +6,7 @@ SHELL=/bin/bash
 
 KMOD 		:= $(shell pwd)/kernel
 
+ifneq ($(PATCHLEVEL),)
 enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
 
 EXTRA_CFLAGS	+= -I$(SCST_INC_DIR)
@@ -14,13 +15,16 @@ EXTRA_CFLAGS	+= $(call enable-Wextra,-Wextra -Wno-unused-parameter\
 
 #EXTRA_CFLAGS += -DCONFIG_SCST_LOCAL_DIRECT_PROCESSING
 
-EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
+-include $(KBUILD_EXTMOD)/../build_mode
 
-#EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
+echo := $(shell echo "scst_local build mode: $(BUILD_MODE)" >& 2)
 
-EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
+BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
+	-DCONFIG_SCST_EXTRACHECKS -fno-inline -fno-inline-functions
+BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
+BUILD_MODE_CFLAGS_PERF =
+EXTRA_CFLAGS += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
 
-ifneq ($(PATCHLEVEL),)
 obj-m	:= scst_local.o
 else
 ######### BEGIN OUT-OF-TREE RULES #########
@@ -96,31 +100,13 @@ extraclean: clean
 	rm -f *.orig *.rej
 
 2release:
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" Makefile >/dev/null
-	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ Makefile
-	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" Makefile >/dev/null
-	rm Makefile.aa
+	-$(MAKE) clean
 
 2debug:
-	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ Makefile
-	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" Makefile >/dev/null
-	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ Makefile
-	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" Makefile >/dev/null
-	rm Makefile.aa
+	-$(MAKE) clean
 
 2perf:
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" Makefile >/dev/null
-	rm Makefile.aa
+	-$(MAKE) clean
 
 release-archive:
 	../scripts/generate-release-archive scst_local "$$(sed -n 's/^#define[[:blank:]]SCST_LOCAL_VERSION[[:blank:]]*\"\([^\"]*\)\".*/\1/p' scst_local.c)"

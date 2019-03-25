@@ -29,12 +29,17 @@ EXTRA_CFLAGS += $(call enable-Wextra,-Wextra \
 	$(call cc-option,-Wno-old-style-declaration) \
 	-Wno-unused-parameter -Wno-missing-field-initializers)
 EXTRA_CFLAGS += $(PRE_CFLAGS)
-
-EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
-#EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
-EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
-
 #EXTRA_CFLAGS += -DCONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES
+
+-include $(KBUILD_EXTMOD)/../../build_mode
+
+echo := $(shell echo "iscsi-scst build mode: $(BUILD_MODE)" >& 2)
+
+BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
+	-DCONFIG_SCST_EXTRACHECKS -fno-inline -fno-inline-functions
+BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
+BUILD_MODE_CFLAGS_PERF =
+EXTRA_CFLAGS += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
 
 obj-m		+= iscsi-scst.o
 iscsi-scst-objs	:= iscsi.o nthread.o config.o digest.o \

@@ -29,16 +29,6 @@
 
 SHELL=/bin/bash
 
-EXTRA_CFLAGS += -I$(SCST_INC_DIR)
-
-EXTRA_CFLAGS += -W -Wno-unused-parameter -Wno-missing-field-initializers
-
-EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
-#EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
-EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
-#EXTRA_CFLAGS += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
-#EXTRA_CFLAGS += -DCONFIG_QLA_TGT_DEBUG_SRR
-
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
     KVER := $(shell uname -r)
@@ -66,12 +56,30 @@ else
 QLA2XXX_INC_DIR := $(KBUILD_EXTMOD)/..
 QLA2XXX_DIR := $(shell pwd)/..
 QLA2XXX_SCST := qla2xxx_scst
+endif
+
+ifneq ($(PATCHLEVEL),)
+EXTRA_CFLAGS += -I$(SCST_INC_DIR)
+EXTRA_CFLAGS += -W -Wno-unused-parameter -Wno-missing-field-initializers
+#EXTRA_CFLAGS += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
+#EXTRA_CFLAGS += -DCONFIG_QLA_TGT_DEBUG_SRR
+
+-include $(KBUILD_EXTMOD)/../../build_mode
+
+echo := $(shell echo "qla2x00t build mode: $(BUILD_MODE)" >& 2)
+
+BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
+	-DCONFIG_SCST_EXTRACHECKS -fno-inline -fno-inline-functions
+BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
+BUILD_MODE_CFLAGS_PERF =
+EXTRA_CFLAGS += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
+
+ifneq ($(BUILD_2X_MODULE),)
 EXTRA_CFLAGS += -DCONFIG_SCSI_QLA2XXX_TARGET=y
 endif
 
 EXTRA_CFLAGS += -I$(QLA2XXX_INC_DIR)
 
-ifneq ($(PATCHLEVEL),)
 obj-m := qla2x00tgt.o
 qla2x00tgt-objs := qla2x00t.o
 else
@@ -156,30 +164,12 @@ extraclean: clean
 	rm -f *.orig *.rej
 
 2release:
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" Makefile >/dev/null
-	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ Makefile
-	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" Makefile >/dev/null
-	rm Makefile.aa
+	-$(MAKE) clean
 
 2debug:
-	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ Makefile
-	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" Makefile >/dev/null
-	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ Makefile
-	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" Makefile >/dev/null
-	rm Makefile.aa
+	-$(MAKE) clean
 
 2perf:
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" Makefile >/dev/null
-	rm Makefile.aa
+	-$(MAKE) clean
 
 .PHONY: all tgt install uninstall clean extraclean 2perf 2release 2debug qla2xxx_scst

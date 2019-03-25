@@ -32,6 +32,23 @@ SHELL=/bin/bash
 ifneq ($(PATCHLEVEL),)
 SCST_INC_DIR := $(KBUILD_EXTMOD)/../include
 
+enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
+
+EXTRA_CFLAGS += -I$(SCST_INC_DIR)			\
+	$(call enable-Wextra,-Wextra					\
+	-Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare)
+#EXTRA_CFLAGS += -DCONFIG_DEBUG_EXT_COPY_REMAP
+
+-include $(KBUILD_EXTMOD)/../../build_mode
+
+echo := $(shell echo "dev_handlers build mode: $(BUILD_MODE)" >& 2)
+
+BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
+	-DCONFIG_SCST_EXTRACHECKS -fno-inline -fno-inline-functions
+BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
+BUILD_MODE_CFLAGS_PERF =
+EXTRA_CFLAGS += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
+
 obj-m := scst_cdrom.o scst_changer.o scst_disk.o scst_modisk.o scst_tape.o \
 	scst_vdisk.o scst_raid.o scst_processor.o scst_user.o
 
@@ -72,19 +89,6 @@ uninstall:
 ########## END OUT-OF-TREE RULES ##########
 endif
 
-enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
-
-EXTRA_CFLAGS += -I$(KBUILD_EXTMOD) -I$(SCST_INC_DIR)			\
-	$(call enable-Wextra,-Wextra					\
-	-Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare)
-
-EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
-
-#EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
-EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
-
-#EXTRA_CFLAGS += -DCONFIG_DEBUG_EXT_COPY_REMAP
-
 clean:
 	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers \
 		Module.symvers Module.markers modules.order
@@ -94,30 +98,12 @@ extraclean: clean
 	rm -f *.orig *.rej
 
 2release:
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" Makefile >/dev/null
-	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ Makefile
-	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" Makefile >/dev/null
-	rm Makefile.aa
+	-$(MAKE) clean
 
 2debug:
-	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ Makefile
-	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" Makefile >/dev/null
-	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ Makefile
-	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" Makefile >/dev/null
-	rm Makefile.aa
+	-$(MAKE) clean
 
 2perf:
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" Makefile >/dev/null
-	rm Makefile.aa
+	-$(MAKE) clean
 
 .PHONY: all install uninstall clean extraclean 2release 2debug 2perf
