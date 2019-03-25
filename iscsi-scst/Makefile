@@ -330,52 +330,13 @@ conftest/use_pre_440_wr_structure/result-$(KVER).txt:			\
 		-DUSE_PRE_440_WR_STRUCTURE)" >"$@"
 
 2release:
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" $(KMOD)/Makefile >/dev/null
-	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ $(KMOD)/Makefile
-	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" $(KMOD)/Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(KMOD)/Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" $(KMOD)/Makefile >/dev/null
-	rm $(KMOD)/Makefile.aa
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(ISERTMOD)/Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" $(ISERTMOD)/Makefile >/dev/null
-	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ $(ISERTMOD)/Makefile
-	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" $(ISERTMOD)/Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(ISERTMOD)/Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" $(ISERTMOD)/Makefile >/dev/null
-	rm $(ISERTMOD)/Makefile.aa
+	-$(MAKE) clean
 
 2debug:
-	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
-	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" $(KMOD)/Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ $(KMOD)/Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" $(KMOD)/Makefile >/dev/null
-	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(KMOD)/Makefile
-	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" $(KMOD)/Makefile >/dev/null
-	rm $(KMOD)/Makefile.aa
-	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(ISERTMOD)/Makefile
-	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" $(ISERTMOD)/Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ $(ISERTMOD)/Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" $(ISERTMOD)/Makefile >/dev/null
-	sed -i.aa s/"^#\?EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(ISERTMOD)/Makefile
-	grep "^EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" $(ISERTMOD)/Makefile >/dev/null
-	rm $(ISERTMOD)/Makefile.aa
+	-$(MAKE) clean
 
 2perf:
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(KMOD)/Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" $(KMOD)/Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ $(KMOD)/Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" $(KMOD)/Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(KMOD)/Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" $(KMOD)/Makefile >/dev/null
-	rm $(KMOD)/Makefile.aa
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS"/ $(ISERTMOD)/Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_EXTRACHECKS" $(ISERTMOD)/Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING"/ $(ISERTMOD)/Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_TRACING" $(ISERTMOD)/Makefile >/dev/null
-	sed -i.aa s/"^E\?XTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/"#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions"/ $(ISERTMOD)/Makefile
-	grep "^#EXTRA_CFLAGS += \-DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions" $(ISERTMOD)/Makefile >/dev/null
-	rm $(ISERTMOD)/Makefile.aa
+	-$(MAKE) clean
 
 release-archive:
 	../scripts/generate-release-archive iscsi-scst "$$(sed -n 's/^#define[[:blank:]]ISCSI_VERSION_STRING[[:blank:]]*\"\([^\"]*\)\".*/\1/p' include/iscsi_scst_ver.h)"

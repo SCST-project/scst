@@ -1331,7 +1331,7 @@ int scst_register_virtual_device_node(struct scst_dev_type *dev_handler,
 
 	res = mutex_lock_interruptible(&scst_mutex);
 	if (res != 0)
-		goto out_resume;
+		goto out;
 
 	res = scst_alloc_device(GFP_KERNEL, nodeid, &dev);
 	if (res != 0)
@@ -1422,13 +1422,10 @@ out_free_dev:
 	if (sysfs_del)
 		scst_dev_sysfs_del(dev);
 	scst_free_device(dev);
-	goto out_resume;
+	goto out;
 
 out_unlock:
 	mutex_unlock(&scst_mutex);
-
-out_resume:
-	scst_resume_activity();
 	goto out;
 }
 EXPORT_SYMBOL_GPL(scst_register_virtual_device_node);
@@ -1447,7 +1444,6 @@ void scst_unregister_virtual_device(int id,
 
 	TRACE_ENTRY();
 
-	scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
 	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
@@ -1478,7 +1474,6 @@ void scst_unregister_virtual_device(int id,
 	}
 
 	mutex_unlock(&scst_mutex);
-	scst_resume_activity();
 
 	scst_dev_sysfs_del(dev);
 

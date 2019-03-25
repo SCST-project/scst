@@ -42,10 +42,6 @@ endif
 
 INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
-# Set variable $(2) to value $(3) in file $(1).
-set_var = $(shell { if [ -e "$(1)" ]; then grep -v '^$(2)=' "$(1)"; fi; echo "$(2)=$(3)"; } >/tmp/$(1)-$$$$.tmp && mv /tmp/$(1)-$$$$.tmp $(1))
-
-
 SRC_FILES=$(wildcard */*.[ch])
 
 # The file Modules.symvers has been renamed in the 2.6.18 kernel to
@@ -297,15 +293,12 @@ conftest/use_pre_440_wr_structure/result-$(KVER).txt:			\
 
 2debug:
 	-$(MAKE) clean
-	$(call set_var,build_mode,BUILDMODE,)
 
 2release:
 	-$(MAKE) clean
-	$(call set_var,build_mode,BUILDMODE,RELEASE)
 
 2perf:
 	-$(MAKE) clean
-	$(call set_var,build_mode,BUILDMODE,PERF)
 
 release-archive:
 	../scripts/generate-release-archive srpt "$$(sed -n 's/^#define[[:blank:]]DRV_VERSION[[:blank:]]*\"\([^\"]*\)\".*/\1/p' src/ib_srpt.c)"

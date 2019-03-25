@@ -20,19 +20,21 @@
 #
 #  Note 2! The CFLAGS definitions are now in the main makefile.
 
-cc-option = $(shell if $(CC) $(CFLAGS) $(1) -S -o /dev/null -xc /dev/null \
-             > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi ;)
-enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
-
 LINUXINCLUDE := $(PRE_CFLAGS) $(LINUXINCLUDE)
-EXTRA_CFLAGS += -I$(src)/../../include -I$(SCST_INC_DIR)
-EXTRA_CFLAGS += $(call enable-Wextra,-Wextra \
+ccflags-y += -I$(src)/../../include -I$(SCST_INC_DIR)
+ccflags-y += $(call cc-option,-Wextra) \
 	$(call cc-option,-Wno-old-style-declaration) \
-	-Wno-unused-parameter -Wno-missing-field-initializers)
+	-Wno-unused-parameter -Wno-missing-field-initializers
 
-EXTRA_CFLAGS += -DCONFIG_SCST_EXTRACHECKS
-#EXTRA_CFLAGS += -DCONFIG_SCST_TRACING
-EXTRA_CFLAGS += -DCONFIG_SCST_DEBUG -g -fno-inline -fno-inline-functions
+-include $(KBUILD_EXTMOD)/../../../build_mode
+
+echo := $(shell echo "isert-scst build mode: $(BUILD_MODE)" >& 2)
+
+BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
+	-DCONFIG_SCST_EXTRACHECKS -fno-inline -fno-inline-functions
+BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
+BUILD_MODE_CFLAGS_PERF =
+ccflags-y += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
 
 obj-m		+= isert-scst.o
 isert-scst-objs	:= isert.o isert_login.o \

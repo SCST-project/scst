@@ -1,15 +1,17 @@
 LINUXINCLUDE := $(PRE_CFLAGS) $(LINUXINCLUDE)
 CPPFLAGS     := $(PRE_CFLAGS) $(CPPFLAGS)
-EXTRA_CFLAGS += -I$(SCST_INC_DIR)
+ccflags-y    += -I$(SCST_INC_DIR)
 
--include $(KBUILD_EXTMOD)/../build_mode
+-include $(KBUILD_EXTMOD)/../../build_mode
 
-SRPTFLAGS = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
+echo := $(shell echo "srpt build mode: $(BUILD_MODE)" >& 2)
+
+BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
 	-DCONFIG_SCST_EXTRACHECKS -fno-inline -fno-inline-functions
-SRPTFLAGSRELEASE = -DCONFIG_SCST_TRACING
-SRPTFLAGSPERF =
-EXTRA_CFLAGS += $(SRPTFLAGS$(BUILDMODE))
+BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
+BUILD_MODE_CFLAGS_PERF =
+ccflags-y += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
 
-#EXTRA_CFLAGS += -Wextra -Wno-unused-parameter
+#ccflags-y += -Wextra -Wno-unused-parameter
 
 obj-m		+= ib_srpt.o

@@ -1,4 +1,4 @@
-EXTRA_CFLAGS += -Wno-unused-parameter
+ccflags-y += -Wno-unused-parameter
 
 scst-y        += scst_copy_mgr.o
 scst-y        += scst_debug.o

@@ -38,18 +38,25 @@ CFLAGS += -O2 -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes \
 PROGS = fileio_tgt
 LIBS = -lpthread
 
-CFLAGS += -DEXTRACHECKS
-#CFLAGS += -DTRACING
-CFLAGS += -DDEBUG -g -fno-inline -fno-inline-functions
 CFLAGS += -W -Wno-unused-parameter
 CFLAGS += $(LOCAL_CFLAGS)
-
 #CFLAGS += -DDEBUG_NOMEM
 #CFLAGS += -DDEBUG_SENSE
 #CFLAGS += -DDEBUG_TM_IGNORE
 #CFLAGS += -DDEBUG_TM_IGNORE -DDEBUG_TM_FN_IGNORE
 #CFLAGS += -DDEBUG_TM_IGNORE_ALL
 CFLAGS += -DDEBUG_EXT_COPY_REMAP
+
+-include ../../build_mode
+
+echo := $(shell echo "usr/fileio build mode: $(BUILD_MODE)" >& 2)
+
+BUILD_MODE_CFLAGS_ = -DTRACING -DDEBUG -DEXTRACHECKS \
+	-fno-inline -fno-inline-functions
+BUILD_MODE_CFLAGS_RELEASE = -DTRACING
+BUILD_MODE_CFLAGS_PERF =
+CFLAGS += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
+
 
 all: $(PROGS)
 
@@ -90,31 +97,13 @@ extraclean: clean
 	rm -f *.orig *.rej
 
 2release:
-	sed -i.aa s/"^C\?FLAGS += \-DEXTRACHECKS"/"#CFLAGS += \-DEXTRACHECKS"/ Makefile
-	grep "^#CFLAGS += \-DEXTRACHECKS" Makefile >/dev/null
-	sed -i.aa s/"^#\?CFLAGS += \-DTRACING"/"CFLAGS += \-DTRACING"/ Makefile
-	grep "^CFLAGS += \-DTRACING" Makefile >/dev/null
-	sed -i.aa s/"^C\?FLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/"#CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/ Makefile
-	grep "^#CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions" Makefile >/dev/null
-	rm Makefile.aa
+	-$(MAKE) clean
 
 2debug:
-	sed -i.aa s/"^#\?CFLAGS += \-DEXTRACHECKS"/"CFLAGS += \-DEXTRACHECKS"/ Makefile
-	grep "^CFLAGS += \-DEXTRACHECKS" Makefile >/dev/null
-	sed -i.aa s/"^C\?FLAGS += \-DTRACING"/"#CFLAGS += \-DTRACING"/ Makefile
-	grep "^#CFLAGS += \-DTRACING" Makefile >/dev/null
-	sed -i.aa s/"^#\?CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/"CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/ Makefile
-	grep "^CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions" Makefile >/dev/null
-	rm Makefile.aa
+	-$(MAKE) clean
 
 2perf:
-	sed -i.aa s/"^C\?FLAGS += \-DEXTRACHECKS"/"#CFLAGS += \-DEXTRACHECKS"/ Makefile
-	grep "^#CFLAGS += \-DEXTRACHECKS" Makefile >/dev/null
-	sed -i.aa s/"^C\?FLAGS += \-DTRACING"/"#CFLAGS += \-DTRACING"/ Makefile
-	grep "^#CFLAGS += \-DTRACING" Makefile >/dev/null
-	sed -i.aa s/"^C\?FLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/"#CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions"/ Makefile
-	grep "^#CFLAGS += \-DDEBUG -g -fno-inline -fno-inline-functions" Makefile >/dev/null
-	rm Makefile.aa
+	-$(MAKE) clean
 
 release-archive:
 	../../scripts/generate-release-archive fileio_tgt "$$(sed -n 's/^#define[[:blank:]]VERSION_STR[[:blank:]]*\"\([^\"]*\)\".*/\1/p' ../include/version.h)"

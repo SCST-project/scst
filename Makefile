@@ -54,6 +54,15 @@ EMULEX_DIR=emulex
 
 ISCSI_DIR=iscsi-scst
 
+# Set variable $(2) to value $(3) in file $(1) if $(2)=$(3) does not yet occur
+# in file $(1).
+set_var = $(shell if grep -q '^$(2)=' '$(1)'; then		\
+		    grep -q '^$(2)=$(3)$$' '$(1)' ||		\
+		      sed -i 's/^$(2)=.*/$(2)=$(3)/' '$(1)';	\
+		  else						\
+		    echo '$(2)=$(3)' >> '$(1)';			\
+		  fi)
+
 REVISION ?= $(shell if [ -e .svn ]; then				\
 		      svn info | sed -n 's/^Revision:[[:blank:]]*/./p';	\
 		    elif [ -e .git ]; then				\
@@ -544,6 +553,7 @@ release-archive:
 	$(MAKE) 2debug
 
 2perf: extraclean
+	$(call set_var,build_mode,BUILD_MODE,PERF)
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
@@ -555,6 +565,7 @@ release-archive:
 	@if [ -d $(FCST_DIR) ]; then cd $(FCST_DIR) && $(MAKE) $@; fi
 
 2release: extraclean
+	$(call set_var,build_mode,BUILD_MODE,RELEASE)
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
@@ -566,6 +577,7 @@ release-archive:
 	@if [ -d $(FCST_DIR) ]; then cd $(FCST_DIR) && $(MAKE) $@; fi
 
 2debug: extraclean
+	$(call set_var,build_mode,BUILD_MODE,)
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
