@@ -2727,12 +2727,10 @@ out:
 	return res;
 }
 
-/* scst_mutex supposed to be held and activities suspended */
 void scst_cm_on_dev_unregister(struct scst_device *dev)
 {
 	TRACE_ENTRY();
 
-	scst_assert_activity_suspended();
 	lockdep_assert_held(&scst_mutex);
 
 	scst_cm_dev_unregister(dev, true);

@@ -1444,7 +1444,6 @@ void scst_unregister_virtual_device(int id,
 
 	TRACE_ENTRY();
 
-	scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
 	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(d, &scst_dev_list, dev_list_entry) {
@@ -1475,7 +1474,6 @@ void scst_unregister_virtual_device(int id,
 	}
 
 	mutex_unlock(&scst_mutex);
-	scst_resume_activity();
 
 	scst_dev_sysfs_del(dev);
 
