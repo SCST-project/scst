@@ -7,7 +7,7 @@ SHELL=/bin/bash
 KMOD 		:= $(shell pwd)/kernel
 
 ifneq ($(PATCHLEVEL),)
-ccflags-y	+= -I$(SCST_INC_DIR)
+ccflags-y	+= -I$(KBUILD_EXTMOD)/../scst/include
 ccflags-y	+= $(call cc-option,-Wextra) -Wno-unused-parameter\
 	-Wno-missing-field-initializers
 
@@ -50,21 +50,15 @@ endif
 
 INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
-SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
-			then echo "$$PWD/../scst/include";		\
-			else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
-SCST_DIR := $(shell if [ -e "$$PWD/../scst" ];				\
-		    then echo "$$PWD/../scst/src";			\
-		    else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
+SCST_DIR := $(shell echo "$$PWD")/../scst
 
 all: Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
-		SCST_INC_DIR=$(SCST_INC_DIR)
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m
 
 install: all
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
 		$$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
-		SCST_INC_DIR=$(SCST_INC_DIR) modules_install
+		modules_install
 
 SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
 ifneq ($(SCST_MOD_VERS),)

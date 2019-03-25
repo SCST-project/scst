@@ -6,18 +6,7 @@ ifndef PREFIX
 	PREFIX=/usr/local
 endif
 
-SCST_INC_DIR := $(shell						\
-	if [ -e "$$PWD/../scst" ]; then				\
-		echo "$$PWD/../scst/include";			\
-	else							\
-		echo "$(DESTDIR)$(PREFIX)/include/scst";	\
-	fi)
-SCST_SYMVERS_DIR := $(shell					\
-	if [ -e "$$PWD/../scst" ]; then				\
-		echo "$$PWD/../scst/src";			\
-	else							\
-		echo "$(DESTDIR)$(PREFIX)/include/scst";	\
-	fi)
+SCST_SYMVERS_DIR := $(shell echo "$$PWD")/../scst/src
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
@@ -106,8 +95,7 @@ PRE_CFLAGS = $(OFED_CFLAGS)			\
 	done)
 
 all: check src/$(MODULE_SYMVERS) $(CONFTEST_OUTPUTS)
-	$(MAKE) -C $(KDIR) M=$(shell pwd)/src \
-	  PRE_CFLAGS="$(PRE_CFLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) modules
+	$(MAKE) -C $(KDIR) M=$(shell pwd)/src PRE_CFLAGS="$(PRE_CFLAGS)" modules
 
 src/$(MODULE_SYMVERS): $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)	\
 		       $(OFED_MODULE_SYMVERS)
@@ -118,8 +106,7 @@ install: all
 	@[ -z "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && \
 	  find /lib/modules/$(KVER) -name ib_srpt.ko -exec rm {} \; ; \
 	  true
-	$(MAKE) -C $(KDIR) M=$(shell pwd)/src		   \
-	  PRE_CFLAGS="$(PRE_CFLAGS)" SCST_INC_DIR=$(SCST_INC_DIR) \
+	$(MAKE) -C $(KDIR) M=$(shell pwd)/src PRE_CFLAGS="$(PRE_CFLAGS)" \
 	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
 	  modules_install
 

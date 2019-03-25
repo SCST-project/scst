@@ -30,9 +30,7 @@
 SHELL=/bin/bash
 
 ifneq ($(PATCHLEVEL),)
-SCST_INC_DIR := $(KBUILD_EXTMOD)/../include
-
-ccflags-y += -I$(SCST_INC_DIR)						\
+ccflags-y += -I$(KBUILD_EXTMOD)/../include				\
 	$(call cc-option,-Wextra)					\
 	-Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare
 #ccflags-y += -DCONFIG_DEBUG_EXT_COPY_REMAP

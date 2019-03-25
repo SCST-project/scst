@@ -22,10 +22,6 @@ SHELL=/bin/bash
 
 KMOD := $(shell pwd)/kernel
 
-SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
-                  then echo "$$PWD/../scst/include";			\
-                  else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
-
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
     KVER := $(shell uname -r)
@@ -47,7 +43,7 @@ INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 ifneq ($(PATCHLEVEL),)
 ccflags-y += $(call cc-option,-Wextra) -Wno-unused-parameter \
-	-Wno-missing-field-initializers -I$(SCST_INC_DIR)
+	-Wno-missing-field-initializers -I$(src)/../scst/include
 
 ifneq ($(CONFIG_SCSI_QLA2XXX_TARGET),)
 ccflags-y += -DCONFIG_SCSI_QLA2XXX_TARGET=$(CONFIG_SCSI_QLA2XXX_TARGET)
@@ -60,7 +56,6 @@ else
 
 all:
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
-		SCST_INC_DIR=$(SCST_INC_DIR) \
 		$(CONFIG_SCSI_QLA2XXX_TARGET)=CONFIG_SCSI_QLA2XXX_TARGET
 
 install: all

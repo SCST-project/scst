@@ -59,7 +59,7 @@ QLA2XXX_SCST := qla2xxx_scst
 endif
 
 ifneq ($(PATCHLEVEL),)
-ccflags-y += -I$(SCST_INC_DIR)
+ccflags-y += -I$(KBUILD_EXTMOD)/../../scst/include
 ccflags-y += -W -Wno-unused-parameter -Wno-missing-field-initializers
 #ccflags-y += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
 #ccflags-y += -DCONFIG_QLA_TGT_DEBUG_SRR
@@ -91,12 +91,7 @@ endif
 
 INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
-SCST_INC_DIR := $(shell if [ -e "$$PWD/../../scst" ];			\
-                  then echo "$$PWD/../../scst/include";			\
-                  else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
-SCST_DIR := $(shell if [ -e "$$PWD/../../scst" ];			\
-		    then echo "$$PWD/../../scst/src";			\
-		    else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
+SCST_DIR := $(shell echo "$$PWD")/../../scst
 
 ifneq ($(BUILD_2X_MODULE),)
 # We need to make qla2xxx_scst before Module.symvers
@@ -104,17 +99,15 @@ ifneq ($(BUILD_2X_MODULE),)
 endif
 
 all: $(QLA2XXX_SCST) Modules.symvers Module.symvers
-	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
-	  SCST_INC_DIR=$(SCST_INC_DIR)
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m
 
 install: all
 ifneq ($(BUILD_2X_MODULE),)
-	$(MAKE) M=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) $@ \
-	  SCST_INC_DIR=$(SCST_INC_DIR)
+	$(MAKE) M=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) $@
 endif
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
 	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
-	  SCST_INC_DIR=$(SCST_INC_DIR) modules_install
+	  modules_install
 
 uninstall:
 ifneq ($(BUILD_2X_MODULE),)
