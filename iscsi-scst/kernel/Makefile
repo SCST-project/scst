@@ -20,14 +20,10 @@
 #
 #  Note 2! The CFLAGS definitions are now in the main makefile.
 
-cc-option = $(shell if $(CC) $(CFLAGS) $(1) -S -o /dev/null -xc /dev/null \
-             > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi ;)
-enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
-
 EXTRA_CFLAGS += -I$(src)/../include -I$(SCST_INC_DIR)
-EXTRA_CFLAGS += $(call enable-Wextra,-Wextra \
+EXTRA_CFLAGS += $(call cc-option,-Wextra) \
 	$(call cc-option,-Wno-old-style-declaration) \
-	-Wno-unused-parameter -Wno-missing-field-initializers)
+	-Wno-unused-parameter -Wno-missing-field-initializers
 EXTRA_CFLAGS += $(PRE_CFLAGS)
 #EXTRA_CFLAGS += -DCONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES
 

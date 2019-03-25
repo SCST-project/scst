@@ -7,11 +7,9 @@ SHELL=/bin/bash
 KMOD 		:= $(shell pwd)/kernel
 
 ifneq ($(PATCHLEVEL),)
-enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
-
 EXTRA_CFLAGS	+= -I$(SCST_INC_DIR)
-EXTRA_CFLAGS	+= $(call enable-Wextra,-Wextra -Wno-unused-parameter\
-	-Wno-missing-field-initializers)
+EXTRA_CFLAGS	+= $(call cc-option,-Wextra) -Wno-unused-parameter\
+	-Wno-missing-field-initializers
 
 #EXTRA_CFLAGS += -DCONFIG_SCST_LOCAL_DIRECT_PROCESSING
 

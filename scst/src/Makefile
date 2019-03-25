@@ -38,10 +38,8 @@ DEV_HANDLERS_DIR = dev_handlers
 ifneq ($(PATCHLEVEL),)
 SCST_INC_DIR := $(KBUILD_EXTMOD)/../include
 
-enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
-
-EXTRA_CFLAGS += -I$(SCST_INC_DIR) $(call enable-Wextra,-Wextra \
-	-Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare) \
+EXTRA_CFLAGS += -I$(SCST_INC_DIR) $(call cc-option,-Wextra) \
+	-Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare\
 	$(shell [ -n "${CONFIG_SCST_NO_DLM}" ] && echo -DCONFIG_SCST_NO_DLM)
 
 #EXTRA_CFLAGS += -DCONFIG_SCST_STRICT_SERIALIZING

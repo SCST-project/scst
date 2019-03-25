@@ -26,15 +26,6 @@ SCST_INC_DIR := $(shell if [ -e "$$PWD/../scst" ];			\
                   then echo "$$PWD/../scst/include";			\
                   else echo "$(DESTDIR)$(PREFIX)/include/scst"; fi)
 
-enable-Wextra = $(shell uname_r="$$(uname -r)"; if [ "$${uname_r%.el5}" = "$${uname_r}" ]; then echo "$(1)"; fi)
-
-EXTRA_CFLAGS += $(call enable-Wextra,-Wextra -Wno-unused-parameter \
-	-Wno-missing-field-initializers) -I$(SCST_INC_DIR)
-
-ifneq ($(CONFIG_SCSI_QLA2XXX_TARGET),)
-EXTRA_CFLAGS += -DCONFIG_SCSI_QLA2XXX_TARGET=$(CONFIG_SCSI_QLA2XXX_TARGET)
-endif
-
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
     KVER := $(shell uname -r)
@@ -55,13 +46,22 @@ endif
 INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 ifneq ($(PATCHLEVEL),)
+EXTRA_CFLAGS += $(call cc-option,-Wextra) -Wno-unused-parameter \
+	-Wno-missing-field-initializers -I$(SCST_INC_DIR)
+
+ifneq ($(CONFIG_SCSI_QLA2XXX_TARGET),)
+EXTRA_CFLAGS += -DCONFIG_SCSI_QLA2XXX_TARGET=$(CONFIG_SCSI_QLA2XXX_TARGET)
+endif
+
 obj-m := qla2xxx_scst.o
 qla2xxx_scst-objs := qla_os.o qla_init.o qla_mbx.o qla_iocb.o qla_isr.o qla_gs.o \
 		qla_dbg.o qla_sup.o qla_attr.o qla_mid.o qla_dfs.o qla_bsg.o qla_nx.o
 else
 
 all:
-	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m EXTRA_CFLAGS="$(EXTRA_CFLAGS)"
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
+		SCST_INC_DIR=$(SCST_INC_DIR) \
+		$(CONFIG_SCSI_QLA2XXX_TARGET)=CONFIG_SCSI_QLA2XXX_TARGET
 
 install: all
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
