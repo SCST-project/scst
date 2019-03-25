@@ -1170,10 +1170,10 @@ struct t10_pi_tuple {
 
 /*
  * See also commit 686fef928bba ("timer: Prepare to change timer callback
- * argument type"). See also commit 0eeda71bc30d ("timer: Replace timer base
- * by a cpu index").
+ * argument type") # v4.14. See also commit 0eeda71bc30d ("timer: Replace
+ * timer base by a cpu index") # v4.2.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0)
 #define timer_setup(_timer, _fn, _flags) do {			\
 	init_timer(_timer);					\
 	(_timer)->function = (void *)(_fn);	\
@@ -1187,6 +1187,11 @@ struct t10_pi_tuple {
 	(_timer)->data = (unsigned long)(_timer);		\
 	(_timer)->flags = (_flags);				\
 } while (0)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+#define from_timer(var, callback_timer, timer_fieldname)		\
+	container_of(callback_timer, typeof(*var), timer_fieldname)
 #endif
 
 /*
