@@ -12,9 +12,13 @@ body > ol > li {padding-bottom:1ex;}
 </style>
 <body>
 
-<div style="text-align: center;"> <strong>How to Configure the FC QLogic Target Driver for 22xx/23xx/24xx/25xx/26xx Adapters</strong><br><br></div>
+  <div style="text-align: center;">
+    <strong>How to Configure the FC QLogic Target Driver for
+      22xx/23xx/24xx/25xx/26xx Adapters</strong></div>
+  <br><br>
 
-<div style="text-align: center;"> <strong>TARGET SYSTEM</strong></div><br><br>
+  <div style="text-align: center;"> <strong>TARGET SYSTEM</strong></div>
+  <br><br>
 
 <ol>
 <li>
@@ -82,11 +86,11 @@ qla2xxx 0000:13:00.0: Failed to initialize adapter</pre>
 </li>
 <li>Install the necessary kernel development packages. On a Debian system
 these packages can be installed as follows:
-<pre>[root@proj ]# apt-get install gcc libncurses5-dev linux-headers-`uname -r` lsscsi patch subversion</pre>
+<pre>[root@proj ]# apt-get install gcc linux-headers-`uname -r` lsscsi patch subversion</pre>
 On RHEL/CentOS/SL systems these packages can be installed as follows:
-<pre>[root@proj ]# yum install gcc ncurses-devel kernel-devel lsscsi patch subversion</pre>
+<pre>[root@proj ]# yum install gcc kernel-devel lsscsi patch subversion</pre>
 And on SUSE systems these packages can be installed by running the following command:
-<pre>[root@proj ]# zypper install gcc ncurses-devel kernel-devel lsscsi patch subversion</pre>
+<pre>[root@proj ]# zypper install gcc kernel-devel lsscsi patch subversion</pre>
 </li>
 
 <li>
@@ -113,44 +117,6 @@ And on SUSE systems these packages can be installed by running the following com
 [root@proj ]# cd scst
 [root@proj scst]# ln -s ../scst-qla2xxx/drivers/scsi/qla2xxx qla2x00t_git</pre>
   Note, this driver is not stable at the moment, therefore use of the driver from the SCST tree is recommended.
-</li>
-
-<li>
-Find out whether you will need iSCSI zero-copy optimization. Since it is valuable only with scst_user user space dev handlers, most likely, you don't need this feature. If you don't, skip the kernel download, patch, rebuild
-and reboot steps and continue with the <a href="#blacklist">SCST build step</a>.
-</li>
-
-<li>Decide whether you want to start from a vanilla Linux kernel source tree
-or from the kernel source tree specific to your Linux distribution. Vanilla kernel sources can be downloaded from <a href="http://www.kernel.org/pub/linux/kernel/">http://www.kernel.org/pub/linux/kernel/</a>. Unzip the downloaded archive under /usr/src:
-<pre>[root@proj ]# cd /usr/src
-[root@proj src ]# tar -xjf /usr/src/linux-3.11.8.tar.bz2</pre>
-Instructions for obtaining a distribution-specific kernel source tree vary. An example for Debian:
-<pre>[root@proj src ]# apt-get install linux-source-`uname -r`
-[root@proj src ]# tar xjf linux-source-`uname -r`.tar.bz2</pre>
-</li>
-
-<li>The next step is to configure the kernel:
-<pre>[root@proj linux ]# pwd
-/usr/src/linux
-[root@proj linux ]# make menuconfig</pre>
-
-  If you have built a 32-bit kernel make sure to disable HIGHMEM4G and
-  HIGHMEM64G, i.e.
-<pre>[root@proj linux ]# grep -i highmem .config
-CONFIG_NOHIGHMEM=y
-# CONFIG_HIGHMEM4G is not set
-# CONFIG_HIGHMEM64G is not set</pre>
-
-  If you have built a 32-bit kernel on a system with more than 1GB of memory,
-  consider to change CONFIG_VMSPLIT option to an appropriate value.
-</li>
-<li>Next, build and install the kernel:
-<pre>[root@proj linux ]# make -j$(ls -1d /sys/devices/system/cpu/cpu[0-9]* | wc -l) bzImage modules
-[root@proj linux ]# make modules_install install</pre>
-</li>
-
-<li>
-  Reboot the system and during boot select the freshly built kernel to boot from.
 </li>
 
 <li id="blacklist">
