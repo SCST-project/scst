@@ -30,17 +30,6 @@
 export PWD    := $(shell pwd)
 export CONFIG_FCST   := m
 
-
-# Set variable $(2) to value $(3) in file $(1).
-set_var = $(shell { if [ -e "$(1)" ]; then grep -v '^$(2)=' "$(1)"; fi; echo "$(2)=$(3)"; } >/tmp/$(1)-$$$$.tmp && mv /tmp/$(1)-$$$$.tmp $(1))
-
-
-FCSTFLAGS = -DDEBUG_WORK_IN_THREAD -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
-	-DCONFIG_SCST_EXTRACHECKS -fno-inline -fno-inline-functions
-FCSTFLAGSRELEASE = -DCONFIG_SCST_TRACING
-FCSTFLAGSPERF =
-EXTRA_CFLAGS += -I$(SCST_INC_DIR) $(FCSTFLAGS$(BUILDMODE))
-
 MODULE_NAME = fcst
 
 ifneq ($(KERNELRELEASE),)
@@ -128,15 +117,12 @@ extraclean: clean
 
 2debug:
 	-$(MAKE) clean
-	$(call set_var,build_mode,BUILDMODE,)
 
 2release:
 	-$(MAKE) clean
-	$(call set_var,build_mode,BUILDMODE,RELEASE)
 
 2perf:
 	-$(MAKE) clean
-	$(call set_var,build_mode,BUILDMODE,PERF)
 
 release-archive:
 	../scripts/generate-release-archive fcst "$$(sed -n 's/^#define[[:blank:]]FT_VERSION[[:blank:]]*\"\([^\"]*\)\".*/\1/p' fcst.h)"
