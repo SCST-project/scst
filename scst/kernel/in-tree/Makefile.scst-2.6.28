@@ -13,5 +13,4 @@ scst-y        += scst_sysfs.o
 scst-y        += scst_targ.o
 scst-y        += scst_tg.o
 
-obj-$(CONFIG_SCST)   += scst.o dev_handlers/ iscsi-scst/ qla2xxx-target/ srpt/ \
-			scst_local/
+obj-$(CONFIG_SCST)   += scst.o dev_handlers/ iscsi-scst/ srpt/ scst_local/
