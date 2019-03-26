@@ -24,7 +24,7 @@
 ########################
 
 # shellcheck source=./kernel-functions
-source $(dirname "$0")/kernel-functions
+source "$(dirname "$0")/kernel-functions"
 
 function usage {
   echo "Usage: $0 [-d] [-h] [-m] [-n] [-p <dir>] [-s] [-u] <kernel version>"
@@ -175,7 +175,7 @@ multiple_patches="false"
 patchdir=""
 qla2x00t="true"
 replace_sbug_by_bug="true"
-specialize_patch_options=(-v delete_disabled_code=1)
+specialize_patch_options=(-v "delete_disabled_code=1")
 srpt="true"
 
 if [ ! -e scst ] || [ ! -e iscsi-scst ] || [ ! -e srpt ] ||
@@ -193,7 +193,7 @@ do
     '-h') usage; exit 1;;
     '-l') shift;;
     '-m') mpt_scst="true"; shift;;
-    '-n') specialize_patch_options=(-v blank_deleted_code=1)
+    '-n') specialize_patch_options=(-v "blank_deleted_code=1")
           shift
           ;;
     '-p') multiple_patches="true"; patchdir="$2"; shift; shift;;
@@ -236,15 +236,16 @@ fi
 if grep -qw scst_sysfs scst/kernel/in-tree/${scst_makefile} \
    || [ "${generating_upstream_patch}" = "true" ];
 then
-  specialize_patch_options+=(-v config_scst_proc_undefined=1)
+  specialize_patch_options+=(-v "config_scst_proc_undefined=1")
 else
   include_proc_impl="true"
 fi
 if [ "${debug_specialize}" = "true" ]; then
-  specialize_patch_options+=(-v debug=1)
+  specialize_patch_options+=(-v "debug=1")
 fi
 if [ "${generating_upstream_patch}" = "true" ]; then
-  specialize_patch_options+=(-v generating_upstream_patch_defined=1 -v config_tcp_zero_copy_transfer_completion_notification_undefined=1)
+  specialize_patch_options+=(-v "generating_upstream_patch_defined=1"
+			     -v "config_tcp_zero_copy_transfer_completion_notification_undefined=1")
 fi
 
 if [ "${multiple_patches}" = "true" ]; then
@@ -262,7 +263,7 @@ fi
 # Patch Generation #
 ####################
 
-for f in fcst/linux-patches/series-${kver}*
+for f in fcst/linux-patches/series-"${kver}"*
 do
    if [ -e "$f" ]; then
        fcst_patch_series="$f"
