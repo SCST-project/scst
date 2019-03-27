@@ -319,6 +319,17 @@ static inline bool cpumask_equal(const cpumask_t *src1p,
 }
 #endif
 
+/* <linux/device.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
+/*
+ * See also commit ced321bf9151 ("driver core: device.h: add RW and RO
+ * attribute macros") # v3.11.
+ */
+#define DEVICE_ATTR_RW(_name) \
+	struct device_attribute dev_attr_##_name = __ATTR_RW(_name)
+#endif
+
 /* <linux/dlm.h> */
 
 /* See also commit 0f8e0d9a317406612700426fad3efab0b7bbc467 */
@@ -326,6 +337,17 @@ static inline bool cpumask_equal(const cpumask_t *src1p,
 enum {
 	DLM_LSFL_NEWEXCL = 0
 };
+#endif
+
+/* <linux/dmapool.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
+/* See also ad82362b2def ("mm: add dma_pool_zalloc() call to DMA API") # v4.3 */
+static inline void *dma_pool_zalloc(struct dma_pool *pool, gfp_t mem_flags,
+				    dma_addr_t *handle)
+{
+	return dma_pool_alloc(pool, mem_flags | __GFP_ZERO, handle);
+}
 #endif
 
 /* <linux/eventpoll.h> */
@@ -473,6 +495,7 @@ ssize_t kernel_write(struct file *file, const void *buf, size_t count,
 #endif
 
 /* <linux/iocontext.h> */
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25) || \
 	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0)
 
@@ -769,6 +792,138 @@ static inline long get_user_pages_backport(unsigned long start,
 #define get_user_pages get_user_pages_backport
 #endif
 
+/* <linux/mm.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
+/* See also commit a7c3e901a46f ("mm: introduce kv[mz]alloc helpers") # v4.12 */
+static inline void *kvmalloc_node(size_t size, gfp_t flags, int node)
+{
+	gfp_t kmalloc_flags = flags;
+	void *ret;
+
+	WARN_ON_ONCE(flags & ~(GFP_KERNEL | __GFP_ZERO));
+
+	/*
+	 * vmalloc uses GFP_KERNEL for some internal allocations (e.g page
+	 * tables) so the given set of flags has to be compatible.
+	 */
+	if ((flags & GFP_KERNEL) != GFP_KERNEL)
+		return kmalloc_node(size, flags, node);
+
+	/*
+	 * We want to attempt a large physically contiguous block first because
+	 * it is less likely to fragment multiple larger blocks and therefore
+	 * contribute to a long term fragmentation less than vmalloc fallback.
+	 * However make sure that larger requests are not too disruptive - no
+	 * OOM killer and no allocation failure warnings as we have a fallback.
+	 */
+	if (size > PAGE_SIZE) {
+		kmalloc_flags |= __GFP_NOWARN;
+
+		if (!(kmalloc_flags & __GFP_REPEAT))
+			kmalloc_flags |= __GFP_NORETRY;
+	}
+
+	ret = kmalloc_node(size, kmalloc_flags, node);
+
+	/*
+	 * It doesn't really make sense to fallback to vmalloc for sub page
+	 * requests
+	 */
+	if (ret || size <= PAGE_SIZE)
+		return ret;
+
+	ret = vmalloc_node(size, node);
+	if (ret && (flags & __GFP_ZERO))
+		memset(ret, 0, size);
+
+	return ret;
+}
+
+static inline void *kvmalloc(size_t size, gfp_t flags)
+{
+	return kvmalloc_node(size, flags, NUMA_NO_NODE);
+}
+
+static inline void *kvzalloc(size_t size, gfp_t flags)
+{
+	return kvmalloc(size, flags | __GFP_ZERO);
+}
+
+static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
+{
+	return kvmalloc(n * size, flags | __GFP_ZERO);
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0)
+/*
+ * See also commit 39f1f78d53b9 ("nick kvfree() from apparmor") # v3.15.
+ */
+static inline void kvfree(void *addr)
+{
+	if (is_vmalloc_addr(addr))
+		vfree(addr);
+	else
+		kfree(addr);
+}
+#endif
+
+/* <linux/nvme-fc.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+#define FC_TYPE_NVME 0x28
+enum nvmefc_fcp_datadir {
+	NVMEFC_FCP_NODATA,
+	NVMEFC_FCP_WRITE,
+	NVMEFC_FCP_READ,
+};
+struct nvme_fc_ersp_iu {
+};
+struct nvmefc_fcp_req {
+	void			*cmdaddr;
+	void			*rspaddr;
+	dma_addr_t		cmddma;
+	dma_addr_t		rspdma;
+	u16			cmdlen;
+	u16			rsplen;
+
+	u32			payload_length;
+	struct sg_table		sg_table;
+	struct scatterlist	*first_sgl;
+	int			sg_cnt;
+	enum nvmefc_fcp_datadir	io_dir;
+
+	__le16			sqid;
+
+	void (*done)(struct nvmefc_fcp_req *req);
+
+	void			*private;
+
+	u32			transferred_length;
+	u16			rcv_rsplen;
+	u32			status;
+} __aligned(sizeof(u64));	/* alignment for other things alloc'd with */
+#endif
+
+/* <linux/pci.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+/*
+ * See also commit aff171641d18 ("PCI: Provide sensible IRQ vector alloc/free
+ * routines") # v4.8.
+ */
+/**
+ * pci_irq_vector - return Linux IRQ number of a device vector
+ * @dev: PCI device to operate on
+ * @nr: device-relative interrupt vector index (0-based).
+ */
+static inline int pci_irq_vector(struct pci_dev *dev, unsigned int nr)
+{
+	return dev->irq + nr;
+}
+#endif
+
 /* <linux/preempt.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
@@ -908,6 +1063,7 @@ typedef void (*rcu_callback_t)(struct rcu_head *);
 #endif
 
 /* <rdma/ib_verbs.h> */
+
 /* commit ed082d36 */
 #ifndef ib_alloc_pd
 static inline struct ib_pd *ib_alloc_pd_backport(struct ib_device *device)
@@ -933,6 +1089,7 @@ static inline struct ib_pd *ib_alloc_pd_backport(struct ib_device *device)
 #endif
 
 /* <linux/percpu-refcount.h> */
+
 #if defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7
 #include <linux/percpu-refcount.h>
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
@@ -1166,6 +1323,35 @@ struct t10_pi_tuple {
 #define sizeof_field(TYPE, MEMBER) sizeof((((TYPE *)0)->MEMBER))
 #endif
 
+/* <linux/string.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+/* See also commit e9d408e107db ("new helper: memdup_user_nul()") # v4.5 */
+static inline void *memdup_user_nul(const void __user *src, size_t len)
+{
+	char *p;
+
+	p = kmalloc_track_caller(len + 1, GFP_KERNEL);
+	if (!p)
+		return ERR_PTR(-ENOMEM);
+
+	if (copy_from_user(p, src, len)) {
+		kfree(p);
+		return ERR_PTR(-EFAULT);
+	}
+	p[len] = '\0';
+
+	return p;
+}
+#endif
+
+/* <linux/sysfs.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
+/* See also commit b9b3259746d7 ("sysfs.h: add __ATTR_RW() macro") # v3.11. */
+#define __ATTR_RW(_name) __ATTR(_name, 0644, _name##_show, _name##_store)
+#endif
+
 /* <linux/timer.h> */
 
 /*
@@ -1312,6 +1498,28 @@ static inline void scsi_req_init(struct request *rq)
 	return blk_rq_set_block_pc(rq);
 #endif
 }
+#endif
+
+/* <scsi/scsi_transport_fc.h> */
+
+/*
+ * See also commit 624f28be8109 ("[SCSI] scsi_transport_fc: Add 32Gbps speed
+ * definition.") # v3.15.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0)
+enum {
+	FC_PORTSPEED_32GBIT = 0x40
+};
+#endif
+
+/* <target/target_core_base.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+/* See also commit 68d81f40047c ("scsi: remove MSG_*_TAG defines") # v3.19. */
+#define TCM_SIMPLE_TAG	0x20
+#define TCM_HEAD_TAG	0x21
+#define TCM_ORDERED_TAG	0x22
+#define TCM_ACA_TAG	0x24
 #endif
 
 #endif /* _SCST_BACKPORT_H_ */
