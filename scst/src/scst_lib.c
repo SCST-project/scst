@@ -7055,7 +7055,7 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 
 	sess->init_phase = SCST_SESS_IPH_INITING;
 	sess->shut_phase = SCST_SESS_SPH_READY;
-	ret = percpu_ref_init(&sess->refcnt, scst_sess_release, 0, GFP_KERNEL);
+	ret = percpu_ref_init(&sess->refcnt, scst_sess_release, 0, gfp_mask);
 	if (ret < 0)
 		goto out_free;
 	mutex_init(&sess->tgt_dev_list_mutex);
