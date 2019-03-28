@@ -29,6 +29,7 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 #include <linux/bsg-lib.h>	/* struct bsg_job */
 #endif
+#include <linux/dmapool.h>
 #include <linux/eventpoll.h>
 #include <linux/iocontext.h>
 #include <linux/scatterlist.h>	/* struct scatterlist */
@@ -341,7 +342,8 @@ enum {
 
 /* <linux/dmapool.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
 /* See also ad82362b2def ("mm: add dma_pool_zalloc() call to DMA API") # v4.3 */
 static inline void *dma_pool_zalloc(struct dma_pool *pool, gfp_t mem_flags,
 				    dma_addr_t *handle)
@@ -794,7 +796,8 @@ static inline long get_user_pages_backport(unsigned long start,
 
 /* <linux/mm.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
 /* See also commit a7c3e901a46f ("mm: introduce kv[mz]alloc helpers") # v4.12 */
 static inline void *kvmalloc_node(size_t size, gfp_t flags, int node)
 {
@@ -849,14 +852,17 @@ static inline void *kvzalloc(size_t size, gfp_t flags)
 {
 	return kvmalloc(size, flags | __GFP_ZERO);
 }
+#endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
 static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
 {
 	return kvmalloc(n * size, flags | __GFP_ZERO);
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
 /*
  * See also commit 39f1f78d53b9 ("nick kvfree() from apparmor") # v3.15.
  */
@@ -871,8 +877,12 @@ static inline void kvfree(void *addr)
 
 /* <linux/nvme-fc.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
 #define FC_TYPE_NVME 0x28
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 enum nvmefc_fcp_datadir {
 	NVMEFC_FCP_NODATA,
 	NVMEFC_FCP_WRITE,
@@ -904,24 +914,6 @@ struct nvmefc_fcp_req {
 	u16			rcv_rsplen;
 	u32			status;
 } __aligned(sizeof(u64));	/* alignment for other things alloc'd with */
-#endif
-
-/* <linux/pci.h> */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
-/*
- * See also commit aff171641d18 ("PCI: Provide sensible IRQ vector alloc/free
- * routines") # v4.8.
- */
-/**
- * pci_irq_vector - return Linux IRQ number of a device vector
- * @dev: PCI device to operate on
- * @nr: device-relative interrupt vector index (0-based).
- */
-static inline int pci_irq_vector(struct pci_dev *dev, unsigned int nr)
-{
-	return dev->irq + nr;
-}
 #endif
 
 /* <linux/preempt.h> */
@@ -1325,7 +1317,8 @@ struct t10_pi_tuple {
 
 /* <linux/string.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
 /* See also commit e9d408e107db ("new helper: memdup_user_nul()") # v4.5 */
 static inline void *memdup_user_nul(const void __user *src, size_t len)
 {
@@ -1347,7 +1340,8 @@ static inline void *memdup_user_nul(const void __user *src, size_t len)
 
 /* <linux/sysfs.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
 /* See also commit b9b3259746d7 ("sysfs.h: add __ATTR_RW() macro") # v3.11. */
 #define __ATTR_RW(_name) __ATTR(_name, 0644, _name##_show, _name##_store)
 #endif
@@ -1502,11 +1496,12 @@ static inline void scsi_req_init(struct request *rq)
 
 /* <scsi/scsi_transport_fc.h> */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
 /*
  * See also commit 624f28be8109 ("[SCSI] scsi_transport_fc: Add 32Gbps speed
  * definition.") # v3.15.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0)
 enum {
 	FC_PORTSPEED_32GBIT = 0x40
 };
