@@ -5,6 +5,10 @@
  * See LICENSE.qla2xxx for copyright and licensing details.
  */
 
+#include <linux/version.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+
 #include <linux/scatterlist.h>
 #include <linux/delay.h>
 #include <linux/nvme.h>
@@ -717,3 +721,5 @@ int qla_nvme_register_hba(struct scsi_qla_host *vha)
 
 	return ret;
 }
+
+#endif

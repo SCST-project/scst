@@ -25,7 +25,9 @@
 #include <scsi/scsi_bsg_fc.h>
 #include <scsi/scsi_eh.h>
 #include <scsi/fc/fc_fs.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 #include <linux/nvme-fc-driver.h>
+#endif
 
 static void qla2x00_mbx_completion(scsi_qla_host_t *, uint16_t);
 static void qla2x00_status_entry(scsi_qla_host_t *, struct rsp_que *, void *);
@@ -3443,6 +3445,13 @@ qla24xx_enable_msix(struct qla_hw_data *ha, struct rsp_que *rsp)
 	struct qla_msix_entry *qentry;
 	scsi_qla_host_t *vha = pci_get_drvdata(ha->pdev);
 	int min_vecs = QLA_BASE_VECTORS;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+	if (QLA_TGT_MODE_ENABLED() && (ql2xenablemsix != 0) &&
+	    IS_ATIO_MSIX_CAPABLE(ha)) {
+		min_vecs++;
+	}
+#else
 	struct irq_affinity desc = {
 		.pre_vectors = QLA_BASE_VECTORS,
 	};
@@ -3452,7 +3461,12 @@ qla24xx_enable_msix(struct qla_hw_data *ha, struct rsp_que *rsp)
 		desc.pre_vectors++;
 		min_vecs++;
 	}
+#endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+	ret = pci_alloc_irq_vectors(ha->pdev, min_vecs, ha->msix_count,
+				    PCI_IRQ_MSIX);
+#else
 	if (USER_CTRL_IRQ(ha) || !ha->mqiobase) {
 		/* user wants to control IRQ setting for target mode */
 		ret = pci_alloc_irq_vectors(ha->pdev, min_vecs,
@@ -3461,6 +3475,7 @@ qla24xx_enable_msix(struct qla_hw_data *ha, struct rsp_que *rsp)
 		ret = pci_alloc_irq_vectors_affinity(ha->pdev, min_vecs,
 		    ha->msix_count, PCI_IRQ_MSIX | PCI_IRQ_AFFINITY,
 		    &desc);
+#endif
 
 	if (ret < 0) {
 		ql_log(ql_log_fatal, vha, 0x00c7,
@@ -3489,7 +3504,11 @@ qla24xx_enable_msix(struct qla_hw_data *ha, struct rsp_que *rsp)
 			    "Adjusted Max no of queues pairs: %d.\n", ha->max_qpairs);
 		}
 	}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 	vha->irq_offset = desc.pre_vectors;
+#else
+	vha->irq_offset = min_vecs;
+#endif
 	ha->msix_entries = kcalloc(ha->msix_count,
 				   sizeof(struct qla_msix_entry),
 				   GFP_KERNEL);

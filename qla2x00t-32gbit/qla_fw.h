@@ -7,8 +7,17 @@
 #ifndef __QLA_FW_H
 #define __QLA_FW_H
 
+#include <linux/version.h>
 #include <linux/nvme.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 #include <linux/nvme-fc.h>
+#endif
+
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/backport.h>
+#else
+#include "backport.h"
+#endif
 
 #define MBS_CHECKSUM_ERROR	0x4010
 #define MBS_INVALID_PRODUCT_KEY	0x4020

@@ -10,7 +10,9 @@
 #include <linux/blk-mq.h>
 #include <uapi/scsi/fc/fc_fs.h>
 #include <uapi/scsi/fc/fc_els.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 #include <linux/nvme-fc-driver.h>
+#endif
 
 #include "qla_def.h"
 
@@ -139,6 +141,7 @@ struct pt_ls4_rx_unsol {
 	uint32_t payload[3];
 };
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 /*
  * Global functions prototype in qla_nvme.c source file.
  */
@@ -146,7 +149,30 @@ int qla_nvme_register_hba(struct scsi_qla_host *);
 int  qla_nvme_register_remote(struct scsi_qla_host *, struct fc_port *);
 void qla_nvme_delete(struct scsi_qla_host *);
 void qla_nvme_abort(struct qla_hw_data *, struct srb *sp, int res);
+#else
+static inline int qla_nvme_register_hba(struct scsi_qla_host *vha)
+{
+	return -ENOTSUPP;
+}
+
+static inline int qla_nvme_register_remote(struct scsi_qla_host *vha,
+					   struct fc_port *fcport)
+{
+	return -ENOTSUPP;
+}
+
+static inline void qla_nvme_delete(struct scsi_qla_host *vha)
+{
+}
+
+static inline void qla_nvme_abort(struct qla_hw_data *ha, struct srb *sp,
+				  int res)
+{
+}
+#endif
+
 void qla24xx_nvme_ls4_iocb(struct scsi_qla_host *, struct pt_ls4_request *,
     struct req_que *);
 void qla24xx_async_gffid_sp_done(void *, int);
+
 #endif
