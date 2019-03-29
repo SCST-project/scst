@@ -173,7 +173,8 @@ generating_upstream_patch="false"
 mpt_scst="false"
 multiple_patches="false"
 patchdir=""
-qla2x00t="true"
+qla2x00t="false"
+qla2x00t_32gbit="true"
 replace_sbug_by_bug="true"
 specialize_patch_options=(-v "delete_disabled_code=1")
 srpt="true"
@@ -524,6 +525,28 @@ if [ "${qla2x00t}" = "true" ]; then
            "Documentation/scst/README.qla2x00t" \
   | process_patch "qla2x00t-doc.diff"
 
+elif [ "${qla2x00t_32gbit}" = "true" ]; then
+
+  download_kernel "${kver3}" || exit $?
+
+  ( cd qla2x00t-32gbit && ./generate-in-tree-patches "$1" )
+
+  for f in qla2x00t-32gbit/in-tree-patches/"$1"/*.patch; do
+    [ -e "$f" ] || continue
+    g="${f#qla2x00t-32gbit/in-tree-patches/$1/}"
+    g="${g%.patch}"
+    add_patch "${f}" "drivers/scsi/qla2xxx/${g}"
+  done
+
+  for f in qla2x00t-32gbit/qla2x00-target/*.[ch]; do
+    [ -e "$f" ] || continue
+    add_file "${f}" "drivers/scsi/qla2xxx/${f#qla2x00t-32gbit/qla2x00-target/}"
+  done
+
+  add_file "qla2x00t-32gbit/qla2x00-target/README" \
+           "Documentation/scst/README.qla2x00t" \
+  | process_patch "qla2x00t-doc.diff"
+    
 fi \
 | process_patch "qla2x00t.diff"
 
