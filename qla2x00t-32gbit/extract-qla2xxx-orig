@@ -1,0 +1,24 @@
+#!/bin/bash
+
+source ../scripts/kernel-functions
+
+#########################
+# Argument verification #
+#########################
+
+kernel_version="$1"
+
+if [ "$1" = "" ]; then
+  echo "Error: missing kernel version argument."
+  exit 1
+fi
+
+mkdir -p qla2xxx-orig
+cd qla2xxx-orig || exit $?
+extract_kernel_tree "${kernel_version}"
+touch "linux-${kernel_version}"/drivers/scsi/qla2xxx/*
+rm -rf "${kernel_version}"
+mkdir -p "${kernel_version}"
+mv "linux-${kernel_version}"/drivers/scsi/qla2xxx/* "${kernel_version}"
+rm -rf "linux-${kernel_version}"
+cd ..

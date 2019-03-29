@@ -40,6 +40,7 @@
 #include <linux/writeback.h>	/* sync_page_range() */
 #include <rdma/ib_verbs.h>
 #include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
+struct scsi_target;
 #include <scsi/scsi_transport_fc.h> /* struct fc_bsg_job */
 
 /* <asm-generic/barrier.h> */
