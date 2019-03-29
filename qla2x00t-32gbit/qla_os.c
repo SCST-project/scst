@@ -7191,7 +7191,15 @@ static int qla2xxx_map_queues(struct Scsi_Host *shost)
 	if (USER_CTRL_IRQ(vha->hw))
 		rc = blk_mq_map_queues(&shost->tag_set);
 	else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
+		/*
+		 * See also commit f23f5bece686 ("blk-mq: Allow PCI vector
+		 * offset for mapping queues") # v4.17.
+		 */
+		rc = blk_mq_pci_map_queues(&shost->tag_set, vha->hw->pdev);
+#else
 		rc = blk_mq_pci_map_queues(&shost->tag_set, vha->hw->pdev, 0);
+#endif
 #endif
 	return rc;
 }

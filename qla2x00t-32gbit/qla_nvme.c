@@ -45,7 +45,13 @@ int qla_nvme_register_remote(struct scsi_qla_host *vha, struct fc_port *fcport)
 	req.port_name = wwn_to_u64(fcport->port_name);
 	req.node_name = wwn_to_u64(fcport->node_name);
 	req.port_role = 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
+	/*
+	 * See also commit 9dd9686b1419 ("scsi: qla2xxx: Add changes for
+	 * devloss timeout in driver") # v4.17.
+	 */
 	req.dev_loss_tmo = NVME_FC_DEV_LOSS_TMO;
+#endif
 
 	if (fcport->nvme_prli_service_param & NVME_PRLI_SP_INITIATOR)
 		req.port_role = FC_PORT_ROLE_NVME_INITIATOR;
@@ -629,7 +635,9 @@ static void qla_nvme_unregister_remote_port(struct work_struct *work)
 		    "%s: Notify FC-NVMe transport, set devloss=0\n",
 		    __func__);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
 		nvme_fc_set_remoteport_devloss(fcport->nvme_remote_port, 0);
+#endif
 	}
 
 	list_for_each_entry_safe(qla_rport, trport,

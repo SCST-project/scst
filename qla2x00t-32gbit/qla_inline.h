@@ -5,7 +5,14 @@
  * See LICENSE.qla2xxx for copyright and licensing details.
  */
 
+#ifdef INSIDE_KERNEL_TREE
+#include <scst/backport.h> /* timer_setup() */
+#else
+#include "backport.h"
+#endif
+
 #include "qla_target.h"
+
 /**
  * qla24xx_calc_iocbs() - Determine number of Command Type 3 and
  * Continuation Type 1 IOCBs to allocate.
