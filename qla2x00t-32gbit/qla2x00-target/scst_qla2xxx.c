@@ -916,7 +916,6 @@ static struct se_session *sqa_alloc_sesess(scsi_qla_host_t *vha)
 static void sqa_free_sesess(struct se_session *se_sess)
 {
 	percpu_ida_destroy(&se_sess->sess_tag_pool);
-	kvfree(se_sess->sess_cmd_map);
 	kfree(se_sess);
 }
 
