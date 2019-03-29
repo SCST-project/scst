@@ -439,7 +439,14 @@ static void sqa_qla2xxx_rel_cmd(struct qla_tgt_cmd *cmd)
 	struct fc_port *sess = cmd->sess;
 	struct sqa_scst_tgt *sqa_tgt = sess->vha->vha_tgt.target_lport_ptr;
 
+#if QLT_USE_PERCPU_IDA
 	percpu_ida_free(&sqa_tgt->tgt_tag_pool, cmd->se_cmd.map_tag);
+#elif QLT_USE_SBITMAP
+	sbitmap_queue_clear(&sqa_tgt->tgt_tag_pool, cmd->se_cmd.map_tag,
+			    cmd->se_cmd.map_cpu);
+#else
+#error Neither percpu_ida nor sbitmap are available.
+#endif
 }
 
 static struct qla_tgt_cmd *sqa_qla2xxx_get_cmd(struct fc_port *sess)
@@ -449,13 +456,24 @@ static struct qla_tgt_cmd *sqa_qla2xxx_get_cmd(struct fc_port *sess)
 	struct qla_tgt_cmd *cmd;
 	int tag;
 
+#if QLT_USE_PERCPU_IDA
 	tag = percpu_ida_alloc(&sqa_tgt->tgt_tag_pool, TASK_RUNNING);
+#elif QLT_USE_SBITMAP
+	int cpu;
+
+	tag = sbitmap_queue_get(&sqa_tgt->tgt_tag_pool, &cpu);
+#else
+#error Neither percpu_ida nor sbitmap are available.
+#endif
 	if (tag < 0)
 		return NULL;
 
 	cmd = &((struct qla_tgt_cmd *)sqa_tgt->tgt_cmd_map)[tag];
 	memset(cmd, 0, sizeof(struct qla_tgt_cmd));
 	cmd->se_cmd.map_tag = tag;
+#if QLT_USE_SBITMAP
+	cmd->se_cmd.map_cpu = cpu;
+#endif
 	cmd->sess = sess;
 	cmd->vha = sess->vha;
 	cmd->rel_cmd = sqa_qla2xxx_rel_cmd;
@@ -906,7 +924,6 @@ static struct se_session *sqa_alloc_sesess(scsi_qla_host_t *vha)
 	INIT_LIST_HEAD(&se_sess->sess_list);
 	INIT_LIST_HEAD(&se_sess->sess_acl_list);
 	INIT_LIST_HEAD(&se_sess->sess_cmd_list);
-	INIT_LIST_HEAD(&se_sess->sess_wait_list);
 	spin_lock_init(&se_sess->sess_cmd_lock);
 
 	return se_sess;
@@ -914,7 +931,13 @@ static struct se_session *sqa_alloc_sesess(scsi_qla_host_t *vha)
 
 static void sqa_free_sesess(struct se_session *se_sess)
 {
+#if QLT_USE_PERCPU_IDA
 	percpu_ida_destroy(&se_sess->sess_tag_pool);
+#elif QLT_USE_SBITMAP
+	sbitmap_queue_free(&se_sess->sess_tag_pool);
+#else
+#error Neither percpu_ida nor sbitmap are available.
+#endif
 	kfree(se_sess);
 }
 
@@ -1440,7 +1463,14 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 		goto done;
 	}
 
+#if QLT_USE_PERCPU_IDA
 	res = percpu_ida_init(&sqa_tgt->tgt_tag_pool, tag_num);
+#elif QLT_USE_SBITMAP
+	res = sbitmap_queue_init_node(&sqa_tgt->tgt_tag_pool, tag_num, -1,
+				      false, GFP_KERNEL, NUMA_NO_NODE);
+#else
+#error Neither percpu_ida nor sbitmap are available.
+#endif
 	if (res < 0) {
 		pr_err("Unable to init se_sess->sess_tag_pool,"
 			   " tag_num: %u\n", tag_num);
