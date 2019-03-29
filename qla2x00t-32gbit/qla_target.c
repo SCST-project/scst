@@ -5452,7 +5452,6 @@ qlt_alloc_qfull_cmd(struct scsi_qla_host *vha,
 	struct qla_tgt *tgt = vha->vha_tgt.qla_tgt;
 	struct qla_hw_data *ha = vha->hw;
 	struct fc_port *sess;
-	struct se_session *se_sess;
 	struct qla_tgt_cmd *cmd;
 	unsigned long flags;
 
@@ -5482,8 +5481,6 @@ qlt_alloc_qfull_cmd(struct scsi_qla_host *vha,
 		(vha, atio->u.isp24.fcp_hdr.s_id);
 	if (!sess)
 		return;
-
-	se_sess = sess->se_sess;
 
 	cmd = ha->tgt.tgt_ops->get_cmd(sess);
 	if (!cmd) {
