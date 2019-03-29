@@ -820,17 +820,17 @@ static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 
 	mcmd = kzalloc(sizeof(*mcmd), GFP_ATOMIC);
 	if (mcmd) {
+		DECLARE_COMPLETION_ONSTACK(c);
 		struct scsi_lun sl;
 
 		memset(&sl, 0, sizeof(sl));
-		mcmd->flags = SQA_INTERNAL_CMD;
 		mcmd->sess = fcport;
 		mcmd->reset_count = vha->hw->base_qpair->chip_reset;
-		init_completion(&mcmd->se_cmd.cmd_wait_comp);
+		mcmd->completion = &c;
 
 		scst_rx_mgmt_fn_lun(scst_sess, SCST_NEXUS_LOSS_SESS,
 			&sl, sizeof(sl), SCST_ATOMIC, mcmd);
-		wait_for_completion(&mcmd->se_cmd.cmd_wait_comp);
+		wait_for_completion(&c);
 
 		kfree(mcmd);
 		TRACE_MGMT_DBG("sqatgt(%ld/%d):	Flush cmd done %8phC \n",
@@ -1880,8 +1880,8 @@ static void sqa_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 		       vha->host_no, vha->vp_idx, scst_mcmd,
 		       scst_mcmd->status, scst_mcmd->state);
 
-	if (mcmd->flags & SQA_INTERNAL_CMD) {
-		complete(&mcmd->se_cmd.cmd_wait_comp);
+	if (mcmd->completion) {
+		complete(mcmd->completion);
 		goto out;
 	}
 

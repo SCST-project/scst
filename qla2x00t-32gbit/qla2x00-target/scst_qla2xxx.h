@@ -1,7 +1,3 @@
-enum sqa_mgt_flags {
-	SQA_INTERNAL_CMD = BIT_31,
-};
-
 #define SQA_DEFAULT_TAGS 2048
 
 extern size_t qlt_add_vtarget(u64, u64, u64);

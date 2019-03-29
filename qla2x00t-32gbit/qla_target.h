@@ -969,6 +969,7 @@ struct qla_tgt_mgmt_cmd {
 	uint32_t reset_count;
 	struct work_struct work;
 	uint64_t unpacked_lun;
+	struct completion *completion;
 	union {
 		struct atio_from_isp atio;
 		struct imm_ntfy_from_isp imm_ntfy;
