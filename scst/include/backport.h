@@ -854,7 +854,8 @@ static inline void *kvzalloc(size_t size, gfp_t flags)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
+/* See also commit 1c542f38ab8d ("mm: Introduce kvcalloc()") # v4.18. */
 static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
 {
 	return kvmalloc(n * size, flags | __GFP_ZERO);
