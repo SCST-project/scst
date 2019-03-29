@@ -3421,6 +3421,25 @@ qla2xxx_msix_rsp_q(int irq, void *dev_id)
 
 /* Interrupt handling helpers. */
 
+/* <linux/pci.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+/*
+ * See also commit aff171641d18 ("PCI: Provide sensible IRQ vector alloc/free
+ * routines") # v4.8.
+ */
+/**
+ * pci_irq_vector - return Linux IRQ number of a device vector
+ * @dev: PCI device to operate on
+ * @nr: device-relative interrupt vector index (0-based).
+ */
+static inline int pci_irq_vector(struct pci_dev *dev, unsigned int nr)
+{
+	return dev->irq + nr;
+}
+#endif
+
 struct qla_init_msix_entry {
 	const char *name;
 	irq_handler_t handler;
