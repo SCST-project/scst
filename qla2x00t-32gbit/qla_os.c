@@ -13,7 +13,9 @@
 #include <linux/mutex.h>
 #include <linux/kobject.h>
 #include <linux/slab.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
 #include <linux/blk-mq-pci.h>
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 #include <linux/refcount.h>
 #endif

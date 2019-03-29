@@ -3446,7 +3446,20 @@ qla24xx_enable_msix(struct qla_hw_data *ha, struct rsp_que *rsp)
 	scsi_qla_host_t *vha = pci_get_drvdata(ha->pdev);
 	int min_vecs = QLA_BASE_VECTORS;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+	struct msix_entry *entries;
+
+	entries = kcalloc(ha->msix_count, sizeof(struct msix_entry),
+			  GFP_KERNEL);
+	if (!entries) {
+		ql_log(ql_log_warn, vha, 0x00bc,
+		       "Failed to allocate memory for msix_entry.\n");
+		return -ENOMEM;
+	}
+
+	for (i = 0; i < ha->msix_count; i++)
+		entries[i].entry = i;
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 	if (QLA_TGT_MODE_ENABLED() && (ql2xenablemsix != 0) &&
 	    IS_ATIO_MSIX_CAPABLE(ha)) {
 		min_vecs++;
@@ -3463,7 +3476,10 @@ qla24xx_enable_msix(struct qla_hw_data *ha, struct rsp_que *rsp)
 	}
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+	ret = pci_enable_msix_range(ha->pdev,
+				    entries, min_vecs, ha->msix_count);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 	ret = pci_alloc_irq_vectors(ha->pdev, min_vecs, ha->msix_count,
 				    PCI_IRQ_MSIX);
 #else
@@ -3475,6 +3491,10 @@ qla24xx_enable_msix(struct qla_hw_data *ha, struct rsp_que *rsp)
 		ret = pci_alloc_irq_vectors_affinity(ha->pdev, min_vecs,
 		    ha->msix_count, PCI_IRQ_MSIX | PCI_IRQ_AFFINITY,
 		    &desc);
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+	kfree(entries);
 #endif
 
 	if (ret < 0) {
@@ -3653,7 +3673,11 @@ skip_msix:
 	    !IS_QLA27XX(ha))
 		goto skip_msi;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+	ret = pci_enable_msi(ha->pdev);
+#else
 	ret = pci_alloc_irq_vectors(ha->pdev, 1, 1, PCI_IRQ_MSI);
+#endif
 	if (!ret) {
 		ql_dbg(ql_dbg_init, vha, 0x0038,
 		    "MSI: Enabled.\n");
@@ -3727,7 +3751,11 @@ qla2x00_free_irqs(scsi_qla_host_t *vha)
 	}
 
 free_irqs:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+	;
+#else
 	pci_free_irq_vectors(ha->pdev);
+#endif
 }
 
 int qla25xx_request_irq(struct qla_hw_data *ha, struct qla_qpair *qpair,
