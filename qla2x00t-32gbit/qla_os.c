@@ -14,7 +14,9 @@
 #include <linux/kobject.h>
 #include <linux/slab.h>
 #include <linux/blk-mq-pci.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 #include <linux/refcount.h>
+#endif
 #include <linux/version.h>
 
 #include <scsi/scsi_tcq.h>
@@ -1289,11 +1291,18 @@ qla2x00_wait_for_chip_reset(scsi_qla_host_t *vha)
 static int
 sp_get(struct srb *sp)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+	if (!atomic_inc_not_zero(&sp->ref_count))
+		return ENXIO;
+	else
+		return 0;
+#else
 	if (!refcount_inc_not_zero((refcount_t*)&sp->ref_count))
 		/* kref get fail */
 		return ENXIO;
 	else
 		return 0;
+#endif
 }
 
 #define ISP_REG_DISCONNECT 0xffffffffU
