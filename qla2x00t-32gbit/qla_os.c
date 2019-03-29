@@ -15,6 +15,7 @@
 #include <linux/slab.h>
 #include <linux/blk-mq-pci.h>
 #include <linux/refcount.h>
+#include <linux/version.h>
 
 #include <scsi/scsi_tcq.h>
 #include <scsi/scsicam.h>
@@ -7179,12 +7180,19 @@ static int qla2xxx_map_queues(struct Scsi_Host *shost)
 {
 	int rc;
 	scsi_qla_host_t *vha = (scsi_qla_host_t *)shost->hostdata;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0)
 	struct blk_mq_queue_map *qmap = &shost->tag_set.map[0];
 
 	if (USER_CTRL_IRQ(vha->hw) || !vha->hw->mqiobase)
 		rc = blk_mq_map_queues(qmap);
 	else
 		rc = blk_mq_pci_map_queues(qmap, vha->hw->pdev, vha->irq_offset);
+#else
+	if (USER_CTRL_IRQ(vha->hw))
+		rc = blk_mq_map_queues(&shost->tag_set);
+	else
+		rc = blk_mq_pci_map_queues(&shost->tag_set, vha->hw->pdev, 0);
+#endif
 	return rc;
 }
 
