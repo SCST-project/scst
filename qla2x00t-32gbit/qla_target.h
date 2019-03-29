@@ -28,6 +28,7 @@
 #ifndef __QLA_TARGET_H
 #define __QLA_TARGET_H
 
+#include <asm/unaligned.h>
 #include "qla_def.h"
 
 /*

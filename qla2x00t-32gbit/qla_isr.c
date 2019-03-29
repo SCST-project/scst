@@ -10,7 +10,17 @@
 #include <linux/delay.h>
 #include <linux/slab.h>
 #include <linux/cpu.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
 #include <linux/t10-pi.h>
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+/*
+ * From commit 128b6f9fdd9a ("t10-pi: Move opencoded contants to common header")
+ * # v4.13.
+ */
+#define T10_PI_APP_ESCAPE cpu_to_be16(0xffff)
+#define T10_PI_REF_ESCAPE cpu_to_be32(0xffffffff)
+#endif
 #include <scsi/scsi_tcq.h>
 #include <scsi/scsi_bsg_fc.h>
 #include <scsi/scsi_eh.h>
@@ -1473,7 +1483,11 @@ qla2x00_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	const char func[] = "CT_IOCB";
 	const char *type;
 	srb_t *sp;
+#ifndef NEW_LIBFC_API
+	struct fc_bsg_job *bsg_job;
+#else
 	struct bsg_job *bsg_job;
+#endif
 	struct fc_bsg_reply *bsg_reply;
 	uint16_t comp_status;
 	int res = 0;
@@ -1545,7 +1559,11 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	const char func[] = "ELS_CT_IOCB";
 	const char *type;
 	srb_t *sp;
+#ifndef NEW_LIBFC_API
+	struct fc_bsg_job *bsg_job;
+#else
 	struct bsg_job *bsg_job;
+#endif
 	struct fc_bsg_reply *bsg_reply;
 	uint16_t comp_status;
 	uint32_t fw_status[3];
@@ -2082,7 +2100,7 @@ qla2x00_handle_sense(srb_t *sp, uint8_t *sense_data, uint32_t par_sense_len,
 	if (sense_len) {
 		ql_dbg(ql_dbg_io + ql_dbg_buffer, vha, 0x301c,
 		    "Check condition Sense data, nexus%ld:%d:%llu cmd=%p.\n",
-		    sp->vha->host_no, cp->device->id, cp->device->lun,
+		    sp->vha->host_no, cp->device->id, (u64)cp->device->lun,
 		    cp);
 		ql_dump_buffer(ql_dbg_io + ql_dbg_buffer, vha, 0x302b,
 		    cp->sense_buffer, sense_len);
@@ -2233,7 +2251,11 @@ qla25xx_process_bidir_status_iocb(scsi_qla_host_t *vha, void *pkt,
 	uint16_t	scsi_status;
 	uint16_t thread_id;
 	uint32_t rval = EXT_STATUS_OK;
+#ifndef NEW_LIBFC_API
+	struct fc_bsg_job *bsg_job = NULL;
+#else
 	struct bsg_job *bsg_job = NULL;
+#endif
 	struct fc_bsg_request *bsg_request;
 	struct fc_bsg_reply *bsg_reply;
 	sts_entry_t *sts;
@@ -2739,7 +2761,7 @@ check_scsi_status:
 		ql_log(ql_log_info, fcport->vha, 0x3022,
 		    "CS_DMA error: 0x%x-0x%x (0x%x) nexus=%ld:%d:%llu portid=%06x oxid=0x%x cdb=%10phN len=0x%x rsp_info=0x%x resid=0x%x fw_resid=0x%x sp=%p cp=%p.\n",
 		    comp_status, scsi_status, res, vha->host_no,
-		    cp->device->id, cp->device->lun, fcport->d_id.b24,
+		    cp->device->id, (u64)cp->device->lun, fcport->d_id.b24,
 		    ox_id, cp->cmnd, scsi_bufflen(cp), rsp_info_len,
 		    resid_len, fw_resid_len, sp, cp);
 		ql_dump_buffer(ql_dbg_tgt + ql_dbg_verbose, vha, 0xe0ee,
@@ -2758,7 +2780,7 @@ out:
 		    "portid=%02x%02x%02x oxid=0x%x cdb=%10phN len=0x%x "
 		    "rsp_info=0x%x resid=0x%x fw_resid=0x%x sp=%p cp=%p.\n",
 		    comp_status, scsi_status, res, vha->host_no,
-		    cp->device->id, cp->device->lun, fcport->d_id.b.domain,
+		    cp->device->id, (u64)cp->device->lun, fcport->d_id.b.domain,
 		    fcport->d_id.b.area, fcport->d_id.b.al_pa, ox_id,
 		    cp->cmnd, scsi_bufflen(cp), rsp_info_len,
 		    resid_len, fw_resid_len, sp, cp);

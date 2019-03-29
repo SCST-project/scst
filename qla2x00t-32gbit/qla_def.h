@@ -26,6 +26,7 @@
 #include <linux/aer.h>
 #include <linux/mutex.h>
 #include <linux/btree.h>
+#include <linux/version.h>
 
 #include <scsi/scsi.h>
 #include <scsi/scsi_host.h>
@@ -33,6 +34,12 @@
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_transport_fc.h>
 #include <scsi/scsi_bsg_fc.h>
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0) || \
+	defined(CONFIG_SUSE_KERNEL) && \
+	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
+#define NEW_LIBFC_API
+#endif
 
 #include "qla_bsg.h"
 #include "qla_nx.h"
@@ -548,7 +555,11 @@ typedef struct srb {
 	struct completion comp;
 	union {
 		struct srb_iocb iocb_cmd;
+#ifndef NEW_LIBFC_API
+		struct fc_bsg_job *bsg_job;
+#else
 		struct bsg_job *bsg_job;
+#endif
 		struct srb_cmd scmd;
 	} u;
 	void (*done)(void *, int);

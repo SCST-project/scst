@@ -322,9 +322,15 @@ static int qla2xxx_eh_target_reset(struct scsi_cmnd *);
 static int qla2xxx_eh_bus_reset(struct scsi_cmnd *);
 static int qla2xxx_eh_host_reset(struct scsi_cmnd *);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+static int
+qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth, int reason);
+#endif
 static void qla2x00_clear_drv_active(struct qla_hw_data *);
 static void qla2x00_free_device(scsi_qla_host_t *);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 static int qla2xxx_map_queues(struct Scsi_Host *shost);
+#endif
 static void qla2x00_destroy_deferred_work(struct qla_hw_data *);
 
 
@@ -333,7 +339,9 @@ struct scsi_host_template qla2xxx_driver_template = {
 	.name			= QLA2XXX_DRIVER_NAME,
 	.queuecommand		= qla2xxx_queuecommand,
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 	.eh_timed_out		= fc_eh_timed_out,
+#endif
 	.eh_abort_handler	= qla2xxx_eh_abort,
 	.eh_device_reset_handler = qla2xxx_eh_device_reset,
 	.eh_target_reset_handler = qla2xxx_eh_target_reset,
@@ -346,8 +354,14 @@ struct scsi_host_template qla2xxx_driver_template = {
 	.slave_destroy		= qla2xxx_slave_destroy,
 	.scan_finished		= qla2xxx_scan_finished,
 	.scan_start		= qla2xxx_scan_start,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+	.change_queue_depth	= qla2x00_change_queue_depth,
+#else
 	.change_queue_depth	= scsi_change_queue_depth,
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 	.map_queues             = qla2xxx_map_queues,
+#endif
 	.this_id		= -1,
 	.cmd_per_lun		= 3,
 	.sg_tablesize		= SG_ALL,
@@ -356,7 +370,9 @@ struct scsi_host_template qla2xxx_driver_template = {
 	.shost_attrs		= qla2x00_host_attrs,
 
 	.supported_mode		= MODE_INITIATOR,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	.track_queue_depth	= 1,
+#endif
 };
 
 static struct scsi_transport_template *qla2xxx_transport_template = NULL;
@@ -1509,7 +1525,7 @@ __qla2xxx_eh_generic_reset(char *name, enum nexus_wait_type type,
 
 	ql_log(ql_log_info, vha, 0x8009,
 	    "%s RESET ISSUED nexus=%ld:%d:%llu cmd=%p.\n", name, vha->host_no,
-	    cmd->device->id, cmd->device->lun, cmd);
+	    cmd->device->id, (u64)cmd->device->lun, cmd);
 
 	err = 0;
 	if (qla2x00_wait_for_hba_online(vha) != QLA_SUCCESS) {
@@ -1534,15 +1550,15 @@ __qla2xxx_eh_generic_reset(char *name, enum nexus_wait_type type,
 
 	ql_log(ql_log_info, vha, 0x800e,
 	    "%s RESET SUCCEEDED nexus:%ld:%d:%llu cmd=%p.\n", name,
-	    vha->host_no, cmd->device->id, cmd->device->lun, cmd);
+	    vha->host_no, cmd->device->id, (u64)cmd->device->lun, cmd);
 
 	return SUCCESS;
 
 eh_reset_failed:
 	ql_log(ql_log_info, vha, 0x800f,
 	    "%s RESET FAILED: %s nexus=%ld:%d:%llu cmd=%p.\n", name,
-	    reset_errors[err], vha->host_no, cmd->device->id, cmd->device->lun,
-	    cmd);
+	    reset_errors[err], vha->host_no, cmd->device->id,
+	    (u64)cmd->device->lun, cmd);
 	return FAILED;
 }
 
@@ -1932,7 +1948,11 @@ qla2xxx_slave_configure(struct scsi_device *sdev)
 	if (IS_T10_PI_CAPABLE(vha->hw))
 		blk_queue_update_dma_alignment(sdev->request_queue, 0x7);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+	scsi_adjust_queue_depth(sdev, 0, req->max_q_depth);
+#else
 	scsi_change_queue_depth(sdev, req->max_q_depth);
+#endif
 	return 0;
 }
 
@@ -3194,7 +3214,7 @@ qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	    "cmd_per_len=%d unique_id=%d max_cmd_len=%d max_channel=%d "
 	    "max_lun=%llu transportt=%p, vendor_id=%llu.\n", host->max_id,
 	    host->this_id, host->cmd_per_lun, host->unique_id,
-	    host->max_cmd_len, host->max_channel, host->max_lun,
+	    host->max_cmd_len, host->max_channel, (u64)host->max_lun,
 	    host->transportt, sht->vendor_id);
 
 	INIT_WORK(&base_vha->iocb_work, qla2x00_iocb_work_fn);
@@ -6153,7 +6173,7 @@ qla2x00_do_dpc(void *data)
 	ha = (struct qla_hw_data *)data;
 	base_vha = pci_get_drvdata(ha->pdev);
 
-	set_user_nice(current, MIN_NICE);
+	set_user_nice(current, -20);
 
 	set_current_state(TASK_INTERRUPTIBLE);
 	while (!kthread_should_stop()) {
@@ -7125,6 +7145,7 @@ qla2xxx_pci_resume(struct pci_dev *pdev)
 	ha->flags.eeh_busy = 0;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0)
 static void
 qla_pci_reset_prepare(struct pci_dev *pdev)
 {
@@ -7175,7 +7196,18 @@ qla_pci_reset_done(struct pci_dev *pdev)
 	ha->isp_ops->abort_isp(base_vha);
 	clear_bit(ABORT_ISP_ACTIVE, &base_vha->dpc_flags);
 }
+#endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+static int
+qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth, int reason)
+{
+	scsi_adjust_queue_depth(sdev, 0, qdepth);
+	return sdev->queue_depth;
+}
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 static int qla2xxx_map_queues(struct Scsi_Host *shost)
 {
 	int rc;
@@ -7203,14 +7235,31 @@ static int qla2xxx_map_queues(struct Scsi_Host *shost)
 #endif
 	return rc;
 }
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0) &&	\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+static void qla_pci_reset_notify(struct pci_dev *dev, bool prepare)
+{
+	if (prepare)
+		qla_pci_reset_prepare(dev);
+	else
+		qla_pci_reset_done(dev);
+}
+#endif
 
 static const struct pci_error_handlers qla2xxx_err_handler = {
 	.error_detected = qla2xxx_pci_error_detected,
 	.mmio_enabled = qla2xxx_pci_mmio_enabled,
 	.slot_reset = qla2xxx_pci_slot_reset,
 	.resume = qla2xxx_pci_resume,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+	.reset_notify = qla_pci_reset_notify,
+#else
 	.reset_prepare = qla_pci_reset_prepare,
 	.reset_done = qla_pci_reset_done,
+#endif
 };
 
 static struct pci_device_id qla2xxx_pci_tbl[] = {

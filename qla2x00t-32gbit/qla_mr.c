@@ -1804,6 +1804,16 @@ qla2x00_fxdisc_sp_done(void *ptr, int res)
 	complete(&lio->u.fxiocb.fxiocb_comp);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+static u64 ktime_get_real_seconds(void)
+{
+	struct timeval tv;
+
+	do_gettimeofday(&tv);
+	return tv.tv_sec;
+}
+#endif
+
 int
 qlafx00_fx_disc(scsi_qla_host_t *vha, fc_port_t *fcport, uint16_t fx_type)
 {
@@ -2164,7 +2174,7 @@ qlafx00_handle_sense(srb_t *sp, uint8_t *sense_data, uint32_t par_sense_len,
 	if (sense_len) {
 		ql_dbg(ql_dbg_io + ql_dbg_buffer, vha, 0x3039,
 		    "Check condition Sense data, nexus%ld:%d:%llu cmd=%p.\n",
-		    sp->vha->host_no, cp->device->id, cp->device->lun,
+		    sp->vha->host_no, cp->device->id, (u64)cp->device->lun,
 		    cp);
 		ql_dump_buffer(ql_dbg_io + ql_dbg_buffer, vha, 0x3049,
 		    cp->sense_buffer, sense_len);
@@ -2209,7 +2219,11 @@ qlafx00_ioctl_iosb_entry(scsi_qla_host_t *vha, struct req_que *req,
 {
 	const char func[] = "IOSB_IOCB";
 	srb_t *sp;
+#ifndef NEW_LIBFC_API
+	struct fc_bsg_job *bsg_job;
+#else
 	struct bsg_job *bsg_job;
+#endif
 	struct fc_bsg_reply *bsg_reply;
 	struct srb_iocb *iocb_job;
 	int res = 0;
@@ -2246,7 +2260,8 @@ qlafx00_ioctl_iosb_entry(scsi_qla_host_t *vha, struct req_que *req,
 		memcpy(fstatus.reserved_3,
 		    pkt->reserved_2, 20 * sizeof(uint8_t));
 
-		fw_sts_ptr = bsg_job->reply + sizeof(struct fc_bsg_reply);
+		fw_sts_ptr = bsg_job_sense(bsg_job) +
+			sizeof(struct fc_bsg_reply);
 
 		memcpy(fw_sts_ptr, (uint8_t *)&fstatus,
 		    sizeof(struct qla_mt_iocb_rsp_fx00));
@@ -2533,7 +2548,7 @@ check_scsi_status:
 		    "rsp_info=%p resid=0x%x fw_resid=0x%x sense_len=0x%x, "
 		    "par_sense_len=0x%x, rsp_info_len=0x%x\n",
 		    comp_status, scsi_status, res, vha->host_no,
-		    cp->device->id, cp->device->lun, fcport->tgt_id,
+		    cp->device->id, (u64)cp->device->lun, fcport->tgt_id,
 		    lscsi_status, cp->cmnd, scsi_bufflen(cp),
 		    rsp_info, resid_len, fw_resid_len, sense_len,
 		    par_sense_len, rsp_info_len);
@@ -3259,7 +3274,11 @@ qlafx00_fxdisc_iocb(srb_t *sp, struct fxdisc_entry_fx00 *pfxiocb)
 {
 	struct srb_iocb *fxio = &sp->u.iocb_cmd;
 	struct qla_mt_iocb_rqst_fx00 *piocb_rqst;
+#ifndef NEW_LIBFC_API
+	struct fc_bsg_job *bsg_job;
+#else
 	struct bsg_job *bsg_job;
+#endif
 	struct fc_bsg_request *bsg_request;
 	struct fxdisc_entry_fx00 fx_iocb;
 	uint8_t entry_cnt = 1;
