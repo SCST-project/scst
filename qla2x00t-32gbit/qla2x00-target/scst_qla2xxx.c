@@ -436,8 +436,9 @@ static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd, uint8_t xmit
 
 static void sqa_qla2xxx_rel_cmd(struct qla_tgt_cmd *cmd)
 {
-	struct sqa_scst_tgt *sqa_tgt =
-		(struct sqa_scst_tgt *)cmd->se_cmd.protocol_data;
+	struct fc_port *sess = cmd->sess;
+	struct sqa_scst_tgt *sqa_tgt = sess->vha->vha_tgt.target_lport_ptr;
+
 	percpu_ida_free(&sqa_tgt->tgt_tag_pool, cmd->se_cmd.map_tag);
 }
 
@@ -455,8 +456,6 @@ static struct qla_tgt_cmd *sqa_qla2xxx_get_cmd(struct fc_port *sess)
 	cmd = &((struct qla_tgt_cmd *)sqa_tgt->tgt_cmd_map)[tag];
 	memset(cmd, 0, sizeof(struct qla_tgt_cmd));
 	cmd->se_cmd.map_tag = tag;
-	/* BORROWing this field to carry sqa_tgt */
-	cmd->se_cmd.protocol_data = (void*)sqa_tgt;
 	cmd->sess = sess;
 	cmd->vha = sess->vha;
 	cmd->rel_cmd = sqa_qla2xxx_rel_cmd;
