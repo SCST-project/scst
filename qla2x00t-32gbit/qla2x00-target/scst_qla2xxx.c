@@ -54,8 +54,13 @@
 #include <linux/list.h>
 #include <asm/unaligned.h>
 #include <linux/vmalloc.h>
+#ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
 #include <scst/scst_debug.h>
+#else
+#include "scst.h"
+#include "scst_debug.h"
+#endif
 
 #include "qla_def.h"
 #include "qla_target.h"
