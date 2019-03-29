@@ -146,7 +146,11 @@ extern int ql2xenabledif;
 extern int ql2xenablehba_err_chk;
 extern int ql2xtargetreset;
 extern int ql2xdontresethba;
+#if 1
+extern uint ql2xmaxlun;
+#else
 extern uint64_t ql2xmaxlun;
+#endif
 extern int ql2xmdcapmask;
 extern int ql2xmdenable;
 extern int ql2xexlogins;

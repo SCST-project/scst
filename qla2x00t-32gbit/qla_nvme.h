@@ -7,7 +7,6 @@
 #ifndef __QLA_NVME_H
 #define __QLA_NVME_H
 
-#include <linux/blk-mq.h>
 #include <uapi/scsi/fc/fc_fs.h>
 #include <uapi/scsi/fc/fc_els.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)

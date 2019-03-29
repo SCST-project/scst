@@ -220,8 +220,13 @@ MODULE_PARM_DESC(ql2xdontresethba,
 		" 0 (Default) -- Reset on failure.\n"
 		" 1 -- Do not reset on failure.\n");
 
+#if 1
+uint ql2xmaxlun = MAX_LUNS;
+module_param(ql2xmaxlun, uint, S_IRUGO);
+#else
 uint64_t ql2xmaxlun = MAX_LUNS;
 module_param(ql2xmaxlun, ullong, S_IRUGO);
+#endif
 MODULE_PARM_DESC(ql2xmaxlun,
 		"Defines the maximum LU number to register with the SCSI "
 		"midlayer. Default is 65535.");
@@ -925,16 +930,18 @@ qla2xxx_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 	struct scsi_qla_host *base_vha = pci_get_drvdata(ha->pdev);
 	srb_t *sp;
 	int rval;
-	struct qla_qpair *qpair = NULL;
-	uint32_t tag;
-	uint16_t hwq;
 
 	if (unlikely(test_bit(UNLOADING, &base_vha->dpc_flags))) {
 		cmd->result = DID_NO_CONNECT << 16;
 		goto qc24_fail_command;
 	}
 
+#ifdef BLK_MQ_H
 	if (ha->mqenable) {
+		uint32_t tag;
+		uint16_t hwq;
+		struct qla_qpair *qpair = NULL;
+
 		tag = blk_mq_unique_tag(cmd->request);
 		hwq = blk_mq_unique_tag_to_hwq(tag);
 		qpair = ha->queue_pair_map[hwq];
@@ -942,6 +949,7 @@ qla2xxx_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 		if (qpair)
 			return qla2xxx_mqueuecommand(host, cmd, qpair);
 	}
+#endif
 
 	if (ha->flags.eeh_busy) {
 		if (ha->flags.pci_channel_io_perm_failure) {
@@ -3244,6 +3252,7 @@ qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto probe_failed;
 	}
 
+#ifdef BLK_MQ_H
 	if (ha->mqenable) {
 		/* number of hardware queues supported by blk/scsi-mq*/
 		host->nr_hw_queues = ha->max_qpairs;
@@ -3261,6 +3270,7 @@ qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 			    "blk/scsi-mq disabled.\n");
 		}
 	}
+#endif
 
 	qlt_probe_one_stage1(base_vha, ha);
 

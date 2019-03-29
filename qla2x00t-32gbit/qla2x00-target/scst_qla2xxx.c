@@ -263,7 +263,7 @@ static struct scst_tgt_template sqa_scst_template = {
 	.rdy_to_xfer_atomic = 1,
 #endif
 
-#ifdef SCST_DIF_NO_CHECK_APP_TAG
+#if QLA_ENABLE_PI
 /* diff cap for individual adapter is set during sqa_qla2xxx_add_target */
 	.dif_supported = 0,
 	.hw_dif_type1_supported = 0,
@@ -300,7 +300,7 @@ static struct scst_tgt_template sqa_scst_template = {
 #endif
 };
 
-#ifdef SCST_DIF_NO_CHECK_APP_TAG
+#if QLA_ENABLE_PI
 
 static const int qla_tgt_supported_dif_block_size[]= {
 	512,
@@ -432,7 +432,7 @@ static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd, uint8_t xmit
 	}
 }
 
-#endif	/* #ifdef SCST_DIF_NO_CHECK_APP_TAG */
+#endif	/* QLA_ENABLE_PI */
 
 static void sqa_qla2xxx_rel_cmd(struct qla_tgt_cmd *cmd)
 {
@@ -454,7 +454,7 @@ static struct qla_tgt_cmd *sqa_qla2xxx_get_cmd(struct fc_port *sess)
 	struct sqa_scst_tgt *sqa_tgt =
 		(struct sqa_scst_tgt*)sess->vha->vha_tgt.target_lport_ptr;
 	struct qla_tgt_cmd *cmd;
-	int tag;
+	int tag = -ENOENT;
 
 #if QLT_USE_PERCPU_IDA
 	tag = percpu_ida_alloc(&sqa_tgt->tgt_tag_pool, TASK_RUNNING);
@@ -470,7 +470,9 @@ static struct qla_tgt_cmd *sqa_qla2xxx_get_cmd(struct fc_port *sess)
 
 	cmd = &((struct qla_tgt_cmd *)sqa_tgt->tgt_cmd_map)[tag];
 	memset(cmd, 0, sizeof(struct qla_tgt_cmd));
+#if QLT_USE_PERCPU_IDA || QLT_USE_SBITMAP
 	cmd->se_cmd.map_tag = tag;
+#endif
 #if QLT_USE_SBITMAP
 	cmd->se_cmd.map_cpu = cpu;
 #endif
@@ -1493,7 +1495,7 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 		goto done;
 	}
 
-#ifdef SCST_DIF_NO_CHECK_APP_TAG
+#if QLA_ENABLE_PI
 	if (IS_T10_PI_CAPABLE(vha->hw)) {
 		scst_tgt_set_supported_dif_block_sizes(scst_tgt, qla_tgt_supported_dif_block_size);
 		scst_tgt_set_dif_supported(scst_tgt, true);
@@ -1712,7 +1714,7 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 	cmd->lba = scst_cmd_get_lba(scst_cmd);
 	cmd->trc_flags |= TRC_XMIT_STATUS;
 
-#ifdef SCST_DIF_NO_CHECK_APP_TAG
+#if QLA_ENABLE_PI
 	if (scst_get_tgt_dif_actions(scst_cmd->cmd_dif_actions)) {
 		cmd->blk_sz = scst_cmd_get_block_size(scst_cmd);
 		cmd->prot_sg_cnt = scst_cmd->dif_sg_cnt;
@@ -1799,7 +1801,7 @@ static int sqa_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	cmd->scsi_status = scst_cmd_get_status(scst_cmd);
 	cmd->trc_flags |= TRC_XFR_RDY;
 
-#ifdef SCST_DIF_NO_CHECK_APP_TAG
+#if QLA_ENABLE_PI
 	if (scst_get_tgt_dif_actions(scst_cmd->cmd_dif_actions)) {
 		cmd->blk_sz    = scst_cmd_get_block_size(scst_cmd);
 		cmd->se_cmd.prot_type = scst_cmd_get_dif_prot_type(scst_cmd);

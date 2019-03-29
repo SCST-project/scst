@@ -42,6 +42,17 @@
 #include "qla_def.h"
 #include "qla_target.h"
 
+/*
+ * See also commit fb3269baf4ec ("qla2xxx: Add selective command queuing")
+ * # v4.5.
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0) || \
+	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7
+#define HAVE_SE_CMD_CPUID 1
+#else
+#define HAVE_SE_CMD_CPUID 0
+#endif
+
 static int ql2xtgt_tape_enable;
 module_param(ql2xtgt_tape_enable, int, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(ql2xtgt_tape_enable,
@@ -155,6 +166,7 @@ DEFINE_MUTEX(qla_tgt_mutex);
 LIST_HEAD(qla_tgt_glist);
 EXPORT_SYMBOL(qla_tgt_glist);
 
+#if QLA_ENABLE_PI
 static const char *prot_op_str(u32 prot_op)
 {
 	switch (prot_op) {
@@ -168,6 +180,7 @@ static const char *prot_op_str(u32 prot_op)
 	default:			return "UNKNOWN";
 	}
 }
+#endif
 
 /* This API intentionally takes dest as a parameter, rather than returning
  * int value to avoid caller forgetting to issue wmb() after the store */
@@ -2127,11 +2140,13 @@ static int __qlt_24xx_handle_abts(struct scsi_qla_host *vha,
 	mcmd->qpair = h->qpair;
 	mcmd->vha = vha;
 
+#if HAVE_SE_CMD_CPUID
 	/*
 	 * LUN is looked up by target-core internally based on the passed
 	 * abts->exchange_addr_to_abort tag.
 	 */
 	mcmd->se_cmd.cpuid = h->cpuid;
+#endif
 
 	if (ha->tgt.tgt_ops->find_cmd_by_tag) {
 		struct qla_tgt_cmd *abort_cmd;
@@ -2140,14 +2155,20 @@ static int __qlt_24xx_handle_abts(struct scsi_qla_host *vha,
 		    abts->exchange_addr_to_abort);
 		if (abort_cmd && abort_cmd->qpair) {
 			mcmd->qpair = abort_cmd->qpair;
+#if HAVE_SE_CMD_CPUID
 			mcmd->se_cmd.cpuid = abort_cmd->se_cmd.cpuid;
+#endif
 			mcmd->abort_io_attr = abort_cmd->atio.u.isp24.attr;
 			mcmd->flags = QLA24XX_MGMT_ABORT_IO_ATTR_VALID;
 		}
 	}
 
 	INIT_WORK(&mcmd->work, qlt_do_tmr_work);
+#if HAVE_SE_CMD_CPUID
 	queue_work_on(mcmd->se_cmd.cpuid, qla_tgt_wq, &mcmd->work);
+#else
+	queue_work(qla_tgt_wq, &mcmd->work);
+#endif
 
 	return 0;
 }
@@ -2436,6 +2457,12 @@ static int qlt_pci_map_calc_cnt(struct qla_tgt_prm *prm)
 
 	prm->cmd->sg_mapped = 1;
 
+#if !QLA_ENABLE_PI
+	if (prm->seg_cnt > QLA_TGT_DATASEGS_PER_CMD_24XX)
+		prm->req_cnt += DIV_ROUND_UP(prm->seg_cnt -
+					     QLA_TGT_DATASEGS_PER_CMD_24XX,
+					     QLA_TGT_DATASEGS_PER_CONT_24XX);
+#else
 	if (cmd->se_cmd.prot_op == TARGET_PROT_NORMAL) {
 		/*
 		 * If greater than four sg entries then we need to allocate
@@ -2472,6 +2499,7 @@ static int qlt_pci_map_calc_cnt(struct qla_tgt_prm *prm)
 				prm->tot_dsds += prm->prot_seg_cnt;
 		}
 	}
+#endif
 
 	return 0;
 
@@ -2806,7 +2834,7 @@ static int qlt_pre_xmit_response(struct qla_tgt_cmd *cmd,
 		prm->residual = se_cmd->residual_count;
 		ql_dbg_qp(ql_dbg_io + ql_dbg_verbose, qpair, 0x305c,
 		    "Residual underflow: %d (tag %lld, op %x, bufflen %d, rq_result %x)\n",
-		       prm->residual, se_cmd->tag,
+		       prm->residual, se_cmd_tag(se_cmd),
 		       se_cmd->t_task_cdb ? se_cmd->t_task_cdb[0] : 0,
 		       cmd->bufflen, prm->rq_result);
 		prm->rq_result |= SS_RESIDUAL_UNDER;
@@ -2814,7 +2842,7 @@ static int qlt_pre_xmit_response(struct qla_tgt_cmd *cmd,
 		prm->residual = se_cmd->residual_count;
 		ql_dbg_qp(ql_dbg_io, qpair, 0x305d,
 		    "Residual overflow: %d (tag %lld, op %x, bufflen %d, rq_result %x)\n",
-		       prm->residual, se_cmd->tag, se_cmd->t_task_cdb ?
+		       prm->residual, se_cmd_tag(se_cmd), se_cmd->t_task_cdb ?
 		       se_cmd->t_task_cdb[0] : 0, cmd->bufflen, prm->rq_result);
 		prm->rq_result |= SS_RESIDUAL_OVER;
 	}
@@ -2906,6 +2934,7 @@ skip_explict_conf:
 	/* Sense with len > 24, is it possible ??? */
 }
 
+#if QLA_ENABLE_PI
 static inline int
 qlt_hba_err_chk_enabled(struct se_cmd *se_cmd)
 {
@@ -3245,6 +3274,7 @@ crc_queuing_error:
 
 	return QLA_FUNCTION_FAILED;
 }
+#endif
 
 /*
  * Callback to setup response of xmit_type of QLA_TGT_XMIT_DATA and *
@@ -3307,9 +3337,11 @@ int qlt_xmit_response(struct qla_tgt_cmd *cmd, int xmit_type,
 	if (unlikely(res))
 		goto out_unmap_unlock;
 
+#if QLA_ENABLE_PI
 	if (cmd->se_cmd.prot_op && (xmit_type & QLA_TGT_XMIT_DATA))
 		res = qlt_build_ctio_crc2_pkt(qpair, &prm);
 	else
+#endif
 		res = qlt_24xx_build_ctio_pkt(qpair, &prm);
 	if (unlikely(res != 0)) {
 		qpair->req->cnt += full_req_cnt;
@@ -3323,7 +3355,9 @@ int qlt_xmit_response(struct qla_tgt_cmd *cmd, int xmit_type,
 		    cpu_to_le16(CTIO7_FLAGS_DATA_IN |
 			CTIO7_FLAGS_STATUS_MODE_0);
 
+#if QLA_ENABLE_PI
 		if (cmd->se_cmd.prot_op == TARGET_PROT_NORMAL)
+#endif
 			qlt_load_data_segments(&prm);
 
 		if (prm.add_status_pkt == 0) {
@@ -3448,9 +3482,11 @@ int qlt_rdy_to_xfer(struct qla_tgt_cmd *cmd)
 	res = qlt_check_reserve_free_req(qpair, prm.req_cnt);
 	if (res != 0)
 		goto out_unlock_free_unmap;
+#if QLA_ENABLE_PI
 	if (cmd->se_cmd.prot_op)
 		res = qlt_build_ctio_crc2_pkt(qpair, &prm);
 	else
+#endif
 		res = qlt_24xx_build_ctio_pkt(qpair, &prm);
 
 	if (unlikely(res != 0)) {
@@ -3462,7 +3498,9 @@ int qlt_rdy_to_xfer(struct qla_tgt_cmd *cmd)
 	pkt->u.status0.flags |= cpu_to_le16(CTIO7_FLAGS_DATA_OUT |
 	    CTIO7_FLAGS_STATUS_MODE_0);
 
+#if QLA_ENABLE_PI
 	if (cmd->se_cmd.prot_op == TARGET_PROT_NORMAL)
+#endif
 		qlt_load_data_segments(&prm);
 
 	cmd->state = QLA_TGT_STATE_NEED_DATA;
@@ -3837,7 +3875,7 @@ int qlt_abort_cmd(struct qla_tgt_cmd *cmd)
 	ql_dbg(ql_dbg_tgt_mgt, vha, 0xf014,
 	    "qla_target(%d): terminating exchange for aborted cmd=%p "
 	    "(se_cmd=%p, tag=%llu)", vha->vp_idx, cmd, &cmd->se_cmd,
-	    se_cmd->tag);
+	    se_cmd_tag(se_cmd));
 
 	spin_lock_irqsave(&cmd->cmd_lock, flags);
 	if (cmd->aborted) {
@@ -3900,6 +3938,7 @@ static int qlt_term_ctio_exchange(struct qla_qpair *qpair, void *ctio,
 	struct qla_tgt_cmd *cmd, uint32_t status)
 {
 	int term = 0;
+#if QLA_ENABLE_PI
 	struct scsi_qla_host *vha = qpair->vha;
 
 	if (cmd->se_cmd.prot_op)
@@ -3911,6 +3950,7 @@ static int qlt_term_ctio_exchange(struct qla_qpair *qpair, void *ctio,
 		     cmd->atio.u.isp24.exchange_addr,
 		     cmd->se_cmd.prot_op,
 		     prot_op_str(cmd->se_cmd.prot_op));
+#endif
 
 	if (ctio != NULL) {
 		struct ctio7_from_24xx *c = (struct ctio7_from_24xx *)ctio;
@@ -4141,7 +4181,8 @@ static void qlt_do_ctio_completion(struct scsi_qla_host *vha,
 	} else if (cmd->aborted) {
 		cmd->trc_flags |= TRC_CTIO_ABORTED;
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0xf01e,
-		  "Aborted command %p (tag %lld) finished\n", cmd, se_cmd->tag);
+		  "Aborted command %p (tag %lld) finished\n", cmd,
+		  se_cmd_tag(se_cmd));
 	} else {
 		cmd->trc_flags |= TRC_CTIO_STRANGE;
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0xf05c,
@@ -4219,7 +4260,7 @@ static void __qlt_do_work(struct qla_tgt_cmd *cmd)
 
 	spin_lock_init(&cmd->cmd_lock);
 	cdb = &atio->u.isp24.fcp_cmnd.cdb[0];
-	cmd->se_cmd.tag = atio->u.isp24.exchange_addr;
+	se_cmd_tag(&cmd->se_cmd) = atio->u.isp24.exchange_addr;
 
 	if (atio->u.isp24.fcp_cmnd.rddata &&
 	    atio->u.isp24.fcp_cmnd.wrdata) {
@@ -4381,7 +4422,9 @@ static void qlt_assign_qpair(struct scsi_qla_host *vha,
 	}
 out:
 	cmd->qpair = h->qpair;
+#if HAVE_SE_CMD_CPUID
 	cmd->se_cmd.cpuid = h->cpuid;
+#endif
 }
 
 static struct qla_tgt_cmd *qlt_get_tag(scsi_qla_host_t *vha,
@@ -4482,14 +4525,22 @@ static int qlt_handle_cmd_for_atio(struct scsi_qla_host *vha,
 
 	INIT_WORK(&cmd->work, qlt_do_work);
 	if (vha->flags.qpairs_available) {
+#if HAVE_SE_CMD_CPUID
 		queue_work_on(cmd->se_cmd.cpuid, qla_tgt_wq, &cmd->work);
+#else
+		queue_work(qla_tgt_wq, &cmd->work);
+#endif
 	} else if (ha->msix_count) {
 		if (cmd->atio.u.isp24.fcp_cmnd.rddata)
 			queue_work_on(smp_processor_id(), qla_tgt_wq,
 			    &cmd->work);
 		else
+#if HAVE_SE_CMD_CPUID
 			queue_work_on(cmd->se_cmd.cpuid, qla_tgt_wq,
 			    &cmd->work);
+#else
+			queue_work(qla_tgt_wq, &cmd->work);
+#endif
 	} else {
 		queue_work(qla_tgt_wq, &cmd->work);
 	}
@@ -4527,7 +4578,9 @@ static int qlt_issue_task_mgmt(struct fc_port *sess, u64 lun,
 	mcmd->reset_count = ha->base_qpair->chip_reset;
 	mcmd->qpair = h->qpair;
 	mcmd->vha = vha;
+#if HAVE_SE_CMD_CPUID
 	mcmd->se_cmd.cpuid = h->cpuid;
+#endif
 	mcmd->unpacked_lun = lun;
 
 	switch (fn) {
@@ -4539,7 +4592,9 @@ static int qlt_issue_task_mgmt(struct fc_port *sess, u64 lun,
 	case QLA_TGT_CLEAR_ACA:
 		h = qlt_find_qphint(vha, mcmd->unpacked_lun);
 		mcmd->qpair = h->qpair;
+#if HAVE_SE_CMD_CPUID
 		mcmd->se_cmd.cpuid = h->cpuid;
+#endif
 		break;
 
 	case QLA_TGT_TARGET_RESET:
@@ -4552,8 +4607,12 @@ static int qlt_issue_task_mgmt(struct fc_port *sess, u64 lun,
 	}
 
 	INIT_WORK(&mcmd->work, qlt_do_tmr_work);
+#if HAVE_SE_CMD_CPUID
 	queue_work_on(mcmd->se_cmd.cpuid, qla_tgt_wq,
 	    &mcmd->work);
+#else
+	queue_work(qla_tgt_wq, &mcmd->work);
+#endif
 
 	return 0;
 }

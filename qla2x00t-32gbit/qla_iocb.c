@@ -1092,6 +1092,7 @@ qla24xx_walk_and_build_sglist(struct qla_hw_data *ha, srb_t *sp, uint32_t *dsd,
 	return 0;
 }
 
+#if QLA_ENABLE_PI
 int
 qla24xx_walk_and_build_prot_sglist(struct qla_hw_data *ha, srb_t *sp,
     uint32_t *cur_dsd, uint16_t tot_dsds, struct qla_tgt_cmd *tc)
@@ -1603,6 +1604,7 @@ crc_queuing_error:
 
 	return QLA_FUNCTION_FAILED;
 }
+#endif
 
 /**
  * qla24xx_start_scsi() - Send a SCSI command to the ISP

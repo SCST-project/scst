@@ -28,8 +28,34 @@
 #ifndef __QLA_TARGET_H
 #define __QLA_TARGET_H
 
+#include <linux/version.h>
 #include <asm/unaligned.h>
 #include "qla_def.h"
+
+/* See also commit ce65e5b97b19 ("target: Add DIF related base definitions") # v3.14. */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0) || \
+	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7
+#ifdef SCST_DIF_NO_CHECK_APP_TAG
+#define QLA_ENABLE_PI 1
+#else
+#define QLA_ENABLE_PI 0
+#endif
+#else
+#define QLA_ENABLE_PI 0
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0) ||	\
+	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7
+/*
+ * See also commit 649ee05499d1 ("target: Move task tag into struct se_cmd +
+ * support 64-bit tags") # v4.2.
+ */
+#define HAVE_SE_CMD_TAG 1
+#define se_cmd_tag(c) ((c)->tag)
+#else
+#define HAVE_SE_CMD_TAG 0
+#define se_cmd_tag(c) (container_of((c), struct qla_tgt_cmd, se_cmd)->tag)
+#endif
 
 /*
  * Must be changed on any change in any initiator visible interfaces or
@@ -873,6 +899,9 @@ struct qla_tgt_cmd {
 	uint8_t cmd_type;
 	uint8_t pad[7];
 	struct se_cmd se_cmd;
+#if !HAVE_SE_CMD_TAG
+	u64 tag;
+#endif
 	struct fc_port *sess;
 	struct qla_qpair *qpair;
 	uint32_t reset_count;
