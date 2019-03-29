@@ -233,7 +233,7 @@ struct cmd_state_name {
 	{QLA_TGT_STATE_PROCESSED, "Processed"},
 };
 
-char* cmdstate_to_str(uint8_t state)
+static char *cmdstate_to_str(uint8_t state)
 {
 	int i;
 	struct cmd_state_name *e;
@@ -441,7 +441,7 @@ static void sqa_qla2xxx_rel_cmd(struct qla_tgt_cmd *cmd)
 	percpu_ida_free(&sqa_tgt->tgt_tag_pool, cmd->se_cmd.map_tag);
 }
 
-struct qla_tgt_cmd *sqa_qla2xxx_get_cmd(struct fc_port *sess)
+static struct qla_tgt_cmd *sqa_qla2xxx_get_cmd(struct fc_port *sess)
 {
 	struct sqa_scst_tgt *sqa_tgt =
 		(struct sqa_scst_tgt*)sess->vha->vha_tgt.target_lport_ptr;
