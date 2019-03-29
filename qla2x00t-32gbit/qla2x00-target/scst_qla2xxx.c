@@ -1431,19 +1431,14 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 		goto done;
 	}
 
-	sqa_tgt->tgt_cmd_map = kzalloc(tag_num * tag_size,
-		GFP_KERNEL | __GFP_NOWARN | __GFP_RETRY_MAYFAIL);
-
+	sqa_tgt->tgt_cmd_map = kvcalloc(tag_num, tag_size, GFP_KERNEL);
 	if (!sqa_tgt->tgt_cmd_map) {
-		sqa_tgt->tgt_cmd_map = vzalloc(tag_num * tag_size);
-		if (!sqa_tgt->tgt_cmd_map) {
-			PRINT_ERROR("sqatgt(%ld/%d): alloc tgt_cmd_map failed",
+		PRINT_ERROR("sqatgt(%ld/%d): alloc tgt_cmd_map failed",
 			    vha->host_no, vha->vp_idx);
-			kfree(pwwn);
-			kfree(sqa_tgt);
-			res = -ENOMEM;
-			goto done;
-		}
+		kfree(pwwn);
+		kfree(sqa_tgt);
+		res = -ENOMEM;
+		goto done;
 	}
 
 	res = percpu_ida_init(&sqa_tgt->tgt_tag_pool, tag_num);
