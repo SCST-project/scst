@@ -50,7 +50,7 @@ endif
 
 INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
-SCST_DIR := $(shell echo "$$PWD")/../scst
+SCST_DIR := $(shell echo "$$PWD")/../scst/src
 
 all: Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m

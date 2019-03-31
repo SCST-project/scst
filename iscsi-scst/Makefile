@@ -11,7 +11,7 @@ endif
 
 SHELL=/bin/bash
 
-SCST_SYMVERS_DIR := $(shell echo "$$PWD")/../scst
+SCST_SYMVERS_DIR := $(shell echo "$$PWD")/../scst/src
 SBINDIR := $(PREFIX)/sbin
 INITDIR := /etc/init.d
 RCDIR := /etc/rc.d
