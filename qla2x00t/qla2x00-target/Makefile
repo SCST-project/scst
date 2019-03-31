@@ -98,7 +98,12 @@ ifneq ($(BUILD_2X_MODULE),)
 .NOTPARALLEL:
 endif
 
-all: $(QLA2XXX_SCST) Modules.symvers Module.symvers
+# The file Modules.symvers has been renamed in the 2.6.18 kernel to
+# Module.symvers. Find out which name to use by looking in $(KDIR).
+MODULE_SYMVERS:=$(shell if [ -e "$(KDIR)/Modules.symvers" ]; then \
+		       echo Modules.symvers; else echo Module.symvers; fi)
+
+all: $(QLA2XXX_SCST) $(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m
 
 install: all
@@ -122,27 +127,10 @@ qla2xxx_scst:
 		M=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) all
 endif
 
-SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)
-ifneq ($(SCST_MOD_VERS),)
-Modules.symvers: $(SCST_DIR)/Modules.symvers
-	cp $(SCST_DIR)/Modules.symvers .
+$(MODULE_SYMVERS): $(SCST_DIR)/$(MODULE_SYMVERS)
+	cp $< .
 ifneq ($(BUILD_2X_MODULE),)
-	cat $(QLA2XXX_DIR)/Modules.symvers >>Modules.symvers
-endif
-else
-.PHONY: Modules.symvers
-endif
-
-# It's renamed in 2.6.18
-SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Module.symvers 2>/dev/null)
-ifneq ($(SCST_MOD_VERS),)
-Module.symvers: $(SCST_DIR)/Module.symvers
-	cp $(SCST_DIR)/Module.symvers .
-ifneq ($(BUILD_2X_MODULE),)
-	cat $(QLA2XXX_DIR)/Module.symvers >>Module.symvers
-endif
-else
-.PHONY: Module.symvers
+	cat $(QLA2XXX_DIR)/$(MODULE_SYMVERS) >>$(MODULE_SYMVERS)
 endif
 
 ########## END OUT-OF-TREE RULES ##########
@@ -150,7 +138,7 @@ endif
 
 clean:
 	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend *~ Modules.symvers \
-		Module.symvers Module.markers modules.order
+		$(MODULE_SYMVERS) Module.markers modules.order
 	rm -rf .tmp_versions
 
 extraclean: clean

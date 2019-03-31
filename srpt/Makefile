@@ -6,7 +6,7 @@ ifndef PREFIX
 	PREFIX=/usr/local
 endif
 
-SCST_SYMVERS_DIR := $(shell echo "$$PWD")/../scst/src
+SCST_DIR := $(shell echo "$$PWD")/../scst/src
 
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
@@ -97,8 +97,7 @@ PRE_CFLAGS = $(OFED_CFLAGS)			\
 all: check src/$(MODULE_SYMVERS) $(CONFTEST_OUTPUTS)
 	$(MAKE) -C $(KDIR) M=$(shell pwd)/src PRE_CFLAGS="$(PRE_CFLAGS)" modules
 
-src/$(MODULE_SYMVERS): $(SCST_SYMVERS_DIR)/$(MODULE_SYMVERS)	\
-		       $(OFED_MODULE_SYMVERS)
+src/$(MODULE_SYMVERS): $(SCST_DIR)/$(MODULE_SYMVERS) $(OFED_MODULE_SYMVERS)
 	cat $^ |							\
 	awk '{sym[$$2]=$$0} END {for (s in sym){print sym[s]}}' >"$@"
 
