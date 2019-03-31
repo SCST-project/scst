@@ -445,7 +445,7 @@ static void sqa_qla2xxx_rel_cmd(struct qla_tgt_cmd *cmd)
 	sbitmap_queue_clear(&sqa_tgt->tgt_tag_pool, cmd->se_cmd.map_tag,
 			    cmd->se_cmd.map_cpu);
 #else
-#error Neither percpu_ida nor sbitmap are available.
+	clear_bit(cmd->map_tag, sqa_tgt->tgt_tag_pool);
 #endif
 }
 
@@ -463,7 +463,16 @@ static struct qla_tgt_cmd *sqa_qla2xxx_get_cmd(struct fc_port *sess)
 
 	tag = sbitmap_queue_get(&sqa_tgt->tgt_tag_pool, &cpu);
 #else
-#error Neither percpu_ida nor sbitmap are available.
+	for (;;) {
+		tag = find_first_zero_bit(sqa_tgt->tgt_tag_pool,
+					  sqa_tgt->tag_num);
+		if (test_and_set_bit(tag, sqa_tgt->tgt_tag_pool) == 0)
+			break;
+		if (tag >= sqa_tgt->tag_num) {
+			tag = -ENOENT;
+			break;
+		}
+	}
 #endif
 	if (tag < 0)
 		return NULL;
@@ -1464,10 +1473,13 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 	res = sbitmap_queue_init_node(&sqa_tgt->tgt_tag_pool, tag_num, -1,
 				      false, GFP_KERNEL, NUMA_NO_NODE);
 #else
-#error Neither percpu_ida nor sbitmap are available.
+	sqa_tgt->tag_num = tag_num;
+	sqa_tgt->tgt_tag_pool = kzalloc(BITS_TO_LONGS(tag_num), GFP_KERNEL);
+	res = IS_ERR(sqa_tgt->tgt_tag_pool) ? PTR_ERR(sqa_tgt->tgt_tag_pool) :
+		0;
 #endif
 	if (res < 0) {
-		pr_err("Unable to init se_sess->sess_tag_pool,"
+		pr_err("Unable to init se_sess->tgt_tag_pool,"
 			   " tag_num: %u\n", tag_num);
 		kvfree(sqa_tgt->tgt_cmd_map);
 		kfree(pwwn);

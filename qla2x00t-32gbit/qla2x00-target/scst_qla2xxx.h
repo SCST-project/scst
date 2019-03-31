@@ -3,6 +3,7 @@
 	!(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7)
 #define QLT_USE_PERCPU_IDA 0
 #define QLT_USE_SBITMAP 0
+#include <linux/bitmap.h>
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)
 #define QLT_USE_PERCPU_IDA 1
 #define QLT_USE_SBITMAP 0
@@ -30,6 +31,7 @@ struct sqa_scst_tgt{
 #elif QLT_USE_SBITMAP
 	struct sbitmap_queue tgt_tag_pool;
 #else
-#error Neither percpu_ida nor sbitmap are available.
+	unsigned long *tgt_tag_pool;
+	unsigned int tag_num;
 #endif
 };
