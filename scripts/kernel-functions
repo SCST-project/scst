@@ -3,7 +3,7 @@
 # from kernel.org.
 
 kernel_mirror="http://cdn.kernel.org/pub/linux/kernel"
-kernel_sources="$HOME/software/downloads"
+kernel_downloads="$HOME/software/downloads"
 
 # Whether or not kernel version $1 is lower than or equal kernel version $2.
 function kernel_version_le {
@@ -42,7 +42,7 @@ function download_file {
 }
 
 # Make sure the kernel tarball and patch file are present in directory
-# ${kernel_sources}. Download any missing files from ${kernel_mirror}.
+# ${kernel_downloads}. Download any missing files from ${kernel_mirror}.
 function download_kernel {
   local kver="$(kernel_version $1)"
   local plevel="$(patchlevel $1)"
@@ -52,10 +52,10 @@ function download_kernel {
       [12].*) series="${series:0:3}";;
       *)      series="${series/.*/}.x";;
   esac
-  mkdir -p "${kernel_sources}" || return $?
-  test -w "${kernel_sources}" || return $?
+  mkdir -p "${kernel_downloads}" || return $?
+  test -w "${kernel_downloads}" || return $?
   (
-    cd "${kernel_sources}" || return $?
+    cd "${kernel_downloads}" || return $?
     if [ "$plevel" = "" -o "$plevel" = "0" ] ||
       download_file "${kernel_mirror}/v$series/patch-$1.xz"
     then
@@ -73,15 +73,15 @@ function extract_kernel_archive {
   local plevel="$(patchlevel $1)"
   local series="$1"
 
-  if [ -e "${kernel_sources}/linux-$1.tar.xz" ]; then
-    xz -cd "${kernel_sources}/linux-$1.tar.xz" | tar xf -
-  elif [ -e "${kernel_sources}/linux-$kver.tar.xz" ]; then
-    xz -cd "${kernel_sources}/linux-$kver.tar.xz" | tar xf - &&
+  if [ -e "${kernel_downloads}/linux-$1.tar.xz" ]; then
+    xz -cd "${kernel_downloads}/linux-$1.tar.xz" | tar xf -
+  elif [ -e "${kernel_downloads}/linux-$kver.tar.xz" ]; then
+    xz -cd "${kernel_downloads}/linux-$kver.tar.xz" | tar xf - &&
       mv linux-$kver linux-$1
-  elif [ -e "${kernel_sources}/linux-$1.tar.bz2" ]; then
-    tar xjf "${kernel_sources}/linux-$1.tar.bz2"
-  elif [ -e "${kernel_sources}/linux-$kver.tar.bz2" ]; then
-    tar xjf "${kernel_sources}/linux-$kver.tar.bz2" &&
+  elif [ -e "${kernel_downloads}/linux-$1.tar.bz2" ]; then
+    tar xjf "${kernel_downloads}/linux-$1.tar.bz2"
+  elif [ -e "${kernel_downloads}/linux-$kver.tar.bz2" ]; then
+    tar xjf "${kernel_downloads}/linux-$kver.tar.bz2" &&
       mv linux-$kver linux-$1
   else
     return 1
@@ -100,10 +100,10 @@ function extract_kernel_tree {
   (
     cd "${tmpdir}" || return $?
     if [ "$plevel" != "" -a "$plevel" != "0" -a \
-         -e "${kernel_sources}/patch-$1.xz" ]; then
+         -e "${kernel_downloads}/patch-$1.xz" ]; then
       extract_kernel_archive $kver || return $?
       mv linux-$kver linux-$1
-      ( cd linux-$1 && xz -cd "${kernel_sources}/patch-$1.xz" \
+      ( cd linux-$1 && xz -cd "${kernel_downloads}/patch-$1.xz" \
         | patch -p1 -f -s; ) \
         || return $?
     else
