@@ -933,13 +933,6 @@ static struct se_session *sqa_alloc_sesess(scsi_qla_host_t *vha)
 
 static void sqa_free_sesess(struct se_session *se_sess)
 {
-#if QLT_USE_PERCPU_IDA
-	percpu_ida_destroy(&se_sess->sess_tag_pool);
-#elif QLT_USE_SBITMAP
-	sbitmap_queue_free(&se_sess->sess_tag_pool);
-#else
-#error Neither percpu_ida nor sbitmap are available.
-#endif
 	kfree(se_sess);
 }
 
