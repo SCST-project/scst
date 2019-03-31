@@ -4,6 +4,7 @@
 
 kernel_mirror="http://cdn.kernel.org/pub/linux/kernel"
 kernel_downloads="$HOME/software/downloads"
+kernel_tree="$HOME/software/linux-kernel"
 
 # Whether or not kernel version $1 is lower than or equal kernel version $2.
 function kernel_version_le {
@@ -422,5 +423,14 @@ EOF
 }
 
 function download_and_extract_kernel_tree {
+    if [ -e "${kernel_tree}" ]; then
+	rm -rf "linux-$1"
+	mkdir "linux-$1"
+	(
+	    cd "${kernel_tree}" &&
+		{ git tag -l "v$1" >/dev/null || git fetch stable; } &&
+		git archive "v$1"
+	) | tar -C "linux-$1" -xf-
+    fi
     download_kernel "$1" && extract_kernel_tree "$1"
 }
