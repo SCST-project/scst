@@ -863,10 +863,13 @@ static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) &&	\
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) &&		       \
+	!(LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(3, 12, 0) >> 8 &&  \
+	  LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 41)) &&	       \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
 /*
  * See also commit 39f1f78d53b9 ("nick kvfree() from apparmor") # v3.15.
+ * See also commit fb6a2a8ebe27 ("nick kvfree() from apparmor") # v3.12.41.
  */
 static inline void kvfree(void *addr)
 {
