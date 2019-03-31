@@ -652,14 +652,10 @@ do
   patchdir="patchdir-${kv}"
   k="${kv}"
 
-  if ! download_kernel "$k"; then
-    echo "Downloading kernel version $k failed"
-    continue
-  fi
   generate_kernel_patch "$k" "${generate_kernel_patch_options}" || continue
   (
       cd "${outputdir}" &&
-	  extract_kernel_tree "$k" &&
+	  download_and_extract_kernel_tree "$k" &&
 	  cd "linux-$k/include/linux" &&
 	  if [ ! -e compiler-gcc6.h ]; then
 	      for f in compiler-gcc5.h compiler-gcc4.h; do

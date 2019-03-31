@@ -421,3 +421,6 @@ EOF
   rmdir "${tmpdir}"
 }
 
+function download_and_extract_kernel_tree {
+    download_kernel "$1" && extract_kernel_tree "$1"
+}
