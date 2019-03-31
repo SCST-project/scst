@@ -671,6 +671,12 @@ do
     run_checkpatch "$k"
   fi
   patch_and_configure_kernel "$k"
+  case "$k" in
+      2.*|3.*)
+	  # Tell the kernel that we are using gcc 4.6.
+	  KCFLAGS="-U__GNUC__ -U__GNUC_MINOR__ -D__GNUC__=4 -D__GNUC_MINOR__=6"
+	  export KCFLAGS;;
+  esac
   subdirs=(drivers/scst)
   if [ "${run_sparse}" = "true" ]; then
     run_sparse "$k" "${subdirs[@]}"
