@@ -28,6 +28,13 @@
 
 #include "qla_target.h"
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) || \
+	defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7
+#define HAVE_SCSI_MQ 1
+#else
+#define HAVE_SCSI_MQ 0
+#endif
+
 /*
  * Driver version
  */
@@ -936,7 +943,7 @@ qla2xxx_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 		goto qc24_fail_command;
 	}
 
-#ifdef BLK_MQ_H
+#if HAVE_SCSI_MQ
 	if (ha->mqenable) {
 		uint32_t tag;
 		uint16_t hwq;
@@ -3252,7 +3259,7 @@ qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 		goto probe_failed;
 	}
 
-#ifdef BLK_MQ_H
+#if HAVE_SCSI_MQ
 	if (ha->mqenable) {
 		/* number of hardware queues supported by blk/scsi-mq*/
 		host->nr_hw_queues = ha->max_qpairs;
