@@ -15,7 +15,7 @@ fi
 
 mkdir -p qla2xxx-orig
 cd qla2xxx-orig || exit $?
-extract_kernel_tree "${kernel_version}"
+download_and_extract_kernel_tree "${kernel_version}"
 touch "linux-${kernel_version}"/drivers/scsi/qla2xxx/*
 rm -rf "${kernel_version}"
 mkdir -p "${kernel_version}"
