@@ -481,6 +481,8 @@ static struct qla_tgt_cmd *sqa_qla2xxx_get_cmd(struct fc_port *sess)
 	memset(cmd, 0, sizeof(struct qla_tgt_cmd));
 #if QLT_USE_PERCPU_IDA || QLT_USE_SBITMAP
 	cmd->se_cmd.map_tag = tag;
+#else
+	cmd->map_tag = tag;
 #endif
 #if QLT_USE_SBITMAP
 	cmd->se_cmd.map_cpu = cpu;
