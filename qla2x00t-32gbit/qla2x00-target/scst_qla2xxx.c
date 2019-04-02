@@ -921,24 +921,12 @@ static void sqa_scst_session_cb(struct scst_session *scst_sess,
 static struct se_session *sqa_alloc_sesess(scsi_qla_host_t *vha)
 {
 	struct se_session *se_sess;
+
 	/*
-	 * The following is open coded from:
-	 *
-	 * target_core_transport:transport_init_session()
-	 *
 	 * For now we simply allocate a single page to hold the session
 	 * structure.  This needs to be modified to use the slab cache.
 	 */
-	se_sess = kzalloc(sizeof(*se_sess), GFP_KERNEL);
-	if (!se_sess)
-		return NULL;
-
-	INIT_LIST_HEAD(&se_sess->sess_list);
-	INIT_LIST_HEAD(&se_sess->sess_acl_list);
-	INIT_LIST_HEAD(&se_sess->sess_cmd_list);
-	spin_lock_init(&se_sess->sess_cmd_lock);
-
-	return se_sess;
+	return kzalloc(sizeof(*se_sess), GFP_KERNEL);
 }
 
 static void sqa_free_sesess(struct se_session *se_sess)
