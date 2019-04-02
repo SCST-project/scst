@@ -8,7 +8,9 @@
 #define __QLA_FW_H
 
 #include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 3, 0) || defined(RHEL_MAJOR)
 #include <linux/nvme.h>
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 #include <linux/nvme-fc.h>
 #endif

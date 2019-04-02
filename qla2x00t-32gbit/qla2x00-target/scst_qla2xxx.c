@@ -309,8 +309,8 @@ static const int qla_tgt_supported_dif_block_size[]= {
 
 static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd, uint8_t xmit_rsp)
 {
-	struct scst_cmd *scst_cmd = (struct scst_cmd *) cmd->se_cmd.priv;
-	int dir = scst_cmd_get_data_direction(cmd->se_cmd.priv);
+	struct scst_cmd *scst_cmd = cmd->scst_cmd;
+	int dir = scst_cmd_get_data_direction(scst_cmd);
 	int action = scst_get_dif_action(
 		scst_get_tgt_dif_actions(scst_cmd->cmd_dif_actions));
 
@@ -481,6 +481,8 @@ static struct qla_tgt_cmd *sqa_qla2xxx_get_cmd(struct fc_port *sess)
 	memset(cmd, 0, sizeof(struct qla_tgt_cmd));
 #if QLT_USE_PERCPU_IDA || QLT_USE_SBITMAP
 	cmd->se_cmd.map_tag = tag;
+#else
+	cmd->map_tag = tag;
 #endif
 #if QLT_USE_SBITMAP
 	cmd->se_cmd.map_cpu = cpu;
@@ -545,10 +547,10 @@ static int sqa_qla2xxx_handle_cmd(scsi_qla_host_t *vha,
 		vha->host_no, vha->vp_idx, data_length, task_codes,
 		data_dir, bidi, cmd->unpacked_lun,
 		atio->u.isp24.fcp_cmnd.cdb[0],
-		atio->u.isp24.exchange_addr, cmd, cmd->se_cmd.priv);
+		atio->u.isp24.exchange_addr, cmd, cmd->scst_cmd);
 
 
-	cmd->se_cmd.priv = scst_rx_cmd(scst_sess,
+	cmd->scst_cmd = scst_rx_cmd(scst_sess,
 		(uint8_t *)&atio->u.isp24.fcp_cmnd.lun,
 		sizeof(atio->u.isp24.fcp_cmnd.lun),
 		atio->u.isp24.fcp_cmnd.cdb,
@@ -556,15 +558,15 @@ static int sqa_qla2xxx_handle_cmd(scsi_qla_host_t *vha,
 		(atio->u.isp24.fcp_cmnd.add_cdb_len *4),
 		SCST_ATOMIC);
 
-	if (cmd->se_cmd.priv == NULL) {
+	if (cmd->scst_cmd == NULL) {
 		PRINT_ERROR("sqatgt(%ld/%d): scst_rx_cmd function failed.",
 			vha->host_no, vha->vp_idx);
 		res = -EFAULT;
 		goto out;
 	}
 
-	scst_cmd_set_tag(cmd->se_cmd.priv, atio->u.isp24.exchange_addr);
-	scst_cmd_set_tgt_priv(cmd->se_cmd.priv, cmd);
+	scst_cmd_set_tag(cmd->scst_cmd, atio->u.isp24.exchange_addr);
+	scst_cmd_set_tgt_priv(cmd->scst_cmd, cmd);
 
 	if (atio->u.isp24.fcp_cmnd.rddata && atio->u.isp24.fcp_cmnd.wrdata)
 		dir = SCST_DATA_BIDI;
@@ -574,35 +576,34 @@ static int sqa_qla2xxx_handle_cmd(scsi_qla_host_t *vha,
 		dir = SCST_DATA_WRITE;
 	else
 		dir = SCST_DATA_NONE;
-	scst_cmd_set_expected(cmd->se_cmd.priv, dir, data_length);
+	scst_cmd_set_expected(cmd->scst_cmd, dir, data_length);
 
 	/* task_code fr arg list is based on TCM #define. */
 	switch (atio->u.isp24.fcp_cmnd.task_attr) {
 	case ATIO_SIMPLE_QUEUE:
-		scst_cmd_set_queue_type(cmd->se_cmd.priv,
-			SCST_CMD_QUEUE_SIMPLE);
+		scst_cmd_set_queue_type(cmd->scst_cmd, SCST_CMD_QUEUE_SIMPLE);
 		break;
 	case ATIO_HEAD_OF_QUEUE:
-		scst_cmd_set_queue_type(cmd->se_cmd.priv,
+		scst_cmd_set_queue_type(cmd->scst_cmd,
 			SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 		break;
 	case ATIO_ORDERED_QUEUE:
-		scst_cmd_set_queue_type(cmd->se_cmd.priv,
+		scst_cmd_set_queue_type(cmd->scst_cmd,
 			SCST_CMD_QUEUE_ORDERED);
 		break;
 	case ATIO_ACA_QUEUE:
-		scst_cmd_set_queue_type(cmd->se_cmd.priv,
+		scst_cmd_set_queue_type(cmd->scst_cmd,
 			SCST_CMD_QUEUE_ACA);
 		break;
 	case ATIO_UNTAGGED:
-		scst_cmd_set_queue_type(cmd->se_cmd.priv,
+		scst_cmd_set_queue_type(cmd->scst_cmd,
 			SCST_CMD_QUEUE_UNTAGGED);
 		break;
 	default:
 		PRINT_ERROR("sqatgt(%ld/%d): unknown task code %x, use "
 			"ORDERED instead.", vha->host_no, vha->vp_idx,
 			atio->u.isp24.fcp_cmnd.task_attr);
-		scst_cmd_set_queue_type(cmd->se_cmd.priv,
+		scst_cmd_set_queue_type(cmd->scst_cmd,
 			SCST_CMD_QUEUE_ORDERED);
 		break;
 	}
@@ -610,10 +611,10 @@ static int sqa_qla2xxx_handle_cmd(scsi_qla_host_t *vha,
 	TRACE(TRACE_SCSI, "sqatgt(%ld/%d): START Command=%p tag=%d, "
 	      "queue type=%x", vha->host_no, vha->vp_idx, cmd,
 		  cmd->atio.u.isp24.exchange_addr,
-	      scst_cmd_get_queue_type(cmd->se_cmd.priv));
+	      scst_cmd_get_queue_type(cmd->scst_cmd));
 
 	/* we're being call by wq, so do direct */
-	scst_cmd_init_done(cmd->se_cmd.priv, SCST_CONTEXT_DIRECT);
+	scst_cmd_init_done(cmd->scst_cmd, SCST_CONTEXT_DIRECT);
 
  out:
 	TRACE_EXIT_RES(res);
@@ -622,7 +623,7 @@ static int sqa_qla2xxx_handle_cmd(scsi_qla_host_t *vha,
 
 static void sqa_qla2xxx_handle_data(struct qla_tgt_cmd *cmd)
 {
-	struct scst_cmd *scst_cmd = (struct scst_cmd *)cmd->se_cmd.priv;
+	struct scst_cmd *scst_cmd = cmd->scst_cmd;
 	int rx_status;
 	unsigned long flags;
 
@@ -800,7 +801,7 @@ static int sqa_qla2xxx_handle_tmr(struct qla_tgt_mgmt_cmd *mcmd, u64 lun,
 
 static void sqa_qla2xxx_free_cmd(struct qla_tgt_cmd *cmd)
 {
-	struct scst_cmd *scst_cmd = cmd->se_cmd.priv;
+	struct scst_cmd *scst_cmd = cmd->scst_cmd;
 
 	TRACE_ENTRY();
 
@@ -920,24 +921,12 @@ static void sqa_scst_session_cb(struct scst_session *scst_sess,
 static struct se_session *sqa_alloc_sesess(scsi_qla_host_t *vha)
 {
 	struct se_session *se_sess;
+
 	/*
-	 * The following is open coded from:
-	 *
-	 * target_core_transport:transport_init_session()
-	 *
 	 * For now we simply allocate a single page to hold the session
 	 * structure.  This needs to be modified to use the slab cache.
 	 */
-	se_sess = kzalloc(sizeof(*se_sess), GFP_KERNEL);
-	if (!se_sess)
-		return NULL;
-
-	INIT_LIST_HEAD(&se_sess->sess_list);
-	INIT_LIST_HEAD(&se_sess->sess_acl_list);
-	INIT_LIST_HEAD(&se_sess->sess_cmd_list);
-	spin_lock_init(&se_sess->sess_cmd_lock);
-
-	return se_sess;
+	return kzalloc(sizeof(*se_sess), GFP_KERNEL);
 }
 
 static void sqa_free_sesess(struct se_session *se_sess)
@@ -1694,16 +1683,14 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 	EXTRACHECKS_BUG_ON(scst_cmd_atomic(scst_cmd));
 #endif
 	if (is_send_status) {
+		const u8* const sense_buf = scst_cmd_get_sense_buffer(scst_cmd);
 		u16 len = scst_cmd_get_sense_buffer_len(scst_cmd);
+
 		xmit_type |= QLA_TGT_XMIT_STATUS;
-
-		if (QLA_TGT_SENSE_VALID(scst_cmd_get_sense_buffer(scst_cmd))) {
-			if (len > TRANSPORT_SENSE_BUFFER ||
-			    len == 0)
+		if (QLA_TGT_SENSE_VALID(sense_buf)) {
+			if (len > TRANSPORT_SENSE_BUFFER || len == 0)
 				len = TRANSPORT_SENSE_BUFFER;
-
-			memcpy(cmd->sense_buffer,
-			    scst_cmd_get_sense_buffer(scst_cmd), len);
+			memcpy(cmd->sense_buffer, sense_buf, len);
 		}
 	}
 
@@ -1730,7 +1717,7 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 
 		TRACE_DBG("cmd[%p] ulpcmd[%p] dif_actions=0x%x, cdb=0x%x, prot_sg[%p] "
 			"prot_sg_cnt[%x], prot_type[%x] prot_op[%x]",
-			cmd, cmd->se_cmd.priv, scst_cmd->cmd_dif_actions, scst_cmd->cdb_buf[0],
+			cmd, cmd->scst_cmd, scst_cmd->cmd_dif_actions, scst_cmd->cdb_buf[0],
 			cmd->prot_sg, cmd->prot_sg_cnt, cmd->se_cmd.prot_type,
 			cmd->se_cmd.prot_op);
 
@@ -1817,7 +1804,7 @@ static int sqa_rdy_to_xfer(struct scst_cmd *scst_cmd)
 
 		TRACE_DBG("%s: cmd[%p] ulpcmd[%p] dif_actions=0x%x, cdb=0x%x, "
 			"prot_sg_cnt[%x], prot_type[%x] prot_op[%x], bufflen[%x]",__func__,
-			cmd, cmd->se_cmd.priv,
+			cmd, cmd->scst_cmd,
 			scst_cmd->cmd_dif_actions, scst_cmd->cdb_buf[0],
 			cmd->prot_sg_cnt, cmd->se_cmd.prot_type, cmd->se_cmd.prot_op,
 			cmd->bufflen);
@@ -2342,7 +2329,7 @@ sqa_qla2xxx_chk_dif_tags(uint32_t tag)
 static int
 sqa_qla2xxx_dif_tags(struct qla_tgt_cmd *cmd, uint16_t *pfw_prot_opts)
 {
-	struct scst_cmd *scst_cmd = (struct scst_cmd *)cmd->se_cmd.priv;
+	struct scst_cmd *scst_cmd = cmd->scst_cmd;
 	uint32_t t32=0;
 
 	t32 = scst_get_dif_checks(scst_cmd->cmd_dif_actions);

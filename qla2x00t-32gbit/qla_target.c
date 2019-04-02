@@ -36,8 +36,6 @@
 #include <scsi/scsi.h>
 #include <scsi/scsi_host.h>
 #include <scsi/scsi_tcq.h>
-#include <target/target_core_base.h>
-#include <target/target_core_fabric.h>
 
 #include "qla_def.h"
 #include "qla_target.h"
@@ -163,6 +161,7 @@ struct kmem_cache *qla_tgt_plogi_cachep;
 static mempool_t *qla_tgt_mgmt_cmd_mempool;
 static struct workqueue_struct *qla_tgt_wq;
 DEFINE_MUTEX(qla_tgt_mutex);
+EXPORT_SYMBOL(qla_tgt_mutex);
 LIST_HEAD(qla_tgt_glist);
 EXPORT_SYMBOL(qla_tgt_glist);
 
@@ -3528,6 +3527,7 @@ out_unlock_free_unmap:
 EXPORT_SYMBOL(qlt_rdy_to_xfer);
 
 
+#if QLA_ENABLE_PI
 /*
  * it is assumed either hardware_lock or qpair lock is held.
  */
@@ -3630,6 +3630,14 @@ out:
 		break;
 	}
 }
+#else
+static void
+qlt_handle_dif_error(struct qla_qpair *qpair, struct qla_tgt_cmd *cmd,
+	struct ctio_crc_from_fw *sts)
+{
+	WARN_ON_ONCE(true);
+}
+#endif
 
 /* If hardware_lock held on entry, might drop it, then reaquire */
 /* This function sends the appropriate CTIO to ISP 2xxx or 24xx */
@@ -3885,10 +3893,8 @@ int qlt_abort_cmd(struct qla_tgt_cmd *cmd)
 		 *  1) XFER Rdy completion + CMD_T_ABORT
 		 *  2) TCM TMR - drain_state_list
 		 */
-		ql_dbg(ql_dbg_tgt_mgt, vha, 0xf016,
-		    "multiple abort. %p transport_state %x, t_state %x, "
-		    "se_cmd_flags %x\n", cmd, cmd->se_cmd.transport_state,
-		    cmd->se_cmd.t_state, cmd->se_cmd.se_cmd_flags);
+		ql_dbg(ql_dbg_tgt_mgt, vha, 0xf016, "multiple abort. %p\n",
+		       cmd);
 		return EIO;
 	}
 	cmd->aborted = 1;

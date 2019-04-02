@@ -43,13 +43,13 @@
 #include <scsi/scsi_tcq.h>
 
 #include "qla_def.h"
+#include "scst_qla2xxx.h"
 
 extern struct mutex qla_tgt_mutex;
 extern struct list_head qla_tgt_glist;
 
 
-static size_t
-qlt_add_vtarget(u64 port_name, u64 node_name, u64 parent_host)
+size_t qlt_add_vtarget(u64 port_name, u64 node_name, u64 parent_host)
 {
 	struct Scsi_Host *shost = NULL;
 	struct qla_tgt *tgt;
@@ -89,7 +89,7 @@ qlt_add_vtarget(u64 port_name, u64 node_name, u64 parent_host)
 }
 EXPORT_SYMBOL(qlt_add_vtarget);
 
-static size_t qlt_del_vtarget(u64 port_name)
+size_t qlt_del_vtarget(u64 port_name)
 {
 	struct qla_tgt *tgt, *t;
 	scsi_qla_host_t *vha = NULL;

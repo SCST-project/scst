@@ -37,6 +37,7 @@
 #include <linux/stddef.h>	/* sizeof_field() */
 #include <linux/timer.h>
 #include <linux/vmalloc.h>
+#include <linux/workqueue.h>
 #include <linux/writeback.h>	/* sync_page_range() */
 #include <rdma/ib_verbs.h>
 #include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
@@ -529,6 +530,25 @@ static inline struct io_context *get_task_io_context(struct task_struct *task,
 	WARN_ON_ONCE(task != current);
 	return get_io_context(gfp_flags, node);
 }
+#endif
+
+/* <linux/kconfig.h> */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0) && !defined(RHEL_MAJOR)
+/*
+ * See also commit 2a11c8ea20bf ("kconfig: Introduce IS_ENABLED(), IS_BUILTIN()
+ * and IS_MODULE()") # v3.1.
+ */
+#define __ARG_PLACEHOLDER_1 0,
+#define __take_second_arg(__ignored, val, ...) val
+#define __or(x, y)			___or(x, y)
+#define ___or(x, y)			____or(__ARG_PLACEHOLDER_##x, y)
+#define ____or(arg1_or_junk, y)		__take_second_arg(arg1_or_junk 1, y)
+#define __is_defined(x)			___is_defined(x)
+#define ___is_defined(val)		____is_defined(__ARG_PLACEHOLDER_##val)
+#define ____is_defined(arg1_or_junk)	__take_second_arg(arg1_or_junk 1, 0)
+#define IS_BUILTIN(option) __is_defined(option)
+#define IS_MODULE(option) __is_defined(option##_MODULE)
+#define IS_ENABLED(option) __or(IS_BUILTIN(option), IS_MODULE(option))
 #endif
 
 /* <linux/kernel.h> */
@@ -1453,6 +1473,22 @@ static inline void *vzalloc(unsigned long size)
 {
 	return __vmalloc(size, GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO,
 			 PAGE_KERNEL);
+}
+#endif
+
+/* <linux/workqueue.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+/*
+ * See also commit d320c03830b1 ("workqueue: s/__create_workqueue()/
+ * alloc_workqueue()/, and add system workqueues") # v2.6.36.
+ */
+static inline struct workqueue_struct *alloc_workqueue(const char *fmt,
+						       unsigned int flags,
+						       int max_active, ...)
+{
+	WARN_ON_ONCE(flags | max_active);
+	return create_workqueue(fmt);
 }
 #endif
 
