@@ -3883,10 +3883,8 @@ int qlt_abort_cmd(struct qla_tgt_cmd *cmd)
 		 *  1) XFER Rdy completion + CMD_T_ABORT
 		 *  2) TCM TMR - drain_state_list
 		 */
-		ql_dbg(ql_dbg_tgt_mgt, vha, 0xf016,
-		    "multiple abort. %p transport_state %x, t_state %x, "
-		    "se_cmd_flags %x\n", cmd, cmd->se_cmd.transport_state,
-		    cmd->se_cmd.t_state, cmd->se_cmd.se_cmd_flags);
+		ql_dbg(ql_dbg_tgt_mgt, vha, 0xf016, "multiple abort. %p\n",
+		       cmd);
 		return EIO;
 	}
 	cmd->aborted = 1;
