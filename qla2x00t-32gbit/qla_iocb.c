@@ -1396,6 +1396,8 @@ qla24xx_walk_and_build_prot_sglist(struct qla_hw_data *ha, srb_t *sp,
 	*cur_dsd++ = 0;
 	return 0;
 }
+#endif
+
 /**
  * qla24xx_build_scsi_crc_2_iocbs() - Build IOCB command utilizing Command
  *							Type 6 IOCB types.
@@ -1406,7 +1408,7 @@ qla24xx_walk_and_build_prot_sglist(struct qla_hw_data *ha, srb_t *sp,
  * @tot_prot_dsds: Total number of segments with protection information
  * @fw_prot_opts: Protection options to be passed to firmware
  */
-inline int
+static inline int
 qla24xx_build_scsi_crc_2_iocbs(srb_t *sp, struct cmd_type_crc_2 *cmd_pkt,
     uint16_t tot_dsds, uint16_t tot_prot_dsds, uint16_t fw_prot_opts)
 {
@@ -1590,12 +1592,16 @@ qla24xx_build_scsi_crc_2_iocbs(srb_t *sp, struct cmd_type_crc_2 *cmd_pkt,
 		goto crc_queuing_error;
 
 	if (bundling && tot_prot_dsds) {
+#if QLA_ENABLE_PI
 		/* Walks dif segments */
 		cmd_pkt->control_flags |= cpu_to_le16(CF_DIF_SEG_DESCR_ENABLE);
 		cur_dsd = (uint32_t *) &crc_ctx_pkt->u.bundling.dif_address;
 		if (qla24xx_walk_and_build_prot_sglist(ha, sp, cur_dsd,
 				tot_prot_dsds, NULL))
 			goto crc_queuing_error;
+#else
+		WARN_ON_ONCE(true);
+#endif
 	}
 	return QLA_SUCCESS;
 
@@ -1604,7 +1610,6 @@ crc_queuing_error:
 
 	return QLA_FUNCTION_FAILED;
 }
-#endif
 
 /**
  * qla24xx_start_scsi() - Send a SCSI command to the ISP
