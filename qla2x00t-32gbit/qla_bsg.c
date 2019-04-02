@@ -9,9 +9,10 @@
 #include <linux/kthread.h>
 #include <linux/vmalloc.h>
 #include <linux/delay.h>
-#include <linux/bsg-lib.h>
 
-#ifndef NEW_LIBFC_API
+#ifdef NEW_LIBFC_API
+#include <linux/bsg-lib.h>
+#else
 static inline struct Scsi_Host *fc_bsg_to_shost(struct fc_bsg_job *job)
 {
 	return job->shost;
