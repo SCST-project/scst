@@ -3495,7 +3495,7 @@ qla24xx_enable_msix(struct qla_hw_data *ha, struct rsp_que *rsp)
 	}
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0) && !defined(RHEL_MAJOR)
 	ret = pci_enable_msix(ha->pdev, entries, ha->msix_count);
 	if (ret) {
 		if (ret < QLA_BASE_VECTORS)
