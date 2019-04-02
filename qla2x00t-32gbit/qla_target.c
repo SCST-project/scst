@@ -3526,6 +3526,7 @@ out_unlock_free_unmap:
 EXPORT_SYMBOL(qlt_rdy_to_xfer);
 
 
+#if QLA_ENABLE_PI
 /*
  * it is assumed either hardware_lock or qpair lock is held.
  */
@@ -3628,6 +3629,14 @@ out:
 		break;
 	}
 }
+#else
+static void
+qlt_handle_dif_error(struct qla_qpair *qpair, struct qla_tgt_cmd *cmd,
+	struct ctio_crc_from_fw *sts)
+{
+	WARN_ON_ONCE(true);
+}
+#endif
 
 /* If hardware_lock held on entry, might drop it, then reaquire */
 /* This function sends the appropriate CTIO to ISP 2xxx or 24xx */
