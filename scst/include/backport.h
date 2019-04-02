@@ -532,6 +532,25 @@ static inline struct io_context *get_task_io_context(struct task_struct *task,
 }
 #endif
 
+/* <linux/kconfig.h> */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0) && !defined(RHEL_MAJOR)
+/*
+ * See also commit 2a11c8ea20bf ("kconfig: Introduce IS_ENABLED(), IS_BUILTIN()
+ * and IS_MODULE()") # v3.1.
+ */
+#define __ARG_PLACEHOLDER_1 0,
+#define __take_second_arg(__ignored, val, ...) val
+#define __or(x, y)			___or(x, y)
+#define ___or(x, y)			____or(__ARG_PLACEHOLDER_##x, y)
+#define ____or(arg1_or_junk, y)		__take_second_arg(arg1_or_junk 1, y)
+#define __is_defined(x)			___is_defined(x)
+#define ___is_defined(val)		____is_defined(__ARG_PLACEHOLDER_##val)
+#define ____is_defined(arg1_or_junk)	__take_second_arg(arg1_or_junk 1, 0)
+#define IS_BUILTIN(option) __is_defined(option)
+#define IS_MODULE(option) __is_defined(option##_MODULE)
+#define IS_ENABLED(option) __or(IS_BUILTIN(option), IS_MODULE(option))
+#endif
+
 /* <linux/kernel.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
