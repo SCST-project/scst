@@ -37,6 +37,7 @@
 #include <linux/stddef.h>	/* sizeof_field() */
 #include <linux/timer.h>
 #include <linux/vmalloc.h>
+#include <linux/workqueue.h>
 #include <linux/writeback.h>	/* sync_page_range() */
 #include <rdma/ib_verbs.h>
 #include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
@@ -1453,6 +1454,22 @@ static inline void *vzalloc(unsigned long size)
 {
 	return __vmalloc(size, GFP_KERNEL | __GFP_HIGHMEM | __GFP_ZERO,
 			 PAGE_KERNEL);
+}
+#endif
+
+/* <linux/workqueue.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+/*
+ * See also commit d320c03830b1 ("workqueue: s/__create_workqueue()/
+ * alloc_workqueue()/, and add system workqueues") # v2.6.36.
+ */
+static inline struct workqueue_struct *alloc_workqueue(const char *fmt,
+						       unsigned int flags,
+						       int max_active, ...)
+{
+	WARN_ON_ONCE(flags | max_active);
+	return create_workqueue(fmt);
 }
 #endif
 
