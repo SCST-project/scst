@@ -1696,16 +1696,14 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 	EXTRACHECKS_BUG_ON(scst_cmd_atomic(scst_cmd));
 #endif
 	if (is_send_status) {
+		const u8* const sense_buf = scst_cmd_get_sense_buffer(scst_cmd);
 		u16 len = scst_cmd_get_sense_buffer_len(scst_cmd);
+
 		xmit_type |= QLA_TGT_XMIT_STATUS;
-
-		if (QLA_TGT_SENSE_VALID(scst_cmd_get_sense_buffer(scst_cmd))) {
-			if (len > TRANSPORT_SENSE_BUFFER ||
-			    len == 0)
+		if (QLA_TGT_SENSE_VALID(sense_buf)) {
+			if (len > TRANSPORT_SENSE_BUFFER || len == 0)
 				len = TRANSPORT_SENSE_BUFFER;
-
-			memcpy(cmd->sense_buffer,
-			    scst_cmd_get_sense_buffer(scst_cmd), len);
+			memcpy(cmd->sense_buffer, sense_buf, len);
 		}
 	}
 
