@@ -161,6 +161,7 @@ struct kmem_cache *qla_tgt_plogi_cachep;
 static mempool_t *qla_tgt_mgmt_cmd_mempool;
 static struct workqueue_struct *qla_tgt_wq;
 DEFINE_MUTEX(qla_tgt_mutex);
+EXPORT_SYMBOL(qla_tgt_mutex);
 LIST_HEAD(qla_tgt_glist);
 EXPORT_SYMBOL(qla_tgt_glist);
 
