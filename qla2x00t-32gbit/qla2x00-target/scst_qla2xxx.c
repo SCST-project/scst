@@ -1695,7 +1695,6 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 	cmd->offset = scst_cmd_get_ppl_offset(scst_cmd);
 	cmd->scsi_status = scst_cmd_get_status(scst_cmd);
 	cmd->cdb = (unsigned char *) scst_cmd_get_cdb(scst_cmd);
-	cmd->se_cmd.t_task_cdb = (unsigned char *) scst_cmd_get_cdb(scst_cmd);
 	cmd->lba = scst_cmd_get_lba(scst_cmd);
 	cmd->trc_flags |= TRC_XMIT_STATUS;
 
@@ -1780,7 +1779,6 @@ static int sqa_rdy_to_xfer(struct scst_cmd *scst_cmd)
 		scst_to_tgt_dma_dir(scst_cmd_get_data_direction(scst_cmd));
 
 	cmd->cdb = (unsigned char *) scst_cmd_get_cdb(scst_cmd);
-	cmd->se_cmd.t_task_cdb = (unsigned char *) scst_cmd_get_cdb(scst_cmd);
 	cmd->sg = scst_cmd_get_sg(scst_cmd);
 	cmd->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
 	cmd->scsi_status = scst_cmd_get_status(scst_cmd);
