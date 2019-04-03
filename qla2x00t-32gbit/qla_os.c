@@ -7273,7 +7273,12 @@ static void qla_pci_reset_notify(struct pci_dev *dev, bool prepare)
 }
 #endif
 
-static const struct pci_error_handlers qla2xxx_err_handler = {
+static
+/* See also commit 494530284f16 ("PCI: Make pci_error_handlers const") # v3.7 */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0) || defined(RHEL_MAJOR)
+const
+#endif
+struct pci_error_handlers qla2xxx_err_handler = {
 	.error_detected = qla2xxx_pci_error_detected,
 	.mmio_enabled = qla2xxx_pci_mmio_enabled,
 	.slot_reset = qla2xxx_pci_slot_reset,
