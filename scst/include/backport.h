@@ -941,6 +941,30 @@ struct nvmefc_fcp_req {
 } __aligned(sizeof(u64));	/* alignment for other things alloc'd with */
 #endif
 
+/* <linux/pci.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 7, 0) && !defined(RHEL_MAJOR)
+/*
+ * See also commit 8c0d3a02c130 ("PCI: Add accessors for PCI Express
+ * Capability") # v3.7.
+ */
+static inline int pcie_capability_read_word(struct pci_dev *dev, int pos,
+					    u16 *val)
+{
+	WARN_ON_ONCE(true);
+	*val = 0;
+	return -ENOTSUPP;
+}
+
+static inline int pcie_capability_read_dword(struct pci_dev *dev, int pos,
+					     u32 *val)
+{
+	WARN_ON_ONCE(true);
+	*val = 0;
+	return -ENOTSUPP;
+}
+#endif
+
 /* <linux/preempt.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
