@@ -826,7 +826,8 @@ static void sqa_free_session_done(struct scst_session *scst_sess)
 	struct fc_port *fcport =
 		(struct fc_port*)scst_sess_get_tgt_priv(scst_sess);
 
-	fcport->se_sess->sess_tearing_down = 0;
+	if (fcport->unreg_done)
+		complete(fcport->unreg_done);
 }
 
 static void sqa_qla2xxx_free_session(struct fc_port *fcport)
@@ -836,16 +837,12 @@ static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 	struct scst_session *scst_sess =
 		(struct scst_session *)se_sess->fabric_sess_ptr;
 	struct qla_tgt_mgmt_cmd *mcmd;
-	bool traced = false;
 
 	TRACE_ENTRY();
 
 	TRACE_MGMT_DBG("sqatgt(%ld/%d):	Deleting session %8phC fcid=%02x%02x%02x\n",
 		vha->host_no, vha->vp_idx, fcport->port_name,
 		fcport->d_id.b.domain, fcport->d_id.b.area, fcport->d_id.b.al_pa);
-
-	/* look for sqa_free_session_done to clear this flag. */
-	se_sess->sess_tearing_down = 1;
 
 	mcmd = kzalloc(sizeof(*mcmd), GFP_ATOMIC);
 	if (mcmd) {
@@ -868,14 +865,10 @@ static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 
 	scst_unregister_session(scst_sess, 1, sqa_free_session_done);
 
-	while (se_sess->sess_tearing_down) {
-		if (!traced) {
-			TRACE_MGMT_DBG("sqatgt(%ld/%d): waiting for scst_sess "
-				"unregistration %8phC\n", vha->host_no, vha->vp_idx,
-				fcport->port_name);
-			traced = true;
-		}
-		msleep(100);
+	{
+		DECLARE_COMPLETION_ONSTACK(c);
+		fcport->unreg_done = &c;
+		wait_for_completion(&c);
 	}
 
 	TRACE_MGMT_DBG("sqatgt(%ld/%d):	Unregister completed %8phC done \n",
@@ -1702,7 +1695,6 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 	cmd->offset = scst_cmd_get_ppl_offset(scst_cmd);
 	cmd->scsi_status = scst_cmd_get_status(scst_cmd);
 	cmd->cdb = (unsigned char *) scst_cmd_get_cdb(scst_cmd);
-	cmd->se_cmd.t_task_cdb = (unsigned char *) scst_cmd_get_cdb(scst_cmd);
 	cmd->lba = scst_cmd_get_lba(scst_cmd);
 	cmd->trc_flags |= TRC_XMIT_STATUS;
 
@@ -1787,7 +1779,6 @@ static int sqa_rdy_to_xfer(struct scst_cmd *scst_cmd)
 		scst_to_tgt_dma_dir(scst_cmd_get_data_direction(scst_cmd));
 
 	cmd->cdb = (unsigned char *) scst_cmd_get_cdb(scst_cmd);
-	cmd->se_cmd.t_task_cdb = (unsigned char *) scst_cmd_get_cdb(scst_cmd);
 	cmd->sg = scst_cmd_get_sg(scst_cmd);
 	cmd->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
 	cmd->scsi_status = scst_cmd_get_status(scst_cmd);
