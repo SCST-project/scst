@@ -3763,8 +3763,6 @@ qla2x00_free_irqs(scsi_qla_host_t *vha)
 {
 	struct qla_hw_data *ha = vha->hw;
 	struct rsp_que *rsp;
-	struct qla_msix_entry *qentry;
-	int i;
 
 	/*
 	 * We need to check that ha->rsp_q_map is valid in case we are called
@@ -3775,6 +3773,9 @@ qla2x00_free_irqs(scsi_qla_host_t *vha)
 	rsp = ha->rsp_q_map[0];
 
 	if (ha->flags.msix_enabled) {
+		struct qla_msix_entry *qentry;
+		int i;
+
 		for (i = 0; i < ha->msix_count; i++) {
 			qentry = &ha->msix_entries[i];
 			if (qentry->have_irq) {
