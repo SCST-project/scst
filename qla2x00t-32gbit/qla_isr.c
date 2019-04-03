@@ -3461,7 +3461,7 @@ static int
 qla24xx_enable_msix(struct qla_hw_data *ha, struct rsp_que *rsp)
 {
 	int i, ret;
-	struct qla_msix_entry *qentry;
+	struct qla_msix_entry *qentry = NULL;
 	scsi_qla_host_t *vha = pci_get_drvdata(ha->pdev);
 	int min_vecs = QLA_BASE_VECTORS;
 
