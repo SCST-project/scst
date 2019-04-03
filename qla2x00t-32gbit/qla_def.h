@@ -2398,6 +2398,7 @@ typedef struct fc_port {
 	struct work_struct reg_work;
 	uint64_t jiffies_at_registration;
 	struct qlt_plogi_ack_t *plogi_link[QLT_PLOGI_LINK_MAX];
+	struct completion *unreg_done;
 
 	uint16_t tgt_id;
 	uint16_t old_tgt_id;
