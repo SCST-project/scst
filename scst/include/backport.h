@@ -1302,6 +1302,20 @@ static inline void sg_unmark_end(struct scatterlist *sg)
 	(__flags), NULL, NULL)
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
+/*
+ * See also commit 3942d2991852 ("mm/slab_common: allow NULL cache pointer in
+ * kmem_cache_destroy()") # v4.3.
+ */
+static inline void kmem_cache_destroy_backport(struct kmem_cache *s)
+{
+	if (s)
+		kmem_cache_destroy(s);
+}
+
+#define kmem_cache_destroy kmem_cache_destroy_backport
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0) &&	    \
 	!(LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 52) && \
 	  LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0)) &&  \
