@@ -3532,6 +3532,8 @@ msix_failed:
 			goto msix_out;
 		}
 		ha->max_rsp_queues = ha->msix_count - 1;
+	} else {
+		ret = ha->msix_count;
 	}
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
 	ret = pci_enable_msix_range(ha->pdev,
