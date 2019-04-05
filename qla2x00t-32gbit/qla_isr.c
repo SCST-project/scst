@@ -3550,10 +3550,6 @@ msix_failed:
 		    &desc);
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
-	kfree(entries);
-#endif
-
 	if (ret < 0) {
 		ql_log(ql_log_fatal, vha, 0x00c7,
 		    "MSI-X: Failed to enable support, "
@@ -3680,6 +3676,9 @@ msix_register_fail:
 	    ha->mqiobase, ha->max_rsp_queues, ha->max_req_queues);
 
 msix_out:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+	kfree(entries);
+#endif
 	return ret;
 }
 
