@@ -1043,6 +1043,9 @@ struct qla_tgt_prm {
 
 
 extern struct qla_tgt_data qla_target;
+extern struct mutex qla_tgt_mutex;
+extern struct list_head qla_tgt_glist;
+
 
 /*
  * Function prototypes for qla_target.c logic used by qla2xxx LLD code.

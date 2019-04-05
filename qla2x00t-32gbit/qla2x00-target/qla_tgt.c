@@ -45,10 +45,6 @@
 #include "qla_def.h"
 #include "scst_qla2xxx.h"
 
-extern struct mutex qla_tgt_mutex;
-extern struct list_head qla_tgt_glist;
-
-
 size_t qlt_add_vtarget(u64 port_name, u64 node_name, u64 parent_host)
 {
 	struct Scsi_Host *shost = NULL;

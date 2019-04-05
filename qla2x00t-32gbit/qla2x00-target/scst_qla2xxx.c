@@ -1528,7 +1528,6 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 	return res;
 }
 
-extern struct list_head qla_tgt_glist;
 static void sqa_get_target_list(void)
 {
 	struct qla_tgt *tgt;
