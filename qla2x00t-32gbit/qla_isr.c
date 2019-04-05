@@ -3494,7 +3494,9 @@ qla24xx_enable_msix(struct qla_hw_data *ha, struct rsp_que *rsp)
 
 	for (i = 0; i < ha->msix_count; i++)
 		entries[i].entry = i;
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 	if (QLA_TGT_MODE_ENABLED() && (ql2xenablemsix != 0) &&
 	    IS_ATIO_MSIX_CAPABLE(ha)) {
 		min_vecs++;
@@ -3510,6 +3512,8 @@ qla24xx_enable_msix(struct qla_hw_data *ha, struct rsp_que *rsp)
 		min_vecs++;
 	}
 #endif
+
+	WARN_ON_ONCE(min_vecs > ha->msix_count);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 14, 0) && !defined(RHEL_MAJOR)
 	ret = pci_enable_msix(ha->pdev, entries, ha->msix_count);
