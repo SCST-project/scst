@@ -3531,7 +3531,6 @@ msix_failed:
 			    ha->msix_count, ret);
 			goto msix_out;
 		}
-		ha->max_rsp_queues = ha->msix_count - 1;
 	} else {
 		ret = ha->msix_count;
 	}
