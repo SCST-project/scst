@@ -3423,21 +3423,15 @@ qla2xxx_msix_rsp_q(int irq, void *dev_id)
 
 /* <linux/pci.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0) ||	\
+	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7)
 /*
  * See also commit aff171641d18 ("PCI: Provide sensible IRQ vector alloc/free
  * routines") # v4.8.
  */
-/**
- * pci_irq_vector - return Linux IRQ number of a device vector
- * @dev: PCI device to operate on
- * @nr: device-relative interrupt vector index (0-based).
- */
-static inline int pci_irq_vector(struct pci_dev *dev, unsigned int nr)
-{
-	return dev->irq + nr;
-}
+#define HAVE_PCI_IRQ_VECTOR 1
+#else
+#define HAVE_PCI_IRQ_VECTOR 0
 #endif
 
 struct qla_init_msix_entry {
@@ -3456,6 +3450,28 @@ static const struct qla_init_msix_entry qla82xx_msix_entries[] = {
 	{ "qla2xxx (default)", qla82xx_msix_default },
 	{ "qla2xxx (rsp_q)", qla82xx_msix_rsp_q },
 };
+
+#if !HAVE_PCI_IRQ_VECTOR
+static void
+qla24xx_disable_msix(struct qla_hw_data *ha)
+{
+	int i;
+	struct qla_msix_entry *qentry;
+	scsi_qla_host_t *vha = pci_get_drvdata(ha->pdev);
+
+	for (i = 0; i < ha->msix_count; i++) {
+		qentry = &ha->msix_entries[i];
+		if (qentry->have_irq)
+			free_irq(qentry->vector, qentry->handle);
+	}
+	pci_disable_msix(ha->pdev);
+	kfree(ha->msix_entries);
+	ha->msix_entries = NULL;
+	ha->flags.msix_enabled = 0;
+	ql_dbg(ql_dbg_init, vha, 0x0042,
+	    "Disabled the MSI.\n");
+}
+#endif
 
 static int
 qla24xx_enable_msix(struct qla_hw_data *ha, struct rsp_que *rsp)
@@ -3583,8 +3599,13 @@ msix_failed:
 
 	for (i = 0; i < ha->msix_count; i++) {
 		qentry = &ha->msix_entries[i];
+#if HAVE_PCI_IRQ_VECTOR
 		qentry->vector = pci_irq_vector(ha->pdev, i);
 		qentry->entry = i;
+#else
+		qentry->vector = entries[i].vector;
+		qentry->entry = entries[i].entry;
+#endif
 		qentry->have_irq = 0;
 		qentry->in_use = 0;
 		qentry->handle = NULL;
@@ -3772,6 +3793,7 @@ qla2x00_free_irqs(scsi_qla_host_t *vha)
 		goto free_irqs;
 	rsp = ha->rsp_q_map[0];
 
+#if HAVE_PCI_IRQ_VECTOR
 	if (ha->flags.msix_enabled) {
 		struct qla_msix_entry *qentry;
 		int i;
@@ -3791,6 +3813,15 @@ qla2x00_free_irqs(scsi_qla_host_t *vha)
 	} else {
 		free_irq(pci_irq_vector(ha->pdev, 0), rsp);
 	}
+#else
+	if (ha->flags.msix_enabled)
+		qla24xx_disable_msix(ha);
+	else if (ha->flags.msi_enabled) {
+		free_irq(ha->pdev->irq, rsp);
+		pci_disable_msi(ha->pdev);
+	} else
+		free_irq(ha->pdev->irq, rsp);
+#endif
 
 free_irqs:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
