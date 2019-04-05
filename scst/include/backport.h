@@ -815,6 +815,21 @@ static inline long get_user_pages_backport(unsigned long start,
 #define get_user_pages get_user_pages_backport
 #endif
 
+/* <linux/mempoool.h> */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
+/*
+ * See also commit 4e3ca3e033d1 ("mm/mempool: allow NULL `pool' pointer in
+ * mempool_destroy()") # v4.3.
+ */
+static inline void mempool_destroy_backport(mempool_t *pool)
+{
+	if (pool)
+		mempool_destroy(pool);
+}
+
+#define mempool_destroy mempool_destroy_backport
+#endif
+
 /* <linux/mm.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0) &&	\

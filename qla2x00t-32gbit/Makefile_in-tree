@@ -7,4 +7,4 @@ obj-$(CONFIG_SCSI_QLA_FC) += qla2xxx.o
 obj-$(CONFIG_TCM_QLA2XXX) += tcm_qla2xxx.o
 
 ccflags-y += -I$(src)/../../../include/scst/
-ccflags-y += $(call cc-option,-Wno-format-truncation)
+ccflags-y += $(call cc-option,-Wno-stringop-truncation)
