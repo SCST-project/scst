@@ -3614,6 +3614,7 @@ msix_failed:
 
 	/* Enable MSI-X vectors for the base queue */
 	for (i = 0; i < QLA_BASE_VECTORS; i++) {
+		WARN(i >= ha->msix_count, "%d > %d\n", i, ha->msix_count);
 		qentry = &ha->msix_entries[i];
 		qentry->handle = rsp;
 		rsp->msix = qentry;
@@ -3639,6 +3640,8 @@ msix_failed:
 	 */
 	if (QLA_TGT_MODE_ENABLED() && (ql2xenablemsix != 0) &&
 	    IS_ATIO_MSIX_CAPABLE(ha)) {
+		WARN(QLA_ATIO_VECTOR >= ha->msix_count, "%d > %d\n",
+		     QLA_ATIO_VECTOR, ha->msix_count);
 		qentry = &ha->msix_entries[QLA_ATIO_VECTOR];
 		rsp->msix = qentry;
 		qentry->handle = rsp;
