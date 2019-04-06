@@ -1775,16 +1775,16 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 	 * callbacks must be installed!
 	 */
 
-	for (i = 0; i < NR_CPUS; i++)
+	for (i = 0; i < nr_cpu_ids; i++)
 		sgv_norm_pool_global[i] = sgv_norm_pool_main;
 
-	for (i = 0; i < NR_CPUS; i++)
+	for (i = 0; i < nr_cpu_ids; i++)
 		sgv_norm_clust_pool_global[i] = sgv_norm_clust_pool_main;
 
-	for (i = 0; i < NR_CPUS; i++)
+	for (i = 0; i < nr_cpu_ids; i++)
 		sgv_dma_pool_global[i] = sgv_dma_pool_main;
 
-	for (i = 0; i < NR_CPUS; i++) {
+	for (i = 0; i < nr_cpu_ids; i++) {
 		char name[60];
 
 		if (!cpu_online(i))
@@ -1796,7 +1796,7 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 			goto out_free_per_cpu_norm;
 	}
 
-	for (i = 0; i < NR_CPUS; i++) {
+	for (i = 0; i < nr_cpu_ids; i++) {
 		char name[60];
 
 		if (!cpu_online(i))
@@ -1808,7 +1808,7 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 			goto out_free_per_cpu_clust;
 	}
 
-	for (i = 0; i < NR_CPUS; i++) {
+	for (i = 0; i < nr_cpu_ids; i++) {
 		char name[60];
 
 		if (!cpu_online(i))
@@ -1838,17 +1838,17 @@ out:
 	return res;
 
 out_free_per_cpu_dma:
-	for (i = 0; i < NR_CPUS; i++)
+	for (i = 0; i < nr_cpu_ids; i++)
 		if (sgv_dma_pool_per_cpu[i] != NULL)
 			sgv_pool_destroy(sgv_dma_pool_per_cpu[i]);
 
 out_free_per_cpu_clust:
-	for (i = 0; i < NR_CPUS; i++)
+	for (i = 0; i < nr_cpu_ids; i++)
 		if (sgv_norm_clust_pool_per_cpu[i] != NULL)
 			sgv_pool_destroy(sgv_norm_clust_pool_per_cpu[i]);
 
 out_free_per_cpu_norm:
-	for (i = 0; i < NR_CPUS; i++)
+	for (i = 0; i < nr_cpu_ids; i++)
 		if (sgv_norm_pool_per_cpu[i] != NULL)
 			sgv_pool_destroy(sgv_norm_pool_per_cpu[i]);
 
@@ -1881,27 +1881,27 @@ void scst_sgv_pools_deinit(void)
 #endif
 
 	sgv_pool_destroy(sgv_dma_pool_main);
-	for (i = 0; i < NR_CPUS; i++)
+	for (i = 0; i < nr_cpu_ids; i++)
 		if (sgv_dma_pool_per_cpu[i] != NULL)
 			sgv_pool_destroy(sgv_dma_pool_per_cpu[i]);
 
 	sgv_pool_destroy(sgv_norm_pool_main);
-	for (i = 0; i < NR_CPUS; i++)
+	for (i = 0; i < nr_cpu_ids; i++)
 		if (sgv_norm_pool_per_cpu[i] != NULL)
 			sgv_pool_destroy(sgv_norm_pool_per_cpu[i]);
 
 	sgv_pool_destroy(sgv_norm_clust_pool_main);
-	for (i = 0; i < NR_CPUS; i++)
+	for (i = 0; i < nr_cpu_ids; i++)
 		if (sgv_norm_clust_pool_per_cpu[i] != NULL)
 			sgv_pool_destroy(sgv_norm_clust_pool_per_cpu[i]);
 
-	for (i = 0; i < NR_CPUS; i++)
+	for (i = 0; i < nr_cpu_ids; i++)
 		sgv_norm_pool_global[i] = NULL;
 
-	for (i = 0; i < NR_CPUS; i++)
+	for (i = 0; i < nr_cpu_ids; i++)
 		sgv_norm_clust_pool_global[i] = NULL;
 
-	for (i = 0; i < NR_CPUS; i++)
+	for (i = 0; i < nr_cpu_ids; i++)
 		sgv_dma_pool_global[i] = NULL;
 
 	kmem_cache_destroy(sgv_pool_cachep);
