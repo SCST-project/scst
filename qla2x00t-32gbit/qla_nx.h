@@ -8,13 +8,8 @@
 #define __QLA_NX_H
 
 #include <linux/version.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
-/*
- * See also commit 2f8e2c877784 ("move io-64-nonatomic*.h out of asm-generic")
- * # v4.4.
- */
-#include <linux/io-64-nonatomic-lo-hi.h>
-#endif
+#include <linux/types.h>
+#include <scsi/scsi.h>
 
 /*
  * Following are the states of the Phantom. Phantom will set them and
