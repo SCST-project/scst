@@ -2778,8 +2778,8 @@ qla2x00_els_dcmd2_iocb_timeout(void *data)
 	int res;
 
 	ql_dbg(ql_dbg_io + ql_dbg_disc, vha, 0x3069,
-	    "%s hdl=%x ELS Timeout, %8phC portid=%06x\n",
-	    sp->name, sp->handle, fcport->port_name, fcport->d_id.b24);
+	    "%s hdl=%x ELS Timeout, %s portid=%06x\n",
+	    sp->name, sp->handle, wwn_to_str(fcport->port_name), fcport->d_id.b24);
 
 	/* Abort the exchange */
 	spin_lock_irqsave(&ha->hardware_lock, flags);
@@ -2803,8 +2803,8 @@ qla2x00_els_dcmd2_sp_done(void *ptr, int res)
 	struct qla_work_evt *e;
 
 	ql_dbg(ql_dbg_disc, vha, 0x3072,
-	    "%s ELS done rc %d hdl=%x, portid=%06x %8phC\n",
-	    sp->name, res, sp->handle, fcport->d_id.b24, fcport->port_name);
+	    "%s ELS done rc %d hdl=%x, portid=%06x %s\n",
+	    sp->name, res, sp->handle, fcport->d_id.b24, wwn_to_str(fcport->port_name));
 
 	fcport->flags &= ~(FCF_ASYNC_SENT|FCF_ASYNC_ACTIVE);
 	del_timer(&sp->u.iocb_cmd.timer);

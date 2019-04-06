@@ -149,6 +149,20 @@ qla2x00_clean_dsd_pool(struct qla_hw_data *ha, struct crc_context *ctx)
 	INIT_LIST_HEAD(&ctx->dsd_list);
 }
 
+/*
+ * Convert a WWN into a string, just like the %8phC format specification.
+ * Not thread-safe so use this function from debug code only.
+ */
+static inline const char *wwn_to_str(const u8 port_name[8])
+{
+	static char wwn[24];
+
+	snprintf(wwn, sizeof(wwn), "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+		 port_name[0], port_name[1], port_name[2], port_name[3],
+		 port_name[4], port_name[5], port_name[6], port_name[7]);
+	return wwn;
+}
+
 static inline void
 qla2x00_set_fcport_state(fc_port_t *fcport, int state)
 {
@@ -160,8 +174,8 @@ qla2x00_set_fcport_state(fc_port_t *fcport, int state)
 	/* Don't print state transitions during initial allocation of fcport */
 	if (old_state && old_state != state) {
 		ql_dbg(ql_dbg_disc, fcport->vha, 0x207d,
-		    "FCPort %8phC state transitioned from %s to %s - "
-			"portid=%02x%02x%02x.\n", fcport->port_name,
+		    "FCPort %s state transitioned from %s to %s - "
+		    "portid=%02x%02x%02x.\n", wwn_to_str(fcport->port_name),
 		    port_state_str[old_state], port_state_str[state],
 		    fcport->d_id.b.domain, fcport->d_id.b.area,
 		    fcport->d_id.b.al_pa);
