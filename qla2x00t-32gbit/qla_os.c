@@ -13,13 +13,14 @@
 #include <linux/mutex.h>
 #include <linux/kobject.h>
 #include <linux/slab.h>
+#include <linux/workqueue.h>
+#include <linux/version.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
 #include <linux/blk-mq-pci.h>
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 #include <linux/refcount.h>
 #endif
-#include <linux/version.h>
 
 #include <scsi/scsi_tcq.h>
 #include <scsi/scsicam.h>
@@ -331,7 +332,13 @@ static int qla2xxx_slave_alloc(struct scsi_device *);
 static int qla2xxx_scan_finished(struct Scsi_Host *, unsigned long time);
 static void qla2xxx_scan_start(struct Scsi_Host *);
 static void qla2xxx_slave_destroy(struct scsi_device *);
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 >= 2
+static int qla2xxx_queuecommand(struct scsi_cmnd *scmnd,
+				void (*done)(struct scsi_cmnd *));
+
+#else
 static int qla2xxx_queuecommand(struct Scsi_Host *h, struct scsi_cmnd *cmd);
+#endif
 static int qla2xxx_eh_abort(struct scsi_cmnd *);
 static int qla2xxx_eh_device_reset(struct scsi_cmnd *);
 static int qla2xxx_eh_target_reset(struct scsi_cmnd *);
@@ -924,8 +931,23 @@ qla2xxx_qpair_sp_compl(void *ptr, int res)
 	cmd->scsi_done(cmd);
 }
 
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 >= 2
+static int
+qla2xxx_queuecommand_wrk(struct Scsi_Host *host, struct scsi_cmnd *cmd);
+
+static int qla2xxx_queuecommand(struct scsi_cmnd *scmnd,
+				void (*done)(struct scsi_cmnd *))
+{
+	scmnd->scsi_done = done;
+	return qla2xxx_queuecommand_wrk(scmnd->device->host, scmnd);
+}
+
+static int
+qla2xxx_queuecommand_wrk(struct Scsi_Host *host, struct scsi_cmnd *cmd)
+#else
 static int
 qla2xxx_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
+#endif
 {
 	scsi_qla_host_t *vha = shost_priv(host);
 	fc_port_t *fcport = (struct fc_port *) cmd->device->hostdata;
@@ -5061,7 +5083,11 @@ void qla24xx_sched_upd_fcport(fc_port_t *fcport)
 	fcport->disc_state = DSC_UPD_FCPORT;
 	spin_unlock_irqrestore(&fcport->vha->work_lock, flags);
 
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 6
+	schedule_work(&fcport->reg_work);
+#else
 	queue_work(system_unbound_wq, &fcport->reg_work);
+#endif
 }
 
 static
@@ -5074,8 +5100,8 @@ void qla24xx_create_new_sess(struct scsi_qla_host *vha, struct qla_work_evt *e)
 	uint8_t free_fcport = 0;
 
 	ql_dbg(ql_dbg_disc, vha, 0xffff,
-	    "%s %d %8phC enter\n",
-	    __func__, __LINE__, e->u.new_sess.port_name);
+	    "%s %d %s enter\n",
+	    __func__, __LINE__, wwn_to_str(e->u.new_sess.port_name));
 
 	spin_lock_irqsave(&vha->hw->tgt.sess_lock, flags);
 	fcport = qla2x00_find_fcport_by_wwpn(vha, e->u.new_sess.port_name, 1);
@@ -5111,8 +5137,8 @@ void qla24xx_create_new_sess(struct scsi_qla_host *vha, struct qla_work_evt *e)
 			    WWN_SIZE);
 		} else {
 			ql_dbg(ql_dbg_disc, vha, 0xffff,
-				   "%s %8phC mem alloc fail.\n",
-				   __func__, e->u.new_sess.port_name);
+				   "%s %s mem alloc fail.\n",
+				   __func__, wwn_to_str(e->u.new_sess.port_name));
 
 			if (pla)
 				kmem_cache_free(qla_tgt_plogi_cachep, pla);
@@ -5126,9 +5152,9 @@ void qla24xx_create_new_sess(struct scsi_qla_host *vha, struct qla_work_evt *e)
 		if (tfcp) {
 			/* should rarily happen */
 			ql_dbg(ql_dbg_disc, vha, 0xffff,
-			    "%s %8phC found existing fcport b4 add. DS %d LS %d\n",
-			    __func__, tfcp->port_name, tfcp->disc_state,
-			    tfcp->fw_login_state);
+			    "%s %s found existing fcport b4 add. DS %d LS %d\n",
+			    __func__, wwn_to_str(tfcp->port_name),
+			    tfcp->disc_state, tfcp->fw_login_state);
 
 			free_fcport = 1;
 		} else {
@@ -5182,8 +5208,8 @@ void qla24xx_create_new_sess(struct scsi_qla_host *vha, struct qla_work_evt *e)
 				 * We have a conflict fcport with same NportID.
 				 */
 				ql_dbg(ql_dbg_disc, vha, 0xffff,
-				    "%s %8phC found conflict b4 add. DS %d LS %d\n",
-				    __func__, tfcp->port_name, tfcp->disc_state,
+				    "%s %s found conflict b4 add. DS %d LS %d\n",
+				    __func__, wwn_to_str(tfcp->port_name), tfcp->disc_state,
 				    tfcp->fw_login_state);
 
 				switch (tfcp->disc_state) {

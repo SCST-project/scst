@@ -394,8 +394,12 @@ qla2x00_mailbox_command(scsi_qla_host_t *vha, mbx_cmd_t *mcp)
 			goto premature_exit;
 		}
 
-		if (ha->mailbox_out[0] != MBS_COMMAND_COMPLETE)
+		if (ha->mailbox_out[0] != MBS_COMMAND_COMPLETE) {
+			ql_dbg(ql_dbg_mbx, vha, 0x11ff,
+			       "mb_out[0] = %#x <> %#x\n", ha->mailbox_out[0],
+			       MBS_COMMAND_COMPLETE);
 			rval = QLA_FUNCTION_FAILED;
+		}
 
 		/* Load return mailbox registers. */
 		iptr2 = mcp->mb;
@@ -567,9 +571,9 @@ mbx_done:
 		    mcp->mb[0]);
 	} else if (rval) {
 		if (ql2xextended_error_logging & (ql_dbg_disc|ql_dbg_mbx)) {
-			pr_warn("%s [%s]-%04x:%ld: **** Failed", QL_MSGHDR,
+			pr_warn("%s [%s]-%04x:%ld: **** Failed=%x", QL_MSGHDR,
 			    dev_name(&ha->pdev->dev), 0x1020+0x800,
-			    vha->host_no);
+			    vha->host_no, rval);
 			mboxes = mcp->in_mb;
 			cnt = 4;
 			for (i = 0; i < ha->mbx_count && cnt; i++, mboxes >>= 1)
@@ -3849,13 +3853,11 @@ qla24xx_report_id_acquisition(scsi_qla_host_t *vha,
 			rptid_entry->vp_status,
 		    rptid_entry->port_id[2], rptid_entry->port_id[1],
 		    rptid_entry->port_id[0]);
-		ql_dbg(ql_dbg_async, vha, 0x5075,
-		   "Format 1: Remote WWPN %8phC.\n",
-		   rptid_entry->u.f1.port_name);
+		ql_dbg(ql_dbg_async, vha, 0x5075, "Format 1: Remote WWPN %s.\n",
+		   wwn_to_str(rptid_entry->u.f1.port_name));
 
-		ql_dbg(ql_dbg_async, vha, 0x5075,
-		   "Format 1: WWPN %8phC.\n",
-		   vha->port_name);
+		ql_dbg(ql_dbg_async, vha, 0x5075, "Format 1: WWPN %s.\n",
+		       wwn_to_str(vha->port_name));
 
 		switch (rptid_entry->u.f1.flags & TOPO_MASK) {
 		case TOPO_N2N:
@@ -3894,8 +3896,8 @@ qla24xx_report_id_acquisition(scsi_qla_host_t *vha,
 					    vha->d_id.b24, id.b24);
 				} else {
 					ql_dbg(ql_dbg_async, vha, 0x5075,
-					    "Format 1: Remote login - Waiting for WWPN %8phC.\n",
-					    rptid_entry->u.f1.port_name);
+					    "Format 1: Remote login - Waiting for WWPN %s.\n",
+					    wwn_to_str(rptid_entry->u.f1.port_name));
 					ha->flags.n2n_bigger = 0;
 				}
 				qla24xx_post_newsess_work(vha, &id,
@@ -3983,9 +3985,8 @@ qla24xx_report_id_acquisition(scsi_qla_host_t *vha,
 		    rptid_entry->port_id[2], rptid_entry->port_id[1],
 		    rptid_entry->port_id[0]);
 
-		ql_dbg(ql_dbg_async, vha, 0x5075,
-		    "N2N: Remote WWPN %8phC.\n",
-		    rptid_entry->u.f2.port_name);
+		ql_dbg(ql_dbg_async, vha, 0x5075, "N2N: Remote WWPN %s.\n",
+		       wwn_to_str(rptid_entry->u.f2.port_name));
 
 		/* N2N.  direct connect */
 		ha->current_topology = ISP_CFG_N;
@@ -6258,15 +6259,15 @@ int qla24xx_gpdb_wait(struct scsi_qla_host *vha, fc_port_t *fcport, u8 opt)
 
 	rval = qla24xx_send_mb_cmd(vha, &mc);
 	if (rval != QLA_SUCCESS) {
-		ql_dbg(ql_dbg_mbx, vha, 0x1193,
-		    "%s: %8phC fail\n", __func__, fcport->port_name);
+		ql_dbg(ql_dbg_mbx, vha, 0x1193, "%s: %s fail\n", __func__,
+		       wwn_to_str(fcport->port_name));
 		goto done_free_sp;
 	}
 
 	rval = __qla24xx_parse_gpdb(vha, fcport, pd);
 
-	ql_dbg(ql_dbg_mbx, vha, 0x1197, "%s: %8phC done\n",
-	    __func__, fcport->port_name);
+	ql_dbg(ql_dbg_mbx, vha, 0x1197, "%s: %s done\n",
+	    __func__, wwn_to_str(fcport->port_name));
 
 done_free_sp:
 	if (pd)

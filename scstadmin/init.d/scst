@@ -208,6 +208,10 @@ unload_scst() {
         fi
         unload_kmod $m 30 || return 1
     done
+    # Loading qla2x00tgt causes qla2xxx_scst to be loaded but removing
+    # qla2x00tgt does not cause qla2xxx_scst to be unloaded. Hence unload it
+    # explicitly.
+    unload_kmod qla2xxx_scst
     for m in $SCST_OPT_MODULES; do
         reverse_list="$m $reverse_list"
     done

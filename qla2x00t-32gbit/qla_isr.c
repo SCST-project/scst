@@ -1714,9 +1714,9 @@ qla24xx_logio_entry(scsi_qla_host_t *vha, struct req_que *req,
 		QLA_LOGIO_LOGIN_RETRIED : 0;
 	if (logio->entry_status) {
 		ql_log(ql_log_warn, fcport->vha, 0x5034,
-		    "Async-%s error entry - %8phC hdl=%x"
+		    "Async-%s error entry - %s hdl=%x"
 		    "portid=%02x%02x%02x entry-status=%x.\n",
-		    type, fcport->port_name, sp->handle, fcport->d_id.b.domain,
+		    type, wwn_to_str(fcport->port_name), sp->handle, fcport->d_id.b.domain,
 		    fcport->d_id.b.area, fcport->d_id.b.al_pa,
 		    logio->entry_status);
 		ql_dump_buffer(ql_dbg_async + ql_dbg_buffer, vha, 0x504d,
@@ -1727,8 +1727,8 @@ qla24xx_logio_entry(scsi_qla_host_t *vha, struct req_que *req,
 
 	if (le16_to_cpu(logio->comp_status) == CS_COMPLETE) {
 		ql_dbg(ql_dbg_async, fcport->vha, 0x5036,
-		    "Async-%s complete - %8phC hdl=%x portid=%02x%02x%02x "
-		    "iop0=%x.\n", type, fcport->port_name, sp->handle,
+		    "Async-%s complete - %s hdl=%x portid=%02x%02x%02x "
+		    "iop0=%x.\n", type, wwn_to_str(fcport->port_name), sp->handle,
 		    fcport->d_id.b.domain,
 		    fcport->d_id.b.area, fcport->d_id.b.al_pa,
 		    le32_to_cpu(logio->io_parameter[0]));
@@ -1810,8 +1810,8 @@ qla24xx_logio_entry(scsi_qla_host_t *vha, struct req_que *req,
 	}
 
 	ql_dbg(ql_dbg_async, fcport->vha, 0x5037,
-	    "Async-%s failed - %8phC hdl=%x portid=%02x%02x%02x comp=%x "
-	    "iop0=%x iop1=%x.\n", type, fcport->port_name,
+	    "Async-%s failed - %s hdl=%x portid=%02x%02x%02x comp=%x "
+	    "iop0=%x iop1=%x.\n", type, wwn_to_str(fcport->port_name),
 		sp->handle, fcport->d_id.b.domain,
 	    fcport->d_id.b.area, fcport->d_id.b.al_pa,
 	    le16_to_cpu(logio->comp_status),
@@ -3614,6 +3614,7 @@ msix_failed:
 
 	/* Enable MSI-X vectors for the base queue */
 	for (i = 0; i < QLA_BASE_VECTORS; i++) {
+		WARN(i >= ha->msix_count, "%d > %d\n", i, ha->msix_count);
 		qentry = &ha->msix_entries[i];
 		qentry->handle = rsp;
 		rsp->msix = qentry;
@@ -3639,6 +3640,8 @@ msix_failed:
 	 */
 	if (QLA_TGT_MODE_ENABLED() && (ql2xenablemsix != 0) &&
 	    IS_ATIO_MSIX_CAPABLE(ha)) {
+		WARN(QLA_ATIO_VECTOR >= ha->msix_count, "%d > %d\n",
+		     QLA_ATIO_VECTOR, ha->msix_count);
 		qentry = &ha->msix_entries[QLA_ATIO_VECTOR];
 		rsp->msix = qentry;
 		qentry->handle = rsp;

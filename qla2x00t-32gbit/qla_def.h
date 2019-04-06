@@ -25,8 +25,15 @@
 #include <linux/firmware.h>
 #include <linux/aer.h>
 #include <linux/mutex.h>
-#include <linux/btree.h>
 #include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
+/*
+ * See also commit 5db53f3e80de ("[LogFS] add new flash file system") # v2.6.34.
+ */
+#include <linux/btree.h>
+#else
+#include "btree-backport.h"
+#endif
 
 #include <scsi/scsi.h>
 #include <scsi/scsi_host.h>

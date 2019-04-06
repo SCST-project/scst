@@ -840,8 +840,8 @@ static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("sqatgt(%ld/%d):	Deleting session %8phC fcid=%02x%02x%02x\n",
-		vha->host_no, vha->vp_idx, fcport->port_name,
+	TRACE_MGMT_DBG("sqatgt(%ld/%d):	Deleting session %s fcid=%02x%02x%02x\n",
+		vha->host_no, vha->vp_idx, wwn_to_str(fcport->port_name),
 		fcport->d_id.b.domain, fcport->d_id.b.area, fcport->d_id.b.al_pa);
 
 	mcmd = kzalloc(sizeof(*mcmd), GFP_ATOMIC);
@@ -859,8 +859,9 @@ static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 		wait_for_completion(&c);
 
 		kfree(mcmd);
-		TRACE_MGMT_DBG("sqatgt(%ld/%d):	Flush cmd done %8phC \n",
-			vha->host_no, vha->vp_idx, fcport->port_name);
+		TRACE_MGMT_DBG("sqatgt(%ld/%d):	Flush cmd done %s\n",
+			vha->host_no, vha->vp_idx,
+			wwn_to_str(fcport->port_name));
 	}
 
 	scst_unregister_session(scst_sess, 1, sqa_free_session_done);
@@ -871,8 +872,8 @@ static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 		wait_for_completion(&c);
 	}
 
-	TRACE_MGMT_DBG("sqatgt(%ld/%d):	Unregister completed %8phC done \n",
-		vha->host_no, vha->vp_idx, fcport->port_name);
+	TRACE_MGMT_DBG("sqatgt(%ld/%d):	Unregister completed %s done \n",
+		vha->host_no, vha->vp_idx, wwn_to_str(fcport->port_name));
 
 	sqa_free_sesess(se_sess);
 
@@ -940,18 +941,20 @@ static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
 
 	TRACE_ENTRY();
 
-	PRINT_INFO("sqatgt(%ld/%d): Registering initiator: pwwn=%8phC",
-		   vha->host_no, vha->vp_idx, fc_wwpn);
+	PRINT_INFO("sqatgt(%ld/%d): Registering initiator: pwwn=%s",
+		   vha->host_no, vha->vp_idx, wwn_to_str(fc_wwpn));
 
 	se_sess = sqa_alloc_sesess(vha);
 	if (!se_sess)
 		return -ENOMEM;
 
 	/* Create the SCST session. */
-	ini_name = kzalloc(3*WWN_SIZE+2, GFP_KERNEL);
+	ini_name = kasprintf(GFP_KERNEL,
+			     "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+			     fc_wwpn[0], fc_wwpn[1], fc_wwpn[2], fc_wwpn[3],
+			     fc_wwpn[4], fc_wwpn[5], fc_wwpn[6], fc_wwpn[7]);
 	if (!ini_name)
 		return -ENOMEM;
-	sprintf(ini_name, "%8phC", fc_wwpn);
 
 	memcpy(fcport->port_name, fc_wwpn, sizeof(fcport->port_name));
 	sqa_tgt = (struct sqa_scst_tgt*)vha->vha_tgt.target_lport_ptr;
@@ -1551,7 +1554,7 @@ static void sqa_qla2xxx_add_target(struct scsi_qla_host *vha)
 
 	TRACE_ENTRY();
 
-	PRINT_INFO("sqatgt: add target %8phC", vha->port_name);
+	PRINT_INFO("sqatgt: add target %s", wwn_to_str(vha->port_name));
 
 	if (!vha->vha_tgt.target_lport_ptr) {
 		mutex_lock(&sqa_mutex);
@@ -1929,9 +1932,9 @@ static int sqa_get_initiator_port_transport_id(struct scst_tgt *tgt,
 	}
 
 	TRACE_DBG("sqatgt(%ld/%d): Creating transport id: target session=%p, "
-		"initiator=%8phC, fcid=0x%02x%02x%02x, loop=0x%04x",
+		"initiator=%s, fcid=0x%02x%02x%02x, loop=0x%04x",
 		sess->vha->host_no, sess->vha->vp_idx, sess,
-		sess->port_name, sess->d_id.b.domain, sess->d_id.b.area,
+		wwn_to_str(sess->port_name), sess->d_id.b.domain, sess->d_id.b.area,
 		sess->d_id.b.al_pa, sess->loop_id);
 
 	tr_id_size = 24;
