@@ -1402,7 +1402,7 @@ static inline void *memdup_user_nul(const void __user *src, size_t len)
 {
 	char *p;
 
-	p = kmalloc_track_caller(len + 1, GFP_KERNEL);
+	p = kmalloc(len + 1, GFP_KERNEL);
 	if (!p)
 		return ERR_PTR(-ENOMEM);
 
