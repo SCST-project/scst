@@ -1,1 +1,16 @@
-(to do)
+The driver in this directory is a QLogic target driver that is based on the
+Linux kernel v5.1 QLogic Fibre Channel driver (qla2xxx). The differences with
+the previous version of the SCST QLogic target driver are:
+- The initiator driver is based on the Linux kernel v5.1 qla2xxx driver. The
+  predecessor of this driver was based on the initiator driver from the v3.4
+  Linux kernel.
+- Supports more QLogic adapters. Support for the following adapters has been
+  addedd (from qla2xxx_pci_tbl[]):
+	{ PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISPF001) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP8044) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2071) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2271) },
+	{ PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2261) },
+- Works in combination with Linux kernel v4.4 and later but not yet against
+  kernel v4.3 or any older kernel version. The older driver supports kernel
+  versions 2.6.32 and later.
