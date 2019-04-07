@@ -26,17 +26,15 @@
  */
 
 /*
- * This interface driver sits at the three way nexus between the SCST
- * driver core, the Cavium in-kernel target driver and the in-kernel
- * SCSI target driver.  It does not require that the in-kernel SCSI
- * target driver be enabled but it does make use of various structures
- * defined by the in-kernel driver in order to facilitate communications
- * between this interface driver and the low level target driver.
+ * This driver is an interface between the SCST core and the Cavium target
+ * code (qla_target.c). It uses the LIO se_session and se_cmd data structures
+ * to exchange information between this interface driver and the qla2xxx
+ * driver.
  *
  * This interface driver relies heavily upon hardware and mutex locking
- * supplied by the low level driver.  The primary exception to this
- * is the statically scoped sqa_mutex locks which provides exclusion
- * locking between target registraiton and module unload.
+ * supplied by the qla2xxx driver.  The primary exception to this is the
+ * statically scoped sqa_mutex locks which provides exclusion locking between
+ * target registration and module unload.
  */
 
 #define EXCLUDED 0
