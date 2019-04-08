@@ -3594,7 +3594,7 @@ msix_failed:
 		ql_log(ql_log_fatal, vha, 0x00c8,
 		    "Failed to allocate memory for ha->msix_entries.\n");
 		ret = -ENOMEM;
-		goto msix_out;
+		goto free_irqs;
 	}
 	ha->flags.msix_enabled = 1;
 
@@ -3688,6 +3688,14 @@ msix_out:
 	kfree(entries);
 #endif
 	return ret;
+
+free_irqs:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)
+	pci_disable_msix(ha->pdev);
+#else
+	pci_free_irq_vectors(ha->pdev);
+#endif
+	goto msix_out;
 }
 
 int
