@@ -115,7 +115,7 @@ static inline int __must_check btree_insert32(struct btree_head32 *head,
 		if (p->key > key)
 			break;
 	}
-	list_add(p->entry.prev, &n->entry);
+	list_add(&n->entry, p->entry.prev);
 	return 0;
 }
 
@@ -133,7 +133,7 @@ static inline int __must_check btree_insert64(struct btree_head64 *head,
 		if (p->key > key)
 			break;
 	}
-	list_add(p->entry.prev, &n->entry);
+	list_add(&n->entry, p->entry.prev);
 	return 0;
 }
 
