@@ -1,3 +1,6 @@
+Target driver for QLogic 2xxx/8xxx Fibre Channel cards
+======================================================
+
 The driver in this directory is a QLogic target driver that is based on the
 Linux kernel v5.1 QLogic Fibre Channel driver (qla2xxx). The differences with
 the previous version of the SCST QLogic target driver are:
@@ -11,6 +14,86 @@ the previous version of the SCST QLogic target driver are:
 	{ PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2071) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2271) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2261) },
-- Works in combination with Linux kernel v4.4 and later but not yet against
-  kernel v4.3 or any older kernel version. The older driver supports kernel
-  versions 2.6.32 and later.
+- Works in combination with Linux kernel v2.6.32 and later.
+
+Known Bugs
+----------
+
+When using the RHEL 6 debug kernel, a recursive locking complaint is reported
+when loading this driver with qlini_mode=dual:
+
+=============================================
+[ INFO: possible recursive locking detected ]
+2.6.32-754.11.1.el6.x86_64.debug #1
+---------------------------------------------
+qla2xxx_wq/0/3557 is trying to acquire lock:
+ ((fmt)){+.+.+.}, at: [<ffffffff810ab9ed>] flush_work+0x3d/0x120
+
+but task is already holding lock:
+ ((fmt)){+.+.+.}, at: [<ffffffff810ab29b>] worker_thread+0x1cb/0x3f0
+
+other info that might help us debug this:
+2 locks held by qla2xxx_wq/0/3557:
+ #0:  ((fmt)){+.+.+.}, at: [<ffffffff810ab29b>] worker_thread+0x1cb/0x3f0
+ #1:  (&base_vha->iocb_work){+.+.+.}, at: [<ffffffff810ab29b>] worker_thread+0x1cb/0x3f0
+
+stack backtrace:
+Pid: 3557, comm: qla2xxx_wq/0 Not tainted 2.6.32-754.11.1.el6.x86_64.debug #1
+Call Trace:
+ [<ffffffff810ce620>] ? __lock_acquire+0x11b0/0x1560
+ [<ffffffff810145e9>] ? sched_clock+0x9/0x10
+ [<ffffffff810145e9>] ? sched_clock+0x9/0x10
+ [<ffffffff810cea74>] ? lock_acquire+0xa4/0x130
+ [<ffffffff810ab9ed>] ? flush_work+0x3d/0x120
+ [<ffffffff8106b753>] ? __wake_up+0x53/0x70
+ [<ffffffff810aba19>] ? flush_work+0x69/0x120
+ [<ffffffff810ab9ed>] ? flush_work+0x3d/0x120
+ [<ffffffff810ba468>] ? sched_clock_cpu+0xb8/0x110
+ [<ffffffff810cc963>] ? mark_held_locks+0x73/0xa0
+ [<ffffffff81593640>] ? _spin_unlock_irqrestore+0x40/0x80
+ [<ffffffff810ccc6d>] ? trace_hardirqs_on_caller+0x14d/0x190
+ [<ffffffff810cccbd>] ? trace_hardirqs_on+0xd/0x10
+ [<ffffffffa0712708>] ? qla24xx_do_nack_work+0x68/0x120 [qla2xxx_scst]
+ [<ffffffffa0696f5b>] ? qla2x00_do_work+0x53b/0xba0 [qla2xxx_scst]
+ [<ffffffff810145e9>] ? sched_clock+0x9/0x10
+ [<ffffffff810ba345>] ? sched_clock_local+0x25/0x90
+ [<ffffffffa0697614>] ? qla2x00_iocb_work_fn+0x54/0xa0 [qla2xxx_scst]
+ [<ffffffffa06975c0>] ? qla2x00_iocb_work_fn+0x0/0xa0 [qla2xxx_scst]
+ [<ffffffff810ab2ee>] ? worker_thread+0x21e/0x3f0
+ [<ffffffff810ab29b>] ? worker_thread+0x1cb/0x3f0
+ [<ffffffff810b29b0>] ? autoremove_wake_function+0x0/0x40
+ [<ffffffff810ab0d0>] ? worker_thread+0x0/0x3f0
+ [<ffffffff810b2520>] ? kthread+0xa0/0xc0
+ [<ffffffff8159cc60>] ? child_rip+0x20/0x30
+ [<ffffffff8159c459>] ? retint_restore_args+0x13/0x43
+ [<ffffffff810b2480>] ? kthread+0x0/0xc0
+ [<ffffffff8159cc40>] ? child_rip+0x0/0x30
+
+When using RHEL 6 unloading this driver triggers a deadlock:
+
+INFO: task events/0:35 blocked for more than 120 seconds.
+      Not tainted 2.6.32-754.11.1.el6.x86_64.debug #1
+"echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+events/0      D ffff880077e24408 12408    35      2 0x00000000
+ ffff88007e02fa60 0000000000000046 0000000000000000 7fffffffffffffff
+ 7fffffffffffffff 00000365a5588f80 ffff88007e028a80 ffff88000d7d93d8
+ 0000000100346a5e 00000000000003c8 ffff88007e029040 ffff88007e02ffd8
+Call Trace:
+ [<ffffffff8158f775>] schedule_timeout+0x265/0x330
+ [<ffffffff8158f29f>] ? wait_for_common+0x4f/0x180
+ [<ffffffff8158f29f>] ? wait_for_common+0x4f/0x180
+ [<ffffffff810737a0>] ? default_wake_function+0x0/0x20
+ [<ffffffff8158f37b>] wait_for_common+0x12b/0x180
+ [<ffffffff810737a0>] ? default_wake_function+0x0/0x20
+ [<ffffffff8158f4ad>] wait_for_completion+0x1d/0x20
+ [<ffffffffa0714946>] ? qlt_free_session_done+0x1d6/0x930 [qla2xxx_scst]
+ [<ffffffffa0714770>] ? qlt_free_session_done+0x0/0x930 [qla2xxx_scst]
+ [<ffffffff810ab2ee>] ? worker_thread+0x21e/0x3f0
+ [<ffffffff810ab29b>] ? worker_thread+0x1cb/0x3f0
+ [<ffffffff810b29b0>] ? autoremove_wake_function+0x0/0x40
+ [<ffffffff810ab0d0>] ? worker_thread+0x0/0x3f0
+ [<ffffffff810b2520>] ? kthread+0xa0/0xc0
+ [<ffffffff8159cc60>] ? child_rip+0x20/0x30
+ [<ffffffff8159c459>] ? retint_restore_args+0x13/0x43
+ [<ffffffff810b2480>] ? kthread+0x0/0xc0
+ [<ffffffff8159cc40>] ? child_rip+0x0/0x30
