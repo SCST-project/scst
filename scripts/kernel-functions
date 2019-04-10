@@ -411,6 +411,11 @@ index 141da26fda4b..343ec388ae2e 100644
 EOF
 	    ;;
     esac
+
+    # Use sed to patch the ____ilog2_NaN() prototype.
+    sed -i 's/__attribute__((const, noreturn))/__attribute__((noreturn))/' \
+	include/linux/log2.h tools/include/linux/log2.h 2>/dev/null
+
     # After patch-v4.14.1[12] has been applied, the execute bit has to be
     # set for sync-check.sh since patch can't do that.
     for f in "tools/objtool/sync-check.sh"; do
