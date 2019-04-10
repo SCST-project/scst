@@ -498,6 +498,20 @@ ssize_t kernel_write(struct file *file, const void *buf, size_t count,
 #endif
 #endif
 
+/* <linux/interrupt.h> */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39) && !defined(RHEL_MAJOR)
+/*
+ * See also commit cd7eab44e994 ("genirq: Add IRQ affinity notifiers";
+ * v2.6.39).
+ */
+struct irq_affinity_notify;
+static inline int
+irq_set_affinity_notifier(unsigned int irq, struct irq_affinity_notify *notify)
+{
+	return 0;
+}
+#endif
+
 /* <linux/iocontext.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25) || \
