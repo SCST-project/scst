@@ -114,6 +114,12 @@ function extract_kernel_tree {
     fi
     mv "linux-$1" ".." || return $?
     cd "../linux-$1" || return $?
+  )
+  rmdir "${tmpdir}"
+}
+
+# Patch a kernel tree where $1 is the kernel version.
+function patch_kernel {
     if [ "$1" = "2.6.29" -o "$1" = "2.6.29.1" -o "$1" = "2.6.29.2" -o "$1" = "2.6.29.3" ]
     then
       patch -f -s -p1 <<'EOF'
@@ -423,8 +429,6 @@ EOF
 	chmod a+x "$f"
       fi
     done
-  )
-  rmdir "${tmpdir}"
 }
 
 function download_and_extract_kernel_tree {
@@ -436,6 +440,8 @@ function download_and_extract_kernel_tree {
 		{ git tag -l "v$1" >/dev/null || git fetch stable; } &&
 		git archive "v$1"
 	) | tar -C "linux-$1" -xf-
-    fi
-    download_kernel "$1" && extract_kernel_tree "$1"
+    else
+	download_kernel "$1" && extract_kernel_tree "$1"
+    fi &&
+	(cd linux-$1 && patch_kernel "$1")
 }
