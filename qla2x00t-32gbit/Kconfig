@@ -1,8 +1,10 @@
 config SCSI_QLA_FC
 	tristate "QLogic QLA2XXX Fibre Channel Support"
 	depends on PCI && SCSI
-	select SCSI_FC_ATTRS
+	depends on SCSI_FC_ATTRS
+	depends on NVME_FC || !NVME_FC
 	select FW_LOADER
+	select BTREE
 	---help---
 	This qla2xxx driver supports all QLogic Fibre Channel
 	PCI and PCIe host adapters.
@@ -25,6 +27,8 @@ config SCSI_QLA_FC
 	Firmware images can be retrieved from:
 
 		http://ldriver.qlogic.com/firmware/
+
+	They are also included in the linux-firmware tree as well.
 
 config SCSI_QLA2XXX_TARGET
 	bool "QLogic 2xxx target mode support"
