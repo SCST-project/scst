@@ -1615,6 +1615,10 @@ enum {
 };
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+#define wwn_to_u64(wwn) get_unaligned_be64(wwn)
+#endif
+
 /* <target/target_core_base.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
