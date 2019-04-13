@@ -100,39 +100,6 @@ static bool sqa_is_tgt_enabled(struct scst_tgt *tgt);
 static ssize_t sqa_add_vtarget(const char *target_name, char *params);
 static ssize_t sqa_del_vtarget(const char *target_name);
 
-/*
- * Function definitions for callbacks from the Cavium low level target
- * driver.
-*/
-static int sqa_qla2xxx_handle_cmd(scsi_qla_host_t *vha,
-				  struct qla_tgt_cmd *cmd,unsigned char *cdb,
-				  uint32_t data_length, int task_codes,
-				  int data_dir, int bidi);
-static void sqa_qla2xxx_handle_data(struct qla_tgt_cmd *cmd);
-static int sqa_qla2xxx_handle_tmr(struct qla_tgt_mgmt_cmd *mcmd, u64 lun,
-				  uint16_t tmr_func, uint32_t tag);
-static void sqa_qla2xxx_free_cmd(struct qla_tgt_cmd *cmd);
-static void sqa_qla2xxx_free_mcmd(struct qla_tgt_mgmt_cmd *mcmd);
-static void sqa_qla2xxx_free_session(struct fc_port *sess);
-static void sqa_qla2xxx_update_sess(struct fc_port *sess, port_id_t s_id,
-				    uint16_t loop_id,
-				    bool conf_compl_supported);
-static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
-						unsigned char *fc_wwpn,
-						struct fc_port *qlat_sess);
-static struct fc_port *sqa_qla2xxx_find_sess_by_s_id(scsi_qla_host_t *vha,
-							  const uint8_t *s_id);
-static struct fc_port *sqa_qla2xxx_find_sess_by_loop_id(scsi_qla_host_t *vha,
-							     const uint16_t loop_id);
-static void sqa_qla2xxx_clear_nacl_from_fcport_map(struct fc_port *sess);
-static void sqa_qla2xxx_put_sess(struct fc_port *sess);
-static void sqa_qla2xxx_shutdown_sess(struct fc_port *sess);
-static int sqa_close_session(struct scst_session *scst_sess);
-static int sqa_qla2xxx_dif_tags(struct qla_tgt_cmd *, uint16_t *);
-static int sqa_qla2xxx_chk_dif_tags(uint32_t);
-static void sqa_qla2xxx_add_target(struct scsi_qla_host *vha);
-static void sqa_qla2xxx_remove_target(struct scsi_qla_host *vha);
-
 /* Definitions for helper functions. */
 static int sqa_get_target_name(uint8_t *wwn, char **ppwwn_name);
 static int sqa_parse_wwn(const char *ns, u64 *nm);
@@ -243,60 +210,6 @@ static char *cmdstate_to_str(uint8_t state)
 	}
 	return cmd_str[0].str; /* unknown */
 }
-
-/*
- * The following structure definition provides descriptive parameeters
- * and callbacks which will be used by the SCST target core to
- * communicate with this target interface driver.
- */
-static struct scst_tgt_template sqa_scst_template = {
-	.name = "qla2x00t",
-	.sg_tablesize = 0,
-	.use_clustering = 1,
-#ifdef CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
-	.xmit_response_atomic = 0,
-	.rdy_to_xfer_atomic = 0,
-#else
-	.xmit_response_atomic = 1,
-	.rdy_to_xfer_atomic = 1,
-#endif
-
-#if QLA_ENABLE_PI
-/* diff cap for individual adapter is set during sqa_qla2xxx_add_target */
-	.dif_supported = 0,
-	.hw_dif_type1_supported = 0,
-	.hw_dif_type2_supported = 0,
-	.hw_dif_type3_supported = 0,
-	.hw_dif_ip_supported = 0,
-	.hw_dif_same_sg_layout_required = 0,
-#endif
-
-	.max_hw_pending_time = SQA_MAX_HW_PENDING_TIME,
-	.release = sqa_target_release,
-
-	.xmit_response = sqa_xmit_response,
-	.rdy_to_xfer = sqa_rdy_to_xfer,
-
-	.on_free_cmd = sqa_on_free_cmd,
-	.task_mgmt_fn_done = sqa_task_mgmt_fn_done,
-	.close_session = sqa_close_session,
-
-	.get_initiator_port_transport_id = sqa_get_initiator_port_transport_id,
-	.get_scsi_transport_version = sqa_get_scsi_transport_version,
-	.get_phys_transport_version = sqa_get_phys_transport_version,
-	.on_hw_pending_cmd_timeout = sqa_on_hw_pending_cmd_timeout,
-	.enable_target = sqa_enable_tgt,
-	.is_target_enabled = sqa_is_tgt_enabled,
-	.add_target = sqa_add_vtarget,
-	.del_target = sqa_del_vtarget,
-	.add_target_parameters = "node_name, parent_host",
-	.tgtt_attrs = sqa_attrs,
-	.tgt_attrs = sqa_tgt_attrs,
-#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
-	.default_trace_flags = SQA_DEFAULT_LOG_FLAGS,
-	.trace_flags = &trace_flag,
-#endif
-};
 
 #if QLA_ENABLE_PI
 
@@ -490,32 +403,6 @@ static struct qla_tgt_cmd *sqa_qla2xxx_get_cmd(struct fc_port *sess)
 	cmd->rel_cmd = sqa_qla2xxx_rel_cmd;
 	return cmd;
 }
-
-/*
- * The following structure defines the callbacks which will be executed
- * from functions in the qla_target.c file back to this interface
- * driver.
- */
-static struct qla_tgt_func_tmpl sqa_qla2xxx_template = {
-	.handle_cmd		= sqa_qla2xxx_handle_cmd,
-	.handle_data	= sqa_qla2xxx_handle_data,
-	.handle_tmr		= sqa_qla2xxx_handle_tmr,
-	.get_cmd		= sqa_qla2xxx_get_cmd,
-	.free_cmd		= sqa_qla2xxx_free_cmd,
-	.free_mcmd		= sqa_qla2xxx_free_mcmd,
-	.free_session	= sqa_qla2xxx_free_session,
-	.update_sess	= sqa_qla2xxx_update_sess,
-	.check_initiator_node_acl     = sqa_qla2xxx_check_initiator_node_acl,
-	.find_sess_by_s_id		= sqa_qla2xxx_find_sess_by_s_id,
-	.find_sess_by_loop_id	= sqa_qla2xxx_find_sess_by_loop_id,
-	.clear_nacl_from_fcport_map   = sqa_qla2xxx_clear_nacl_from_fcport_map,
-	.put_sess		= sqa_qla2xxx_put_sess,
-	.shutdown_sess	= sqa_qla2xxx_shutdown_sess,
-	.get_dif_tags	= sqa_qla2xxx_dif_tags,
-	.chk_dif_tags	= sqa_qla2xxx_chk_dif_tags,
-	.add_target     = sqa_qla2xxx_add_target,
-	.remove_target     = sqa_qla2xxx_remove_target,
-};
 
 static DEFINE_MUTEX(sqa_mutex);
 
@@ -1399,6 +1286,60 @@ static int sqa_parse_wwn(const char *ns, u64 *nm)
 	return 0;
 }
 
+/*
+ * The following structure definition provides descriptive parameeters
+ * and callbacks which will be used by the SCST target core to
+ * communicate with this target interface driver.
+ */
+static struct scst_tgt_template sqa_scst_template = {
+	.name			= "qla2x00t",
+	.sg_tablesize			= 0,
+	.use_clustering			= 1,
+#ifdef CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
+	.xmit_response_atomic		= 0,
+	.rdy_to_xfer_atomic		= 0,
+#else
+	.xmit_response_atomic		= 1,
+	.rdy_to_xfer_atomic		= 1,
+#endif
+
+#if QLA_ENABLE_PI
+/* diff cap for individual adapter is set during sqa_qla2xxx_add_target */
+	.dif_supported			 = 0,
+	.hw_dif_type1_supported		 = 0,
+	.hw_dif_type2_supported		 = 0,
+	.hw_dif_type3_supported		 = 0,
+	.hw_dif_ip_supported		 = 0,
+	.hw_dif_same_sg_layout_required	 = 0,
+#endif
+
+	.max_hw_pending_time		 = SQA_MAX_HW_PENDING_TIME,
+	.release			 = sqa_target_release,
+
+	.xmit_response			 = sqa_xmit_response,
+	.rdy_to_xfer			 = sqa_rdy_to_xfer,
+
+	.on_free_cmd			 = sqa_on_free_cmd,
+	.task_mgmt_fn_done		 = sqa_task_mgmt_fn_done,
+	.close_session			 = sqa_close_session,
+
+	.get_initiator_port_transport_id = sqa_get_initiator_port_transport_id,
+	.get_scsi_transport_version	 = sqa_get_scsi_transport_version,
+	.get_phys_transport_version	 = sqa_get_phys_transport_version,
+	.on_hw_pending_cmd_timeout	 = sqa_on_hw_pending_cmd_timeout,
+	.enable_target			 = sqa_enable_tgt,
+	.is_target_enabled		 = sqa_is_tgt_enabled,
+	.add_target			 = sqa_add_vtarget,
+	.del_target			 = sqa_del_vtarget,
+	.add_target_parameters		 = "node_name, parent_host",
+	.tgtt_attrs			 = sqa_attrs,
+	.tgt_attrs			 = sqa_tgt_attrs,
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
+	.default_trace_flags		 = SQA_DEFAULT_LOG_FLAGS,
+	.trace_flags			 = &trace_flag,
+#endif
+};
+
 /* call must hold sqa_mutex */
 static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 {
@@ -1952,6 +1893,27 @@ static uint16_t sqa_get_phys_transport_version(struct scst_tgt *scst_tgt)
 	return 0x0DA0;
 }
 
+static int sqa_qla2xxx_chk_dif_tags(uint32_t tag)
+{
+	return tag & SCST_DIF_CHECK_REF_TAG;
+}
+
+static int sqa_qla2xxx_dif_tags(struct qla_tgt_cmd *cmd,
+				uint16_t *pfw_prot_opts)
+{
+	struct scst_cmd *scst_cmd = cmd->scst_cmd;
+	uint32_t t32=0;
+
+	t32 = scst_get_dif_checks(scst_cmd->cmd_dif_actions);
+	if (!(t32 & SCST_DIF_CHECK_GUARD_TAG))
+		*pfw_prot_opts |= PO_DISABLE_GUARD_CHECK;
+
+	if (!(t32 & SCST_DIF_CHECK_APP_TAG))
+		*pfw_prot_opts |= PO_DIS_APP_TAG_VALD;
+
+	return t32;
+}
+
 static void sqa_cleanup_hw_pending_cmd(scsi_qla_host_t *vha,
 	struct qla_tgt_cmd *cmd)
 {
@@ -2028,7 +1990,31 @@ out:
 	return;
 }
 
-
+/*
+ * The following structure defines the callbacks which will be executed
+ * from functions in the qla_target.c file back to this interface
+ * driver.
+ */
+static struct qla_tgt_func_tmpl sqa_qla2xxx_template = {
+	.handle_cmd		    = sqa_qla2xxx_handle_cmd,
+	.handle_data		    = sqa_qla2xxx_handle_data,
+	.handle_tmr		    = sqa_qla2xxx_handle_tmr,
+	.get_cmd		    = sqa_qla2xxx_get_cmd,
+	.free_cmd		    = sqa_qla2xxx_free_cmd,
+	.free_mcmd		    = sqa_qla2xxx_free_mcmd,
+	.free_session		    = sqa_qla2xxx_free_session,
+	.update_sess		    = sqa_qla2xxx_update_sess,
+	.check_initiator_node_acl   = sqa_qla2xxx_check_initiator_node_acl,
+	.find_sess_by_s_id	    = sqa_qla2xxx_find_sess_by_s_id,
+	.find_sess_by_loop_id	    = sqa_qla2xxx_find_sess_by_loop_id,
+	.clear_nacl_from_fcport_map = sqa_qla2xxx_clear_nacl_from_fcport_map,
+	.put_sess		    = sqa_qla2xxx_put_sess,
+	.shutdown_sess		    = sqa_qla2xxx_shutdown_sess,
+	.get_dif_tags		    = sqa_qla2xxx_dif_tags,
+	.chk_dif_tags		    = sqa_qla2xxx_chk_dif_tags,
+	.add_target		    = sqa_qla2xxx_add_target,
+	.remove_target		    = sqa_qla2xxx_remove_target,
+};
 
 static int sqa_lport_callback(struct scsi_qla_host *vha,
 	void* target_lport_ptr, u64 npiv_wwpn, u64 npiv_wwnn)
@@ -2291,29 +2277,6 @@ static void __exit sqa_exit(void)
 	TRACE_EXIT();
 	return;
 }
-
-static int
-sqa_qla2xxx_chk_dif_tags(uint32_t tag)
-{
-	return tag & SCST_DIF_CHECK_REF_TAG;
-}
-
-static int
-sqa_qla2xxx_dif_tags(struct qla_tgt_cmd *cmd, uint16_t *pfw_prot_opts)
-{
-	struct scst_cmd *scst_cmd = cmd->scst_cmd;
-	uint32_t t32=0;
-
-	t32 = scst_get_dif_checks(scst_cmd->cmd_dif_actions);
-	if (!(t32 & SCST_DIF_CHECK_GUARD_TAG))
-		*pfw_prot_opts |= PO_DISABLE_GUARD_CHECK;
-
-	if (!(t32 & SCST_DIF_CHECK_APP_TAG))
-		*pfw_prot_opts |= PO_DIS_APP_TAG_VALD;
-
-	return t32;
-}
-
 
 #ifdef MODULE
 module_init(sqa_init);
