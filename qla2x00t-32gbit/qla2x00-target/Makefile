@@ -67,7 +67,7 @@ ccflags-y += -W -Wno-unused-parameter -Wno-missing-field-initializers
 
 -include $(KBUILD_EXTMOD)/../../build_mode
 
-echo := $(shell echo "qla2x00t-32gbit build mode: $(BUILD_MODE)" >& 2)
+echo := $(shell echo "qla2x00t-32gbit/target build mode: $(BUILD_MODE)" >& 2)
 
 BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
 	-DCONFIG_SCST_EXTRACHECKS -fno-inline -fno-inline-functions
