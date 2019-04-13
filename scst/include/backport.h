@@ -1543,6 +1543,30 @@ static inline void *vzalloc(unsigned long size)
 }
 #endif
 
+/* <linux/wait.h> */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0)
+/*
+ * See also commit 25ab0bc334b4 ("scsi: sched/wait: Add
+ * wait_event_lock_irq_timeout for TASK_UNINTERRUPTIBLE usage") # v4.20.
+ */
+#define __wait_event_lock_irq_timeout(wq_head, condition, lock, timeout, state)\
+	___wait_event(wq_head, ___wait_cond_timeout(condition),		\
+		      state, 0, timeout,				\
+		      spin_unlock_irq(&lock);				\
+		      __ret = schedule_timeout(__ret);			\
+		      spin_lock_irq(&lock));
+
+#define wait_event_lock_irq_timeout(wq_head, condition, lock, timeout)	\
+({									\
+	long __ret = timeout;						\
+	if (!___wait_cond_timeout(condition))				\
+		__ret = __wait_event_lock_irq_timeout(			\
+					wq_head, condition, lock, timeout,\
+					TASK_UNINTERRUPTIBLE);		\
+	__ret;								\
+})
+#endif
+
 /* <linux/workqueue.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
@@ -1613,6 +1637,20 @@ static inline void scsi_req_init(struct request *rq)
 enum {
 	FC_PORTSPEED_32GBIT = 0x40
 };
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0)
+/*
+ * See also commit cc019a5a3b58 ("scsi: scsi_transport_fc: fix typos on 64/128
+ * GBit define names") # v4.16.
+ */
+enum {
+	FC_PORTSPEED_64GBIT = 0x1000
+};
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+#define wwn_to_u64(wwn) get_unaligned_be64(wwn)
 #endif
 
 /* <target/target_core_base.h> */
