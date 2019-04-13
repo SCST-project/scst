@@ -807,14 +807,9 @@ qla2x00_sp_compl(void *ptr, int res)
 
 	cmd->result = res;
 
-	if (atomic_read(&sp->ref_count) == 0) {
-		ql_dbg(ql_dbg_io, sp->vha, 0x3015,
-		    "SP reference-count to ZERO -- sp=%p cmd=%p.\n",
-		    sp, GET_CMD_SP(sp));
-		if (ql2xextended_error_logging & ql_dbg_io)
-			WARN_ON(atomic_read(&sp->ref_count) == 0);
+	if (WARN_ON(atomic_read(&sp->ref_count) == 0))
 		return;
-	}
+
 	if (!atomic_dec_and_test(&sp->ref_count))
 		return;
 
@@ -916,14 +911,9 @@ qla2xxx_qpair_sp_compl(void *ptr, int res)
 
 	cmd->result = res;
 
-	if (atomic_read(&sp->ref_count) == 0) {
-		ql_dbg(ql_dbg_io, sp->fcport->vha, 0x3079,
-		    "SP reference-count to ZERO -- sp=%p cmd=%p.\n",
-		    sp, GET_CMD_SP(sp));
-		if (ql2xextended_error_logging & ql_dbg_io)
-			WARN_ON(atomic_read(&sp->ref_count) == 0);
+	if (WARN_ON(atomic_read(&sp->ref_count) == 0))
 		return;
-	}
+
 	if (!atomic_dec_and_test(&sp->ref_count))
 		return;
 
@@ -5140,8 +5130,10 @@ void qla24xx_create_new_sess(struct scsi_qla_host *vha, struct qla_work_evt *e)
 				   "%s %s mem alloc fail.\n",
 				   __func__, wwn_to_str(e->u.new_sess.port_name));
 
-			if (pla)
+			if (pla) {
+				list_del(&pla->list);
 				kmem_cache_free(qla_tgt_plogi_cachep, pla);
+			}
 			return;
 		}
 
@@ -5251,8 +5243,10 @@ void qla24xx_create_new_sess(struct scsi_qla_host *vha, struct qla_work_evt *e)
 
 	if (free_fcport) {
 		qla2x00_free_fcport(fcport);
-		if (pla)
+		if (pla) {
+			list_del(&pla->list);
 			kmem_cache_free(qla_tgt_plogi_cachep, pla);
+		}
 	}
 }
 
