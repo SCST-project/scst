@@ -142,11 +142,8 @@ static void qla_nvme_sp_ls_done(void *ptr, int res)
 	struct nvmefc_ls_req   *fd;
 	struct nvme_private *priv;
 
-	if (atomic_read(&sp->ref_count) == 0) {
-		ql_log(ql_log_warn, sp->fcport->vha, 0x2123,
-		    "SP reference-count to ZERO on LS_done -- sp=%p.\n", sp);
+	if (WARN_ON(atomic_read(&sp->ref_count) == 0))
 		return;
-	}
 
 	if (!atomic_dec_and_test(&sp->ref_count))
 		return;

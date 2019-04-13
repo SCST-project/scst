@@ -679,14 +679,9 @@ qla2x00_sp_compl(void *data, void *ptr, int res)
 
 	cmd->result = res;
 
-	if (atomic_read(&sp->ref_count) == 0) {
-		ql_dbg(ql_dbg_io, sp->fcport->vha, 0x3015,
-		    "SP reference-count to ZERO -- sp=%p cmd=%p.\n",
-		    sp, GET_CMD_SP(sp));
-		if (ql2xextended_error_logging & ql_dbg_io)
-			BUG();
+	if (WARN_ON(atomic_read(&sp->ref_count) == 0))
 		return;
-	}
+
 	if (!atomic_dec_and_test(&sp->ref_count))
 		return;
 
