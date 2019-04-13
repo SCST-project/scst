@@ -1403,7 +1403,7 @@ static int sqa_parse_wwn(const char *ns, u64 *nm)
 /* call must hold sqa_mutex */
 static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 {
-	char *pwwn;
+	char *pwwn = NULL;
 	int res;
 	struct scst_tgt *scst_tgt;
 	struct sqa_scst_tgt *sqa_tgt;
@@ -1421,7 +1421,6 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 	if (!sqa_tgt) {
 		PRINT_ERROR("sqatgt(%ld/%d): alloc sqa_tgt failed",
 		    vha->host_no, vha->vp_idx);
-		kfree(pwwn);
 		res = -ENOMEM;
 		goto done;
 	}
@@ -1430,7 +1429,6 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 	if (!sqa_tgt->tgt_cmd_map) {
 		PRINT_ERROR("sqatgt(%ld/%d): alloc tgt_cmd_map failed",
 			    vha->host_no, vha->vp_idx);
-		kfree(pwwn);
 		kfree(sqa_tgt);
 		res = -ENOMEM;
 		goto done;
@@ -1451,7 +1449,6 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 		pr_err("Unable to init se_sess->tgt_tag_pool,"
 			   " tag_num: %u\n", tag_num);
 		kvfree(sqa_tgt->tgt_cmd_map);
-		kfree(pwwn);
 		kfree(sqa_tgt);
 		goto done;
 	}
@@ -1464,7 +1461,6 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 		PRINT_ERROR("sqatgt(%ld/%d): SCST target registration failed.",
 			    vha->host_no, vha->vp_idx);
 		res = -ENOMEM;
-		kfree(pwwn);
 		kfree(sqa_tgt);
 		goto done;
 	}
@@ -1477,7 +1473,6 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 		scst_tgt_set_hw_dif_type3_supported(scst_tgt, true);
 	}
 #endif
-	kfree(pwwn);
 	INIT_LIST_HEAD(&sqa_tgt->list);
 	sqa_tgt->scst_tgt = scst_tgt;
 	sqa_tgt->qla_tgt = vha->vha_tgt.qla_tgt;
@@ -1511,7 +1506,8 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 	TRACE(TRACE_MGMT, "sqatgt(%ld/%d): Registering target pwwn=%s "
 	    "scst_tgt %p sqa_tgt %p",
 	    vha->host_no, vha->vp_idx, pwwn, scst_tgt, sqa_tgt);
- done:
+done:
+	kfree(pwwn);
 	return res;
 }
 
