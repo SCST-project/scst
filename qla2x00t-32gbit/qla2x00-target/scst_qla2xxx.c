@@ -1041,7 +1041,6 @@ static void sqa_qla2xxx_put_sess(struct fc_port *sess)
 {
 	TRACE_ENTRY();
 
-	assert_spin_locked(&sess->vha->hw->tgt.sess_lock);
 	kref_put(&sess->sess_kref, sqa_qla2xxx_release_sess);
 
 	TRACE_EXIT();
