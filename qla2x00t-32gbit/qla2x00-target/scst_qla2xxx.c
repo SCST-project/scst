@@ -862,11 +862,11 @@ static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 			wwn_to_str(fcport->port_name));
 	}
 
-	scst_unregister_session(scst_sess, 1, sqa_free_session_done);
-
 	{
 		DECLARE_COMPLETION_ONSTACK(c);
+
 		fcport->unreg_done = &c;
+		scst_unregister_session(scst_sess, 1, sqa_free_session_done);
 		wait_for_completion(&c);
 	}
 
