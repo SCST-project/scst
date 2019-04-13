@@ -1358,26 +1358,12 @@ static ssize_t sqa_abort_isp_store(struct kobject *kobj,
 
 static int sqa_get_target_name(uint8_t *wwn, char **ppwwn_name)
 {
-	const int wwn_len = 3*WWN_SIZE+2;
-	int res = 0;
-	char *name;
+	*ppwwn_name = kasprintf(GFP_KERNEL,
+				"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+				wwn[0], wwn[1], wwn[2], wwn[3],
+				wwn[4], wwn[5], wwn[6], wwn[7]);
 
-	name = kmalloc(wwn_len, GFP_KERNEL);
-	if (name == NULL) {
-		PRINT_ERROR("sqatgt: Allocation of tgt wwn name (size %d) "
-			"failed", wwn_len);
-		res = -ENOMEM;
-		goto out;
-	}
-
-	sprintf(name, "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
-		wwn[0], wwn[1], wwn[2], wwn[3],
-		wwn[4], wwn[5], wwn[6], wwn[7]);
-
-	*ppwwn_name = name;
-
-out:
-	return res;
+	return *ppwwn_name ? 0 : -ENOMEM;
 }
 
 static int sqa_parse_wwn(const char *ns, u64 *nm)
