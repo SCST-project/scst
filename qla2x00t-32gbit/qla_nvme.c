@@ -564,10 +564,8 @@ static void qla_nvme_remoteport_delete(struct nvme_fc_remote_port *rport)
 	}
 	complete(&fcport->nvme_del_done);
 
-	if (!test_bit(UNLOADING, &fcport->vha->dpc_flags)) {
-		INIT_WORK(&fcport->free_work, qlt_free_session_done);
-		schedule_work(&fcport->free_work);
-	}
+	if (!test_bit(UNLOADING, &fcport->vha->dpc_flags))
+		schedule_work(&fcport->post_logout_work);
 
 	fcport->nvme_flag &= ~NVME_FLAG_DELETING;
 	ql_log(ql_log_info, fcport->vha, 0x2110,

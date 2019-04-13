@@ -224,7 +224,6 @@ qla2x00_async_login(struct scsi_qla_host *vha, fc_port_t *fcport,
 		goto done;
 
 	fcport->flags |= FCF_ASYNC_SENT;
-	fcport->logout_completed = 0;
 
 	fcport->disc_state = DSC_LOGIN_PEND;
 	sp->type = SRB_LOGIN_CMD;
@@ -1065,7 +1064,6 @@ qla24xx_async_prli(struct scsi_qla_host *vha, fc_port_t *fcport)
 		return rval;
 
 	fcport->flags |= FCF_ASYNC_SENT;
-	fcport->logout_completed = 0;
 
 	sp->type = SRB_PRLI_CMD;
 	sp->name = "prli";
@@ -4724,6 +4722,8 @@ qla2x00_alloc_fcport(scsi_qla_host_t *vha, gfp_t flags)
 
 	INIT_WORK(&fcport->del_work, qla24xx_delete_sess_fn);
 	INIT_WORK(&fcport->reg_work, qla_register_fcport_fn);
+	INIT_WORK(&fcport->post_logout_work, qlt_post_logout);
+	INIT_WORK(&fcport->finish_logout_work, qlt_finish_logout);
 	INIT_LIST_HEAD(&fcport->gnl_entry);
 	INIT_LIST_HEAD(&fcport->list);
 
