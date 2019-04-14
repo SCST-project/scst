@@ -3032,6 +3032,8 @@ static void qla24xx_async_gpsc_sp_done(void *s, int res)
 	ql_dbg(ql_dbg_disc, vha, 0x2053, "Async done-%s res %x, WWPN %s \n",
 	       sp->name, res, wwn_to_str(fcport->port_name));
 
+	fcport->flags &= ~(FCF_ASYNC_SENT | FCF_ASYNC_ACTIVE);
+
 	if (res == QLA_FUNCTION_TIMEOUT)
 		return;
 
@@ -4359,6 +4361,7 @@ int qla24xx_async_gnnid(scsi_qla_host_t *vha, fc_port_t *fcport)
 
 done_free_sp:
 	sp->free(sp);
+	fcport->flags &= ~FCF_ASYNC_SENT;
 done:
 	return rval;
 }
