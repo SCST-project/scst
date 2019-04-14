@@ -2099,6 +2099,7 @@ qla2x00_initialize_adapter(scsi_qla_host_t *vha)
 	int	rval;
 	struct qla_hw_data *ha = vha->hw;
 	struct req_que *req = ha->req_q_map[0];
+	struct device_reg_24xx __iomem *reg = &ha->iobase->isp24;
 
 	memset(&vha->qla_stats, 0, sizeof(vha->qla_stats));
 	memset(&vha->fc_host_stat, 0, sizeof(vha->fc_host_stat));
@@ -2132,6 +2133,15 @@ qla2x00_initialize_adapter(scsi_qla_host_t *vha)
 	}
 
 	ha->isp_ops->reset_chip(vha);
+
+	/* Check for secure flash support */
+	if (IS_QLA28XX(ha)) {
+		if (RD_REG_DWORD(&reg->mailbox12) & BIT_0) {
+			ql_log(ql_log_info, vha, 0xffff, "Adapter is Secure\n");
+			ha->flags.secure_adapter = 1;
+		}
+	}
+
 
 	rval = qla2xxx_get_flash_info(vha);
 	if (rval) {
@@ -2449,7 +2459,7 @@ qla2x00_isp_firmware(scsi_qla_host_t *vha)
  *
  * Returns 0 on success.
  */
-void
+int
 qla2x00_reset_chip(scsi_qla_host_t *vha)
 {
 	unsigned long   flags = 0;
@@ -2457,9 +2467,10 @@ qla2x00_reset_chip(scsi_qla_host_t *vha)
 	struct device_reg_2xxx __iomem *reg = &ha->iobase->isp;
 	uint32_t	cnt;
 	uint16_t	cmd;
+	int rval = QLA_FUNCTION_FAILED;
 
 	if (unlikely(pci_channel_offline(ha->pdev)))
-		return;
+		return rval;
 
 	ha->isp_ops->disable_intrs(ha);
 
@@ -2585,6 +2596,8 @@ qla2x00_reset_chip(scsi_qla_host_t *vha)
 	}
 
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+
+	return QLA_SUCCESS;
 }
 
 /**
@@ -2825,14 +2838,15 @@ acquired:
  *
  * Returns 0 on success.
  */
-void
+int
 qla24xx_reset_chip(scsi_qla_host_t *vha)
 {
 	struct qla_hw_data *ha = vha->hw;
+	int rval = QLA_FUNCTION_FAILED;
 
 	if (pci_channel_offline(ha->pdev) &&
 	    ha->flags.pci_channel_io_perm_failure) {
-		return;
+		return rval;
 	}
 
 	ha->isp_ops->disable_intrs(ha);
@@ -2840,7 +2854,9 @@ qla24xx_reset_chip(scsi_qla_host_t *vha)
 	qla25xx_manipulate_risc_semaphore(vha);
 
 	/* Perform RISC reset. */
-	qla24xx_reset_risc(vha);
+	rval = qla24xx_reset_risc(vha);
+
+	return rval;
 }
 
 /**
@@ -6677,6 +6693,14 @@ qla2x00_abort_isp(scsi_qla_host_t *vha)
 	if (vha->flags.online) {
 		qla2x00_abort_isp_cleanup(vha);
 
+		if (test_and_clear_bit(ISP_ABORT_TO_ROM, &vha->dpc_flags)) {
+			ha->flags.chip_reset_done = 1;
+			vha->flags.online = 1;
+			status = 0;
+			clear_bit(ISP_ABORT_RETRY, &vha->dpc_flags);
+			return status;
+		}
+
 		if (IS_QLA8031(ha)) {
 			ql_dbg(ql_dbg_p3p, vha, 0xb05c,
 			    "Clearing fcoe driver presence.\n");
@@ -6917,7 +6941,7 @@ qla25xx_init_queues(struct qla_hw_data *ha)
 * Input:
 *      ha = adapter block pointer.
 */
-void
+int
 qla2x00_reset_adapter(scsi_qla_host_t *vha)
 {
 	unsigned long flags = 0;
@@ -6933,17 +6957,20 @@ qla2x00_reset_adapter(scsi_qla_host_t *vha)
 	WRT_REG_WORD(&reg->hccr, HCCR_RELEASE_RISC);
 	RD_REG_WORD(&reg->hccr);			/* PCI Posting. */
 	spin_unlock_irqrestore(&ha->hardware_lock, flags);
+
+	return QLA_SUCCESS;
 }
 
-void
+int
 qla24xx_reset_adapter(scsi_qla_host_t *vha)
 {
 	unsigned long flags = 0;
 	struct qla_hw_data *ha = vha->hw;
 	struct device_reg_24xx __iomem *reg = &ha->iobase->isp24;
+	int rval = QLA_SUCCESS;
 
 	if (IS_P3P_TYPE(ha))
-		return;
+		return rval;
 
 	vha->flags.online = 0;
 	ha->isp_ops->disable_intrs(ha);
@@ -6957,6 +6984,8 @@ qla24xx_reset_adapter(scsi_qla_host_t *vha)
 
 	if (IS_NOPOLLING_TYPE(ha))
 		ha->isp_ops->enable_intrs(ha);
+
+	return rval;
 }
 
 /* On sparc systems, obtain port and node WWN from firmware
@@ -8180,7 +8209,7 @@ qla81xx_nvram_config(scsi_qla_host_t *vha)
 	if (IS_P3P_TYPE(ha) || IS_QLA8031(ha))
 		ha->vpd_size = FA_VPD_SIZE_82XX;
 
-	if (IS_QLA28XX(ha))
+	if (IS_QLA28XX(ha) || IS_QLA27XX(ha))
 		qla28xx_get_aux_images(vha, &active_regions);
 
 	/* Get VPD data into cache */
