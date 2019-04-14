@@ -805,8 +805,6 @@ qla2x00_sp_compl(void *ptr, int res)
 	srb_t *sp = ptr;
 	struct scsi_cmnd *cmd = GET_CMD_SP(sp);
 
-	cmd->result = res;
-
 	if (WARN_ON(atomic_read(&sp->ref_count) == 0))
 		return;
 
@@ -814,6 +812,7 @@ qla2x00_sp_compl(void *ptr, int res)
 		return;
 
 	sp->free(sp);
+	cmd->result = res;
 	cmd->scsi_done(cmd);
 }
 
