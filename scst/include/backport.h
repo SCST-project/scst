@@ -1544,47 +1544,6 @@ static inline void *vzalloc(unsigned long size)
 }
 #endif
 
-/* <linux/wait.h> */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
-/*
- * See also commit 35a2af94c7ce ("sched/wait: Make the __wait_event*()
- * interface more friendly") # v3.13.
- */
-#define ___wait_cond_timeout_backport(condition)\
-({						\
-	bool __cond = (condition);		\
-	if (__cond && !__ret)			\
-		__ret = 1;			\
-	__cond || !__ret;			\
-})
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0)
-#define ___wait_cond_timeout_backport ___wait_cond_timeout
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0)
-/*
- * See also commit 25ab0bc334b4 ("scsi: sched/wait: Add
- * wait_event_lock_irq_timeout for TASK_UNINTERRUPTIBLE usage") # v4.20.
- */
-#define __wait_event_lock_irq_timeout(wq_head, condition, lock, timeout, state)\
-	___wait_event(wq_head, ___wait_cond_timeout_backport(condition),\
-		      state, 0, timeout,				\
-		      spin_unlock_irq(&lock);				\
-		      __ret = schedule_timeout(__ret);			\
-		      spin_lock_irq(&lock));
-
-#define wait_event_lock_irq_timeout(wq_head, condition, lock, timeout)	\
-({									\
-	long __ret = timeout;						\
-	if (!___wait_cond_timeout_backport(condition))			\
-		__ret = __wait_event_lock_irq_timeout(			\
-					wq_head, condition, lock, timeout,\
-					TASK_UNINTERRUPTIBLE);		\
-	__ret;								\
-})
-#endif
-
 /* <linux/workqueue.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
