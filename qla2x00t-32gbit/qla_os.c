@@ -4705,6 +4705,9 @@ qla2x00_free_exchoffld_buffer(struct qla_hw_data *ha)
 static void
 qla2x00_free_fw_dump(struct qla_hw_data *ha)
 {
+	struct fwdt *fwdt = ha->fwdt;
+	uint j;
+
 	if (ha->fce)
 		dma_free_coherent(&ha->pdev->dev,
 		    FCE_SIZE, ha->fce, ha->fce_dma);
@@ -4715,8 +4718,6 @@ qla2x00_free_fw_dump(struct qla_hw_data *ha)
 
 	if (ha->fw_dump)
 		vfree(ha->fw_dump);
-	if (ha->fw_dump_template)
-		vfree(ha->fw_dump_template);
 
 	ha->fce = NULL;
 	ha->fce_dma = 0;
@@ -4727,8 +4728,13 @@ qla2x00_free_fw_dump(struct qla_hw_data *ha)
 	ha->fw_dump_reading = 0;
 	ha->fw_dump = NULL;
 	ha->fw_dump_len = 0;
-	ha->fw_dump_template = NULL;
-	ha->fw_dump_template_len = 0;
+
+	for (j = 0; j < 2; j++, fwdt++) {
+		if (fwdt->template)
+			vfree(fwdt->template);
+		fwdt->template = NULL;
+		fwdt->length = 0;
+	}
 }
 
 /*
