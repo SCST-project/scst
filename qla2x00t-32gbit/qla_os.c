@@ -804,16 +804,18 @@ qla2x00_sp_compl(void *ptr, int res)
 {
 	srb_t *sp = ptr;
 	struct scsi_cmnd *cmd = GET_CMD_SP(sp);
+	struct completion *comp = sp->comp;
 
 	if (WARN_ON(atomic_read(&sp->ref_count) == 0))
 		return;
 
-	if (!atomic_dec_and_test(&sp->ref_count))
-		return;
+	atomic_dec(&sp->ref_count);
 
 	sp->free(sp);
 	cmd->result = res;
 	cmd->scsi_done(cmd);
+	if (comp)
+		complete(comp);
 }
 
 void
@@ -907,17 +909,17 @@ qla2xxx_qpair_sp_compl(void *ptr, int res)
 {
 	srb_t *sp = ptr;
 	struct scsi_cmnd *cmd = GET_CMD_SP(sp);
-
-	cmd->result = res;
+	struct completion *comp = sp->comp;
 
 	if (WARN_ON(atomic_read(&sp->ref_count) == 0))
 		return;
 
-	if (!atomic_dec_and_test(&sp->ref_count))
-		return;
+	atomic_dec(&sp->ref_count);
 
 	sp->free(sp);
 	cmd->scsi_done(cmd);
+	if (comp)
+		complete(comp);
 }
 
 #if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 >= 2
@@ -1378,12 +1380,13 @@ static int
 qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 {
 	scsi_qla_host_t *vha = shost_priv(cmd->device->host);
+	DECLARE_COMPLETION_ONSTACK(comp);
 	srb_t *sp;
 	int ret;
 	unsigned int id;
 	uint64_t lun;
 	unsigned long flags;
-	int rval, wait = 0;
+	int rval;
 	struct qla_hw_data *ha = vha->hw;
 	struct qla_qpair *qpair;
 
@@ -1407,9 +1410,7 @@ qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 		return SUCCESS;
 
 	spin_lock_irqsave(qpair->qp_lock_ptr, flags);
-	if (!CMD_SP(cmd)) {
-		/* there's a chance an interrupt could clear
-		   the ptr as part of done & free */
+	if (sp->type != SRB_SCSI_CMD || GET_CMD_SP(sp) != cmd) {
 		spin_unlock_irqrestore(qpair->qp_lock_ptr, flags);
 		return SUCCESS;
 	}
@@ -1430,56 +1431,39 @@ qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 
 	/* Get a reference to the sp and drop the lock.*/
 
+	ret = SUCCESS;
 	rval = ha->isp_ops->abort_command(sp);
-	if (rval) {
-		if (rval == QLA_FUNCTION_PARAMETER_ERROR)
-			ret = SUCCESS;
-		else
+	ql_dbg(ql_dbg_taskm, vha, 0x8003,
+	       "Abort command mbx cmd=%p, rval=%x.\n", cmd, rval);
+
+	switch (rval) {
+	case QLA_SUCCESS:
+		/* The command has been aborted. */
+		sp->done(sp, DID_ABORT << 16);
+		break;
+	case QLA_FUNCTION_PARAMETER_ERROR:
+	default: {
+		/* Wait for the command completion. */
+		uint32_t ratov = ha->r_a_tov/10;
+		uint32_t ratov_j = msecs_to_jiffies(4 * ratov * 1000);
+
+		sp->comp = &comp;
+		if (!wait_for_completion_timeout(&comp, ratov_j)) {
+			ql_dbg(ql_dbg_taskm, vha, 0xffff,
+			    "%s: Abort wait timer (4 * R_A_TOV[%d]) expired\n",
+			    __func__, ha->r_a_tov);
 			ret = FAILED;
-
-		ql_dbg(ql_dbg_taskm, vha, 0x8003,
-		    "Abort command mbx failed cmd=%p, rval=%x.\n", cmd, rval);
-	} else {
-		ql_dbg(ql_dbg_taskm, vha, 0x8004,
-		    "Abort command mbx success cmd=%p.\n", cmd);
-		wait = 1;
-	}
-
-	spin_lock_irqsave(qpair->qp_lock_ptr, flags);
-	/*
-	 * Clear the slot in the oustanding_cmds array if we can't find the
-	 * command to reclaim the resources.
-	 */
-	if (rval == QLA_FUNCTION_PARAMETER_ERROR)
-		vha->req->outstanding_cmds[sp->handle] = NULL;
-
-	/*
-	 * sp->done will do ref_count--
-	 * sp_get() took an extra count above
-	 */
-	sp->done(sp, DID_RESET << 16);
-
-	/* Did the command return during mailbox execution? */
-	if (ret == FAILED && !CMD_SP(cmd))
-		ret = SUCCESS;
-
-	if (!CMD_SP(cmd))
-		wait = 0;
-
-	spin_unlock_irqrestore(qpair->qp_lock_ptr, flags);
-
-	/* Wait for the command to be returned. */
-	if (wait) {
-		if (qla2x00_eh_wait_on_command(cmd) != QLA_SUCCESS) {
-			ql_log(ql_log_warn, vha, 0x8006,
-			    "Abort handler timed out cmd=%p.\n", cmd);
-			ret = FAILED;
+			break;
 		}
+		break;
+	}
 	}
 
+	sp->comp = NULL;
+	atomic_dec(&sp->ref_count);
 	ql_log(ql_log_info, vha, 0x801c,
-	    "Abort command issued nexus=%ld:%d:%llu --  %d %x.\n",
-	    vha->host_no, id, lun, wait, ret);
+	    "Abort command issued nexus=%ld:%d:%llu -- %x.\n",
+	    vha->host_no, id, lun, ret);
 
 	return ret;
 }
