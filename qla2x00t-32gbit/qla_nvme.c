@@ -145,8 +145,7 @@ static void qla_nvme_sp_ls_done(void *ptr, int res)
 	if (WARN_ON(atomic_read(&sp->ref_count) == 0))
 		return;
 
-	if (!atomic_dec_and_test(&sp->ref_count))
-		return;
+	atomic_dec(&sp->ref_count);
 
 	if (res)
 		res = -EINVAL;
@@ -169,8 +168,10 @@ static void qla_nvme_sp_done(void *ptr, int res)
 	nvme = &sp->u.iocb_cmd;
 	fd = nvme->u.nvme.desc;
 
-	if (!atomic_dec_and_test(&sp->ref_count))
+	if (WARN_ON(atomic_read(&sp->ref_count) == 0))
 		return;
+
+	atomic_dec(&sp->ref_count);
 
 	if (res == QLA_SUCCESS) {
 		fd->rcv_rsplen = nvme->u.nvme.rsp_pyld_len;
