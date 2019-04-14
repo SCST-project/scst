@@ -43,6 +43,7 @@
 #include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
 struct scsi_target;
 #include <scsi/scsi_transport_fc.h> /* struct fc_bsg_job */
+#include <asm/unaligned.h>	/* get_unaligned_be64() */
 
 /* <asm-generic/barrier.h> */
 
@@ -1544,13 +1545,30 @@ static inline void *vzalloc(unsigned long size)
 #endif
 
 /* <linux/wait.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
+/*
+ * See also commit 35a2af94c7ce ("sched/wait: Make the __wait_event*()
+ * interface more friendly") # v3.13.
+ */
+#define ___wait_cond_timeout_backport(condition)\
+({						\
+	bool __cond = (condition);		\
+	if (__cond && !__ret)			\
+		__ret = 1;			\
+	__cond || !__ret;			\
+})
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0)
+#define ___wait_cond_timeout_backport ___wait_cond_timeout
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0)
 /*
  * See also commit 25ab0bc334b4 ("scsi: sched/wait: Add
  * wait_event_lock_irq_timeout for TASK_UNINTERRUPTIBLE usage") # v4.20.
  */
 #define __wait_event_lock_irq_timeout(wq_head, condition, lock, timeout, state)\
-	___wait_event(wq_head, ___wait_cond_timeout(condition),		\
+	___wait_event(wq_head, ___wait_cond_timeout_backport(condition),\
 		      state, 0, timeout,				\
 		      spin_unlock_irq(&lock);				\
 		      __ret = schedule_timeout(__ret);			\
@@ -1559,7 +1577,7 @@ static inline void *vzalloc(unsigned long size)
 #define wait_event_lock_irq_timeout(wq_head, condition, lock, timeout)	\
 ({									\
 	long __ret = timeout;						\
-	if (!___wait_cond_timeout(condition))				\
+	if (!___wait_cond_timeout_backport(condition))			\
 		__ret = __wait_event_lock_irq_timeout(			\
 					wq_head, condition, lock, timeout,\
 					TASK_UNINTERRUPTIBLE);		\
@@ -1639,7 +1657,8 @@ enum {
 };
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
 /*
  * See also commit cc019a5a3b58 ("scsi: scsi_transport_fc: fix typos on 64/128
  * GBit define names") # v4.16.
