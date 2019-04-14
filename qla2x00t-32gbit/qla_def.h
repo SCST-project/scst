@@ -559,7 +559,7 @@ typedef struct srb {
 	u32 gen2;	/* scratch */
 	int rc;
 	int retry_count;
-	struct completion comp;
+	struct completion *comp;
 	union {
 		struct srb_iocb iocb_cmd;
 #ifndef NEW_LIBFC_API
