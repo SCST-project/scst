@@ -708,8 +708,7 @@ static void sqa_qla2xxx_free_mcmd(struct qla_tgt_mgmt_cmd *mcmd)
 
 static void sqa_free_session_done(struct scst_session *scst_sess)
 {
-	struct fc_port *fcport =
-		(struct fc_port*)scst_sess_get_tgt_priv(scst_sess);
+	struct fc_port *fcport = scst_sess_get_tgt_priv(scst_sess);
 
 	if (fcport->unreg_done)
 		complete(fcport->unreg_done);
@@ -719,8 +718,7 @@ static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 {
 	struct scsi_qla_host *vha = fcport->vha;
 	struct se_session *se_sess = fcport->se_sess;
-	struct scst_session *scst_sess =
-		(struct scst_session *)se_sess->fabric_sess_ptr;
+	struct scst_session *scst_sess = se_sess->fabric_sess_ptr;
 	struct qla_tgt_mgmt_cmd *mcmd;
 
 	TRACE_ENTRY();
@@ -842,7 +840,7 @@ static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
 		goto free_sess;
 
 	memcpy(fcport->port_name, fc_wwpn, sizeof(fcport->port_name));
-	sqa_tgt = (struct sqa_scst_tgt*)vha->vha_tgt.target_lport_ptr;
+	sqa_tgt = vha->vha_tgt.target_lport_ptr;
 
 	res = -ESRCH;
 	scst_sess = scst_register_session(sqa_tgt->scst_tgt, 0,
@@ -1706,7 +1704,7 @@ static int sqa_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	cmd->dma_data_direction =
 		scst_to_tgt_dma_dir(scst_cmd_get_data_direction(scst_cmd));
 
-	cmd->cdb = (unsigned char *) scst_cmd_get_cdb(scst_cmd);
+	cmd->cdb = scst_cmd_get_cdb(scst_cmd);
 	cmd->sg = scst_cmd_get_sg(scst_cmd);
 	cmd->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
 	cmd->scsi_status = scst_cmd_get_status(scst_cmd);
@@ -1851,7 +1849,7 @@ static int sqa_get_initiator_port_transport_id(struct scst_tgt *tgt,
 		goto out;
 	}
 
-	sess = (struct fc_port*)scst_sess_get_tgt_priv(scst_sess);
+	sess = scst_sess_get_tgt_priv(scst_sess);
 	if (sess == NULL) {
 		res = SCSI_TRANSPORTID_PROTOCOLID_FCP2;
 		goto out;
