@@ -1913,7 +1913,6 @@ static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 		    SCST_LOAD_SENSE(scst_sense_internal_failure));
 		scst_rx_data(scst_cmd, SCST_RX_STATUS_ERROR_SENSE_SET,
 		    SCST_CONTEXT_THREAD);
-		goto out;
 		break;
 	case QLA_TGT_STATE_PROCESSED:
 		if (!cmd->cmd_sent_to_fw) {
@@ -1922,14 +1921,13 @@ static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 		} else {
 			TRACE_MGMT_DBG("Force finishing cmd %p", cmd);
 		}
+		sqa_cleanup_hw_pending_cmd(vha, cmd);
+		scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
+		scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_THREAD);
 		break;
 	}
-
-	sqa_cleanup_hw_pending_cmd(vha, cmd);
-	scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
-	scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_THREAD);
-out:
 	spin_unlock_irqrestore(qpair->qp_lock_ptr, flags);
+
 	TRACE_EXIT();
 	return;
 }
