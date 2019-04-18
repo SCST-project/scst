@@ -107,7 +107,6 @@ static int sqa_parse_wwn(const char *ns, u64 *nm);
 /* Variables and function definitions for sysfs control plane. */
 static ssize_t sqa_version_show(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf);
-static void sqa_free_sesess(struct se_session *se_sess);
 
 struct kobj_attribute sqa_version_attr =
 	__ATTR(version, S_IRUGO, sqa_version_show, NULL);
@@ -708,8 +707,7 @@ static void sqa_qla2xxx_free_mcmd(struct qla_tgt_mgmt_cmd *mcmd)
 
 static void sqa_free_session_done(struct scst_session *scst_sess)
 {
-	struct fc_port *fcport =
-		(struct fc_port*)scst_sess_get_tgt_priv(scst_sess);
+	struct fc_port *fcport = scst_sess_get_tgt_priv(scst_sess);
 
 	if (fcport->unreg_done)
 		complete(fcport->unreg_done);
@@ -719,8 +717,7 @@ static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 {
 	struct scsi_qla_host *vha = fcport->vha;
 	struct se_session *se_sess = fcport->se_sess;
-	struct scst_session *scst_sess =
-		(struct scst_session *)se_sess->fabric_sess_ptr;
+	struct scst_session *scst_sess = se_sess->fabric_sess_ptr;
 	struct qla_tgt_mgmt_cmd *mcmd;
 
 	TRACE_ENTRY();
@@ -760,7 +757,7 @@ static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 	TRACE_MGMT_DBG("sqatgt(%ld/%d):	Unregister completed %s done \n",
 		vha->host_no, vha->vp_idx, wwn_to_str(fcport->port_name));
 
-	sqa_free_sesess(se_sess);
+	kfree(se_sess);
 
 	TRACE_EXIT();
 	return;
@@ -773,30 +770,7 @@ static void sqa_qla2xxx_update_sess(struct fc_port *sess, port_id_t s_id,
 	TRACE_EXIT();
 	return;
 }
-#if 0
-/*
- * The following function is supplied as a callback to the
- * scst_register_session() function.  It is called from a thread context
- * when asynchronous registration is requested.
- */
-static void sqa_scst_session_cb(struct scst_session *scst_sess,
-	void *data, int result)
-{
-	struct fc_port *fcport = (struct fc_port *)
-		scst_sess_get_tgt_priv(scst_sess);
-	struct scsi_qla_host *vha = fcport->vha;
 
-	TRACE_ENTRY();
-
-	if (result != 0) {
-		PRINT_INFO("sqatgt(%ld/%d): Session initialization failed.",
-			   vha->host_no, vha->vp_idx);
-	}
-
-	TRACE_EXIT();
-	return;
-}
-#endif
 static struct se_session *sqa_alloc_sesess(scsi_qla_host_t *vha)
 {
 	struct se_session *se_sess;
@@ -808,16 +782,10 @@ static struct se_session *sqa_alloc_sesess(scsi_qla_host_t *vha)
 	return kzalloc(sizeof(*se_sess), GFP_KERNEL);
 }
 
-static void sqa_free_sesess(struct se_session *se_sess)
-{
-	kfree(se_sess);
-}
-
-
 static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
 	unsigned char *fc_wwpn, struct fc_port *fcport)
 {
-	int res = 0;
+	int res = -ENOMEM;
 	char *ini_name;
 	struct se_session *se_sess;
 	struct scst_session *scst_sess;
@@ -831,7 +799,7 @@ static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
 
 	se_sess = sqa_alloc_sesess(vha);
 	if (!se_sess)
-		return -ENOMEM;
+		return res;
 
 	/* Create the SCST session. */
 	ini_name = kasprintf(GFP_KERNEL,
@@ -839,11 +807,12 @@ static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
 			     fc_wwpn[0], fc_wwpn[1], fc_wwpn[2], fc_wwpn[3],
 			     fc_wwpn[4], fc_wwpn[5], fc_wwpn[6], fc_wwpn[7]);
 	if (!ini_name)
-		return -ENOMEM;
+		goto free_sess;
 
 	memcpy(fcport->port_name, fc_wwpn, sizeof(fcport->port_name));
-	sqa_tgt = (struct sqa_scst_tgt*)vha->vha_tgt.target_lport_ptr;
+	sqa_tgt = vha->vha_tgt.target_lport_ptr;
 
+	res = -ESRCH;
 	scst_sess = scst_register_session(sqa_tgt->scst_tgt, 0,
 	    ini_name, fcport, NULL, NULL);
 	if (scst_sess == NULL) {
@@ -851,19 +820,23 @@ static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
 			    "failed, all commands will be refused: "
 			    "pwwn=%s", vha->host_no, vha->vp_idx,
 			    ini_name);
-		sqa_free_sesess(se_sess);
-		res = -ESRCH;
-	} else {
-		spin_lock_irqsave(&vha->hw->tgt.sess_lock, flags);
-		se_sess->fabric_sess_ptr = (void*)scst_sess;
-		fcport->se_sess = se_sess;
-		spin_unlock_irqrestore(&vha->hw->tgt.sess_lock, flags);
+		goto free_sess;
 	}
 
+	spin_lock_irqsave(&vha->hw->tgt.sess_lock, flags);
+	se_sess->fabric_sess_ptr = scst_sess;
+	fcport->se_sess = se_sess;
+	spin_unlock_irqrestore(&vha->hw->tgt.sess_lock, flags);
+
+out:
 	kfree(ini_name);
 
 	TRACE_EXIT_RES(res);
 	return res;
+
+free_sess:
+	kfree(se_sess);
+	goto out;
 }
 
 static struct fc_port *sqa_qla2xxx_find_sess_by_s_id(scsi_qla_host_t *vha,
@@ -890,7 +863,7 @@ static struct fc_port *sqa_qla2xxx_find_sess_by_s_id(scsi_qla_host_t *vha,
 }
 
 static struct fc_port *sqa_qla2xxx_find_sess_by_loop_id(scsi_qla_host_t *vha,
-							     const uint16_t loop_id)
+							const uint16_t loop_id)
 {
 	struct fc_port *sess;
 
@@ -1531,47 +1504,17 @@ static int sqa_target_release(struct scst_tgt *scst_tgt)
 	sqa_tgt->qla_tgt = NULL;
 	list_del(&sqa_tgt->list);
 	mutex_unlock(&sqa_mutex);
-	kfree(sqa_tgt);
 
 	TRACE(TRACE_MGMT, "sqatgt(%ld/%d): Target release finished sqa_tgt %p",
 	    vha->host_no, tgt->vha->vp_idx, sqa_tgt);
+
+	kfree(sqa_tgt);
 
 	TRACE_EXIT();
 	return 0;
 }
 
 #define DATA_WORK_NOT_FREE(_cmd) (_cmd->data_work && !_cmd->data_work_free)
-
-static void
-sqa_abort_task(struct scst_cmd *scst_cmd)
-{
-	unsigned long flags;
-	struct qla_tgt_cmd *cmd;
-
-	TRACE_ENTRY();
-	cmd = scst_cmd_get_tgt_priv(scst_cmd);
-
-	scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_ABORTED);
-
-	if (qlt_abort_cmd(cmd))
-		return;
-
-	spin_lock_irqsave(&cmd->cmd_lock, flags);
-	if ((cmd->state == QLA_TGT_STATE_NEW)||
-		((cmd->state == QLA_TGT_STATE_DATA_IN) &&
-		 DATA_WORK_NOT_FREE(cmd)) ) {
-
-		cmd->data_work_free = 1;
-		spin_unlock_irqrestore(&cmd->cmd_lock, flags);
-		/* Cmd have not reached firmware.
-		 * Use this trigger to free it. */
-		scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_TASKLET);
-		return;
-	}
-	spin_unlock_irqrestore(&cmd->cmd_lock, flags);
-	return;
-
-}
 
 static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 {
@@ -1586,8 +1529,9 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 		TRACE_MGMT_DBG("sqatgt(%ld/%d): CMD_ABORTED cmd[%p]",
 			cmd->vha->host_no, cmd->vha->vp_idx,
 			cmd);
-
-		sqa_abort_task(scst_cmd);
+		qlt_abort_cmd(cmd);
+		scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_ABORTED);
+		scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_DIRECT);
 		return SCST_TGT_RES_SUCCESS;
 	}
 
@@ -1700,7 +1644,7 @@ static int sqa_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	cmd->dma_data_direction =
 		scst_to_tgt_dma_dir(scst_cmd_get_data_direction(scst_cmd));
 
-	cmd->cdb = (unsigned char *) scst_cmd_get_cdb(scst_cmd);
+	cmd->cdb = scst_cmd_get_cdb(scst_cmd);
 	cmd->sg = scst_cmd_get_sg(scst_cmd);
 	cmd->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
 	cmd->scsi_status = scst_cmd_get_status(scst_cmd);
@@ -1845,7 +1789,7 @@ static int sqa_get_initiator_port_transport_id(struct scst_tgt *tgt,
 		goto out;
 	}
 
-	sess = (struct fc_port*)scst_sess_get_tgt_priv(scst_sess);
+	sess = scst_sess_get_tgt_priv(scst_sess);
 	if (sess == NULL) {
 		res = SCSI_TRANSPORTID_PROTOCOLID_FCP2;
 		goto out;
@@ -1969,7 +1913,6 @@ static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 		    SCST_LOAD_SENSE(scst_sense_internal_failure));
 		scst_rx_data(scst_cmd, SCST_RX_STATUS_ERROR_SENSE_SET,
 		    SCST_CONTEXT_THREAD);
-		goto out;
 		break;
 	case QLA_TGT_STATE_PROCESSED:
 		if (!cmd->cmd_sent_to_fw) {
@@ -1978,14 +1921,13 @@ static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 		} else {
 			TRACE_MGMT_DBG("Force finishing cmd %p", cmd);
 		}
+		sqa_cleanup_hw_pending_cmd(vha, cmd);
+		scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
+		scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_THREAD);
 		break;
 	}
-
-	sqa_cleanup_hw_pending_cmd(vha, cmd);
-	scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
-	scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_THREAD);
-out:
 	spin_unlock_irqrestore(qpair->qp_lock_ptr, flags);
+
 	TRACE_EXIT();
 	return;
 }

@@ -137,7 +137,7 @@ endif
 endif
 
 clean:
-	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend *~ Modules.symvers \
+	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend *~ \
 		$(MODULE_SYMVERS) Module.markers modules.order
 	rm -rf .tmp_versions
 

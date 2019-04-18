@@ -2676,13 +2676,15 @@ out:
 
 void scst_cm_update_dev(struct scst_device *dev)
 {
-	int rc;
+	int rc, res;
 
 	TRACE_ENTRY();
 
 	TRACE_MGMT_DBG("copy manager: updating device %s", dev->virt_name);
 
-	scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
+	WARN_ON_ONCE(res);
+
 	mutex_lock(&scst_mutex);
 
 	scst_cm_dev_unregister(dev, false);
