@@ -107,7 +107,6 @@ static int sqa_parse_wwn(const char *ns, u64 *nm);
 /* Variables and function definitions for sysfs control plane. */
 static ssize_t sqa_version_show(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf);
-static void sqa_free_sesess(struct se_session *se_sess);
 
 struct kobj_attribute sqa_version_attr =
 	__ATTR(version, S_IRUGO, sqa_version_show, NULL);
@@ -758,7 +757,7 @@ static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 	TRACE_MGMT_DBG("sqatgt(%ld/%d):	Unregister completed %s done \n",
 		vha->host_no, vha->vp_idx, wwn_to_str(fcport->port_name));
 
-	sqa_free_sesess(se_sess);
+	kfree(se_sess);
 
 	TRACE_EXIT();
 	return;
@@ -805,12 +804,6 @@ static struct se_session *sqa_alloc_sesess(scsi_qla_host_t *vha)
 	 */
 	return kzalloc(sizeof(*se_sess), GFP_KERNEL);
 }
-
-static void sqa_free_sesess(struct se_session *se_sess)
-{
-	kfree(se_sess);
-}
-
 
 static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
 	unsigned char *fc_wwpn, struct fc_port *fcport)
@@ -865,7 +858,7 @@ out:
 	return res;
 
 free_sess:
-	sqa_free_sesess(se_sess);
+	kfree(se_sess);
 	goto out;
 }
 
