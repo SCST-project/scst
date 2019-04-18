@@ -863,7 +863,7 @@ static struct fc_port *sqa_qla2xxx_find_sess_by_s_id(scsi_qla_host_t *vha,
 }
 
 static struct fc_port *sqa_qla2xxx_find_sess_by_loop_id(scsi_qla_host_t *vha,
-							     const uint16_t loop_id)
+							const uint16_t loop_id)
 {
 	struct fc_port *sess;
 
