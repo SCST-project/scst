@@ -770,30 +770,7 @@ static void sqa_qla2xxx_update_sess(struct fc_port *sess, port_id_t s_id,
 	TRACE_EXIT();
 	return;
 }
-#if 0
-/*
- * The following function is supplied as a callback to the
- * scst_register_session() function.  It is called from a thread context
- * when asynchronous registration is requested.
- */
-static void sqa_scst_session_cb(struct scst_session *scst_sess,
-	void *data, int result)
-{
-	struct fc_port *fcport = (struct fc_port *)
-		scst_sess_get_tgt_priv(scst_sess);
-	struct scsi_qla_host *vha = fcport->vha;
 
-	TRACE_ENTRY();
-
-	if (result != 0) {
-		PRINT_INFO("sqatgt(%ld/%d): Session initialization failed.",
-			   vha->host_no, vha->vp_idx);
-	}
-
-	TRACE_EXIT();
-	return;
-}
-#endif
 static struct se_session *sqa_alloc_sesess(scsi_qla_host_t *vha)
 {
 	struct se_session *se_sess;
