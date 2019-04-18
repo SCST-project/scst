@@ -1536,10 +1536,11 @@ static int sqa_target_release(struct scst_tgt *scst_tgt)
 	sqa_tgt->qla_tgt = NULL;
 	list_del(&sqa_tgt->list);
 	mutex_unlock(&sqa_mutex);
-	kfree(sqa_tgt);
 
 	TRACE(TRACE_MGMT, "sqatgt(%ld/%d): Target release finished sqa_tgt %p",
 	    vha->host_no, tgt->vha->vp_idx, sqa_tgt);
+
+	kfree(sqa_tgt);
 
 	TRACE_EXIT();
 	return 0;
