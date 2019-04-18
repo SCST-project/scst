@@ -1516,37 +1516,6 @@ static int sqa_target_release(struct scst_tgt *scst_tgt)
 
 #define DATA_WORK_NOT_FREE(_cmd) (_cmd->data_work && !_cmd->data_work_free)
 
-static void
-sqa_abort_task(struct scst_cmd *scst_cmd)
-{
-	unsigned long flags;
-	struct qla_tgt_cmd *cmd;
-
-	TRACE_ENTRY();
-	cmd = scst_cmd_get_tgt_priv(scst_cmd);
-
-	scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_ABORTED);
-
-	if (qlt_abort_cmd(cmd))
-		return;
-
-	spin_lock_irqsave(&cmd->cmd_lock, flags);
-	if ((cmd->state == QLA_TGT_STATE_NEW)||
-		((cmd->state == QLA_TGT_STATE_DATA_IN) &&
-		 DATA_WORK_NOT_FREE(cmd)) ) {
-
-		cmd->data_work_free = 1;
-		spin_unlock_irqrestore(&cmd->cmd_lock, flags);
-		/* Cmd have not reached firmware.
-		 * Use this trigger to free it. */
-		scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_TASKLET);
-		return;
-	}
-	spin_unlock_irqrestore(&cmd->cmd_lock, flags);
-	return;
-
-}
-
 static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 {
 	int xmit_type = QLA_TGT_XMIT_DATA, res, residual=0;
@@ -1560,8 +1529,9 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 		TRACE_MGMT_DBG("sqatgt(%ld/%d): CMD_ABORTED cmd[%p]",
 			cmd->vha->host_no, cmd->vha->vp_idx,
 			cmd);
-
-		sqa_abort_task(scst_cmd);
+		qlt_abort_cmd(cmd);
+		scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_ABORTED);
+		scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_DIRECT);
 		return SCST_TGT_RES_SUCCESS;
 	}
 
