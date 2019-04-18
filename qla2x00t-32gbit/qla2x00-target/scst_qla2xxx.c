@@ -817,7 +817,7 @@ static void sqa_free_sesess(struct se_session *se_sess)
 static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
 	unsigned char *fc_wwpn, struct fc_port *fcport)
 {
-	int res = 0;
+	int res = -ENOMEM;
 	char *ini_name;
 	struct se_session *se_sess;
 	struct scst_session *scst_sess;
@@ -831,7 +831,7 @@ static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
 
 	se_sess = sqa_alloc_sesess(vha);
 	if (!se_sess)
-		return -ENOMEM;
+		return res;
 
 	/* Create the SCST session. */
 	ini_name = kasprintf(GFP_KERNEL,
@@ -839,11 +839,12 @@ static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
 			     fc_wwpn[0], fc_wwpn[1], fc_wwpn[2], fc_wwpn[3],
 			     fc_wwpn[4], fc_wwpn[5], fc_wwpn[6], fc_wwpn[7]);
 	if (!ini_name)
-		return -ENOMEM;
+		goto free_sess;
 
 	memcpy(fcport->port_name, fc_wwpn, sizeof(fcport->port_name));
 	sqa_tgt = (struct sqa_scst_tgt*)vha->vha_tgt.target_lport_ptr;
 
+	res = -ESRCH;
 	scst_sess = scst_register_session(sqa_tgt->scst_tgt, 0,
 	    ini_name, fcport, NULL, NULL);
 	if (scst_sess == NULL) {
@@ -851,19 +852,23 @@ static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
 			    "failed, all commands will be refused: "
 			    "pwwn=%s", vha->host_no, vha->vp_idx,
 			    ini_name);
-		sqa_free_sesess(se_sess);
-		res = -ESRCH;
-	} else {
-		spin_lock_irqsave(&vha->hw->tgt.sess_lock, flags);
-		se_sess->fabric_sess_ptr = (void*)scst_sess;
-		fcport->se_sess = se_sess;
-		spin_unlock_irqrestore(&vha->hw->tgt.sess_lock, flags);
+		goto free_sess;
 	}
 
+	spin_lock_irqsave(&vha->hw->tgt.sess_lock, flags);
+	se_sess->fabric_sess_ptr = scst_sess;
+	fcport->se_sess = se_sess;
+	spin_unlock_irqrestore(&vha->hw->tgt.sess_lock, flags);
+
+out:
 	kfree(ini_name);
 
 	TRACE_EXIT_RES(res);
 	return res;
+
+free_sess:
+	sqa_free_sesess(se_sess);
+	goto out;
 }
 
 static struct fc_port *sqa_qla2xxx_find_sess_by_s_id(scsi_qla_host_t *vha,
