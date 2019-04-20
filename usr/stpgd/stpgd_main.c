@@ -46,12 +46,12 @@ char *app_name;
 # endif
 #endif /* DEBUG */
 
-bool log_daemon = true;
 unsigned long trace_flag = DEFAULT_LOG_FLAGS;
 #endif /* defined(DEBUG) || defined(TRACING) */
 
 #define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
 
+bool log_daemon = true;
 int transition_timeout = DEFAULT_TRANSITION_TIME;
 
 static struct option const long_options[] = {
@@ -519,8 +519,10 @@ int main(int argc, char **argv)
 	PRINT_INFO("trace_flag %lx", trace_flag);
 #endif
 	if (log_daemon) {
+#if defined(DEBUG) || defined(TRACING)
 		trace_flag &= ~TRACE_TIME;
 		trace_flag &= ~TRACE_PID;
+#endif
 
 		pid = fork();
 		if (pid < 0) {
