@@ -5969,6 +5969,7 @@ ssize_t scst_readv(struct file *file, const struct iovec *vec,
 	struct iovec *iov = iovstack;
 	struct iov_iter iter;
 
+	set_fs(KERNEL_DS);
 	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
 
 	result = import_iovec(READ, (const struct iovec __force __user *)vec,
@@ -5981,11 +5982,13 @@ ssize_t scst_readv(struct file *file, const struct iovec *vec,
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0) ||	\
 	(defined(CONFIG_SUSE_KERNEL) &&			\
 	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
+	set_fs(KERNEL_DS);
 	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
 
 	result = vfs_readv(file, (const struct iovec __user *)vec, vlen, pos,
 			   0);
 #else
+	set_fs(KERNEL_DS);
 	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
 
 	result = vfs_readv(file, (const struct iovec __user *)vec, vlen, pos);
@@ -6016,6 +6019,7 @@ ssize_t scst_writev(struct file *file, const struct iovec *vec,
 	struct iovec *iov = iovstack;
 	struct iov_iter iter;
 
+	set_fs(KERNEL_DS);
 	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
 
 	result = import_iovec(WRITE, (const struct iovec __force __user *)vec,
@@ -6030,9 +6034,13 @@ ssize_t scst_writev(struct file *file, const struct iovec *vec,
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0) ||	\
 	(defined(CONFIG_SUSE_KERNEL) &&			\
 	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
+	set_fs(KERNEL_DS);
+	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
 	result = vfs_writev(file, (const struct iovec __user *)vec, vlen, pos,
 			    0);
 #else
+	set_fs(KERNEL_DS);
+	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
 	result = vfs_writev(file, (const struct iovec __user *)vec, vlen, pos);
 #endif
 	set_fs(old_fs);
