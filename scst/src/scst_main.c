@@ -550,11 +550,13 @@ out_free_tgt:
 }
 EXPORT_SYMBOL(scst_register_target);
 
-/*
- * scst_unregister_target() - unregister target.
+/**
+ * scst_unregister_target() - unregister a target
+ * @tgt: Target to be unregistered.
  *
- * It is supposed that no attempts to create new sessions for this
- * target will be done in a race with this function.
+ * The caller is responsible for unregistration of all sessions associated
+ * with @tgt. Additionally, the caller must guarantee that no new sessions
+ * will be associated with @tgt while this function is in progress.
  */
 void scst_unregister_target(struct scst_tgt *tgt)
 {
@@ -574,28 +576,6 @@ void scst_unregister_target(struct scst_tgt *tgt)
 	TRACE_DBG("%s", "Calling target driver's release()");
 	tgt->tgtt->release(tgt);
 	TRACE_DBG("%s", "Target driver's release() returned");
-
-#if 0 /* Looks not needed. For scst_local it's bad, see this commit log message */
-	mutex_lock(&scst_mutex);
-again:
-	{
-		struct scst_session *sess;
-
-		list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
-			if (sess->shut_phase == SCST_SESS_SPH_READY) {
-				/*
-				 * Sometimes it's hard for target driver to
-				 * track all its sessions, so let's help it.
-				 */
-				mutex_unlock(&scst_mutex);
-				scst_unregister_session(sess, 0, NULL);
-				mutex_lock(&scst_mutex);
-				goto again;
-			}
-		}
-	}
-	mutex_unlock(&scst_mutex);
-#endif
 
 	/*
 	 * Testing tgt->sysfs_sess_list below without holding scst_mutex
