@@ -885,7 +885,7 @@ static void sqa_qla2xxx_clear_nacl_from_fcport_map(struct fc_port *sess)
 
 static void sqa_qla2xxx_release_sess(struct kref *kref)
 {
-	struct fc_port *fcport = container_of(kref, struct fc_port,sess_kref);
+	struct fc_port *fcport = container_of(kref, struct fc_port, sess_kref);
 
 	qlt_unreg_sess(fcport);
 
@@ -904,7 +904,7 @@ static void sqa_qla2xxx_put_sess(struct fc_port *sess)
 
 static int sqa_close_session(struct scst_session *scst_sess)
 {
-	struct fc_port *fcport= (struct fc_port*)scst_sess_get_tgt_priv(scst_sess);
+	struct fc_port *fcport = scst_sess_get_tgt_priv(scst_sess);
 	unsigned long flags;
 	struct qla_hw_data *ha = fcport->vha->hw;
 
@@ -976,7 +976,7 @@ static ssize_t sqa_node_name_show(struct kobject *kobj,
 	uint8_t *node_name;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	sqa_tgt = (struct sqa_scst_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	sqa_tgt = scst_tgt_get_tgt_priv(scst_tgt);
 
 	mutex_lock(&sqa_mutex);
 	if (!sqa_tgt || !sqa_tgt->qla_tgt) {
@@ -1022,7 +1022,7 @@ static ssize_t sqa_node_name_store(struct kobject *kobj,
 	TRACE_ENTRY();
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	sqa_tgt = (struct sqa_scst_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	sqa_tgt = scst_tgt_get_tgt_priv(scst_tgt);
 	tgt = sqa_tgt->qla_tgt;
 	ha = tgt->ha;
 
@@ -1087,7 +1087,7 @@ static ssize_t sqa_vp_parent_host_show(struct kobject *kobj,
 	char *wwn;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	sqa_tgt = (struct sqa_scst_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	sqa_tgt = scst_tgt_get_tgt_priv(scst_tgt);
 	tgt = sqa_tgt->qla_tgt;
 	ha = tgt->ha;
 
@@ -1115,7 +1115,7 @@ static ssize_t sqa_show_expl_conf_enabled(struct kobject *kobj,
 	ssize_t size;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	sqa_tgt = (struct sqa_scst_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	sqa_tgt = scst_tgt_get_tgt_priv(scst_tgt);
 	tgt = sqa_tgt->qla_tgt;
 	ha = tgt->ha;
 
@@ -1139,7 +1139,7 @@ static ssize_t sqa_store_expl_conf_enabled(struct kobject *kobj,
 	unsigned long flags;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	sqa_tgt = (struct sqa_scst_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	sqa_tgt = scst_tgt_get_tgt_priv(scst_tgt);
 	tgt = sqa_tgt->qla_tgt;
 	ha = tgt->ha;
 	vha = tgt->vha;
@@ -1180,7 +1180,7 @@ static ssize_t sqa_abort_isp_store(struct kobject *kobj,
 	TRACE_ENTRY();
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	sqa_tgt = (struct sqa_scst_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	sqa_tgt = scst_tgt_get_tgt_priv(scst_tgt);
 	tgt = sqa_tgt->qla_tgt;
 
 	PRINT_INFO("sqatgt(%ld/%d) ISP abort not implemented.",
@@ -1196,7 +1196,7 @@ static ssize_t sqa_abort_isp_store(struct kobject *kobj,
 	struct qla_hw_data *ha;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
-	sqa_tgt = (struct sqa_scst_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	sqa_tgt = scst_tgt_get_tgt_priv(scst_tgt);
 	tgt = sqa_tgt->qla_tgt;
 	ha = tgt->ha;
 
@@ -1471,7 +1471,7 @@ static void sqa_qla2xxx_remove_target(struct scsi_qla_host *vha)
  */
 static int sqa_target_release(struct scst_tgt *scst_tgt)
 {
-	struct sqa_scst_tgt *sqa_tgt = (struct sqa_scst_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	struct sqa_scst_tgt *sqa_tgt = scst_tgt_get_tgt_priv(scst_tgt);
 	struct qla_tgt *tgt = sqa_tgt->qla_tgt;
 	struct scsi_qla_host *vha= tgt->vha;
 
@@ -1629,7 +1629,7 @@ static int sqa_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	struct qla_tgt_cmd *cmd;
 
 	TRACE_ENTRY();
-	cmd = (struct qla_tgt_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
+	cmd = scst_cmd_get_tgt_priv(scst_cmd);
 
 	TRACE(TRACE_SCSI, "sqatgt(%ld/%d): tag=%lld", cmd->vha->host_no,
 	      cmd->vha->vp_idx, scst_cmd_get_tag(scst_cmd));
@@ -1687,8 +1687,7 @@ static int sqa_rdy_to_xfer(struct scst_cmd *scst_cmd)
 
 static void sqa_on_free_cmd(struct scst_cmd *scst_cmd)
 {
-	struct qla_tgt_cmd *cmd =
-		(struct qla_tgt_cmd *)scst_cmd_get_tgt_priv(scst_cmd);
+	struct qla_tgt_cmd *cmd = scst_cmd_get_tgt_priv(scst_cmd);
 
 	TRACE_ENTRY();
 
@@ -1977,7 +1976,7 @@ static int sqa_enable_tgt(struct scst_tgt *scst_tgt, bool enable)
 
 	TRACE_ENTRY();
 
-	sqa_tgt = (struct sqa_scst_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	sqa_tgt = scst_tgt_get_tgt_priv(scst_tgt);
 	tgt = sqa_tgt->qla_tgt;
 	vha = tgt->vha;
 	if (enable && (qla_tgt_mode_enabled(tgt->vha) ||
@@ -2022,7 +2021,7 @@ static bool sqa_is_tgt_enabled(struct scst_tgt *scst_tgt)
 	struct sqa_scst_tgt *sqa_tgt;
 
 	TRACE_ENTRY();
-	sqa_tgt = (struct sqa_scst_tgt *)scst_tgt_get_tgt_priv(scst_tgt);
+	sqa_tgt = scst_tgt_get_tgt_priv(scst_tgt);
 	tgt = sqa_tgt->qla_tgt;
 	res = qla_tgt_mode_enabled(tgt->vha) || qla_dual_mode_enabled(tgt->vha);
 
