@@ -550,11 +550,13 @@ out_free_tgt:
 }
 EXPORT_SYMBOL(scst_register_target);
 
-/*
- * scst_unregister_target() - unregister target.
+/**
+ * scst_unregister_target() - unregister a target
+ * @tgt: Target to be unregistered.
  *
- * It is supposed that no attempts to create new sessions for this
- * target will be done in a race with this function.
+ * The caller is responsible for unregistration of all sessions associated
+ * with @tgt. Additionally, the caller must guarantee that no new sessions
+ * will be associated with @tgt while this function is in progress.
  */
 void scst_unregister_target(struct scst_tgt *tgt)
 {
@@ -575,28 +577,6 @@ void scst_unregister_target(struct scst_tgt *tgt)
 	tgt->tgtt->release(tgt);
 	TRACE_DBG("%s", "Target driver's release() returned");
 
-#if 0 /* Looks not needed. For scst_local it's bad, see this commit log message */
-	mutex_lock(&scst_mutex);
-again:
-	{
-		struct scst_session *sess;
-
-		list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
-			if (sess->shut_phase == SCST_SESS_SPH_READY) {
-				/*
-				 * Sometimes it's hard for target driver to
-				 * track all its sessions, so let's help it.
-				 */
-				mutex_unlock(&scst_mutex);
-				scst_unregister_session(sess, 0, NULL);
-				mutex_lock(&scst_mutex);
-				goto again;
-			}
-		}
-	}
-	mutex_unlock(&scst_mutex);
-#endif
-
 	/*
 	 * Testing tgt->sysfs_sess_list below without holding scst_mutex
 	 * is safe, because:
@@ -610,7 +590,19 @@ again:
 	 * object.
 	 */
 	TRACE_DBG("%s", "Waiting for sessions shutdown");
-	wait_event(tgt->unreg_waitQ, list_empty(&tgt->sysfs_sess_list));
+	while (!wait_event_timeout(tgt->unreg_waitQ,
+				list_empty(&tgt->sysfs_sess_list), 60 * HZ)) {
+		struct scst_session *sess;
+
+		mutex_lock(&scst_mutex);
+		list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
+			PRINT_INFO("Still waiting for session %s/%s; state %ld; refcnt %#lx",
+				   tgt->tgt_name, sess->sess_name,
+				   sess->shut_phase,
+				   atomic_long_read(&sess->refcnt.count));
+		}
+		mutex_unlock(&scst_mutex);
+	}
 	TRACE_DBG("%s", "wait_event() returned");
 
 	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
