@@ -1155,7 +1155,9 @@ cache. The following parameters possible for vdisk_fileio:
 
  - async - submit I/O asynchronously to the device handler. This mode
    allows concurrent processing of SCSI commands even when using only
-   a single SCST command thread.
+   a single SCST command thread. This mode is only supported for kernel
+   version 4.1 and later. RHEL 8 is the first RHEL version that supports
+   in-kernel asynchronous file I/O.
 
  - o_direct - disables both read and write caching if asynchronous
    I/O is used. This mode bypasses the page cache and hence improves
