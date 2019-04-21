@@ -764,17 +764,6 @@ static void sqa_qla2xxx_update_sess(struct fc_port *sess, port_id_t s_id,
 	return;
 }
 
-static struct se_session *sqa_alloc_sesess(scsi_qla_host_t *vha)
-{
-	struct se_session *se_sess;
-
-	/*
-	 * For now we simply allocate a single page to hold the session
-	 * structure.  This needs to be modified to use the slab cache.
-	 */
-	return kzalloc(sizeof(*se_sess), GFP_KERNEL);
-}
-
 static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
 	unsigned char *fc_wwpn, struct fc_port *fcport)
 {
@@ -790,7 +779,7 @@ static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
 	PRINT_INFO("sqatgt(%ld/%d): Registering initiator: pwwn=%s",
 		   vha->host_no, vha->vp_idx, wwn_to_str(fc_wwpn));
 
-	se_sess = sqa_alloc_sesess(vha);
+	se_sess = kzalloc(sizeof(*se_sess), GFP_KERNEL);
 	if (!se_sess)
 		return res;
 
