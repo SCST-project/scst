@@ -816,6 +816,8 @@ static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
 		goto free_sess;
 	}
 
+	res = 0;
+
 	spin_lock_irqsave(&vha->hw->tgt.sess_lock, flags);
 	se_sess->fabric_sess_ptr = scst_sess;
 	fcport->se_sess = se_sess;
