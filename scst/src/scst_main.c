@@ -590,7 +590,19 @@ void scst_unregister_target(struct scst_tgt *tgt)
 	 * object.
 	 */
 	TRACE_DBG("%s", "Waiting for sessions shutdown");
-	wait_event(tgt->unreg_waitQ, list_empty(&tgt->sysfs_sess_list));
+	while (!wait_event_timeout(tgt->unreg_waitQ,
+				list_empty(&tgt->sysfs_sess_list), 60 * HZ)) {
+		struct scst_session *sess;
+
+		mutex_lock(&scst_mutex);
+		list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
+			PRINT_INFO("Still waiting for session %s/%s; state %ld; refcnt %#lx",
+				   tgt->tgt_name, sess->sess_name,
+				   sess->shut_phase,
+				   atomic_long_read(&sess->refcnt.count));
+		}
+		mutex_unlock(&scst_mutex);
+	}
 	TRACE_DBG("%s", "wait_event() returned");
 
 	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
