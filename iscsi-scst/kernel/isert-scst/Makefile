@@ -26,6 +26,7 @@ ccflags-y += $(call cc-option,-Wextra) \
 	$(call cc-option,-Wno-old-style-declaration) \
 	-Wno-unused-parameter -Wno-missing-field-initializers
 
+ifneq ($(and $(KBUILD_EXTMOD),$(if $(findstring $(abspath $(srctree)),$(abspath $(KBUILD_EXTMOD))),,true)),)
 -include $(KBUILD_EXTMOD)/../../../build_mode
 
 echo := $(shell echo "isert-scst build mode: $(BUILD_MODE)" >& 2)
@@ -35,6 +36,7 @@ BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
 BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
 BUILD_MODE_CFLAGS_PERF =
 ccflags-y += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
+endif
 
 obj-m		+= isert-scst.o
 isert-scst-objs	:= isert.o isert_login.o \

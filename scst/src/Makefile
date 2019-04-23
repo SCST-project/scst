@@ -55,6 +55,7 @@ ccflags-y += -I$(KBUILD_EXTMOD)/../include $(call cc-option,-Wextra) \
 # enable it if you have strict security requirements.
 #ccflags-y += -DSCST_STRICT_SECURITY
 
+ifneq ($(and $(KBUILD_EXTMOD),$(if $(findstring $(abspath $(srctree)),$(abspath $(KBUILD_EXTMOD))),,true)),)
 -include $(KBUILD_EXTMOD)/../../build_mode
 
 echo := $(shell echo "scst build mode: $(BUILD_MODE)" >& 2)
@@ -64,6 +65,7 @@ BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
 BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
 BUILD_MODE_CFLAGS_PERF =
 ccflags-y += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
+endif
 
 obj-m := scst.o
 

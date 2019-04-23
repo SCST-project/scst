@@ -64,6 +64,7 @@ ccflags-y += -W -Wno-unused-parameter -Wno-missing-field-initializers
 #ccflags-y += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
 #ccflags-y += -DCONFIG_QLA_TGT_DEBUG_SRR
 
+ifneq ($(and $(KBUILD_EXTMOD),$(if $(findstring $(abspath $(srctree)),$(abspath $(KBUILD_EXTMOD))),,true)),)
 -include $(KBUILD_EXTMOD)/../../build_mode
 
 echo := $(shell echo "qla2x00t build mode: $(BUILD_MODE)" >& 2)
@@ -73,6 +74,7 @@ BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
 BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
 BUILD_MODE_CFLAGS_PERF =
 ccflags-y += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
+endif
 
 ifneq ($(BUILD_2X_MODULE),)
 ccflags-y += -DCONFIG_SCSI_QLA2XXX_TARGET=y

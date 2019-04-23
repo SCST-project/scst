@@ -35,6 +35,7 @@ ccflags-y += -I$(KBUILD_EXTMOD)/../include				\
 	-Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare
 #ccflags-y += -DCONFIG_DEBUG_EXT_COPY_REMAP
 
+ifneq ($(and $(KBUILD_EXTMOD),$(if $(findstring $(abspath $(srctree)),$(abspath $(KBUILD_EXTMOD))),,true)),)
 -include $(KBUILD_EXTMOD)/../../build_mode
 
 echo := $(shell echo "dev_handlers build mode: $(BUILD_MODE)" >& 2)
@@ -44,6 +45,7 @@ BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
 BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
 BUILD_MODE_CFLAGS_PERF =
 ccflags-y += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
+endif
 
 obj-m := scst_cdrom.o scst_changer.o scst_disk.o scst_modisk.o scst_tape.o \
 	scst_vdisk.o scst_raid.o scst_processor.o scst_user.o
