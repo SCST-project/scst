@@ -711,33 +711,12 @@ static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 	struct scsi_qla_host *vha = fcport->vha;
 	struct se_session *se_sess = fcport->se_sess;
 	struct scst_session *scst_sess = se_sess->fabric_sess_ptr;
-	struct qla_tgt_mgmt_cmd *mcmd;
 
 	TRACE_ENTRY();
 
 	TRACE_MGMT_DBG("sqatgt(%ld/%d):	Deleting session %s fcid=%02x%02x%02x\n",
 		vha->host_no, vha->vp_idx, wwn_to_str(fcport->port_name),
 		fcport->d_id.b.domain, fcport->d_id.b.area, fcport->d_id.b.al_pa);
-
-	mcmd = kzalloc(sizeof(*mcmd), GFP_ATOMIC);
-	if (mcmd) {
-		DECLARE_COMPLETION_ONSTACK(c);
-		struct scsi_lun sl;
-
-		memset(&sl, 0, sizeof(sl));
-		mcmd->sess = fcport;
-		mcmd->reset_count = vha->hw->base_qpair->chip_reset;
-		mcmd->completion = &c;
-
-		scst_rx_mgmt_fn_lun(scst_sess, SCST_NEXUS_LOSS_SESS,
-			&sl, sizeof(sl), SCST_ATOMIC, mcmd);
-		wait_for_completion(&c);
-
-		kfree(mcmd);
-		TRACE_MGMT_DBG("sqatgt(%ld/%d):	Flush cmd done %s\n",
-			vha->host_no, vha->vp_idx,
-			wwn_to_str(fcport->port_name));
-	}
 
 	{
 		DECLARE_COMPLETION_ONSTACK(c);
@@ -1742,11 +1721,6 @@ static void sqa_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 	TRACE_MGMT_DBG("sqatgt(%ld/%d): scst_mcmd (%p) status %#x state %#x",
 		       vha->host_no, vha->vp_idx, scst_mcmd,
 		       scst_mcmd->status, scst_mcmd->state);
-
-	if (mcmd->completion) {
-		complete(mcmd->completion);
-		goto out;
-	}
 
 	mcmd->fc_tm_rsp = sqa_convert_to_fc_tm_status(scst_mgmt_cmd_get_status(scst_mcmd));
 	qlt_xmit_tm_rsp(mcmd);
