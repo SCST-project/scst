@@ -1731,12 +1731,11 @@ qla24xx_abort_sp_done(void *ptr, int res)
 	srb_t *sp = ptr;
 	struct srb_iocb *abt = &sp->u.iocb_cmd;
 
-	if (del_timer(&sp->u.iocb_cmd.timer)) {
-		if (sp->flags & SRB_WAKEUP_ON_COMP)
-			complete(&abt->u.abt.comp);
-		else
-			sp->free(sp);
-	}
+	del_timer(&sp->u.iocb_cmd.timer);
+	if (sp->flags & SRB_WAKEUP_ON_COMP)
+		complete(&abt->u.abt.comp);
+	else
+		sp->free(sp);
 }
 
 int
@@ -1750,7 +1749,7 @@ qla24xx_async_abort_cmd(srb_t *cmd_sp, bool wait)
 	sp = qla2xxx_get_qpair_sp(cmd_sp->vha, cmd_sp->qpair, cmd_sp->fcport,
 	    GFP_ATOMIC);
 	if (!sp)
-		goto done;
+		return rval;
 
 	abt_iocb = &sp->u.iocb_cmd;
 	sp->type = SRB_ABT_CMD;
@@ -1774,20 +1773,17 @@ qla24xx_async_abort_cmd(srb_t *cmd_sp, bool wait)
 	    cmd_sp->handle, cmd_sp->type);
 
 	rval = qla2x00_start_sp(sp);
-	if (rval != QLA_SUCCESS)
-		goto done_free_sp;
+	if (rval != QLA_SUCCESS) {
+		sp->free(sp);
+		return rval;
+	}
 
 	if (wait) {
 		wait_for_completion(&abt_iocb->u.abt.comp);
 		rval = abt_iocb->u.abt.comp_status == CS_COMPLETE ?
 			QLA_SUCCESS : QLA_FUNCTION_FAILED;
-	} else {
-		goto done;
 	}
 
-done_free_sp:
-	sp->free(sp);
-done:
 	return rval;
 }
 
