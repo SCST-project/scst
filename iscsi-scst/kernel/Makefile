@@ -27,6 +27,7 @@ ccflags-y += $(call cc-option,-Wextra) \
 ccflags-y += $(PRE_CFLAGS)
 #ccflags-y += -DCONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES
 
+ifneq ($(and $(KBUILD_EXTMOD),$(if $(findstring $(abspath $(srctree)),$(abspath $(KBUILD_EXTMOD))),,true)),)
 -include $(KBUILD_EXTMOD)/../../build_mode
 
 echo := $(shell echo "iscsi-scst build mode: $(BUILD_MODE)" >& 2)
@@ -36,6 +37,7 @@ BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
 BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
 BUILD_MODE_CFLAGS_PERF =
 ccflags-y += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
+endif
 
 obj-m		+= iscsi-scst.o
 iscsi-scst-objs	:= iscsi.o nthread.o config.o digest.o \
