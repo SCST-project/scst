@@ -24,7 +24,7 @@
 ########################
 
 # shellcheck source=./kernel-functions
-source $(dirname "$0")/kernel-functions
+source "$(dirname "$0")/kernel-functions"
 
 function usage {
   echo "Usage: $0 [-d] [-h] [-m] [-n] [-p <dir>] [-s] [-u] <kernel version>"
@@ -173,9 +173,10 @@ generating_upstream_patch="false"
 mpt_scst="false"
 multiple_patches="false"
 patchdir=""
-qla2x00t="true"
+qla2x00t="false"
+qla2x00t_32gbit="true"
 replace_sbug_by_bug="true"
-specialize_patch_options=(-v delete_disabled_code=1)
+specialize_patch_options=(-v "delete_disabled_code=1")
 srpt="true"
 
 if [ ! -e scst ] || [ ! -e iscsi-scst ] || [ ! -e srpt ] ||
@@ -193,7 +194,7 @@ do
     '-h') usage; exit 1;;
     '-l') shift;;
     '-m') mpt_scst="true"; shift;;
-    '-n') specialize_patch_options=(-v blank_deleted_code=1)
+    '-n') specialize_patch_options=(-v "blank_deleted_code=1")
           shift
           ;;
     '-p') multiple_patches="true"; patchdir="$2"; shift; shift;;
@@ -219,7 +220,7 @@ else
 fi
 
 # Include fcst in the patch for kernel versions 2.6.33 and later.
-if kernel_version_le "2.6.33" "${kver}"; then
+if kernel_version_le "2.6.37" "${kver}"; then
   include_fcst="true"
 else
   include_fcst="false"
@@ -236,15 +237,16 @@ fi
 if grep -qw scst_sysfs scst/kernel/in-tree/${scst_makefile} \
    || [ "${generating_upstream_patch}" = "true" ];
 then
-  specialize_patch_options+=(-v config_scst_proc_undefined=1)
+  specialize_patch_options+=(-v "config_scst_proc_undefined=1")
 else
   include_proc_impl="true"
 fi
 if [ "${debug_specialize}" = "true" ]; then
-  specialize_patch_options+=(-v debug=1)
+  specialize_patch_options+=(-v "debug=1")
 fi
 if [ "${generating_upstream_patch}" = "true" ]; then
-  specialize_patch_options+=(-v generating_upstream_patch_defined=1 -v config_tcp_zero_copy_transfer_completion_notification_undefined=1)
+  specialize_patch_options+=(-v "generating_upstream_patch_defined=1"
+			     -v "config_tcp_zero_copy_transfer_completion_notification_undefined=1")
 fi
 
 if [ "${multiple_patches}" = "true" ]; then
@@ -262,7 +264,7 @@ fi
 # Patch Generation #
 ####################
 
-for f in fcst/linux-patches/series-${kver}*
+for f in fcst/linux-patches/series-"${kver}"*
 do
    if [ -e "$f" ]; then
        fcst_patch_series="$f"
@@ -493,7 +495,7 @@ add_file "iscsi-scst/README_in-tree" "Documentation/scst/README.iscsi" \
 | process_patch "iscsi-scst-doc.diff"
 
 
-# Directory drivers/scst/qla2x00-target/
+# Directory drivers/scsi/qla2xxx/
 
 if [ "${qla2x00t}" = "true" ]; then
 
@@ -514,33 +516,37 @@ if [ "${qla2x00t}" = "true" ]; then
   add_file "qla2x00t/qla2x_tgt_def.h" \
            "drivers/scsi/qla2xxx/qla2x_tgt_def.h"
 
-  if [ -e "qla2x00t/qla2x00-target/Makefile_in-tree-${kver}" ]
-  then
-    add_file "qla2x00t/qla2x00-target/Makefile_in-tree-${kver}" \
-           "drivers/scst/qla2xxx-target/Makefile"
-  else
-    add_file "qla2x00t/qla2x00-target/Makefile_in-tree" \
-           "drivers/scst/qla2xxx-target/Makefile"
-  fi
-
-  add_file "qla2x00t/qla2x00-target/Kconfig" \
-           "drivers/scst/qla2xxx-target/Kconfig"
-
   for f in qla2x00t/qla2x00-target/*.[ch]; do
-    [ -e "$f" ] || continue
-    add_file "${f}" "drivers/scst/qla2xxx-target/${f#qla2x00t/qla2x00-target/}"
+    [ -e "$f" ] &&
+    add_file "${f}" "drivers/scsi/qla2xxx/${f#qla2x00t/qla2x00-target/}"
   done
 
   add_file "qla2x00t/qla2x00-target/README" \
            "Documentation/scst/README.qla2x00t" \
   | process_patch "qla2x00t-doc.diff"
 
-else
+elif [ "${qla2x00t_32gbit}" = "true" ]; then
 
-  add_empty_file "drivers/scst/qla2xxx-target/Makefile"
+  download_kernel "${kver3}" || exit $?
 
-  add_empty_file "drivers/scst/qla2xxx-target/Kconfig"
+  ( cd qla2x00t-32gbit && ./generate-in-tree-patches "$1" )
 
+  for f in qla2x00t-32gbit/in-tree-patches/"$1"/*.patch; do
+    [ -e "$f" ] || continue
+    g="${f#qla2x00t-32gbit/in-tree-patches/$1/}"
+    g="${g%.patch}"
+    add_patch "${f}" "drivers/scsi/qla2xxx/${g}"
+  done
+
+  for f in qla2x00t-32gbit/qla2x00-target/*.[ch]; do
+    [ -e "$f" ] || continue
+    add_file "${f}" "drivers/scsi/qla2xxx/${f#qla2x00t-32gbit/qla2x00-target/}"
+  done
+
+  add_file "qla2x00t-32gbit/qla2x00-target/README" \
+           "Documentation/scst/README.qla2x00t" \
+  | process_patch "qla2x00t-doc.diff"
+    
 fi \
 | process_patch "qla2x00t.diff"
 

@@ -42,9 +42,7 @@ target="linux-$1"
 kernel_version="$(kernel_version "$1")"
 patchlevel="$(patchlevel "$1")"
 
-download_kernel "$1" || exit $?
-
-extract_kernel_tree "$1" || exit $?
+download_and_extract_kernel_tree "$1" || exit $?
 
 cd "${target}" || exit $?
 
