@@ -20,6 +20,7 @@
  *  GNU General Public License for more details.
  */
 
+#include <linux/version.h>
 #include <linux/bio.h>
 #include <linux/blkdev.h>	/* struct request_queue */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0)
@@ -28,18 +29,21 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
 #include <linux/bsg-lib.h>	/* struct bsg_job */
 #endif
+#include <linux/dmapool.h>
 #include <linux/eventpoll.h>
 #include <linux/iocontext.h>
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/stddef.h>	/* sizeof_field() */
 #include <linux/timer.h>
-#include <linux/version.h>
 #include <linux/vmalloc.h>
+#include <linux/workqueue.h>
 #include <linux/writeback.h>	/* sync_page_range() */
 #include <rdma/ib_verbs.h>
 #include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
+struct scsi_target;
 #include <scsi/scsi_transport_fc.h> /* struct fc_bsg_job */
+#include <asm/unaligned.h>	/* get_unaligned_be64() */
 
 /* <asm-generic/barrier.h> */
 
@@ -319,6 +323,17 @@ static inline bool cpumask_equal(const cpumask_t *src1p,
 }
 #endif
 
+/* <linux/device.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
+/*
+ * See also commit ced321bf9151 ("driver core: device.h: add RW and RO
+ * attribute macros") # v3.11.
+ */
+#define DEVICE_ATTR_RW(_name) \
+	struct device_attribute dev_attr_##_name = __ATTR_RW(_name)
+#endif
+
 /* <linux/dlm.h> */
 
 /* See also commit 0f8e0d9a317406612700426fad3efab0b7bbc467 */
@@ -326,6 +341,18 @@ static inline bool cpumask_equal(const cpumask_t *src1p,
 enum {
 	DLM_LSFL_NEWEXCL = 0
 };
+#endif
+
+/* <linux/dmapool.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+/* See also ad82362b2def ("mm: add dma_pool_zalloc() call to DMA API") # v4.3 */
+static inline void *dma_pool_zalloc(struct dma_pool *pool, gfp_t mem_flags,
+				    dma_addr_t *handle)
+{
+	return dma_pool_alloc(pool, mem_flags | __GFP_ZERO, handle);
+}
 #endif
 
 /* <linux/eventpoll.h> */
@@ -434,6 +461,14 @@ static inline ssize_t call_write_iter(struct file *file, struct kiocb *kio,
 }
 #endif
 
+/*
+ * See also commit b745fafaf70c ("fs: Introduce RWF_NOWAIT and
+ * FMODE_AIO_NOWAIT") # v4.13.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+#define IOCB_NOWAIT 0
+#endif
+
 /* See also commit bdd1d2d3d251 ("fs: fix kernel_read prototype") # v4.14 */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
 static inline ssize_t
@@ -444,9 +479,42 @@ kernel_read_backport(struct file *file, void *buf, size_t count, loff_t *pos)
 
 #define kernel_read(file, buf, count, pos)			\
 	kernel_read_backport((file), (buf), (count), (pos))
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) || defined(RHEL_MAJOR)
+/*
+ * See also commit 7bb307e894d5 ("export kernel_write(), convert open-coded
+ * instances") # v3.9.
+ */
+static inline ssize_t
+kernel_write_backport(struct file *file, const void *buf, size_t count,
+		      loff_t *pos)
+{
+	return kernel_write(file, buf, count, *pos);
+}
+
+#define kernel_write kernel_write_backport
+#else
+ssize_t kernel_write(struct file *file, const void *buf, size_t count,
+		     loff_t *pos);
+#endif
+#endif
+
+/* <linux/interrupt.h> */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39) && !defined(RHEL_MAJOR)
+/*
+ * See also commit cd7eab44e994 ("genirq: Add IRQ affinity notifiers";
+ * v2.6.39).
+ */
+struct irq_affinity_notify;
+static inline int
+irq_set_affinity_notifier(unsigned int irq, struct irq_affinity_notify *notify)
+{
+	return 0;
+}
 #endif
 
 /* <linux/iocontext.h> */
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25) || \
 	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0)
 
@@ -479,6 +547,25 @@ static inline struct io_context *get_task_io_context(struct task_struct *task,
 }
 #endif
 
+/* <linux/kconfig.h> */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0) && !defined(RHEL_MAJOR)
+/*
+ * See also commit 2a11c8ea20bf ("kconfig: Introduce IS_ENABLED(), IS_BUILTIN()
+ * and IS_MODULE()") # v3.1.
+ */
+#define __ARG_PLACEHOLDER_1 0,
+#define __take_second_arg(__ignored, val, ...) val
+#define __or(x, y)			___or(x, y)
+#define ___or(x, y)			____or(__ARG_PLACEHOLDER_##x, y)
+#define ____or(arg1_or_junk, y)		__take_second_arg(arg1_or_junk 1, y)
+#define __is_defined(x)			___is_defined(x)
+#define ___is_defined(val)		____is_defined(__ARG_PLACEHOLDER_##val)
+#define ____is_defined(arg1_or_junk)	__take_second_arg(arg1_or_junk 1, 0)
+#define IS_BUILTIN(option) __is_defined(option)
+#define IS_MODULE(option) __is_defined(option##_MODULE)
+#define IS_ENABLED(option) __or(IS_BUILTIN(option), IS_MODULE(option))
+#endif
+
 /* <linux/kernel.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19)
@@ -500,6 +587,35 @@ typedef _Bool bool;
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6 ||	\
 	 RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 < 1)
 extern int hex_to_bin(char ch);
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 34) && !defined(RHEL_MAJOR)
+/* See also commit 9b3be9f99203 ("Move round_up/down to kernel.h") # v2.6.34 */
+/*
+ * This looks more complex than it should be. But we need to
+ * get the type for the ~ right in round_down (it needs to be
+ * as wide as the result!), and we want to evaluate the macro
+ * arguments just once each.
+ */
+#define __round_mask(x, y) ((__typeof__(x))((y)-1))
+/**
+ * round_up - round up to next specified power of 2
+ * @x: the value to round
+ * @y: multiple to round up to (must be a power of 2)
+ *
+ * Rounds @x up to next multiple of @y (which must be a power of 2).
+ * To perform arbitrary rounding up, use roundup() below.
+ */
+#define round_up(x, y) ((((x)-1) | __round_mask(x, y))+1)
+/**
+ * round_down - round down to next specified power of 2
+ * @x: the value to round
+ * @y: multiple to round down to (must be a power of 2)
+ *
+ * Rounds @x down to next multiple of @y (which must be a power of 2).
+ * To perform arbitrary rounding down, use rounddown() below.
+ */
+#define round_down(x, y) ((x) & ~__round_mask(x, y))
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38)
@@ -714,6 +830,171 @@ static inline long get_user_pages_backport(unsigned long start,
 #define get_user_pages get_user_pages_backport
 #endif
 
+/* <linux/mempoool.h> */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
+/*
+ * See also commit 4e3ca3e033d1 ("mm/mempool: allow NULL `pool' pointer in
+ * mempool_destroy()") # v4.3.
+ */
+static inline void mempool_destroy_backport(mempool_t *pool)
+{
+	if (pool)
+		mempool_destroy(pool);
+}
+
+#define mempool_destroy mempool_destroy_backport
+#endif
+
+/* <linux/mm.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+/* See also commit a7c3e901a46f ("mm: introduce kv[mz]alloc helpers") # v4.12 */
+static inline void *kvmalloc_node(size_t size, gfp_t flags, int node)
+{
+	gfp_t kmalloc_flags = flags;
+	void *ret;
+
+	WARN_ON_ONCE(flags & ~(GFP_KERNEL | __GFP_ZERO));
+
+	/*
+	 * vmalloc uses GFP_KERNEL for some internal allocations (e.g page
+	 * tables) so the given set of flags has to be compatible.
+	 */
+	if ((flags & GFP_KERNEL) != GFP_KERNEL)
+		return kmalloc_node(size, flags, node);
+
+	/*
+	 * We want to attempt a large physically contiguous block first because
+	 * it is less likely to fragment multiple larger blocks and therefore
+	 * contribute to a long term fragmentation less than vmalloc fallback.
+	 * However make sure that larger requests are not too disruptive - no
+	 * OOM killer and no allocation failure warnings as we have a fallback.
+	 */
+	if (size > PAGE_SIZE) {
+		kmalloc_flags |= __GFP_NOWARN;
+
+		if (!(kmalloc_flags & __GFP_REPEAT))
+			kmalloc_flags |= __GFP_NORETRY;
+	}
+
+	ret = kmalloc_node(size, kmalloc_flags, node);
+
+	/*
+	 * It doesn't really make sense to fallback to vmalloc for sub page
+	 * requests
+	 */
+	if (ret || size <= PAGE_SIZE)
+		return ret;
+
+	ret = vmalloc_node(size, node);
+	if (ret && (flags & __GFP_ZERO))
+		memset(ret, 0, size);
+
+	return ret;
+}
+
+static inline void *kvmalloc(size_t size, gfp_t flags)
+{
+	return kvmalloc_node(size, flags, NUMA_NO_NODE);
+}
+
+static inline void *kvzalloc(size_t size, gfp_t flags)
+{
+	return kvmalloc(size, flags | __GFP_ZERO);
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
+/* See also commit 1c542f38ab8d ("mm: Introduce kvcalloc()") # v4.18. */
+static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
+{
+	return kvmalloc(n * size, flags | __GFP_ZERO);
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) &&		       \
+	!(LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(3, 12, 0) >> 8 &&  \
+	  LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 41)) &&	       \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
+/*
+ * See also commit 39f1f78d53b9 ("nick kvfree() from apparmor") # v3.15.
+ * See also commit fb6a2a8ebe27 ("nick kvfree() from apparmor") # v3.12.41.
+ */
+static inline void kvfree(void *addr)
+{
+	if (is_vmalloc_addr(addr))
+		vfree(addr);
+	else
+		kfree(addr);
+}
+#endif
+
+/* <linux/nvme-fc.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+#define FC_TYPE_NVME 0x28
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+enum nvmefc_fcp_datadir {
+	NVMEFC_FCP_NODATA,
+	NVMEFC_FCP_WRITE,
+	NVMEFC_FCP_READ,
+};
+struct nvme_fc_ersp_iu {
+};
+struct nvmefc_fcp_req {
+	void			*cmdaddr;
+	void			*rspaddr;
+	dma_addr_t		cmddma;
+	dma_addr_t		rspdma;
+	u16			cmdlen;
+	u16			rsplen;
+
+	u32			payload_length;
+	struct sg_table		sg_table;
+	struct scatterlist	*first_sgl;
+	int			sg_cnt;
+	enum nvmefc_fcp_datadir	io_dir;
+
+	__le16			sqid;
+
+	void (*done)(struct nvmefc_fcp_req *req);
+
+	void			*private;
+
+	u32			transferred_length;
+	u16			rcv_rsplen;
+	u32			status;
+} __aligned(sizeof(u64));	/* alignment for other things alloc'd with */
+#endif
+
+/* <linux/pci.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 7, 0) && !defined(RHEL_MAJOR)
+/*
+ * See also commit 8c0d3a02c130 ("PCI: Add accessors for PCI Express
+ * Capability") # v3.7.
+ */
+static inline int pcie_capability_read_word(struct pci_dev *dev, int pos,
+					    u16 *val)
+{
+	WARN_ON_ONCE(true);
+	*val = 0;
+	return -ENOTSUPP;
+}
+
+static inline int pcie_capability_read_dword(struct pci_dev *dev, int pos,
+					     u32 *val)
+{
+	WARN_ON_ONCE(true);
+	*val = 0;
+	return -ENOTSUPP;
+}
+#endif
+
 /* <linux/preempt.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
@@ -781,6 +1062,15 @@ static inline long get_user_pages_backport(unsigned long start,
 })
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38)
+/*
+ * See also commit 16cb839f1332 ("include/linux/printk.h: add pr_<level>_once
+ * macros") # v2.6.38.
+ */
+#define pr_warn_once(fmt, ...)					\
+	printk_once(KERN_WARNING pr_fmt(fmt), ##__VA_ARGS__)
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 /*
  * See also patch "kernel.h: add pr_warn for symmetry to dev_warn,
@@ -844,6 +1134,7 @@ typedef void (*rcu_callback_t)(struct rcu_head *);
 #endif
 
 /* <rdma/ib_verbs.h> */
+
 /* commit ed082d36 */
 #ifndef ib_alloc_pd
 static inline struct ib_pd *ib_alloc_pd_backport(struct ib_device *device)
@@ -856,11 +1147,99 @@ static inline struct ib_pd *ib_alloc_pd_backport(struct ib_device *device)
 	})
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
+#define ib_sg_dma_len(dev, sg) sg_dma_len(sg)
+#define ib_sg_dma_address(dev, sg) sg_dma_address(sg)
+#endif
+
 /* <linux/sched.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) && \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
 #define set_cpus_allowed_ptr(p, new_mask) set_cpus_allowed((p), *(new_mask))
+#endif
+
+/* <linux/percpu-refcount.h> */
+
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7
+#include <linux/percpu-refcount.h>
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+#include <linux/percpu-refcount.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
+/*
+ * See also commit 2aad2a86f668 ("percpu_ref: add PERCPU_REF_INIT_* flags")
+ * # v3.18.
+ */
+static inline int __must_check percpu_ref_init_backport(struct percpu_ref *ref,
+				 percpu_ref_func_t *release, unsigned int flags,
+				 gfp_t gfp)
+{
+	WARN_ON_ONCE(flags != 0);
+	WARN_ON_ONCE(gfp != GFP_KERNEL);
+	return percpu_ref_init(ref, release);
+}
+#define percpu_ref_init percpu_ref_init_backport
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+/*
+ * See also commit 2d7227828e14 ("percpu-refcount: implement percpu_ref_reinit()
+ * and percpu_ref_is_zero()") # v3.17.
+ */
+static inline bool percpu_ref_is_zero(struct percpu_ref *ref)
+{
+	return !atomic_read(&ref->count);
+}
+/*
+ * See also commit 9a1049da9bd2 ("percpu-refcount: require percpu_ref to be
+ * exited explicitly") # v3.17.
+ */
+static inline void percpu_ref_exit(struct percpu_ref *ref)
+{
+}
+#endif
+#else
+struct percpu_ref;
+typedef void (percpu_ref_func_t)(struct percpu_ref *);
+
+struct percpu_ref {
+	atomic_long_t		count;
+	percpu_ref_func_t	*release;
+};
+
+static inline int __must_check percpu_ref_init(struct percpu_ref *ref,
+				 percpu_ref_func_t *release, unsigned int flags,
+				 gfp_t gfp)
+{
+	WARN_ON_ONCE(flags != 0);
+	atomic_long_set(&ref->count, 1);
+	ref->release = release;
+	return 0;
+}
+
+static inline void percpu_ref_exit(struct percpu_ref *ref)
+{
+}
+
+static inline void percpu_ref_get(struct percpu_ref *ref)
+{
+	atomic_long_inc(&ref->count);
+}
+
+static inline void percpu_ref_put(struct percpu_ref *ref)
+{
+	if (unlikely(atomic_long_dec_and_test(&ref->count)))
+		ref->release(ref);
+}
+
+static inline void percpu_ref_kill(struct percpu_ref *ref)
+{
+	percpu_ref_put(ref);
+}
+
+static inline bool percpu_ref_is_zero(struct percpu_ref *ref)
+{
+	return !atomic_long_read(&ref->count);
+}
 #endif
 
 /* <linux/scatterlist.h> */
@@ -903,6 +1282,10 @@ static inline void sg_mark_end(struct scatterlist *sg)
 {
 }
 
+static inline void sg_unmark_end(struct scatterlist *sg)
+{
+}
+
 #ifndef __BACKPORT_LINUX_SCATTERLIST_H_TO_2_6_23__
 
 static inline void sg_init_table(struct scatterlist *sgl, unsigned int nents)
@@ -930,6 +1313,15 @@ static inline void sg_set_page(struct scatterlist *sg, struct page *page,
 #endif /* for_each_sg */
 
 #endif /* __BACKPORT_LINUX_SCATTERLIST_H_TO_2_6_23__ */
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
+/*
+ * See also commit c8164d8931fd ("scatterlist: introduce sg_unmark_end";
+ * v3.10).
+ */
+static inline void sg_unmark_end(struct scatterlist *sg)
+{
+	sg->page_link &= ~0x02;
+}
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) */
 
 /* <linux/slab.h> */
@@ -938,6 +1330,20 @@ static inline void sg_set_page(struct scatterlist *sg, struct page *page,
 #define KMEM_CACHE(__struct, __flags) kmem_cache_create(#__struct,\
 	sizeof(struct __struct), __alignof__(struct __struct),\
 	(__flags), NULL, NULL)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
+/*
+ * See also commit 3942d2991852 ("mm/slab_common: allow NULL cache pointer in
+ * kmem_cache_destroy()") # v4.3.
+ */
+static inline void kmem_cache_destroy_backport(struct kmem_cache *s)
+{
+	if (s)
+		kmem_cache_destroy(s);
+}
+
+#define kmem_cache_destroy kmem_cache_destroy_backport
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0) &&	    \
@@ -1002,14 +1408,45 @@ struct t10_pi_tuple {
 #define sizeof_field(TYPE, MEMBER) sizeof((((TYPE *)0)->MEMBER))
 #endif
 
+/* <linux/string.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+/* See also commit e9d408e107db ("new helper: memdup_user_nul()") # v4.5 */
+static inline void *memdup_user_nul(const void __user *src, size_t len)
+{
+	char *p;
+
+	p = kmalloc(len + 1, GFP_KERNEL);
+	if (!p)
+		return ERR_PTR(-ENOMEM);
+
+	if (copy_from_user(p, src, len)) {
+		kfree(p);
+		return ERR_PTR(-EFAULT);
+	}
+	p[len] = '\0';
+
+	return p;
+}
+#endif
+
+/* <linux/sysfs.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+/* See also commit b9b3259746d7 ("sysfs.h: add __ATTR_RW() macro") # v3.11. */
+#define __ATTR_RW(_name) __ATTR(_name, 0644, _name##_show, _name##_store)
+#endif
+
 /* <linux/timer.h> */
 
 /*
  * See also commit 686fef928bba ("timer: Prepare to change timer callback
- * argument type"). See also commit 0eeda71bc30d ("timer: Replace timer base
- * by a cpu index").
+ * argument type") # v4.14. See also commit 0eeda71bc30d ("timer: Replace
+ * timer base by a cpu index") # v4.2.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0)
 #define timer_setup(_timer, _fn, _flags) do {			\
 	init_timer(_timer);					\
 	(_timer)->function = (void *)(_fn);	\
@@ -1023,6 +1460,11 @@ struct t10_pi_tuple {
 	(_timer)->data = (unsigned long)(_timer);		\
 	(_timer)->flags = (_flags);				\
 } while (0)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+#define from_timer(var, callback_timer, timer_fieldname)		\
+	container_of(callback_timer, typeof(*var), timer_fieldname)
 #endif
 
 /*
@@ -1102,12 +1544,30 @@ static inline void *vzalloc(unsigned long size)
 }
 #endif
 
+/* <linux/workqueue.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+/*
+ * See also commit d320c03830b1 ("workqueue: s/__create_workqueue()/
+ * alloc_workqueue()/, and add system workqueues") # v2.6.36.
+ */
+static inline struct workqueue_struct *alloc_workqueue(const char *fmt,
+						       unsigned int flags,
+						       int max_active, ...)
+{
+	WARN_ON_ONCE(flags | max_active);
+	return create_workqueue(fmt);
+}
+#endif
+
 /* <scsi/scsi_cmnd.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) || \
+	LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
 /*
- * See also patch "[SCSI] bidirectional command support"
- * (commit ID 6f9a35e2dafa).
+ * See also patch "[SCSI] bidirectional command support" (commit ID
+ * 6f9a35e2dafa). See also commit ae3d56d81507 ("scsi: remove bidirectional
+ * command support") # v5.1.
  */
 static inline int scsi_bidi_cmnd(struct scsi_cmnd *cmd)
 {
@@ -1141,6 +1601,44 @@ static inline void scsi_req_init(struct request *rq)
 	return blk_rq_set_block_pc(rq);
 #endif
 }
+#endif
+
+/* <scsi/scsi_transport_fc.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
+/*
+ * See also commit 624f28be8109 ("[SCSI] scsi_transport_fc: Add 32Gbps speed
+ * definition.") # v3.15.
+ */
+enum {
+	FC_PORTSPEED_32GBIT = 0x40
+};
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+/*
+ * See also commit cc019a5a3b58 ("scsi: scsi_transport_fc: fix typos on 64/128
+ * GBit define names") # v4.16.
+ */
+#ifndef FC_PORTSPEED_64GBIT
+#define FC_PORTSPEED_64GBIT 0x1000
+#endif
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+#define wwn_to_u64(wwn) get_unaligned_be64(wwn)
+#endif
+
+/* <target/target_core_base.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+/* See also commit 68d81f40047c ("scsi: remove MSG_*_TAG defines") # v3.19. */
+#define TCM_SIMPLE_TAG	0x20
+#define TCM_HEAD_TAG	0x21
+#define TCM_ORDERED_TAG	0x22
+#define TCM_ACA_TAG	0x24
 #endif
 
 #endif /* _SCST_BACKPORT_H_ */
