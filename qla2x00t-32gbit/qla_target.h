@@ -31,6 +31,7 @@
 #include <linux/version.h>
 #include <asm/unaligned.h>
 #include "qla_def.h"
+#include "qla_dsd.h"
 
 /* See also commit ce65e5b97b19 ("target: Add DIF related base definitions") # v3.14. */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 14, 0) || \
@@ -251,12 +252,7 @@ struct ctio_to_2xxx {
 	uint16_t reserved_1[3];
 	uint16_t scsi_status;
 	uint32_t transfer_length;
-	uint32_t dseg_0_address;	/* Data segment 0 address. */
-	uint32_t dseg_0_length;		/* Data segment 0 length. */
-	uint32_t dseg_1_address;	/* Data segment 1 address. */
-	uint32_t dseg_1_length;		/* Data segment 1 length. */
-	uint32_t dseg_2_address;	/* Data segment 2 address. */
-	uint32_t dseg_2_length;		/* Data segment 2 length. */
+	struct dsd32 dsd[3];
 } __packed;
 #define ATIO_PATH_INVALID       0x07
 #define ATIO_CANT_PROV_CAP      0x16
@@ -456,10 +452,7 @@ struct ctio7_to_24xx {
 			uint32_t reserved2;
 			uint32_t transfer_length;
 			uint32_t reserved3;
-			/* Data segment 0 address. */
-			uint32_t dseg_0_address[2];
-			/* Data segment 0 length. */
-			uint32_t dseg_0_length;
+			struct dsd64 dsd;
 		} status0;
 		struct {
 			uint16_t sense_length;

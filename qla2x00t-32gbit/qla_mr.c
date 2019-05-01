@@ -3006,7 +3006,7 @@ qlafx00_build_scsi_iocbs(srb_t *sp, struct cmd_type_7_fx00 *cmd_pkt,
 			 uint16_t tot_dsds, struct cmd_type_7_fx00 *lcmd_pkt)
 {
 	uint16_t	avail_dsds;
-	__le32 *cur_dsd;
+	struct dsd64	*cur_dsd;
 	scsi_qla_host_t	*vha;
 	struct scsi_cmnd *cmd;
 	struct scatterlist *sg;
@@ -3042,12 +3042,10 @@ qlafx00_build_scsi_iocbs(srb_t *sp, struct cmd_type_7_fx00 *cmd_pkt,
 
 	/* One DSD is available in the Command Type 3 IOCB */
 	avail_dsds = 1;
-	cur_dsd = (__le32 *)&lcmd_pkt->dseg_0_address;
+	cur_dsd = &lcmd_pkt->dsd;
 
 	/* Load data segments */
 	scsi_for_each_sg(cmd, sg, tot_dsds, i) {
-		dma_addr_t	sle_dma;
-
 		/* Allocate additional continuation packets? */
 		if (avail_dsds == 0) {
 			/*
@@ -3057,15 +3055,12 @@ qlafx00_build_scsi_iocbs(srb_t *sp, struct cmd_type_7_fx00 *cmd_pkt,
 			memset(&lcont_pkt, 0, REQUEST_ENTRY_SIZE);
 			cont_pkt =
 			    qlafx00_prep_cont_type1_iocb(req, &lcont_pkt);
-			cur_dsd = (__le32 *)lcont_pkt.dseg_0_address;
+			cur_dsd = lcont_pkt.dsd;
 			avail_dsds = 5;
 			cont = 1;
 		}
 
-		sle_dma = sg_dma_address(sg);
-		*cur_dsd++ = cpu_to_le32(LSD(sle_dma));
-		*cur_dsd++ = cpu_to_le32(MSD(sle_dma));
-		*cur_dsd++ = cpu_to_le32(sg_dma_len(sg));
+		append_dsd64(&cur_dsd, sg);
 		avail_dsds--;
 		if (avail_dsds == 0 && cont == 1) {
 			cont = 0;
@@ -3300,11 +3295,9 @@ qlafx00_fxdisc_iocb(srb_t *sp, struct fxdisc_entry_fx00 *pfxiocb)
 			fx_iocb.req_dsdcnt = cpu_to_le16(1);
 			fx_iocb.req_xfrcnt =
 			    cpu_to_le16(fxio->u.fxiocb.req_len);
-			fx_iocb.dseg_rq_address[0] =
-			    cpu_to_le32(LSD(fxio->u.fxiocb.req_dma_handle));
-			fx_iocb.dseg_rq_address[1] =
-			    cpu_to_le32(MSD(fxio->u.fxiocb.req_dma_handle));
-			fx_iocb.dseg_rq_len =
+			fx_iocb.dseg_rq.address =
+			    cpu_to_le64(fxio->u.fxiocb.req_dma_handle);
+			fx_iocb.dseg_rq.length =
 			    cpu_to_le32(fxio->u.fxiocb.req_len);
 		}
 
@@ -3312,11 +3305,9 @@ qlafx00_fxdisc_iocb(srb_t *sp, struct fxdisc_entry_fx00 *pfxiocb)
 			fx_iocb.rsp_dsdcnt = cpu_to_le16(1);
 			fx_iocb.rsp_xfrcnt =
 			    cpu_to_le16(fxio->u.fxiocb.rsp_len);
-			fx_iocb.dseg_rsp_address[0] =
-			    cpu_to_le32(LSD(fxio->u.fxiocb.rsp_dma_handle));
-			fx_iocb.dseg_rsp_address[1] =
-			    cpu_to_le32(MSD(fxio->u.fxiocb.rsp_dma_handle));
-			fx_iocb.dseg_rsp_len =
+			fx_iocb.dseg_rsp.address =
+			    cpu_to_le64(fxio->u.fxiocb.rsp_dma_handle);
+			fx_iocb.dseg_rsp.length =
 			    cpu_to_le32(fxio->u.fxiocb.rsp_len);
 		}
 
@@ -3345,19 +3336,17 @@ qlafx00_fxdisc_iocb(srb_t *sp, struct fxdisc_entry_fx00 *pfxiocb)
 			int avail_dsds, tot_dsds;
 			cont_a64_entry_t lcont_pkt;
 			cont_a64_entry_t *cont_pkt = NULL;
-			__le32 *cur_dsd;
+			struct dsd64 *cur_dsd;
 			int index = 0, cont = 0;
 
 			fx_iocb.req_dsdcnt =
 			    cpu_to_le16(bsg_job->request_payload.sg_cnt);
 			tot_dsds =
 			    bsg_job->request_payload.sg_cnt;
-			cur_dsd = (__le32 *)&fx_iocb.dseg_rq_address[0];
+			cur_dsd = &fx_iocb.dseg_rq;
 			avail_dsds = 1;
 			for_each_sg(bsg_job->request_payload.sg_list, sg,
 			    tot_dsds, index) {
-				dma_addr_t sle_dma;
-
 				/* Allocate additional continuation packets? */
 				if (avail_dsds == 0) {
 					/*
@@ -3369,17 +3358,13 @@ qlafx00_fxdisc_iocb(srb_t *sp, struct fxdisc_entry_fx00 *pfxiocb)
 					cont_pkt =
 					    qlafx00_prep_cont_type1_iocb(
 						sp->vha->req, &lcont_pkt);
-					cur_dsd = (__le32 *)
-					    lcont_pkt.dseg_0_address;
+					cur_dsd = lcont_pkt.dsd;
 					avail_dsds = 5;
 					cont = 1;
 					entry_cnt++;
 				}
 
-				sle_dma = sg_dma_address(sg);
-				*cur_dsd++   = cpu_to_le32(LSD(sle_dma));
-				*cur_dsd++   = cpu_to_le32(MSD(sle_dma));
-				*cur_dsd++   = cpu_to_le32(sg_dma_len(sg));
+				append_dsd64(&cur_dsd, sg);
 				avail_dsds--;
 
 				if (avail_dsds == 0 && cont == 1) {
@@ -3407,19 +3392,17 @@ qlafx00_fxdisc_iocb(srb_t *sp, struct fxdisc_entry_fx00 *pfxiocb)
 			int avail_dsds, tot_dsds;
 			cont_a64_entry_t lcont_pkt;
 			cont_a64_entry_t *cont_pkt = NULL;
-			__le32 *cur_dsd;
+			struct dsd64 *cur_dsd;
 			int index = 0, cont = 0;
 
 			fx_iocb.rsp_dsdcnt =
 			   cpu_to_le16(bsg_job->reply_payload.sg_cnt);
 			tot_dsds = bsg_job->reply_payload.sg_cnt;
-			cur_dsd = (__le32 *)&fx_iocb.dseg_rsp_address[0];
+			cur_dsd = &fx_iocb.dseg_rsp;
 			avail_dsds = 1;
 
 			for_each_sg(bsg_job->reply_payload.sg_list, sg,
 			    tot_dsds, index) {
-				dma_addr_t sle_dma;
-
 				/* Allocate additional continuation packets? */
 				if (avail_dsds == 0) {
 					/*
@@ -3431,17 +3414,13 @@ qlafx00_fxdisc_iocb(srb_t *sp, struct fxdisc_entry_fx00 *pfxiocb)
 					cont_pkt =
 					    qlafx00_prep_cont_type1_iocb(
 						sp->vha->req, &lcont_pkt);
-					cur_dsd = (__le32 *)
-					    lcont_pkt.dseg_0_address;
+					cur_dsd = lcont_pkt.dsd;
 					avail_dsds = 5;
 					cont = 1;
 					entry_cnt++;
 				}
 
-				sle_dma = sg_dma_address(sg);
-				*cur_dsd++   = cpu_to_le32(LSD(sle_dma));
-				*cur_dsd++   = cpu_to_le32(MSD(sle_dma));
-				*cur_dsd++   = cpu_to_le32(sg_dma_len(sg));
+				append_dsd64(&cur_dsd, sg);
 				avail_dsds--;
 
 				if (avail_dsds == 0 && cont == 1) {
