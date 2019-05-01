@@ -957,11 +957,11 @@ alloc_and_fill:
 			/* add new list to cmd iocb or last list */
 			put_unaligned_le64(dsd_ptr->dsd_list_dma,
 					   &cur_dsd->address);
-			put_unaligned_le32(dsd_list_len, &cur_dsd->length);
+			cur_dsd->length = cpu_to_le32(dsd_list_len);
 			cur_dsd = next_dsd;
 		}
 		put_unaligned_le64(sle_dma, &cur_dsd->address);
-		put_unaligned_le32(sle_dma_len, &cur_dsd->length);
+		cur_dsd->length = cpu_to_le32(sle_dma_len);
 		cur_dsd++;
 		avail_dsds--;
 
@@ -1054,7 +1054,7 @@ qla24xx_walk_and_build_sglist(struct qla_hw_data *ha, srb_t *sp,
 			/* add new list to cmd iocb or last list */
 			put_unaligned_le64(dsd_ptr->dsd_list_dma,
 					   &cur_dsd->address);
-			put_unaligned_le32(dsd_list_len, &cur_dsd->length);
+			cur_dsd->length = cpu_to_le32(dsd_list_len);
 			cur_dsd = next_dsd;
 		}
 		append_dsd64(&cur_dsd, sg);
@@ -1071,7 +1071,7 @@ qla24xx_walk_and_build_sglist(struct qla_hw_data *ha, srb_t *sp,
 #if QLA_ENABLE_PI
 int
 qla24xx_walk_and_build_prot_sglist(struct qla_hw_data *ha, srb_t *sp,
-    uint32_t *cur_dsd, uint16_t tot_dsds, struct qla_tgt_cmd *tc)
+    struct dsd64 *cur_dsd, uint16_t tot_dsds, struct qla_tgt_cmd *tc)
 {
 	struct dsd_dma *dsd_ptr = NULL, *dif_dsd, *nxt_dsd;
 	struct scatterlist *sg, *sgl;
@@ -1291,16 +1291,15 @@ qla24xx_walk_and_build_prot_sglist(struct qla_hw_data *ha, srb_t *sp,
 				}
 
 				/* add new list to cmd iocb or last list */
-				*cur_dsd++ =
-				    cpu_to_le32(LSD(dsd_ptr->dsd_list_dma));
-				*cur_dsd++ =
-				    cpu_to_le32(MSD(dsd_ptr->dsd_list_dma));
-				*cur_dsd++ = dsd_list_len;
+				put_unaligned_le64(dsd_ptr->dsd_list_dma,
+						   &cur_dsd->address);
+				cur_dsd->length = cpu_to_le32(dsd_list_len);
 				cur_dsd = dsd_ptr->dsd_addr;
 			}
-			*cur_dsd++ = cpu_to_le32(LSD(dif_dsd->dsd_list_dma));
-			*cur_dsd++ = cpu_to_le32(MSD(dif_dsd->dsd_list_dma));
-			*cur_dsd++ = cpu_to_le32(sglen);
+			put_unaligned_le64(dif_dsd->dsd_list_dma,
+					   &cur_dsd->address);
+			cur_dsd->length = cpu_to_le32(sglen);
+			cur_dsd++;
 			avail_dsds--;
 			difctx->dif_bundl_len -= sglen;
 			track_difbundl_buf--;
@@ -1350,24 +1349,19 @@ qla24xx_walk_and_build_prot_sglist(struct qla_hw_data *ha, srb_t *sp,
 				}
 
 				/* add new list to cmd iocb or last list */
-				*cur_dsd++ =
-				    cpu_to_le32(LSD(dsd_ptr->dsd_list_dma));
-				*cur_dsd++ =
-				    cpu_to_le32(MSD(dsd_ptr->dsd_list_dma));
-				*cur_dsd++ = dsd_list_len;
+				put_unaligned_le64(dsd_ptr->dsd_list_dma,
+						   &cur_dsd->address);
+				cur_dsd->length = cpu_to_le32(dsd_list_len);
 				cur_dsd = dsd_ptr->dsd_addr;
 			}
-			sle_dma = sg_dma_address(sg);
-			*cur_dsd++ = cpu_to_le32(LSD(sle_dma));
-			*cur_dsd++ = cpu_to_le32(MSD(sle_dma));
-			*cur_dsd++ = cpu_to_le32(sg_dma_len(sg));
+			append_dsd64(&cur_dsd, sg);
 			avail_dsds--;
 		}
 	}
 	/* Null termination */
-	*cur_dsd++ = 0;
-	*cur_dsd++ = 0;
-	*cur_dsd++ = 0;
+	cur_dsd->address = 0;
+	cur_dsd->length = 0;
+	cur_dsd++;
 	return 0;
 }
 #endif
