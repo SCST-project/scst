@@ -494,7 +494,7 @@ add_file "iscsi-scst/README_in-tree" "Documentation/scst/README.iscsi" \
 | process_patch "iscsi-scst-doc.diff"
 
 
-# Directory drivers/scsi/qla2xxx/
+# Directory drivers/scst/qla2x00-target/
 
 if [ "${qla2x00t}" = "true" ]; then
 
@@ -515,9 +515,21 @@ if [ "${qla2x00t}" = "true" ]; then
   add_file "qla2x00t/qla2x_tgt_def.h" \
            "drivers/scsi/qla2xxx/qla2x_tgt_def.h"
 
+  if [ -e "qla2x00t/qla2x00-target/Makefile_in-tree-${kver}" ]
+  then
+    add_file "qla2x00t/qla2x00-target/Makefile_in-tree-${kver}" \
+           "drivers/scst/qla2xxx-target/Makefile"
+  else
+    add_file "qla2x00t/qla2x00-target/Makefile_in-tree" \
+           "drivers/scst/qla2xxx-target/Makefile"
+  fi
+
+  add_file "qla2x00t/qla2x00-target/Kconfig" \
+           "drivers/scst/qla2xxx-target/Kconfig"
+
   for f in qla2x00t/qla2x00-target/*.[ch]; do
-    [ -e "$f" ] &&
-    add_file "${f}" "drivers/scsi/qla2xxx/${f#qla2x00t/qla2x00-target/}"
+    [ -e "$f" ] || continue
+    add_file "${f}" "drivers/scst/qla2xxx-target/${f#qla2x00t/qla2x00-target/}"
   done
 
   add_file "qla2x00t/qla2x00-target/README" \
