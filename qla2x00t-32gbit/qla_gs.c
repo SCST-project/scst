@@ -1380,6 +1380,7 @@ qla2x00_mgmt_svr_login(scsi_qla_host_t *vha)
 	int ret, rval;
 	uint16_t mb[MAILBOX_REGISTER_COUNT];
 	struct qla_hw_data *ha = vha->hw;
+
 	ret = QLA_SUCCESS;
 	if (vha->flags.management_server_logged_in)
 		return ret;
@@ -1418,6 +1419,7 @@ qla2x00_prep_ms_fdmi_iocb(scsi_qla_host_t *vha, uint32_t req_size,
 {
 	ms_iocb_entry_t *ms_pkt;
 	struct qla_hw_data *ha = vha->hw;
+
 	ms_pkt = ha->ms_iocb;
 	memset(ms_pkt, 0, sizeof(ms_iocb_entry_t));
 
@@ -2437,7 +2439,7 @@ qla2x00_fdmiv2_rpa(scsi_qla_host_t *vha)
 	eiter->type = cpu_to_be16(FDMI_PORT_MAX_FRAME_SIZE);
 	eiter->len = cpu_to_be16(4 + 4);
 	eiter->a.max_frame_size = IS_FWI2_CAPABLE(ha) ?
-	    le16_to_cpu(icb24->frame_payload_size):
+	    le16_to_cpu(icb24->frame_payload_size) :
 	    le16_to_cpu(ha->init_cb->frame_payload_size);
 	eiter->a.max_frame_size = cpu_to_be32(eiter->a.max_frame_size);
 	size += 4 + 4;
