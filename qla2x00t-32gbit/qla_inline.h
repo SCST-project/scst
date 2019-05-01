@@ -126,25 +126,6 @@ static inline const char *wwn_to_str(const u8 port_name[8])
 	return wwn;
 }
 
-static inline void
-qla2x00_set_fcport_state(fc_port_t *fcport, int state)
-{
-	int old_state;
-
-	old_state = atomic_read(&fcport->state);
-	atomic_set(&fcport->state, state);
-
-	/* Don't print state transitions during initial allocation of fcport */
-	if (old_state && old_state != state) {
-		ql_dbg(ql_dbg_disc, fcport->vha, 0x207d,
-		    "FCPort %s state transitioned from %s to %s - "
-		    "portid=%02x%02x%02x.\n", wwn_to_str(fcport->port_name),
-		    port_state_str[old_state], port_state_str[state],
-		    fcport->d_id.b.domain, fcport->d_id.b.area,
-		    fcport->d_id.b.al_pa);
-	}
-}
-
 static inline int
 qla2x00_hba_err_chk_enabled(srb_t *sp)
 {
