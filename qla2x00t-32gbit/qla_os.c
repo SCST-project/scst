@@ -6152,8 +6152,6 @@ qla2x00_disable_board_on_pci_error(struct work_struct *work)
 
 	qla2x00_delete_all_vps(ha, base_vha);
 
-	qla2x00_abort_all_cmds(base_vha, DID_NO_CONNECT << 16);
-
 	qla2x00_dfs_remove(base_vha);
 
 	qla84xx_put_chip(base_vha);
