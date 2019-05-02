@@ -7880,7 +7880,7 @@ qla24xx_load_risc_blob(scsi_qla_host_t *vha, uint32_t *srisc_addr)
 	fwcode = (void *)blob->fw->data;
 	dcode = fwcode;
 	if (qla24xx_risc_firmware_invalid(dcode)) {
-		ql_log(ql_log_fatal, vha, 0x0094,
+		ql_log(ql_log_fatal, vha, 0x0093,
 		    "Unable to verify integrity of firmware image (%zd).\n",
 		    blob->fw->size);
 		ql_log(ql_log_fatal, vha, 0x0095,
