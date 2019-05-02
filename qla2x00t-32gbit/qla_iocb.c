@@ -1086,6 +1086,7 @@ qla24xx_walk_and_build_prot_sglist(struct qla_hw_data *ha, srb_t *sp,
 
 	if (sp) {
 		struct scsi_cmnd *cmd = GET_CMD_SP(sp);
+
 		sgl = scsi_prot_sglist(cmd);
 		vha = sp->vha;
 		difctx = sp->u.scmd.ctx;
@@ -1489,18 +1490,18 @@ qla24xx_build_scsi_crc_2_iocbs(srb_t *sp, struct cmd_type_crc_2 *cmd_pkt,
 	switch (scsi_get_prot_op(GET_CMD_SP(sp))) {
 	case SCSI_PROT_READ_INSERT:
 	case SCSI_PROT_WRITE_STRIP:
-	    total_bytes = data_bytes;
-	    data_bytes += dif_bytes;
-	    break;
+		total_bytes = data_bytes;
+		data_bytes += dif_bytes;
+		break;
 
 	case SCSI_PROT_READ_STRIP:
 	case SCSI_PROT_WRITE_INSERT:
 	case SCSI_PROT_READ_PASS:
 	case SCSI_PROT_WRITE_PASS:
-	    total_bytes = data_bytes + dif_bytes;
-	    break;
+		total_bytes = data_bytes + dif_bytes;
+		break;
 	default:
-	    BUG();
+		BUG();
 	}
 
 	if (!qla2x00_hba_err_chk_enabled(sp))
@@ -2468,7 +2469,7 @@ qla2x00_logout_iocb(srb_t *sp, struct mbx_entry *mbx)
 	SET_TARGET_ID(ha, mbx->loop_id, sp->fcport->loop_id);
 	mbx->mb0 = cpu_to_le16(MBC_LOGOUT_FABRIC_PORT);
 	mbx->mb1 = HAS_EXTENDED_IDS(ha) ?
-	    cpu_to_le16(sp->fcport->loop_id):
+	    cpu_to_le16(sp->fcport->loop_id) :
 	    cpu_to_le16(sp->fcport->loop_id << 8);
 	mbx->mb2 = cpu_to_le16(sp->fcport->d_id.b.domain);
 	mbx->mb3 = cpu_to_le16(sp->fcport->d_id.b.area << 8 |
@@ -3348,6 +3349,7 @@ sufficient_dsds:
 		cmd_pkt->entry_status = (uint8_t) rsp->id;
 	} else {
 		struct cmd_type_7 *cmd_pkt;
+
 		req_cnt = qla24xx_calc_iocbs(vha, tot_dsds);
 		if (req->cnt < (req_cnt + 2)) {
 			cnt = (uint16_t)RD_REG_DWORD_RELAXED(

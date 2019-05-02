@@ -121,7 +121,7 @@ MODULE_PARM_DESC(ql2xshiftctondsd,
 		"Set to control shifting of command type processing "
 		"based on total number of SG elements.");
 
-int ql2xfdmienable=1;
+int ql2xfdmienable = 1;
 module_param(ql2xfdmienable, int, S_IRUGO|S_IWUSR);
 module_param_named(fdmi, ql2xfdmienable, int, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(ql2xfdmienable,
@@ -167,7 +167,7 @@ MODULE_PARM_DESC(ql2xenablehba_err_chk,
 		"  1 -- Error isolation enabled only for DIX Type 0\n"
 		"  2 -- Error isolation enabled for all Types\n");
 
-int ql2xiidmaenable=1;
+int ql2xiidmaenable = 1;
 module_param(ql2xiidmaenable, int, S_IRUGO);
 MODULE_PARM_DESC(ql2xiidmaenable,
 		"Enables iIDMA settings "
@@ -324,31 +324,6 @@ MODULE_PARM_DESC(ql2xdifbundlinginternalbuffers,
     "0 (Default). Based on check.\n"
     "1 Force using internal buffers\n");
 
-/*
- * SCSI host template entry points
- */
-static int qla2xxx_slave_configure(struct scsi_device * device);
-static int qla2xxx_slave_alloc(struct scsi_device *);
-static int qla2xxx_scan_finished(struct Scsi_Host *, unsigned long time);
-static void qla2xxx_scan_start(struct Scsi_Host *);
-static void qla2xxx_slave_destroy(struct scsi_device *);
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 >= 2
-static int qla2xxx_queuecommand(struct scsi_cmnd *scmnd,
-				void (*done)(struct scsi_cmnd *));
-
-#else
-static int qla2xxx_queuecommand(struct Scsi_Host *h, struct scsi_cmnd *cmd);
-#endif
-static int qla2xxx_eh_abort(struct scsi_cmnd *);
-static int qla2xxx_eh_device_reset(struct scsi_cmnd *);
-static int qla2xxx_eh_target_reset(struct scsi_cmnd *);
-static int qla2xxx_eh_bus_reset(struct scsi_cmnd *);
-static int qla2xxx_eh_host_reset(struct scsi_cmnd *);
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
-static int
-qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth, int reason);
-#endif
 static void qla2x00_clear_drv_active(struct qla_hw_data *);
 static void qla2x00_free_device(scsi_qla_host_t *);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
@@ -356,47 +331,6 @@ static int qla2xxx_map_queues(struct Scsi_Host *shost);
 #endif
 static void qla2x00_destroy_deferred_work(struct qla_hw_data *);
 
-
-struct scsi_host_template qla2xxx_driver_template = {
-	.module			= THIS_MODULE,
-	.name			= QLA2XXX_DRIVER_NAME,
-	.queuecommand		= qla2xxx_queuecommand,
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
-	.eh_timed_out		= fc_eh_timed_out,
-#endif
-	.eh_abort_handler	= qla2xxx_eh_abort,
-	.eh_device_reset_handler = qla2xxx_eh_device_reset,
-	.eh_target_reset_handler = qla2xxx_eh_target_reset,
-	.eh_bus_reset_handler	= qla2xxx_eh_bus_reset,
-	.eh_host_reset_handler	= qla2xxx_eh_host_reset,
-
-	.slave_configure	= qla2xxx_slave_configure,
-
-	.slave_alloc		= qla2xxx_slave_alloc,
-	.slave_destroy		= qla2xxx_slave_destroy,
-	.scan_finished		= qla2xxx_scan_finished,
-	.scan_start		= qla2xxx_scan_start,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
-	.change_queue_depth	= qla2x00_change_queue_depth,
-#else
-	.change_queue_depth	= scsi_change_queue_depth,
-#endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
-	.map_queues             = qla2xxx_map_queues,
-#endif
-	.this_id		= -1,
-	.cmd_per_lun		= 3,
-	.sg_tablesize		= SG_ALL,
-
-	.max_sectors		= 0xFFFF,
-	.shost_attrs		= qla2x00_host_attrs,
-
-	.supported_mode		= MODE_INITIATOR,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
-	.track_queue_depth	= 1,
-#endif
-};
 
 static struct scsi_transport_template *qla2xxx_transport_template = NULL;
 struct scsi_transport_template *qla2xxx_transport_vport_template = NULL;
@@ -451,6 +385,7 @@ static void qla_init_base_qpair(struct scsi_qla_host *vha, struct req_que *req,
     struct rsp_que *rsp)
 {
 	struct qla_hw_data *ha = vha->hw;
+
 	rsp->qpair = ha->base_qpair;
 	rsp->req = req;
 	ha->base_qpair->hw = ha;
@@ -475,6 +410,7 @@ static int qla2x00_alloc_queues(struct qla_hw_data *ha, struct req_que *req,
 				struct rsp_que *rsp)
 {
 	scsi_qla_host_t *vha = pci_get_drvdata(ha->pdev);
+
 	ha->req_q_map = kcalloc(ha->max_req_queues, sizeof(struct req_que *),
 				GFP_KERNEL);
 	if (!ha->req_q_map) {
@@ -3484,6 +3420,7 @@ skip_dpc:
 	if (IS_T10_PI_CAPABLE(ha) && ql2xenabledif) {
 		if (ha->fw_attributes & BIT_4) {
 			int prot = 0, guard;
+
 			base_vha->flags.difdix_supported = 1;
 			ql_dbg(ql_dbg_init, base_vha, 0x00f1,
 			    "Registering for DIF/DIX type 1 and 3 protection.\n");
@@ -3976,6 +3913,7 @@ qla2x00_schedule_rport_del(struct scsi_qla_host *vha, fc_port_t *fcport,
 		qla2xxx_wake_dpc(base_vha);
 	} else {
 		int now;
+
 		if (rport) {
 			ql_dbg(ql_dbg_disc, fcport->vha, 0x2109,
 			    "%s %8phN. rport %p roles %x\n",
@@ -5735,6 +5673,7 @@ qla83xx_force_lock_recovery(scsi_qla_host_t *base_vha)
 	uint32_t idc_lck_rcvry_stage_mask = 0x3;
 	uint32_t idc_lck_rcvry_owner_mask = 0x3c;
 	struct qla_hw_data *ha = base_vha->hw;
+
 	ql_dbg(ql_dbg_p3p, base_vha, 0xb086,
 	    "Trying force recovery of the IDC lock.\n");
 
@@ -6212,8 +6151,6 @@ qla2x00_disable_board_on_pci_error(struct work_struct *work)
 	set_bit(UNLOADING, &base_vha->dpc_flags);
 
 	qla2x00_delete_all_vps(ha, base_vha);
-
-	qla2x00_abort_all_cmds(base_vha, DID_NO_CONNECT << 16);
 
 	qla2x00_dfs_remove(base_vha);
 
@@ -7351,6 +7288,47 @@ static int qla2xxx_map_queues(struct Scsi_Host *shost)
 	return rc;
 }
 #endif
+
+struct scsi_host_template qla2xxx_driver_template = {
+	.module			= THIS_MODULE,
+	.name			= QLA2XXX_DRIVER_NAME,
+	.queuecommand		= qla2xxx_queuecommand,
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+	.eh_timed_out		= fc_eh_timed_out,
+#endif
+	.eh_abort_handler	= qla2xxx_eh_abort,
+	.eh_device_reset_handler = qla2xxx_eh_device_reset,
+	.eh_target_reset_handler = qla2xxx_eh_target_reset,
+	.eh_bus_reset_handler	= qla2xxx_eh_bus_reset,
+	.eh_host_reset_handler	= qla2xxx_eh_host_reset,
+
+	.slave_configure	= qla2xxx_slave_configure,
+
+	.slave_alloc		= qla2xxx_slave_alloc,
+	.slave_destroy		= qla2xxx_slave_destroy,
+	.scan_finished		= qla2xxx_scan_finished,
+	.scan_start		= qla2xxx_scan_start,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+	.change_queue_depth	= qla2x00_change_queue_depth,
+#else
+	.change_queue_depth	= scsi_change_queue_depth,
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+	.map_queues             = qla2xxx_map_queues,
+#endif
+	.this_id		= -1,
+	.cmd_per_lun		= 3,
+	.sg_tablesize		= SG_ALL,
+
+	.max_sectors		= 0xFFFF,
+	.shost_attrs		= qla2x00_host_attrs,
+
+	.supported_mode		= MODE_INITIATOR,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	.track_queue_depth	= 1,
+#endif
+};
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0) &&	\
 	LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)

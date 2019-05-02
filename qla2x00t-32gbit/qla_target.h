@@ -884,7 +884,7 @@ enum trace_flags {
 	TRC_CTIO_ERR = BIT_11,
 	TRC_CTIO_DONE = BIT_12,
 	TRC_CTIO_ABORTED =  BIT_13,
-	TRC_CTIO_STRANGE= BIT_14,
+	TRC_CTIO_STRANGE = BIT_14,
 	TRC_CMD_DONE = BIT_15,
 	TRC_CMD_CHK_STOP = BIT_16,
 	TRC_CMD_FREE = BIT_17,
@@ -930,8 +930,6 @@ struct qla_tgt_cmd {
 	unsigned int cmd_sent_to_fw:1;
 	unsigned int cmd_in_wq:1;
 	unsigned int aborted:1;
-	unsigned int data_work:1;
-	unsigned int data_work_free:1;
 	unsigned int released:1;
 
 	struct scatterlist *sg;	/* cmd data buffer SG vector */

@@ -507,9 +507,7 @@ static void sqa_qla2xxx_handle_data(struct qla_tgt_cmd *cmd)
 	TRACE_ENTRY();
 
 	spin_lock_irqsave(&cmd->cmd_lock, flags);
-	cmd->data_work =1;
 	if (cmd->aborted) {
-		cmd->data_work_free = 1;
 		spin_unlock_irqrestore(&cmd->cmd_lock, flags);
 
 		scst_set_cmd_error(scst_cmd,
@@ -1476,8 +1474,6 @@ static int sqa_target_release(struct scst_tgt *scst_tgt)
 	TRACE_EXIT();
 	return 0;
 }
-
-#define DATA_WORK_NOT_FREE(_cmd) (_cmd->data_work && !_cmd->data_work_free)
 
 static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 {
