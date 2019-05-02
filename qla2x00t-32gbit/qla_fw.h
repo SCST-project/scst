@@ -21,6 +21,8 @@
 #include "backport.h"
 #endif
 
+#include "qla_dsd.h"
+
 #define MBS_CHECKSUM_ERROR	0x4010
 #define MBS_INVALID_PRODUCT_KEY	0x4020
 
@@ -350,9 +352,9 @@ struct init_cb_24xx {
 
 	uint16_t prio_request_q_length;
 
-	uint32_t request_q_address[2];
-	uint32_t response_q_address[2];
-	uint32_t prio_request_q_address[2];
+	__le64	 request_q_address __packed;
+	__le64	 response_q_address __packed;
+	__le64	 prio_request_q_address __packed;
 
 	uint16_t msix;
 	uint16_t msix_atio;
@@ -360,7 +362,7 @@ struct init_cb_24xx {
 
 	uint16_t atio_q_inpointer;
 	uint16_t atio_q_length;
-	uint32_t atio_q_address[2];
+	__le64	 atio_q_address __packed;
 
 	uint16_t interrupt_delay_timer;		/* 100us increments. */
 	uint16_t login_timeout;
@@ -464,7 +466,7 @@ struct cmd_bidir {
 #define BD_WRITE_DATA			BIT_0
 
 	uint16_t fcp_cmnd_dseg_len;		/* Data segment length. */
-	uint32_t fcp_cmnd_dseg_address[2];	/* Data segment address. */
+	__le64	 fcp_cmnd_dseg_address __packed;/* Data segment address. */
 
 	uint16_t reserved[2];			/* Reserved */
 
@@ -474,8 +476,7 @@ struct cmd_bidir {
 	uint8_t port_id[3];			/* PortID of destination port.*/
 	uint8_t vp_index;
 
-	uint32_t fcp_data_dseg_address[2];	/* Data segment address. */
-	uint16_t fcp_data_dseg_len;		/* Data segment length. */
+	struct dsd64 fcp_dsd;
 };
 
 #define COMMAND_TYPE_6	0x48		/* Command Type 6 entry */
@@ -502,18 +503,18 @@ struct cmd_type_6 {
 #define CF_READ_DATA			BIT_1
 #define CF_WRITE_DATA			BIT_0
 
-	uint16_t fcp_cmnd_dseg_len;		/* Data segment length. */
-	uint32_t fcp_cmnd_dseg_address[2];	/* Data segment address. */
-
-	uint32_t fcp_rsp_dseg_address[2];	/* Data segment address. */
+	uint16_t fcp_cmnd_dseg_len;	/* Data segment length. */
+					/* Data segment address. */
+	__le64	 fcp_cmnd_dseg_address __packed;
+					/* Data segment address. */
+	__le64	 fcp_rsp_dseg_address __packed;
 
 	uint32_t byte_count;		/* Total byte count. */
 
 	uint8_t port_id[3];		/* PortID of destination port. */
 	uint8_t vp_index;
 
-	uint32_t fcp_data_dseg_address[2];	/* Data segment address. */
-	uint32_t fcp_data_dseg_len;		/* Data segment length. */
+	struct dsd64 fcp_dsd;
 };
 
 #define COMMAND_TYPE_7	0x18		/* Command Type 7 entry */
@@ -559,8 +560,7 @@ struct cmd_type_7 {
 	uint8_t port_id[3];		/* PortID of destination port. */
 	uint8_t vp_index;
 
-	uint32_t dseg_0_address[2];	/* Data segment 0 address. */
-	uint32_t dseg_0_len;		/* Data segment 0 length. */
+	struct dsd64 dsd;
 };
 
 #define COMMAND_TYPE_CRC_2	0x6A	/* Command Type CRC_2 (Type 6)
@@ -584,17 +584,17 @@ struct cmd_type_crc_2 {
 
 	uint16_t control_flags;		/* Control flags. */
 
-	uint16_t fcp_cmnd_dseg_len;		/* Data segment length. */
-	uint32_t fcp_cmnd_dseg_address[2];	/* Data segment address. */
-
-	uint32_t fcp_rsp_dseg_address[2];	/* Data segment address. */
+	uint16_t fcp_cmnd_dseg_len;	/* Data segment length. */
+	__le64	 fcp_cmnd_dseg_address __packed;
+					/* Data segment address. */
+	__le64	 fcp_rsp_dseg_address __packed;
 
 	uint32_t byte_count;		/* Total byte count. */
 
 	uint8_t port_id[3];		/* PortID of destination port. */
 	uint8_t vp_index;
 
-	uint32_t crc_context_address[2];	/* Data segment address. */
+	__le64	 crc_context_address __packed;	/* Data segment address. */
 	uint16_t crc_context_len;		/* Data segment length. */
 	uint16_t reserved_1;			/* MUST be set to 0. */
 };
@@ -728,10 +728,7 @@ struct ct_entry_24xx {
 	uint32_t rsp_byte_count;
 	uint32_t cmd_byte_count;
 
-	uint32_t dseg_0_address[2];	/* Data segment 0 address. */
-	uint32_t dseg_0_len;		/* Data segment 0 length. */
-	uint32_t dseg_1_address[2];	/* Data segment 1 address. */
-	uint32_t dseg_1_len;		/* Data segment 1 length. */
+	struct dsd64 dsd[2];
 };
 
 /*
@@ -778,9 +775,9 @@ struct els_entry_24xx {
 	uint32_t rx_byte_count;
 	uint32_t tx_byte_count;
 
-	uint32_t tx_address[2];		/* Data segment 0 address. */
+	__le64	 tx_address __packed;	/* Data segment 0 address. */
 	uint32_t tx_len;		/* Data segment 0 length. */
-	uint32_t rx_address[2];		/* Data segment 1 address. */
+	__le64	 rx_address __packed;	/* Data segment 1 address. */
 	uint32_t rx_len;		/* Data segment 1 length. */
 };
 
@@ -1433,9 +1430,9 @@ struct vf_evfp_entry_24xx {
         uint16_t control_flags;
         uint32_t io_parameter_0;
         uint32_t io_parameter_1;
-        uint32_t tx_address[2];         /* Data segment 0 address. */
+	__le64	 tx_address __packed;	/* Data segment 0 address. */
         uint32_t tx_len;                /* Data segment 0 length. */
-        uint32_t rx_address[2];         /* Data segment 1 address. */
+	__le64	 rx_address __packed;	/* Data segment 1 address. */
         uint32_t rx_len;                /* Data segment 1 length. */
 };
 
@@ -1617,8 +1614,7 @@ struct verify_chip_entry_84xx {
 	uint32_t fw_seq_size;
 	uint32_t relative_offset;
 
-	uint32_t dseg_address[2];
-	uint32_t dseg_length;
+	struct dsd64 dsd;
 };
 
 struct verify_chip_rsp_84xx {
@@ -1675,8 +1671,7 @@ struct access_chip_84xx {
 	uint32_t total_byte_cnt;
 	uint32_t reserved4;
 
-	uint32_t dseg_address[2];
-	uint32_t dseg_length;
+	struct dsd64 dsd;
 };
 
 struct access_chip_rsp_84xx {
@@ -1944,15 +1939,15 @@ struct init_cb_81xx {
 
 	uint16_t prio_request_q_length;
 
-	uint32_t request_q_address[2];
-	uint32_t response_q_address[2];
-	uint32_t prio_request_q_address[2];
+	__le64	 request_q_address __packed;
+	__le64	 response_q_address __packed;
+	__le64	 prio_request_q_address __packed;
 
 	uint8_t reserved_4[8];
 
 	uint16_t atio_q_inpointer;
 	uint16_t atio_q_length;
-	uint32_t atio_q_address[2];
+	__le64	 atio_q_address __packed;
 
 	uint16_t interrupt_delay_timer;		/* 100us increments. */
 	uint16_t login_timeout;
