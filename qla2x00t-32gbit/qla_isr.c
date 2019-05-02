@@ -3613,7 +3613,8 @@ msix_failed:
 
 	/* Enable MSI-X vectors for the base queue */
 	for (i = 0; i < QLA_BASE_VECTORS; i++) {
-		WARN(i >= ha->msix_count, "%d > %d\n", i, ha->msix_count);
+		if (WARN(i >= ha->msix_count, "%d > %d\n", i, ha->msix_count))
+			break;
 		qentry = &ha->msix_entries[i];
 		qentry->handle = rsp;
 		rsp->msix = qentry;
