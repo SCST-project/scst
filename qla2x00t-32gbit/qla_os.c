@@ -324,31 +324,6 @@ MODULE_PARM_DESC(ql2xdifbundlinginternalbuffers,
     "0 (Default). Based on check.\n"
     "1 Force using internal buffers\n");
 
-/*
- * SCSI host template entry points
- */
-static int qla2xxx_slave_configure(struct scsi_device * device);
-static int qla2xxx_slave_alloc(struct scsi_device *);
-static int qla2xxx_scan_finished(struct Scsi_Host *, unsigned long time);
-static void qla2xxx_scan_start(struct Scsi_Host *);
-static void qla2xxx_slave_destroy(struct scsi_device *);
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 >= 2
-static int qla2xxx_queuecommand(struct scsi_cmnd *scmnd,
-				void (*done)(struct scsi_cmnd *));
-
-#else
-static int qla2xxx_queuecommand(struct Scsi_Host *h, struct scsi_cmnd *cmd);
-#endif
-static int qla2xxx_eh_abort(struct scsi_cmnd *);
-static int qla2xxx_eh_device_reset(struct scsi_cmnd *);
-static int qla2xxx_eh_target_reset(struct scsi_cmnd *);
-static int qla2xxx_eh_bus_reset(struct scsi_cmnd *);
-static int qla2xxx_eh_host_reset(struct scsi_cmnd *);
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
-static int
-qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth, int reason);
-#endif
 static void qla2x00_clear_drv_active(struct qla_hw_data *);
 static void qla2x00_free_device(scsi_qla_host_t *);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
@@ -356,47 +331,6 @@ static int qla2xxx_map_queues(struct Scsi_Host *shost);
 #endif
 static void qla2x00_destroy_deferred_work(struct qla_hw_data *);
 
-
-struct scsi_host_template qla2xxx_driver_template = {
-	.module			= THIS_MODULE,
-	.name			= QLA2XXX_DRIVER_NAME,
-	.queuecommand		= qla2xxx_queuecommand,
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
-	.eh_timed_out		= fc_eh_timed_out,
-#endif
-	.eh_abort_handler	= qla2xxx_eh_abort,
-	.eh_device_reset_handler = qla2xxx_eh_device_reset,
-	.eh_target_reset_handler = qla2xxx_eh_target_reset,
-	.eh_bus_reset_handler	= qla2xxx_eh_bus_reset,
-	.eh_host_reset_handler	= qla2xxx_eh_host_reset,
-
-	.slave_configure	= qla2xxx_slave_configure,
-
-	.slave_alloc		= qla2xxx_slave_alloc,
-	.slave_destroy		= qla2xxx_slave_destroy,
-	.scan_finished		= qla2xxx_scan_finished,
-	.scan_start		= qla2xxx_scan_start,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
-	.change_queue_depth	= qla2x00_change_queue_depth,
-#else
-	.change_queue_depth	= scsi_change_queue_depth,
-#endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
-	.map_queues             = qla2xxx_map_queues,
-#endif
-	.this_id		= -1,
-	.cmd_per_lun		= 3,
-	.sg_tablesize		= SG_ALL,
-
-	.max_sectors		= 0xFFFF,
-	.shost_attrs		= qla2x00_host_attrs,
-
-	.supported_mode		= MODE_INITIATOR,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
-	.track_queue_depth	= 1,
-#endif
-};
 
 static struct scsi_transport_template *qla2xxx_transport_template = NULL;
 struct scsi_transport_template *qla2xxx_transport_vport_template = NULL;
@@ -7351,6 +7285,47 @@ static int qla2xxx_map_queues(struct Scsi_Host *shost)
 	return rc;
 }
 #endif
+
+struct scsi_host_template qla2xxx_driver_template = {
+	.module			= THIS_MODULE,
+	.name			= QLA2XXX_DRIVER_NAME,
+	.queuecommand		= qla2xxx_queuecommand,
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+	.eh_timed_out		= fc_eh_timed_out,
+#endif
+	.eh_abort_handler	= qla2xxx_eh_abort,
+	.eh_device_reset_handler = qla2xxx_eh_device_reset,
+	.eh_target_reset_handler = qla2xxx_eh_target_reset,
+	.eh_bus_reset_handler	= qla2xxx_eh_bus_reset,
+	.eh_host_reset_handler	= qla2xxx_eh_host_reset,
+
+	.slave_configure	= qla2xxx_slave_configure,
+
+	.slave_alloc		= qla2xxx_slave_alloc,
+	.slave_destroy		= qla2xxx_slave_destroy,
+	.scan_finished		= qla2xxx_scan_finished,
+	.scan_start		= qla2xxx_scan_start,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+	.change_queue_depth	= qla2x00_change_queue_depth,
+#else
+	.change_queue_depth	= scsi_change_queue_depth,
+#endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+	.map_queues             = qla2xxx_map_queues,
+#endif
+	.this_id		= -1,
+	.cmd_per_lun		= 3,
+	.sg_tablesize		= SG_ALL,
+
+	.max_sectors		= 0xFFFF,
+	.shost_attrs		= qla2x00_host_attrs,
+
+	.supported_mode		= MODE_INITIATOR,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	.track_queue_depth	= 1,
+#endif
+};
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0) &&	\
 	LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
