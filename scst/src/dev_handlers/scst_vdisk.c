@@ -3128,6 +3128,10 @@ static void scst_do_verify_work(struct work_struct *work)
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 1, 0)
+/*
+ * See also commit 2ba48ce513c4 ("mirror O_APPEND and O_DIRECT into
+ * iocb->ki_flags") # v4.1.
+ */
 static bool do_fileio_async(const struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
