@@ -120,7 +120,7 @@ struct pt_ls4_rx_unsol {
 	uint32_t exchange_address;
 	uint8_t d_id[3];
 	uint8_t r_ctl;
-	uint8_t s_id[3];
+	be_id_t s_id;
 	uint8_t cs_ctl;
 	uint8_t f_ctl[3];
 	uint8_t type;
@@ -144,7 +144,6 @@ struct pt_ls4_rx_unsol {
 int qla_nvme_register_hba(struct scsi_qla_host *);
 int  qla_nvme_register_remote(struct scsi_qla_host *, struct fc_port *);
 void qla_nvme_delete(struct scsi_qla_host *);
-void qla_nvme_abort(struct qla_hw_data *, struct srb *sp, int res);
 #else
 static inline int qla_nvme_register_hba(struct scsi_qla_host *vha)
 {
@@ -158,11 +157,6 @@ static inline int qla_nvme_register_remote(struct scsi_qla_host *vha,
 }
 
 static inline void qla_nvme_delete(struct scsi_qla_host *vha)
-{
-}
-
-static inline void qla_nvme_abort(struct qla_hw_data *ha, struct srb *sp,
-				  int res)
 {
 }
 #endif
