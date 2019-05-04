@@ -1338,7 +1338,6 @@ qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 	ret = fc_block_scsi_eh(cmd);
 	if (ret != 0)
 		return ret;
-	ret = SUCCESS;
 
 	sp = (srb_t *) CMD_SP(cmd);
 	if (!sp)
@@ -1350,10 +1349,13 @@ qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 
 	spin_lock_irqsave(qpair->qp_lock_ptr, flags);
 	if (sp->type != SRB_SCSI_CMD || GET_CMD_SP(sp) != cmd) {
+		/* there's a chance an interrupt could clear
+		   the ptr as part of done & free */
 		spin_unlock_irqrestore(qpair->qp_lock_ptr, flags);
 		return SUCCESS;
 	}
 
+	/* Get a reference to the sp and drop the lock. */
 	if (sp_get(sp)){
 		/* ref_count is already 0 */
 		spin_unlock_irqrestore(qpair->qp_lock_ptr, flags);
@@ -1368,8 +1370,6 @@ qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 	    "Aborting from RISC nexus=%ld:%d:%llu sp=%p cmd=%p handle=%x\n",
 	    vha->host_no, id, lun, sp, cmd, sp->handle);
 
-	/* Get a reference to the sp and drop the lock.*/
-
 	ret = SUCCESS;
 	rval = ha->isp_ops->abort_command(sp);
 	ql_dbg(ql_dbg_taskm, vha, 0x8003,
@@ -1377,7 +1377,10 @@ qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 
 	switch (rval) {
 	case QLA_SUCCESS:
-		/* The command has been aborted. */
+		/*
+		 * The command has been aborted. That means that the firmware
+		 * won't report a completion.
+		 */
 		sp->done(sp, DID_ABORT << 16);
 		break;
 	case QLA_FUNCTION_PARAMETER_ERROR:
