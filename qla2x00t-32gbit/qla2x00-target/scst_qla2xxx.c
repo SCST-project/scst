@@ -801,7 +801,7 @@ free_sess:
 }
 
 static struct fc_port *sqa_qla2xxx_find_sess_by_s_id(scsi_qla_host_t *vha,
-							  const uint8_t *s_id)
+						     be_id_t s_id)
 {
 	struct fc_port *sess;
 
@@ -812,9 +812,9 @@ static struct fc_port *sqa_qla2xxx_find_sess_by_s_id(scsi_qla_host_t *vha,
 		  s_id[1], s_id[2]);
 #endif
 	list_for_each_entry(sess, &vha->vp_fcports, list) {
-		if ((sess->d_id.b.al_pa == s_id[2]) &&
-		    (sess->d_id.b.area == s_id[1]) &&
-		    (sess->d_id.b.domain == s_id[0]) &&
+		if (sess->d_id.b.al_pa == s_id.al_pa &&
+		    sess->d_id.b.area == s_id.area &&
+		    sess->d_id.b.domain == s_id.domain &&
 		    !sess->deleted && sess->se_sess)
 			return sess;
 	}

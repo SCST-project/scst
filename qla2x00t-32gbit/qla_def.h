@@ -48,6 +48,20 @@
 #define NEW_LIBFC_API
 #endif
 
+/* Big endian Fibre Channel S_ID (source ID) or D_ID (destination ID). */
+typedef struct {
+	uint8_t domain;
+	uint8_t area;
+	uint8_t al_pa;
+} be_id_t;
+
+/* Little endian Fibre Channel S_ID (source ID) or D_ID (destination ID). */
+typedef struct {
+	uint8_t al_pa;
+	uint8_t area;
+	uint8_t domain;
+} le_id_t;
+
 #include "qla_bsg.h"
 #include "qla_dsd.h"
 #include "qla_nx.h"
@@ -356,6 +370,51 @@ typedef union {
 	} b;
 } port_id_t;
 #define INVALID_PORT_ID	0xFFFFFF
+
+static inline le_id_t be_id_to_le(be_id_t id)
+{
+	le_id_t res;
+
+	res.domain = id.domain;
+	res.area   = id.area;
+	res.al_pa  = id.al_pa;
+
+	return res;
+}
+
+static inline be_id_t le_id_to_be(le_id_t id)
+{
+	be_id_t res;
+
+	res.domain = id.domain;
+	res.area   = id.area;
+	res.al_pa  = id.al_pa;
+
+	return res;
+}
+
+static inline port_id_t be_to_port_id(be_id_t id)
+{
+	port_id_t res;
+
+	res.b.domain = id.domain;
+	res.b.area   = id.area;
+	res.b.al_pa  = id.al_pa;
+	res.b.rsvd_1 = 0;
+
+	return res;
+}
+
+static inline be_id_t port_id_to_be_id(port_id_t port_id)
+{
+	be_id_t res;
+
+	res.domain = port_id.b.domain;
+	res.area   = port_id.b.area;
+	res.al_pa  = port_id.b.al_pa;
+
+	return res;
+}
 
 struct els_logo_payload {
 	uint8_t opcode;
