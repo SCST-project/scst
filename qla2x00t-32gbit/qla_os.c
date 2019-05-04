@@ -742,7 +742,7 @@ qla2x00_sp_compl(void *ptr, int res)
 	struct scsi_cmnd *cmd = GET_CMD_SP(sp);
 	struct completion *comp = sp->comp;
 
-	if (WARN_ON(atomic_read(&sp->ref_count) == 0))
+	if (WARN_ON_ONCE(atomic_read(&sp->ref_count) == 0))
 		return;
 
 	atomic_dec(&sp->ref_count);
@@ -849,7 +849,7 @@ qla2xxx_qpair_sp_compl(void *ptr, int res)
 	struct scsi_cmnd *cmd = GET_CMD_SP(sp);
 	struct completion *comp = sp->comp;
 
-	if (WARN_ON(atomic_read(&sp->ref_count) == 0))
+	if (WARN_ON_ONCE(atomic_read(&sp->ref_count) == 0))
 		return;
 
 	atomic_dec(&sp->ref_count);
