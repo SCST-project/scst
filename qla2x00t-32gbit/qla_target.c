@@ -1308,8 +1308,7 @@ static int qla24xx_get_loop_id(struct scsi_qla_host *vha, const uint8_t *s_id,
 {
 	struct qla_hw_data *ha = vha->hw;
 	dma_addr_t gid_list_dma;
-	struct gid_list_info *gid_list;
-	char *id_iter;
+	struct gid_list_info *gid_list, *gid;
 	int res, rc, i;
 	uint16_t entries;
 
@@ -1332,11 +1331,9 @@ static int qla24xx_get_loop_id(struct scsi_qla_host *vha, const uint8_t *s_id,
 		goto out_free_id_list;
 	}
 
-	id_iter = (char *)gid_list;
+	gid = gid_list;
 	res = -ENOENT;
 	for (i = 0; i < entries; i++) {
-		struct gid_list_info *gid = (struct gid_list_info *)id_iter;
-
 		if ((gid->al_pa == s_id[2]) &&
 		    (gid->area == s_id[1]) &&
 		    (gid->domain == s_id[0])) {
@@ -1344,7 +1341,7 @@ static int qla24xx_get_loop_id(struct scsi_qla_host *vha, const uint8_t *s_id,
 			res = 0;
 			break;
 		}
-		id_iter += ha->gid_list_info_size;
+		gid = (void *)gid + ha->gid_list_info_size;
 	}
 
 out_free_id_list:
