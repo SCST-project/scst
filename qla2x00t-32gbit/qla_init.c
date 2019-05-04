@@ -115,7 +115,7 @@ static void qla24xx_abort_sp_done(void *ptr, int res)
 		sp->free(sp);
 }
 
-int qla24xx_async_abort_cmd(srb_t *cmd_sp, bool wait)
+static int qla24xx_async_abort_cmd(srb_t *cmd_sp, bool wait)
 {
 	scsi_qla_host_t *vha = cmd_sp->vha;
 	struct srb_iocb *abt_iocb;
