@@ -1776,42 +1776,34 @@ static void qla2x00_abort_srb(struct qla_qpair *qp, srb_t *sp, const int res,
 	__releases(qp->qp_lock_ptr)
 	__acquires(qp->qp_lock_ptr)
 {
+	DECLARE_COMPLETION_ONSTACK(comp);
 	scsi_qla_host_t *vha = qp->vha;
 	struct qla_hw_data *ha = vha->hw;
+	int rval;
 
-	if (sp->type == SRB_NVME_CMD || sp->type == SRB_NVME_LS) {
-		if (!sp_get(sp)) {
-			/* got sp */
-			spin_unlock_irqrestore(qp->qp_lock_ptr, *flags);
-			qla_nvme_abort(ha, sp, res);
-			spin_lock_irqsave(qp->qp_lock_ptr, *flags);
-		}
-	} else if (GET_CMD_SP(sp) && !ha->flags.eeh_busy &&
-		   !test_bit(ABORT_ISP_ACTIVE, &vha->dpc_flags) &&
-		   !qla2x00_isp_reg_stat(ha) && sp->type == SRB_SCSI_CMD) {
-		/*
-		 * Don't abort commands in adapter during EEH recovery as it's
-		 * not accessible/responding.
-		 *
-		 * Get a reference to the sp and drop the lock. The reference
-		 * ensures this sp->done() call and not the call in
-		 * qla2xxx_eh_abort() ends the SCSI cmd (with result 'res').
-		 */
-		if (!sp_get(sp)) {
-			int status;
+	if (sp_get(sp))
+		return;
 
-			spin_unlock_irqrestore(qp->qp_lock_ptr, *flags);
-			status = qla2xxx_eh_abort(GET_CMD_SP(sp));
-			spin_lock_irqsave(qp->qp_lock_ptr, *flags);
-			/*
-			 * Get rid of extra reference caused
-			 * by early exit from qla2xxx_eh_abort
-			 */
-			if (status == FAST_IO_FAIL)
-				atomic_dec(&sp->ref_count);
+	if (sp->type == SRB_NVME_CMD || sp->type == SRB_NVME_LS ||
+	    (sp->type == SRB_SCSI_CMD && !ha->flags.eeh_busy &&
+	     !test_bit(ABORT_ISP_ACTIVE, &vha->dpc_flags) &&
+	     !qla2x00_isp_reg_stat(ha))) {
+		sp->comp = &comp;
+		rval = ha->isp_ops->abort_command(sp);
+		spin_unlock_irqrestore(qp->qp_lock_ptr, *flags);
+
+		switch (rval) {
+		case QLA_SUCCESS:
+			sp->done(sp, res);
+			break;
+		case QLA_FUNCTION_PARAMETER_ERROR:
+			wait_for_completion(&comp);
+			break;
 		}
+
+		spin_lock_irqsave(qp->qp_lock_ptr, *flags);
+		sp->comp = NULL;
 	}
-	sp->done(sp, res);
 }
 
 static void
