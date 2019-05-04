@@ -4837,5 +4837,4 @@ struct sff_8247_a0 {
 #include "qla_gbl.h"
 #include "qla_dbg.h"
 #include "qla_inline.h"
-
 #endif

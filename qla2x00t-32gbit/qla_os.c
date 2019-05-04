@@ -702,7 +702,7 @@ qla2x00_sp_free_dma(void *ptr)
 	}
 
 	if (!ctx)
-		goto end;
+		return;
 
 	if (sp->flags & SRB_CRC_CTX_DSD_VALID) {
 		/* List assured to be having elements */
@@ -727,12 +727,6 @@ qla2x00_sp_free_dma(void *ptr)
 		ha->gbl_dsd_avail += ctx1->dsd_use_cnt;
 		mempool_free(ctx1, ha->ctx_mempool);
 	}
-
-end:
-	if (sp->type != SRB_NVME_CMD && sp->type != SRB_NVME_LS) {
-		CMD_SP(cmd) = NULL;
-		qla2x00_rel_sp(sp);
-	}
 }
 
 void
@@ -749,9 +743,11 @@ qla2x00_sp_compl(void *ptr, int res)
 
 	sp->free(sp);
 	cmd->result = res;
+	CMD_SP(cmd) = NULL;
 	cmd->scsi_done(cmd);
 	if (comp)
 		complete(comp);
+	qla2x00_rel_sp(sp);
 }
 
 void
@@ -774,7 +770,7 @@ qla2xxx_qpair_sp_free_dma(void *ptr)
 	}
 
 	if (!ctx)
-		goto end;
+		return;
 
 	if (sp->flags & SRB_CRC_CTX_DSD_VALID) {
 		/* List assured to be having elements */
@@ -836,10 +832,6 @@ qla2xxx_qpair_sp_free_dma(void *ptr)
 		dma_pool_free(ha->dl_dma_pool, ctx, ctx0->crc_ctx_dma);
 		sp->flags &= ~SRB_CRC_CTX_DMA_VALID;
 	}
-
-end:
-	CMD_SP(cmd) = NULL;
-	qla2xxx_rel_qpair_sp(sp->qpair, sp);
 }
 
 void
@@ -855,9 +847,12 @@ qla2xxx_qpair_sp_compl(void *ptr, int res)
 	atomic_dec(&sp->ref_count);
 
 	sp->free(sp);
+	cmd->result = res;
+	CMD_SP(cmd) = NULL;
 	cmd->scsi_done(cmd);
 	if (comp)
 		complete(comp);
+	qla2xxx_rel_qpair_sp(sp->qpair, sp);
 }
 
 #if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 >= 2
