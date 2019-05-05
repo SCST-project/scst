@@ -54,15 +54,6 @@ EMULEX_DIR=emulex
 
 ISCSI_DIR=iscsi-scst
 
-# Set variable $(2) to value $(3) in file $(1) if $(2)=$(3) does not yet occur
-# in file $(1).
-set_var = $(shell if grep -q '^$(2)=' '$(1)'; then		\
-		    grep -q '^$(2)=$(3)$$' '$(1)' ||		\
-		      sed -i 's/^$(2)=.*/$(2)=$(3)/' '$(1)';	\
-		  else						\
-		    echo '$(2)=$(3)' >> '$(1)';			\
-		  fi)
-
 REVISION ?= $(shell if [ -e .svn ]; then				\
 		      svn info | sed -n 's/^Revision:[[:blank:]]*/./p';	\
 		    elif [ -e .git ]; then				\
@@ -552,41 +543,14 @@ release-archive:
 	done
 	$(MAKE) 2debug
 
-2perf: extraclean
-	$(call set_var,build_mode,BUILD_MODE,PERF)
+2perf:
 	cd $(SCST_DIR) && $(MAKE) $@
-	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
-#	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
-	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
-	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
-	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
-	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
-	@if [ -d $(FCST_DIR) ]; then cd $(FCST_DIR) && $(MAKE) $@; fi
 
-2release: extraclean
-	$(call set_var,build_mode,BUILD_MODE,RELEASE)
+2release:
 	cd $(SCST_DIR) && $(MAKE) $@
-	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
-#	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
-	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
-	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
-	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
-	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
-	@if [ -d $(FCST_DIR) ]; then cd $(FCST_DIR) && $(MAKE) $@; fi
 
-2debug: extraclean
-	$(call set_var,build_mode,BUILD_MODE,)
+2debug:
 	cd $(SCST_DIR) && $(MAKE) $@
-	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
-#	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
-	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
-	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
-	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
-	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
-	@if [ -d $(FCST_DIR) ]; then cd $(FCST_DIR) && $(MAKE) $@; fi
 
 .PHONY: all install uninstall clean extraclean tags help \
 	qla qla_install qla_uninstall qla_clean qla_extraclean \

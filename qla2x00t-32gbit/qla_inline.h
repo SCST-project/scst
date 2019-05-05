@@ -8,6 +8,7 @@
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/backport.h> /* timer_setup() */
 #else
+#include "build_mode.h"
 #include "backport.h"
 #endif
 

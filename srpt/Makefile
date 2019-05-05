@@ -277,19 +277,10 @@ conftest/use_pre_440_wr_structure/result-$(KVER).txt:			\
 	echo "$(call run_conftest,use_pre_440_wr_structure,		\
 		-DUSE_PRE_440_WR_STRUCTURE)" >"$@"
 
-2debug:
-	-$(MAKE) clean
-
-2release:
-	-$(MAKE) clean
-
-2perf:
-	-$(MAKE) clean
-
 release-archive:
 	../scripts/generate-release-archive srpt "$$(sed -n 's/^#define[[:blank:]]DRV_VERSION[[:blank:]]*\"\([^\"]*\)\".*/\1/p' src/ib_srpt.c)"
 
 kerneldoc.html: $(SRC_FILES)
 	$(KDIR)/scripts/kernel-doc -html $(SRC_FILES) >$@
 
-.PHONY: all install clean extraclean 2debug 2release 2perf
+.PHONY: all install clean extraclean

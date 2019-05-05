@@ -18,6 +18,7 @@
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/backport.h>
 #else
+#include "build_mode.h"
 #include "backport.h"
 #endif
 

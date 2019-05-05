@@ -61,6 +61,7 @@
 #include <scst/backport.h>
 #include <scst/scst_const.h>
 #else
+#include <build_mode.h>
 #include <backport.h>
 #include <scst_const.h>
 #endif

@@ -299,16 +299,7 @@ conftest/use_pre_440_wr_structure/result-$(KVER).txt:			\
 	echo "$(call run_conftest,use_pre_440_wr_structure,		\
 		-DUSE_PRE_440_WR_STRUCTURE)" >"$@"
 
-2release:
-	-$(MAKE) clean
-
-2debug:
-	-$(MAKE) clean
-
-2perf:
-	-$(MAKE) clean
-
 release-archive:
 	../scripts/generate-release-archive iscsi-scst "$$(sed -n 's/^#define[[:blank:]]ISCSI_VERSION_STRING[[:blank:]]*\"\([^\"]*\)\".*/\1/p' include/iscsi_scst_ver.h)"
 
-.PHONY: all mods progs install clean extraclean 2release 2debug 2perf
+.PHONY: all mods progs install clean extraclean
