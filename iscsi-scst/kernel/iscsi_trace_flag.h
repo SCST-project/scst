@@ -15,6 +15,10 @@
 #ifndef ISCSI_TRACE_FLAG_H
 #define ISCSI_TRACE_FLAG_H
 
+#ifndef INSIDE_KERNEL_TREE
+#include "build_mode.h"
+#endif
+
 /*
  * Only include this header file from iscsi-scst source files and not from
  * isert-scst source files.

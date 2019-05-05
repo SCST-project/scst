@@ -55,18 +55,6 @@ ccflags-y += -I$(KBUILD_EXTMOD)/../include $(call cc-option,-Wextra) \
 # enable it if you have strict security requirements.
 #ccflags-y += -DSCST_STRICT_SECURITY
 
-ifneq ($(and $(KBUILD_EXTMOD),$(if $(findstring $(abspath $(srctree)),$(abspath $(KBUILD_EXTMOD))),,true)),)
--include $(KBUILD_EXTMOD)/../../build_mode
-
-echo := $(shell echo "scst build mode: $(BUILD_MODE)" >& 2)
-
-BUILD_MODE_CFLAGS_ = -DCONFIG_SCST_TRACING -DCONFIG_SCST_DEBUG \
-	-DCONFIG_SCST_EXTRACHECKS -fno-inline -fno-inline-functions
-BUILD_MODE_CFLAGS_RELEASE = -DCONFIG_SCST_TRACING
-BUILD_MODE_CFLAGS_PERF =
-ccflags-y += $(BUILD_MODE_CFLAGS_$(BUILD_MODE))
-endif
-
 obj-m := scst.o
 
 scst-y        += scst_main.o
@@ -192,13 +180,4 @@ extraclean: clean
 	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
 	rm -f *.orig *.rej
 
-2release:
-	-$(MAKE) clean
-
-2debug:
-	-$(MAKE) clean
-
-2perf:
-	-$(MAKE) clean
-
-.PHONY: all install uninstall clean extraclean 2release 2debug 2perf
+.PHONY: all install uninstall clean extraclean

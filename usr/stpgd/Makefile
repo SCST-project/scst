@@ -28,7 +28,7 @@ CFLAGS += -W -Wno-unused-parameter
 CFLAGS += $(LOCAL_CFLAGS)
 #CFLAGS += -DDEBUG_NOMEM
 
--include ../../build_mode
+-include ../../scst/build_mode
 
 echo := $(shell echo "usr/stpgd build mode: $(BUILD_MODE)" >& 2)
 

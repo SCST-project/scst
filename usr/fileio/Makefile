@@ -47,7 +47,7 @@ CFLAGS += $(LOCAL_CFLAGS)
 #CFLAGS += -DDEBUG_TM_IGNORE_ALL
 CFLAGS += -DDEBUG_EXT_COPY_REMAP
 
--include ../../build_mode
+-include ../../scst/build_mode
 
 echo := $(shell echo "usr/fileio build mode: $(BUILD_MODE)" >& 2)
 

@@ -632,6 +632,7 @@ BEGIN {
 
   if (!process_file)
   {
+    sub("^+#ifdef INSIDE_KERNEL_TREE$", "+#if 1")
     print
     next
   }

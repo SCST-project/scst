@@ -100,17 +100,7 @@ clean:
 extraclean: clean
 	rm -f *.orig *.rej
 
-2debug:
-	-$(MAKE) clean
-
-2release:
-	-$(MAKE) clean
-
-2perf:
-	-$(MAKE) clean
-
 release-archive:
 	../scripts/generate-release-archive fcst "$$(sed -n 's/^#define[[:blank:]]FT_VERSION[[:blank:]]*\"\([^\"]*\)\".*/\1/p' fcst.h)"
 
-.PHONY: all tgt install uninstall clean extraclean 2debug 2release 2perf \
-	release-archive
+.PHONY: all tgt install uninstall clean extraclean release-archive
