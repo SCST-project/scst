@@ -75,7 +75,6 @@ include/build_mode.h: build_mode
 	*)	 echo "Error: unsupported build mode $$(<build_mode)";	\
 		 exit 1;;						\
 	esac;								\
-	echo "defines=$$defines";					\
 	for d in $$defines; do						\
 		echo "#define $$d" >>$@.tmp;				\
 	done;								\
