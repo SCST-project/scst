@@ -1795,8 +1795,8 @@ static int vdisk_unmap_file_range(struct scst_cmd *cmd,
 	res = fd->f_op->fallocate(fd,
 		FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, off, len);
 	if (unlikely(res == -EOPNOTSUPP)) {
-		PRINT_WARNING_ONCE("%s: fallocate() is not supported. Consider setting 'thin_provisioned' to 0 in scst.conf.\n",
-				   virt_dev->name);
+		PRINT_WARNING_ONCE("%s: fallocate() is not supported by the filesystem. Consider setting 'thin_provisioned' to 0 in scst.conf for %s.\n",
+				   virt_dev->name, virt_dev->name);
 		res = 0;
 	} else if (unlikely(res != 0)) {
 		PRINT_WARNING_ONCE("fallocate() for %lld, len %lld "
