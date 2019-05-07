@@ -182,7 +182,7 @@ static enum scst_exec_context scst_work_context = SCST_CONTEXT_TASKLET;
 struct cmd_state_name {
 	uint8_t state;
 	char *str;
-} cmd_str [] = {
+} cmd_str[] = {
 	{0xff, "unknown"},
 	{QLA_TGT_STATE_NEW, "new"},
 	{QLA_TGT_STATE_NEED_DATA, "NeedData"},
@@ -205,7 +205,7 @@ static char *cmdstate_to_str(uint8_t state)
 
 #if QLA_ENABLE_PI
 
-static const int qla_tgt_supported_dif_block_size[]= {
+static const int qla_tgt_supported_dif_block_size[] = {
 	512,
 	0,			/* null terminated */
 };
@@ -230,9 +230,9 @@ static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd, uint8_t xmit
 		dir = scst_cmd_get_expected_data_direction(scst_cmd);
 	}
 
-	switch(action) {
+	switch (action) {
 	case SCST_DIF_ACTION_STRIP:
-		switch(dir) {
+		switch (dir) {
 		case SCST_DATA_READ:
 			cmd->se_cmd.prot_op = TARGET_PROT_DOUT_STRIP;
 			break;
@@ -242,14 +242,14 @@ static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd, uint8_t xmit
 		case SCST_DATA_BIDI:
 			if (xmit_rsp) {
 				cmd->se_cmd.prot_op = TARGET_PROT_DOUT_STRIP;
-			}else {
+			} else {
 				cmd->se_cmd.prot_op = TARGET_PROT_DIN_STRIP;
 			}
 			break;
 		case SCST_DATA_NONE:
 			cmd->se_cmd.prot_op = TARGET_PROT_NORMAL;
 			break;
-		default :
+		default:
 			EXTRACHECKS_BUG_ON(dir);
 			cmd->se_cmd.prot_op = TARGET_PROT_NORMAL;
 			break;
@@ -258,7 +258,7 @@ static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd, uint8_t xmit
 
 
 	case SCST_DIF_ACTION_INSERT:
-		switch(dir) {
+		switch (dir) {
 		case SCST_DATA_READ:
 			cmd->se_cmd.prot_op = TARGET_PROT_DOUT_INSERT;
 			break;
@@ -266,7 +266,7 @@ static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd, uint8_t xmit
 			cmd->se_cmd.prot_op = TARGET_PROT_DIN_INSERT;
 			break;
 		case SCST_DATA_BIDI:
-			if (xmit_rsp){
+			if (xmit_rsp) {
 				cmd->se_cmd.prot_op = TARGET_PROT_DOUT_INSERT;
 			} else {
 				cmd->se_cmd.prot_op = TARGET_PROT_DIN_INSERT;
@@ -275,7 +275,7 @@ static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd, uint8_t xmit
 		case SCST_DATA_NONE:
 			cmd->se_cmd.prot_op = TARGET_PROT_NORMAL;
 			break;
-		default :
+		default:
 			EXTRACHECKS_BUG_ON(dir);
 			cmd->se_cmd.prot_op = TARGET_PROT_NORMAL;
 			break;
@@ -284,7 +284,7 @@ static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd, uint8_t xmit
 
 
 	case SCST_DIF_ACTION_PASS_CHECK:
-		switch(dir) {
+		switch (dir) {
 		case SCST_DATA_READ:
 			cmd->se_cmd.prot_op = TARGET_PROT_DOUT_PASS;
 			break;
@@ -301,7 +301,7 @@ static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd, uint8_t xmit
 		case SCST_DATA_NONE:
 			cmd->se_cmd.prot_op = TARGET_PROT_NORMAL;
 			break;
-		default :
+		default:
 			EXTRACHECKS_BUG_ON(dir);
 			cmd->se_cmd.prot_op = TARGET_PROT_NORMAL;
 			break;
@@ -310,7 +310,7 @@ static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd, uint8_t xmit
 
 
 	case SCST_DIF_ACTION_PASS: // nocheck
-		switch(dir) {
+		switch (dir) {
 		case SCST_DATA_READ:
 		case SCST_DATA_WRITE:
 		case SCST_DATA_BIDI:
@@ -320,7 +320,7 @@ static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd, uint8_t xmit
 		case SCST_DATA_NONE:
 			cmd->se_cmd.prot_op = TARGET_PROT_NORMAL;
 			break;
-		default :
+		default:
 			EXTRACHECKS_BUG_ON(dir);
 			cmd->se_cmd.prot_op = TARGET_PROT_NORMAL;
 			break;
@@ -432,7 +432,7 @@ static int sqa_qla2xxx_handle_cmd(scsi_qla_host_t *vha,
 		sizeof(atio->u.isp24.fcp_cmnd.lun),
 		atio->u.isp24.fcp_cmnd.cdb,
 		sizeof(atio->u.isp24.fcp_cmnd.cdb) +
-		(atio->u.isp24.fcp_cmnd.add_cdb_len *4),
+		(atio->u.isp24.fcp_cmnd.add_cdb_len * 4),
 		SCST_ATOMIC);
 
 	if (cmd->scst_cmd == NULL) {
@@ -579,7 +579,7 @@ static int sqa_qla2xxx_handle_tmr(struct qla_tgt_mgmt_cmd *mcmd, u64 lun,
 	 * Call into SCST target core based on task management function
 	 * type.
 	 */
-	switch(tmr_func) {
+	switch (tmr_func) {
 	case QLA_TGT_CLEAR_ACA: //TMR_CLEAR_ACA:
 		TRACE(TRACE_MGMT, "sqatgt(%ld/%d) CLEAR_ACA received.",
 		      sess->tgt->vha->host_no, sess->tgt->vha->vp_idx);
@@ -650,7 +650,7 @@ static int sqa_qla2xxx_handle_tmr(struct qla_tgt_mgmt_cmd *mcmd, u64 lun,
 			sess->tgt->vha->host_no, sess->tgt->vha->vp_idx);
 		rc = scst_rx_mgmt_fn_lun(scst_sess, SCST_NEXUS_LOSS,
 			&sl, lun_size, SCST_ATOMIC, mcmd);
-                break;
+		break;
 
 	default:
 		PRINT_ERROR("sqatgt(%ld/%d): Unknown task mgmt fn=0x%x",
@@ -724,7 +724,7 @@ static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 		wait_for_completion(&c);
 	}
 
-	TRACE_MGMT_DBG("sqatgt(%ld/%d):	Unregister completed %s done \n",
+	TRACE_MGMT_DBG("sqatgt(%ld/%d):	Unregister completed %s done\n",
 		vha->host_no, vha->vp_idx, wwn_to_str(fcport->port_name));
 
 	kfree(se_sess);
@@ -1439,7 +1439,7 @@ static int sqa_target_release(struct scst_tgt *scst_tgt)
 {
 	struct sqa_scst_tgt *sqa_tgt = scst_tgt_get_tgt_priv(scst_tgt);
 	struct qla_tgt *tgt = sqa_tgt->qla_tgt;
-	struct scsi_qla_host *vha= tgt->vha;
+	struct scsi_qla_host *vha = tgt->vha;
 
 	TRACE_ENTRY();
 
@@ -1477,7 +1477,7 @@ static int sqa_target_release(struct scst_tgt *scst_tgt)
 
 static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 {
-	int xmit_type = QLA_TGT_XMIT_DATA, res, residual=0;
+	int xmit_type = QLA_TGT_XMIT_DATA, res, residual = 0;
 	int is_send_status = scst_cmd_get_is_send_status(scst_cmd);
 	struct qla_tgt_cmd *cmd;
 
@@ -1555,7 +1555,7 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 				  cmd->vha->host_no, cmd->vha->vp_idx, residual);
 		if (residual > 0)
 			cmd->se_cmd.se_cmd_flags |= SCF_UNDERFLOW_BIT;
-		if (residual < 0 ) {
+		if (residual < 0) {
 			cmd->se_cmd.se_cmd_flags |= SCF_OVERFLOW_BIT;
 			residual = -residual;
 		}
@@ -1671,7 +1671,7 @@ static uint32_t sqa_convert_to_fc_tm_status(int scst_mstatus)
 	uint32_t res;
 
 	switch (scst_mstatus) {
-		case SCST_MGMT_STATUS_SUCCESS:
+	case SCST_MGMT_STATUS_SUCCESS:
 		res = FC_TM_SUCCESS;
 		break;
 	case SCST_MGMT_STATUS_TASK_NOT_EXIST:
@@ -1708,7 +1708,7 @@ static void sqa_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 	}
 
 	vha = mcmd->sess->vha;
-	TRACE_MGMT_DBG("sqatgt(%ld/%d):	scst_mcmd %p status %#x state %#x; " 
+	TRACE_MGMT_DBG("sqatgt(%ld/%d):	scst_mcmd %p status %#x state %#x; "
 		"mcmd %p flags %x\n",
 		vha->host_no, vha->vp_idx, scst_mcmd,
 		scst_mcmd->status, scst_mcmd->state,
@@ -1799,7 +1799,7 @@ static int sqa_qla2xxx_dif_tags(struct qla_tgt_cmd *cmd,
 				uint16_t *pfw_prot_opts)
 {
 	struct scst_cmd *scst_cmd = cmd->scst_cmd;
-	uint32_t t32=0;
+	uint32_t t32 = 0;
 
 	t32 = scst_get_dif_checks(scst_cmd->cmd_dif_actions);
 	if (!(t32 & SCST_DIF_CHECK_GUARD_TAG))
@@ -1841,14 +1841,14 @@ static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 		"(state %s) %s; %s;",
 		vha->host_no, vha->vp_idx, cmd,
 		cmdstate_to_str((uint8_t)cmd->state),
-		cmd->cmd_sent_to_fw ? "sent to fw": "not sent to fw",
+		cmd->cmd_sent_to_fw ? "sent to fw" : "not sent to fw",
 		aborted ? "aborted":"not aborted");
 
 
 	qlt_abort_cmd(cmd);
 
 	spin_lock_irqsave(qpair->qp_lock_ptr, flags);
-	switch(cmd->state) {
+	switch (cmd->state) {
 	case QLA_TGT_STATE_NEW:
 	case QLA_TGT_STATE_DATA_IN:
 		PRINT_ERROR("sqa(%ld): A command in state (%s) should "
@@ -1961,7 +1961,7 @@ static int sqa_enable_tgt(struct scst_tgt *scst_tgt, bool enable)
 
 	if (enable) {
 		qlt_lport_register(sqa_tgt, wwn_to_u64(vha->port_name),
-		    0,0, sqa_lport_callback);
+		    0, 0, sqa_lport_callback);
 		qlt_enable_vha(vha);
 	} else {
 		rc = qlt_stop_phase1(tgt);

@@ -21,7 +21,7 @@
 extern size_t qlt_add_vtarget(u64, u64, u64);
 extern size_t qlt_del_vtarget(u64);
 
-struct sqa_scst_tgt{
+struct sqa_scst_tgt {
 	struct list_head list;
 	struct scst_tgt *scst_tgt;
 	struct qla_tgt *qla_tgt;
