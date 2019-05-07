@@ -355,7 +355,7 @@ static void sqa_qla2xxx_rel_cmd(struct qla_tgt_cmd *cmd)
 static struct qla_tgt_cmd *sqa_qla2xxx_get_cmd(struct fc_port *sess)
 {
 	struct sqa_scst_tgt *sqa_tgt =
-		(struct sqa_scst_tgt*)sess->vha->vha_tgt.target_lport_ptr;
+		(struct sqa_scst_tgt *)sess->vha->vha_tgt.target_lport_ptr;
 	struct qla_tgt_cmd *cmd;
 	int tag = -ENOENT;
 
@@ -1501,7 +1501,7 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 	EXTRACHECKS_BUG_ON(scst_cmd_atomic(scst_cmd));
 #endif
 	if (is_send_status) {
-		const u8* const sense_buf = scst_cmd_get_sense_buffer(scst_cmd);
+		const u8 *const sense_buf = scst_cmd_get_sense_buffer(scst_cmd);
 		u16 len = scst_cmd_get_sense_buffer_len(scst_cmd);
 
 		xmit_type |= QLA_TGT_XMIT_STATUS;
@@ -1818,7 +1818,7 @@ static void sqa_cleanup_hw_pending_cmd(scsi_qla_host_t *vha,
 	struct qla_qpair *qpair = cmd->qpair;
 
 	for (h = 1; h < qpair->req->num_outstanding_cmds; h++) {
-		if (qpair->req->outstanding_cmds[h] == (srb_t*)cmd) {
+		if (qpair->req->outstanding_cmds[h] == (srb_t *)cmd) {
 			printk(KERN_INFO "Clearing handle %d for cmd %p", h, cmd);
 			//TRACE_DBG("Clearing handle %d for cmd %p", h, cmd);
 			qpair->req->outstanding_cmds[h] = NULL;
@@ -1912,7 +1912,7 @@ static struct qla_tgt_func_tmpl sqa_qla2xxx_template = {
 };
 
 static int sqa_lport_callback(struct scsi_qla_host *vha,
-	void* target_lport_ptr, u64 npiv_wwpn, u64 npiv_wwnn)
+	void *target_lport_ptr, u64 npiv_wwpn, u64 npiv_wwnn)
 
 {
 	struct qla_hw_data *ha = vha->hw;
