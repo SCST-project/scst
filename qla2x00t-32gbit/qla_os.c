@@ -1258,7 +1258,7 @@ sp_get(struct srb *sp)
 	else
 		return 0;
 #else
-	if (!refcount_inc_not_zero((refcount_t*)&sp->ref_count))
+	if (!refcount_inc_not_zero((refcount_t *)&sp->ref_count))
 		/* kref get fail */
 		return ENXIO;
 	else
