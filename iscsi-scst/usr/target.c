@@ -355,7 +355,8 @@ int target_del(u32 tid, u32 cookie)
 
 	while (1) {
 		/* We might need to handle session(s) removal event(s) from the kernel */
-		while (handle_iscsi_events(nl_fd, false) == 0);
+		while (handle_iscsi_events(nl_fd, false) == 0)
+			;
 
 		/* Someone else may have already freed the target object by now. */
 		target = target_find_by_id(tid);
