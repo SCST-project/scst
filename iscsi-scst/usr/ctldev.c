@@ -338,7 +338,7 @@ int kernel_params_set(u32 tid, u64 sid, int type, u32 partial,
 
 	if ((err = ioctl(ctrl_fd, ISCSI_PARAM_SET, &info)) < 0) {
 		err = -errno;
-		log_error("Can't set session params for session 0x%" PRIx64 
+		log_error("Can't set session params for session 0x%" PRIx64
 			" (tid %u, type %d, partial %d, err %d): %s\n", sid,
 			tid, type, partial, err, strerror(errno));
 	}

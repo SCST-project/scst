@@ -1619,8 +1619,8 @@ static int sqa_rdy_to_xfer(struct scst_cmd *scst_cmd)
 		qla_tgt_set_cmd_prot_op(cmd, false);
 
 		TRACE_DBG("%s: cmd[%p] ulpcmd[%p] dif_actions=0x%x, cdb=0x%x, "
-			"prot_sg_cnt[%x], prot_type[%x] prot_op[%x], bufflen[%x]",__func__,
-			cmd, cmd->scst_cmd,
+			"prot_sg_cnt[%x], prot_type[%x] prot_op[%x], bufflen[%x]",
+			__func__, cmd, cmd->scst_cmd,
 			scst_cmd->cmd_dif_actions, scst_cmd->cdb_buf[0],
 			cmd->prot_sg_cnt, cmd->se_cmd.prot_type, cmd->se_cmd.prot_op,
 			cmd->bufflen);
@@ -1953,7 +1953,7 @@ static int sqa_enable_tgt(struct scst_tgt *scst_tgt, bool enable)
 
 	PRINT_INFO("sqatgt(%ld/%d): %s target pwwn="
 		   "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
-		   vha->host_no, vha->vp_idx, enable ? "Enabling": "Disabling",
+		   vha->host_no, vha->vp_idx, enable ? "Enabling" : "Disabling",
 		   vha->port_name[0], vha->port_name[1],
 		   vha->port_name[2], vha->port_name[3],
 		   vha->port_name[4], vha->port_name[5],

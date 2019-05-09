@@ -4335,10 +4335,18 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj,
 	char state_name[32];
 
 	switch (attr->attr.name[0]) {
-	case 'n': j = SCST_DATA_NONE & 3; break;
-	case 'r': j = SCST_DATA_READ;     break;
-	case 'w': j = SCST_DATA_WRITE;    break;
-	case 'b': j = SCST_DATA_BIDI;     break;
+	case 'n':
+		j = SCST_DATA_NONE & 3;
+		break;
+	case 'r':
+		j = SCST_DATA_READ;
+		break;
+	case 'w':
+		j = SCST_DATA_WRITE;
+		break;
+	case 'b':
+		j = SCST_DATA_BIDI;
+		break;
 	default:
 		return -EINVAL;
 	}

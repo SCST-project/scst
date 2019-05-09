@@ -137,7 +137,7 @@
  * 133Mhz slot.
  */
 #define RD_REG_WORD_PIO(addr)		(inw((unsigned long)addr))
-#define WRT_REG_WORD_PIO(addr, data)	(outw(data,(unsigned long)addr))
+#define WRT_REG_WORD_PIO(addr, data)	(outw(data, (unsigned long)addr))
 
 /*
  * Fibre Channel device definitions.
@@ -2729,7 +2729,7 @@ struct qla_hw_data {
 
 	/* NVRAM configuration data */
 #define MAX_NVRAM_SIZE  4096
-#define VPD_OFFSET      MAX_NVRAM_SIZE / 2
+#define VPD_OFFSET      (MAX_NVRAM_SIZE / 2)
 	uint16_t	nvram_size;
 	uint16_t	nvram_base;
 	void		*nvram;

@@ -845,6 +845,7 @@ void *main_loop(void *arg)
 				multi.multi_cmd.preplies = (uintptr_t)&multi.replies[0];
 				multi.multi_cmd.replies_cnt = 0;
 				multi.multi_cmd.cmds_cnt = MULTI_CMDS_CNT;
+				/* fall through */
 			case EINTR:
 				continue;
 			case EAGAIN:
@@ -1561,7 +1562,7 @@ static void exec_read_capacity16(struct vdisk_cmd *vcmd)
 	buffer[4] = (nblocks >> 24) & 0xFF;
 	buffer[5] = (nblocks >> 16) & 0xFF;
 	buffer[6] = (nblocks >> 8) & 0xFF;
-	buffer[7] = nblocks& 0xFF;
+	buffer[7] = nblocks & 0xFF;
 
 	buffer[8] = (blocksize >> (BYTE * 3)) & 0xFF;
 	buffer[9] = (blocksize >> (BYTE * 2)) & 0xFF;
@@ -1602,7 +1603,7 @@ static void exec_read_toc(struct vdisk_cmd *vcmd)
 	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	int32_t off = 0;
 	int length = cmd->bufflen;
-	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
+	uint8_t *address = (uint8_t *)(unsigned long)cmd->pbuf;
 	uint32_t nblocks;
 	uint8_t buffer[4+8+8] = { 0x00, 0x0a, 0x01, 0x01, 0x00, 0x14,
 				  0x01, 0x00, 0x00, 0x00, 0x00, 0x00 };

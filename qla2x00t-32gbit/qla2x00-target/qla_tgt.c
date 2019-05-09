@@ -95,7 +95,7 @@ size_t qlt_del_vtarget(u64 port_name)
 	unsigned long flags;
 	int match = 0;
 
-	pr_info("%s: %llx",__func__, port_name);
+	pr_info("%s: %llx", __func__, port_name);
 	mutex_lock(&qla_tgt_mutex);
 	list_for_each_entry_safe(tgt, t, &qla_tgt_glist, tgt_list_entry) {
 		vha = tgt->vha;
