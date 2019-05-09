@@ -4785,7 +4785,7 @@ qla82xx_md_get_template_size(scsi_qla_host_t *vha)
 	mcp->mb[3] = MSW(RQST_TMPLT_SIZE);
 
 	mcp->out_mb = MBX_3|MBX_2|MBX_1|MBX_0;
-	mcp->in_mb = MBX_14|MBX_13|MBX_12|MBX_11|MBX_10|MBX_9|MBX_8| \
+	mcp->in_mb = MBX_14|MBX_13|MBX_12|MBX_11|MBX_10|MBX_9|MBX_8|
 	    MBX_7|MBX_6|MBX_5|MBX_4|MBX_3|MBX_2|MBX_1|MBX_0;
 
 	mcp->flags = MBX_DMA_OUT|MBX_DMA_IN|IOCTL_CMD;
@@ -4844,7 +4844,7 @@ qla82xx_md_get_template(scsi_qla_host_t *vha)
 
 	mcp->flags = MBX_DMA_OUT|MBX_DMA_IN|IOCTL_CMD;
 	mcp->tov = MBX_TOV_SECONDS;
-	mcp->out_mb = MBX_11|MBX_10|MBX_9|MBX_8| \
+	mcp->out_mb = MBX_11|MBX_10|MBX_9|MBX_8|
 	    MBX_7|MBX_6|MBX_5|MBX_4|MBX_3|MBX_2|MBX_1|MBX_0;
 	mcp->in_mb = MBX_3|MBX_2|MBX_1|MBX_0;
 	rval = qla2x00_mailbox_command(vha, mcp);

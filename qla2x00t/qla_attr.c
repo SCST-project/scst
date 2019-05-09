@@ -1179,7 +1179,7 @@ do_read:
 		count = 0;
 	}
 
-	count = actual_size > count ? count: actual_size;
+	count = actual_size > count ? count : actual_size;
 	memcpy(buf, ha->xgmac_data, count);
 
 	return count;
