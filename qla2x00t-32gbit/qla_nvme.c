@@ -605,7 +605,7 @@ static void qla_nvme_unregister_remote_port(struct work_struct *work)
 		return;
 
 	ql_log(ql_log_warn, NULL, 0x2112,
-	    "%s: unregister remoteport on %p\n",__func__, fcport);
+	    "%s: unregister remoteport on %p\n", __func__, fcport);
 
 	list_for_each_entry_safe(qla_rport, trport,
 	    &fcport->vha->nvme_rport_list, list) {
