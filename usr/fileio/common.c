@@ -845,6 +845,7 @@ void *main_loop(void *arg)
 				multi.multi_cmd.preplies = (uintptr_t)&multi.replies[0];
 				multi.multi_cmd.replies_cnt = 0;
 				multi.multi_cmd.cmds_cnt = MULTI_CMDS_CNT;
+				/* fall through */
 			case EINTR:
 				continue;
 			case EAGAIN:
