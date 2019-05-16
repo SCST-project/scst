@@ -49,12 +49,15 @@ extraclean:
 
 2debug:
 	$(call set_var,build_mode,BUILD_MODE,)
+	@true
 
 2release:
 	$(call set_var,build_mode,BUILD_MODE,RELEASE)
+	@true
 
 2perf:
 	$(call set_var,build_mode,BUILD_MODE,PERF)
+	@true
 
 release-archive:
 	../scripts/generate-release-archive scst \
