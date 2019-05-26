@@ -1890,21 +1890,21 @@ qlafx00_fx_disc(scsi_qla_host_t *vha, fc_port_t *fcport, uint16_t fx_type)
 			phost_info = &preg_hsi->hsi;
 			memset(preg_hsi, 0, sizeof(struct register_host_info));
 			phost_info->os_type = OS_TYPE_LINUX;
-			strncpy(phost_info->sysname,
+			strlcpy(phost_info->sysname,
 			    p_sysid->sysname, SYSNAME_LENGTH);
-			strncpy(phost_info->nodename,
+			strlcpy(phost_info->nodename,
 			    p_sysid->nodename, NODENAME_LENGTH);
 			if (!strcmp(phost_info->nodename, "(none)"))
 				ha->mr.host_info_resend = true;
-			strncpy(phost_info->release,
+			strlcpy(phost_info->release,
 			    p_sysid->release, RELEASE_LENGTH);
-			strncpy(phost_info->version,
+			strlcpy(phost_info->version,
 			    p_sysid->version, VERSION_LENGTH);
-			strncpy(phost_info->machine,
+			strlcpy(phost_info->machine,
 			    p_sysid->machine, MACHINE_LENGTH);
-			strncpy(phost_info->domainname,
+			strlcpy(phost_info->domainname,
 			    p_sysid->domainname, DOMNAME_LENGTH);
-			strncpy(phost_info->hostdriver,
+			strlcpy(phost_info->hostdriver,
 			    QLA2XXX_VERSION, VERSION_LENGTH);
 			preg_hsi->utc = (uint64_t)ktime_get_real_seconds();
 			ql_dbg(ql_dbg_init, vha, 0x0149,
