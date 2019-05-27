@@ -2153,7 +2153,7 @@ qla2x00_configure_hba(scsi_qla_host_t *vha)
 
 inline void
 qla2x00_set_model_info(scsi_qla_host_t *vha, uint8_t *model, size_t len,
-	char *def)
+		       const char *def)
 {
 	char *st, *en;
 	uint16_t index;
@@ -2175,9 +2175,9 @@ qla2x00_set_model_info(scsi_qla_host_t *vha, uint8_t *model, size_t len,
 		if (use_tbl &&
 		    ha->pdev->subsystem_vendor == PCI_VENDOR_ID_QLOGIC &&
 		    index < QLA_MODEL_NAMES)
-			strncpy(ha->model_desc,
+			strlcpy(ha->model_desc,
 			    qla2x00_model_name[index * 2 + 1],
-			    sizeof(ha->model_desc) - 1);
+			    sizeof(ha->model_desc));
 	} else {
 		index = (ha->pdev->subsystem_device & 0xff);
 		if (use_tbl &&
@@ -2186,9 +2186,9 @@ qla2x00_set_model_info(scsi_qla_host_t *vha, uint8_t *model, size_t len,
 			strlcpy(ha->model_number,
 				qla2x00_model_name[index * 2],
 				sizeof(ha->model_number));
-			strncpy(ha->model_desc,
+			strlcpy(ha->model_desc,
 			    qla2x00_model_name[index * 2 + 1],
-			    sizeof(ha->model_desc) - 1);
+			    sizeof(ha->model_desc));
 		} else {
 			strlcpy(ha->model_number, def,
 				sizeof(ha->model_number));
@@ -3969,7 +3969,8 @@ qla82xx_quiescent_state_cleanup(scsi_qla_host_t *vha)
 					LOOP_DOWN_TIME);
 	}
 	/* Wait for pending cmds to complete */
-	qla2x00_eh_wait_for_pending_commands(vha, 0, 0, WAIT_HOST);
+	WARN_ON_ONCE(qla2x00_eh_wait_for_pending_commands(vha, 0, 0, WAIT_HOST)
+		     != QLA_SUCCESS);
 }
 
 void

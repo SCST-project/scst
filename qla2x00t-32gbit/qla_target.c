@@ -1596,11 +1596,10 @@ static void qlt_release(struct qla_tgt *tgt)
 	struct qla_qpair_hint *h;
 	struct qla_hw_data *ha = vha->hw;
 
-	if ((vha->vha_tgt.qla_tgt != NULL) && !tgt->tgt_stop &&
-	    !tgt->tgt_stopped)
+	if (!tgt->tgt_stop && !tgt->tgt_stopped)
 		qlt_stop_phase1(tgt);
 
-	if ((vha->vha_tgt.qla_tgt != NULL) && !tgt->tgt_stopped)
+	if (!tgt->tgt_stopped)
 		qlt_stop_phase2(tgt);
 
 	for (i = 0; i < vha->hw->max_qpairs + 1; i++) {
@@ -3167,7 +3166,7 @@ qlt_build_ctio_crc2_pkt(struct qla_qpair *qpair, struct qla_tgt_prm *prm)
 	pkt->crc_context_len = CRC_CONTEXT_LEN_FW;
 
 	if (!bundling) {
-		cur_dsd = &crc_ctx_pkt->u.nobundling.data_dsd;
+		cur_dsd = &crc_ctx_pkt->u.nobundling.data_dsd[0];
 	} else {
 		/*
 		 * Configure Bundling if we need to fetch interlaving
@@ -3177,7 +3176,7 @@ qlt_build_ctio_crc2_pkt(struct qla_qpair *qpair, struct qla_tgt_prm *prm)
 		crc_ctx_pkt->u.bundling.dif_byte_count = cpu_to_le32(dif_bytes);
 		crc_ctx_pkt->u.bundling.dseg_count =
 			cpu_to_le16(prm->tot_dsds - prm->prot_seg_cnt);
-		cur_dsd = &crc_ctx_pkt->u.bundling.data_dsd;
+		cur_dsd = &crc_ctx_pkt->u.bundling.data_dsd[0];
 	}
 
 	/* Finish the common fields of CRC pkt */
@@ -6270,9 +6269,6 @@ static void qlt_abort_work(struct qla_tgt *tgt,
 out_term2:
 	spin_unlock_irqrestore(&ha->tgt.sess_lock, flags2);
 
-	if (sess)
-		ha->tgt.tgt_ops->put_sess(sess);
-
 out_term:
 	spin_lock_irqsave(&ha->hardware_lock, flags);
 	qlt_24xx_send_abts_resp(ha->base_qpair, &prm->abts,
@@ -6695,7 +6691,8 @@ qlt_enable_vha(struct scsi_qla_host *vha)
 	} else {
 		set_bit(ISP_ABORT_NEEDED, &base_vha->dpc_flags);
 		qla2xxx_wake_dpc(base_vha);
-		qla2x00_wait_for_hba_online(base_vha);
+		WARN_ON_ONCE(qla2x00_wait_for_hba_online(base_vha) !=
+			     QLA_SUCCESS);
 	}
 	mutex_unlock(&ha->optrom_mutex);
 }
@@ -6726,7 +6723,7 @@ static void qlt_disable_vha(struct scsi_qla_host *vha)
 
 	set_bit(ISP_ABORT_NEEDED, &vha->dpc_flags);
 	qla2xxx_wake_dpc(vha);
-	qla2x00_wait_for_hba_online(vha);
+	WARN_ON_ONCE(qla2x00_wait_for_hba_online(vha) != QLA_SUCCESS);
 }
 
 /*

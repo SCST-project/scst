@@ -1925,7 +1925,7 @@ struct crc_context {
 			uint16_t	reserved_2;
 			uint16_t	reserved_3;
 			uint32_t	reserved_4;
-			struct dsd64	data_dsd;
+			struct dsd64	data_dsd[1];
 			uint32_t	reserved_5[2];
 			uint32_t	reserved_6;
 		} nobundling;
@@ -1935,7 +1935,7 @@ struct crc_context {
 			uint16_t	reserved_1;
 			__le16	dseg_count;	/* Data segment count */
 			uint32_t	reserved_2;
-			struct dsd64	data_dsd;
+			struct dsd64	data_dsd[1];
 			struct dsd64	dif_dsd;
 		} bundling;
 	} u;
@@ -3187,7 +3187,7 @@ struct isp_operations {
 	void (*update_fw_options) (struct scsi_qla_host *);
 	int (*load_risc) (struct scsi_qla_host *, uint32_t *);
 
-	char * (*pci_info_str) (struct scsi_qla_host *, char *);
+	char * (*pci_info_str)(struct scsi_qla_host *, char *, size_t);
 	char * (*fw_version_str)(struct scsi_qla_host *, char *, size_t);
 
 	irq_handler_t intr_handler;

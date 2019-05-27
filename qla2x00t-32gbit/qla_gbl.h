@@ -558,7 +558,7 @@ fc_port_t *qla2x00_find_fcport_by_nportid(scsi_qla_host_t *, port_id_t *, u8);
  * Global Function Prototypes in qla_sup.c source file.
  */
 extern void qla2x00_release_nvram_protection(scsi_qla_host_t *);
-extern uint32_t *qla24xx_read_flash_data(scsi_qla_host_t *, uint32_t *,
+extern int qla24xx_read_flash_data(scsi_qla_host_t *, uint32_t *,
     uint32_t, uint32_t);
 extern uint8_t *qla2x00_read_nvram_data(scsi_qla_host_t *, void *, uint32_t,
     uint32_t);
@@ -736,7 +736,7 @@ extern int qlafx00_initialize_adapter(struct scsi_qla_host *);
 extern int qlafx00_soft_reset(scsi_qla_host_t *);
 extern int qlafx00_chip_diag(scsi_qla_host_t *);
 extern void qlafx00_config_rings(struct scsi_qla_host *);
-extern char *qlafx00_pci_info_str(struct scsi_qla_host *, char *);
+extern char *qlafx00_pci_info_str(struct scsi_qla_host *, char *, size_t);
 extern char *qlafx00_fw_version_str(struct scsi_qla_host *, char *, size_t);
 extern irqreturn_t qlafx00_intr_handler(int, void *);
 extern void qlafx00_enable_intrs(struct qla_hw_data *);
@@ -826,8 +826,8 @@ extern int qla82xx_device_state_handler(scsi_qla_host_t *);
 extern void qla8xxx_dev_failed_handler(scsi_qla_host_t *);
 extern void qla82xx_clear_qsnt_ready(scsi_qla_host_t *);
 
-extern void qla2x00_set_model_info(scsi_qla_host_t *, uint8_t *,
-				   size_t, char *);
+extern void qla2x00_set_model_info(scsi_qla_host_t *, uint8_t *, size_t,
+				   const char *);
 extern int qla82xx_mbx_intr_enable(scsi_qla_host_t *);
 extern int qla82xx_mbx_intr_disable(scsi_qla_host_t *);
 extern void qla82xx_start_iocbs(scsi_qla_host_t *);

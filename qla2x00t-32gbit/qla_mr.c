@@ -148,7 +148,8 @@ qlafx00_mailbox_command(scsi_qla_host_t *vha, struct mbx_cmd_32 *mcp)
 		QLAFX00_SET_HST_INTR(ha, ha->mbx_intr_code);
 		spin_unlock_irqrestore(&ha->hardware_lock, flags);
 
-		wait_for_completion_timeout(&ha->mbx_intr_comp, mcp->tov * HZ);
+		WARN_ON_ONCE(wait_for_completion_timeout(&ha->mbx_intr_comp,
+							 mcp->tov * HZ) != 0);
 	} else {
 		ql_dbg(ql_dbg_mbx, vha, 0x112c,
 		    "Cmd=%x Polling Mode.\n", command);
@@ -687,14 +688,12 @@ qlafx00_config_rings(struct scsi_qla_host *vha)
 }
 
 char *
-qlafx00_pci_info_str(struct scsi_qla_host *vha, char *str)
+qlafx00_pci_info_str(struct scsi_qla_host *vha, char *str, size_t str_len)
 {
 	struct qla_hw_data *ha = vha->hw;
 
-	if (pci_is_pcie(ha->pdev)) {
-		strcpy(str, "PCIe iSA");
-		return str;
-	}
+	if (pci_is_pcie(ha->pdev))
+		strlcpy(str, "PCIe iSA", str_len);
 	return str;
 }
 
@@ -1890,21 +1889,21 @@ qlafx00_fx_disc(scsi_qla_host_t *vha, fc_port_t *fcport, uint16_t fx_type)
 			phost_info = &preg_hsi->hsi;
 			memset(preg_hsi, 0, sizeof(struct register_host_info));
 			phost_info->os_type = OS_TYPE_LINUX;
-			strncpy(phost_info->sysname,
+			strlcpy(phost_info->sysname,
 			    p_sysid->sysname, SYSNAME_LENGTH);
-			strncpy(phost_info->nodename,
+			strlcpy(phost_info->nodename,
 			    p_sysid->nodename, NODENAME_LENGTH);
 			if (!strcmp(phost_info->nodename, "(none)"))
 				ha->mr.host_info_resend = true;
-			strncpy(phost_info->release,
+			strlcpy(phost_info->release,
 			    p_sysid->release, RELEASE_LENGTH);
-			strncpy(phost_info->version,
+			strlcpy(phost_info->version,
 			    p_sysid->version, VERSION_LENGTH);
-			strncpy(phost_info->machine,
+			strlcpy(phost_info->machine,
 			    p_sysid->machine, MACHINE_LENGTH);
-			strncpy(phost_info->domainname,
+			strlcpy(phost_info->domainname,
 			    p_sysid->domainname, DOMNAME_LENGTH);
-			strncpy(phost_info->hostdriver,
+			strlcpy(phost_info->hostdriver,
 			    QLA2XXX_VERSION, VERSION_LENGTH);
 			preg_hsi->utc = (uint64_t)ktime_get_real_seconds();
 			ql_dbg(ql_dbg_init, vha, 0x0149,
@@ -1950,8 +1949,10 @@ qlafx00_fx_disc(scsi_qla_host_t *vha, fc_port_t *fcport, uint16_t fx_type)
 	if (fx_type == FXDISC_GET_CONFIG_INFO) {
 		struct config_info_data *pinfo =
 		    (struct config_info_data *) fdisc->u.fxiocb.rsp_addr;
-		strcpy(vha->hw->model_number, pinfo->model_num);
-		strcpy(vha->hw->model_desc, pinfo->model_description);
+		strlcpy(vha->hw->model_number, pinfo->model_num,
+			ARRAY_SIZE(vha->hw->model_number));
+		strlcpy(vha->hw->model_desc, pinfo->model_description,
+			ARRAY_SIZE(vha->hw->model_desc));
 		memcpy(&vha->hw->mr.symbolic_name, pinfo->symbolic_name,
 		    sizeof(vha->hw->mr.symbolic_name));
 		memcpy(&vha->hw->mr.serial_num, pinfo->serial_num,
