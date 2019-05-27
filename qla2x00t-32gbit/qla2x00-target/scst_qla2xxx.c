@@ -1170,7 +1170,7 @@ static ssize_t sqa_abort_isp_store(struct kobject *kobj,
 		   tgt->vha->vp_idx);
 
 	set_bit(ISP_ABORT_NEEDED, &tgt->vha->dpc_flags);
-	qla2x00_wait_for_hba_online(tgt->vha);
+	WARN_ON_ONCE(qla2x00_wait_for_hba_online(tgt->vha) != QLA_SUCCESS);
 
 	return size;
 #endif
