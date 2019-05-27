@@ -54,7 +54,7 @@ struct kmem_cache *iscsi_conn_cache;
 struct kmem_cache *iscsi_sess_cache;
 
 static struct page *dummy_page;
-static struct scatterlist dummy_sg;
+static struct scatterlist dummy_sg[1];
 
 static void cmnd_remove_data_wait_hash(struct iscsi_cmnd *cmnd);
 static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status,
@@ -490,7 +490,7 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 
 		if (cmnd->own_sg) {
 			TRACE_DBG("own_sg for req %p", cmnd);
-			if (cmnd->sg != &dummy_sg)
+			if (cmnd->sg != &dummy_sg[0])
 				scst_free_sg(cmnd->sg, cmnd->sg_cnt);
 #ifdef CONFIG_SCST_DEBUG
 			/*
@@ -519,7 +519,8 @@ void cmnd_done(struct iscsi_cmnd *cmnd)
 
 		if (cmnd->own_sg) {
 			TRACE_DBG("own_sg for rsp %p", cmnd);
-			if (cmnd->sg != &dummy_sg && cmnd->sg != cmnd->rsp_sg)
+			if (cmnd->sg != &dummy_sg[0] &&
+			    cmnd->sg != cmnd->rsp_sg)
 				scst_free_sg(cmnd->sg, cmnd->sg_cnt);
 #ifdef CONFIG_SCST_DEBUG
 			cmnd->own_sg = 0;
@@ -1488,7 +1489,7 @@ static void cmnd_prepare_get_rejected_immed_data(struct iscsi_cmnd *cmnd)
 	 * accesses to dummy_page in dummy_sg, since data only
 	 * will be read and then discarded.
 	 */
-	sg = &dummy_sg;
+	sg = &dummy_sg[0];
 	if (cmnd->sg == NULL) {
 		/* just in case */
 		cmnd->sg = sg;
@@ -1618,7 +1619,7 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 			TRACE_DBG("Residual overflow (cmd %p, buff_offs %d, bufflen %d)",
 				  cmd, buff_offs, bufflen);
 			idx = 0;
-			sg = &dummy_sg;
+			sg = &dummy_sg[0];
 			offset = 0;
 		}
 
@@ -4300,8 +4301,8 @@ static int __init iscsi_init(void)
 		goto out;
 	}
 
-	sg_init_table(&dummy_sg, 1);
-	sg_set_page(&dummy_sg, dummy_page, PAGE_SIZE, 0);
+	sg_init_table(&dummy_sg[0], ARRAY_SIZE(dummy_sg));
+	sg_set_page(&dummy_sg[0], dummy_page, PAGE_SIZE, 0);
 
 	iscsi_cmnd_abort_mempool = mempool_create_kmalloc_pool(2500,
 		sizeof(struct iscsi_cmnd_abort_params));
