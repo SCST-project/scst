@@ -73,7 +73,7 @@
 #endif
 #endif
 
-LIST_HEAD(sqa_tgt_glist);
+static LIST_HEAD(sqa_tgt_glist);
 
 /* Function definitions for callbacks from the SCST target core. */
 
@@ -101,7 +101,7 @@ static int sqa_parse_wwn(const char *ns, u64 *nm);
 static ssize_t sqa_version_show(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf);
 
-struct kobj_attribute sqa_version_attr =
+static struct kobj_attribute sqa_version_attr =
 	__ATTR(version, S_IRUGO, sqa_version_show, NULL);
 
 static const struct attribute *sqa_attrs[] = {
@@ -116,7 +116,7 @@ static ssize_t sqa_store_expl_conf_enabled(struct kobject *kobj,
 					   struct kobj_attribute *attr,
 					   const char *buffer, size_t size);
 
-struct kobj_attribute sqa_expl_conf_attr =
+static struct kobj_attribute sqa_expl_conf_attr =
 	__ATTR(explicit_confirmation, S_IRUGO|S_IWUSR,
 	       sqa_show_expl_conf_enabled, sqa_store_expl_conf_enabled);
 
@@ -124,7 +124,7 @@ static ssize_t sqa_abort_isp_store(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   const char *buffer, size_t size);
 
-struct kobj_attribute sqa_abort_isp_attr =
+static struct kobj_attribute sqa_abort_isp_attr =
 	__ATTR(abort_isp, S_IWUSR, NULL, sqa_abort_isp_store);
 
 static ssize_t sqa_hw_target_show(struct kobject *kobj,
@@ -179,7 +179,7 @@ static enum scst_exec_context scst_work_context = SCST_CONTEXT_TASKLET;
 #endif
 
 
-struct cmd_state_name {
+static struct cmd_state_name {
 	uint8_t state;
 	char *str;
 } cmd_str[] = {
