@@ -526,15 +526,15 @@ qla2x00_pci_info_str(struct scsi_qla_host *vha, char *str, int str_len)
 static char *
 qla24xx_pci_info_str(struct scsi_qla_host *vha, char *str, int str_len)
 {
-	static char *pci_bus_modes[] = { "33", "66", "100", "133", };
+	static const char *pci_bus_modes[] = { "33", "66", "100", "133", };
 	struct qla_hw_data *ha = vha->hw;
 	uint32_t pci_bus;
 	int pcie_reg;
 
 	pcie_reg = pci_find_capability(ha->pdev, PCI_CAP_ID_EXP);
 	if (pcie_reg) {
-		char lwstr[6];
 		uint16_t pcie_lstat, lspeed, lwidth;
+		const char *speed_str;
 
 		pcie_reg += 0x12;
 		pci_read_config_word(ha->pdev, pcie_reg, &pcie_lstat);
@@ -542,34 +542,24 @@ qla24xx_pci_info_str(struct scsi_qla_host *vha, char *str, int str_len)
 		lwidth = (pcie_lstat &
 		    (BIT_4 | BIT_5 | BIT_6 | BIT_7 | BIT_8 | BIT_9)) >> 4;
 
-		strlcpy(str, "PCIe (", str_len);
 		if (lspeed == 1)
-			strncat(str, "2.5GT/s ", str_len - (strlen(str)+1));
+			speed_str = "2.5GT/s";
 		else if (lspeed == 2)
-			strncat(str, "5.0GT/s ", str_len - (strlen(str)+1));
+			speed_str = "5.0GT/s";
 		else
-			strncat(str, "<unknown> ", str_len - (strlen(str)+1));
-		snprintf(lwstr, sizeof(lwstr), "x%d)", lwidth);
-		strncat(str, lwstr, str_len - (strlen(str)+1));
-
+			speed_str = "<unknown>";
+		snprintf(str, str_len, "PCIe (%s x%d)", speed_str, lwidth);
 		return str;
 	}
 
-	strncpy(str, "PCI", str_len);
 	pci_bus = (ha->pci_attr & CSRX_PCIX_BUS_MODE_MASK) >> 8;
-	if (pci_bus == 0 || pci_bus == 8) {
-		strncat(str, " (", str_len - (strlen(str)+1));
-		strncat(str, pci_bus_modes[pci_bus >> 3], str_len - (strlen(str)+1));
-	} else {
-		strncat(str, "-X ", str_len - (strlen(str)+1));
-		if (pci_bus & BIT_2)
-			strncat(str, "Mode 2", str_len - (strlen(str)+1));
-		else
-			strncat(str, "Mode 1", str_len - (strlen(str)+1));
-		strncat(str, " (", str_len - (strlen(str)+1));
-		strncat(str, pci_bus_modes[pci_bus & ~BIT_2], str_len - (strlen(str)+1));
-	}
-	strncat(str, " MHz)", str_len - (strlen(str)+1));
+	if (pci_bus == 0 || pci_bus == 8)
+		snprintf(str, str_len, "PCI (%s MHz)",
+			 pci_bus_modes[pci_bus >> 3]);
+	else
+		snprintf(str, str_len, "PCI-X Mode %d (%s MHz)",
+			 pci_bus & 4 ? 2 : 1,
+			 pci_bus_modes[pci_bus & 3]);
 
 	return str;
 }
