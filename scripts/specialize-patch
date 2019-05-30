@@ -197,6 +197,22 @@ function evaluate(stmnt, pattern, arg, op, result) {
                    "(\\1) * 256 + (\\2)", "g", stmnt)
   }
 
+  if (MOFED_MAJOR == "") {
+    gsub("defined\\(MOFED_MAJOR\\)", "0", stmnt)
+    gsub("MOFED_MAJOR", "", stmnt)
+  } else {
+    gsub("defined\\(MOFED_MAJOR\\)", "1", stmnt)
+    gsub("MOFED_MAJOR", MOFED_MAJOR, stmnt)
+  }
+
+  if (MOFED_MINOR == "") {
+    gsub("defined\\(MOFED_MINOR\\)", "0", stmnt)
+    gsub("MOFED_MINOR", "", stmnt)
+  } else {
+    gsub("defined\\(MOFED_MINOR\\)", "1", stmnt)
+    gsub("MOFED_MINOR", MOFED_MINOR, stmnt)
+  }
+
   gsub("defined\\(UEK_KABI_RENAME\\)", "0", stmnt)
 
   if (SCSI_EXEC_REQ_FIFO_DEFINED != "")
@@ -384,6 +400,8 @@ function handle_if(evaluated)
       || $0 ~ "IB_QUERY_GID_HAS_ATTR_ARG" \
       || $0 ~ "INSIDE_KERNEL_TREE" \
       || $0 ~ "MAD_HANDLER_TAKES_SEND_BUF" \
+      || $0 ~ "MOFED_MAJOR"        \
+      || $0 ~ "MOFED_MINOR"        \
       || $0 ~ "RDMA_CREATE_ID_TAKES_NET_ARG" \
       || $0 ~ "REGISTER_MAD_AGENT_HAS_FLAGS_ARG" \
       || $0 ~ "RHEL_MAJOR"         \
