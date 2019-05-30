@@ -437,8 +437,15 @@ function download_and_extract_kernel_tree {
 	mkdir "linux-$1"
 	(
 	    cd "${kernel_tree}" &&
-		{ git tag -l "v$1" >/dev/null ||
-		    { git fetch; git fetch stable; }; } &&
+		{
+		    { git tag -l "v$1" | grep -q '^v'; } ||
+			{
+			    echo "Could not find tag v$1;" \
+				 "updating git repository" 1>&2
+			    git fetch origin
+			    git fetch stable
+			}
+		} &&
 		git archive "v$1"
 	) | tar -C "linux-$1" -xf-
     else
