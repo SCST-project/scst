@@ -493,7 +493,7 @@ static int sqa_qla2xxx_handle_cmd(scsi_qla_host_t *vha,
 	/* we're being call by wq, so do direct */
 	scst_cmd_init_done(cmd->scst_cmd, SCST_CONTEXT_DIRECT);
 
- out:
+out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -669,7 +669,7 @@ static int sqa_qla2xxx_handle_tmr(struct qla_tgt_mgmt_cmd *mcmd, u64 lun,
 		res = -EFAULT;
 	}
 
- done:
+done:
 	TRACE_EXIT_RES(res);
 	return res;
 }
