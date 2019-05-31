@@ -907,7 +907,7 @@ static inline void *kvzalloc(size_t size, gfp_t flags)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0) &&			\
        (!defined(MOFED_MAJOR) || !defined(MOFED_MINOR) ||		\
-	MOFED_MAJOR < 4 || (MOFED_MAJOR == 4 && MOFED_MINOR < 5))
+	MOFED_MAJOR -0 < 4 || (MOFED_MAJOR -0 == 4 && MOFED_MINOR -0 < 5))
 /* See also commit 1c542f38ab8d ("mm: Introduce kvcalloc()") # v4.18. */
 static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
 {
