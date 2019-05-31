@@ -69,6 +69,7 @@ OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include      \
              -include "linux/compat-2.6.h"
 OFED_CFLAGS+=-DMOFED_MAJOR=$(shell echo "$(OFED_VERS)" | sed 's/\([0-9]\+\)[^0-9]\+\([0-9]\+\).*/\1/g')
 OFED_CFLAGS+=-DMOFED_MINOR=$(shell echo "$(OFED_VERS)" | sed 's/\([0-9]\+\)[^0-9]\+\([0-9]\+\).*/\2/g')
+OFED_CONFIG:=CONFIG_DTRACE=
 else
 # OFED 1.5
 OFED_KERNEL_DIR:=/usr/src/ofa_kernel
@@ -81,7 +82,7 @@ OFED_MODULE_SYMVERS:=$(OFED_KERNEL_DIR)/$(MODULE_SYMVERS)
 endif
 
 # Use make instead of $(MAKE) to get rid of command-line option -i
-run_conftest = $(shell if [ "0$(V)" -gt 0 ]; then output=/dev/stdout; else output=/dev/null; fi; if MAKEFLAGS= make -C $(KDIR) V=$(V) M="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" 1>&2 2>$${output}; then echo "$(strip $2)"; else echo "$(strip $3)"; fi)
+run_conftest = $(shell if [ "0$(V)" -gt 0 ]; then output=/dev/stdout; else output=/dev/null; fi; if MAKEFLAGS= make -C $(KDIR) V=$(V) M="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" $(OFED_CONFIG) 1>&2 2>$${output}; then echo "$(strip $2)"; else echo "$(strip $3)"; fi)
 run_conftest_bool = $(call run_conftest,$1,-D$(strip $2)=1,-D$(strip $2)=0)
 
 CONFTESTS = $(shell ls -d conftest/*)
@@ -97,7 +98,7 @@ PRE_CFLAGS = $(OFED_CFLAGS)			\
 	done)
 
 all: check src/$(MODULE_SYMVERS) $(CONFTEST_OUTPUTS)
-	$(MAKE) -C $(KDIR) M=$(shell pwd)/src PRE_CFLAGS="$(PRE_CFLAGS)" modules
+	$(MAKE) -C $(KDIR) M=$(shell pwd)/src PRE_CFLAGS="$(PRE_CFLAGS)" $(OFED_CONFIG) modules
 
 src/$(MODULE_SYMVERS): $(SCST_DIR)/$(MODULE_SYMVERS) $(OFED_MODULE_SYMVERS)
 	cat $^ |							\
