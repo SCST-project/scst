@@ -499,8 +499,6 @@ add_file "iscsi-scst/README_in-tree" "Documentation/scst/README.iscsi" \
 
 if [ "${qla2x00t}" = "true" ]; then
 
-  download_kernel "${kver3}" || exit $?
-
   ( cd qla2x00t && ./generate-in-tree-patches "$1" )
 
   for f in qla2x00t/in-tree-patches/"$1"/*.patch; do
@@ -526,8 +524,6 @@ if [ "${qla2x00t}" = "true" ]; then
   | process_patch "qla2x00t-doc.diff"
 
 elif [ "${qla2x00t_32gbit}" = "true" ]; then
-
-  download_kernel "${kver3}" || exit $?
 
   ( cd qla2x00t-32gbit && ./generate-in-tree-patches "$1" )
 
