@@ -1629,6 +1629,19 @@ enum {
 #endif
 #endif
 
+#ifndef FC_PORT_ROLE_UNKNOWN
+#define FC_PORT_ROLE_UNKNOWN			0x00
+#define FC_PORT_ROLE_FCP_TARGET			0x01
+#define FC_PORT_ROLE_FCP_INITIATOR		0x02
+#define FC_PORT_ROLE_IP_PORT			0x04
+#endif
+
+#ifndef FC_PORT_ROLE_NVME_INITIATOR
+#define FC_PORT_ROLE_NVME_INITIATOR		0x10
+#define FC_PORT_ROLE_NVME_TARGET		0x20
+#define FC_PORT_ROLE_NVME_DISCOVERY		0x40
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
 #define wwn_to_u64(wwn) get_unaligned_be64(wwn)
 #endif
