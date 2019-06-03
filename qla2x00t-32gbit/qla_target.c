@@ -4127,7 +4127,6 @@ static inline int qlt_get_fcp_task_attr(struct scsi_qla_host *vha,
 	return fcp_task_attr;
 }
 
-static struct fc_port *qlt_make_local_sess(struct scsi_qla_host *, be_id_t);
 /*
  * Process context for I/O path into tcm_qla2xxx code
  */
@@ -5793,7 +5792,7 @@ static void qlt_handle_abts_completion(struct scsi_qla_host *vha,
 			    entry->error_subcode2);
 			ha->tgt.tgt_ops->free_mcmd(mcmd);
 		}
-	} else {
+	} else if (mcmd) {
 		ha->tgt.tgt_ops->free_mcmd(mcmd);
 	}
 }
