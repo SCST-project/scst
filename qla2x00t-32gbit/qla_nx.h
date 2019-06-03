@@ -7,8 +7,6 @@
 #ifndef __QLA_NX_H
 #define __QLA_NX_H
 
-#include <linux/version.h>
-#include <linux/types.h>
 #include <scsi/scsi.h>
 
 /*
