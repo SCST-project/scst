@@ -1884,8 +1884,8 @@ qla24xx_async_abort_command(srb_t *sp)
 static void
 qla24xx_handle_prli_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 {
-	switch (ea->rc | MBS_COMMAND_COMPLETE) {
-	case MBS_COMMAND_COMPLETE:
+	switch (ea->rc) {
+	case QLA_SUCCESS:
 		ql_dbg(ql_dbg_disc, vha, 0x2118, "%s %d %s post gpdb\n",
 		       __func__, __LINE__, wwn_to_str(ea->fcport->port_name));
 
@@ -1994,7 +1994,7 @@ qla24xx_handle_plogi_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 			qla24xx_post_gpdb_work(vha, ea->fcport, 0);
 		}
 		break;
-	case MBS_COMMAND_ERROR:
+	case QLA_COMMAND_ERROR:
 		ql_dbg(ql_dbg_disc, vha, 0x20eb, "%s %d %s cmd error %x\n",
 		    __func__, __LINE__, wwn_to_str(ea->fcport->port_name), ea->data[1]);
 
