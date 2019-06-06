@@ -503,7 +503,7 @@ static char *
 qla2x00_pci_info_str(struct scsi_qla_host *vha, char *str, int str_len)
 {
 	struct qla_hw_data *ha = vha->hw;
-	static char *pci_bus_modes[] = {
+	static const char *const pci_bus_modes[] = {
 		"33", "66", "100", "133",
 	};
 	uint16_t pci_bus;
@@ -526,7 +526,9 @@ qla2x00_pci_info_str(struct scsi_qla_host *vha, char *str, int str_len)
 static char *
 qla24xx_pci_info_str(struct scsi_qla_host *vha, char *str, int str_len)
 {
-	static const char *pci_bus_modes[] = { "33", "66", "100", "133", };
+	static const char *const pci_bus_modes[] = {
+		"33", "66", "100", "133",
+	};
 	struct qla_hw_data *ha = vha->hw;
 	uint32_t pci_bus;
 	int pcie_reg;
