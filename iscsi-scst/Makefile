@@ -171,7 +171,7 @@ uninstall:
 
 $(MODULE_SYMVERS): $(SCST_DIR)/$(MODULE_SYMVERS)
 	cp $< kernel/
-	$(INFINIBAND_ENABLED) && cp $< kernel/isert-scst
+	if $(INFINIBAND_ENABLED); then cp $< kernel/isert-scst; fi
 
 clean:
 	$(MAKE) -C usr $@
