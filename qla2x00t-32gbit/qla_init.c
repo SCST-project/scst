@@ -5363,7 +5363,7 @@ qla2x00_reg_remote_port(scsi_qla_host_t *vha, fc_port_t *fcport)
 	ql_dbg(ql_dbg_disc, vha, 0x20ee, "%s %s. rport %p is %s mode\n",
 	    __func__, wwn_to_str(fcport->port_name), rport,
 	    (fcport->port_type == FCT_TARGET) ? "tgt" :
-	    ((fcport->port_type & FCT_NVME) ? "nvme" :"ini"));
+	    ((fcport->port_type & FCT_NVME) ? "nvme" : "ini"));
 
 	fc_remote_port_rolechg(rport, rport_ids.roles);
 }
