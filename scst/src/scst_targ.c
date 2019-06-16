@@ -6773,7 +6773,11 @@ out:
 
 static int scst_reset_scsi_target(struct scsi_device *sdev)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+	/* To do: implement this functionality. */
+	WARN_ON_ONCE(true);
+	return FAILED;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	int arg = SG_SCSI_RESET_TARGET;
 
 	return scsi_ioctl_reset(sdev, (__force __user int *)&arg);
@@ -6786,7 +6790,11 @@ static int scst_reset_scsi_target(struct scsi_device *sdev)
 
 static int scst_reset_scsi_device(struct scsi_device *sdev)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+	/* To do: implement this functionality. */
+	WARN_ON_ONCE(true);
+	return FAILED;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	int arg = SG_SCSI_RESET_DEVICE;
 
 	return scsi_ioctl_reset(sdev, (__force __user int *)&arg);
