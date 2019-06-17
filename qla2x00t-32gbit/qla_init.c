@@ -960,7 +960,7 @@ qla24xx_async_gnl_sp_done(void *s, int res)
 
 		ql_dbg(ql_dbg_disc + ql_dbg_verbose, vha, 0x20e8,
 		    "%s %s %02x:%02x:%02x state %d/%d lid %x \n",
-		    __func__, wwn_to_str((u8*)&wwn), e->port_id[2], e->port_id[1],
+		    __func__, wwn_to_str((u8 *)&wwn), e->port_id[2], e->port_id[1],
 		    e->port_id[0], e->current_login_state, e->last_login_state,
 		    (loop_id & 0x7fff));
 	}
