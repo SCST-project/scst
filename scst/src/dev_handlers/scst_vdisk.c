@@ -6839,9 +6839,19 @@ static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0) ||	\
 	(defined(CONFIG_SUSE_KERNEL) &&			\
 	 LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
-		bio_set_op_attrs(bio, REQ_OP_FLUSH, 0);
+		/*
+		 * For the introduction of REQ_PREFLUSH, see also commit
+		 * 28a8f0d317bf ("block, drivers, fs: rename REQ_FLUSH to
+		 * REQ_PREFLUSH") # v4.8.
+		 */
+		bio_set_op_attrs(bio, REQ_OP_WRITE, REQ_PREFLUSH);
 		submit_bio(bio);
 #else
+		/*
+		 * For the introduction of WRITE_FLUSH, see also commit
+		 * 4fed947cb311 ("block: implement REQ_FLUSH/FUA based
+		 * interface for FLUSH/FUA requests") # v2.6.37.
+		 */
 		submit_bio(WRITE_FLUSH, bio);
 #endif
 		goto out;
