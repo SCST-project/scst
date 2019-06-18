@@ -6836,13 +6836,13 @@ static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 		bio->bi_end_io = vdev_flush_end_io;
 		bio->bi_private = cmd;
 		bio_set_dev(bio, bdev);
-#if (!defined(CONFIG_SUSE_KERNEL) &&			\
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)) || \
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
-		submit_bio(WRITE_FLUSH, bio);
-#else
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0) ||	\
+	(defined(CONFIG_SUSE_KERNEL) &&			\
+	 LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 		bio_set_op_attrs(bio, REQ_OP_FLUSH, 0);
 		submit_bio(bio);
+#else
+		submit_bio(WRITE_FLUSH, bio);
 #endif
 		goto out;
 	} else {
