@@ -1636,7 +1636,11 @@ enum {
 #define FC_PORT_ROLE_IP_PORT			0x04
 #endif
 
-#ifndef FC_PORT_ROLE_NVME_INITIATOR
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
+/*
+ * See also commit d6d20012e116 ("nvme-fabrics: Add FC transport LLDD api
+ * definitions") # v4.10.
+ */
 #define FC_PORT_ROLE_NVME_INITIATOR		0x10
 #define FC_PORT_ROLE_NVME_TARGET		0x20
 #define FC_PORT_ROLE_NVME_DISCOVERY		0x40
