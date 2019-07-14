@@ -465,7 +465,7 @@ void qla24xx_handle_adisc_event(scsi_qla_host_t *vha, struct event_arg *ea)
 	    fcport->fw_login_state, ea->rc, fcport->login_gen, ea->sp->gen2,
 	    fcport->rscn_gen, ea->sp->gen1, fcport->loop_id);
 
-	if (ea->rc != (MBS_COMMAND_COMPLETE & MBS_MASK)) {
+	if (ea->data[0] != MBS_COMMAND_COMPLETE) {
 		ql_dbg(ql_dbg_disc, vha, 0x2066,
 		    "%s %s: adisc fail: post delete\n",
 		    __func__, wwn_to_str(ea->fcport->port_name));
@@ -1884,7 +1884,7 @@ qla24xx_async_abort_command(srb_t *sp)
 static void
 qla24xx_handle_prli_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 {
-	switch (ea->rc | MBS_COMMAND_COMPLETE) {
+	switch (ea->data[0]) {
 	case MBS_COMMAND_COMPLETE:
 		ql_dbg(ql_dbg_disc, vha, 0x2118, "%s %d %s post gpdb\n",
 		       __func__, __LINE__, wwn_to_str(ea->fcport->port_name));
@@ -1965,7 +1965,7 @@ qla24xx_handle_plogi_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 		return;
 	}
 
-	switch (ea->rc | MBS_COMMAND_COMPLETE) {
+	switch (ea->data[0]) {
 	case MBS_COMMAND_COMPLETE:
 		/*
 		 * Driver must validate login state - If PRLI not complete,
