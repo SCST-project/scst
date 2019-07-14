@@ -698,8 +698,7 @@ void qla24xx_do_nack_work(struct scsi_qla_host *vha, struct qla_work_evt *e)
 	case SRB_NACK_PRLI:
 		t = e->u.nack.fcport;
 		flush_work(&t->del_work);
-		flush_work(&t->post_logout_work);
-		flush_work(&t->finish_logout_work);
+		flush_work(&t->free_work);
 		mutex_lock(&vha->vha_tgt.tgt_mutex);
 		t = qlt_create_sess(vha, e->u.nack.fcport, 0);
 		mutex_unlock(&vha->vha_tgt.tgt_mutex);
@@ -967,13 +966,16 @@ qlt_send_first_logo(struct scsi_qla_host *vha, qlt_port_logo_t *logo)
 	    logo->cmd_count, res);
 }
 
-void qlt_post_logout(struct work_struct *work)
+void qlt_free_session_done(struct work_struct *work)
 {
 	struct fc_port *sess = container_of(work, struct fc_port,
-					    post_logout_work);
+	    free_work);
+	struct qla_tgt *tgt = sess->tgt;
 	struct scsi_qla_host *vha = sess->vha;
 	struct qla_hw_data *ha = vha->hw;
+	unsigned long flags;
 	bool logout_started = false;
+	scsi_qla_host_t *base_vha;
 	struct qlt_plogi_ack_t *own =
 		sess->plogi_link[QLT_PLOGI_LINK_SAME_WWN];
 
@@ -1033,19 +1035,22 @@ void qlt_post_logout(struct work_struct *work)
 	if (sess->se_sess != NULL)
 		ha->tgt.tgt_ops->free_session(sess);
 
-	if (!logout_started)
-		qlt_finish_logout(&sess->finish_logout_work);
-}
+	if (logout_started) {
+		bool traced = false;
 
-void qlt_finish_logout(struct work_struct *work)
-{
-	struct fc_port *sess = container_of(work, struct fc_port,
-					    finish_logout_work);
-	struct qla_tgt *tgt = sess->tgt;
-	struct scsi_qla_host *vha = sess->vha;
-	struct qla_hw_data *ha = vha->hw;
-	scsi_qla_host_t *base_vha;
-	unsigned long flags;
+		while (!READ_ONCE(sess->logout_completed)) {
+			if (!traced) {
+				ql_dbg(ql_dbg_tgt_mgt, vha, 0xf086,
+					"%s: waiting for sess %p logout\n",
+					__func__, sess);
+				traced = true;
+			}
+			msleep(100);
+		}
+
+		ql_dbg(ql_dbg_disc, vha, 0xf087,
+		    "%s: sess %p logout completed\n", __func__, sess);
+	}
 
 	if (sess->logo_ack_needed) {
 		sess->logo_ack_needed = 0;
@@ -1082,8 +1087,7 @@ void qlt_finish_logout(struct work_struct *work)
 		struct qlt_plogi_ack_t *con =
 		    sess->plogi_link[QLT_PLOGI_LINK_CONFLICT];
 		struct imm_ntfy_from_isp *iocb;
-		struct qlt_plogi_ack_t *own =
-		    sess->plogi_link[QLT_PLOGI_LINK_SAME_WWN];
+		own = sess->plogi_link[QLT_PLOGI_LINK_SAME_WWN];
 
 		if (con) {
 			iocb = &con->iocb;
@@ -1179,7 +1183,8 @@ void qlt_unreg_sess(struct fc_port *sess)
 		sess->nvme_flag |= NVME_FLAG_DELETING;
 		schedule_work(&sess->nvme_del_work);
 	} else {
-		schedule_work(&sess->post_logout_work);
+		INIT_WORK(&sess->free_work, qlt_free_session_done);
+		schedule_work(&sess->free_work);
 	}
 }
 EXPORT_SYMBOL(qlt_unreg_sess);
@@ -1385,6 +1390,7 @@ static struct fc_port *qlt_create_sess(
 	 */
 	sess->logout_on_delete = 1;
 	sess->keep_nport_handle = 0;
+	sess->logout_completed = 0;
 
 	if (ha->tgt.tgt_ops->check_initiator_node_acl(vha,
 	    &fcport->port_name[0], sess) < 0) {
@@ -4612,7 +4618,7 @@ void qlt_logo_completion_handler(fc_port_t *fcport, int rc)
 			fcport->d_id.b.al_pa, rc);
 	}
 
-	schedule_work(&fcport->finish_logout_work);
+	fcport->logout_completed = 1;
 }
 
 /*

@@ -293,6 +293,7 @@ qla2x00_async_login(struct scsi_qla_host *vha, fc_port_t *fcport,
 		goto done;
 
 	fcport->flags |= FCF_ASYNC_SENT;
+	fcport->logout_completed = 0;
 
 	fcport->disc_state = DSC_LOGIN_PEND;
 	sp->type = SRB_LOGIN_CMD;
@@ -465,7 +466,7 @@ void qla24xx_handle_adisc_event(scsi_qla_host_t *vha, struct event_arg *ea)
 	    fcport->fw_login_state, ea->rc, fcport->login_gen, ea->sp->gen2,
 	    fcport->rscn_gen, ea->sp->gen1, fcport->loop_id);
 
-	if (ea->rc != QLA_SUCCESS) {
+	if (ea->data[0] != MBS_COMMAND_COMPLETE) {
 		ql_dbg(ql_dbg_disc, vha, 0x2066,
 		    "%s %s: adisc fail: post delete\n",
 		    __func__, wwn_to_str(ea->fcport->port_name));
@@ -1199,6 +1200,7 @@ qla24xx_async_prli(struct scsi_qla_host *vha, fc_port_t *fcport)
 		return rval;
 
 	fcport->flags |= FCF_ASYNC_SENT;
+	fcport->logout_completed = 0;
 
 	sp->type = SRB_PRLI_CMD;
 	sp->name = "prli";
@@ -1884,8 +1886,8 @@ qla24xx_async_abort_command(srb_t *sp)
 static void
 qla24xx_handle_prli_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 {
-	switch (ea->rc) {
-	case QLA_SUCCESS:
+	switch (ea->data[0]) {
+	case MBS_COMMAND_COMPLETE:
 		ql_dbg(ql_dbg_disc, vha, 0x2118, "%s %d %s post gpdb\n",
 		       __func__, __LINE__, wwn_to_str(ea->fcport->port_name));
 
@@ -1965,8 +1967,8 @@ qla24xx_handle_plogi_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 		return;
 	}
 
-	switch (ea->rc) {
-	case QLA_SUCCESS:
+	switch (ea->data[0]) {
+	case MBS_COMMAND_COMPLETE:
 		/*
 		 * Driver must validate login state - If PRLI not complete,
 		 * force a relogin attempt via implicit LOGO, PLOGI, and PRLI
@@ -1994,7 +1996,7 @@ qla24xx_handle_plogi_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 			qla24xx_post_gpdb_work(vha, ea->fcport, 0);
 		}
 		break;
-	case QLA_COMMAND_ERROR:
+	case MBS_COMMAND_ERROR:
 		ql_dbg(ql_dbg_disc, vha, 0x20eb, "%s %d %s cmd error %x\n",
 		    __func__, __LINE__, wwn_to_str(ea->fcport->port_name), ea->data[1]);
 
@@ -2005,7 +2007,7 @@ qla24xx_handle_plogi_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 		else
 			qla2x00_mark_device_lost(vha, ea->fcport, 1, 0);
 		break;
-	case QLA_LOOP_ID_USED:
+	case MBS_LOOP_ID_USED:
 		/* data[1] = IO PARAM 1 = nport ID  */
 		cid.b.domain = (ea->iop[1] >> 16) & 0xff;
 		cid.b.area   = (ea->iop[1] >>  8) & 0xff;
@@ -2021,7 +2023,7 @@ qla24xx_handle_plogi_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 		ea->fcport->loop_id = FC_NO_LOOP_ID;
 		qla24xx_post_gnl_work(vha, ea->fcport);
 		break;
-	case QLA_PORT_ID_USED:
+	case MBS_PORT_ID_USED:
 		lid = ea->iop[1] & 0xffff;
 		qlt_find_sess_invalidate_other(vha,
 		    wwn_to_u64(ea->fcport->port_name),
@@ -4877,8 +4879,6 @@ qla2x00_alloc_fcport(scsi_qla_host_t *vha, gfp_t flags)
 
 	INIT_WORK(&fcport->del_work, qla24xx_delete_sess_fn);
 	INIT_WORK(&fcport->reg_work, qla_register_fcport_fn);
-	INIT_WORK(&fcport->post_logout_work, qlt_post_logout);
-	INIT_WORK(&fcport->finish_logout_work, qlt_finish_logout);
 	INIT_LIST_HEAD(&fcport->gnl_entry);
 	INIT_LIST_HEAD(&fcport->list);
 
