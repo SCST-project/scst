@@ -9,11 +9,11 @@
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 
+#include "qla_nvme.h"
 #include <linux/scatterlist.h>
 #include <linux/delay.h>
 #include <linux/nvme.h>
 #include <linux/nvme-fc.h>
-#include "qla_nvme.h"
 
 static struct nvme_fc_port_template qla_nvme_fc_transport;
 
@@ -558,7 +558,6 @@ static void qla_nvme_remoteport_delete(struct nvme_fc_remote_port *rport)
 	fcport = qla_rport->fcport;
 	fcport->nvme_remote_port = NULL;
 	fcport->nvme_flag &= ~NVME_FLAG_REGISTERED;
-
 	list_for_each_entry_safe(qla_rport, trport,
 	    &fcport->vha->nvme_rport_list, list) {
 		if (qla_rport->fcport == fcport) {
