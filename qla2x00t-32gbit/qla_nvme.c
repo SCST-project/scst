@@ -9,11 +9,11 @@
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 
+#include "qla_nvme.h"
 #include <linux/scatterlist.h>
 #include <linux/delay.h>
 #include <linux/nvme.h>
 #include <linux/nvme-fc.h>
-#include "qla_nvme.h"
 
 static struct nvme_fc_port_template qla_nvme_fc_transport;
 

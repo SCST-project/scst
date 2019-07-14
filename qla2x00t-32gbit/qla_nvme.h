@@ -10,6 +10,7 @@
 #include <scsi/fc/fc_fs.h>
 #include <scsi/fc/fc_els.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+#include <linux/scatterlist.h>
 #include <linux/nvme-fc-driver.h>
 #endif
 
