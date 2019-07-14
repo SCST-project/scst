@@ -73,3 +73,32 @@ Call Trace:
  [<ffffffff8159c459>] ? retint_restore_args+0x13/0x43
  [<ffffffff810b2480>] ? kthread+0x0/0xc0
  [<ffffffff8159cc40>] ? child_rip+0x0/0x30
+
+When using RHEL 6 unloading this driver triggers a deadlock:
+
+INFO: task events/0:35 blocked for more than 120 seconds.
+      Not tainted 2.6.32-754.11.1.el6.x86_64.debug #1
+"echo 0 > /proc/sys/kernel/hung_task_timeout_secs" disables this message.
+events/0      D ffff880077e24408 12408    35      2 0x00000000
+ ffff88007e02fa60 0000000000000046 0000000000000000 7fffffffffffffff
+ 7fffffffffffffff 00000365a5588f80 ffff88007e028a80 ffff88000d7d93d8
+ 0000000100346a5e 00000000000003c8 ffff88007e029040 ffff88007e02ffd8
+Call Trace:
+ [<ffffffff8158f775>] schedule_timeout+0x265/0x330
+ [<ffffffff8158f29f>] ? wait_for_common+0x4f/0x180
+ [<ffffffff8158f29f>] ? wait_for_common+0x4f/0x180
+ [<ffffffff810737a0>] ? default_wake_function+0x0/0x20
+ [<ffffffff8158f37b>] wait_for_common+0x12b/0x180
+ [<ffffffff810737a0>] ? default_wake_function+0x0/0x20
+ [<ffffffff8158f4ad>] wait_for_completion+0x1d/0x20
+ [<ffffffffa0714946>] ? qlt_free_session_done+0x1d6/0x930 [qla2xxx_scst]
+ [<ffffffffa0714770>] ? qlt_free_session_done+0x0/0x930 [qla2xxx_scst]
+ [<ffffffff810ab2ee>] ? worker_thread+0x21e/0x3f0
+ [<ffffffff810ab29b>] ? worker_thread+0x1cb/0x3f0
+ [<ffffffff810b29b0>] ? autoremove_wake_function+0x0/0x40
+ [<ffffffff810ab0d0>] ? worker_thread+0x0/0x3f0
+ [<ffffffff810b2520>] ? kthread+0xa0/0xc0
+ [<ffffffff8159cc60>] ? child_rip+0x20/0x30
+ [<ffffffff8159c459>] ? retint_restore_args+0x13/0x43
+ [<ffffffff810b2480>] ? kthread+0x0/0xc0
+ [<ffffffff8159cc40>] ? child_rip+0x0/0x30

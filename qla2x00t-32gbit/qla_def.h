@@ -2428,6 +2428,7 @@ typedef struct fc_port {
 #define NVME_FLAG_RESETTING 1
 
 	struct fc_port *conflict;
+	unsigned char logout_completed;
 	int generation;
 
 	struct se_session *se_sess;
@@ -2435,9 +2436,8 @@ typedef struct fc_port {
 	struct qla_tgt *tgt;
 	unsigned long expires;
 	struct list_head del_list_entry;
+	struct work_struct free_work;
 	struct work_struct reg_work;
-	struct work_struct post_logout_work;
-	struct work_struct finish_logout_work;
 	uint64_t jiffies_at_registration;
 	struct qlt_plogi_ack_t *plogi_link[QLT_PLOGI_LINK_MAX];
 	struct completion *unreg_done;
