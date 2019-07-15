@@ -626,7 +626,6 @@ static void qla_nvme_remoteport_delete(struct nvme_fc_remote_port *rport)
 	fcport = qla_rport->fcport;
 	fcport->nvme_remote_port = NULL;
 	fcport->nvme_flag &= ~NVME_FLAG_REGISTERED;
-
 	fcport->nvme_flag &= ~NVME_FLAG_DELETING;
 	ql_log(ql_log_info, fcport->vha, 0x2110,
 	    "remoteport_delete of %p %8phN completed.\n",
