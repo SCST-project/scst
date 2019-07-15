@@ -1071,7 +1071,7 @@ qla24xx_walk_and_build_sglist(struct qla_hw_data *ha, srb_t *sp,
 #if QLA_ENABLE_PI
 int
 qla24xx_walk_and_build_prot_sglist(struct qla_hw_data *ha, srb_t *sp,
-    struct dsd64 *cur_dsd, uint16_t tot_dsds, struct qla_tgt_cmd *tc)
+	struct dsd64 *cur_dsd, uint16_t tot_dsds, struct qla_tgt_cmd *tc)
 {
 	struct dsd_dma *dsd_ptr = NULL, *dif_dsd, *nxt_dsd;
 	struct scatterlist *sg, *sgl;
