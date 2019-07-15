@@ -1084,6 +1084,7 @@ void qlt_free_session_done(struct work_struct *work)
 		struct qlt_plogi_ack_t *con =
 		    sess->plogi_link[QLT_PLOGI_LINK_CONFLICT];
 		struct imm_ntfy_from_isp *iocb;
+
 		own = sess->plogi_link[QLT_PLOGI_LINK_SAME_WWN];
 
 		if (con) {
