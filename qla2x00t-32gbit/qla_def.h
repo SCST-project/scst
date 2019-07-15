@@ -605,6 +605,8 @@ typedef struct srb {
 	uint8_t cmd_type;
 	uint8_t pad[3];
 	atomic_t ref_count;
+	struct kref cmd_kref;	/* need to migrate ref_count over to this */
+	void *priv;
 	wait_queue_head_t nvme_ls_waitq;
 	struct fc_port *fcport;
 	struct scsi_qla_host *vha;
@@ -631,6 +633,7 @@ typedef struct srb {
 	} u;
 	void (*done)(void *, int);
 	void (*free)(void *);
+	void (*put_fn)(struct kref *kref);
 } srb_t;
 
 #define GET_CMD_SP(sp) (sp->u.scmd.cmd)
@@ -2413,7 +2416,6 @@ typedef struct fc_port {
 	unsigned int id_changed:1;
 	unsigned int scan_needed:1;
 
-	struct work_struct nvme_del_work;
 	struct completion nvme_del_done;
 	uint32_t nvme_prli_service_param;
 #define NVME_PRLI_SP_CONF       BIT_7
@@ -4454,7 +4456,6 @@ typedef struct scsi_qla_host {
 
 	struct		nvme_fc_local_port *nvme_local_port;
 	struct completion nvme_del_done;
-	struct list_head nvme_rport_list;
 
 	uint16_t	fcoe_vlan_id;
 	uint16_t	fcoe_fcf_idx;

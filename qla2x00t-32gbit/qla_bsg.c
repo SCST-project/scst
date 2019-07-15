@@ -146,9 +146,11 @@ qla24xx_fcp_prio_cfg_valid(scsi_qla_host_t *vha,
 }
 
 #ifndef NEW_LIBFC_API
-static int qla24xx_proc_fcp_prio_cfg_cmd(struct fc_bsg_job *bsg_job)
+static int
+qla24xx_proc_fcp_prio_cfg_cmd(struct fc_bsg_job *bsg_job)
 #else
-static int qla24xx_proc_fcp_prio_cfg_cmd(struct bsg_job *bsg_job)
+static int
+qla24xx_proc_fcp_prio_cfg_cmd(struct bsg_job *bsg_job)
 #endif
 {
 	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
@@ -278,9 +280,11 @@ exit_fcp_prio_cfg:
 }
 
 #ifndef NEW_LIBFC_API
-static int qla2x00_process_els(struct fc_bsg_job *bsg_job)
+static int
+qla2x00_process_els(struct fc_bsg_job *bsg_job)
 #else
-static int qla2x00_process_els(struct bsg_job *bsg_job)
+static int
+qla2x00_process_els(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_request *bsg_request = bsg_job->request;
@@ -460,9 +464,11 @@ qla24xx_calc_ct_iocbs(uint16_t dsds)
 }
 
 #ifndef NEW_LIBFC_API
-static int qla2x00_process_ct(struct fc_bsg_job *bsg_job)
+static int
+qla2x00_process_ct(struct fc_bsg_job *bsg_job)
 #else
-static int qla2x00_process_ct(struct bsg_job *bsg_job)
+static int
+qla2x00_process_ct(struct bsg_job *bsg_job)
 #endif
 {
 	srb_t *sp;
@@ -741,9 +747,11 @@ done_set_internal:
 }
 
 #ifndef NEW_LIBFC_API
-static int qla2x00_process_loopback(struct fc_bsg_job *bsg_job)
+static int
+qla2x00_process_loopback(struct fc_bsg_job *bsg_job)
 #else
-static int qla2x00_process_loopback(struct bsg_job *bsg_job)
+static int
+qla2x00_process_loopback(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_request *bsg_request = bsg_job->request;
@@ -986,9 +994,11 @@ done_unmap_req_sg:
 }
 
 #ifndef NEW_LIBFC_API
-static int qla84xx_reset(struct fc_bsg_job *bsg_job)
+static int
+qla84xx_reset(struct fc_bsg_job *bsg_job)
 #else
-static int qla84xx_reset(struct bsg_job *bsg_job)
+static int
+qla84xx_reset(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_request *bsg_request = bsg_job->request;
@@ -1025,9 +1035,11 @@ static int qla84xx_reset(struct bsg_job *bsg_job)
 }
 
 #ifndef NEW_LIBFC_API
-static int qla84xx_updatefw(struct fc_bsg_job *bsg_job)
+static int
+qla84xx_updatefw(struct fc_bsg_job *bsg_job)
 #else
-static int qla84xx_updatefw(struct bsg_job *bsg_job)
+static int
+qla84xx_updatefw(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_request *bsg_request = bsg_job->request;
@@ -1138,9 +1150,11 @@ done_unmap_sg:
 }
 
 #ifndef NEW_LIBFC_API
-static int qla84xx_mgmt_cmd(struct fc_bsg_job *bsg_job)
+static int
+qla84xx_mgmt_cmd(struct fc_bsg_job *bsg_job)
 #else
-static int qla84xx_mgmt_cmd(struct bsg_job *bsg_job)
+static int
+qla84xx_mgmt_cmd(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_request *bsg_request = bsg_job->request;
@@ -1337,9 +1351,11 @@ exit_mgmt:
 }
 
 #ifndef NEW_LIBFC_API
-static int qla24xx_iidma(struct fc_bsg_job *bsg_job)
+static int
+qla24xx_iidma(struct fc_bsg_job *bsg_job)
 #else
-static int qla24xx_iidma(struct bsg_job *bsg_job)
+static int
+qla24xx_iidma(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_request *bsg_request = bsg_job->request;
@@ -1429,11 +1445,13 @@ static int qla24xx_iidma(struct bsg_job *bsg_job)
 }
 
 #ifndef NEW_LIBFC_API
-static int qla2x00_optrom_setup(struct fc_bsg_job *bsg_job,
-				scsi_qla_host_t *vha, uint8_t is_update)
+static int
+qla2x00_optrom_setup(struct fc_bsg_job *bsg_job, scsi_qla_host_t *vha,
+	uint8_t is_update)
 #else
-static int qla2x00_optrom_setup(struct bsg_job *bsg_job,
-				scsi_qla_host_t *vha, uint8_t is_update)
+static int
+qla2x00_optrom_setup(struct bsg_job *bsg_job, scsi_qla_host_t *vha,
+	uint8_t is_update)
 #endif
 {
 	struct fc_bsg_request *bsg_request = bsg_job->request;
@@ -1503,9 +1521,11 @@ static int qla2x00_optrom_setup(struct bsg_job *bsg_job,
 }
 
 #ifndef NEW_LIBFC_API
-static int qla2x00_read_optrom(struct fc_bsg_job *bsg_job)
+static int
+qla2x00_read_optrom(struct fc_bsg_job *bsg_job)
 #else
-static int qla2x00_read_optrom(struct bsg_job *bsg_job)
+static int
+qla2x00_read_optrom(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -1543,9 +1563,11 @@ static int qla2x00_read_optrom(struct bsg_job *bsg_job)
 }
 
 #ifndef NEW_LIBFC_API
-static int qla2x00_update_optrom(struct fc_bsg_job *bsg_job)
+static int
+qla2x00_update_optrom(struct fc_bsg_job *bsg_job)
 #else
-static int qla2x00_update_optrom(struct bsg_job *bsg_job)
+static int
+qla2x00_update_optrom(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -1582,9 +1604,11 @@ static int qla2x00_update_optrom(struct bsg_job *bsg_job)
 }
 
 #ifndef NEW_LIBFC_API
-static int qla2x00_update_fru_versions(struct fc_bsg_job *bsg_job)
+static int
+qla2x00_update_fru_versions(struct fc_bsg_job *bsg_job)
 #else
-static int qla2x00_update_fru_versions(struct bsg_job *bsg_job)
+static int
+qla2x00_update_fru_versions(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -1638,9 +1662,11 @@ done:
 }
 
 #ifndef NEW_LIBFC_API
-static int qla2x00_read_fru_status(struct fc_bsg_job *bsg_job)
+static int
+qla2x00_read_fru_status(struct fc_bsg_job *bsg_job)
 #else
-static int qla2x00_read_fru_status(struct bsg_job *bsg_job)
+static int
+qla2x00_read_fru_status(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -1692,9 +1718,11 @@ done:
 }
 
 #ifndef NEW_LIBFC_API
-static int qla2x00_write_fru_status(struct fc_bsg_job *bsg_job)
+static int
+qla2x00_write_fru_status(struct fc_bsg_job *bsg_job)
 #else
-static int qla2x00_write_fru_status(struct bsg_job *bsg_job)
+static int
+qla2x00_write_fru_status(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -1742,9 +1770,11 @@ done:
 }
 
 #ifndef NEW_LIBFC_API
-static int qla2x00_write_i2c(struct fc_bsg_job *bsg_job)
+static int
+qla2x00_write_i2c(struct fc_bsg_job *bsg_job)
 #else
-static int qla2x00_write_i2c(struct bsg_job *bsg_job)
+static int
+qla2x00_write_i2c(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -1791,9 +1821,11 @@ done:
 }
 
 #ifndef NEW_LIBFC_API
-static int qla2x00_read_i2c(struct fc_bsg_job *bsg_job)
+static int
+qla2x00_read_i2c(struct fc_bsg_job *bsg_job)
 #else
-static int qla2x00_read_i2c(struct bsg_job *bsg_job)
+static int
+qla2x00_read_i2c(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -1844,9 +1876,11 @@ done:
 }
 
 #ifndef NEW_LIBFC_API
-static int qla24xx_process_bidir_cmd(struct fc_bsg_job *bsg_job)
+static int
+qla24xx_process_bidir_cmd(struct fc_bsg_job *bsg_job)
 #else
-static int qla24xx_process_bidir_cmd(struct bsg_job *bsg_job)
+static int
+qla24xx_process_bidir_cmd(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -2025,9 +2059,11 @@ done:
 }
 
 #ifndef NEW_LIBFC_API
-static int qlafx00_mgmt_cmd(struct fc_bsg_job *bsg_job)
+static int
+qlafx00_mgmt_cmd(struct fc_bsg_job *bsg_job)
 #else
-static int qlafx00_mgmt_cmd(struct bsg_job *bsg_job)
+static int
+qlafx00_mgmt_cmd(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_request *bsg_request = bsg_job->request;
@@ -2151,9 +2187,11 @@ done:
 }
 
 #ifndef NEW_LIBFC_API
-static int qla26xx_serdes_op(struct fc_bsg_job *bsg_job)
+static int
+qla26xx_serdes_op(struct fc_bsg_job *bsg_job)
 #else
-static int qla26xx_serdes_op(struct bsg_job *bsg_job)
+static int
+qla26xx_serdes_op(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -2196,9 +2234,11 @@ static int qla26xx_serdes_op(struct bsg_job *bsg_job)
 }
 
 #ifndef NEW_LIBFC_API
-static int qla8044_serdes_op(struct fc_bsg_job *bsg_job)
+static int
+qla8044_serdes_op(struct fc_bsg_job *bsg_job)
 #else
-static int qla8044_serdes_op(struct bsg_job *bsg_job)
+static int
+qla8044_serdes_op(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -2241,9 +2281,11 @@ static int qla8044_serdes_op(struct bsg_job *bsg_job)
 }
 
 #ifndef NEW_LIBFC_API
-static int qla27xx_get_flash_upd_cap(struct fc_bsg_job *bsg_job)
+static int
+qla27xx_get_flash_upd_cap(struct fc_bsg_job *bsg_job)
 #else
-static int qla27xx_get_flash_upd_cap(struct bsg_job *bsg_job)
+static int
+qla27xx_get_flash_upd_cap(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -2276,9 +2318,11 @@ static int qla27xx_get_flash_upd_cap(struct bsg_job *bsg_job)
 }
 
 #ifndef NEW_LIBFC_API
-static int qla27xx_set_flash_upd_cap(struct fc_bsg_job *bsg_job)
+static int
+qla27xx_set_flash_upd_cap(struct fc_bsg_job *bsg_job)
 #else
-static int qla27xx_set_flash_upd_cap(struct bsg_job *bsg_job)
+static int
+qla27xx_set_flash_upd_cap(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -2325,9 +2369,11 @@ static int qla27xx_set_flash_upd_cap(struct bsg_job *bsg_job)
 }
 
 #ifndef NEW_LIBFC_API
-static int qla27xx_get_bbcr_data(struct fc_bsg_job *bsg_job)
+static int
+qla27xx_get_bbcr_data(struct fc_bsg_job *bsg_job)
 #else
-static int qla27xx_get_bbcr_data(struct bsg_job *bsg_job)
+static int
+qla27xx_get_bbcr_data(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -2387,9 +2433,11 @@ done:
 }
 
 #ifndef NEW_LIBFC_API
-static int qla2x00_get_priv_stats(struct fc_bsg_job *bsg_job)
+static int
+qla2x00_get_priv_stats(struct fc_bsg_job *bsg_job)
 #else
-static int qla2x00_get_priv_stats(struct bsg_job *bsg_job)
+static int
+qla2x00_get_priv_stats(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_request *bsg_request = bsg_job->request;
@@ -2449,9 +2497,11 @@ static int qla2x00_get_priv_stats(struct bsg_job *bsg_job)
 }
 
 #ifndef NEW_LIBFC_API
-static int qla2x00_do_dport_diagnostics(struct fc_bsg_job *bsg_job)
+static int
+qla2x00_do_dport_diagnostics(struct fc_bsg_job *bsg_job)
 #else
-static int qla2x00_do_dport_diagnostics(struct bsg_job *bsg_job)
+static int
+qla2x00_do_dport_diagnostics(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -2496,9 +2546,11 @@ static int qla2x00_do_dport_diagnostics(struct bsg_job *bsg_job)
 }
 
 #ifndef NEW_LIBFC_API
-static int qla2x00_get_flash_image_status(struct fc_bsg_job *bsg_job)
+static int
+qla2x00_get_flash_image_status(struct fc_bsg_job *bsg_job)
 #else
-static int qla2x00_get_flash_image_status(struct bsg_job *bsg_job)
+static int
+qla2x00_get_flash_image_status(struct bsg_job *bsg_job)
 #endif
 {
 	scsi_qla_host_t *vha = shost_priv(fc_bsg_to_shost(bsg_job));
@@ -2538,9 +2590,11 @@ static int qla2x00_get_flash_image_status(struct bsg_job *bsg_job)
 }
 
 #ifndef NEW_LIBFC_API
-static int qla2x00_process_vendor_specific(struct fc_bsg_job *bsg_job)
+static int
+qla2x00_process_vendor_specific(struct fc_bsg_job *bsg_job)
 #else
-static int qla2x00_process_vendor_specific(struct bsg_job *bsg_job)
+static int
+qla2x00_process_vendor_specific(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_request *bsg_request = bsg_job->request;
@@ -2622,9 +2676,11 @@ static int qla2x00_process_vendor_specific(struct bsg_job *bsg_job)
 }
 
 #ifndef NEW_LIBFC_API
-int qla24xx_bsg_request(struct fc_bsg_job *bsg_job)
+int
+qla24xx_bsg_request(struct fc_bsg_job *bsg_job)
 #else
-int qla24xx_bsg_request(struct bsg_job *bsg_job)
+int
+qla24xx_bsg_request(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_request *bsg_request = bsg_job->request;
@@ -2678,9 +2734,11 @@ int qla24xx_bsg_request(struct bsg_job *bsg_job)
 }
 
 #ifndef NEW_LIBFC_API
-int qla24xx_bsg_timeout(struct fc_bsg_job *bsg_job)
+int
+qla24xx_bsg_timeout(struct fc_bsg_job *bsg_job)
 #else
-int qla24xx_bsg_timeout(struct bsg_job *bsg_job)
+int
+qla24xx_bsg_timeout(struct bsg_job *bsg_job)
 #endif
 {
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
