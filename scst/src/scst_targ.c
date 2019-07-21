@@ -4504,7 +4504,8 @@ static int scst_pre_xmit_response1(struct scst_cmd *cmd)
 		 * latency, so we should decrement them after cmd completed.
 		 */
 		smp_mb__before_atomic_dec();
-		atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
+		if (atomic_dec_return(&cmd->tgt_dev->tgt_dev_cmd_count) == 0)
+			call_rcu(&cmd->tgt_dev->rcu, scst_free_tgt_dev_rcu);
 		percpu_ref_put(&cmd->dev->refcnt);
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 		atomic_dec(&cmd->dev->dev_cmd_count);
@@ -5142,7 +5143,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 
 		scst_set_cmd_state(cmd, SCST_CMD_STATE_PARSE);
 
-		cnt = atomic_inc_return(&tgt_dev->tgt_dev_cmd_count);
+		cnt = atomic_inc_return(&tgt_dev->tgt_dev_cmd_count) - 1;
 		if (unlikely(cnt > dev->max_tgt_dev_commands)) {
 			TRACE(TRACE_FLOW_CONTROL,
 				"Too many pending commands (%d) in "

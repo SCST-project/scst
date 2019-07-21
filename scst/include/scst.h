@@ -3104,6 +3104,10 @@ struct scst_tgt_dev {
 	/* List entry in sess->sess_tgt_dev_list */
 	struct list_head sess_tgt_dev_list_entry;
 
+	struct rcu_head rcu;
+	struct work_struct free_work;
+	atomic_t *a;
+
 	struct scst_device *dev; /* to save extra dereferences */
 	uint64_t lun;		 /* to save extra dereferences */
 
@@ -3120,7 +3124,7 @@ struct scst_tgt_dev {
 	int max_sg_cnt;
 
 	/*************************************************************
-	 ** Tgt_dev's flags
+	 ** Flags that control the behavior of a tgt_dev.
 	 *************************************************************/
 
 	/* Set if tgt_dev is read only (to save extra dereferences) */
@@ -3156,7 +3160,7 @@ struct scst_tgt_dev {
 	 */
 	int tgt_dev_dif_guard_format;
 
-	/* How many cmds alive on this dev in this session */
+	/* One more than the number of commands associated with this tgt_dev. */
 	atomic_t tgt_dev_cmd_count ____cacheline_aligned_in_smp;
 
 	/* ALUA command filter */
@@ -3258,6 +3262,13 @@ struct scst_acg_dev {
 
 	/* sysfs release completion */
 	struct completion *acg_dev_kobj_release_cmpl;
+
+	/*
+	 * Number of deleted tgt_devs associated with this acg_dev. Set if an
+	 * acg_dev is no longer visible and will be freed as soon as all
+	 * associated tgt_dev instances have been freed.
+	 */
+	int nr_deleted_tgt_devs;
 
 	/* Name of the link to the corresponding LUN */
 	char acg_dev_link_name[20];
@@ -4776,7 +4787,7 @@ static inline int scst_cmd_get_block_size(struct scst_cmd *cmd)
 static inline unsigned int scst_get_active_cmd_count(struct scst_cmd *cmd)
 {
 	if (likely(cmd->tgt_dev != NULL))
-		return atomic_read(&cmd->tgt_dev->tgt_dev_cmd_count);
+		return atomic_read(&cmd->tgt_dev->tgt_dev_cmd_count) - 1;
 	else
 		return (unsigned int)-1;
 }
