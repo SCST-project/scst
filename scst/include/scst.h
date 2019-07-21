@@ -3120,7 +3120,7 @@ struct scst_tgt_dev {
 	int max_sg_cnt;
 
 	/*************************************************************
-	 ** Tgt_dev's flags
+	 ** Flags that control the behavior of a tgt_dev.
 	 *************************************************************/
 
 	/* Set if tgt_dev is read only (to save extra dereferences) */
