@@ -5229,10 +5229,8 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 		res = scst_add_threads(tgt_dev->active_cmd_threads, NULL,
 				       tgt_dev,
 				       dev->threads_num + tgtt->threads_num);
-		if (res != 0) {
-			/* Let's clear here, because no threads could be run */
-			tgt_dev->active_cmd_threads->io_context = NULL;
-		}
+		if (res != 0)
+			scst_deinit_threads(&tgt_dev->tgt_dev_cmd_threads);
 		break;
 	}
 	case SCST_THREADS_POOL_SHARED:
@@ -5254,6 +5252,8 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 out:
 	if (res == 0)
 		tm_dbg_init_tgt_dev(tgt_dev);
+	else
+		tgt_dev->active_cmd_threads->io_context = NULL;
 
 	TRACE_EXIT_RES(res);
 	return res;
