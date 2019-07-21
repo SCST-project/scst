@@ -3156,7 +3156,7 @@ struct scst_tgt_dev {
 	 */
 	int tgt_dev_dif_guard_format;
 
-	/* How many cmds alive on this dev in this session */
+	/* One more than the number of commands associated with this tgt_dev. */
 	atomic_t tgt_dev_cmd_count ____cacheline_aligned_in_smp;
 
 	/* ALUA command filter */
@@ -4776,7 +4776,7 @@ static inline int scst_cmd_get_block_size(struct scst_cmd *cmd)
 static inline unsigned int scst_get_active_cmd_count(struct scst_cmd *cmd)
 {
 	if (likely(cmd->tgt_dev != NULL))
-		return atomic_read(&cmd->tgt_dev->tgt_dev_cmd_count);
+		return atomic_read(&cmd->tgt_dev->tgt_dev_cmd_count) - 1;
 	else
 		return (unsigned int)-1;
 }

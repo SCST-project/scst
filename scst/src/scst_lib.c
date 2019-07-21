@@ -5373,7 +5373,7 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	atomic_set(&tgt_dev->tgt_dev_dif_guard_failed_dev, 0);
 
 	tgt_dev->sess = sess;
-	atomic_set(&tgt_dev->tgt_dev_cmd_count, 0);
+	atomic_set(&tgt_dev->tgt_dev_cmd_count, 1);
 	if (acg_dev->acg->acg_black_hole_type != SCST_ACG_BLACK_HOLE_NONE)
 		set_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
 	else
@@ -5552,6 +5552,8 @@ static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	list_del_rcu(&tgt_dev->sess_tgt_dev_list_entry);
 
 	scst_tgt_dev_sysfs_del(tgt_dev);
+
+	atomic_dec(&tgt_dev->tgt_dev_cmd_count);
 }
 
 /*
