@@ -5280,6 +5280,8 @@ void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev)
 
 	TRACE_ENTRY();
 
+	lockdep_assert_held(&scst_mutex);
+
 	if (tgt_dev->dev->threads_num < 0)
 		goto out_deinit;
 
