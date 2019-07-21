@@ -2961,6 +2961,7 @@ retry_add:
 					TRACE_MGMT_DBG("Replacing LUN %lld",
 						(long long)tgt_dev->lun);
 					scst_del_tgt_dev(tgt_dev);
+					synchronize_rcu();
 					scst_free_tgt_dev(tgt_dev);
 					inq_changed_ua_needed = 1;
 					break;
@@ -3005,6 +3006,7 @@ next:
 				luns_changed = true;
 				something_freed = true;
 				scst_del_tgt_dev(tgt_dev);
+				synchronize_rcu();
 				scst_free_tgt_dev(tgt_dev);
 			}
 		}
@@ -4545,6 +4547,8 @@ out_on_del:
 		scst_cm_on_del_lun(acg_dev, false);
 
 out_free:
+	/* To do: verify whether this synchronize_rcu() call is necessary. */
+	synchronize_rcu();
 	list_for_each_entry_safe(tgt_dev, tt, &tmp_tgt_dev_list,
 			 extra_tgt_dev_list_entry) {
 		scst_free_tgt_dev(tgt_dev);
@@ -4645,6 +4649,7 @@ int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 	mutex_unlock(&scst_mutex);
 
 	scst_wait_for_tgt_devs(&tgt_dev_list);
+	synchronize_rcu();
 
 	mutex_lock(&scst_mutex);
 
@@ -4694,6 +4699,7 @@ int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 	mutex_unlock(&scst_mutex);
 
 	scst_wait_for_tgt_devs(&tgt_dev_list);
+	synchronize_rcu();
 
 	mutex_lock(&scst_mutex);
 	list_for_each_entry_safe(tgt_dev, tt, &tgt_dev_list,
@@ -4840,6 +4846,7 @@ static void scst_free_acg(struct scst_acg *acg)
 				scst_del_tgt_dev(tgt_dev);
 				mutex_unlock(&sess->tgt_dev_list_mutex);
 
+				synchronize_rcu();
 				scst_free_tgt_dev(tgt_dev);
 			}
 		}
@@ -5547,7 +5554,12 @@ static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	scst_tgt_dev_sysfs_del(tgt_dev);
 }
 
-/* The caller must ensure that tgt_dev is not on sess_tgt_dev_list */
+/*
+ * The caller must ensure that tgt_dev is not on sess_tgt_dev_list. The caller
+ * is also responsible for calling synchronize_rcu() before freeing a tgt_dev
+ * if another thread could still be accessing @tgt_dev from inside an RCU
+ * read-side critical section.
+ */
 static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_tgt_template *tgtt = tgt_dev->sess->tgt->tgtt;
@@ -5559,8 +5571,6 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	WARN_ON_ONCE(scst_is_active_tgt_dev(tgt_dev));
 #endif
 	WARN_ON_ONCE(atomic_read(&tgt_dev->tgt_dev_cmd_count) != 0);
-
-	synchronize_rcu();
 
 	if (tgtt->get_initiator_port_transport_id == NULL)
 		dev->not_pr_supporting_tgt_devs_num--;
@@ -5627,6 +5637,7 @@ void scst_sess_free_tgt_devs(struct scst_session *sess)
 		list_for_each_entry_safe(tgt_dev, t, head,
 				sess_tgt_dev_list_entry) {
 			scst_del_tgt_dev(tgt_dev);
+			synchronize_rcu();
 			scst_free_tgt_dev(tgt_dev);
 		}
 		INIT_LIST_HEAD(head);
