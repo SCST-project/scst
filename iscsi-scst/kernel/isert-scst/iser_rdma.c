@@ -1292,7 +1292,7 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 	 * In mem-free devices, RC QPs can be created with a maximum of
 	 * (max_sge - 3) entries only.
 	 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)
+#ifndef HAVE_DEV_ATTR_MAX_RECV_SGE
 	isert_conn->max_sge = isert_dev->device_attr.max_sge - 3;
 #else
 	isert_conn->max_sge = isert_dev->device_attr.max_recv_sge - 3;

@@ -303,6 +303,12 @@ conftest/query_device_attr_arg/result-$(KVER).txt:			\
 	echo "$(call run_conftest,query_device_attr_arg,		\
 		-DIB_QUERY_DEVICE_HAS_ATTR_ARG)" >"$@"
 
+conftest/dev_attr_max_recv_sge/result-$(KVER).txt:			\
+	conftest/dev_attr_max_recv_sge/dev_attr_max_recv_sge.c	\
+	conftest/dev_attr_max_recv_sge/Makefile
+	echo "$(call run_conftest,dev_attr_max_recv_sge,		\
+		-DHAVE_DEV_ATTR_MAX_RECV_SGE)" >"$@"
+
 conftest/query_gid/result-$(KVER).txt:					\
 	conftest/query_gid/query_gid.c					\
 	conftest/query_gid/Makefile
