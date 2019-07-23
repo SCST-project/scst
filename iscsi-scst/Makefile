@@ -89,6 +89,7 @@ ifeq ($(OFED_FLAVOR),MOFED)
 			-I$(OFED_DIR)/include/uapi			\
 			-include $(OFED_DIR)/include/linux/compat-2.6.h
 	ISER_SYMVERS:="$(ISER_SYMVERS) $(OFED_DIR)/Module.symvers"
+	OFED_CONFIG:= CONFIG_DTRACE=
 else
 	# Whether or not the OFED kernel-ib-devel RPM has been installed.
 	OFED_KERNEL_IB_DEVEL_RPM_INSTALLED:=$(shell if rpm -q kernel-ib-devel 2>/dev/null | grep -q $$(uname -r | sed 's/-/_/g'); then echo true; else echo false; fi)
@@ -111,7 +112,7 @@ else
 endif
 
 # Use make instead of $(MAKE) to get rid of command-line option -i
-run_conftest = $(shell if [ "0$(V)" -gt 0 ]; then output=/dev/stdout; else output=/dev/null; fi; if MAKEFLAGS= make -C $(KDIR) V=$(V) M="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" 1>&2 2>$${output}; then echo "$(strip $2)"; else echo "$(strip $3)"; fi)
+run_conftest = $(shell if [ "0$(V)" -gt 0 ]; then output=/dev/stdout; else output=/dev/null; fi; if MAKEFLAGS= make -C $(KDIR) V=$(V) M="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" $(OFED_CONFIG) 1>&2 2>$${output}; then echo "$(strip $2)"; else echo "$(strip $3)"; fi)
 run_conftest_bool = $(call run_conftest,$1,-D$(strip $2)=1,-D$(strip $2)=0)
 
 CONFTESTS = $(shell ls -d conftest/*)
@@ -136,7 +137,7 @@ mods: include/iscsi_scst_itf_ver.h Modules.symvers Module.symvers	\
 	  echo "  Building against $(OFED_FLAVOR) InfiniBand kernel headers."; \
 	  $(MAKE) -C $(KDIR) SCST_INC_DIR=$(SCST_INC_DIR) M=$(ISERTMOD)  \
 	  PRE_CFLAGS="$(ISER_CFLAGS)"	                                       \
-	  KBUILD_EXTRA_SYMBOLS=$(ISER_SYMVERS) modules;			       \
+	  KBUILD_EXTRA_SYMBOLS=$(ISER_SYMVERS) $(OFED_CONFIG) modules;	       \
 	fi
 
 progs: include/iscsi_scst_itf_ver.h
