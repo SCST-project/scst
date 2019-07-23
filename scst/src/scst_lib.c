@@ -4547,8 +4547,11 @@ out_on_del:
 		scst_cm_on_del_lun(acg_dev, false);
 
 out_free:
-	/* To do: verify whether this synchronize_rcu() call is necessary. */
-	synchronize_rcu();
+	/*
+	 * synchronize_rcu() does not have to be called here because the
+	 * tgt_devs that will be freed have never been on any of the
+	 * sess->sess_tgt_dev_list[] lists.
+	 */
 	list_for_each_entry_safe(tgt_dev, tt, &tmp_tgt_dev_list,
 			 extra_tgt_dev_list_entry) {
 		scst_free_tgt_dev(tgt_dev);
