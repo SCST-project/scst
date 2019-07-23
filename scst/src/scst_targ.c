@@ -5142,7 +5142,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 
 		scst_set_cmd_state(cmd, SCST_CMD_STATE_PARSE);
 
-		cnt = atomic_inc_return(&tgt_dev->tgt_dev_cmd_count);
+		cnt = atomic_inc_return(&tgt_dev->tgt_dev_cmd_count) - 1;
 		if (unlikely(cnt > dev->max_tgt_dev_commands)) {
 			TRACE(TRACE_FLOW_CONTROL,
 				"Too many pending commands (%d) in "
