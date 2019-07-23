@@ -87,7 +87,9 @@ ifeq ($(OFED_FLAVOR),MOFED)
 	OFED_DIR:=/usr/src/ofa_kernel/default
 	OFED_CFLAGS:=	-I$(OFED_DIR)/include				\
 			-I$(OFED_DIR)/include/uapi			\
-			-include $(OFED_DIR)/include/linux/compat-2.6.h
+			-include $(OFED_DIR)/include/linux/compat-2.6.h \
+			-DMOFED_MAJOR=$(shell echo $(OFED_VERS) | cut -f1 -d.)\
+			-DMOFED_MINOR=$(shell echo $(OFED_VERS) | cut -f2 -d.)
 	ISER_SYMVERS:="$(ISER_SYMVERS) $(OFED_DIR)/Module.symvers"
 	OFED_CONFIG:= CONFIG_DTRACE=
 else
