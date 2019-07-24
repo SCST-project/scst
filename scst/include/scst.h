@@ -3104,6 +3104,11 @@ struct scst_tgt_dev {
 	/* List entry in sess->sess_tgt_dev_list */
 	struct list_head sess_tgt_dev_list_entry;
 
+	struct rcu_head rcu;
+	struct work_struct free_work;
+	atomic_t *a;
+	bool dec_acg_refcnt;
+
 	struct scst_tgt_template *tgtt; /* to avoid use-after-free issues */
 	struct scst_device *dev; /* to save extra dereferences */
 	uint64_t lun;		 /* to save extra dereferences */
@@ -3259,6 +3264,13 @@ struct scst_acg_dev {
 
 	/* sysfs release completion */
 	struct completion *acg_dev_kobj_release_cmpl;
+
+	/*
+	 * Number of deleted tgt_devs associated with this acg_dev. Set if an
+	 * acg_dev is no longer visible and will be freed as soon as all
+	 * associated tgt_dev instances have been freed.
+	 */
+	int nr_deleted_tgt_devs;
 
 	/* Name of the link to the corresponding LUN */
 	char acg_dev_link_name[20];
