@@ -1144,7 +1144,7 @@ out:
 
 static void isert_device_release(struct isert_device *isert_dev)
 {
-	int err, i;
+	int i;
 
 	TRACE_ENTRY();
 
@@ -1165,10 +1165,7 @@ static void isert_device_release(struct isert_device *isert_dev)
 		cancel_work_sync(&cq_desc->cq_comp_work);
 #endif
 
-		err = ib_destroy_cq(cq_desc->cq);
-		if (unlikely(err))
-			PRINT_ERROR("Failed to destroy cq, err:%d", err);
-
+		ib_destroy_cq(cq_desc->cq);
 		destroy_workqueue(cq_desc->cq_workqueue);
 	}
 
