@@ -3086,7 +3086,7 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	int res = 0, rc;
 	struct scst_user_cmd *ucmd;
 	DECLARE_COMPLETION_ONSTACK(cmpl);
-	struct scst_tgt_template *tgtt = tgt_dev->sess->tgt->tgtt;
+	struct scst_tgt_template *tgtt = tgt_dev->tgtt;
 	struct scst_tgt *tgt = tgt_dev->sess->tgt;
 
 	TRACE_ENTRY();
@@ -3115,7 +3115,7 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	ucmd->user_cmd.subcode = SCST_USER_ATTACH_SESS;
 	ucmd->user_cmd.sess.sess_h = (unsigned long)tgt_dev;
 	ucmd->user_cmd.sess.lun = (uint64_t)tgt_dev->lun;
-	ucmd->user_cmd.sess.threads_num = tgt_dev->sess->tgt->tgtt->threads_num;
+	ucmd->user_cmd.sess.threads_num = tgt_dev->tgtt->threads_num;
 	ucmd->user_cmd.sess.rd_only = tgt_dev->tgt_dev_rd_only;
 	if (tgtt->get_phys_transport_version != NULL)
 		ucmd->user_cmd.sess.phys_transport_version =

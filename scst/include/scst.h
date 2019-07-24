@@ -3104,6 +3104,7 @@ struct scst_tgt_dev {
 	/* List entry in sess->sess_tgt_dev_list */
 	struct list_head sess_tgt_dev_list_entry;
 
+	struct scst_tgt_template *tgtt; /* to avoid use-after-free issues */
 	struct scst_device *dev; /* to save extra dereferences */
 	uint64_t lun;		 /* to save extra dereferences */
 

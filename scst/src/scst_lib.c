@@ -5286,8 +5286,6 @@ static void scst_aic_keeper_release(struct kref *kref)
 /* scst_mutex supposed to be held */
 void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev)
 {
-	struct scst_tgt_template *tgtt = tgt_dev->sess->tgt->tgtt;
-
 	TRACE_ENTRY();
 
 	lockdep_assert_held(&scst_mutex);
@@ -5304,7 +5302,7 @@ void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev)
 	} else if (tgt_dev->active_cmd_threads == &tgt_dev->dev->dev_cmd_threads) {
 		/* Per device shared threads */
 		scst_del_threads(tgt_dev->active_cmd_threads,
-				 tgtt->threads_num);
+				 tgt_dev->tgtt->threads_num);
 	} else if (tgt_dev->active_cmd_threads == &tgt_dev->tgt_dev_cmd_threads) {
 		/* Per tgt_dev threads */
 		scst_del_threads(tgt_dev->active_cmd_threads, -1);
@@ -5349,6 +5347,7 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	}
 
 	INIT_LIST_HEAD(&tgt_dev->sess_tgt_dev_list_entry);
+	tgt_dev->tgtt = tgtt;
 	tgt_dev->dev = dev;
 	tgt_dev->lun = acg_dev->lun;
 	tgt_dev->acg_dev = acg_dev;
@@ -5567,7 +5566,7 @@ static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev)
  */
 static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
-	struct scst_tgt_template *tgtt = tgt_dev->sess->tgt->tgtt;
+	struct scst_tgt_template *tgtt = tgt_dev->tgtt;
 	struct scst_device *dev = tgt_dev->dev;
 
 	TRACE_ENTRY();
@@ -5772,7 +5771,7 @@ struct scst_cmd *__scst_create_prepare_internal_cmd(const uint8_t *cdb,
 	res->cmd_threads = tgt_dev->active_cmd_threads;
 	res->sess = tgt_dev->sess;
 	res->internal = 1;
-	res->tgtt = tgt_dev->sess->tgt->tgtt;
+	res->tgtt = tgt_dev->tgtt;
 	res->tgt = tgt_dev->sess->tgt;
 	res->dev = tgt_dev->dev;
 	res->devt = tgt_dev->dev->handler;
