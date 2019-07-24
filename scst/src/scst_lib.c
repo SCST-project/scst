@@ -5539,7 +5539,7 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 
 static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
-	struct scst_tgt_template *tgtt = tgt_dev->sess->tgt->tgtt;
+	struct scst_tgt_template *tgtt = tgt_dev->tgtt;
 	struct scst_device *dev = tgt_dev->dev;
 
 	lockdep_assert_held(&scst_mutex);
