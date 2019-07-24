@@ -5539,6 +5539,7 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 
 static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
+	struct scst_tgt_template *tgtt = tgt_dev->sess->tgt->tgtt;
 	struct scst_device *dev = tgt_dev->dev;
 
 	lockdep_assert_held(&scst_mutex);
@@ -5555,6 +5556,9 @@ static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev)
 
 	scst_tgt_dev_sysfs_del(tgt_dev);
 
+	if (tgtt->get_initiator_port_transport_id == NULL)
+		dev->not_pr_supporting_tgt_devs_num--;
+
 	atomic_dec(&tgt_dev->tgt_dev_cmd_count);
 }
 
@@ -5566,7 +5570,6 @@ static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev)
  */
 static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
-	struct scst_tgt_template *tgtt = tgt_dev->tgtt;
 	struct scst_device *dev = tgt_dev->dev;
 
 	TRACE_ENTRY();
@@ -5575,9 +5578,6 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	WARN_ON_ONCE(scst_is_active_tgt_dev(tgt_dev));
 #endif
 	WARN_ON_ONCE(atomic_read(&tgt_dev->tgt_dev_cmd_count) != 0);
-
-	if (tgtt->get_initiator_port_transport_id == NULL)
-		dev->not_pr_supporting_tgt_devs_num--;
 
 	scst_clear_reservation(tgt_dev);
 	scst_pr_clear_tgt_dev(tgt_dev);
