@@ -905,7 +905,8 @@ static inline void *kvzalloc(size_t size, gfp_t flags)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0) &&	\
+	!defined(_COMPAT_LINUX_MM_H)
 /* See also commit 1c542f38ab8d ("mm: Introduce kvcalloc()") # v4.18. */
 static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
 {
@@ -1332,7 +1333,8 @@ static inline void sg_unmark_end(struct scatterlist *sg)
 	(__flags), NULL, NULL)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) &&	\
+	!defined(_COMPAT_LINUX_MM_H)
 /*
  * See also commit 3942d2991852 ("mm/slab_common: allow NULL cache pointer in
  * kmem_cache_destroy()") # v4.3.
