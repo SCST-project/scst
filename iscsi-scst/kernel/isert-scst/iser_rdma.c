@@ -1144,6 +1144,9 @@ out:
 
 static void isert_device_release(struct isert_device *isert_dev)
 {
+#ifndef IB_PD_HAS_LOCAL_DMA_LKEY
+	int err;
+#endif
 	int i;
 
 	TRACE_ENTRY();
