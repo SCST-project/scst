@@ -8496,6 +8496,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	}
 
 	if (cmd->data_direction == SCST_DATA_BIDI) {
+#ifdef QUEUE_FLAG_BIDI
 		struct request *next_rq;
 
 		if (!test_bit(QUEUE_FLAG_BIDI, &q->queue_flags)) {
@@ -8518,6 +8519,9 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 			goto out_free_unmap;
 		}
 		rq->next_rq = next_rq;
+#else
+		return -EOPNOTSUPP;
+#endif
 	} else {
 		rq = blk_map_kern_sg(q, cmd->sg, cmd->sg_cnt, gfp, reading);
 		if (IS_ERR(rq)) {
@@ -8558,6 +8562,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 out:
 	return res;
 
+#ifdef QUEUE_FLAG_BIDI
 out_free_unmap:
 	{
 	struct bio *bio = rq->bio, *b;
@@ -8580,6 +8585,7 @@ out_free_unmap:
 	rq->bio = NULL;
 
 	blk_put_request(rq);
+#endif
 
 out_free_sioc:
 	kmem_cache_free(scsi_io_context_cache, sioc);
