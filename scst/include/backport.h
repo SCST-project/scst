@@ -1134,6 +1134,15 @@ typedef void (*rcu_callback_t)(struct rcu_head *);
 	__kfree_rcu(&((ptr)->rcu_head), offsetof(typeof(*(ptr)), rcu_head))
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0)
+/*
+ * See also commit 546a9d8519ed ("rcu: Export debug_init_rcu_head() and and
+ * debug_init_rcu_head()") # v3.16.
+ */
+static inline void init_rcu_head(struct rcu_head *head) { }
+static inline void destroy_rcu_head(struct rcu_head *head) { }
+#endif
+
 /* <rdma/ib_verbs.h> */
 
 /* commit ed082d36 */
