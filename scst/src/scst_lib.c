@@ -4584,7 +4584,11 @@ void scst_free_tgt_dev_rcu(struct rcu_head *rcu)
 
 	tgt_dev->a = scst_get();
 	percpu_ref_get(&tgt_dev->dev->refcnt);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 	WARN_ON_ONCE(!schedule_work(&tgt_dev->free_work));
+#else
+	WARN_ON_ONCE(!queue_work(system_long_wq, &tgt_dev->free_work));
+#endif
 }
 
 /* Delete a LUN without generating a unit attention. */
