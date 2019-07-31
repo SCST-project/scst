@@ -996,9 +996,11 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			resp_len = buf[3] + 6;
 		} else if (0x80 == cmd->cdb[2]) { /* unit serial number */
 			int usn_len = strlen(dev->usn);
+
 			buf[1] = 0x80;
 			buf[3] = usn_len;
-			strncpy((char *)&buf[4], dev->usn, usn_len);
+			assert(4 + usn_len <= sizeof(buf));
+			memcpy(&buf[4], dev->usn, usn_len);
 			resp_len = buf[3] + 4;
 		} else if (0x83 == cmd->cdb[2]) { /* device identification */
 			int num = 4;
