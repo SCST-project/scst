@@ -6746,6 +6746,38 @@ out:
 	return res;
 }
 
+static int scst_reset_scsi_target(struct scsi_device *sdev)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+	/* To do: implement this functionality. */
+	WARN_ON_ONCE(true);
+	return FAILED;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	int arg = SG_SCSI_RESET_TARGET;
+
+	return scsi_ioctl_reset(sdev, (__force __user int *)&arg);
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
+	return scsi_reset_provider(sdev, SCSI_TRY_RESET_TARGET);
+#else
+	return scsi_reset_provider(sdev, SCSI_TRY_RESET_BUS);
+#endif
+}
+
+static int scst_reset_scsi_device(struct scsi_device *sdev)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+	/* To do: implement this functionality. */
+	WARN_ON_ONCE(true);
+	return FAILED;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+	int arg = SG_SCSI_RESET_DEVICE;
+
+	return scsi_ioctl_reset(sdev, (__force __user int *)&arg);
+#else
+	return scsi_reset_provider(sdev, SCSI_TRY_RESET_DEVICE);
+#endif
+}
+
 /* Returns 0 if the command processing should be continued, <0 otherwise */
 static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 {
@@ -6812,18 +6844,7 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 		/* dev->scsi_dev must be non-NULL here */
 		TRACE(TRACE_MGMT, "Resetting host %d bus ",
 			dev->scsi_dev->host->host_no);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
-		{
-			int arg = SG_SCSI_RESET_TARGET;
-
-			rc = scsi_ioctl_reset(dev->scsi_dev,
-					      (__force __user int *)&arg);
-		}
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
-		rc = scsi_reset_provider(dev->scsi_dev, SCSI_TRY_RESET_TARGET);
-#else
-		rc = scsi_reset_provider(dev->scsi_dev, SCSI_TRY_RESET_BUS);
-#endif
+		rc = scst_reset_scsi_target(dev->scsi_dev);
 		TRACE(TRACE_MGMT, "Result of host %d target reset: %s",
 		      dev->scsi_dev->host->host_no,
 		      (rc == SUCCESS) ? "SUCCESS" : "FAILED");
@@ -6883,16 +6904,7 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 	if (dev->scsi_dev != NULL) {
 		TRACE(TRACE_MGMT, "Resetting host %d bus ",
 		      dev->scsi_dev->host->host_no);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
-		{
-			int arg = SG_SCSI_RESET_DEVICE;
-
-			rc = scsi_ioctl_reset(dev->scsi_dev,
-					      (__force __user int *)&arg);
-		}
-#else
-		rc = scsi_reset_provider(dev->scsi_dev, SCSI_TRY_RESET_DEVICE);
-#endif
+		rc = scst_reset_scsi_device(dev->scsi_dev);
 		TRACE(TRACE_MGMT, "scsi_reset_provider(%s) returned %d",
 		      dev->virt_name, rc);
 #if 0
