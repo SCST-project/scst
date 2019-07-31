@@ -995,7 +995,7 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			buf[8] = 0xB1; /* block device characteristics */
 			resp_len = buf[3] + 6;
 		} else if (0x80 == cmd->cdb[2]) { /* unit serial number */
-			int usn_len = strlen(dev->usn);
+			unsigned int usn_len = strlen(dev->usn);
 
 			buf[1] = 0x80;
 			buf[3] = usn_len;
