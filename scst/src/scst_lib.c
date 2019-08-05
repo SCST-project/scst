@@ -4578,7 +4578,7 @@ static void scst_tgt_dev_free_workfn(struct work_struct *work)
 	scst_put(a);
 }
 
-void scst_free_tgt_dev_rcu(struct rcu_head *rcu)
+static void scst_free_tgt_dev_rcu(struct rcu_head *rcu)
 {
 	struct scst_tgt_dev *tgt_dev = container_of(rcu, typeof(*tgt_dev), rcu);
 
@@ -5541,6 +5541,12 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 	return;
 }
 
+void scst_tgt_dev_dec_cmd_count(struct scst_tgt_dev *tgt_dev)
+{
+	if (atomic_dec_return(&tgt_dev->tgt_dev_cmd_count) == 0)
+		call_rcu(&tgt_dev->rcu, scst_free_tgt_dev_rcu);
+}
+
 static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_tgt_template *tgtt = tgt_dev->tgtt;
@@ -5563,8 +5569,7 @@ static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	if (tgtt->get_initiator_port_transport_id == NULL)
 		dev->not_pr_supporting_tgt_devs_num--;
 
-	if (atomic_dec_return(&tgt_dev->tgt_dev_cmd_count) == 0)
-		call_rcu(&tgt_dev->rcu, scst_free_tgt_dev_rcu);
+	scst_tgt_dev_dec_cmd_count(tgt_dev);
 }
 
 /*
