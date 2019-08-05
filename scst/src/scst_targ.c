@@ -4504,8 +4504,8 @@ static int scst_pre_xmit_response1(struct scst_cmd *cmd)
 		 * latency, so we should decrement them after cmd completed.
 		 */
 		smp_mb__before_atomic_dec();
-		if (atomic_dec_return(&cmd->tgt_dev->tgt_dev_cmd_count) == 0)
-			call_rcu(&cmd->tgt_dev->rcu, scst_free_tgt_dev_rcu);
+		cmd->owns_refcnt = false;
+		scst_tgt_dev_dec_cmd_count(cmd->tgt_dev);
 		percpu_ref_put(&cmd->dev->refcnt);
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 		atomic_dec(&cmd->dev->dev_cmd_count);
@@ -4693,6 +4693,8 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 	uint64_t lba;
 
 	TRACE_ENTRY();
+
+	WARN_ON_ONCE(cmd->owns_refcnt);
 
 	if (unlikely(cmd->delivery_status != SCST_CMD_DELIVERY_SUCCESS)) {
 		if ((cmd->tgt_dev != NULL) &&
@@ -4997,6 +4999,9 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 
 		rcu_read_lock();
 		tgt_dev = scst_lookup_tgt_dev(cmd->sess, cmd->lun);
+		if (tgt_dev &&
+		    !atomic_inc_not_zero(&tgt_dev->tgt_dev_cmd_count))
+			tgt_dev = NULL;
 		rcu_read_unlock();
 
 		if (tgt_dev) {
@@ -5015,6 +5020,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 					"the device will not be visible remotely",
 					(unsigned long long)cmd->lun);
 				nul_dev = true;
+				scst_tgt_dev_dec_cmd_count(tgt_dev);
 			}
 		}
 		if (unlikely(res != 0)) {
@@ -5143,7 +5149,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 
 		scst_set_cmd_state(cmd, SCST_CMD_STATE_PARSE);
 
-		cnt = atomic_inc_return(&tgt_dev->tgt_dev_cmd_count) - 1;
+		cnt = atomic_read(&tgt_dev->tgt_dev_cmd_count) - 1;
 		if (unlikely(cnt > dev->max_tgt_dev_commands)) {
 			TRACE(TRACE_FLOW_CONTROL,
 				"Too many pending commands (%d) in "
@@ -5153,6 +5159,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 			failure = true;
 		}
 
+		cmd->owns_refcnt = true;
 		percpu_ref_get(&dev->refcnt);
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 		atomic_inc(&dev->dev_cmd_count);

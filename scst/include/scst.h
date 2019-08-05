@@ -2317,6 +2317,9 @@ struct scst_cmd {
 	/* Set by WRITE VERIFY commands to trigger a verify after write */
 	unsigned int do_verify:1;
 
+	/* For debugging purposes. */
+	unsigned int owns_refcnt:1;
+
 	/**************************************************************/
 
 	/* cmd's async flags */
