@@ -4504,6 +4504,7 @@ static int scst_pre_xmit_response1(struct scst_cmd *cmd)
 		 * latency, so we should decrement them after cmd completed.
 		 */
 		smp_mb__before_atomic_dec();
+		cmd->owns_refcnt = false;
 		scst_tgt_dev_dec_cmd_count(cmd->tgt_dev);
 		percpu_ref_put(&cmd->dev->refcnt);
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
@@ -4692,6 +4693,8 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 	uint64_t lba;
 
 	TRACE_ENTRY();
+
+	WARN_ON_ONCE(cmd->owns_refcnt);
 
 	if (unlikely(cmd->delivery_status != SCST_CMD_DELIVERY_SUCCESS)) {
 		if ((cmd->tgt_dev != NULL) &&
@@ -5156,6 +5159,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 			failure = true;
 		}
 
+		cmd->owns_refcnt = true;
 		percpu_ref_get(&dev->refcnt);
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 		atomic_inc(&dev->dev_cmd_count);
