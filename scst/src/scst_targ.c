@@ -338,6 +338,8 @@ bool scst_do_check_blocked_dev(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
+	lockdep_assert_held(&dev->dev_lock);
+
 	/*
 	 * We want to have fairness between just unblocked previously blocked
 	 * SCSI atomic cmds and new cmds came after them. Otherwise, the new
@@ -481,6 +483,8 @@ void __scst_check_unblock_dev(struct scst_cmd *cmd)
 	struct scst_device *dev = cmd->dev;
 
 	TRACE_ENTRY();
+
+	lockdep_assert_held(&dev->dev_lock);
 
 	/*
 	 * We might be called here as part of Copy Manager's check blocking
