@@ -4185,20 +4185,33 @@ static int scst_dif_none_type1(struct scst_cmd *cmd);
 #endif
 
 /* Called from thread context and hence may sleep. */
-static void scst_finally_free_device(struct work_struct *work)
+static void scst_free_device(struct work_struct *work)
 {
 	struct scst_device *dev = container_of(work, typeof(*dev),
 					       free_work);
-	struct completion *c = dev->dev_freed_cmpl;
+
+	EXTRACHECKS_BUG_ON(dev->dev_scsi_atomic_cmd_active != 0);
+	EXTRACHECKS_BUG_ON(!list_empty(&dev->dev_exec_cmd_list));
+
+#ifdef CONFIG_SCST_EXTRACHECKS
+	if (!list_empty(&dev->dev_tgt_dev_list) ||
+	    !list_empty(&dev->dev_acg_dev_list)) {
+		PRINT_CRIT_ERROR("%s: dev_tgt_dev_list or dev_acg_dev_list "
+			"is not empty!", __func__);
+		sBUG();
+	}
+#endif
+
+	/* Ensure that ext_blockers_work is done */
+	flush_work(&dev->ext_blockers_work);
+
+	scst_deinit_threads(&dev->dev_cmd_threads);
 
 	scst_pr_cleanup(dev);
 
 	kfree(dev->virt_name);
 	percpu_ref_exit(&dev->refcnt);
 	kmem_cache_free(scst_dev_cachep, dev);
-
-	if (c)
-		complete(c);
 }
 
 /* RCU callback. Must not sleep. */
@@ -4227,7 +4240,7 @@ int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev)
 	memset(dev, 0, sizeof(*dev));
 
 	dev->handler = &scst_null_devtype;
-	INIT_WORK(&dev->free_work, scst_finally_free_device);
+	INIT_WORK(&dev->free_work, scst_free_device);
 	res = percpu_ref_init(&dev->refcnt, scst_release_device, 0, GFP_KERNEL);
 	if (res < 0)
 		goto free_dev;
@@ -4270,38 +4283,6 @@ out:
 free_dev:
 	kmem_cache_free(scst_dev_cachep, dev);
 	goto out;
-}
-
-void scst_free_device(struct scst_device *dev)
-{
-	DECLARE_COMPLETION_ONSTACK(c);
-
-	TRACE_ENTRY();
-
-	EXTRACHECKS_BUG_ON(dev->dev_scsi_atomic_cmd_active != 0);
-	EXTRACHECKS_BUG_ON(!list_empty(&dev->dev_exec_cmd_list));
-
-#ifdef CONFIG_SCST_EXTRACHECKS
-	if (!list_empty(&dev->dev_tgt_dev_list) ||
-	    !list_empty(&dev->dev_acg_dev_list)) {
-		PRINT_CRIT_ERROR("%s: dev_tgt_dev_list or dev_acg_dev_list "
-			"is not empty!", __func__);
-		sBUG();
-	}
-#endif
-
-	/* Ensure that ext_blockers_work is done */
-	flush_work(&dev->ext_blockers_work);
-
-	scst_deinit_threads(&dev->dev_cmd_threads);
-
-	dev->dev_freed_cmpl = &c;
-	percpu_ref_kill(&dev->refcnt);
-
-	wait_for_completion(&c);
-
-	TRACE_EXIT();
-	return;
 }
 
 bool scst_device_is_exported(struct scst_device *dev)
