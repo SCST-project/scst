@@ -1132,6 +1132,8 @@ static int scst_register_device(struct scsi_device *scsidp)
 	if (res != 0)
 		goto out_del_unlocked;
 
+	percpu_ref_get(&dev->refcnt);
+
 	PRINT_INFO("Attached to scsi%d, channel %d, id %d, lun %lld, type %d",
 		   scsidp->host->host_no, scsidp->channel, scsidp->id,
 		   (u64)scsidp->lun, scsidp->type);
@@ -1145,7 +1147,7 @@ out_del_unlocked:
 	list_del_init(&dev->dev_list_entry);
 	mutex_unlock(&scst_mutex);
 
-	scst_free_device(dev);
+	percpu_ref_kill(&dev->refcnt);
 	goto out;
 
 #ifdef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
@@ -1153,7 +1155,7 @@ out_del_unlocked:
 #endif
 
 out_free_dev:
-	scst_free_device(dev);
+	percpu_ref_kill(&dev->refcnt);
 
 out_unlock:
 	mutex_unlock(&scst_mutex);
@@ -1213,7 +1215,8 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 		   scsidp->host->host_no, scsidp->channel, scsidp->id,
 		   (u64)scsidp->lun, scsidp->type);
 
-	scst_free_device(dev);
+	percpu_ref_kill(&dev->refcnt);
+	percpu_ref_put(&dev->refcnt);
 
 out:
 	TRACE_EXIT();
@@ -1393,6 +1396,8 @@ int scst_register_virtual_device_node(struct scst_dev_type *dev_handler,
 
 	mutex_unlock(&scst_mutex);
 
+	percpu_ref_get(&dev->refcnt);
+
 	res = dev->virt_id;
 
 	PRINT_INFO("Attached to virtual device %s (id %d)", dev_name, res);
@@ -1416,7 +1421,7 @@ out_free_dev:
 	mutex_unlock(&scst_mutex);
 	if (sysfs_del)
 		scst_dev_sysfs_del(dev);
-	scst_free_device(dev);
+	percpu_ref_kill(&dev->refcnt);
 	goto out;
 
 out_unlock:
@@ -1478,7 +1483,8 @@ void scst_unregister_virtual_device(int id,
 	if (on_free)
 		on_free(dev, arg);
 
-	scst_free_device(dev);
+	percpu_ref_kill(&dev->refcnt);
+	percpu_ref_put(&dev->refcnt);
 
 out:
 	TRACE_EXIT();

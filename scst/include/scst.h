@@ -2894,8 +2894,6 @@ struct scst_device {
 
 	struct work_struct free_work;
 
-	struct completion *dev_freed_cmpl;
-
 	/*
 	 * Maximum count of uncompleted commands that an initiator could
 	 * queue on this device. Then it will start getting TASK QUEUE FULL
