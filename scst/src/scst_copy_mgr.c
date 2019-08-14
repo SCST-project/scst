@@ -2683,6 +2683,10 @@ void scst_cm_update_dev(struct scst_device *dev)
 
 	TRACE_MGMT_DBG("copy manager: updating device %s", dev->virt_name);
 
+	if (!scst_auto_cm_assignment ||
+	    !dev->handler->auto_cm_assignment_possible)
+		goto out;
+
 	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
 	WARN_ON_ONCE(res);
 
@@ -2706,6 +2710,7 @@ out_resume:
 	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
 
+out:
 	TRACE_EXIT();
 	return;
 
