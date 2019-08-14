@@ -2676,6 +2676,7 @@ out:
 
 void scst_cm_update_dev(struct scst_device *dev)
 {
+	unsigned int lun;
 	int rc, res;
 
 	TRACE_ENTRY();
@@ -2693,7 +2694,11 @@ void scst_cm_update_dev(struct scst_device *dev)
 	scst_block_dev(dev);
 	spin_unlock_bh(&dev->dev_lock);
 
-	rc = scst_cm_send_init_inquiry(dev, scst_cm_get_lun(dev), NULL);
+	lun = scst_cm_get_lun(dev);
+	if (WARN_ON_ONCE(lun == SCST_MAX_LUN))
+		goto out_unblock;
+
+	rc = scst_cm_send_init_inquiry(dev, lun, NULL);
 	if (rc != 0)
 		goto out_unblock;
 
