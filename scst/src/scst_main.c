@@ -612,6 +612,7 @@ void scst_unregister_target(struct scst_tgt *tgt)
 #ifndef CONFIG_SCST_PROC
 	struct scst_acg *acg, *acg_tmp;
 #endif
+	int res;
 
 	TRACE_ENTRY();
 
@@ -668,7 +669,9 @@ again:
 	wait_event(tgt->unreg_waitQ, list_empty(&tgt->sysfs_sess_list));
 	TRACE_DBG("%s", "wait_event() returned");
 
-	scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
+	WARN_ON_ONCE(res);
+
 	mutex_lock(&scst_mutex);
 
 	mutex_lock(&scst_mutex2);
@@ -1760,11 +1763,13 @@ void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 {
 	struct scst_device *dev;
 	struct scst_dev_type *dt;
-	int found = 0;
+	int res, found = 0;
 
 	TRACE_ENTRY();
 
-	scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
+	WARN_ON_ONCE(res);
+
 	mutex_lock(&scst_mutex);
 
 	list_for_each_entry(dt, &scst_dev_type_list, dev_type_list_entry) {
