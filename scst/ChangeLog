@@ -1,3 +1,19 @@
+Summary of changes between versions 3.3 and 3.4
+-----------------------------------------------
+- I/O keeps running at full speed if a LUN is added or removed and also if
+  a device is added or removed.
+- Added support for asynchronous zero-copy file I/O. This change improves
+  vdisk_fileio performance significantly. See also the documentation of the
+  'async' and 'o_direct' attributes.
+- Added support for the SCSI WRITE AND VERIFY command.
+- Reworked the build infrastructure such that switching between debug, release
+  and perf modes is now much faster.
+- Dropped support for RHEL 5.
+- Dropped support for procfs.
+- Dropped support for I/O context sharing. This mechanism improved CFQ
+  performance.
+- Fixed a number of small bugs.
+
 Summary of changes between versions 3.2 and 3.3
 -----------------------------------------------
 - Support for a new build method ("make dpkg").
