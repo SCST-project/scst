@@ -4218,7 +4218,10 @@ static void scst_free_device(struct work_struct *work)
 static void scst_release_device(struct percpu_ref *ref)
 {
 	struct scst_device *dev = container_of(ref, typeof(*dev), refcnt);
+	struct completion *c = dev->remove_completion;
 
+	if (c)
+		complete(c);
 	schedule_work(&dev->free_work);
 }
 

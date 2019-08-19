@@ -1179,6 +1179,7 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 {
 	struct scst_device *dev;
 	struct scst_acg_dev *acg_dev, *aa;
+	DECLARE_COMPLETION_ONSTACK(c);
 
 	TRACE_ENTRY();
 
@@ -1207,6 +1208,8 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 		scst_acg_del_lun(acg_dev->acg, acg_dev->lun, true);
 	}
 
+	dev->remove_completion = &c;
+
 	mutex_unlock(&scst_mutex);
 
 	scst_dev_sysfs_del(dev);
@@ -1217,6 +1220,8 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 
 	percpu_ref_kill(&dev->refcnt);
 	percpu_ref_put(&dev->refcnt);
+
+	wait_for_completion(&c);
 
 out:
 	TRACE_EXIT();
@@ -1441,6 +1446,7 @@ void scst_unregister_virtual_device(int id,
 {
 	struct scst_device *d, *dev = NULL;
 	struct scst_acg_dev *acg_dev, *aa;
+	DECLARE_COMPLETION_ONSTACK(c);
 
 	TRACE_ENTRY();
 
@@ -1473,6 +1479,8 @@ void scst_unregister_virtual_device(int id,
 		scst_acg_del_lun(acg_dev->acg, acg_dev->lun, true);
 	}
 
+	dev->remove_completion = &c;
+
 	mutex_unlock(&scst_mutex);
 
 	scst_dev_sysfs_del(dev);
@@ -1485,6 +1493,8 @@ void scst_unregister_virtual_device(int id,
 
 	percpu_ref_kill(&dev->refcnt);
 	percpu_ref_put(&dev->refcnt);
+
+	wait_for_completion(&c);
 
 out:
 	TRACE_EXIT();
