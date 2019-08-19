@@ -2892,6 +2892,9 @@ struct scst_device {
 	 */
 	struct percpu_ref refcnt;
 
+	/* Triggered when refcnt drops to zero. */
+	struct completion *remove_completion;
+
 	struct work_struct free_work;
 
 	/*
