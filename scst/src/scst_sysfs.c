@@ -1972,6 +1972,8 @@ static ssize_t __scst_acg_cpu_mask_show(struct scst_acg *acg, char *buf)
 #endif
 	if (!cpumask_equal(&acg->acg_cpu_mask, &default_cpu_mask))
 		res += sprintf(&buf[res], "\n%s\n", SCST_SYSFS_KEY_MARK);
+	else
+		res += sprintf(&buf[res], "\n");
 
 	return res;
 }
