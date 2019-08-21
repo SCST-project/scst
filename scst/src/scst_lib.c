@@ -5843,15 +5843,30 @@ static void scst_prelim_finish_internal_cmd(struct scst_cmd *cmd)
 	return;
 }
 
+struct scst_request_sense_priv {
+	scst_i_finish_fn_t	finish_fn;
+	struct scst_cmd		*orig_cmd;
+};
+
+static void scst_complete_request_sense(struct scst_cmd *cmd);
+
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 {
-	int res = 0;
 	static const uint8_t request_sense[6] = {
 		REQUEST_SENSE, 0, 0, 0, SCST_SENSE_BUFFERSIZE, 0
 	};
+	struct scst_request_sense_priv *priv;
 	struct scst_cmd *rs_cmd;
+	int res = -ENOMEM;
 
 	TRACE_ENTRY();
+
+	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
+	if (!priv)
+		goto out;
+
+	priv->finish_fn = scst_complete_request_sense;
+	priv->orig_cmd = orig_cmd;
 
 	if (orig_cmd->sense != NULL) {
 		TRACE_MEM("Releasing sense %p (orig_cmd %p)",
@@ -5864,9 +5879,9 @@ int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 			request_sense, sizeof(request_sense),
 			SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 	if (rs_cmd == NULL)
-		goto out_error;
+		goto free_priv;
 
-	rs_cmd->tgt_i_priv = orig_cmd;
+	rs_cmd->tgt_i_priv = priv;
 
 	rs_cmd->cdb[1] |= scst_get_cmd_dev_d_sense(orig_cmd);
 	rs_cmd->expected_data_direction = SCST_DATA_READ;
@@ -5884,18 +5899,21 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-out_error:
-	res = -1;
+free_priv:
+	kfree(priv);
 	goto out;
 }
 
 static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 {
-	struct scst_cmd *orig_cmd = req_cmd->tgt_i_priv;
+	struct scst_request_sense_priv *priv = req_cmd->tgt_i_priv;
+	struct scst_cmd *orig_cmd = priv->orig_cmd;
 	uint8_t *buf;
 	int len;
 
 	TRACE_ENTRY();
+
+	kfree(priv);
 
 	sBUG_ON(orig_cmd == NULL);
 
@@ -6970,10 +6988,7 @@ int scst_finish_internal_cmd(struct scst_cmd *cmd)
 		scst_finish_cmd_mgmt(cmd);
 	}
 
-	if (cmd->cdb[0] == REQUEST_SENSE)
-		scst_complete_request_sense(cmd);
-	else
-		icmd_priv->finish_fn(cmd);
+	icmd_priv->finish_fn(cmd);
 
 	__scst_cmd_put(cmd);
 
