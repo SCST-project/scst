@@ -2341,16 +2341,23 @@ static void scst_cm_init_inq_finish(struct scst_cmd *cmd)
 	/* cmd->dev can be NULL here! */
 
 	rc = scst_cm_err_check_retry(cmd, cmd->start_time, scst_cm_inq_retry_fn);
-	if (rc == SCST_CM_STATUS_RETRY || !cmd->dev || !cmd->tgt_dev)
+	if (rc == SCST_CM_STATUS_RETRY)
+		goto out;
+
+	/*
+	 * Since scst_cm_inq_retry_fn() uses cmd->tgt_i_priv, only free that
+	 * pointer once it is clear that that function won't be called.
+	 */
+	kfree(priv);
+	priv = NULL;
+	cmd->tgt_i_priv = NULL;
+
+	if (WARN_ON_ONCE(!dev))
 		goto out;
 
 	spin_lock_bh(&dev->dev_lock);
 	scst_unblock_dev(dev);
 	spin_unlock_bh(&dev->dev_lock);
-
-	kfree(priv);
-	priv = NULL;
-	cmd->tgt_i_priv = NULL;
 
 	if (rc != SCST_CM_STATUS_CMD_SUCCEEDED) {
 		PRINT_CRIT_ERROR("Unable to perform initial INQUIRY for device "
@@ -2449,12 +2456,15 @@ out:
 static int scst_cm_send_init_inquiry(struct scst_device *dev,
 	unsigned int unpacked_lun, struct scst_cm_init_inq_priv *priv)
 {
-	int res;
+	int res = -EINVAL;
 	static const uint8_t inq_cdb[6] = { INQUIRY, 1, 0x83, 0x10, 0, 0 };
 	__be64 lun;
 	struct scst_cmd *cmd;
 
 	TRACE_ENTRY();
+
+	if (WARN_ON_ONCE(!dev))
+		goto out;
 
 	if (priv == NULL) {
 		priv = kzalloc(sizeof(*priv), GFP_KERNEL);
