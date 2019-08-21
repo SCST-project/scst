@@ -2551,7 +2551,7 @@ out:
 
 static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 {
-	int res, i;
+	int res;
 	struct scst_acg_dev *acg_dev;
 	bool add_lun;
 
@@ -2561,27 +2561,12 @@ static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 
 	TRACE_DBG("dev %s, LUN %ld", dev->virt_name, (unsigned long)lun);
 
-	rcu_read_lock();
-	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-		struct scst_tgt_dev *tgt_dev;
-		struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[i];
-
-		list_for_each_entry_rcu(tgt_dev, head,
-					sess_tgt_dev_list_entry) {
-			if (tgt_dev->dev == dev) {
-				rcu_read_unlock();
-				/*
-				 * It's OK, because the copy manager could
-				 * auto register some devices
-				 */
-				TRACE_DBG("Copy Manager already registered "
-					"device %s", dev->virt_name);
-				res = 0;
-				goto out;
-			}
-		}
+	if (scst_cm_get_lun(dev) != SCST_MAX_LUN) {
+		TRACE_DBG("Copy Manager already registered device %s",
+			  dev->virt_name);
+		res = 0;
+		goto out;
 	}
-	rcu_read_unlock();
 
 	if (lun == SCST_MAX_LUN) {
 		add_lun = true;
@@ -2630,9 +2615,8 @@ out_err:
 /* scst_mutex supposed to be held and activities suspended */
 static void scst_cm_dev_unregister(struct scst_device *dev, bool del_lun)
 {
-	int i;
 	struct scst_cm_desig *des, *t;
-	u32 lun = SCST_MAX_LUN;
+	u32 lun;
 
 	TRACE_ENTRY();
 
@@ -2651,21 +2635,7 @@ static void scst_cm_dev_unregister(struct scst_device *dev, bool del_lun)
 	if (!del_lun)
 		goto out;
 
-	rcu_read_lock();
-	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-		struct scst_tgt_dev *tgt_dev;
-		struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[i];
-
-		list_for_each_entry_rcu(tgt_dev, head,
-					sess_tgt_dev_list_entry) {
-			if (tgt_dev->dev == dev) {
-				lun = tgt_dev->lun;
-				break;
-			}
-		}
-	}
-	rcu_read_unlock();
-
+	lun = scst_cm_get_lun(dev);
 	if (lun != SCST_MAX_LUN)
 		scst_acg_del_lun(scst_cm_tgt->default_acg, lun, false);
 
