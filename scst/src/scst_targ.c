@@ -582,23 +582,23 @@ static void __scst_rx_cmd(struct scst_cmd *cmd, struct scst_session *sess,
 }
 
 /**
- * scst_rx_cmd_prealloced() - notify SCST that new command received
- * @cmd:	new cmd to initialized
- * @sess:	SCST session
- * @lun:	LUN for the command
- * @lun_len:	length of the LUN in bytes
- * @cdb:	CDB of the command
- * @cdb_len:	length of the CDB in bytes
- * @atomic:	true, if current context is atomic
+ * scst_rx_cmd_prealloced() - Notify SCST that a new command has been received.
+ * @cmd:	New cmd to be initialized.
+ * @sess:	SCST session.
+ * @lun:	LUN information from the SCSI transport header.
+ * @lun_len:	Length of the LUN in bytes.
+ * @cdb:	CDB of the command.
+ * @cdb_len:	Length of the CDB in bytes.
+ * @atomic:	True if called from an atomic context.
  *
- * Description:
- *    Initializes new prealloced SCST command. Returns 0 on success or
- *    negative error code otherwise.
+ *    Initializes a new preallocated SCST command.
  *
  *    Must not be called in parallel with scst_unregister_session() for the
  *    same session.
  *
  *    Cmd supposed to be zeroed!
+ *
+ * Return: 0 upon success or a negative error code otherwise.
  */
 int scst_rx_cmd_prealloced(struct scst_cmd *cmd, struct scst_session *sess,
 	const uint8_t *lun, int lun_len, const uint8_t *cdb,
@@ -632,20 +632,21 @@ out:
 EXPORT_SYMBOL(scst_rx_cmd_prealloced);
 
 /**
- * scst_rx_cmd() - create new command
- * @sess:	SCST session
- * @lun:	LUN for the command
- * @lun_len:	length of the LUN in bytes
- * @cdb:	CDB of the command
- * @cdb_len:	length of the CDB in bytes
- * @atomic:	true, if current context is atomic
+ * scst_rx_cmd() - Allocate a new SCSI command.
+ * @sess:	SCST session.
+ * @lun:	LUN for the command.
+ * @lun_len:	Length of the LUN in bytes.
+ * @cdb:	CDB of the commandl
+ * @cdb_len:	Length of the CDB in bytes.
+ * @atomic:	True if called from atomic context.
  *
- * Description:
- *    Creates new SCST command. Returns new command on success or
- *    NULL otherwise.
+ *    Allocates a new SCST command.
  *
  *    Must not be called in parallel with scst_unregister_session() for the
  *    same session.
+ *
+ * Return: pointer to newly allocated SCST command upon success or NULL upon
+ * failure.
  */
 struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
 	const uint8_t *lun, int lun_len, const uint8_t *cdb,
@@ -680,8 +681,14 @@ out:
 }
 EXPORT_SYMBOL(scst_rx_cmd);
 
-/*
- * No locks, but might be on IRQ. Returns:
+/**
+ * scst_init_cmd() - ...
+ * @cmd:     SCSI command to initialize.
+ * @context: Context in which to ...
+ *
+ * No locks, but might be on IRQ.
+ *
+ * Return:
  * -  < 0 if the caller must not perform any further processing of @cmd;
  * - >= 0 if the caller must continue processing @cmd.
  */
@@ -766,29 +773,29 @@ out_redirect:
 }
 
 /**
- * scst_cmd_init_done() - the command's initialization done
- * @cmd:	SCST command
- * @pref_context: preferred command execution context
+ * scst_cmd_init_done() - Tells SCST to start processing a SCSI command.
+ * @cmd:	  SCST command.
+ * @pref_context: Preferred command execution context.
  *
  * Description:
- *    Notifies SCST that the driver finished its part of the command
- *    initialization, and the command is ready for execution.
- *    The second argument sets preferred command execution context.
- *    See SCST_CONTEXT_* constants for details.
+ *    Notifies SCST that the target driver finished its part of the command
+ *    initialization and also that the command is ready for execution. The
+ *    second argument sets the preferred command execution context. See also
+ *    SCST_CONTEXT_* constants for more information.
  *
  *    !!IMPORTANT!!
  *
- *    If cmd->set_sn_on_restart_cmd not set, this function, as well as
- *    scst_cmd_init_stage1_done() and scst_restart_cmd(), must not be
- *    called simultaneously for the same session (more precisely,
- *    for the same session/LUN, i.e. tgt_dev), i.e. they must be
- *    somehow externally serialized. This is needed to have lock free fast
- *    path in scst_cmd_set_sn(). For majority of targets those functions are
- *    naturally serialized by the single source of commands. Only some, like
- *    iSCSI immediate commands with multiple connections per session or
- *    scst_local, are exceptions. For it, some mutex/lock must be used for
- *    the serialization. Or, alternatively, multithreaded_init_done can
- *    be set in the target's template.
+ *    If cmd->set_sn_on_restart_cmd has not been set, this function, as well
+ *    as scst_cmd_init_stage1_done() and scst_restart_cmd(), must not be
+ *    called simultaneously for the same session (more precisely, for the same
+ *    session/LUN, i.e. tgt_dev), i.e. they must be somehow externally
+ *    serialized. This is needed to have lock free fast path in
+ *    scst_cmd_set_sn(). For majority of targets those functions are naturally
+ *    serialized by the single source of commands. Only some, like iSCSI
+ *    immediate commands with multiple connections per session or scst_local,
+ *    are exceptions. For it, some mutex/lock must be used for the
+ *    serialization. Or, alternatively, multithreaded_init_done can be set in
+ *    the target's template.
  */
 void scst_cmd_init_done(struct scst_cmd *cmd,
 	enum scst_exec_context pref_context)
@@ -921,6 +928,16 @@ out:
 }
 EXPORT_SYMBOL(scst_cmd_init_done);
 
+/**
+ * scst_pre_parse() - Parse the SCSI CDB.
+ * @cmd: SCSI command to parse the CDB of.
+ *
+ * Parse the SCSI CDB and call scst_set_cmd_abnormal_done_state() if the CDB
+ * has been recognized and is invalid.
+ *
+ * Return: 0 on success, < 0 if the CDB is not recognized, > 0 if the CDB has
+ *    been recognized but is invalid.
+ */
 int scst_pre_parse(struct scst_cmd *cmd)
 {
 	int res;
@@ -4979,12 +4996,19 @@ struct scst_tgt_dev *scst_lookup_tgt_dev(struct scst_session *sess, u64 lun)
 	return NULL;
 }
 
-/*
- * Returns 0 on success, > 0 when we need to wait for unblock,
- * < 0 if there is no device (lun) or device type handler.
+/**
+ * scst_translate_lun() - Translate @cmd->lun into a tgt_dev pointer.
+ * @cmd: SCSI command for which to translate the LUN number.
  *
- * No locks, but might be on IRQ, protection is done by the
- * suspended activity.
+ * Initialize the following @cmd members: cpu_cmd_counter, cmd_threads,
+ * tgt_dev, cur_order_data, dev and devt.
+ *
+ * The caller must not hold any locks. May be called from IRQ context. The data
+ * structures used in this function are either protected by an RCU read lock or
+ * only change while activity is suspended.
+ *
+ * Return: 0 on success, > 0 if further processing of @cmd must wait for command
+ *    processing to resume or < 0 if LUN translation failed.
  */
 static int scst_translate_lun(struct scst_cmd *cmd)
 {
@@ -5132,11 +5156,14 @@ out_bypass_aca:
 	return;
 }
 
-/*
+/**
+ * __scst_init_cmd() - Translate the LUN, parse the CDB and set the sequence nr.
+ * @cmd: SCSI command to initialize.
+ *
  * No locks, but might be on IRQ.
  *
- * Returns 0 on success, > 0 when we need to wait for unblock,
- * < 0 if there is no device (lun) or device type handler.
+ * Return: 0 on success, > 0 if further processing of @cmd must wait for command
+ *    processing to resume or < 0 if LUN translation failed.
  */
 static int __scst_init_cmd(struct scst_cmd *cmd)
 {
@@ -5901,7 +5928,10 @@ out:
 	return res;
 }
 
-/* No locks */
+/*
+ * This function is called for aborted commands before a response is sent. The
+ * caller must not hold any locks.
+ */
 void scst_done_cmd_mgmt(struct scst_cmd *cmd)
 {
 	struct scst_mgmt_cmd_stub *mstb, *t;
@@ -6057,7 +6087,10 @@ void scst_async_mcmd_completed(struct scst_mgmt_cmd *mcmd, int status)
 }
 EXPORT_SYMBOL_GPL(scst_async_mcmd_completed);
 
-/* No locks */
+/*
+ * This function is called for aborted commands after a response has been
+ * sent. The caller must not hold any locks.
+ */
 void scst_finish_cmd_mgmt(struct scst_cmd *cmd)
 {
 	struct scst_mgmt_cmd_stub *mstb, *t;
@@ -8251,7 +8284,7 @@ out_free:
  *			      appropriate error code otherwise
  *
  * Description:
- *    Registers new session. Returns new session on success or NULL otherwise.
+ *    Registers a new session.
  *
  *    Note: A session creation and initialization is a complex task,
  *    which requires sleeping state, so it can't be fully done
@@ -8271,6 +8304,8 @@ out_free:
  *    failed session will be returned in xmit_response() with BUSY status.
  *    In case of failure the driver shall call scst_unregister_session()
  *    inside result_fn(), it will NOT be called automatically.
+ *
+ * Return: Session pointer upon success or NULL upon failure.
  */
 struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
 	const char *initiator_name, void *tgt_priv, void *result_fn_data,
@@ -8301,12 +8336,14 @@ EXPORT_SYMBOL_GPL(scst_register_session);
  *			      appropriate error code otherwise.
  *
  * Description:
- *    Registers new MQ session. Returns new session on success or NULL otherwise.
+ *    Registers a new MQ session.
  *
  *    MQ session is a session, which is part of a set of sessions from the same
  *    initiator, for instance, one session per CPU. The only difference with
  *    non-MQ sessions is that reservations are not supported on MQ-sessions
  *    (because there is no way to group sessions together from reservations POV)
+ *
+ * Return: Session pointer upon success or NULL upon failure.
  */
 struct scst_session *scst_register_session_mq(struct scst_tgt *tgt, int atomic,
 	const char *initiator_name, void *tgt_priv, void *result_fn_data,
@@ -8327,7 +8364,9 @@ EXPORT_SYMBOL_GPL(scst_register_session_mq);
  * @tgt_priv:	pointer to target driver's private data
  *
  * Description:
- *    Registers new session. Returns new session on success or NULL otherwise.
+ *    Registers a new session.
+ *
+ * Return: Session pointer upon success or NULL upon failure.
  */
 struct scst_session *scst_register_session_non_gpl(struct scst_tgt *tgt,
 	const char *initiator_name, void *tgt_priv)

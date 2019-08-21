@@ -11679,6 +11679,13 @@ static int get_cdb_info_write_same32(struct scst_cmd *cmd,
 	return get_cdb_info_write_same(cmd, sdbops, cmd->cdb[10] & 1 /*NDOB*/);
 }
 
+/**
+ * scst_set_cmd_from_cdb_info() - Parse the SCSI CDB.
+ * @cmd: SCSI command to parse.
+ * @ptr: Pointer to the function that will be used to parse @cmd.
+ *
+ * Return: 0 on success or >0 if the SCSI command is invalid.
+ */
 static int scst_set_cmd_from_cdb_info(struct scst_cmd *cmd,
 	const struct scst_sdbops *ptr)
 {
@@ -11968,15 +11975,18 @@ static int get_cdb_info_mo(struct scst_cmd *cmd,
 	return get_cdb_info_len_4(cmd, sdbops);
 }
 
-/*
- * scst_get_cdb_info() - fill various info about the command's CDB
+/**
+ * scst_get_cdb_info() - Parse the SCSI CDB according to the SCSI device type.
+ * @cmd: SCSI command to parse.
  *
  * Description:
- *    Fills various info about the command's CDB in the corresponding fields
- *    in the command.
+ *    Fill in the following fields in @cmd: cdb_len, cmd_naca,
+ *    cmd_linked, op_name, data_direction, op_flags, lba_off, lba_len,
+ *    len_off, len_len, data_direction, lba, data_len, ...
+ *    Sets SCST_LBA_NOT_VALID if the CDB has not been recognized.
  *
- *    Returns: 0 on success, <0 if command is unknown, >0 if command
- *    is invalid.
+ * Return: 0 on success, < 0 if the CDB is not recognized, > 0 if the CDB has
+ *    been recognized but is invalid.
  */
 int scst_get_cdb_info(struct scst_cmd *cmd)
 {
