@@ -3726,8 +3726,9 @@ static int scst_cm_release(struct scst_tgt *tgt)
 
 static int scst_cm_xmit_response(struct scst_cmd *cmd)
 {
+	struct scst_icmd_priv *icmd_priv = cmd->tgt_i_priv;
+	scst_i_finish_fn_t f = icmd_priv->finish_fn;
 	int res = SCST_TGT_RES_SUCCESS;
-	scst_i_finish_fn_t f = (void *) *((unsigned long long **)cmd->tgt_i_priv);
 
 	TRACE_ENTRY();
 

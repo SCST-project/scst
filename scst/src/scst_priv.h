@@ -157,6 +157,11 @@ static inline void scst_set_cmd_state(struct scst_cmd *cmd,
 
 typedef void (*scst_i_finish_fn_t) (struct scst_cmd *cmd);
 
+/* Private data associated with an internal command. */
+struct scst_icmd_priv {
+	scst_i_finish_fn_t finish_fn;
+};
+
 extern struct mutex scst_mutex2;
 
 extern int scst_threads;

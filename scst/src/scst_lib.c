@@ -6944,8 +6944,9 @@ out_done:
 
 int scst_finish_internal_cmd(struct scst_cmd *cmd)
 {
-	int res;
+	struct scst_icmd_priv *icmd_priv = cmd->tgt_i_priv;
 	unsigned long flags;
+	int res;
 
 	TRACE_ENTRY();
 
@@ -6971,11 +6972,8 @@ int scst_finish_internal_cmd(struct scst_cmd *cmd)
 
 	if (cmd->cdb[0] == REQUEST_SENSE)
 		scst_complete_request_sense(cmd);
-	else {
-		scst_i_finish_fn_t f = (void *) *((unsigned long long **)cmd->tgt_i_priv);
-
-		f(cmd);
-	}
+	else
+		icmd_priv->finish_fn(cmd);
 
 	__scst_cmd_put(cmd);
 
