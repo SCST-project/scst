@@ -2341,16 +2341,23 @@ static void scst_cm_init_inq_finish(struct scst_cmd *cmd)
 	/* cmd->dev can be NULL here! */
 
 	rc = scst_cm_err_check_retry(cmd, cmd->start_time, scst_cm_inq_retry_fn);
-	if (rc == SCST_CM_STATUS_RETRY || !cmd->dev || !cmd->tgt_dev)
+	if (rc == SCST_CM_STATUS_RETRY)
+		goto out;
+
+	/*
+	 * Since scst_cm_inq_retry_fn() uses cmd->tgt_i_priv, only free that
+	 * pointer once it is clear that that function won't be called.
+	 */
+	kfree(priv);
+	priv = NULL;
+	cmd->tgt_i_priv = NULL;
+
+	if (WARN_ON_ONCE(!dev))
 		goto out;
 
 	spin_lock_bh(&dev->dev_lock);
 	scst_unblock_dev(dev);
 	spin_unlock_bh(&dev->dev_lock);
-
-	kfree(priv);
-	priv = NULL;
-	cmd->tgt_i_priv = NULL;
 
 	if (rc != SCST_CM_STATUS_CMD_SUCCEEDED) {
 		PRINT_CRIT_ERROR("Unable to perform initial INQUIRY for device "
@@ -2449,12 +2456,15 @@ out:
 static int scst_cm_send_init_inquiry(struct scst_device *dev,
 	unsigned int unpacked_lun, struct scst_cm_init_inq_priv *priv)
 {
-	int res;
+	int res = -EINVAL;
 	static const uint8_t inq_cdb[6] = { INQUIRY, 1, 0x83, 0x10, 0, 0 };
 	__be64 lun;
 	struct scst_cmd *cmd;
 
 	TRACE_ENTRY();
+
+	if (WARN_ON_ONCE(!dev))
+		goto out;
 
 	if (priv == NULL) {
 		priv = kzalloc(sizeof(*priv), GFP_KERNEL);
@@ -2551,7 +2561,7 @@ out:
 
 static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 {
-	int res, i;
+	int res;
 	struct scst_acg_dev *acg_dev;
 	bool add_lun;
 
@@ -2561,27 +2571,12 @@ static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 
 	TRACE_DBG("dev %s, LUN %ld", dev->virt_name, (unsigned long)lun);
 
-	rcu_read_lock();
-	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-		struct scst_tgt_dev *tgt_dev;
-		struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[i];
-
-		list_for_each_entry_rcu(tgt_dev, head,
-					sess_tgt_dev_list_entry) {
-			if (tgt_dev->dev == dev) {
-				rcu_read_unlock();
-				/*
-				 * It's OK, because the copy manager could
-				 * auto register some devices
-				 */
-				TRACE_DBG("Copy Manager already registered "
-					"device %s", dev->virt_name);
-				res = 0;
-				goto out;
-			}
-		}
+	if (scst_cm_get_lun(dev) != SCST_MAX_LUN) {
+		TRACE_DBG("Copy Manager already registered device %s",
+			  dev->virt_name);
+		res = 0;
+		goto out;
 	}
-	rcu_read_unlock();
 
 	if (lun == SCST_MAX_LUN) {
 		add_lun = true;
@@ -2630,9 +2625,8 @@ out_err:
 /* scst_mutex supposed to be held and activities suspended */
 static void scst_cm_dev_unregister(struct scst_device *dev, bool del_lun)
 {
-	int i;
 	struct scst_cm_desig *des, *t;
-	u32 lun = SCST_MAX_LUN;
+	u32 lun;
 
 	TRACE_ENTRY();
 
@@ -2651,21 +2645,7 @@ static void scst_cm_dev_unregister(struct scst_device *dev, bool del_lun)
 	if (!del_lun)
 		goto out;
 
-	rcu_read_lock();
-	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-		struct scst_tgt_dev *tgt_dev;
-		struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[i];
-
-		list_for_each_entry_rcu(tgt_dev, head,
-					sess_tgt_dev_list_entry) {
-			if (tgt_dev->dev == dev) {
-				lun = tgt_dev->lun;
-				break;
-			}
-		}
-	}
-	rcu_read_unlock();
-
+	lun = scst_cm_get_lun(dev);
 	if (lun != SCST_MAX_LUN)
 		scst_acg_del_lun(scst_cm_tgt->default_acg, lun, false);
 
@@ -3726,8 +3706,9 @@ static int scst_cm_release(struct scst_tgt *tgt)
 
 static int scst_cm_xmit_response(struct scst_cmd *cmd)
 {
+	struct scst_icmd_priv *icmd_priv = cmd->tgt_i_priv;
+	scst_i_finish_fn_t f = icmd_priv->finish_fn;
 	int res = SCST_TGT_RES_SUCCESS;
-	scst_i_finish_fn_t f = (void *) *((unsigned long long **)cmd->tgt_i_priv);
 
 	TRACE_ENTRY();
 
