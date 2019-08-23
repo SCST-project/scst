@@ -4526,7 +4526,7 @@ static int scst_pre_xmit_response1(struct scst_cmd *cmd)
 		 */
 		smp_mb__before_atomic_dec();
 		cmd->owns_refcnt = false;
-		scst_tgt_dev_dec_cmd_count(cmd->tgt_dev);
+		atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
 		percpu_ref_put(&cmd->dev->refcnt);
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 		atomic_dec(&cmd->dev->dev_cmd_count);
@@ -5048,7 +5048,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 					"the device will not be visible remotely",
 					(unsigned long long)cmd->lun);
 				nul_dev = true;
-				scst_tgt_dev_dec_cmd_count(tgt_dev);
+				atomic_dec(&tgt_dev->tgt_dev_cmd_count);
 			}
 		}
 		if (unlikely(res != 0)) {

@@ -2961,6 +2961,8 @@ retry_add:
 					TRACE_MGMT_DBG("Replacing LUN %lld",
 						(long long)tgt_dev->lun);
 					scst_del_tgt_dev(tgt_dev);
+					synchronize_rcu();
+					scst_free_tgt_dev(tgt_dev);
 					inq_changed_ua_needed = 1;
 					break;
 				}
@@ -3004,6 +3006,8 @@ next:
 				luns_changed = true;
 				something_freed = true;
 				scst_del_tgt_dev(tgt_dev);
+				synchronize_rcu();
+				scst_free_tgt_dev(tgt_dev);
 			}
 		}
 	}
@@ -4540,44 +4544,10 @@ out_free:
 	goto out;
 }
 
-static void scst_tgt_dev_free_workfn(struct work_struct *work)
-{
-	struct scst_tgt_dev *tgt_dev = container_of(work, typeof(*tgt_dev),
-						    free_work);
-	struct scst_acg_dev *acg_dev = tgt_dev->acg_dev;
-	struct scst_device *dev = tgt_dev->dev;
-	bool dec_acg_refcnt = tgt_dev->dec_acg_refcnt;
-	atomic_t *a = tgt_dev->a;
-
-	mutex_lock(&scst_mutex);
-	scst_free_tgt_dev(tgt_dev);
-	if (dec_acg_refcnt) {
-		WARN_ON_ONCE(acg_dev->nr_deleted_tgt_devs < 0);
-		if (--acg_dev->nr_deleted_tgt_devs == 0)
-			scst_free_acg_dev(acg_dev);
-	}
-	mutex_unlock(&scst_mutex);
-
-	percpu_ref_put(&dev->refcnt);
-	scst_put(a);
-}
-
-static void scst_free_tgt_dev_rcu(struct rcu_head *rcu)
-{
-	struct scst_tgt_dev *tgt_dev = container_of(rcu, typeof(*tgt_dev), rcu);
-
-	tgt_dev->a = scst_get();
-	percpu_ref_get(&tgt_dev->dev->refcnt);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-	WARN_ON_ONCE(!schedule_work(&tgt_dev->free_work));
-#else
-	WARN_ON_ONCE(!queue_work(system_long_wq, &tgt_dev->free_work));
-#endif
-}
-
 /* Delete a LUN without generating a unit attention. */
 static struct scst_acg_dev *__scst_acg_del_lun(struct scst_acg *acg,
 					       uint64_t lun,
+					       struct list_head *tgt_dev_list,
 					       bool *report_luns_changed)
 {
 	struct scst_acg_dev *acg_dev = NULL, *a;
@@ -4585,6 +4555,8 @@ static struct scst_acg_dev *__scst_acg_del_lun(struct scst_acg *acg,
 	struct scst_session *sess;
 
 	lockdep_assert_held(&scst_mutex);
+
+	INIT_LIST_HEAD(tgt_dev_list);
 
 	list_for_each_entry(a, &acg->acg_dev_list, acg_dev_list_entry) {
 		if (a->lun == lun) {
@@ -4598,18 +4570,17 @@ static struct scst_acg_dev *__scst_acg_del_lun(struct scst_acg *acg,
 	*report_luns_changed = scst_cm_on_del_lun(acg_dev,
 						  *report_luns_changed);
 
-	acg_dev->nr_deleted_tgt_devs = 1;
-
 	list_for_each_entry_safe(tgt_dev, tt, &acg_dev->dev->dev_tgt_dev_list,
 			 dev_tgt_dev_list_entry) {
 		if (tgt_dev->acg_dev == acg_dev) {
 			sess = tgt_dev->sess;
 
 			mutex_lock(&sess->tgt_dev_list_mutex);
-			acg_dev->nr_deleted_tgt_devs++;
-			tgt_dev->dec_acg_refcnt = true;
 			scst_del_tgt_dev(tgt_dev);
 			mutex_unlock(&sess->tgt_dev_list_mutex);
+
+			list_add_tail(&tgt_dev->extra_tgt_dev_list_entry,
+				      tgt_dev_list);
 		}
 	}
 
@@ -4622,17 +4593,37 @@ out:
 	return acg_dev;
 }
 
+static int scst_tgt_devs_cmds(struct list_head *tgt_dev_list)
+{
+	struct scst_tgt_dev *tgt_dev;
+	int res = 0;
+
+	list_for_each_entry(tgt_dev, tgt_dev_list, extra_tgt_dev_list_entry)
+		res += atomic_read(&tgt_dev->tgt_dev_cmd_count);
+
+	return res;
+}
+
+static void scst_wait_for_tgt_devs(struct list_head *tgt_dev_list)
+{
+	while (scst_tgt_devs_cmds(tgt_dev_list) > 0)
+		mdelay(100);
+}
+
 int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 		     bool gen_report_luns_changed)
 {
 	int res = 0;
 	struct scst_acg_dev *acg_dev;
+	struct scst_tgt_dev *tgt_dev, *tt;
+	struct list_head tgt_dev_list;
 
 	TRACE_ENTRY();
 
 	lockdep_assert_held(&scst_mutex);
 
-	acg_dev = __scst_acg_del_lun(acg, lun, &gen_report_luns_changed);
+	acg_dev = __scst_acg_del_lun(acg, lun, &tgt_dev_list,
+				     &gen_report_luns_changed);
 	if (acg_dev == NULL) {
 		PRINT_ERROR("Device is not found in group %s", acg->acg_name);
 		res = -EINVAL;
@@ -4644,11 +4635,16 @@ int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
 
 	mutex_unlock(&scst_mutex);
 
+	scst_wait_for_tgt_devs(&tgt_dev_list);
 	synchronize_rcu();
 
 	mutex_lock(&scst_mutex);
-	if (--acg_dev->nr_deleted_tgt_devs == 0)
-		scst_free_acg_dev(acg_dev);
+
+	list_for_each_entry_safe(tgt_dev, tt, &tgt_dev_list,
+				 extra_tgt_dev_list_entry) {
+		scst_free_tgt_dev(tgt_dev);
+	}
+	scst_free_acg_dev(acg_dev);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -4662,12 +4658,13 @@ int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 {
 	struct scst_acg_dev *acg_dev;
 	bool del_gen_ua = false;
-	struct scst_tgt_dev *tgt_dev;
+	struct scst_tgt_dev *tgt_dev, *tt;
+	struct list_head tgt_dev_list;
 	int res = -EINVAL;
 
 	lockdep_assert_held(&scst_mutex);
 
-	acg_dev = __scst_acg_del_lun(acg, lun, &del_gen_ua);
+	acg_dev = __scst_acg_del_lun(acg, lun, &tgt_dev_list, &del_gen_ua);
 	if (!acg_dev)
 		flags |= SCST_ADD_LUN_GEN_UA;
 	res = scst_acg_add_lun(acg, parent, dev, lun, flags, NULL);
@@ -4688,10 +4685,15 @@ int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 	}
 	mutex_unlock(&scst_mutex);
 
+	scst_wait_for_tgt_devs(&tgt_dev_list);
 	synchronize_rcu();
 
 	mutex_lock(&scst_mutex);
-	if (acg_dev && --acg_dev->nr_deleted_tgt_devs == 0)
+	list_for_each_entry_safe(tgt_dev, tt, &tgt_dev_list,
+				 extra_tgt_dev_list_entry) {
+		scst_free_tgt_dev(tgt_dev);
+	}
+	if (acg_dev)
 		scst_free_acg_dev(acg_dev);
 
 out:
@@ -4802,7 +4804,11 @@ static void scst_del_acg(struct scst_acg *acg)
 	}
 }
 
-/* scst_free_acg - free an ACG */
+/*
+ * scst_free_acg - free an ACG
+ *
+ * The caller must hold scst_mutex and activity must have been suspended.
+ */
 static void scst_free_acg(struct scst_acg *acg)
 {
 	struct scst_acg_dev *acg_dev, *acg_dev_tmp;
@@ -4813,13 +4819,9 @@ static void scst_free_acg(struct scst_acg *acg)
 	/* For procfs acg->tgt could be NULL */
 	TRACE_DBG("Freeing acg %s/%s", tgt ? tgt->tgt_name : "(tgt=NULL)", acg->acg_name);
 
-	mutex_lock(&scst_mutex);
-
 	list_for_each_entry_safe(acg_dev, acg_dev_tmp, &acg->acg_dev_list,
 			acg_dev_list_entry) {
 		struct scst_tgt_dev *tgt_dev, *tt;
-
-		acg_dev->nr_deleted_tgt_devs = 1;
 
 		list_for_each_entry_safe(tgt_dev, tt,
 				 &acg_dev->dev->dev_tgt_dev_list,
@@ -4828,21 +4830,15 @@ static void scst_free_acg(struct scst_acg *acg)
 				sess = tgt_dev->sess;
 
 				mutex_lock(&sess->tgt_dev_list_mutex);
-				acg_dev->nr_deleted_tgt_devs++;
-				tgt_dev->dec_acg_refcnt = true;
 				scst_del_tgt_dev(tgt_dev);
 				mutex_unlock(&sess->tgt_dev_list_mutex);
+
+				synchronize_rcu();
+				scst_free_tgt_dev(tgt_dev);
 			}
 		}
-		mutex_unlock(&scst_mutex);
-
-		synchronize_rcu();
-
-		mutex_lock(&scst_mutex);
-		if (--acg_dev->nr_deleted_tgt_devs == 0)
-			scst_free_acg_dev(acg_dev);
+		scst_free_acg_dev(acg_dev);
 	}
-	mutex_unlock(&scst_mutex);
 
 	list_for_each_entry_safe(acn, acnt, &acg->acn_list, acn_list_entry) {
 		scst_free_acn(acn,
@@ -5278,6 +5274,9 @@ void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev)
 
 	lockdep_assert_held(&scst_mutex);
 
+	if (tgt_dev->dev->threads_num < 0)
+		goto out_deinit;
+
 	if (tgt_dev->active_cmd_threads == &scst_main_cmd_threads) {
 		/* Global async threads */
 		kref_put(&tgt_dev->aic_keeper->aic_keeper_kref,
@@ -5294,6 +5293,7 @@ void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev)
 		scst_deinit_threads(&tgt_dev->tgt_dev_cmd_threads);
 	} /* else no threads (not yet initialized, e.g.) */
 
+out_deinit:
 	tm_dbg_deinit_tgt_dev(tgt_dev);
 	tgt_dev->active_cmd_threads = NULL;
 
@@ -5331,8 +5331,6 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	}
 
 	INIT_LIST_HEAD(&tgt_dev->sess_tgt_dev_list_entry);
-	init_rcu_head(&tgt_dev->rcu);
-	INIT_WORK(&tgt_dev->free_work, scst_tgt_dev_free_workfn);
 	tgt_dev->tgtt = tgtt;
 	tgt_dev->dev = dev;
 	tgt_dev->lun = acg_dev->lun;
@@ -5498,8 +5496,6 @@ out_dec_free:
 out_free_ua:
 	scst_free_all_UA(tgt_dev);
 
-	destroy_rcu_head(&tgt_dev->rcu);
-
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 	goto out;
 }
@@ -5525,15 +5521,8 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 	return;
 }
 
-void scst_tgt_dev_dec_cmd_count(struct scst_tgt_dev *tgt_dev)
-{
-	if (atomic_dec_return(&tgt_dev->tgt_dev_cmd_count) == 0)
-		call_rcu(&tgt_dev->rcu, scst_free_tgt_dev_rcu);
-}
-
 static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
-	struct scst_tgt_template *tgtt = tgt_dev->tgtt;
 	struct scst_device *dev = tgt_dev->dev;
 
 	lockdep_assert_held(&scst_mutex);
@@ -5550,10 +5539,7 @@ static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev)
 
 	scst_tgt_dev_sysfs_del(tgt_dev);
 
-	if (tgtt->get_initiator_port_transport_id == NULL)
-		dev->not_pr_supporting_tgt_devs_num--;
-
-	scst_tgt_dev_dec_cmd_count(tgt_dev);
+	atomic_dec(&tgt_dev->tgt_dev_cmd_count);
 }
 
 /*
@@ -5564,11 +5550,18 @@ static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev)
  */
 static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
+	struct scst_tgt_template *tgtt = tgt_dev->tgtt;
 	struct scst_device *dev = tgt_dev->dev;
 
 	TRACE_ENTRY();
 
+#ifdef CONFIG_SCST_EXTRACHECKS
+	WARN_ON_ONCE(scst_is_active_tgt_dev(tgt_dev));
+#endif
 	WARN_ON_ONCE(atomic_read(&tgt_dev->tgt_dev_cmd_count) != 0);
+
+	if (tgtt->get_initiator_port_transport_id == NULL)
+		dev->not_pr_supporting_tgt_devs_num--;
 
 	scst_clear_reservation(tgt_dev);
 	scst_pr_clear_tgt_dev(tgt_dev);
@@ -5582,8 +5575,6 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	}
 
 	scst_tgt_dev_stop_threads(tgt_dev);
-
-	destroy_rcu_head(&tgt_dev->rcu);
 
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 
@@ -5634,6 +5625,8 @@ void scst_sess_free_tgt_devs(struct scst_session *sess)
 		list_for_each_entry_safe(tgt_dev, t, head,
 				sess_tgt_dev_list_entry) {
 			scst_del_tgt_dev(tgt_dev);
+			synchronize_rcu();
+			scst_free_tgt_dev(tgt_dev);
 		}
 		INIT_LIST_HEAD(head);
 	}
