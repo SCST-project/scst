@@ -5027,9 +5027,8 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 
 		rcu_read_lock();
 		tgt_dev = scst_lookup_tgt_dev(cmd->sess, cmd->lun);
-		if (tgt_dev &&
-		    !atomic_inc_not_zero(&tgt_dev->tgt_dev_cmd_count))
-			tgt_dev = NULL;
+		if (tgt_dev)
+			atomic_inc(&tgt_dev->tgt_dev_cmd_count);
 		rcu_read_unlock();
 
 		if (tgt_dev) {

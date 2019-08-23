@@ -607,7 +607,7 @@ static void scst_pr_abort_reg(struct scst_device *dev,
 
 	TRACE_PR("Aborting %d commands for %s/%d (reg %p, key 0x%016llx, "
 		"tgt_dev %p, sess %p)",
-		atomic_read(&reg->tgt_dev->tgt_dev_cmd_count) - 1,
+		atomic_read(&reg->tgt_dev->tgt_dev_cmd_count),
 		debug_transport_id_to_initiator_name(reg->transport_id),
 		reg->rel_tgt_id, reg, be64_to_cpu(reg->key), reg->tgt_dev,
 		sess);
