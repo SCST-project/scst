@@ -4154,8 +4154,7 @@ static ssize_t scst_tgt_dev_active_commands_show(struct kobject *kobj,
 
 	tgt_dev = container_of(kobj, struct scst_tgt_dev, tgt_dev_kobj);
 
-	pos = sprintf(buf, "%d\n",
-		      atomic_read(&tgt_dev->tgt_dev_cmd_count) - 1);
+	pos = sprintf(buf, "%d\n", atomic_read(&tgt_dev->tgt_dev_cmd_count));
 
 	return pos;
 }
@@ -4489,7 +4488,6 @@ static int scst_sysfs_sess_get_active_commands(struct scst_session *sess)
 		list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 			active_cmds += atomic_read(&tgt_dev->tgt_dev_cmd_count);
-			active_cmds--;
 		}
 	}
 	rcu_read_unlock();
