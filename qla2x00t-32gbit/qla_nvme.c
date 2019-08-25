@@ -191,10 +191,9 @@ static void qla_nvme_ls_complete(struct work_struct *work)
 	kref_put(&priv->sp->cmd_kref, qla_nvme_release_ls_cmd_kref);
 }
 
-static void qla_nvme_sp_ls_done(void *ptr, int res)
+static void qla_nvme_sp_ls_done(srb_t *sp, int res)
 {
-	srb_t *sp = ptr;
-	struct nvme_private *priv;
+	struct nvme_private *priv = sp->priv;
 
 	if (WARN_ON_ONCE(kref_read(&sp->cmd_kref) == 0))
 		return;
@@ -202,17 +201,15 @@ static void qla_nvme_sp_ls_done(void *ptr, int res)
 	if (res)
 		res = -EINVAL;
 
-	priv = (struct nvme_private *)sp->priv;
 	priv->comp_status = res;
 	INIT_WORK(&priv->ls_work, qla_nvme_ls_complete);
 	schedule_work(&priv->ls_work);
 }
 
 /* it assumed that QPair lock is held. */
-static void qla_nvme_sp_done(void *ptr, int res)
+static void qla_nvme_sp_done(srb_t *sp, int res)
 {
-	srb_t *sp = ptr;
-	struct nvme_private *priv = (struct nvme_private *)sp->priv;
+	struct nvme_private *priv = sp->priv;
 
 	priv->comp_status = res;
 	kref_put(&sp->cmd_kref, qla_nvme_release_fcp_cmd_kref);
@@ -367,7 +364,6 @@ static inline int qla2x00_start_nvme_mq(srb_t *sp)
 {
 	unsigned long   flags;
 	uint32_t        *clr_ptr;
-	uint32_t        index;
 	uint32_t        handle;
 	struct cmd_nvme *cmd_pkt;
 	uint16_t        cnt, i;
@@ -391,17 +387,8 @@ static inline int qla2x00_start_nvme_mq(srb_t *sp)
 	/* Acquire qpair specific lock */
 	spin_lock_irqsave(&qpair->qp_lock, flags);
 
-	/* Check for room in outstanding command list. */
-	handle = req->current_outstanding_cmd;
-	for (index = 1; index < req->num_outstanding_cmds; index++) {
-		handle++;
-		if (handle == req->num_outstanding_cmds)
-			handle = 1;
-		if (!req->outstanding_cmds[handle])
-			break;
-	}
-
-	if (index == req->num_outstanding_cmds) {
+	handle = qla2xxx_get_next_handle(req);
+	if (handle == 0) {
 		rval = -EBUSY;
 		goto queuing_error;
 	}
@@ -664,7 +651,8 @@ void qla_nvme_unregister_remote_port(struct fc_port *fcport)
 	    __func__, fcport, fcport->port_name);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
-	nvme_fc_set_remoteport_devloss(fcport->nvme_remote_port, 0);
+	if (test_bit(PFLG_DRIVER_REMOVING, &fcport->vha->pci_flags))
+		nvme_fc_set_remoteport_devloss(fcport->nvme_remote_port, 0);
 #endif
 	init_completion(&fcport->nvme_del_done);
 	ret = nvme_fc_unregister_remoteport(fcport->nvme_remote_port);
