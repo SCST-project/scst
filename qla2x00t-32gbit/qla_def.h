@@ -2824,7 +2824,7 @@ struct ct_sns_req {
 		/* GA_NXT, GPN_ID, GNN_ID, GFT_ID, GFPN_ID */
 		struct {
 			uint8_t reserved;
-			uint8_t port_id[3];
+			be_id_t port_id;
 		} port_id;
 
 		struct {
@@ -2843,13 +2843,13 @@ struct ct_sns_req {
 
 		struct {
 			uint8_t reserved;
-			uint8_t port_id[3];
+			be_id_t port_id;
 			uint8_t fc4_types[32];
 		} rft_id;
 
 		struct {
 			uint8_t reserved;
-			uint8_t port_id[3];
+			be_id_t port_id;
 			uint16_t reserved2;
 			uint8_t fc4_feature;
 			uint8_t fc4_type;
@@ -2857,7 +2857,7 @@ struct ct_sns_req {
 
 		struct {
 			uint8_t reserved;
-			uint8_t port_id[3];
+			be_id_t port_id;
 			uint8_t node_name[8];
 		} rnn_id;
 
@@ -2944,7 +2944,7 @@ struct ct_rsp_hdr {
 
 struct ct_sns_gid_pt_data {
 	uint8_t control_byte;
-	uint8_t port_id[3];
+	be_id_t port_id;
 };
 
 /* It's the same for both GPN_FT and GNN_FT */
@@ -2974,7 +2974,7 @@ struct ct_sns_rsp {
 	union {
 		struct {
 			uint8_t port_type;
-			uint8_t port_id[3];
+			be_id_t port_id;
 			uint8_t port_name[8];
 			uint8_t sym_port_name_len;
 			uint8_t sym_port_name[255];
