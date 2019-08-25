@@ -664,7 +664,8 @@ void qla_nvme_unregister_remote_port(struct fc_port *fcport)
 	    __func__, fcport, fcport->port_name);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
-	nvme_fc_set_remoteport_devloss(fcport->nvme_remote_port, 0);
+	if (test_bit(PFLG_DRIVER_REMOVING, &fcport->vha->pci_flags))
+		nvme_fc_set_remoteport_devloss(fcport->nvme_remote_port, 0);
 #endif
 	init_completion(&fcport->nvme_del_done);
 	ret = nvme_fc_unregister_remoteport(fcport->nvme_remote_port);
