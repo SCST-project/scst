@@ -55,7 +55,7 @@
 ########################
 
 # shellcheck source=./kernel-functions
-source $(dirname $0)/kernel-functions
+source "$(dirname "$0")/kernel-functions"
 
 function usage {
   echo "Usage: $0 [-c <dir>] [-d <dir>] [-f] [-h] [-j <jobs>] [-p <patchdir>] [-q] <kver1> <kver2> ..."
@@ -697,7 +697,7 @@ do
   if [ "${run_smatch}" = "true" ]; then
     run_smatch "$k" "${subdirs[@]}"
   fi
-  if [ "${qla2x00t}" = "true" ] && $(kernel_version_le 2.6.37 $k); then
+  if [ "${qla2x00t}" = "true" ] && kernel_version_le 2.6.37 "$k"; then
     subdirs+=(drivers/scsi/qla2xxx)
   fi
   compile_kernel "$k" "${subdirs[@]}"

@@ -1,4 +1,4 @@
-# -*- mode: shell-script -*-
+#!/bin/bash
 # Shell functions for parsing the Linux kernel version and for downloading
 # from kernel.org.
 
@@ -45,8 +45,8 @@ function download_file {
 # Make sure the kernel tarball and patch file are present in directory
 # ${kernel_downloads}. Download any missing files from ${kernel_mirror}.
 function download_kernel {
-  local kver="$(kernel_version $1)"
-  local plevel="$(patchlevel $1)"
+  local kver="$(kernel_version "$1")"
+  local plevel="$(patchlevel "$1")"
   local series="$1"
 
   case "${series:0:2}" in
@@ -57,7 +57,7 @@ function download_kernel {
   test -w "${kernel_downloads}" || return $?
   (
     cd "${kernel_downloads}" || return $?
-    if [ "$plevel" = "" -o "$plevel" = "0" ] ||
+    if [ "$plevel" = "" ] || [ "$plevel" = "0" ] ||
       download_file "${kernel_mirror}/v$series/patch-$1.xz"
     then
       download_file "${kernel_mirror}/v$series/linux-${kver}.tar.xz" ||
@@ -70,20 +70,20 @@ function download_kernel {
 }
 
 function extract_kernel_archive {
-  local kver="$(kernel_version $1)"
-  local plevel="$(patchlevel $1)"
+  local kver="$(kernel_version "$1")"
+  local plevel="$(patchlevel "$1")"
   local series="$1"
 
   if [ -e "${kernel_downloads}/linux-$1.tar.xz" ]; then
     xz -cd "${kernel_downloads}/linux-$1.tar.xz" | tar xf -
   elif [ -e "${kernel_downloads}/linux-$kver.tar.xz" ]; then
     xz -cd "${kernel_downloads}/linux-$kver.tar.xz" | tar xf - &&
-      mv linux-$kver linux-$1
+      mv "linux-$kver" "linux-$1"
   elif [ -e "${kernel_downloads}/linux-$1.tar.bz2" ]; then
     tar xjf "${kernel_downloads}/linux-$1.tar.bz2"
   elif [ -e "${kernel_downloads}/linux-$kver.tar.bz2" ]; then
     tar xjf "${kernel_downloads}/linux-$kver.tar.bz2" &&
-      mv linux-$kver linux-$1
+      mv "linux-$kver" "linux-$1"
   else
     return 1
   fi
@@ -92,24 +92,24 @@ function extract_kernel_archive {
 # Create a linux-$1 tree in the current directory, where $1 is a kernel
 # version number with either three or four components.
 function extract_kernel_tree {
-  local kver="$(kernel_version $1)"
-  local plevel="$(patchlevel $1)"
+  local kver="$(kernel_version "$1")"
+  local plevel="$(patchlevel "$1")"
   local tmpdir=kernel-tree-tmp-$$
 
   rm -rf "linux-$1" "${tmpdir}"
   mkdir "${tmpdir}" || return $?
   (
     cd "${tmpdir}" || return $?
-    if [ "$plevel" != "" -a "$plevel" != "0" -a \
-         -e "${kernel_downloads}/patch-$1.xz" ]; then
-      extract_kernel_archive $kver || return $?
-      mv linux-$kver linux-$1
-      ( cd linux-$1 && xz -cd "${kernel_downloads}/patch-$1.xz" \
+    if [ "$plevel" != "" ] && [ "$plevel" != "0" ] &&
+       [ -e "${kernel_downloads}/patch-$1.xz" ]; then
+      extract_kernel_archive "$kver" || return $?
+      mv "linux-$kver" "linux-$1"
+      ( cd "linux-$1" && xz -cd "${kernel_downloads}/patch-$1.xz" \
         | patch -p1 -f -s; ) \
         || return $?
     else
-	extract_kernel_archive $1 ||
-	{ extract_kernel_archive $kver && mv linux-$kver linux-$1; } ||
+	extract_kernel_archive "$1" ||
+	{ extract_kernel_archive "$kver" && mv "linux-$kver" "linux-$1"; } ||
 	return $?
     fi
     mv "linux-$1" ".." || return $?
@@ -120,7 +120,7 @@ function extract_kernel_tree {
 
 # Patch a kernel tree where $1 is the kernel version.
 function patch_kernel {
-    if [ "$1" = "2.6.29" -o "$1" = "2.6.29.1" -o "$1" = "2.6.29.2" -o "$1" = "2.6.29.3" ]
+    if [ "$1" = "2.6.29" ] || [ "$1" = "2.6.29.1" ] || [ "$1" = "2.6.29.2" ] || [ "$1" = "2.6.29.3" ]
     then
       patch -f -s -p1 <<'EOF'
 Make sure that branch profiling does not trigger sparse warnings.
@@ -177,7 +177,7 @@ See also http://lkml.org/lkml/2009/9/26/51
  	do {								\
 EOF
     fi
-    if [ "${1#2.6.32}" != "$1" -o "${1#2.6.33}" != "$1" ]
+    if [ "${1#2.6.32}" != "$1" ] || [ "${1#2.6.33}" != "$1" ]
     then
       patch -f -s -p1 <<'EOF'
 Get rid of sparse errors on sk_buff.protocol.
@@ -451,5 +451,10 @@ function download_and_extract_kernel_tree {
     else
 	download_kernel "$1" && extract_kernel_tree "$1"
     fi &&
-	(cd linux-$1 && patch_kernel "$1")
+	(cd "linux-$1" && patch_kernel "$1")
 }
+
+# For shellcheck
+if false; then
+    quiet_download=true
+fi

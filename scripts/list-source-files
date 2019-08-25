@@ -17,7 +17,7 @@ list_source_files() {
       grep -vE '^[D?]|^Performing|^$' | \
       cut -c3- | \
       while read -r a b c f; do
-        if [ -f "$f" -o -h "$f" ]; then
+        if [ -f "$f" ] || [ -h "$f" ]; then
 	  echo "$a $b $c" >/dev/null
 	  echo "$f"
         fi
@@ -39,7 +39,7 @@ list_source_files() {
       hg manifest
     fi
   else
-    ( cd "$d" && find -type f -o -type l | sed 's|^\./||' )
+    ( cd "$d" && find . -type f -o -type l | sed 's|^\./||' )
   fi
 }
 

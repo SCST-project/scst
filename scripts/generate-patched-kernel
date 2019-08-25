@@ -24,13 +24,14 @@ function usage {
 }
 
 
-script_dir="$(dirname $0)"
+script_dir="$(dirname "$0")"
 if [ "${script_dir#/}" = "${script_dir}" ]; then
   script_dir="$PWD/$script_dir"
 fi
 scriptdir="${scriptdir%/.}"
 scst_dir="$(dirname "${script_dir}")"
 
+# shellcheck source=./kernel-functions
 source "${script_dir}/kernel-functions"
 
 if [ "$1" = "" ]; then
@@ -49,9 +50,9 @@ cd "${target}" || exit $?
 "${script_dir}/list-source-files" "${scst_dir}" |
   grep -- "-${kernel_version}.*.patch$" |
   grep -v /in-tree/ |
-  while read p; do
-    if [ "${p/readahead-2.6.32.below11.patch//}" = "$p" \
-         -o "${patchlevel:-0}" -lt 11 ]; then
+  while read -r p; do
+    if [ "${p/readahead-2.6.32.below11.patch//}" = "$p" ] ||
+       [ "${patchlevel:-0}" -lt 11 ]; then
       echo "==== $p"
       patch -p1 <"${scst_dir}/$p"
     fi

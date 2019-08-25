@@ -2,11 +2,11 @@
 # Update the version number in SCST source files.
 
 usage() {
-    echo "Usage: $(basename $0) <major> <minor> <release> [<suffix>]"
+    echo "Usage: $(basename "$0") <major> <minor> <release> [<suffix>]"
     exit 1
 }
 
-if [ $# != 3 -a $# != 4 ]; then
+if [ $# != 3 ] && [ $# != 4 ]; then
    usage
 fi
 
