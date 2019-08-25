@@ -33,10 +33,8 @@ static inline void bsg_job_done_backport(struct fc_bsg_job *job, int result,
 #endif
 
 /* BSG support for ELS/CT pass through */
-void
-qla2x00_bsg_job_done(void *ptr, int res)
+void qla2x00_bsg_job_done(srb_t *sp, int res)
 {
-	srb_t *sp = ptr;
 #ifndef NEW_LIBFC_API
 	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
 #else
@@ -50,10 +48,8 @@ qla2x00_bsg_job_done(void *ptr, int res)
 	sp->free(sp);
 }
 
-void
-qla2x00_bsg_sp_free(void *ptr)
+void qla2x00_bsg_sp_free(srb_t *sp)
 {
-	srb_t *sp = ptr;
 	struct qla_hw_data *ha = sp->vha->hw;
 #ifndef NEW_LIBFC_API
 	struct fc_bsg_job *bsg_job = sp->u.bsg_job;

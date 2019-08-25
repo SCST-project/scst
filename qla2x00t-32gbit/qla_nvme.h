@@ -164,6 +164,5 @@ static inline void qla_nvme_delete(struct scsi_qla_host *vha)
 
 void qla24xx_nvme_ls4_iocb(struct scsi_qla_host *, struct pt_ls4_request *,
     struct req_que *);
-void qla24xx_async_gffid_sp_done(void *, int);
-
+void qla24xx_async_gffid_sp_done(struct srb *sp, int);
 #endif
