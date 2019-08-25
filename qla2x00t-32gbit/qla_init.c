@@ -1687,7 +1687,7 @@ void qla24xx_handle_relogin_event(scsi_qla_host_t *vha,
 	}
 
 	if (fcport->last_rscn_gen != fcport->rscn_gen) {
-		ql_dbg(ql_dbg_disc, vha, 0x20e9, "%s %d %s post gidpn\n",
+		ql_dbg(ql_dbg_disc, vha, 0x20e9, "%s %d %s post gnl\n",
 		    __func__, __LINE__, wwn_to_str(fcport->port_name));
 
 		qla24xx_post_gnl_work(vha, fcport);
@@ -1696,7 +1696,6 @@ void qla24xx_handle_relogin_event(scsi_qla_host_t *vha,
 
 	qla24xx_fcport_handle_login(vha, fcport);
 }
-
 
 /*
  * RSCN(s) came in for this fcport, but the RSCN(s) was not able
