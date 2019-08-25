@@ -1586,6 +1586,14 @@ static inline int scsi_bidi_cmnd(struct scsi_cmnd *cmd)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0)
+/* See also commit b54197c43db8 ("virtio_scsi: use cmd_size") # v3.16. */
+static inline void *scsi_cmd_priv(struct scsi_cmnd *cmd)
+{
+	return cmd + 1;
+}
+#endif
+
 /* <scsi/scsi_request.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
