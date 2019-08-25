@@ -4254,14 +4254,13 @@ static void qla2x00_async_gnnid_sp_done(srb_t *sp, int res)
 	ea.fcport = fcport;
 	ea.sp = sp;
 	ea.rc = res;
-	ea.event = FCME_GNNID_DONE;
 
 	ql_dbg(ql_dbg_disc, vha, 0x204f,
 	    "Async done-%s res %x, WWPN %s %s\n",
 	    sp->name, res, wwn_to_str(fcport->port_name),
 	    wwn_to_str(fcport->node_name));
 
-	qla2x00_fcport_event_handler(vha, &ea);
+	qla24xx_handle_gnnid_event(vha, &ea);
 
 	sp->free(sp);
 }
@@ -4386,14 +4385,13 @@ static void qla2x00_async_gfpnid_sp_done(srb_t *sp, int res)
 	ea.fcport = fcport;
 	ea.sp = sp;
 	ea.rc = res;
-	ea.event = FCME_GFPNID_DONE;
 
 	ql_dbg(ql_dbg_disc, vha, 0x204f,
 	    "Async done-%s res %x, WWPN %s %s\n",
 	    sp->name, res, wwn_to_str(fcport->port_name),
 	    wwn_to_str(fcport->fabric_port_name));
 
-	qla2x00_fcport_event_handler(vha, &ea);
+	qla24xx_handle_gfpnid_event(vha, &ea);
 
 	sp->free(sp);
 }
