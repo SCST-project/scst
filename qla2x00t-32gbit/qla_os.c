@@ -1298,6 +1298,9 @@ qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 
 	sp = scsi_cmd_priv(cmd);
 
+	if (sp->fcport && sp->fcport->deleted)
+		return SUCCESS;
+
 	/* Return if the command has already finished. */
 	if (sp_get(sp))
 		return SUCCESS;
