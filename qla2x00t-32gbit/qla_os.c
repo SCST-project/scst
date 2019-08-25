@@ -1355,7 +1355,6 @@ qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 	    "Aborting from RISC nexus=%ld:%d:%llu sp=%p cmd=%p handle=%x\n",
 	    vha->host_no, id, lun, sp, cmd, sp->handle);
 
-	ret = SUCCESS;
 	rval = ha->isp_ops->abort_command(sp);
 	ql_dbg(ql_dbg_taskm, vha, 0x8003,
 	       "Abort command mbx cmd=%p, rval=%x.\n", cmd, rval);
@@ -1367,9 +1366,9 @@ qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 		 * won't report a completion.
 		 */
 		sp->done(sp, DID_ABORT << 16);
+		ret = SUCCESS;
 		break;
-	case QLA_FUNCTION_PARAMETER_ERROR:
-	default: {
+	case QLA_FUNCTION_PARAMETER_ERROR: {
 		/* Wait for the command completion. */
 		uint32_t ratov = ha->r_a_tov/10;
 		uint32_t ratov_j = msecs_to_jiffies(4 * ratov * 1000);
@@ -1380,10 +1379,18 @@ qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 			    "%s: Abort wait timer (4 * R_A_TOV[%d]) expired\n",
 			    __func__, ha->r_a_tov);
 			ret = FAILED;
-			break;
+		} else {
+			ret = SUCCESS;
 		}
 		break;
 	}
+	default:
+		/*
+		 * Either abort failed or abort and completion raced. Let
+		 * the SCSI core retry the abort in the former case.
+		 */
+		ret = FAILED;
+		break;
 	}
 
 	sp->comp = NULL;
