@@ -8650,7 +8650,8 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 		}
 		rq->next_rq = next_rq;
 #else
-		return -EOPNOTSUPP;
+		res = -EOPNOTSUPP;
+		goto out_free_sioc;
 #endif
 	} else {
 		rq = blk_map_kern_sg(q, cmd->sg, cmd->sg_cnt, gfp, reading);
