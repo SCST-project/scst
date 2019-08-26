@@ -48,6 +48,14 @@
 #define NEW_LIBFC_API
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+#error
+#error ***This version of qla2xxx does not support distributions based on***
+#error ***kernels before Linux kernel v3.15.***
+#error
+#endif
+
 /* Big endian Fibre Channel S_ID (source ID) or D_ID (destination ID). */
 typedef struct {
 	uint8_t domain;
