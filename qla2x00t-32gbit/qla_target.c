@@ -577,8 +577,9 @@ static void qla2x00_async_nack_sp_done(srb_t *sp, int res)
 	struct scsi_qla_host *vha = sp->vha;
 	unsigned long flags;
 
-	ql_dbg(ql_dbg_disc, vha, 0x20f2, "Async done-%s res %x %s  type %d\n",
-	       sp->name, res, wwn_to_str(sp->fcport->port_name), sp->type);
+	ql_dbg(ql_dbg_disc, vha, 0x20f2,
+	    "Async done-%s res %x %8phC  type %d\n",
+	    sp->name, res, sp->fcport->port_name, sp->type);
 
 	spin_lock_irqsave(&vha->hw->tgt.sess_lock, flags);
 	sp->fcport->flags &= ~FCF_ASYNC_SENT;
@@ -663,8 +664,8 @@ int qla24xx_async_notify_ack(scsi_qla_host_t *vha, fc_port_t *fcport,
 	sp->done = qla2x00_async_nack_sp_done;
 
 	ql_dbg(ql_dbg_disc, vha, 0x20f4,
-	    "Async-%s %s hndl %x %s\n",
-	    sp->name, wwn_to_str(fcport->port_name), sp->handle, c);
+	    "Async-%s %8phC hndl %x %s\n",
+	    sp->name, fcport->port_name, sp->handle, c);
 
 	rval = qla2x00_start_sp(sp);
 	if (rval != QLA_SUCCESS)
@@ -756,16 +757,16 @@ void qlt_fc_port_added(struct scsi_qla_host *vha, fc_port_t *fcport)
 
 		if (!kref_get_unless_zero(&sess->sess_kref)) {
 			ql_dbg(ql_dbg_disc, vha, 0x2107,
-			    "%s: kref_get fail sess %s \n",
-			    __func__, wwn_to_str(sess->port_name));
+			    "%s: kref_get fail sess %8phC \n",
+			    __func__, sess->port_name);
 			spin_unlock_irqrestore(&ha->tgt.sess_lock, flags);
 			return;
 		}
 
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0xf04c,
-		    "qla_target(%u): %ssession for port %s "
+		    "qla_target(%u): %ssession for port %8phC "
 		    "(loop ID %d) reappeared\n", vha->vp_idx,
-		    sess->local ? "local " : "", wwn_to_str(sess->port_name), sess->loop_id);
+		    sess->local ? "local " : "", sess->port_name, sess->loop_id);
 
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0xf007,
 		    "Reappeared sess %p\n", sess);
@@ -777,8 +778,9 @@ void qlt_fc_port_added(struct scsi_qla_host *vha, fc_port_t *fcport)
 
 	if (sess && sess->local) {
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0xf04d,
-		    "qla_target(%u): local session for port %s (loop ID %d) became global\n",
-		    vha->vp_idx, wwn_to_str(fcport->port_name), sess->loop_id);
+		    "qla_target(%u): local session for "
+		    "port %8phC (loop ID %d) became global\n", vha->vp_idx,
+		    fcport->port_name, sess->loop_id);
 		sess->local = 0;
 	}
 	spin_unlock_irqrestore(&ha->tgt.sess_lock, flags);
@@ -802,9 +804,9 @@ qlt_plogi_ack_find_add(struct scsi_qla_host *vha, port_id_t *id,
 	list_for_each_entry(pla, &vha->plogi_ack_list, list) {
 		if (pla->id.b24 == id->b24) {
 			ql_dbg(ql_dbg_disc + ql_dbg_verbose, vha, 0x210d,
-			    "%s %d %s Term INOT due to new INOT",
+			    "%s %d %8phC Term INOT due to new INOT",
 			    __func__, __LINE__,
-			    wwn_to_str(pla->iocb.u.isp24.port_name));
+			    pla->iocb.u.isp24.port_name);
 			qlt_send_term_imm_notif(vha, &pla->iocb, 1);
 			memcpy(&pla->iocb, iocb, sizeof(pla->iocb));
 			return pla;
@@ -841,8 +843,8 @@ void qlt_plogi_ack_unref(struct scsi_qla_host *vha,
 		return;
 
 	ql_dbg(ql_dbg_disc, vha, 0x5089,
-	    "Sending PLOGI ACK to wwn %s s_id %02x:%02x:%02x loop_id %#04x"
-	    " exch %#x ox_id %#x\n", wwn_to_str(iocb->u.isp24.port_name),
+	    "Sending PLOGI ACK to wwn %8phC s_id %02x:%02x:%02x loop_id %#04x"
+	    " exch %#x ox_id %#x\n", iocb->u.isp24.port_name,
 	    iocb->u.isp24.port_id[2], iocb->u.isp24.port_id[1],
 	    iocb->u.isp24.port_id[0],
 	    le16_to_cpu(iocb->u.isp24.nport_handle),
@@ -882,10 +884,10 @@ qlt_plogi_ack_link(struct scsi_qla_host *vha, struct qlt_plogi_ack_t *pla,
 	pla->ref_count++;
 
 	ql_dbg(ql_dbg_tgt_mgt, vha, 0xf097,
-		"Linking sess %p [%d] wwn %s with PLOGI ACK to wwn %s"
+		"Linking sess %p [%d] wwn %8phC with PLOGI ACK to wwn %8phC"
 		" s_id %02x:%02x:%02x, ref=%d pla %p link %d\n",
-		sess, link, wwn_to_str(sess->port_name),
-	        wwn_to_str(iocb->u.isp24.port_name), iocb->u.isp24.port_id[2],
+		sess, link, sess->port_name,
+		iocb->u.isp24.port_name, iocb->u.isp24.port_id[2],
 		iocb->u.isp24.port_id[1], iocb->u.isp24.port_id[0],
 		pla->ref_count, pla, link);
 
@@ -969,10 +971,9 @@ void qlt_free_session_done(struct work_struct *work)
 		sess->plogi_link[QLT_PLOGI_LINK_SAME_WWN];
 
 	ql_dbg(ql_dbg_tgt_mgt, vha, 0xf084,
-		"%s: se_sess %p / sess %p from port %s loop_id %#04x"
+		"%s: se_sess %p / sess %p from port %8phC loop_id %#04x"
 		" s_id %02x:%02x:%02x logout %d keep %d els_logo %d\n",
-		__func__, sess->se_sess, sess, wwn_to_str(sess->port_name),
-	        sess->loop_id,
+		__func__, sess->se_sess, sess, sess->port_name, sess->loop_id,
 		sess->d_id.b.domain, sess->d_id.b.area, sess->d_id.b.al_pa,
 		sess->logout_on_delete, sess->keep_nport_handle,
 		sess->send_els_logo);
@@ -1088,20 +1089,18 @@ void qlt_free_session_done(struct work_struct *work)
 		if (con) {
 			iocb = &con->iocb;
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0xf099,
-				 "se_sess %p / sess %p port %s is gone,"
-				 " %s (ref=%d), releasing PLOGI for %s (ref=%d)\n",
-				 sess->se_sess, sess,
-			         wwn_to_str(sess->port_name),
+				 "se_sess %p / sess %p port %8phC is gone,"
+				 " %s (ref=%d), releasing PLOGI for %8phC (ref=%d)\n",
+				 sess->se_sess, sess, sess->port_name,
 				 own ? "releasing own PLOGI" : "no own PLOGI pending",
 				 own ? own->ref_count : -1,
-			         wwn_to_str(iocb->u.isp24.port_name),
-			         con->ref_count);
+				 iocb->u.isp24.port_name, con->ref_count);
 			qlt_plogi_ack_unref(vha, con);
 			sess->plogi_link[QLT_PLOGI_LINK_CONFLICT] = NULL;
 		} else {
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0xf09a,
-			    "se_sess %p / sess %p port %s is gone, %s (ref=%d)\n",
-			    sess->se_sess, sess, wwn_to_str(sess->port_name),
+			    "se_sess %p / sess %p port %8phC is gone, %s (ref=%d)\n",
+			    sess->se_sess, sess, sess->port_name,
 			    own ? "releasing own PLOGI" :
 			    "no own PLOGI pending",
 			    own ? own->ref_count : -1);
@@ -1117,8 +1116,8 @@ void qlt_free_session_done(struct work_struct *work)
 	spin_unlock_irqrestore(&ha->tgt.sess_lock, flags);
 
 	ql_dbg(ql_dbg_tgt_mgt, vha, 0xf001,
-	    "Unregistration of sess %p %s finished fcp_cnt %d\n",
-	    sess, wwn_to_str(sess->port_name), vha->fcport_count);
+	    "Unregistration of sess %p %8phC finished fcp_cnt %d\n",
+		sess, sess->port_name, vha->fcport_count);
 
 	if (tgt && (tgt->sess_count == 0))
 		wake_up_all(&tgt->waitQ);
@@ -1155,8 +1154,8 @@ void qlt_unreg_sess(struct fc_port *sess)
 	unsigned long flags;
 
 	ql_dbg(ql_dbg_disc, sess->vha, 0x210a,
-	    "%s sess %p for deletion %s\n",
-	    __func__, sess, wwn_to_str(sess->port_name));
+	    "%s sess %p for deletion %8phC\n",
+	    __func__, sess, sess->port_name);
 
 	spin_lock_irqsave(&sess->vha->work_lock, flags);
 	if (sess->free_pending) {
@@ -1208,8 +1207,8 @@ static int qlt_reset(struct scsi_qla_host *vha, void *iocb, int mcmd)
 	}
 
 	ql_dbg(ql_dbg_tgt, vha, 0xe047,
-	    "scsi(%ld): resetting (session %p from port %s mcmd %x, "
-	    "loop_id %d)\n", vha->host_no, sess, wwn_to_str(sess->port_name),
+	    "scsi(%ld): resetting (session %p from port %8phC mcmd %x, "
+	    "loop_id %d)\n", vha->host_no, sess, sess->port_name,
 	    mcmd, loop_id);
 
 	return qlt_issue_task_mgmt(sess, 0, mcmd, iocb, QLA24XX_MGMT_SEND_NACK);
@@ -1254,8 +1253,8 @@ void qlt_schedule_sess_for_deletion(struct fc_port *sess)
 		if (sess->sec_since_registration < sec && sec && !(sec % 5)) {
 			sess->sec_since_registration = sec;
 			ql_dbg(ql_dbg_disc, sess->vha, 0xffff,
-			    "%s %s : Slow Rport registration(%d Sec)\n",
-			    __func__, wwn_to_str(sess->port_name), sec);
+			    "%s %8phC : Slow Rport registration(%d Sec)\n",
+			    __func__, sess->port_name, sec);
 		}
 		return;
 	default:
@@ -1275,8 +1274,8 @@ void qlt_schedule_sess_for_deletion(struct fc_port *sess)
 	qla24xx_chk_fcp_state(sess);
 
 	ql_dbg(ql_dbg_tgt, sess->vha, 0xe001,
-	    "Scheduling sess %p for deletion %s\n",
-	    sess, wwn_to_str(sess->port_name));
+	    "Scheduling sess %p for deletion %8phC\n",
+	    sess, sess->port_name);
 
 	WARN_ON(!queue_work(sess->vha->hw->wq, &sess->del_work));
 }
@@ -1360,8 +1359,8 @@ static struct fc_port *qlt_create_sess(
 	if (fcport->se_sess) {
 		if (!kref_get_unless_zero(&sess->sess_kref)) {
 			ql_dbg(ql_dbg_disc, vha, 0x20f6,
-			    "%s: kref_get_unless_zero failed for %s\n",
-			    __func__, wwn_to_str(sess->port_name));
+			    "%s: kref_get_unless_zero failed for %8phC\n",
+			    __func__, sess->port_name);
 			return NULL;
 		}
 		return fcport;
@@ -1382,8 +1381,8 @@ static struct fc_port *qlt_create_sess(
 	if (ha->tgt.tgt_ops->check_initiator_node_acl(vha,
 	    &fcport->port_name[0], sess) < 0) {
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0xf015,
-		    "(%d) %s check_initiator_node_acl failed\n",
-		    vha->vp_idx, wwn_to_str(fcport->port_name));
+		    "(%d) %8phC check_initiator_node_acl failed\n",
+		    vha->vp_idx, fcport->port_name);
 		return NULL;
 	} else {
 		kref_init(&fcport->sess_kref);
@@ -1393,8 +1392,8 @@ static struct fc_port *qlt_create_sess(
 		 */
 		if (!kref_get_unless_zero(&sess->sess_kref)) {
 			ql_dbg(ql_dbg_disc, vha, 0x20f7,
-			    "%s: kref_get_unless_zero failed for %s\n",
-			    __func__, wwn_to_str(sess->port_name));
+			    "%s: kref_get_unless_zero failed for %8phC\n",
+			    __func__, sess->port_name);
 			return NULL;
 		}
 
@@ -1415,9 +1414,9 @@ static struct fc_port *qlt_create_sess(
 	    vha->vha_tgt.qla_tgt->sess_count);
 
 	ql_dbg(ql_dbg_tgt_mgt, vha, 0xf04b,
-	    "qla_target(%d): %ssession for wwn %s (loop_id %d, "
+	    "qla_target(%d): %ssession for wwn %8phC (loop_id %d, "
 	    "s_id %x:%x:%x, confirmed completion %ssupported) added\n",
-	    vha->vp_idx, local ?  "local " : "", wwn_to_str(fcport->port_name),
+	    vha->vp_idx, local ?  "local " : "", fcport->port_name,
 	    fcport->loop_id, sess->d_id.b.domain, sess->d_id.b.area,
 	    sess->d_id.b.al_pa, sess->conf_compl_supported ?  "" : "not ");
 
@@ -1455,8 +1454,8 @@ qlt_fc_port_deleted(struct scsi_qla_host *vha, fc_port_t *fcport, int max_gen)
 		spin_unlock_irqrestore(&vha->hw->tgt.sess_lock, flags);
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0xf092,
 		    "Ignoring stale deletion request for se_sess %p / sess %p"
-		    " for port %s, req_gen %d, sess_gen %d\n",
-		    sess->se_sess, sess, wwn_to_str(sess->port_name), max_gen,
+		    " for port %8phC, req_gen %d, sess_gen %d\n",
+		    sess->se_sess, sess, sess->port_name, max_gen,
 		    sess->generation);
 		return;
 	}
@@ -2370,8 +2369,8 @@ void qlt_xmit_tm_rsp(struct qla_tgt_mgmt_cmd *mcmd)
 		case ELS_PRLO:
 		case ELS_TPRLO:
 			ql_dbg(ql_dbg_disc, vha, 0x2106,
-			    "TM response logo %s status %#x state %#x",
-			    wwn_to_str(mcmd->sess->port_name), mcmd->fc_tm_rsp,
+			    "TM response logo %8phC status %#x state %#x",
+			    mcmd->sess->port_name, mcmd->fc_tm_rsp,
 			    mcmd->flags);
 			qlt_schedule_sess_for_deletion(mcmd->sess);
 			break;
@@ -4019,9 +4018,8 @@ static void qlt_do_ctio_completion(struct scsi_qla_host *vha,
 				 */
 				cmd->sess->send_els_logo = 1;
 				ql_dbg(ql_dbg_disc, vha, 0x20f8,
-				    "%s %d %s post del sess\n",
-				    __func__, __LINE__,
-				    wwn_to_str(cmd->sess->port_name));
+				    "%s %d %8phC post del sess\n",
+				    __func__, __LINE__, cmd->sess->port_name);
 
 				qlt_schedule_sess_for_deletion(cmd->sess);
 			}
@@ -4387,8 +4385,8 @@ static int qlt_handle_cmd_for_atio(struct scsi_qla_host *vha,
 	 */
 	if (!kref_get_unless_zero(&sess->sess_kref)) {
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0xf004,
-		    "%s: kref_get fail, %s oxid %x \n",
-		    __func__, wwn_to_str(sess->port_name),
+		    "%s: kref_get fail, %8phC oxid %x \n",
+		    __func__, sess->port_name,
 		     be16_to_cpu(atio->u.isp24.fcp_hdr.ox_id));
 		return -EFAULT;
 	}
@@ -4601,12 +4599,12 @@ void qlt_logo_completion_handler(fc_port_t *fcport, int rc)
 	if (rc != MBS_COMMAND_COMPLETE) {
 		ql_dbg(ql_dbg_tgt_mgt, fcport->vha, 0xf093,
 			"%s: se_sess %p / sess %p from"
-			" port %s loop_id %#04x s_id %02x:%02x:%02x"
+			" port %8phC loop_id %#04x s_id %02x:%02x:%02x"
 			" LOGO failed: %#x\n",
 			__func__,
 			fcport->se_sess,
 			fcport,
-		        wwn_to_str(fcport->port_name), fcport->loop_id,
+			fcport->port_name, fcport->loop_id,
 			fcport->d_id.b.domain, fcport->d_id.b.area,
 			fcport->d_id.b.al_pa, rc);
 	}
@@ -4778,9 +4776,9 @@ static int qlt_handle_login(struct scsi_qla_host *vha,
 	pla = qlt_plogi_ack_find_add(vha, &port_id, iocb);
 	if (!pla) {
 		ql_dbg(ql_dbg_disc + ql_dbg_verbose, vha, 0xffff,
-		    "%s %d %s Term INOT due to mem alloc fail",
+		    "%s %d %8phC Term INOT due to mem alloc fail",
 		    __func__, __LINE__,
-		    wwn_to_str(iocb->u.isp24.port_name));
+		    iocb->u.isp24.port_name);
 		qlt_send_term_imm_notif(vha, iocb, 1);
 		goto out;
 	}
@@ -4794,8 +4792,8 @@ static int qlt_handle_login(struct scsi_qla_host *vha,
 	if (!sess) {
 		pla->ref_count++;
 		ql_dbg(ql_dbg_disc, vha, 0xffff,
-		    "%s %d %s post new sess\n",
-		    __func__, __LINE__, wwn_to_str(iocb->u.isp24.port_name));
+		    "%s %d %8phC post new sess\n",
+		    __func__, __LINE__, iocb->u.isp24.port_name);
 		if (iocb->u.isp24.status_subcode == ELS_PLOGI)
 			qla24xx_post_newsess_work(vha, &port_id,
 			    iocb->u.isp24.port_name,
@@ -4824,8 +4822,8 @@ static int qlt_handle_login(struct scsi_qla_host *vha,
 		    !(sec % 5)) {
 			sess->sec_since_registration = sec;
 			ql_dbg(ql_dbg_disc, vha, 0xffff,
-			    "%s %s - Slow Rport registration (%d Sec)\n",
-			    __func__, wwn_to_str(sess->port_name), sec);
+			    "%s %8phC - Slow Rport registration (%d Sec)\n",
+			    __func__, sess->port_name, sec);
 		}
 
 		if (!conflict_sess) {
@@ -4862,8 +4860,8 @@ static int qlt_handle_login(struct scsi_qla_host *vha,
 
 
 	ql_dbg(ql_dbg_disc, vha, 0x20f9,
-	    "%s %d %s  DS %d\n",
-	    __func__, __LINE__, wwn_to_str(sess->port_name), sess->disc_state);
+	    "%s %d %8phC  DS %d\n",
+	    __func__, __LINE__, sess->port_name, sess->disc_state);
 
 	switch (sess->disc_state) {
 	case DSC_DELETED:
@@ -4892,8 +4890,9 @@ static int qlt_handle_login(struct scsi_qla_host *vha,
 		sess->keep_nport_handle = ((sess->loop_id == loop_id) &&
 		    (sess->d_id.b24 == port_id.b24));
 
-		ql_dbg(ql_dbg_disc, vha, 0x20f9, "%s %d %s post del sess\n",
-		    __func__, __LINE__, wwn_to_str(sess->port_name));
+		ql_dbg(ql_dbg_disc, vha, 0x20f9,
+		    "%s %d %8phC post del sess\n",
+		    __func__, __LINE__, sess->port_name);
 
 
 		qlt_schedule_sess_for_deletion(sess);
@@ -4931,11 +4930,11 @@ static int qlt_24xx_handle_els(struct scsi_qla_host *vha,
 	loop_id = le16_to_cpu(iocb->u.isp24.nport_handle);
 
 	ql_dbg(ql_dbg_disc, vha, 0xf026,
-	       "qla_target(%d): Port ID: %02x:%02x:%02x ELS opcode: 0x%02x lid %d %s\n",
-	       vha->vp_idx, iocb->u.isp24.port_id[2],
-	       iocb->u.isp24.port_id[1], iocb->u.isp24.port_id[0],
-	       iocb->u.isp24.status_subcode, loop_id,
-	       wwn_to_str(iocb->u.isp24.port_name));
+	    "qla_target(%d): Port ID: %02x:%02x:%02x ELS opcode: 0x%02x lid %d %8phC\n",
+	    vha->vp_idx, iocb->u.isp24.port_id[2],
+		iocb->u.isp24.port_id[1], iocb->u.isp24.port_id[0],
+		   iocb->u.isp24.status_subcode, loop_id,
+		iocb->u.isp24.port_name);
 
 	/* res = 1 means ack at the end of thread
 	 * res = 0 means ack async/later.
@@ -4952,9 +4951,9 @@ static int qlt_24xx_handle_els(struct scsi_qla_host *vha,
 
 			if (sess && sess->plogi_link[QLT_PLOGI_LINK_SAME_WWN]) {
 				ql_dbg(ql_dbg_disc, vha, 0xffff,
-				    "%s %d %s Term PRLI due to PLOGI ACK not completed\n",
+				    "%s %d %8phC Term PRLI due to PLOGI ACK not completed\n",
 				    __func__, __LINE__,
-				    wwn_to_str(iocb->u.isp24.port_name));
+				    iocb->u.isp24.port_name);
 				qlt_send_term_imm_notif(vha, iocb, 1);
 				break;
 			}
@@ -4984,9 +4983,8 @@ static int qlt_24xx_handle_els(struct scsi_qla_host *vha,
 				break;
 			default:
 				ql_dbg(ql_dbg_tgt_mgt, vha, 0xf09b,
-				    "PRLI with conflicting sess %p port %s\n",
-				    conflict_sess,
-				    wwn_to_str(conflict_sess->port_name));
+				    "PRLI with conflicting sess %p port %8phC\n",
+				    conflict_sess, conflict_sess->port_name);
 				conflict_sess->fw_login_state =
 				    DSC_LS_PORT_UNAVAIL;
 				qlt_send_term_imm_notif(vha, iocb, 1);
@@ -5021,8 +5019,8 @@ static int qlt_24xx_handle_els(struct scsi_qla_host *vha,
 				    !(sec % 5)) {
 					sess->sec_since_registration = sec;
 					ql_dbg(ql_dbg_disc, sess->vha, 0xffff,
-					    "%s %s : Slow Rport registration(%d Sec)\n",
-					    __func__, wwn_to_str(sess->port_name), sec);
+					    "%s %8phC : Slow Rport registration(%d Sec)\n",
+					    __func__, sess->port_name, sec);
 				}
 				qlt_send_term_imm_notif(vha, iocb, 1);
 				return 0;
@@ -5082,8 +5080,8 @@ static int qlt_24xx_handle_els(struct scsi_qla_host *vha,
 		if (ha->current_topology != ISP_CFG_F) {
 			if (sess) {
 				ql_dbg(ql_dbg_disc, vha, 0x20fa,
-				    "%s %d %s post nack\n",
-				    __func__, __LINE__, wwn_to_str(sess->port_name));
+				    "%s %d %8phC post nack\n",
+				    __func__, __LINE__, sess->port_name);
 				qla24xx_post_nack_work(vha, sess, iocb,
 					SRB_NACK_PRLI);
 				res = 0;
@@ -5095,8 +5093,8 @@ static int qlt_24xx_handle_els(struct scsi_qla_host *vha,
 		} else {
 			if (sess) {
 				ql_dbg(ql_dbg_disc, vha, 0x20fb,
-				    "%s %d %s post nack\n",
-				    __func__, __LINE__, wwn_to_str(sess->port_name));
+				    "%s %d %8phC post nack\n",
+				    __func__, __LINE__, sess->port_name);
 				qla24xx_post_nack_work(vha, sess, iocb,
 					SRB_NACK_PRLI);
 				res = 0;
@@ -6126,8 +6124,8 @@ static fc_port_t *qlt_get_port_database(struct scsi_qla_host *vha,
 				qla24xx_sched_upd_fcport(fcport);
 			} else {
 				ql_dbg(ql_dbg_disc, vha, 0x20ff,
-				   "%s %d %s post gpsc fcp_cnt %d\n",
-				   __func__, __LINE__, wwn_to_str(fcport->port_name), vha->fcport_count);
+				   "%s %d %8phC post gpsc fcp_cnt %d\n",
+				   __func__, __LINE__, fcport->port_name, vha->fcport_count);
 				qla24xx_post_gpsc_work(vha, fcport);
 			}
 		}
@@ -6248,8 +6246,8 @@ static void qlt_abort_work(struct qla_tgt *tgt,
 
 		if (!kref_get_unless_zero(&sess->sess_kref)) {
 			ql_dbg(ql_dbg_tgt_tmr, vha, 0xf01c,
-			    "%s: kref_get fail %s \n",
-			     __func__, wwn_to_str(sess->port_name));
+			    "%s: kref_get fail %8phC \n",
+			     __func__, sess->port_name);
 			sess = NULL;
 			goto out_term2;
 		}
@@ -6311,8 +6309,8 @@ static void qlt_tmr_work(struct qla_tgt *tgt,
 
 		if (!kref_get_unless_zero(&sess->sess_kref)) {
 			ql_dbg(ql_dbg_tgt_tmr, vha, 0xf020,
-			    "%s: kref_get fail %s\n",
-			     __func__, wwn_to_str(sess->port_name));
+			    "%s: kref_get fail %8phC\n",
+			     __func__, sess->port_name);
 			goto out_term2;
 		}
 	}

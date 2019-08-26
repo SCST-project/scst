@@ -185,9 +185,8 @@ qla2x00_async_iocb_timeout(void *data)
 
 	if (fcport) {
 		ql_dbg(ql_dbg_disc, fcport->vha, 0x2071,
-		    "Async-%s timeout - hdl=%x portid=%06x %s.\n",
-		    sp->name, sp->handle, fcport->d_id.b24,
-		    wwn_to_str(fcport->port_name));
+		    "Async-%s timeout - hdl=%x portid=%06x %8phC.\n",
+		    sp->name, sp->handle, fcport->d_id.b24, fcport->port_name);
 
 		fcport->flags &= ~(FCF_ASYNC_SENT | FCF_ASYNC_ACTIVE);
 	} else {
@@ -254,8 +253,8 @@ static void qla2x00_async_login_sp_done(srb_t *sp, int res)
 	struct srb_iocb *lio = &sp->u.iocb_cmd;
 	struct event_arg ea;
 
-	ql_dbg(ql_dbg_disc, vha, 0x20dd, "%s %s res %d \n", __func__,
-	       wwn_to_str(sp->fcport->port_name), res);
+	ql_dbg(ql_dbg_disc, vha, 0x20dd,
+	    "%s %8phC res %d \n", __func__, sp->fcport->port_name, res);
 
 	sp->fcport->flags &= ~(FCF_ASYNC_SENT | FCF_ASYNC_ACTIVE);
 
@@ -332,9 +331,8 @@ qla2x00_async_login(struct scsi_qla_host *vha, fc_port_t *fcport,
 		lio->u.logio.flags |= SRB_LOGIN_SKIP_PRLI;
 
 	ql_dbg(ql_dbg_disc, vha, 0x2072,
-	    "Async-login - %s hdl=%x, loopid=%x portid=%02x%02x%02x "
-	    "retries=%d.\n", wwn_to_str(fcport->port_name), sp->handle,
-	    fcport->loop_id,
+	    "Async-login - %8phC hdl=%x, loopid=%x portid=%02x%02x%02x "
+		"retries=%d.\n", fcport->port_name, sp->handle, fcport->loop_id,
 	    fcport->d_id.b.domain, fcport->d_id.b.area, fcport->d_id.b.al_pa,
 	    fcport->login_retry);
 
@@ -385,10 +383,10 @@ qla2x00_async_logout(struct scsi_qla_host *vha, fc_port_t *fcport)
 	sp->done = qla2x00_async_logout_sp_done;
 
 	ql_dbg(ql_dbg_disc, vha, 0x2070,
-	    "Async-logout - hdl=%x loop-id=%x portid=%02x%02x%02x %s.\n",
+	    "Async-logout - hdl=%x loop-id=%x portid=%02x%02x%02x %8phC.\n",
 	    sp->handle, fcport->loop_id, fcport->d_id.b.domain,
-	    fcport->d_id.b.area, fcport->d_id.b.al_pa,
-	    wwn_to_str(fcport->port_name));
+		fcport->d_id.b.area, fcport->d_id.b.al_pa,
+		fcport->port_name);
 
 	rval = qla2x00_start_sp(sp);
 	if (rval != QLA_SUCCESS)
@@ -470,8 +468,8 @@ void qla24xx_handle_adisc_event(scsi_qla_host_t *vha, struct event_arg *ea)
 	struct fc_port *fcport = ea->fcport;
 
 	ql_dbg(ql_dbg_disc, vha, 0x20d2,
-	    "%s %s DS %d LS %d rc %d login %d|%d rscn %d|%d lid %d\n",
-	    __func__, wwn_to_str(fcport->port_name), fcport->disc_state,
+	    "%s %8phC DS %d LS %d rc %d login %d|%d rscn %d|%d lid %d\n",
+	    __func__, fcport->port_name, fcport->disc_state,
 	    fcport->fw_login_state, ea->rc, fcport->login_gen, ea->sp->gen2,
 	    fcport->rscn_gen, ea->sp->gen1, fcport->loop_id);
 
@@ -480,8 +478,8 @@ void qla24xx_handle_adisc_event(scsi_qla_host_t *vha, struct event_arg *ea)
 
 	if (ea->data[0] != MBS_COMMAND_COMPLETE) {
 		ql_dbg(ql_dbg_disc, vha, 0x2066,
-		    "%s %s: adisc fail: post delete\n",
-		    __func__, wwn_to_str(ea->fcport->port_name));
+		    "%s %8phC: adisc fail: post delete\n",
+		    __func__, ea->fcport->port_name);
 		/* deleted = 0 & logout_on_delete = force fw cleanup */
 		fcport->deleted = 0;
 		fcport->logout_on_delete = 1;
@@ -495,8 +493,8 @@ void qla24xx_handle_adisc_event(scsi_qla_host_t *vha, struct event_arg *ea)
 	if (ea->sp->gen2 != ea->fcport->login_gen) {
 		/* target side must have changed it. */
 		ql_dbg(ql_dbg_disc, vha, 0x20d3,
-		    "%s %s generation changed\n",
-		    __func__, wwn_to_str(ea->fcport->port_name));
+		    "%s %8phC generation changed\n",
+		    __func__, ea->fcport->port_name);
 		return;
 	} else if (ea->sp->gen1 != ea->fcport->rscn_gen) {
 		qla_rscn_replay(fcport);
@@ -526,8 +524,9 @@ static void qla2x00_async_adisc_sp_done(srb_t *sp, int res)
 	struct event_arg ea;
 	struct srb_iocb *lio = &sp->u.iocb_cmd;
 
-	ql_dbg(ql_dbg_disc, vha, 0x2066, "Async done-%s res %x %s\n",
-	       sp->name, res, wwn_to_str(sp->fcport->port_name));
+	ql_dbg(ql_dbg_disc, vha, 0x2066,
+	    "Async done-%s res %x %8phC\n",
+	    sp->name, res, sp->fcport->port_name);
 
 	sp->fcport->flags &= ~(FCF_ASYNC_SENT | FCF_ASYNC_ACTIVE);
 
@@ -575,9 +574,8 @@ qla2x00_async_adisc(struct scsi_qla_host *vha, fc_port_t *fcport,
 		lio->u.logio.flags |= SRB_LOGIN_RETRIED;
 
 	ql_dbg(ql_dbg_disc, vha, 0x206f,
-	    "Async-adisc - hdl=%x loopid=%x portid=%06x %s.\n",
-	    sp->handle, fcport->loop_id, fcport->d_id.b24,
-	    wwn_to_str(fcport->port_name));
+	    "Async-adisc - hdl=%x loopid=%x portid=%06x %8phC.\n",
+	    sp->handle, fcport->loop_id, fcport->d_id.b24, fcport->port_name);
 
 	rval = qla2x00_start_sp(sp);
 	if (rval != QLA_SUCCESS)
@@ -672,8 +670,8 @@ static void qla24xx_handle_gnl_done_event(scsi_qla_host_t *vha,
 
 	fcport = ea->fcport;
 	ql_dbg(ql_dbg_disc, vha, 0xffff,
-	    "%s %s DS %d LS rc %d %d login %d|%d rscn %d|%d lid %d\n",
-	    __func__, wwn_to_str(fcport->port_name), fcport->disc_state,
+	    "%s %8phC DS %d LS rc %d %d login %d|%d rscn %d|%d lid %d\n",
+	    __func__, fcport->port_name, fcport->disc_state,
 	    fcport->fw_login_state, ea->rc,
 	    fcport->login_gen, fcport->last_login_gen,
 	    fcport->rscn_gen, fcport->last_rscn_gen, vha->loop_id);
@@ -696,16 +694,16 @@ static void qla24xx_handle_gnl_done_event(scsi_qla_host_t *vha,
 		return;
 	} else if (fcport->last_login_gen != fcport->login_gen) {
 		ql_dbg(ql_dbg_disc, vha, 0x20e0,
-		    "%s %s login gen changed\n",
-		    __func__, wwn_to_str(fcport->port_name));
+		    "%s %8phC login gen changed\n",
+		    __func__, fcport->port_name);
 		return;
 	}
 
 	n = ea->data[0] / sizeof(struct get_name_list_extended);
 
 	ql_dbg(ql_dbg_disc, vha, 0x20e1,
-	    "%s %d %s n %d %02x%02x%02x lid %d \n",
-	    __func__, __LINE__, wwn_to_str(fcport->port_name), n,
+	    "%s %d %8phC n %d %02x%02x%02x lid %d \n",
+	    __func__, __LINE__, fcport->port_name, n,
 	    fcport->d_id.b.domain, fcport->d_id.b.area,
 	    fcport->d_id.b.al_pa, fcport->loop_id);
 
@@ -734,8 +732,8 @@ static void qla24xx_handle_gnl_done_event(scsi_qla_host_t *vha,
 
 
 		ql_dbg(ql_dbg_disc, vha, 0x20e2,
-		    "%s found %s CLS [%x|%x] nvme %d ID[%02x%02x%02x|%02x%02x%02x] lid[%d|%d]\n",
-		    __func__, wwn_to_str(fcport->port_name),
+		    "%s found %8phC CLS [%x|%x] nvme %d ID[%02x%02x%02x|%02x%02x%02x] lid[%d|%d]\n",
+		    __func__, fcport->port_name,
 		    e->current_login_state, fcport->fw_login_state,
 		    fcport->fc4f_nvme, id.b.domain, id.b.area, id.b.al_pa,
 		    fcport->d_id.b.domain, fcport->d_id.b.area,
@@ -751,9 +749,8 @@ static void qla24xx_handle_gnl_done_event(scsi_qla_host_t *vha,
 			    (fcport->loop_id != FC_NO_LOOP_ID &&
 				fcport->loop_id != loop_id)) {
 				ql_dbg(ql_dbg_disc, vha, 0x20e3,
-				    "%s %d %s post del sess\n",
-				    __func__, __LINE__,
-				    wwn_to_str(fcport->port_name));
+				    "%s %d %8phC post del sess\n",
+				    __func__, __LINE__, fcport->port_name);
 				qlt_schedule_sess_for_deletion(fcport);
 				return;
 			}
@@ -781,9 +778,8 @@ static void qla24xx_handle_gnl_done_event(scsi_qla_host_t *vha,
 			switch (current_login_state) {
 			case DSC_LS_PRLI_COMP:
 				ql_dbg(ql_dbg_disc + ql_dbg_verbose,
-				    vha, 0x20e4, "%s %d %s post gpdb\n",
-				    __func__, __LINE__,
-				    wwn_to_str(fcport->port_name));
+				    vha, 0x20e4, "%s %d %8phC post gpdb\n",
+				    __func__, __LINE__, fcport->port_name);
 
 				if ((e->prli_svc_param_word_3[0] & BIT_4) == 0)
 					fcport->port_type = FCT_INITIATOR;
@@ -801,8 +797,8 @@ static void qla24xx_handle_gnl_done_event(scsi_qla_host_t *vha,
 					    DSC_LS_PORT_UNAVAIL;
 				}
 				ql_dbg(ql_dbg_disc, vha, 0x20e5,
-				    "%s %d %s\n", __func__, __LINE__,
-				    wwn_to_str(fcport->port_name));
+				    "%s %d %8phC\n", __func__, __LINE__,
+				    fcport->port_name);
 				qla24xx_fcport_handle_login(vha, fcport);
 				break;
 			}
@@ -868,9 +864,9 @@ static void qla24xx_handle_gnl_done_event(scsi_qla_host_t *vha,
 					if (conflict_fcport) {
 						ql_dbg(ql_dbg_disc + ql_dbg_verbose,
 						    vha, 0x20e5,
-						    "%s %d %s post del sess\n",
+						    "%s %d %8phC post del sess\n",
 						    __func__, __LINE__,
-						    wwn_to_str(conflict_fcport->port_name));
+						    conflict_fcport->port_name);
 						qlt_schedule_sess_for_deletion
 							(conflict_fcport);
 					}
@@ -966,8 +962,8 @@ static void qla24xx_async_gnl_sp_done(srb_t *sp, int res)
 		wwn = wwn_to_u64(e->port_name);
 
 		ql_dbg(ql_dbg_disc + ql_dbg_verbose, vha, 0x20e8,
-		    "%s %s %02x:%02x:%02x state %d/%d lid %x \n",
-		    __func__, wwn_to_str((u8 *)&wwn), e->port_id[2], e->port_id[1],
+		    "%s %8phC %02x:%02x:%02x state %d/%d lid %x \n",
+		    __func__, (void *)&wwn, e->port_id[2], e->port_id[1],
 		    e->port_id[0], e->current_login_state, e->last_login_state,
 		    (loop_id & 0x7fff));
 	}
@@ -1014,8 +1010,8 @@ static void qla24xx_async_gnl_sp_done(srb_t *sp, int res)
 
 		if (!found && wwn && !IS_SW_RESV_ADDR(id)) {
 			ql_dbg(ql_dbg_disc, vha, 0x2065,
-			    "%s %d %s %06x post new sess\n",
-			    __func__, __LINE__, wwn_to_str((u8 *)&wwn), id.b24);
+			    "%s %d %8phC %06x post new sess\n",
+			    __func__, __LINE__, (u8 *)&wwn, id.b24);
 			wwnn = wwn_to_u64(e->node_name);
 			qla24xx_post_newsess_work(vha, &id, (u8 *)&wwn,
 			    (u8 *)&wwnn, NULL, FC4_TYPE_UNKNOWN);
@@ -1040,8 +1036,8 @@ int qla24xx_async_gnl(struct scsi_qla_host *vha, fc_port_t *fcport)
 	if (!vha->flags.online || (fcport->flags & FCF_ASYNC_SENT))
 		return rval;
 
-	ql_dbg(ql_dbg_disc, vha, 0x20d9, "Async-gnlist WWPN %s\n",
-	       wwn_to_str(fcport->port_name));
+	ql_dbg(ql_dbg_disc, vha, 0x20d9,
+	    "Async-gnlist WWPN %8phC \n", fcport->port_name);
 
 	spin_lock_irqsave(&vha->hw->tgt.sess_lock, flags);
 	fcport->flags |= FCF_ASYNC_SENT;
@@ -1082,8 +1078,9 @@ int qla24xx_async_gnl(struct scsi_qla_host *vha, fc_port_t *fcport)
 
 	sp->done = qla24xx_async_gnl_sp_done;
 
-	ql_dbg(ql_dbg_disc, vha, 0x20da, "Async-%s - OUT WWPN %s hndl %x\n",
-	       sp->name, wwn_to_str(fcport->port_name), sp->handle);
+	ql_dbg(ql_dbg_disc, vha, 0x20da,
+	    "Async-%s - OUT WWPN %8phC hndl %x\n",
+	    sp->name, fcport->port_name, sp->handle);
 
 	rval = qla2x00_start_sp(sp);
 	if (rval != QLA_SUCCESS)
@@ -1120,8 +1117,8 @@ static void qla24xx_async_gpdb_sp_done(srb_t *sp, int res)
 	struct event_arg ea;
 
 	ql_dbg(ql_dbg_disc, vha, 0x20db,
-	    "Async done-%s res %x, WWPN %s mb[1]=%x mb[2]=%x \n",
-	    sp->name, res, wwn_to_str(fcport->port_name), mb[1], mb[2]);
+	    "Async done-%s res %x, WWPN %8phC mb[1]=%x mb[2]=%x \n",
+	    sp->name, res, fcport->port_name, mb[1], mb[2]);
 
 	if (res == QLA_FUNCTION_TIMEOUT) {
 		dma_pool_free(sp->vha->hw->s_dma_pool, sp->u.iocb_cmd.u.mbx.in,
@@ -1161,8 +1158,9 @@ static void qla2x00_async_prli_sp_done(srb_t *sp, int res)
 	struct srb_iocb *lio = &sp->u.iocb_cmd;
 	struct event_arg ea;
 
-	ql_dbg(ql_dbg_disc, vha, 0x2129, "%s %s res %d \n", __func__,
-	       wwn_to_str(sp->fcport->port_name), res);
+	ql_dbg(ql_dbg_disc, vha, 0x2129,
+	    "%s %8phC res %d \n", __func__,
+	    sp->fcport->port_name, res);
 
 	sp->fcport->flags &= ~FCF_ASYNC_SENT;
 
@@ -1216,9 +1214,8 @@ qla24xx_async_prli(struct scsi_qla_host *vha, fc_port_t *fcport)
 		lio->u.logio.flags |= SRB_LOGIN_NVME_PRLI;
 
 	ql_dbg(ql_dbg_disc, vha, 0x211b,
-	    "Async-prli - %s hdl=%x, loopid=%x portid=%06x retries=%d %s.\n",
-	    wwn_to_str(fcport->port_name), sp->handle, fcport->loop_id,
-	    fcport->d_id.b24,
+	    "Async-prli - %8phC hdl=%x, loopid=%x portid=%06x retries=%d %s.\n",
+	    fcport->port_name, sp->handle, fcport->loop_id, fcport->d_id.b24,
 	    fcport->login_retry, fcport->fc4f_nvme ? "nvme" : "fc");
 
 	rval = qla2x00_start_sp(sp);
@@ -1306,8 +1303,9 @@ int qla24xx_async_gpdb(struct scsi_qla_host *vha, fc_port_t *fcport, u8 opt)
 
 	sp->done = qla24xx_async_gpdb_sp_done;
 
-	ql_dbg(ql_dbg_disc, vha, 0x20dc, "Async-%s %s hndl %x opt %x\n",
-	       sp->name, wwn_to_str(fcport->port_name), sp->handle, opt);
+	ql_dbg(ql_dbg_disc, vha, 0x20dc,
+	    "Async-%s %8phC hndl %x opt %x\n",
+	    sp->name, fcport->port_name, sp->handle, opt);
 
 	rval = qla2x00_start_sp(sp);
 	if (rval != QLA_SUCCESS)
@@ -1349,8 +1347,8 @@ void __qla24xx_handle_gpdb_event(scsi_qla_host_t *vha, struct event_arg *ea)
 		 * Session is still valid.
 		 */
 		ql_dbg(ql_dbg_disc, vha, 0x20d6,
-		       "%s %d %s session revalidate success\n",
-		       __func__, __LINE__, wwn_to_str(ea->fcport->port_name));
+		    "%s %d %8phC session revalidate success\n",
+		    __func__, __LINE__, ea->fcport->port_name);
 		ea->fcport->disc_state = DSC_LOGIN_COMPLETE;
 	}
 	spin_unlock_irqrestore(&vha->hw->tgt.sess_lock, flags);
@@ -1368,8 +1366,8 @@ void qla24xx_handle_gpdb_event(scsi_qla_host_t *vha, struct event_arg *ea)
 
 	fcport->flags &= ~FCF_ASYNC_SENT;
 
-	ql_dbg(ql_dbg_disc, vha, 0x20d2, "%s %s DS %d LS %d nvme %x rc %d\n",
-	    __func__, wwn_to_str(fcport->port_name),
+	ql_dbg(ql_dbg_disc, vha, 0x20d2,
+	    "%s %8phC DS %d LS %d nvme %x rc %d\n", __func__, fcport->port_name,
 	    fcport->disc_state, pd->current_login_state, fcport->fc4f_nvme,
 	    ea->rc);
 
@@ -1384,8 +1382,9 @@ void qla24xx_handle_gpdb_event(scsi_qla_host_t *vha, struct event_arg *ea)
 	if (ea->sp->gen2 != fcport->login_gen) {
 		/* target side must have changed it. */
 
-		ql_dbg(ql_dbg_disc, vha, 0x20d3, "%s %s generation changed\n",
-		       __func__, wwn_to_str(fcport->port_name));
+		ql_dbg(ql_dbg_disc, vha, 0x20d3,
+		    "%s %8phC generation changed\n",
+		    __func__, fcport->port_name);
 		return;
 	} else if (ea->sp->gen1 != fcport->rscn_gen) {
 		qla_rscn_replay(fcport);
@@ -1411,8 +1410,8 @@ void qla24xx_handle_gpdb_event(scsi_qla_host_t *vha, struct event_arg *ea)
 	case PDS_LOGO_PENDING:
 	case PDS_PORT_UNAVAILABLE:
 	default:
-		ql_dbg(ql_dbg_disc, vha, 0x20d5, "%s %d %s post del sess\n",
-		       __func__, __LINE__, wwn_to_str(fcport->port_name));
+		ql_dbg(ql_dbg_disc, vha, 0x20d5, "%s %d %8phC post del sess\n",
+		    __func__, __LINE__, fcport->port_name);
 		qlt_schedule_sess_for_deletion(fcport);
 		return;
 	}
@@ -1454,16 +1453,16 @@ static void qla_chk_n2n_b4_login(struct scsi_qla_host *vha, fc_port_t *fcport)
 			rc = qla2x00_find_new_loop_id(vha, fcport);
 			if (rc) {
 				ql_dbg(ql_dbg_disc, vha, 0x20e6,
-				    "%s %d %s post del sess - out of loopid\n",
-				    __func__, __LINE__,
-				    wwn_to_str(fcport->port_name));
+				    "%s %d %8phC post del sess - out of loopid\n",
+				    __func__, __LINE__, fcport->port_name);
 				fcport->scan_state = 0;
 				qlt_schedule_sess_for_deletion(fcport);
 				return;
 			}
 		}
-		ql_dbg(ql_dbg_disc, vha, 0x20bf, "%s %d %s post login\n",
-		       __func__, __LINE__, wwn_to_str(fcport->port_name));
+		ql_dbg(ql_dbg_disc, vha, 0x20bf,
+		    "%s %d %8phC post login\n",
+		    __func__, __LINE__, fcport->port_name);
 		qla2x00_post_async_login_work(vha, fcport, NULL);
 	}
 }
@@ -1475,8 +1474,8 @@ int qla24xx_fcport_handle_login(struct scsi_qla_host *vha, fc_port_t *fcport)
 	u16 sec;
 
 	ql_dbg(ql_dbg_disc + ql_dbg_verbose, vha, 0x20d8,
-	    "%s %s DS %d LS %d P %d fl %x confl %p rscn %d|%d login %d lid %d scan %d\n",
-	    __func__, wwn_to_str(fcport->port_name), fcport->disc_state,
+	    "%s %8phC DS %d LS %d P %d fl %x confl %p rscn %d|%d login %d lid %d scan %d\n",
+	    __func__, fcport->port_name, fcport->disc_state,
 	    fcport->fw_login_state, fcport->login_pause, fcport->flags,
 	    fcport->conflict, fcport->last_rscn_gen, fcport->rscn_gen,
 	    fcport->login_gen, fcport->loop_id, fcport->scan_state);
@@ -1523,8 +1522,8 @@ int qla24xx_fcport_handle_login(struct scsi_qla_host *vha, fc_port_t *fcport)
 					qla_post_els_plogi_work(vha, fcport);
 				} else {
 					ql_log(ql_log_info, vha, 0x705d,
-					    "Unable to reach remote port %s",
-					    wwn_to_str(fcport->port_name));
+					    "Unable to reach remote port %8phC",
+					    fcport->port_name);
 				}
 			} else {
 				qla24xx_post_gnl_work(vha, fcport);
@@ -1533,14 +1532,13 @@ int qla24xx_fcport_handle_login(struct scsi_qla_host *vha, fc_port_t *fcport)
 		default:
 			if (wwn == 0)    {
 				ql_dbg(ql_dbg_disc, vha, 0xffff,
-				    "%s %d %s post GNNID\n",
-				    __func__, __LINE__,
-				    wwn_to_str(fcport->port_name));
+				    "%s %d %8phC post GNNID\n",
+				    __func__, __LINE__, fcport->port_name);
 				qla24xx_post_gnnid_work(vha, fcport);
 			} else if (fcport->loop_id == FC_NO_LOOP_ID) {
 				ql_dbg(ql_dbg_disc, vha, 0x20bd,
-				    "%s %d %s post gnl\n",
-				    __func__, __LINE__, wwn_to_str(fcport->port_name));
+				    "%s %d %8phC post gnl\n",
+				    __func__, __LINE__, fcport->port_name);
 				qla24xx_post_gnl_work(vha, fcport);
 			} else {
 				qla_chk_n2n_b4_login(vha, fcport);
@@ -1554,15 +1552,15 @@ int qla24xx_fcport_handle_login(struct scsi_qla_host *vha, fc_port_t *fcport)
 		case ISP_CFG_N:
 			if ((fcport->current_login_state & 0xf) == 0x6) {
 				ql_dbg(ql_dbg_disc, vha, 0x2118,
-				    "%s %d %s post GPDB work\n",
-				    __func__, __LINE__, wwn_to_str(fcport->port_name));
+				    "%s %d %8phC post GPDB work\n",
+				    __func__, __LINE__, fcport->port_name);
 				fcport->chip_reset =
 					vha->hw->base_qpair->chip_reset;
 				qla24xx_post_gpdb_work(vha, fcport, 0);
 			}  else {
 				ql_dbg(ql_dbg_disc, vha, 0x2118,
-				    "%s %d %s post NVMe PRLI\n",
-				    __func__, __LINE__, wwn_to_str(fcport->port_name));
+				    "%s %d %8phC post NVMe PRLI\n",
+				    __func__, __LINE__, fcport->port_name);
 				qla24xx_post_prli_work(vha, fcport);
 			}
 			break;
@@ -1603,8 +1601,8 @@ int qla24xx_fcport_handle_login(struct scsi_qla_host *vha, fc_port_t *fcport)
 		    !(sec % 60)) {
 			fcport->sec_since_registration = sec;
 			ql_dbg(ql_dbg_disc, fcport->vha, 0xffff,
-			    "%s %s - Slow Rport registration(%d Sec)\n",
-			    __func__, wwn_to_str(fcport->port_name), sec);
+			    "%s %8phC - Slow Rport registration(%d Sec)\n",
+			    __func__, fcport->port_name, sec);
 		}
 
 		if (fcport->next_disc_state != DSC_DELETE_PEND)
@@ -1667,8 +1665,8 @@ void qla24xx_handle_relogin_event(scsi_qla_host_t *vha,
 		return;
 
 	ql_dbg(ql_dbg_disc, vha, 0x2102,
-	    "%s %s DS %d LS %d P %d del %d cnfl %p rscn %d|%d login %d|%d fl %x\n",
-	    __func__, wwn_to_str(fcport->port_name), fcport->disc_state,
+	    "%s %8phC DS %d LS %d P %d del %d cnfl %p rscn %d|%d login %d|%d fl %x\n",
+	    __func__, fcport->port_name, fcport->disc_state,
 	    fcport->fw_login_state, fcport->login_pause,
 	    fcport->deleted, fcport->conflict,
 	    fcport->last_rscn_gen, fcport->rscn_gen,
@@ -1687,9 +1685,8 @@ void qla24xx_handle_relogin_event(scsi_qla_host_t *vha,
 	}
 
 	if (fcport->last_rscn_gen != fcport->rscn_gen) {
-		ql_dbg(ql_dbg_disc, vha, 0x20e9, "%s %d %s post gnl\n",
-		    __func__, __LINE__, wwn_to_str(fcport->port_name));
-
+		ql_dbg(ql_dbg_disc, vha, 0x20e9, "%s %d %8phC post gnl\n",
+		    __func__, __LINE__, fcport->port_name);
 		qla24xx_post_gnl_work(vha, fcport);
 		return;
 	}
@@ -1834,8 +1831,9 @@ qla24xx_handle_prli_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 
 	switch (ea->data[0]) {
 	case MBS_COMMAND_COMPLETE:
-		ql_dbg(ql_dbg_disc, vha, 0x2118, "%s %d %s post gpdb\n",
-		       __func__, __LINE__, wwn_to_str(ea->fcport->port_name));
+		ql_dbg(ql_dbg_disc, vha, 0x2118,
+		    "%s %d %8phC post gpdb\n",
+		    __func__, __LINE__, ea->fcport->port_name);
 
 		ea->fcport->chip_reset = vha->hw->base_qpair->chip_reset;
 		ea->fcport->logout_on_delete = 1;
@@ -1857,15 +1855,15 @@ qla24xx_handle_prli_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 
 		if (ea->fcport->n2n_flag) {
 			ql_dbg(ql_dbg_disc, vha, 0x2118,
-				"%s %d %s post fc4 prli\n",
-				__func__, __LINE__, wwn_to_str(ea->fcport->port_name));
+				"%s %d %8phC post fc4 prli\n",
+				__func__, __LINE__, ea->fcport->port_name);
 			ea->fcport->fc4f_nvme = 0;
 			ea->fcport->n2n_flag = 0;
 			qla24xx_post_prli_work(vha, ea->fcport);
 		}
 		ql_dbg(ql_dbg_disc, vha, 0x2119,
-		    "%s %d %s unhandle event of %x\n",
-		    __func__, __LINE__, wwn_to_str(ea->fcport->port_name), ea->data[0]);
+		    "%s %d %8phC unhandle event of %x\n",
+		    __func__, __LINE__, ea->fcport->port_name, ea->data[0]);
 		break;
 	}
 }
@@ -1880,8 +1878,8 @@ qla24xx_handle_plogi_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 	struct fc_port *fcport = ea->fcport;
 
 	ql_dbg(ql_dbg_disc, vha, 0xffff,
-	    "%s %s DS %d LS %d rc %d login %d|%d rscn %d|%d data %x|%x iop %x|%x\n",
-	    __func__, wwn_to_str(fcport->port_name), fcport->disc_state,
+	    "%s %8phC DS %d LS %d rc %d login %d|%d rscn %d|%d data %x|%x iop %x|%x\n",
+	    __func__, fcport->port_name, fcport->disc_state,
 	    fcport->fw_login_state, ea->rc, ea->sp->gen2, fcport->login_gen,
 	    ea->sp->gen1, fcport->rscn_gen,
 	    ea->data[0], ea->data[1], ea->iop[0], ea->iop[1]);
@@ -1889,8 +1887,8 @@ qla24xx_handle_plogi_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 	if ((fcport->fw_login_state == DSC_LS_PLOGI_PEND) ||
 	    (fcport->fw_login_state == DSC_LS_PRLI_PEND)) {
 		ql_dbg(ql_dbg_disc, vha, 0x20ea,
-		    "%s %d %s Remote is trying to login\n",
-		    __func__, __LINE__, wwn_to_str(fcport->port_name));
+		    "%s %d %8phC Remote is trying to login\n",
+		    __func__, __LINE__, fcport->port_name);
 		return;
 	}
 
@@ -1903,14 +1901,14 @@ qla24xx_handle_plogi_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 	if (ea->sp->gen2 != fcport->login_gen) {
 		/* target side must have changed it. */
 		ql_dbg(ql_dbg_disc, vha, 0x20d3,
-		    "%s %s generation changed\n",
-		    __func__, wwn_to_str(fcport->port_name));
+		    "%s %8phC generation changed\n",
+		    __func__, fcport->port_name);
 		set_bit(RELOGIN_NEEDED, &vha->dpc_flags);
 		return;
 	} else if (ea->sp->gen1 != fcport->rscn_gen) {
 		ql_dbg(ql_dbg_disc, vha, 0x20d3,
-		    "%s %s RSCN generation changed\n",
-		    __func__, wwn_to_str(fcport->port_name));
+		    "%s %8phC RSCN generation changed\n",
+		    __func__, fcport->port_name);
 		qla_rscn_replay(fcport);
 		qlt_schedule_sess_for_deletion(fcport);
 		return;
@@ -1928,13 +1926,13 @@ qla24xx_handle_plogi_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 		 */
 		if (ea->fcport->fc4f_nvme) {
 			ql_dbg(ql_dbg_disc, vha, 0x2117,
-				"%s %d %s post prli\n",
-				__func__, __LINE__, wwn_to_str(ea->fcport->port_name));
+				"%s %d %8phC post prli\n",
+				__func__, __LINE__, ea->fcport->port_name);
 			qla24xx_post_prli_work(vha, ea->fcport);
 		} else {
 			ql_dbg(ql_dbg_disc, vha, 0x20ea,
-			    "%s %d %s LoopID 0x%x in use with %06x. post gnl\n",
-			    __func__, __LINE__, wwn_to_str(ea->fcport->port_name),
+			    "%s %d %8phC LoopID 0x%x in use with %06x. post gnl\n",
+			    __func__, __LINE__, ea->fcport->port_name,
 			    ea->fcport->loop_id, ea->fcport->d_id.b24);
 
 			set_bit(ea->fcport->loop_id, vha->hw->loop_id_map);
@@ -1949,8 +1947,8 @@ qla24xx_handle_plogi_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 		}
 		break;
 	case MBS_COMMAND_ERROR:
-		ql_dbg(ql_dbg_disc, vha, 0x20eb, "%s %d %s cmd error %x\n",
-		    __func__, __LINE__, wwn_to_str(ea->fcport->port_name), ea->data[1]);
+		ql_dbg(ql_dbg_disc, vha, 0x20eb, "%s %d %8phC cmd error %x\n",
+		    __func__, __LINE__, ea->fcport->port_name, ea->data[1]);
 
 		ea->fcport->flags &= ~FCF_ASYNC_SENT;
 		ea->fcport->disc_state = DSC_LOGIN_FAILED;
@@ -1967,8 +1965,8 @@ qla24xx_handle_plogi_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 		cid.b.rsvd_1 = 0;
 
 		ql_dbg(ql_dbg_disc, vha, 0x20ec,
-		    "%s %d %s lid %#x in use with pid %06x post gnl\n",
-		    __func__, __LINE__, wwn_to_str(ea->fcport->port_name),
+		    "%s %d %8phC lid %#x in use with pid %06x post gnl\n",
+		    __func__, __LINE__, ea->fcport->port_name,
 		    ea->fcport->loop_id, cid.b24);
 
 		set_bit(ea->fcport->loop_id, vha->hw->loop_id_map);
@@ -1991,13 +1989,13 @@ qla24xx_handle_plogi_done_event(struct scsi_qla_host *vha, struct event_arg *ea)
 			ea->fcport->login_pause = 1;
 
 			ql_dbg(ql_dbg_disc, vha, 0x20ed,
-			    "%s %d %s NPortId %06x inuse with loopid 0x%x. post gidpn\n",
-			    __func__, __LINE__, wwn_to_str(ea->fcport->port_name),
+			    "%s %d %8phC NPortId %06x inuse with loopid 0x%x. post gidpn\n",
+			    __func__, __LINE__, ea->fcport->port_name,
 			    ea->fcport->d_id.b24, lid);
 		} else {
 			ql_dbg(ql_dbg_disc, vha, 0x20ed,
-			    "%s %d %s NPortId %06x inuse with loopid 0x%x. sched delete\n",
-			    __func__, __LINE__, wwn_to_str(ea->fcport->port_name),
+			    "%s %d %8phC NPortId %06x inuse with loopid 0x%x. sched delete\n",
+			    __func__, __LINE__, ea->fcport->port_name,
 			    ea->fcport->d_id.b24, lid);
 
 			qla2x00_clear_loop_id(ea->fcport);
@@ -4745,7 +4743,7 @@ qla2x00_rport_del(void *data)
 	if (rport) {
 		ql_dbg(ql_dbg_disc, fcport->vha, 0x210b,
 		    "%s %8phN. rport %p roles %x\n",
-		    __func__, wwn_to_str(fcport->port_name), rport,
+		    __func__, fcport->port_name, rport,
 		    rport->roles);
 
 		fc_remote_port_delete(rport);
@@ -5184,9 +5182,9 @@ qla2x00_configure_local_loop(scsi_qla_host_t *vha)
 				    fcport->port_type != FCT_INITIATOR &&
 				    fcport->port_type != FCT_BROADCAST) {
 					ql_dbg(ql_dbg_disc, vha, 0x20f0,
-					    "%s %d %s post del sess\n",
+					    "%s %d %8phC post del sess\n",
 					    __func__, __LINE__,
-					    wwn_to_str(fcport->port_name));
+					    fcport->port_name);
 
 					qlt_schedule_sess_for_deletion(fcport);
 					continue;
@@ -5237,7 +5235,7 @@ qla2x00_iidma_fcport(scsi_qla_host_t *vha, fc_port_t *fcport)
 		ql_dbg(ql_dbg_disc, vha, 0x2005,
 		    "iIDMA adjusted to %s GB/s (%X) on %8phN.\n",
 		    qla2x00_get_link_speed_str(ha, fcport->fp_speed),
-		    fcport->fp_speed, wwn_to_str(fcport->port_name));
+		    fcport->fp_speed, fcport->port_name);
 	}
 }
 
@@ -5301,7 +5299,7 @@ qla2x00_reg_remote_port(scsi_qla_host_t *vha, fc_port_t *fcport)
 		rport_ids.roles |= FC_PORT_ROLE_NVME_DISCOVERY;
 
 	ql_dbg(ql_dbg_disc, vha, 0x20ee, "%s %s. rport %p is %s mode\n",
-	    __func__, wwn_to_str(fcport->port_name), rport,
+	    __func__, fcport->port_name, rport,
 	    (fcport->port_type == FCT_TARGET) ? "tgt" :
 	    ((fcport->port_type & FCT_NVME) ? "nvme" : "ini"));
 
@@ -5329,8 +5327,8 @@ qla2x00_update_fcport(scsi_qla_host_t *vha, fc_port_t *fcport)
 	if (IS_SW_RESV_ADDR(fcport->d_id))
 		return;
 
-	ql_dbg(ql_dbg_disc, vha, 0x20ef, "%s %s\n",
-	    __func__, wwn_to_str(fcport->port_name));
+	ql_dbg(ql_dbg_disc, vha, 0x20ef, "%s %8phC\n",
+	    __func__, fcport->port_name);
 
 	fcport->disc_state = DSC_UPD_FCPORT;
 	fcport->login_retry = vha->hw->login_retry_count;
@@ -5384,14 +5382,14 @@ qla2x00_update_fcport(scsi_qla_host_t *vha, fc_port_t *fcport)
 		if (fcport->id_changed) {
 			fcport->id_changed = 0;
 			ql_dbg(ql_dbg_disc, vha, 0x20d7,
-			    "%s %d %s post gfpnid fcp_cnt %d\n",
-			    __func__, __LINE__, wwn_to_str(fcport->port_name),
+			    "%s %d %8phC post gfpnid fcp_cnt %d\n",
+			    __func__, __LINE__, fcport->port_name,
 			    vha->fcport_count);
 			qla24xx_post_gfpnid_work(vha, fcport);
 		} else {
 			ql_dbg(ql_dbg_disc, vha, 0x20d7,
-			    "%s %d %s post gpsc fcp_cnt %d\n",
-			    __func__, __LINE__, wwn_to_str(fcport->port_name),
+			    "%s %d %8phC post gpsc fcp_cnt %d\n",
+			    __func__, __LINE__, fcport->port_name,
 			    vha->fcport_count);
 			qla24xx_post_gpsc_work(vha, fcport);
 		}
@@ -5684,8 +5682,8 @@ qla2x00_find_all_fabric_devs(scsi_qla_host_t *vha)
 					new_fcport->fc4f_nvme =
 					    swl[swl_idx].fc4f_nvme;
 					ql_log(ql_log_info, vha, 0x2131,
-					    "FOUND: NVME port %s as FC Type 28h\n",
-					    wwn_to_str(new_fcport->port_name));
+					    "FOUND: NVME port %8phC as FC Type 28h\n",
+					    new_fcport->port_name);
 				}
 
 				if (swl[swl_idx].d_id.b.rsvd_1 != 0) {
@@ -5788,9 +5786,9 @@ qla2x00_find_all_fabric_devs(scsi_qla_host_t *vha)
 			 */
 			if (qla_tgt_mode_enabled(base_vha)) {
 				ql_dbg(ql_dbg_tgt_mgt, vha, 0xf080,
-					 "port changed FC ID, %s"
+					 "port changed FC ID, %8phC"
 					 " old %x:%x:%x (loop_id 0x%04x)-> new %x:%x:%x\n",
-				         wwn_to_str(fcport->port_name),
+					 fcport->port_name,
 					 fcport->d_id.b.domain,
 					 fcport->d_id.b.area,
 					 fcport->d_id.b.al_pa,
@@ -5862,9 +5860,9 @@ qla2x00_find_all_fabric_devs(scsi_qla_host_t *vha)
 				    fcport->port_type != FCT_INITIATOR &&
 				    fcport->port_type != FCT_BROADCAST) {
 					ql_dbg(ql_dbg_disc, vha, 0x20f0,
-					    "%s %d %s post del sess\n",
+					    "%s %d %8phC post del sess\n",
 					    __func__, __LINE__,
-					    wwn_to_str(fcport->port_name));
+					    fcport->port_name);
 					qlt_schedule_sess_for_deletion(fcport);
 					continue;
 				}
