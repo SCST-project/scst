@@ -173,8 +173,6 @@ generating_upstream_patch="false"
 mpt_scst="false"
 multiple_patches="false"
 patchdir=""
-qla2x00t="false"
-qla2x00t_32gbit="true"
 replace_sbug_by_bug="true"
 specialize_patch_options=(-v "delete_disabled_code=1")
 srpt="true"
@@ -224,6 +222,16 @@ if kernel_version_le "2.6.37" "${kver}"; then
   include_fcst="true"
 else
   include_fcst="false"
+fi
+
+# See also commit 89d9a567952b ("[SCSI] add support for per-host cmd pools";
+# v3.15).
+if kernel_version_lt "$kver" 3.15; then
+    qla2x00t="true"
+    qla2x00t_32gbit="false"
+else
+    qla2x00t="false"
+    qla2x00t_32gbit="true"
 fi
 
 if [ -e "scst/kernel/in-tree/Makefile.scst-${kver}" ]; then

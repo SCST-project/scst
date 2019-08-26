@@ -11,6 +11,10 @@ function kernel_version_le {
     awk -v "v1=$1" -v "v2=$2" 'BEGIN { n1 = split(v1, v1a, "."); n2 = split(v2, v2a, "."); for (i=1;;i++) { e1 = i <= n1 ? v1a[i] : 0; e2 = i <= n2 ? v2a[i] : 0; if (e1 < e2 || i > n1 && i > n2) exit 0; if (e1 > e2) exit 1; }}'
 }
 
+function kernel_version_lt {
+    [ "$1" != "$2" ] && kernel_version_le "$1" "$2"
+}
+
 # Kernel version number.
 function kernel_version {
   if [ "${1#2.}" != "$1" ]; then
