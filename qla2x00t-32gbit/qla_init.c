@@ -5298,7 +5298,8 @@ qla2x00_reg_remote_port(scsi_qla_host_t *vha, fc_port_t *fcport)
 	if (fcport->port_type & FCT_NVME_DISCOVERY)
 		rport_ids.roles |= FC_PORT_ROLE_NVME_DISCOVERY;
 
-	ql_dbg(ql_dbg_disc, vha, 0x20ee, "%s %s. rport %p is %s mode\n",
+	ql_dbg(ql_dbg_disc, vha, 0x20ee,
+	    "%s %8phN. rport %p is %s mode\n",
 	    __func__, fcport->port_name, rport,
 	    (fcport->port_type == FCT_TARGET) ? "tgt" :
 	    ((fcport->port_type & FCT_NVME) ? "nvme" : "ini"));
