@@ -27,9 +27,9 @@ qla2x00_dfs_tgt_sess_show(struct seq_file *s, void *unused)
 
 		spin_lock_irqsave(&ha->tgt.sess_lock, flags);
 		list_for_each_entry(sess, &vha->vp_fcports, list)
-			seq_printf(s, "%02x:%02x:%02x  %s  %d\n",
+			seq_printf(s, "%02x:%02x:%02x  %8phC  %d\n",
 			    sess->d_id.b.domain, sess->d_id.b.area,
-			    sess->d_id.b.al_pa, wwn_to_str(sess->port_name),
+			    sess->d_id.b.al_pa, sess->port_name,
 			    sess->loop_id);
 		spin_unlock_irqrestore(&ha->tgt.sess_lock, flags);
 	}
@@ -92,8 +92,8 @@ qla2x00_dfs_tgt_port_database_show(struct seq_file *s, void *unused)
 			fc_port.loop_id = loop_id;
 
 			rc = qla24xx_gpdb_wait(vha, &fc_port, 0);
-			seq_printf(s, "%s  %02x%02x%02x  %d\n",
-				wwn_to_str(fc_port.port_name), fc_port.d_id.b.domain,
+			seq_printf(s, "%8phC  %02x%02x%02x  %d\n",
+				fc_port.port_name, fc_port.d_id.b.domain,
 				fc_port.d_id.b.area, fc_port.d_id.b.al_pa,
 				fc_port.loop_id);
 			gid = (void *)gid + ha->gid_list_info_size;

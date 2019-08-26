@@ -50,7 +50,7 @@ do
   esac
 done
 
-if [ "$#" != 0 -o "${interval}" -le 0 ]; then
+if [ "$#" != 0 ] || [ "${interval}" -le 0 ]; then
   usage
   exit 1
 fi
@@ -61,20 +61,20 @@ fi
 ####################
 
 printf "%-10s " "Time"
-cat /proc/meminfo \
-| while read label number unit
+cat /proc/meminfo |
+  while read -r label number unit
   do
-    printf " %10s" ${label%:}
+    printf " %10s" "${label%:}"
   done
 echo
 
 while true
 do
-  printf "%-10d" $(date +%s)
-  cat /proc/meminfo \
-  | while read label number unit
+  printf "%-10d" "$(date +%s)"
+  cat /proc/meminfo |
+    while read -r label number unit
     do
-      printf " %10d" ${number}
+      printf " %10d" "${number}"
     done
   echo
   sleep "${interval}"

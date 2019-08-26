@@ -2967,8 +2967,8 @@ void qla24xx_handle_gpsc_event(scsi_qla_host_t *vha, struct event_arg *ea)
 	struct fc_port *fcport = ea->fcport;
 
 	ql_dbg(ql_dbg_disc, vha, 0x20d8,
-	    "%s %s DS %d LS %d rc %d login %d|%d rscn %d|%d lid %d\n",
-	    __func__, wwn_to_str(fcport->port_name), fcport->disc_state,
+	    "%s %8phC DS %d LS %d rc %d login %d|%d rscn %d|%d lid %d\n",
+	    __func__, fcport->port_name, fcport->disc_state,
 	    fcport->fw_login_state, ea->rc, ea->sp->gen2, fcport->login_gen,
 	    ea->sp->gen2, fcport->rscn_gen|ea->sp->gen1, fcport->loop_id);
 
@@ -2978,8 +2978,8 @@ void qla24xx_handle_gpsc_event(scsi_qla_host_t *vha, struct event_arg *ea)
 	if (ea->sp->gen2 != fcport->login_gen) {
 		/* target side must have changed it. */
 		ql_dbg(ql_dbg_disc, vha, 0x20d3,
-		    "%s %s generation changed\n",
-		    __func__, wwn_to_str(fcport->port_name));
+		    "%s %8phC generation changed\n",
+		    __func__, fcport->port_name);
 		return;
 	} else if (ea->sp->gen1 != fcport->rscn_gen) {
 		return;
@@ -2998,8 +2998,9 @@ static void qla24xx_async_gpsc_sp_done(srb_t *sp, int res)
 
 	ct_rsp = &fcport->ct_desc.ct_sns->p.rsp;
 
-	ql_dbg(ql_dbg_disc, vha, 0x2053, "Async done-%s res %x, WWPN %s \n",
-	       sp->name, res, wwn_to_str(fcport->port_name));
+	ql_dbg(ql_dbg_disc, vha, 0x2053,
+	    "Async done-%s res %x, WWPN %8phC \n",
+	    sp->name, res, fcport->port_name);
 
 	fcport->flags &= ~(FCF_ASYNC_SENT | FCF_ASYNC_ACTIVE);
 
@@ -3024,8 +3025,8 @@ static void qla24xx_async_gpsc_sp_done(srb_t *sp, int res)
 		    be16_to_cpu(ct_rsp->rsp.gpsc.speed));
 
 		ql_dbg(ql_dbg_disc, vha, 0x2054,
-		    "Async-%s OUT WWPN %s speeds=%04x speed=%04x.\n",
-		    sp->name, wwn_to_str(fcport->fabric_port_name),
+		    "Async-%s OUT WWPN %8phC speeds=%04x speed=%04x.\n",
+		    sp->name, fcport->fabric_port_name,
 		    be16_to_cpu(ct_rsp->rsp.gpsc.speeds),
 		    be16_to_cpu(ct_rsp->rsp.gpsc.speed));
 	}
@@ -3079,8 +3080,8 @@ int qla24xx_async_gpsc(scsi_qla_host_t *vha, fc_port_t *fcport)
 	sp->done = qla24xx_async_gpsc_sp_done;
 
 	ql_dbg(ql_dbg_disc, vha, 0x205e,
-	    "Async-%s %s hdl=%x loopid=%x portid=%02x%02x%02x.\n",
-	    sp->name, wwn_to_str(fcport->port_name), sp->handle,
+	    "Async-%s %8phC hdl=%x loopid=%x portid=%02x%02x%02x.\n",
+	    sp->name, fcport->port_name, sp->handle,
 	    fcport->loop_id, fcport->d_id.b.domain,
 	    fcport->d_id.b.area, fcport->d_id.b.al_pa);
 
@@ -3195,16 +3196,16 @@ void qla24xx_handle_gpnid_event(scsi_qla_host_t *vha, struct event_arg *ea)
 			case DSC_LOGIN_COMPLETE:
 				/* recheck session is still intact. */
 				ql_dbg(ql_dbg_disc, vha, 0x210d,
-				    "%s %d %s revalidate session with ADISC\n",
-				    __func__, __LINE__, wwn_to_str(fcport->port_name));
+				    "%s %d %8phC revalidate session with ADISC\n",
+				    __func__, __LINE__, fcport->port_name);
 				data[0] = data[1] = 0;
 				qla2x00_post_async_adisc_work(vha, fcport,
 				    data);
 				break;
 			case DSC_DELETED:
 				ql_dbg(ql_dbg_disc, vha, 0x210d,
-				    "%s %d %s login\n", __func__, __LINE__,
-				    wwn_to_str(fcport->port_name));
+				    "%s %d %8phC login\n", __func__, __LINE__,
+				    fcport->port_name);
 				fcport->d_id = ea->id;
 				qla24xx_fcport_handle_login(vha, fcport);
 				break;
@@ -3224,9 +3225,9 @@ void qla24xx_handle_gpnid_event(scsi_qla_host_t *vha, struct event_arg *ea)
 					 * conflict with new fcport.
 					 */
 					ql_dbg(ql_dbg_disc, vha, 0xffff,
-					    "%s %d %s DS %d\n",
+					    "%s %d %8phC DS %d\n",
 					    __func__, __LINE__,
-					    wwn_to_str(conflict->port_name),
+					    conflict->port_name,
 					    conflict->disc_state);
 
 					conflict->scan_state = QLA_FCPORT_SCAN;
@@ -3236,8 +3237,8 @@ void qla24xx_handle_gpnid_event(scsi_qla_host_t *vha, struct event_arg *ea)
 
 			/* create new fcport */
 			ql_dbg(ql_dbg_disc, vha, 0x2065,
-			    "%s %d %s post new sess\n",
-			    __func__, __LINE__, wwn_to_str(ea->port_name));
+			    "%s %d %8phC post new sess\n",
+			    __func__, __LINE__, ea->port_name);
 			qla24xx_post_newsess_work(vha, &ea->id,
 			    ea->port_name, NULL, NULL, FC4_TYPE_UNKNOWN);
 		}
@@ -3257,20 +3258,14 @@ static void qla2x00_async_gpnid_sp_done(srb_t *sp, int res)
 
 	if (res)
 		ql_dbg(ql_dbg_disc, vha, 0x2066,
-		    "Async done-%s fail res %x rscn gen %d ID %02x:%02x:%02x. %s\n",
-		    sp->name, res, sp->gen1,
-		    ct_req->req.port_id.port_id.domain,
-		    ct_req->req.port_id.port_id.area,
-		    ct_req->req.port_id.port_id.al_pa,
-		    wwn_to_str(ct_rsp->rsp.gpn_id.port_name));
+		    "Async done-%s fail res %x rscn gen %d ID %3phC. %8phC\n",
+		    sp->name, res, sp->gen1, &ct_req->req.port_id.port_id,
+		    ct_rsp->rsp.gpn_id.port_name);
 	else
 		ql_dbg(ql_dbg_disc, vha, 0x2066,
-		    "Async done-%s good rscn gen %d ID %02x:%02x:%02x. %s\n",
-		    sp->name, sp->gen1,
-		    ct_req->req.port_id.port_id.domain,
-		    ct_req->req.port_id.port_id.area,
-		    ct_req->req.port_id.port_id.al_pa,
-		    wwn_to_str(ct_rsp->rsp.gpn_id.port_name));
+		    "Async done-%s good rscn gen %d ID %3phC. %8phC\n",
+		    sp->name, sp->gen1, &ct_req->req.port_id.port_id,
+		    ct_rsp->rsp.gpn_id.port_name);
 
 	memset(&ea, 0, sizeof(ea));
 	memcpy(ea.port_name, ct_rsp->rsp.gpn_id.port_name, WWN_SIZE);
@@ -3391,11 +3386,9 @@ int qla24xx_async_gpnid(scsi_qla_host_t *vha, port_id_t *id)
 	sp->u.iocb_cmd.timeout = qla2x00_async_iocb_timeout;
 	sp->done = qla2x00_async_gpnid_sp_done;
 
-	ql_dbg(ql_dbg_disc, vha, 0x2067, "Async-%s hdl=%x ID %02x:%02x:%02x.\n",
-	       sp->name, sp->handle,
-	       ct_req->req.port_id.port_id.domain,
-	       ct_req->req.port_id.port_id.area,
-	       ct_req->req.port_id.port_id.al_pa);
+	ql_dbg(ql_dbg_disc, vha, 0x2067,
+	    "Async-%s hdl=%x ID %3phC.\n", sp->name,
+	    sp->handle, &ct_req->req.port_id.port_id);
 
 	rval = qla2x00_start_sp(sp);
 	if (rval != QLA_SUCCESS)
@@ -3443,8 +3436,8 @@ void qla24xx_async_gffid_sp_done(srb_t *sp, int res)
 	struct event_arg ea;
 
 	ql_dbg(ql_dbg_disc, vha, 0x2133,
-	       "Async done-%s res %x ID %x. %s\n",
-	       sp->name, res, fcport->d_id.b24, wwn_to_str(fcport->port_name));
+	       "Async done-%s res %x ID %x. %8phC\n",
+	       sp->name, res, fcport->d_id.b24, fcport->port_name);
 
 	fcport->flags &= ~FCF_ASYNC_SENT;
 	ct_rsp = &fcport->ct_desc.ct_sns->p.rsp;
@@ -3520,8 +3513,8 @@ int qla24xx_async_gffid(scsi_qla_host_t *vha, fc_port_t *fcport)
 	sp->done = qla24xx_async_gffid_sp_done;
 
 	ql_dbg(ql_dbg_disc, vha, 0x2132,
-	    "Async-%s hdl=%x  %s.\n", sp->name,
-	    sp->handle, wwn_to_str(fcport->port_name));
+	    "Async-%s hdl=%x  %8phC.\n", sp->name,
+	    sp->handle, fcport->port_name);
 
 	rval = qla2x00_start_sp(sp);
 	if (rval != QLA_SUCCESS)
@@ -3653,8 +3646,8 @@ void qla24xx_async_gnnft_done(scsi_qla_host_t *vha, srb_t *sp)
 
 		if (!found) {
 			ql_dbg(ql_dbg_disc, vha, 0xffff,
-			    "%s %d %s post new sess\n",
-			    __func__, __LINE__, wwn_to_str(rp->port_name));
+			    "%s %d %8phC post new sess\n",
+			    __func__, __LINE__, rp->port_name);
 			qla24xx_post_newsess_work(vha, &rp->id, rp->port_name,
 			    rp->node_name, NULL, rp->fc4type);
 		}
@@ -3685,9 +3678,9 @@ void qla24xx_async_gnnft_done(scsi_qla_host_t *vha, srb_t *sp)
 						fcport->logout_on_delete = 0;
 
 					ql_dbg(ql_dbg_disc, vha, 0x20f0,
-					    "%s %d %s post del sess\n",
+					    "%s %d %8phC post del sess\n",
 					    __func__, __LINE__,
-					    wwn_to_str(fcport->port_name));
+					    fcport->port_name);
 
 					qlt_schedule_sess_for_deletion(fcport);
 					continue;
@@ -4256,9 +4249,8 @@ static void qla2x00_async_gnnid_sp_done(srb_t *sp, int res)
 	ea.rc = res;
 
 	ql_dbg(ql_dbg_disc, vha, 0x204f,
-	    "Async done-%s res %x, WWPN %s %s\n",
-	    sp->name, res, wwn_to_str(fcport->port_name),
-	    wwn_to_str(fcport->node_name));
+	    "Async done-%s res %x, WWPN %8phC %8phC\n",
+	    sp->name, res, fcport->port_name, fcport->node_name);
 
 	qla24xx_handle_gnnid_event(vha, &ea);
 
@@ -4308,8 +4300,8 @@ int qla24xx_async_gnnid(scsi_qla_host_t *vha, fc_port_t *fcport)
 	sp->done = qla2x00_async_gnnid_sp_done;
 
 	ql_dbg(ql_dbg_disc, vha, 0xffff,
-	    "Async-%s - %s hdl=%x loopid=%x portid %06x.\n",
-	    sp->name, wwn_to_str(fcport->port_name),
+	    "Async-%s - %8phC hdl=%x loopid=%x portid %06x.\n",
+	    sp->name, fcport->port_name,
 	    sp->handle, fcport->loop_id, fcport->d_id.b24);
 
 	rval = qla2x00_start_sp(sp);
@@ -4348,8 +4340,8 @@ void qla24xx_handle_gfpnid_event(scsi_qla_host_t *vha, struct event_arg *ea)
 	fc_port_t *fcport = ea->fcport;
 
 	ql_dbg(ql_dbg_disc, vha, 0xffff,
-	    "%s %s DS %d LS %d rc %d login %d|%d rscn %d|%d fcpcnt %d\n",
-	    __func__, wwn_to_str(fcport->port_name), fcport->disc_state,
+	    "%s %8phC DS %d LS %d rc %d login %d|%d rscn %d|%d fcpcnt %d\n",
+	    __func__, fcport->port_name, fcport->disc_state,
 	    fcport->fw_login_state, ea->rc, fcport->login_gen, ea->sp->gen2,
 	    fcport->rscn_gen, ea->sp->gen1, vha->fcport_count);
 
@@ -4359,8 +4351,8 @@ void qla24xx_handle_gfpnid_event(scsi_qla_host_t *vha, struct event_arg *ea)
 	if (ea->sp->gen2 != fcport->login_gen) {
 		/* target side must have changed it. */
 		ql_dbg(ql_dbg_disc, vha, 0x20d3,
-		    "%s %s generation changed\n",
-		    __func__, wwn_to_str(fcport->port_name));
+		    "%s %8phC generation changed\n",
+		    __func__, fcport->port_name);
 		return;
 	} else if (ea->sp->gen1 != fcport->rscn_gen) {
 		return;
@@ -4387,9 +4379,8 @@ static void qla2x00_async_gfpnid_sp_done(srb_t *sp, int res)
 	ea.rc = res;
 
 	ql_dbg(ql_dbg_disc, vha, 0x204f,
-	    "Async done-%s res %x, WWPN %s %s\n",
-	    sp->name, res, wwn_to_str(fcport->port_name),
-	    wwn_to_str(fcport->fabric_port_name));
+	    "Async done-%s res %x, WWPN %8phC %8phC\n",
+	    sp->name, res, fcport->port_name, fcport->fabric_port_name);
 
 	qla24xx_handle_gfpnid_event(vha, &ea);
 
@@ -4437,8 +4428,8 @@ int qla24xx_async_gfpnid(scsi_qla_host_t *vha, fc_port_t *fcport)
 	sp->done = qla2x00_async_gfpnid_sp_done;
 
 	ql_dbg(ql_dbg_disc, vha, 0xffff,
-	    "Async-%s - %s hdl=%x loopid=%x portid %06x.\n",
-	    sp->name, wwn_to_str(fcport->port_name),
+	    "Async-%s - %8phC hdl=%x loopid=%x portid %06x.\n",
+	    sp->name, fcport->port_name,
 	    sp->handle, fcport->loop_id, fcport->d_id.b24);
 
 	rval = qla2x00_start_sp(sp);

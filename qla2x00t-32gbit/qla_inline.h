@@ -113,20 +113,6 @@ qla2x00_clean_dsd_pool(struct qla_hw_data *ha, struct crc_context *ctx)
 	INIT_LIST_HEAD(&ctx->dsd_list);
 }
 
-/*
- * Convert a WWN into a string, just like the %8phC format specification.
- * Not thread-safe so use this function from debug code only.
- */
-static inline const char *wwn_to_str(const u8 port_name[8])
-{
-	static char wwn[24];
-
-	snprintf(wwn, sizeof(wwn), "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
-		 port_name[0], port_name[1], port_name[2], port_name[3],
-		 port_name[4], port_name[5], port_name[6], port_name[7]);
-	return wwn;
-}
-
 static inline int
 qla2x00_hba_err_chk_enabled(srb_t *sp)
 {

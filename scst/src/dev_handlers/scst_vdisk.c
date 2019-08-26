@@ -1825,7 +1825,7 @@ static int vdisk_unmap_file_range(struct scst_cmd *cmd,
 }
 
 static int vdisk_unmap_range(struct scst_cmd *cmd,
-	struct scst_vdisk_dev *virt_dev, uint64_t start_lba, uint32_t blocks)
+	struct scst_vdisk_dev *virt_dev, uint64_t start_lba, uint64_t blocks)
 {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
 	int res, err;
@@ -1850,7 +1850,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 	}
 
 	TRACE_DBG("Unmapping lba %lld (blocks %lld)",
-		(unsigned long long)start_lba, (unsigned long long)blocks);
+		  (unsigned long long)start_lba, blocks);
 
 	if (virt_dev->blockio) {
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
@@ -1874,7 +1874,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 #endif
 		if (unlikely(err != 0)) {
 			PRINT_ERROR("blkdev_issue_discard() for "
-				"LBA %lld, blocks %d failed: %d",
+				"LBA %lld, blocks %lld failed: %d",
 				(unsigned long long)start_lba, blocks, err);
 			scst_set_cmd_error(cmd,
 				SCST_LOAD_SENSE(scst_sense_write_error));
@@ -1888,7 +1888,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 #endif
 	} else {
 		loff_t off = start_lba << cmd->dev->block_shift;
-		loff_t len = (u64)blocks << cmd->dev->block_shift;
+		loff_t len = blocks << cmd->dev->block_shift;
 
 		res = vdisk_unmap_file_range(cmd, virt_dev, off, len, fd);
 		if (unlikely(res != 0))
