@@ -1174,7 +1174,6 @@ void qlt_unreg_sess(struct fc_port *sess)
 	sess->last_rscn_gen = sess->rscn_gen;
 	sess->last_login_gen = sess->login_gen;
 
-	INIT_WORK(&sess->free_work, qlt_free_session_done);
 	schedule_work(&sess->free_work);
 }
 EXPORT_SYMBOL(qlt_unreg_sess);
@@ -1279,7 +1278,6 @@ void qlt_schedule_sess_for_deletion(struct fc_port *sess)
 	    "Scheduling sess %p for deletion %s\n",
 	    sess, wwn_to_str(sess->port_name));
 
-	INIT_WORK(&sess->del_work, qla24xx_delete_sess_fn);
 	WARN_ON(!queue_work(sess->vha->hw->wq, &sess->del_work));
 }
 
@@ -1399,6 +1397,9 @@ static struct fc_port *qlt_create_sess(
 			    __func__, wwn_to_str(sess->port_name));
 			return NULL;
 		}
+
+		INIT_WORK(&sess->del_work, qla24xx_delete_sess_fn);
+		INIT_WORK(&sess->free_work, qlt_free_session_done);
 
 		spin_lock_irqsave(&ha->tgt.sess_lock, flags);
 		if (!IS_SW_RESV_ADDR(sess->d_id))
