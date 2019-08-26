@@ -675,8 +675,16 @@ do
       2.*|3.*)
 	  # Tell the kernel that we are using gcc 4.6.
 	  KCFLAGS="-U__GNUC__ -U__GNUC_MINOR__ -D__GNUC__=4 -D__GNUC_MINOR__=6"
-	  export KCFLAGS;;
   esac
+  # See also commit bd664f6b3e37 ("disable new gcc-7.1.1 warnings for now";
+  # v4.13) and commit 6f303d60534c ("gcc-9: silence 'address-of-packed-member'
+  # warning"; v5.1).
+  for w in -Wno-format-truncation -Wno-format-overflow -Wno-int-in-bool-context -Wno-address-of-packed-member; do
+      if gcc -c -xc - "$w" </dev/null >&/dev/null; then
+	  KCFLAGS+=" $w"
+      fi
+  done
+  export KCFLAGS
   subdirs=(drivers/scst)
   if [ "${run_sparse}" = "true" ]; then
     run_sparse "$k" "${subdirs[@]}"
