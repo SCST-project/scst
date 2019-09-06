@@ -2582,8 +2582,10 @@ static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 		add_lun = true;
 		while (1) {
 			lun = scst_cm_next_lun++;
-			if (lun == SCST_MAX_LUN)
+			if (lun == SCST_MAX_LUN) {
+				scst_cm_next_lun = 0;
 				continue;
+			}
 			if (scst_cm_is_lun_free(lun))
 				break;
 		}
