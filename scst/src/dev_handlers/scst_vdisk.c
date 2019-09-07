@@ -5972,7 +5972,7 @@ defined(CONFIG_SUSE_KERNEL) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0) ||			\
 defined(CONFIG_SUSE_KERNEL) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
-	bio->bi_opf |= REQ_META;
+	bio->bi_opf |= REQ_PRIO;
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36) ||			\
 	(defined(RHEL_MAJOR) &&						\
 	 (RHEL_MAJOR -0 > 6 || RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 > 0))
