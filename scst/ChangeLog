@@ -30,7 +30,15 @@ Summary of changes between versions 3.2 and 3.3
 
 Summary of changes between versions 3.1 and 3.2
 -----------------------------------------------
-[ ... ]
+- Updated SCST to SPC-4.
+- Added the CONFIG_SCST_FORWARD_MODE_PASS_THROUGH mode.
+- Added support for command polling. See also the poll_us attribute.
+- ib_srpt: Added link_layer and port_id sysfs attributes.
+- ib_srpt: Reduced CPU load caused by stopping a large number of sessions.
+- isert: Fixed multiple bugs.
+- scstadmin gained support for saving and restoring copy manager attributes.
+- scstadmin -attributes behavior for multiple attributes has been fixed.
+- scstadmin no longer tries to save the dif_checks_failed counter.
 
 Summary of changes between versions 3.0 and 3.1
 -----------------------------------------------
