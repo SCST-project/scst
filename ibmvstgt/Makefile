@@ -37,8 +37,8 @@ all: src/$(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) M=$(shell pwd)/src modules
 
 install: all src/ibmvstgt.ko
-	$(MAKE) -C $(KDIR) M=$(shell pwd)/src \
-		$$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
+	$(MAKE) -C $(KDIR) M=$(shell pwd)/src				\
+		$$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
 		modules_install
 
 uninstall:

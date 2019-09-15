@@ -128,9 +128,10 @@ install: all
 	false; fi
 	-rm -f $(INSTALL_DIR)/scsi_tgt.ko
 	$(MAKE) -C $(KDIR) M=$(shell pwd)/dev_handlers			\
+	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
 	  modules_install
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
-	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true)\
+	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
 	  modules_install
 	install -d $(INSTALL_DIR_H)
 	header_files="backport.h scst.h scst_const.h scst_debug.h	\
