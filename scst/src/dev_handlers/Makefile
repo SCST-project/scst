@@ -65,8 +65,8 @@ all:
 
 install: all
 	mkdir -p $(DESTDIR)/var/lib/scst/vdev_mode_pages
-	$(MAKE) -C $(KDIR) M=$(shell pwd) \
-		$$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
+	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
+		$$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
 		modules_install
 
 uninstall:

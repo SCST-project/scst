@@ -51,8 +51,8 @@ all: $(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m
 
 install: all
-	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
-		$$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m			\
+		$$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
 		modules_install
 
 $(MODULE_SYMVERS): $(SCST_DIR)/$(MODULE_SYMVERS)

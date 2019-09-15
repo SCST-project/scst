@@ -73,8 +73,8 @@ tgt: Modules.symvers Module.symvers
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=n
 
 install: all
-	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
-		$$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m			\
+		$$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
 		modules_install
 
 SCST_MOD_VERS := $(shell ls $(SCST_DIR)/Modules.symvers 2>/dev/null)

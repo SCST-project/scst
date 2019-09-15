@@ -109,7 +109,7 @@ install: all
 	  find /lib/modules/$(KVER) -name ib_srpt.ko -exec rm {} \; ; \
 	  true
 	$(MAKE) -C $(KDIR) M=$(shell pwd)/src PRE_CFLAGS="$(PRE_CFLAGS)" \
-	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
+	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		 \
 	  modules_install
 
 uninstall:

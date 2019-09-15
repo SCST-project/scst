@@ -100,8 +100,8 @@ install: all
 ifneq ($(BUILD_2X_MODULE),)
 	$(MAKE) M=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) $@
 endif
-	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
-	  $$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m		\
+	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
 	  modules_install
 
 uninstall:

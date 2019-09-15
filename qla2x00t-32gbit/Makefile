@@ -62,8 +62,8 @@ all:
 		$(CONFIG_SCSI_QLA2XXX_TARGET)=CONFIG_SCSI_QLA2XXX_TARGET
 
 install: all
-	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
-		$$([ -n "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && echo DEPMOD=true) \
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m			\
+		$$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
 		modules_install
 
 uninstall:
