@@ -1,0 +1,39 @@
+Setup:
+
+Target: 2.6.29 kernel, 64 bit, Intel E8400 CPU @ 3.00GHz, 4 GB RAM, SCST trunk
+  revision 727 (which is close to the 1.0.1 release). A file of 1 GB residing
+  on a tmpfs filesystem has been exported via SCST.
+
+Initiator: 2.6.29 kernel, 64 bit, Intel E6750 CPU @ 2.66 GHz, 2 GB RAM,
+  openSUSE 11.0 userspace.
+
+Network: two MHGH28-XTC (MT26418) ConnectX InfiniBand HCA's connected back to
+  back, which are DDR PCIe 1.0 HCA's. The IPoIB stack was configured with the
+  default MTU of 2044 bytes on both interfaces and was using datagram mode.
+  ib_read_bw reported a throughput of 1394 MB/s for this network, and netperf
+  reported a TCP/IP throughput of 1200 MB/s (with default parameters).
+
+Results:
+
+Buffered I/O, block size of 512K (dd if=/dev/sdb of=/dev/null bs=512K):
+
+write-test: iSCSI-SCST 243 MB/s; IET 192 MB/s.
+read-test: iSCSI-SCST 291 MB/s; IET 223 MB/s.
+
+Buffered I/O, block size of 4 KB (dd if=/dev/sdb of=/dev/null bs=4K):
+
+write-test: iSCSI-SCST 43 MB/s; IET 42 MB/s.
+read-test: iSCSI-SCST 288 MB/s; IET 221 MB/s.
+
+Or: depending on the test scenario, SCST transfers data between 2% and
+30% faster via the iSCSI protocol over this network than IET.
+
+Note: at least for the tests with a block size of 4 KB, the initiator
+system was the bottleneck, not the target system.
+
+Something that is not relevant for this comparison, but interesting to
+know: with the SRP implementation in SCST the maximal read throughput
+is 1290 MB/s on the same setup.
+
+Measured by Bart Van Assche
+

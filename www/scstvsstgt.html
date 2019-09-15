@@ -1,0 +1,99 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+<meta name="Keywords" content="SCST vs STGT">
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1">
+<meta name="author" content="Daniel Fernandes">
+<meta name="Robots" content="index,follow">
+<link rel="stylesheet" href="images/Orange.css" type="text/css">
+<title>SCST vs STGT</title>
+</head>
+
+<body>
+<!-- wrap starts here -->
+<div id="wrap">
+	<div id="header">
+		<div class="logoimg"></div><h1 id="logo"><span class="orange"></span></h1>
+		<h2 id=slogan>Generic SCSI Target Subsystem for Linux</h2>
+	</div>
+
+	<div id="menu">
+		<ul>
+			<li><a href="index.html">Home</a></li>
+			<li><a href="http://www.sourceforge.net/projects/scst">Main</a></li>
+			<li><a href="http://sourceforge.net/news/?group_id=110471">News</a></li>
+			<li><a href="targets.html">Drivers</a></li>
+			<li><a href="downloads.html">Downloads</a></li>
+			<li><a href="contributing.html">Contributing</a></li>
+			<li id="current"><a href="comparison.html">Comparison</a></li>
+			<li><a href="users.html">Users</a></li>
+		</ul>
+	</div>
+
+	<!-- content-wrap starts here -->
+	<div id="content-wrap">
+			<div id="sidebar">
+				<h1>Comparison</h1>
+				<ul class="sidemenu">
+					<li><a href="comparison.html">Features comparison</a></li>
+					<li><a href="scstvslio.html">SCST vs LIO/TCM</a></li>
+					<li><a href="scstvsstgt.html">SCST vs STGT</a></li>
+					<li><a href="mc_s.html">MC/S vs MPIO</a></li>
+				</ul>
+			</div>
+
+			<div id="main">
+				<h1>SCST vs STGT</h1>
+				<p><a href="http://stgt.sourceforge.net/">STGT</a> is alternative, independent from SCST implementation
+				of SCSI target framework for Linux. It has different architecture, where SCSI target state machine is placed in
+				the user space, while in SCST all the processing done in the kernel. Such architecture as STGT has was acknowledged
+				by the Linux SCSI subsystem maintainers as a "right" one, so kernel's part of STGT quickly
+				found its way to the kernel.</p>
+
+				<p>But such architecture has several inherent problems. Among them performance and complexity.
+				See <a href="http://lkml.org/lkml/2008/12/10/245">description</a> for the set of patches, submitted for
+				the first iteration of in-kernel inclusion review and comments in Linux kernel mailing list.</p>
+
+				<p>See also the following important discussions:</p>
+				<ul>
+
+				<li><span><a href="http://news.gmane.org/find-root.php?message_id=%3ce2e108260801170127w2937b2afg9bef324efa945e43%40mail.gmail.com%3e">
+				"Performance of SCST versus STGT"</a> for performance comparison.</span></li>
+
+				<li><span><a href="http://news.gmane.org/find-root.php?message_id=%3c463F36AC.3010207%40vlnb.net%3e">
+				"Question for pass-through target design"</a></span></li>
+
+				<li><span><a href="http://news.gmane.org/find-root.php?message_id=%3c43987F75.2000301%40vlnb.net%3e">
+				"Stgt a new version of iscsi target?"</a>, especially pay attention to
+				<a href="http://article.gmane.org/gmane.linux.scsi/21073">this</a> message why STGT's architecture was considered "right".
+				</span></li>
+
+				</ul>
+
+				<p>Time has proved that STGT is too weak to satisfy modern storage requirements. Now it is obsolete and
+				soon going to be removed from the mainline kernel.</p>
+
+	  		</div>
+	</div>
+</div>
+<!-- wrap ends here -->
+<!-- footer starts here -->
+<div id="footer">
+	<p>&copy; Copyright 2004 - 2018 <b><font color="#EC981F">Vladislav Bolkhovitin &amp others</font></b>&nbsp;&nbsp;
+	   Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</p>
+</div>
+<!-- footer ends here -->
+<!-- Piwik -->
+<script type="text/javascript">
+var pkBaseURL = (("https:" == document.location.protocol) ? "https://apps.sourceforge.net/piwik/scst/" : "http://apps.sourceforge.net/piwik/scst/");
+document.write(unescape("%3Cscript src='" + pkBaseURL + "piwik.js' type='text/javascript'%3E%3C/script%3E"));
+</script><script type="text/javascript">
+piwik_action_name = '';
+piwik_idsite = 1;
+piwik_url = pkBaseURL + "piwik.php";
+piwik_log(piwik_action_name, piwik_idsite, piwik_url);
+</script>
+<object><noscript><p><img src="http://apps.sourceforge.net/piwik/scst/piwik.php?idsite=1" alt="piwik"></p></noscript></object>
+<!-- End Piwik Tag -->
+</body>
+</html>
