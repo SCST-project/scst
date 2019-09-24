@@ -908,6 +908,8 @@ static inline void *kvzalloc(size_t size, gfp_t flags)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
+	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 7) &&	\
 	!defined(_COMPAT_LINUX_MM_H)
 /* See also commit 1c542f38ab8d ("mm: Introduce kvcalloc()") # v4.18. */
 static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
@@ -1136,7 +1138,9 @@ typedef void (*rcu_callback_t)(struct rcu_head *);
 	__kfree_rcu(&((ptr)->rcu_head), offsetof(typeof(*(ptr)), rcu_head))
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
+	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 7)
 /*
  * See also commit 546a9d8519ed ("rcu: Export debug_init_rcu_head() and and
  * debug_init_rcu_head()") # v3.16.
@@ -1588,7 +1592,9 @@ static inline int scsi_bidi_cmnd(struct scsi_cmnd *cmd)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
+	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 7)
 /* See also commit b54197c43db8 ("virtio_scsi: use cmd_size") # v3.16. */
 static inline void *scsi_cmd_priv(struct scsi_cmnd *cmd)
 {
