@@ -906,6 +906,8 @@ static inline void *kvzalloc(size_t size, gfp_t flags)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
+	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 7) &&	\
 	!defined(_COMPAT_LINUX_MM_H)
 /* See also commit 1c542f38ab8d ("mm: Introduce kvcalloc()") # v4.18. */
 static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
