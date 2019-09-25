@@ -726,4 +726,10 @@ int qla_nvme_register_hba(struct scsi_qla_host *vha)
 	return ret;
 }
 
+#else
+
+void qla_nvme_unregister_remote_port(struct fc_port *fcport)
+{
+}
+
 #endif
