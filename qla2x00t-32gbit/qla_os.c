@@ -7160,7 +7160,8 @@ static int qla2xxx_map_queues(struct Scsi_Host *shost)
 	if (USER_CTRL_IRQ(vha->hw))
 		rc = blk_mq_map_queues(&shost->tag_set);
 	else
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0) &&	\
+	!defined(CONFIG_SUSE_KERNEL)
 		/*
 		 * See also commit f23f5bece686 ("blk-mq: Allow PCI vector
 		 * offset for mapping queues") # v4.17.
@@ -7216,8 +7217,9 @@ struct scsi_host_template qla2xxx_driver_template = {
 	.cmd_size		= sizeof(srb_t),
 };
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0) &&	\
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 16, 0) &&		\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&	\
+	!defined(CONFIG_SUSE_KERNEL)
 static void qla_pci_reset_notify(struct pci_dev *dev, bool prepare)
 {
 	if (prepare)
@@ -7238,7 +7240,8 @@ struct pci_error_handlers qla2xxx_err_handler = {
 	.slot_reset = qla2xxx_pci_slot_reset,
 	.resume = qla2xxx_pci_resume,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0)
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&	\
+	!defined(CONFIG_SUSE_KERNEL)
 	.reset_notify = qla_pci_reset_notify,
 #else
 	.reset_prepare = qla_pci_reset_prepare,

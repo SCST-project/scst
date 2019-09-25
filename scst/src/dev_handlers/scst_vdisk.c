@@ -407,7 +407,8 @@ static void vdev_flush_end_io(struct bio *bio, int error)
 #else
 static void vdev_flush_end_io(struct bio *bio)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&	\
+	!defined(CONFIG_SUSE_KERNEL)
 	int error = bio->bi_error;
 #else
 	int error = blk_status_to_errno(bio->bi_status);
@@ -2864,7 +2865,8 @@ static void blockio_end_sync_io(struct bio *bio, int error)
 #else
 static void blockio_end_sync_io(struct bio *bio)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&	\
+	!defined(CONFIG_SUSE_KERNEL)
 	int error = bio->bi_error;
 #else
 	int error = blk_status_to_errno(bio->bi_status);
@@ -5862,7 +5864,8 @@ static void blockio_endio(struct bio *bio, int error)
 #else
 static void blockio_endio(struct bio *bio)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&	\
+	!defined(CONFIG_SUSE_KERNEL)
 	int error = bio->bi_error;
 #else
 	int error = blk_status_to_errno(bio->bi_status);

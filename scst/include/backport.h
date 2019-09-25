@@ -94,7 +94,8 @@ static __always_inline unsigned long long rdtsc(void)
 
 /* <linux/bio.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&	\
+	!defined(CONFIG_SUSE_KERNEL)
 static inline struct bio_set *bioset_create_backport(unsigned int pool_size,
 						     unsigned int front_pad,
 						     int flags)
@@ -107,7 +108,8 @@ static inline struct bio_set *bioset_create_backport(unsigned int pool_size,
 #endif
 
 /* See also commit 74d46992e0d9. */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0) &&	\
+	!defined(CONFIG_SUSE_KERNEL)
 static inline void bio_set_dev(struct bio *bio, struct block_device *bdev)
 {
 	bio->bi_bdev = bdev;
@@ -168,7 +170,8 @@ static inline void *bsg_job_sense(struct bsg_job *job)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
 	return job->req->sense;
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0) &&	\
+	!defined(CONFIG_SUSE_KERNEL)
 	return scsi_req(job->req)->sense;
 #else
 	return scsi_req(blk_mq_rq_from_pdu(job))->sense;
@@ -465,7 +468,8 @@ static inline ssize_t call_write_iter(struct file *file, struct kiocb *kio,
  * See also commit b745fafaf70c ("fs: Introduce RWF_NOWAIT and
  * FMODE_AIO_NOWAIT") # v4.13.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) && \
+	!defined(CONFIG_SUSE_KERNEL)
 #define IOCB_NOWAIT 0
 #endif
 
@@ -489,7 +493,11 @@ static inline ssize_t
 kernel_write_backport(struct file *file, const void *buf, size_t count,
 		      loff_t *pos)
 {
+#ifndef CONFIG_SUSE_KERNEL
 	return kernel_write(file, buf, count, *pos);
+#else
+	return kernel_write(file, buf, count, pos);
+#endif
 }
 
 #define kernel_write kernel_write_backport
@@ -910,6 +918,7 @@ static inline void *kvzalloc(size_t size, gfp_t flags)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0) &&	\
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
 	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 7) &&	\
+	!defined(CONFIG_SUSE_KERNEL) &&			\
 	!defined(_COMPAT_LINUX_MM_H)
 /* See also commit 1c542f38ab8d ("mm: Introduce kvcalloc()") # v4.18. */
 static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
