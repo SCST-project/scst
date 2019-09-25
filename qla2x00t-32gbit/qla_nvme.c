@@ -6,10 +6,10 @@
  */
 
 #include <linux/version.h>
+#include "qla_nvme.h"
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 
-#include "qla_nvme.h"
 #include <linux/scatterlist.h>
 #include <linux/delay.h>
 #include <linux/nvme.h>
