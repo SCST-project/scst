@@ -7918,7 +7918,8 @@ static void blk_bio_map_kern_endio(struct bio *bio, int err)
 #else
 static void blk_bio_map_kern_endio(struct bio *bio)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) && \
+	!defined(CONFIG_SUSE_KERNEL)
 	int err = bio->bi_error;
 #else
 	int err = blk_status_to_errno(bio->bi_status);
@@ -8101,7 +8102,8 @@ static struct request *blk_make_request(struct request_queue *q,
 	if (IS_ERR(rq))
 		return rq;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0) ||	\
+	defined(CONFIG_SUSE_KERNEL)
 	scsi_req_init(scsi_req(rq));
 #else
 	scsi_req_init(rq);
@@ -8110,7 +8112,8 @@ static struct request *blk_make_request(struct request_queue *q,
 	for_each_bio(bio) {
 		int ret;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&	\
+	!defined(CONFIG_SUSE_KERNEL)
 		struct bio *bounce_bio = bio;
 
 		blk_queue_bounce(q, &bounce_bio);
@@ -8124,7 +8127,8 @@ static struct request *blk_make_request(struct request_queue *q,
 		 * blk_rq_append_bio"). That commit has been backported to
 		 * kernel v4.14.11 as 88da02868f77.
 		 */
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 11)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 11) &&	\
+	!defined(CONFIG_SUSE_KERNEL)
 		ret = blk_rq_append_bio(rq, bio);
 		if (unlikely(ret)) {
 			blk_put_request(rq);
@@ -8347,7 +8351,8 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 		if (unlikely(!rq))
 			return ERR_PTR(-ENOMEM);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0) ||	\
+	defined(CONFIG_SUSE_KERNEL)
 		scsi_req_init(scsi_req(rq));
 #else
 		scsi_req_init(rq);
@@ -8533,7 +8538,8 @@ out:
 #endif /* !defined(SCSI_EXEC_REQ_FIFO_DEFINED) */
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&	\
+	!defined(CONFIG_SUSE_KERNEL)
 static void scsi_end_async(struct request *req, int error)
 #else
 static void scsi_end_async(struct request *req, blk_status_t error)
@@ -8704,7 +8710,8 @@ out_free_unmap:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
 		b->bi_end_io(b, res);
 #else
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&	\
+	!defined(CONFIG_SUSE_KERNEL)
 		b->bi_error = res;
 #else
 		b->bi_status = errno_to_blk_status(res);
