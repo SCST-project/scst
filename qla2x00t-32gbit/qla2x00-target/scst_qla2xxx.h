@@ -4,7 +4,8 @@
 #define QLT_USE_PERCPU_IDA 0
 #define QLT_USE_SBITMAP 0
 #include <linux/bitmap.h>
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0) &&	\
+	!(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 8)
 #define QLT_USE_PERCPU_IDA 1
 #define QLT_USE_SBITMAP 0
 /* See also commit 798ab48eecdf ("idr: Percpu ida") # v3.12 */

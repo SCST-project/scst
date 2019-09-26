@@ -8594,7 +8594,8 @@ static void scsi_end_async(struct request *req, blk_status_t error)
 
 	kmem_cache_free(scsi_io_context_cache, sioc);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8)
 	/* See also commit 92bc5a24844a ("block: remove __blk_put_request()") */
 	__blk_put_request(req->q, req);
 #else
