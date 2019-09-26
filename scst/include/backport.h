@@ -143,7 +143,8 @@ static inline unsigned int scst_blk_rq_cpu(struct request *rq)
 	 * affinity") # v2.6.28.
 	 */
 	return 0;
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8)
 	return rq->cpu;
 #else
 	return blk_mq_rq_cpu(rq);
@@ -523,8 +524,9 @@ irq_set_affinity_notifier(unsigned int irq, struct irq_affinity_notify *notify)
 
 /* <linux/iocontext.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25) || \
-	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25) ||	  \
+	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0) || \
+	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 8)
 
 static inline struct io_context *
 scst_get_task_io_context(struct task_struct *task,
