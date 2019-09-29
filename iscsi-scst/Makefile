@@ -149,11 +149,13 @@ install: all
 	@install -vD -m 644 doc/manpages/iscsi-scstd.8 $(DESTDIR)$(MANDIR)/man8/iscsi-scstd.8
 	@install -vD -m 755 usr/iscsi-scst-adm $(DESTDIR)$(SBINDIR)/iscsi-scst-adm
 	@install -vD -m 644 doc/manpages/iscsi-scst-adm.8 $(DESTDIR)$(MANDIR)/man8/iscsi-scst-adm.8
+	(cd $(KMOD) && KDIR=$(KDIR) ../../scripts/sign-modules)
 	$(MAKE) -C $(KDIR) M=$(KMOD)				\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
 	  modules_install
 	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
 	if $(INFINIBAND_ENABLED); then				\
+	  (cd $(ISERTMOD) && KDIR=$(KDIR) ../../../scripts/sign-modules)
 	  $(MAKE) -C $(KDIR) M=$(ISERTMOD)			\
 	    $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
 	    modules_install;					\

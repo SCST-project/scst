@@ -1,0 +1,65 @@
+SCST and kernel module signing
+==============================
+
+Introduction
+------------
+
+The purpose of kernel module signatures is to only allow those kernel modules
+to be loaded that have been signed with an approved key. A signed kernel
+module is a kernel module with a digital signature embedded into the module
+stating the owner of the signature created that kernel module. This is a
+security mechanism that was introduced in kernel v3.7. If this mechanism is
+enabled the signature of a kernel module is verified against the public keys
+embedded in the kernel and also against the UEFI public keys. This mechanism
+restricts kernel module loading such that only kernel modules signed with
+certain keys can be loaded.
+
+Module Signing and SCST
+-----------------------
+There are two options when using SCST in combination with a kernel that has
+signed kernel modules:
+
+* Disable the signature verification mechanism by adding module.sig_enforce=0
+  at the end of GRUB_CMDLINE_LINUX in /etc/default/grub, by updating grub.cfg
+  and by rebooting. grub.cfg can be updated by running e.g. the following
+  command:
+
+  update-bootloader || update-grub || grub2-mkconfig -o /boot/grub2/grub.cfg
+
+* Enable the signature verification mechanism and load the public key that
+  was generated during the SCST build process into the UEFI keyring.
+
+Signing SCST Kernel Modules
+---------------------------
+Build and install SCST as usual. During the build process a public/private
+key pair will be generated in the scst/src/certs directory:
+
+ls -l scst/src/certs/scst_module_key*
+-rw-------. 1 bart users 1325 Sep 28 16:42 scst/src/certs/scst_module_key.der
+-rw-------. 1 bart users 3272 Sep 28 16:42 scst/src/certs/scst_module_key.priv
+
+Start the process of importing the public key into the UEFI key repository
+as follows:
+
+mokutil --import scst/src/certs/scst_module_key.der
+
+The mokutil software will ask which password should be used for this key
+during the import process. Since this password will be short-lived, any
+simple password works. Next, verify with mokutil --list-new whether the
+import process has been started. If this is the case, reboot. The bootloader
+will start the EFI MOK manager. Use the menus on the screen to activate the
+SCST kernel module key. After booting has finished, verify whether loading
+and unloading of the main SCST kernel module works:
+
+modprobe scst && modprobe -r scst
+
+See Also
+--------
+* Linux Kernel Module Signing Documentation, kernel.org
+  https://www.kernel.org/doc/html/latest/admin-guide/module-signing.html
+
+* Signed kernel module support, Gentoo Wiki
+  https://wiki.gentoo.org/wiki/Signed_kernel_module_support
+
+* Build and install signed Kvaser driver modules
+  https://www.kvaser.com/developer-blog/build-install-signed-kvaser-driver-modules/

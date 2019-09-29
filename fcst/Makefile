@@ -74,6 +74,7 @@ tgt: $(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=n
 
 install: all
+	KDIR=$(KDIR) ../scripts/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m		\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
 	  modules_install

@@ -111,6 +111,7 @@ $(SCST_INTF_VER_FILE): $(SCST_INC_DIR)/scst.h $(SCST_INC_DIR)/scst_const.h $(SCS
 	echo "\"`sha1sum $(SCST_INC_DIR)/scst_user.h|awk '{printf $$1}'`\"" >>$(SCST_INTF_VER_FILE)
 
 all: $(SCST_INTF_VER_FILE)
+	$(MAKE) -C certs KDIR=$(KDIR)
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_DEV=m
 
 scst:
@@ -127,6 +128,7 @@ install: all
 	echo Error: the scst and/or scst-devel RPMs must be uninstalled first; \
 	false; fi
 	-rm -f $(INSTALL_DIR)/scsi_tgt.ko
+	KDIR=$(KDIR) ../../scripts/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd)/dev_handlers			\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
 	  modules_install

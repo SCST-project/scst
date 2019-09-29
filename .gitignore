@@ -51,8 +51,12 @@ nightly/old.verbose
 nightly/sendmail.log
 qla2x00t/in-tree-patches/
 qla2x00t/qla2xxx-orig/
+scst/build_mode
+scst/include/build_mode.h
 scst/include/scst_itf_ver.h
 scst/src/.tmp_versions/
+scst/src/certs/scst_module_key.der
+scst/src/certs/scst_module_key.priv
 scstadmin/scstadmin.*/scst-*/blib
 scstadmin/scstadmin.*/scst-*/Makefile
 scstadmin/scstadmin.*/scst-*/MYMETA.yml
@@ -61,3 +65,4 @@ srpt/build_mode
 srpt/conftest/*/result-*.txt
 TAGS
 usr/fileio/fileio_tgt
+usr/stpgd/stpgd
