@@ -152,13 +152,13 @@ install: all
 	(cd $(KMOD) && KDIR=$(KDIR) ../../scripts/sign-modules)
 	$(MAKE) -C $(KDIR) M=$(KMOD)				\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
-	  modules_install
+	  CONFIG_MODULE_SIG_ALL= modules_install
 	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
 	if $(INFINIBAND_ENABLED); then				\
 	  (cd $(ISERTMOD) && KDIR=$(KDIR) ../../../scripts/sign-modules);\
 	  $(MAKE) -C $(KDIR) M=$(ISERTMOD)			\
 	    $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
-	    modules_install;					\
+	    CONFIG_MODULE_SIG_ALL= modules_install;		\
 	fi
 
 uninstall:

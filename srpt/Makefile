@@ -111,7 +111,7 @@ install: all
 	(cd src && KDIR=$(KDIR) ../../scripts/sign-modules)
 	$(MAKE) -C $(KDIR) M=$(shell pwd)/src PRE_CFLAGS="$(PRE_CFLAGS)" \
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		 \
-	  modules_install
+	  CONFIG_MODULE_SIG_ALL= modules_install
 
 uninstall:
 	rm -f $(INSTALL_DIR)/ib_srpt.ko
