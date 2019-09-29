@@ -100,6 +100,7 @@ install: all
 ifneq ($(BUILD_2X_MODULE),)
 	$(MAKE) M=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) $@
 endif
+	KDIR=$(KDIR) ../../scripts/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m		\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
 	  modules_install
