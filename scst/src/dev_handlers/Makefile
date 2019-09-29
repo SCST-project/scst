@@ -68,7 +68,7 @@ install: all
 	KDIR=$(KDIR) ../../../scripts/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
 		$$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
-		modules_install
+		CONFIG_MODULE_SIG_ALL= modules_install
 
 uninstall:
 	rm -f $(INSTALL_DIR)/dev_handlers/scst_*.ko

@@ -65,7 +65,7 @@ install: all
 	KDIR=$(KDIR) ../scripts/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m			\
 		$$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
-		modules_install
+		CONFIG_MODULE_SIG_ALL= modules_install
 
 uninstall:
 	rm -f $(INSTALL_DIR)/qla2xxx_scst.ko

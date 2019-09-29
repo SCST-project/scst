@@ -131,10 +131,10 @@ install: all
 	KDIR=$(KDIR) ../../scripts/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd)/dev_handlers			\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
-	  modules_install
+	  CONFIG_MODULE_SIG_ALL= modules_install
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
-	  modules_install
+	  CONFIG_MODULE_SIG_ALL= modules_install
 	install -d $(INSTALL_DIR_H)
 	header_files="backport.h scst.h scst_const.h scst_debug.h	\
 		      scst_itf_ver.h scst_sgv.h scst_user.h";		\
