@@ -49,32 +49,6 @@
 
 				<h1>Possible SCST extensions and improvements</h1>
 
-				<A NAME="ASYNC_FILEIO"></A><h3>Asynchronous FILEIO in scst_vdisk handler</h3>
-
-				<p>At the moment scst_vdisk handler for FILEIO uses regular synchronous read/write() calls
-				and makes deep queue depth by using multiple threads. This is not too high performance
-				model of operations. It would be much better to use asynchronous I/O with not blocking
-				I/O calls.</p>
-
-				<p>In the user space native AIO is available for many years, but only very recently ability to
-				 use it was added in the kernel. Changing FILEIO to use the new interface should significantly
-				 (up to multiple times) increase performance of FILEIO devices.</p>
-
-				<A NAME="O_DIRECT"></A><h3>Support for O_DIRECT in scst_vdisk handler</h3>
-
-				<p>At the moment, scst_vdisk handler doesn't support O_DIRECT option and possibility to set it
-				was disabled. This limitation caused by Linux kernel expectation that memory supplied to
-				read() and write() functions with O_DIRECT flag is mapped to some user space application.
-				Having O_DIRECT together with above asynchronous FILEIO would be another significant
-				performance boost for modern solid state devices. For instance, in fio utility
-				direct AIO long ago proven to be the fastest way to benchmark storage.</p>
-
-				<p>It is relatively easy to remove that limitation. Function dio_refill_pages()
-				should be modified to check before calling get_user_pages() if current->mm is not NULL.
-				If it is NULL, then, instead of calling get_user_pages(), dio->pages should be filled
-				by pages, taken directly from dio->curr_user_address. Each such page should be referenced
-				by page_cache_get(). That's all.</p>
-
 				<A NAME="SG_LIMIT"></A><h3>Solve SG IO count limitation issue in pass-through mode</h3>
 
 				<p>In the pass-through mode (i.e. using the pass-through device handlers like
