@@ -116,23 +116,6 @@ static inline void bio_set_dev(struct bio *bio, struct block_device *bdev)
 }
 #endif
 
-/* <linux/blkdev.h> */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
-static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
-{
-	return q->max_hw_sectors;
-}
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
-/* See also commit ac481c20ef8f ("block: Topology ioctls") # v2.6.32 */
-static inline int bdev_io_opt(struct block_device *bdev)
-{
-	return 0;
-}
-#endif
-
 /* <linux/blk-mq.h> */
 
 static inline unsigned int scst_blk_rq_cpu(struct request *rq)
@@ -150,6 +133,23 @@ static inline unsigned int scst_blk_rq_cpu(struct request *rq)
 	return blk_mq_rq_cpu(rq);
 #endif
 }
+
+/* <linux/blkdev.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
+static inline unsigned int queue_max_hw_sectors(struct request_queue *q)
+{
+	return q->max_hw_sectors;
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
+/* See also commit ac481c20ef8f ("block: Topology ioctls") # v2.6.32 */
+static inline int bdev_io_opt(struct block_device *bdev)
+{
+	return 0;
+}
+#endif
 
 /* <linux/bsg-lib.h> */
 
@@ -692,6 +692,64 @@ static inline u32 int_sqrt64(u64 x)
 }
 #endif
 
+#if LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(4, 4, 0) >> 8 &&	\
+	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 168)
+/*
+ * See also commit 8e50b8b07f46 ("mm: replace get_user_pages() write/force
+ * parameters with gup_flags") # v4.4.168.
+ */
+static inline long get_user_pages_backport(unsigned long start,
+					   unsigned long nr_pages,
+					   unsigned int gup_flags,
+					   struct page **pages,
+					   struct vm_area_struct **vmas)
+{
+	return get_user_pages(current, current->mm, start, nr_pages, gup_flags,
+			      pages, vmas);
+}
+#define get_user_pages get_user_pages_backport
+#elif !defined(CONFIG_SUSE_KERNEL) &&				\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+/*
+ * See also commit cde70140fed8 ("mm/gup: Overload get_user_pages() functions")
+ * # v4.6.
+ */
+static inline long get_user_pages_backport(unsigned long start,
+					   unsigned long nr_pages,
+					   unsigned int gup_flags,
+					   struct page **pages,
+					   struct vm_area_struct **vmas)
+{
+	const bool write = gup_flags & FOLL_WRITE;
+	const bool force = 0;
+
+	WARN_ON_ONCE(gup_flags & ~FOLL_WRITE);
+	return get_user_pages(current, current->mm, start, nr_pages, write,
+			      force, pages, vmas);
+}
+#define get_user_pages get_user_pages_backport
+#elif (!defined(CONFIG_SUSE_KERNEL) &&				\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)) ||	\
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+/*
+ * See also commit 768ae309a961 ("mm: replace get_user_pages() write/force
+ * parameters with gup_flags") # v4.9.
+ */
+static inline long get_user_pages_backport(unsigned long start,
+					   unsigned long nr_pages,
+					   unsigned int gup_flags,
+					   struct page **pages,
+					   struct vm_area_struct **vmas)
+{
+	const bool write = gup_flags & FOLL_WRITE;
+	const bool force = 0;
+
+	WARN_ON_ONCE(gup_flags & ~FOLL_WRITE);
+	return get_user_pages(start, nr_pages, write, force, pages, vmas);
+}
+#define get_user_pages get_user_pages_backport
+#endif
+
 /* <linux/kmod.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23)
@@ -778,66 +836,6 @@ static inline bool list_entry_in_list(const struct list_head *entry)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
 #define lockdep_assert_held(l) (void)(l)
-#endif
-
-/* <linux/kernel.h> */
-
-#if LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(4, 4, 0) >> 8 &&	\
-	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 168)
-/*
- * See also commit 8e50b8b07f46 ("mm: replace get_user_pages() write/force
- * parameters with gup_flags") # v4.4.168.
- */
-static inline long get_user_pages_backport(unsigned long start,
-					   unsigned long nr_pages,
-					   unsigned int gup_flags,
-					   struct page **pages,
-					   struct vm_area_struct **vmas)
-{
-	return get_user_pages(current, current->mm, start, nr_pages, gup_flags,
-			      pages, vmas);
-}
-#define get_user_pages get_user_pages_backport
-#elif !defined(CONFIG_SUSE_KERNEL) &&				\
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
-/*
- * See also commit cde70140fed8 ("mm/gup: Overload get_user_pages() functions")
- * # v4.6.
- */
-static inline long get_user_pages_backport(unsigned long start,
-					   unsigned long nr_pages,
-					   unsigned int gup_flags,
-					   struct page **pages,
-					   struct vm_area_struct **vmas)
-{
-	const bool write = gup_flags & FOLL_WRITE;
-	const bool force = 0;
-
-	WARN_ON_ONCE(gup_flags & ~FOLL_WRITE);
-	return get_user_pages(current, current->mm, start, nr_pages, write,
-			      force, pages, vmas);
-}
-#define get_user_pages get_user_pages_backport
-#elif (!defined(CONFIG_SUSE_KERNEL) &&				\
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)) ||	\
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
-/*
- * See also commit 768ae309a961 ("mm: replace get_user_pages() write/force
- * parameters with gup_flags") # v4.9.
- */
-static inline long get_user_pages_backport(unsigned long start,
-					   unsigned long nr_pages,
-					   unsigned int gup_flags,
-					   struct page **pages,
-					   struct vm_area_struct **vmas)
-{
-	const bool write = gup_flags & FOLL_WRITE;
-	const bool force = 0;
-
-	WARN_ON_ONCE(gup_flags & ~FOLL_WRITE);
-	return get_user_pages(start, nr_pages, write, force, pages, vmas);
-}
-#define get_user_pages get_user_pages_backport
 #endif
 
 /* <linux/mempoool.h> */
@@ -1011,6 +1009,89 @@ static inline int pcie_capability_read_dword(struct pci_dev *dev, int pos,
 }
 #endif
 
+/* <linux/percpu-refcount.h> */
+
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7
+#include <linux/percpu-refcount.h>
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+#include <linux/percpu-refcount.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
+/*
+ * See also commit 2aad2a86f668 ("percpu_ref: add PERCPU_REF_INIT_* flags")
+ * # v3.18.
+ */
+static inline int __must_check percpu_ref_init_backport(struct percpu_ref *ref,
+				 percpu_ref_func_t *release, unsigned int flags,
+				 gfp_t gfp)
+{
+	WARN_ON_ONCE(flags != 0);
+	WARN_ON_ONCE(gfp != GFP_KERNEL);
+	return percpu_ref_init(ref, release);
+}
+#define percpu_ref_init percpu_ref_init_backport
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+/*
+ * See also commit 2d7227828e14 ("percpu-refcount: implement percpu_ref_reinit()
+ * and percpu_ref_is_zero()") # v3.17.
+ */
+static inline bool percpu_ref_is_zero(struct percpu_ref *ref)
+{
+	return !atomic_read(&ref->count);
+}
+/*
+ * See also commit 9a1049da9bd2 ("percpu-refcount: require percpu_ref to be
+ * exited explicitly") # v3.17.
+ */
+static inline void percpu_ref_exit(struct percpu_ref *ref)
+{
+}
+#endif
+#else
+struct percpu_ref;
+typedef void (percpu_ref_func_t)(struct percpu_ref *);
+
+struct percpu_ref {
+	atomic_long_t		count;
+	percpu_ref_func_t	*release;
+};
+
+static inline int __must_check percpu_ref_init(struct percpu_ref *ref,
+				 percpu_ref_func_t *release, unsigned int flags,
+				 gfp_t gfp)
+{
+	WARN_ON_ONCE(flags != 0);
+	atomic_long_set(&ref->count, 1);
+	ref->release = release;
+	return 0;
+}
+
+static inline void percpu_ref_exit(struct percpu_ref *ref)
+{
+}
+
+static inline void percpu_ref_get(struct percpu_ref *ref)
+{
+	atomic_long_inc(&ref->count);
+}
+
+static inline void percpu_ref_put(struct percpu_ref *ref)
+{
+	if (unlikely(atomic_long_dec_and_test(&ref->count)))
+		ref->release(ref);
+}
+
+static inline void percpu_ref_kill(struct percpu_ref *ref)
+{
+	percpu_ref_put(ref);
+}
+
+static inline bool percpu_ref_is_zero(struct percpu_ref *ref)
+{
+	return !atomic_long_read(&ref->count);
+}
+#endif
+
 /* <linux/preempt.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
@@ -1160,115 +1241,6 @@ static inline void init_rcu_head(struct rcu_head *head) { }
 static inline void destroy_rcu_head(struct rcu_head *head) { }
 #endif
 
-/* <rdma/ib_verbs.h> */
-
-/* commit ed082d36 */
-#ifndef ib_alloc_pd
-static inline struct ib_pd *ib_alloc_pd_backport(struct ib_device *device)
-{
-	return ib_alloc_pd(device);
-}
-#define ib_alloc_pd(device, flags)				\
-	({							\
-		(void)(flags), ib_alloc_pd_backport(device);	\
-	})
-#endif
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
-#define ib_sg_dma_len(dev, sg) sg_dma_len(sg)
-#define ib_sg_dma_address(dev, sg) sg_dma_address(sg)
-#endif
-
-/* <linux/sched.h> */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
-#define set_cpus_allowed_ptr(p, new_mask) set_cpus_allowed((p), *(new_mask))
-#endif
-
-/* <linux/percpu-refcount.h> */
-
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7
-#include <linux/percpu-refcount.h>
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
-#include <linux/percpu-refcount.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
-/*
- * See also commit 2aad2a86f668 ("percpu_ref: add PERCPU_REF_INIT_* flags")
- * # v3.18.
- */
-static inline int __must_check percpu_ref_init_backport(struct percpu_ref *ref,
-				 percpu_ref_func_t *release, unsigned int flags,
-				 gfp_t gfp)
-{
-	WARN_ON_ONCE(flags != 0);
-	WARN_ON_ONCE(gfp != GFP_KERNEL);
-	return percpu_ref_init(ref, release);
-}
-#define percpu_ref_init percpu_ref_init_backport
-#endif
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
-/*
- * See also commit 2d7227828e14 ("percpu-refcount: implement percpu_ref_reinit()
- * and percpu_ref_is_zero()") # v3.17.
- */
-static inline bool percpu_ref_is_zero(struct percpu_ref *ref)
-{
-	return !atomic_read(&ref->count);
-}
-/*
- * See also commit 9a1049da9bd2 ("percpu-refcount: require percpu_ref to be
- * exited explicitly") # v3.17.
- */
-static inline void percpu_ref_exit(struct percpu_ref *ref)
-{
-}
-#endif
-#else
-struct percpu_ref;
-typedef void (percpu_ref_func_t)(struct percpu_ref *);
-
-struct percpu_ref {
-	atomic_long_t		count;
-	percpu_ref_func_t	*release;
-};
-
-static inline int __must_check percpu_ref_init(struct percpu_ref *ref,
-				 percpu_ref_func_t *release, unsigned int flags,
-				 gfp_t gfp)
-{
-	WARN_ON_ONCE(flags != 0);
-	atomic_long_set(&ref->count, 1);
-	ref->release = release;
-	return 0;
-}
-
-static inline void percpu_ref_exit(struct percpu_ref *ref)
-{
-}
-
-static inline void percpu_ref_get(struct percpu_ref *ref)
-{
-	atomic_long_inc(&ref->count);
-}
-
-static inline void percpu_ref_put(struct percpu_ref *ref)
-{
-	if (unlikely(atomic_long_dec_and_test(&ref->count)))
-		ref->release(ref);
-}
-
-static inline void percpu_ref_kill(struct percpu_ref *ref)
-{
-	percpu_ref_put(ref);
-}
-
-static inline bool percpu_ref_is_zero(struct percpu_ref *ref)
-{
-	return !atomic_long_read(&ref->count);
-}
-#endif
-
 /* <linux/scatterlist.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24)
@@ -1351,6 +1323,13 @@ static inline void sg_unmark_end(struct scatterlist *sg)
 }
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) */
 
+/* <linux/sched.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
+#define set_cpus_allowed_ptr(p, new_mask) set_cpus_allowed((p), *(new_mask))
+#endif
+
 /* <linux/slab.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
@@ -1420,16 +1399,6 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 			sizeof_field(struct __struct, __field), NULL)
 #endif
 
-/* <linux/t10-pi.h> */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
-struct t10_pi_tuple {
-	__be16 guard_tag;
-	__be16 app_tag;
-	__be32 ref_tag;
-};
-#endif
-
 /* <linux/stddef.h> */
 
 #ifndef sizeof_field
@@ -1465,6 +1434,16 @@ static inline void *memdup_user_nul(const void __user *src, size_t len)
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
 /* See also commit b9b3259746d7 ("sysfs.h: add __ATTR_RW() macro") # v3.11. */
 #define __ATTR_RW(_name) __ATTR(_name, 0644, _name##_show, _name##_store)
+#endif
+
+/* <linux/t10-pi.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
+struct t10_pi_tuple {
+	__be16 guard_tag;
+	__be16 app_tag;
+	__be32 ref_tag;
+};
 #endif
 
 /* <linux/timer.h> */
@@ -1586,6 +1565,25 @@ static inline struct workqueue_struct *alloc_workqueue(const char *fmt,
 	WARN_ON_ONCE(flags | max_active);
 	return create_workqueue(fmt);
 }
+#endif
+
+/* <rdma/ib_verbs.h> */
+
+/* commit ed082d36 */
+#ifndef ib_alloc_pd
+static inline struct ib_pd *ib_alloc_pd_backport(struct ib_device *device)
+{
+	return ib_alloc_pd(device);
+}
+#define ib_alloc_pd(device, flags)				\
+	({							\
+		(void)(flags), ib_alloc_pd_backport(device);	\
+	})
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
+#define ib_sg_dma_len(dev, sg) sg_dma_len(sg)
+#define ib_sg_dma_address(dev, sg) sg_dma_address(sg)
 #endif
 
 /* <scsi/scsi_cmnd.h> */
