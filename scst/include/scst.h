@@ -2135,11 +2135,11 @@ struct scst_cmd {
 	/* Assigned processing thread (for better CPU affinity) */
 	struct scst_cmd_thread_t *cmd_thr;
 
-	atomic_t cmd_ref;
-
 	struct scst_session *sess;	/* corresponding session */
 
 	atomic_t *cpu_cmd_counter;
+
+	atomic_t cmd_ref;
 
 	/* Cmd state, one of SCST_CMD_STATE_* constants */
 	enum scst_cmd_state state;
@@ -2357,9 +2357,6 @@ struct scst_cmd {
 	/* List entry for tgt_dev's deferred (SN, ACA, etc.) lists */
 	struct list_head deferred_cmd_list_entry;
 
-	/* Cmd's serial number, used to execute cmd's in order of arrival */
-	unsigned int sn;
-
 	/* The corresponding sn_slot in tgt_dev->sn_slots */
 	atomic_t *sn_slot;
 
@@ -2371,6 +2368,9 @@ struct scst_cmd {
 	 * target driver on the cmd's initialization time
 	 */
 	uint64_t tag;
+
+	/* Cmd's serial number, used to execute cmd's in order of arrival */
+	unsigned int sn;
 
 	uint32_t tgt_sn; /* SN set by target driver (for TM purposes) */
 
