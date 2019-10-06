@@ -15734,7 +15734,6 @@ void scst_check_debug_sn(struct scst_cmd *cmd)
 
 static void __scst_update_latency_stats(struct scst_cmd *cmd,
 					struct scst_lat_stat_entry *stat,
-					struct scst_lat_stat_entry *new_stat,
 					const ktime_t now, uint64_t nowc)
 {
 	int64_t delta;
@@ -15742,8 +15741,8 @@ static void __scst_update_latency_stats(struct scst_cmd *cmd,
 	int64_t deltac;
 #endif
 
-	if (stat && ktime_to_ns(stat->last_update) != 0) {
-		delta = ktime_to_ns(ktime_sub(now, stat->last_update));
+	if (stat && ktime_to_ns(cmd->last_state_update) != 0) {
+		delta = ktime_to_ns(ktime_sub(now, cmd->last_state_update));
 		if (delta < 0 || delta > NSEC_PER_SEC) {
 			printk_once(KERN_INFO "%d: ignoring large time delta %lld\n",
 				    cmd->state, delta);
@@ -15751,7 +15750,7 @@ static void __scst_update_latency_stats(struct scst_cmd *cmd,
 		}
 		delta /= 100;
 #ifdef SCST_MEASURE_CLOCK_CYCLES
-		deltac = nowc - stat->last_update_tsc;
+		deltac = nowc - cmd->last_state_update_tsc;
 		if (deltac < 0 || deltac > tsc_khz * 1000) {
 			printk_once(KERN_INFO "%d: ignoring large cc delta %lld\n",
 				    cmd->state, deltac);
@@ -15783,9 +15782,9 @@ static void __scst_update_latency_stats(struct scst_cmd *cmd,
 		stat->sumsqc += deltac * deltac;
 #endif
 	}
-	new_stat->last_update = now;
+	cmd->last_state_update = now;
 #ifdef SCST_MEASURE_CLOCK_CYCLES
-	new_stat->last_update_tsc = nowc;
+	cmd->last_state_update_tsc = nowc;
 #endif
 }
 
@@ -15799,7 +15798,7 @@ void scst_update_latency_stats(struct scst_cmd *cmd, int new_state)
 	ktime_t now;
 	uint64_t nowc;
 	int sz, dir;
-	struct scst_lat_stat_entry *prev_stat = NULL, *new_stat;
+	struct scst_lat_stat_entry *stat;
 	unsigned long flags;
 
 	sBUG_ON(new_state >= SCST_CMD_STATE_COUNT);
@@ -15836,15 +15835,13 @@ void scst_update_latency_stats(struct scst_cmd *cmd, int new_state)
 	else if (sz >= SCST_STATS_MAX_LOG2_SZ)
 		sz = SCST_STATS_MAX_LOG2_SZ - 1;
 	dir = cmd->expected_data_direction & 3;
-	if (new_state != SCST_CMD_STATE_INIT_WAIT)
-		prev_stat = &cmd->sess->lat_stats->ls[sz][dir][cmd->state];
-	new_stat = &cmd->sess->lat_stats->ls[sz][dir][new_state];
+	stat = &cmd->sess->lat_stats->ls[sz][dir][cmd->state];
 
 	spin_lock_irqsave(&cmd->sess->lat_stats_lock, flags);
 	if (new_state == SCST_CMD_STATE_INIT)
-		__scst_update_latency_stats(cmd, NULL, prev_stat,
+		__scst_update_latency_stats(cmd, NULL,
 					    cmd->init_wait_time,
 					    cmd->init_wait_tsc);
-	__scst_update_latency_stats(cmd, prev_stat, new_stat, now, nowc);
+	__scst_update_latency_stats(cmd, stat, now, nowc);
 	spin_unlock_irqrestore(&cmd->sess->lat_stats_lock, flags);
 }

@@ -1894,10 +1894,7 @@ struct scst_tgt {
 
 /**
  * struct scst_lat_stat_entry - SCST command processing latency data
- * @last_update: Time of last update of this data structure in 100 ns.
  * @count: Number of samples for which statistics have been gathered.
- * @last_update_tsc: Time of the last update of this data structure in 100
- *         clock cycles.
  * @min: Minimum processing time in nanoseconds.
  * @max: Maximum processing time.
  * @sum: Processing time sum.
@@ -1910,12 +1907,8 @@ struct scst_tgt {
  * Size: 96 bytes.
  */
 struct scst_lat_stat_entry {
-	ktime_t last_update;
 	uint32_t count;
 	uint32_t padding;
-#ifdef SCST_MEASURE_CLOCK_CYCLES
-	uint64_t last_update_tsc;
-#endif
 	uint64_t min;
 	uint64_t max;
 	uint64_t sum;
@@ -2222,6 +2215,13 @@ struct scst_cmd {
 
 	/* Cmd state, one of SCST_CMD_STATE_* constants */
 	enum scst_cmd_state state;
+
+	/* Time of last state update in 100 ns. */
+	ktime_t last_state_update;
+#ifdef SCST_MEASURE_CLOCK_CYCLES
+	/* Time of the last state update in 100 clock cycles.*/
+	uint64_t last_state_update_tsc;
+#endif
 
 	/*************************************************************
 	 ** Cmd's flags
