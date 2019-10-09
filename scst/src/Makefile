@@ -130,6 +130,7 @@ install: all
 	-rm -f $(INSTALL_DIR)/scsi_tgt.ko
 	KDIR=$(KDIR) ../../scripts/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd)/dev_handlers			\
+	  INSTALL_MOD_DIR=extra/dev_handlers				\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
 	  CONFIG_MODULE_SIG_ALL= modules_install
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\

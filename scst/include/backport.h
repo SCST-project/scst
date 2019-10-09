@@ -23,7 +23,8 @@
 #include <linux/version.h>
 #include <linux/bio.h>
 #include <linux/blkdev.h>	/* struct request_queue */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0) || \
+	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 8)
 #include <linux/blk-mq.h>
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)

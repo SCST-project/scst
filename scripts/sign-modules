@@ -9,7 +9,12 @@ fi
 
 scst_dir=$(dirname "$(cd "$(dirname "$0")" && pwd)")
 
-CONFIG_MODULE_SIG_HASH=$(sed -n 's/^CONFIG_MODULE_SIG_HASH="\([^"]*\)"$/\1/p' "${KDIR}/.config")
+if [ ! -e "${KDIR}/scripts/sign-file" ]; then
+    echo "Not signing modules because no sign-file executable"
+    exit
+fi
+
+CONFIG_MODULE_SIG_HASH=$(sed -n 's/^CONFIG_MODULE_SIG_HASH="\([^"]*\)"$/\1/p' "${KDIR}/.config" | { read -r line; [ -n "$line" ] && echo "$line" || echo sha256; })
 
 sed 's,^kernel/,,' < modules.order | \
     while read -r f; do

@@ -224,9 +224,18 @@ true
 %files devel
 %defattr(-,root,root,0755)
 %dir /usr/include/scst
-/usr/include/scst/
+/usr/include/scst/Module.symvers
+/usr/include/scst/backport.h
+/usr/include/scst/scst.h
+/usr/include/scst/scst_const.h
+/usr/include/scst/scst_debug.h
+/usr/include/scst/scst_itf_ver.h
+/usr/include/scst/scst_sgv.h
+/usr/include/scst/scst_user.h
 
 %changelog
+* Tue Oct  8 2019 Bart Van Assche <bvanassche@acm.org>
+- Make this spec file compatible with rpmbuild v4.14.
 * Wed May  6 2015 Bart Van Assche <bart.vanassche@sandisk.com>
 - Build in release mode instead of debug mode.
 * Mon May  4 2015 Bart Van Assche <bart.vanassche@sandisk.com>

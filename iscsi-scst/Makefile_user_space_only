@@ -5,7 +5,7 @@
 # removes any old dependencies. DON'T put your own dependencies here
 # unless it's something special (not a .c file).
 
-SBINDIR := /usr/local/sbin
+SBINDIR := $(PREFIX)/sbin
 INITDIR := /etc/init.d
 RCDIR := /etc/rc.d
 
@@ -24,17 +24,9 @@ include/iscsi_scst_itf_ver.h: include/iscsi_scst.h
 install: all
 	@install -vD -m 755 usr/iscsi-scstd $(DESTDIR)$(SBINDIR)/iscsi-scstd
 	@install -vD -m 755 usr/iscsi-scst-adm $(DESTDIR)$(SBINDIR)/iscsi-scst-adm
-	if [ -f /etc/debian_version ]; then \
-		install -vD -m 755 etc/initd/initd.debian $(DESTDIR)$(INITDIR)/iscsi-scst; \
-	elif [ -f /etc/redhat-release ]; then \
-		install -vD -m 755 etc/initd/initd.redhat $(DESTDIR)$(INITDIR)/iscsi-scst; \
-	elif [ -f /etc/gentoo-release ]; then \
-		install -vD -m 755 etc/initd/initd.gentoo $(DESTDIR)$(INITDIR)/iscsi-scst; \
-	elif [ -f /etc/slackware-version ]; then \
-		install -vD -m 755 etc/initd/initd $(DESTDIR)$(RCDIR)/iscsi-scst; \
-	else \
-		install -vD -m 755 etc/initd/initd $(DESTDIR)$(INITDIR)/iscsi-scst; \
-	fi
+	@install -vD -m 644 doc/manpages/iscsi-scstd.conf.5 $(DESTDIR)$(MANDIR)/man5/iscsi-scstd.conf.5
+	@install -vD -m 644 doc/manpages/iscsi-scstd.8 $(DESTDIR)$(MANDIR)/man8/iscsi-scstd.8
+	@install -vD -m 644 doc/manpages/iscsi-scst-adm.8 $(DESTDIR)$(MANDIR)/man8/iscsi-scst-adm.8
 
 clean:
 	$(MAKE) -C usr clean
