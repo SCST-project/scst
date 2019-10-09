@@ -1,4 +1,4 @@
-CONFIG_MODULE_SIG_HASH := $(shell sed -n 's/^CONFIG_MODULE_SIG_HASH="\([^"]*\)"$$/\1/p' "$(KDIR)/.config")
+CONFIG_MODULE_SIG_HASH := $(shell sed -n 's/^CONFIG_MODULE_SIG_HASH="\([^"]*\)"$$/\1/p' "$(KDIR)/.config" | { read -r line; [ -n "$$line" ] && echo "$$line" || echo sha256; })
 
 all: $(shell grep -q '^CONFIG_MODULE_SIG=y$$' "$(KDIR)/.config" &&	\
 	echo module_signing_enabled)
