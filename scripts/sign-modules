@@ -14,6 +14,9 @@ if [ ! -e "${KDIR}/scripts/sign-file" ]; then
     exit
 fi
 
+[ -e "${scst_dir}/scst/src/certs/scst_module_key.priv" ] || exit 0
+[ -e "${scst_dir}/scst/src/certs/scst_module_key.der" ] || exit 0
+
 CONFIG_MODULE_SIG_HASH=$(sed -n 's/^CONFIG_MODULE_SIG_HASH="\([^"]*\)"$/\1/p' "${KDIR}/.config" | { read -r line; [ -n "$line" ] && echo "$line" || echo sha256; })
 
 sed 's,^kernel/,,' < modules.order | \
