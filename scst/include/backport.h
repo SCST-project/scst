@@ -859,6 +859,7 @@ static inline void mempool_destroy_backport(mempool_t *pool)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0) &&	\
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
 	 (RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 5)) &&	\
+	!defined(UEK_KABI_RENAME) &&			\
 	!defined(_COMPAT_LINUX_MM_H)
 /* See also commit a7c3e901a46f ("mm: introduce kv[mz]alloc helpers") # v4.12 */
 static inline void *kvmalloc_node(size_t size, gfp_t flags, int node)
@@ -1379,8 +1380,13 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 {
 	return kmem_cache_create(name, size, align, flags, ctor, NULL);
 }
-/* UEKR5 is based on kernel v4.14.35 but has a backport of the v4.16 API. */
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0) && !defined(UEK_KABI_RENAME)
+/*
+ * UEK4 is based on kernel v4.1.12 and does not have a backport of the v4.16
+ * API. UEK5 is based on kernel v4.14.35 and has a backport of the v4.16 API.
+ */
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0) &&	\
+	(!defined(UEK_KABI_RENAME) ||			\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 			unsigned int size, unsigned int align,
 			unsigned long flags,

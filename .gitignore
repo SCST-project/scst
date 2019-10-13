@@ -9,8 +9,11 @@
 *.o
 *.o.d
 *.orig
+*.sdtinfo.c
+*.sdtstub.S
 *~
 .cache.mk
+.ctf
 .depend_adm
 .depend_d
 .depend_f

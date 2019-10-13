@@ -7161,7 +7161,9 @@ static int qla2xxx_map_queues(struct Scsi_Host *shost)
 	if (USER_CTRL_IRQ(vha->hw))
 		rc = blk_mq_map_queues(&shost->tag_set);
 	else
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0) &&	\
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0) &&		\
+	(!defined(UEK_KABI_RENAME) ||				\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)) &&	\
 	!defined(CONFIG_SUSE_KERNEL)
 		/*
 		 * See also commit f23f5bece686 ("blk-mq: Allow PCI vector
