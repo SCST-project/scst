@@ -40,10 +40,8 @@ endif
 SCST_DIR=scst
 DOC_DIR=doc
 SCSTADM_DIR=scstadmin
-QLA_DIR=qla2xxx-unified-target
-QLA_GIT_DIR=qla2x00t_git/scst-qla2xxx-unified
-QLA_OLD_INI_DIR=qla2x00t
-QLA_OLD_DIR=qla2x00t/qla2x00-target
+QLA_INI_DIR=qla2x00t
+QLA_DIR=qla2x00t/qla2x00-target
 LSI_DIR=mpt
 USR_DIR=usr
 SRP_DIR=srpt
@@ -80,17 +78,10 @@ help:
 	@echo "		scstadm_uninstall : scstadmin: uninstall"
 	@echo ""
 	@echo "		qla               : make QLA target driver"
-	@echo "		qla_pull          : pull the latest version of the QLA target driver from the QLogic's git"
 	@echo "		qla_clean         : qla target: clean "
 	@echo "		qla_extraclean    : qla target: clean + clean dependencies"
 	@echo "		qla_install       : qla target: install"
 	@echo "		qla_uninstall     : qla target: uninstall"
-	@echo ""
-	@echo "		qla_old           : make old Qlogic chipsets target driver"
-	@echo "		qla_old_clean     : qla old target: clean "
-	@echo "		qla_old_extraclean: qla old target: clean + clean dependencies"
-	@echo "		qla_old_install   : qla old target: install"
-	@echo "		qla_old_uninstall : qla old target: uninstall"
 	@echo ""
 	@echo "		iscsi             : make iSCSI target"
 	@echo "		iscsi_clean       : ISCSI target: clean "
@@ -148,8 +139,7 @@ help:
 all:
 	cd $(SCST_DIR) && $(MAKE) $@
 #	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; else if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi fi
-#	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
+	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
@@ -160,8 +150,7 @@ all:
 install:
 	cd $(SCST_DIR) && $(MAKE) $@
 #	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; else if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi fi
-#	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
+	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
@@ -172,8 +161,7 @@ install:
 uninstall:
 	cd $(SCST_DIR) && $(MAKE) $@
 #	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; else if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi fi
-#	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
+	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
@@ -184,9 +172,8 @@ uninstall:
 clean:
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
+	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_OLD_INI_DIR) ]; then cd $(QLA_OLD_INI_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
@@ -198,9 +185,8 @@ extraclean:
 	-rm -f TAGS tags cscope.out
 	cd $(SCST_DIR) && $(MAKE) $@
 	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
+	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_OLD_INI_DIR) ]; then cd $(QLA_OLD_INI_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_OLD_DIR) ]; then cd $(QLA_OLD_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
@@ -253,9 +239,6 @@ scstadm_extraclean:
 qla:
 	cd $(QLA_DIR) && $(MAKE) all
 
-qla_pull:
-	cd $(QLA_GIT_DIR) && git pull
-
 qla_install:
 	cd $(QLA_DIR) && $(MAKE) install
 
@@ -267,21 +250,6 @@ qla_clean:
 
 qla_extraclean:
 	cd $(QLA_DIR) && $(MAKE) extraclean
-
-qla_old:
-	cd $(QLA_OLD_DIR) && $(MAKE) all
-
-qla_old_install:
-	cd $(QLA_OLD_DIR) && $(MAKE) install
-
-qla_old_uninstall:
-	cd $(QLA_OLD_DIR) && $(MAKE) uninstall
-
-qla_old_clean:
-	cd $(QLA_OLD_DIR) && $(MAKE) clean
-
-qla_old_extraclean:
-	cd $(QLA_OLD_DIR) && $(MAKE) extraclean
 
 iscsi:
 	cd $(ISCSI_DIR) && $(MAKE) all
@@ -413,14 +381,7 @@ make-scst-dist =							\
 	mkdir "$${name}-$(3)" &&					\
 	{								\
 	  {								\
-	    if [ -e qla2x00t_git ]; then				\
-	      scripts/list-source-files | grep -v ^qla2x00t/;		\
-	      ( dir="$$PWD" && cd qla2x00t_git &&			\
-	        "$$dir/scripts/list-source-files" ) |			\
-	      sed 's,^,qla2x00t_git/,';					\
-	    else							\
-	      scripts/list-source-files;				\
-	    fi &&							\
+	    scripts/list-source-files &&				\
 	    if [ -e debian/changelog ]; then echo debian/changelog; fi;	\
 	  } |								\
 	  $(4) |							\
@@ -554,7 +515,6 @@ release-archive:
 
 .PHONY: all install uninstall clean extraclean tags help \
 	qla qla_install qla_uninstall qla_clean qla_extraclean \
-	qla_old qla_old_install qla_old_uninstall qla_old_clean qla_old_extraclean \
 	lsi lsi_install lsi_uninstall lsi_clean lsi_extraclean \
 	iscsi iscsi_install iscsi_uninstall iscsi_clean iscsi_extraclean \
 	emulex emulex_install emulex_uninstall emulex_clean emulex_extraclean \
