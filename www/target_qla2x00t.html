@@ -56,28 +56,24 @@
 	  		<div id="main">
 				<h1>Target driver qla2x00t for QLogic FC adapters</h1>
 				<p><img src="images/t_qlogic.gif" width="100" height="120" class="float-left" alt="SCST QLogic">
-				This is target driver for QLogic qla2xxx (22xx++) Fibre Channel adapters.</p>
+				This is a target driver for QLogic qla2xxx (22xx++) Fibre Channel adapters. It is stable and well tested.</p>
 
 				<p>This driver starting from version 3.1 supports 16G Hilda QLogic
 					chip based adapters (post-Hilda QLogic chips not supported) and has many other important improvements.
 					This driver should also support FCoE, but that has never been verified.
 					It has passed intensive internal SanDisk tests. It is stable and production ready.
-					This driver is in stable maintenance mode in favor of the
-					QLogic git tree driver (see below). This is the recommended driver to use in production at the moment.
+					This is the recommended driver to use in production at the moment.
 				</p>
 
-				<p>You can find the latest updates for this driver in the SVN trunk.</p>
-
-				<p>The latest QLogic maintained version of this driver with full support
-				of the latest QLogic chips for both FC and FCoE, including 32G FC, you can find in
-				git://git.qlogic.com/scst-qla2xxx-unified.git.
-				It is maintained by QLogic, hence located in the QLogic's git. See SVN root README
-				for instructions how to integrate it into the SCST build tree.</p>
-
-				<p>Version released in March 2018 seems to be well functional and stable.
-				However, NPIV, T10-PI as well as modifying port name is not yet supported.
-				Also, this driver does not support old adapters (same as the in-kernel qla2xxx it is based on).</p>
-
+				<p>A newer and experimental QLogic target
+				  driver is available in the qla2x00t-32gbit
+				  directory. That driver supports all adapters
+				  supported by the qla2x00t driver and also
+				  several newer adapters. The existing
+				  qla2x00t driver will be replaced by the
+				  qla2x00t-32gbit driver once it is stable
+				  enough.
+				</p>
 				<p class="post-footer align-right">
 					<a href="qla2x00t-howto.html" class="readmore">HOWTO</a>
 					<a href="https://blog.it-kb.ru/2018/03/12/configure-the-server-with-qlogic-fc-hba-on-debian-linux-9-and-scst-fc-target-as-storage-for-csv-volumes-in-the-hyper-v-cluster-for-highly-available-virtual-machines/" class="readmore"> Russian HOWTO</a>
