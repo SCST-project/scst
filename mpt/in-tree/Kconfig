@@ -1,9 +1,0 @@
-config FUSION_SCST
-	tristate "Fusion MPT SCST driver"
-	depends on FUSION
-	---help---
-	  This module enables target mode for use by the SCST middle
-	  level drivers.  You will also need the SCST middle level
-	  drivers from http://scst.sourceforge.net/.
-
-	  If unsure whether you really want or need this, say N.
