@@ -3452,7 +3452,7 @@ void qla24xx_async_gffid_sp_done(srb_t *sp, int res)
 			fcport->fc4_type =
 			    ct_rsp->rsp.gff_id.fc4_features[GFF_FCP_SCSI_OFFSET];
 			fcport->fc4_type &= 0xf;
-		}
+	       }
 
 		if (ct_rsp->rsp.gff_id.fc4_features[GFF_NVME_OFFSET] & 0xf) {
 			/* w5 [00:03]/28h */
