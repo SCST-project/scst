@@ -13,24 +13,6 @@ Files: Makefile
        fcst/ft_cmd.c
        fcst/ft_scst.c
        fcst/ft_sess.c
-       ibmvstgt/src/orig/2.6.35/scsi_transport_srp.c
-       ibmvstgt/src/orig/2.6.36/scsi_transport_srp.c
-       ibmvstgt/src/scsi_transport_srp.c
-       mpt/Makefile
-       mvsas_tgt/Makefile
-       mvsas_tgt/mv_64xx.c
-       mvsas_tgt/mv_64xx.h
-       mvsas_tgt/mv_94xx.c
-       mvsas_tgt/mv_94xx.h
-       mvsas_tgt/mv_chips.h
-       mvsas_tgt/mv_defs.h
-       mvsas_tgt/mv_init.c
-       mvsas_tgt/mv_sas.c
-       mvsas_tgt/mv_sas.h
-       mvsas_tgt/mv_spi.c
-       mvsas_tgt/mv_spi.h
-       mvsas_tgt/mv_tgt.c
-       mvsas_tgt/mv_tgt.h
        qla2x00t/qla2x00-target/Makefile
        qla2x00t/qla2x00-target/qla2x00t.c
        qla2x00t/qla2x00-target/qla2x00t.h
@@ -64,26 +46,7 @@ Copyright: 2008-2017, Bart Van Assche <bvanassche@acm.org>
            2004-2017, Vladislav Bolkhovitin <vst@vlnb.net>
 License: GPL-2
 
-Files: ibmvstgt/src/SLES-10-SP3-ibmvscsis.c
-       ibmvstgt/src/ibmvscsi.h
-       ibmvstgt/src/ibmvstgt.c
-       ibmvstgt/src/libsrp.c
-       ibmvstgt/src/orig/2.6.35/ibmvstgt.c
-       ibmvstgt/src/orig/2.6.35/libsrp.c
-       ibmvstgt/src/orig/2.6.35/scsi_tgt_if.c
-       ibmvstgt/src/orig/2.6.35/scsi_tgt_if.h
-       ibmvstgt/src/orig/2.6.35/scsi_tgt_lib.c
-       ibmvstgt/src/orig/2.6.35/scsi_transport_fc.c
-       ibmvstgt/src/orig/2.6.36/ibmvstgt.c
-       ibmvstgt/src/orig/2.6.36/libsrp.c
-       ibmvstgt/src/orig/2.6.36/scsi_tgt_if.c
-       ibmvstgt/src/orig/2.6.36/scsi_tgt_if.h
-       ibmvstgt/src/orig/2.6.36/scsi_tgt_lib.c
-       ibmvstgt/src/orig/2.6.36/scsi_transport_fc.c
-       ibmvstgt/src/scsi_transport_fc.c
-       ibmvstgt/src/viosrp.h
-       mpt/mpt_scst.c
-       qla2x00t/qla2x_tgt.h
+Files: qla2x00t/qla2x_tgt.h
        qla2x00t/qla2x_tgt_def.h
 Copyright: 2010, Bart Van Assche <bvanassche@acm.org>
            2005, Beijing Soul Technology Co., Ltd

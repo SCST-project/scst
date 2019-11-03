@@ -643,7 +643,7 @@ fi
 # Directory drivers/scsi/ibmvstgt
 
 {
-  ( cd ibmvstgt && ./generate-in-tree-patches "${kver}" )
+  ( cd ibmvstgt 2>/dev/null && ./generate-in-tree-patches "${kver}" ) &&
   if [ -e "ibmvstgt/in-tree-patches/${kver}" ]; then
     if [ "${multiple_patches}" = "true" ]; then
       cat <<EOF
@@ -747,7 +747,7 @@ EOF
 | process_patch "scst_18_ibmvstgt.diff"
 
 {
-  ( cd ibmvstgt && ./generate-in-tree-patches "${kver}" )
+  ( cd ibmvstgt 2>/dev/null && ./generate-in-tree-patches "${kver}" ) &&
   if [ -e "ibmvstgt/in-tree-patches/${kver}" ]; then
     if [ "${multiple_patches}" = "true" ]; then
       cat <<EOF

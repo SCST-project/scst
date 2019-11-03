@@ -36,7 +36,6 @@ debian/scstadmin/
 debian/tmp/
 dpkg/
 fcst/build_mode
-ibmvstgt/in-tree-patches
 iscsi-scst/conftest/*/result-*.txt
 iscsi-scst/include/iscsi_scst_itf_ver.h
 iscsi-scst/usr/iscsi-scst-adm
