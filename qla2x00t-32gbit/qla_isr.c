@@ -3814,8 +3814,7 @@ qla2x00_free_irqs(scsi_qla_host_t *vha)
 			if (qentry->have_irq) {
 				irq_set_affinity_notifier(qentry->vector, NULL);
 #if HAVE_PCI_IRQ_VECTOR
-				free_irq(pci_irq_vector(ha->pdev, i),
-					 qentry->handle);
+				free_irq(pci_irq_vector(ha->pdev, i), qentry->handle);
 #else
 				free_irq(qentry->vector, qentry->handle);
 #endif
