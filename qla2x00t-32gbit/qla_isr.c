@@ -2861,8 +2861,6 @@ qla2x00_status_cont_entry(struct rsp_que *rsp, sts_cont_entry_t *pkt)
 	if (sense_len == 0) {
 		rsp->status_srb = NULL;
 		sp->done(sp, cp->result);
-	} else {
-		WARN_ON_ONCE(true);
 	}
 }
 
@@ -3559,10 +3557,8 @@ msix_failed:
 		    ha->msix_count, ret);
 		goto msix_out;
 	} else if (ret < ha->msix_count) {
-		ql_log(ql_log_warn, vha, 0x00c6,
-		    "MSI-X: Failed to enable support "
-		     "with %d vectors, using %d vectors.\n",
-		    ha->msix_count, ret);
+		ql_log(ql_log_info, vha, 0x00c6,
+		    "MSI-X: Using %d vectors\n", ret);
 		ha->msix_count = ret;
 		/* Recalculate queue values */
 		if (ha->mqiobase && (ql2xmqsupport || ql2xnvmeenable)) {
@@ -3797,6 +3793,8 @@ qla2x00_free_irqs(scsi_qla_host_t *vha)
 {
 	struct qla_hw_data *ha = vha->hw;
 	struct rsp_que *rsp;
+	struct qla_msix_entry *qentry;
+	int i;
 
 	/*
 	 * We need to check that ha->rsp_q_map is valid in case we are called
@@ -3807,16 +3805,12 @@ qla2x00_free_irqs(scsi_qla_host_t *vha)
 	rsp = ha->rsp_q_map[0];
 
 	if (ha->flags.msix_enabled) {
-		struct qla_msix_entry *qentry;
-		int i;
-
 		for (i = 0; i < ha->msix_count; i++) {
 			qentry = &ha->msix_entries[i];
 			if (qentry->have_irq) {
 				irq_set_affinity_notifier(qentry->vector, NULL);
 #if HAVE_PCI_IRQ_VECTOR
-				free_irq(pci_irq_vector(ha->pdev, i),
-					 qentry->handle);
+				free_irq(pci_irq_vector(ha->pdev, i), qentry->handle);
 #else
 				free_irq(qentry->vector, qentry->handle);
 #endif

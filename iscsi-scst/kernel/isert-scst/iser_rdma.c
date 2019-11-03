@@ -1008,7 +1008,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 	}
 
 	pd = ib_alloc_pd(ib_dev, 0);
-	if (unlikely(IS_ERR(pd))) {
+	if (IS_ERR(pd)) {
 		err = PTR_ERR(pd);
 		PRINT_ERROR("Failed to alloc iser dev pd, err:%d", err);
 		goto fail_pd;
@@ -1016,7 +1016,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 
 #ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	mr = ib_get_dma_mr(pd, IB_ACCESS_LOCAL_WRITE);
-	if (unlikely(IS_ERR(mr))) {
+	if (IS_ERR(mr)) {
 		err = PTR_ERR(mr);
 		PRINT_ERROR("Failed to get dma mr, err: %d", err);
 		goto fail_mr;
@@ -1083,7 +1083,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 				  &ia);
 		}
 #endif
-		if (unlikely(IS_ERR(cq))) {
+		if (IS_ERR(cq)) {
 			cq_desc->cq = NULL;
 			err = PTR_ERR(cq);
 			PRINT_ERROR("Failed to create iser dev cq, err:%d",
@@ -1466,7 +1466,7 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 	isert_dev = isert_device_find(ib_dev);
 	if (!isert_dev) {
 		isert_dev = isert_device_create(ib_dev);
-		if (unlikely(IS_ERR(isert_dev))) {
+		if (IS_ERR(isert_dev)) {
 			err = PTR_ERR(isert_dev);
 			mutex_unlock(&dev_list_mutex);
 			goto fail_dev_create;
@@ -1476,7 +1476,7 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 	mutex_unlock(&dev_list_mutex);
 
 	isert_conn = isert_conn_create(cm_id, isert_dev);
-	if (unlikely(IS_ERR(isert_conn))) {
+	if (IS_ERR(isert_conn)) {
 		err = PTR_ERR(isert_conn);
 		goto fail_conn_create;
 	}
@@ -1815,7 +1815,7 @@ struct isert_portal *isert_portal_create(void)
 	cm_id = rdma_create_id(&init_net, isert_cm_evt_handler, portal,
 			       RDMA_PS_TCP, IB_QPT_RC);
 #endif
-	if (unlikely(IS_ERR(cm_id))) {
+	if (IS_ERR(cm_id)) {
 		err = PTR_ERR(cm_id);
 		PRINT_ERROR("Failed to create rdma id, err:%d", err);
 		goto create_id_err;
@@ -1944,7 +1944,7 @@ struct isert_portal *isert_portal_start(struct sockaddr *sa, size_t addr_len)
 	int err;
 
 	portal = isert_portal_create();
-	if (unlikely(IS_ERR(portal)))
+	if (IS_ERR(portal))
 		return portal;
 
 	err = isert_portal_listen(portal, sa, addr_len);

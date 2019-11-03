@@ -1,3 +1,5 @@
+# SPDX-License-Identifier: GPL-2.0
+
 ifeq ($(BUILD_2X_MODULE),)
 
 qla2xxx-y := qla_os.o qla_init.o qla_mbx.o qla_iocb.o qla_isr.o qla_gs.o \
