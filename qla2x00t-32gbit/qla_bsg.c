@@ -384,7 +384,7 @@ qla2x00_process_els(struct bsg_job *bsg_job)
 
 	rsp_sg_cnt = dma_map_sg(&ha->pdev->dev, bsg_job->reply_payload.sg_list,
 		bsg_job->reply_payload.sg_cnt, DMA_FROM_DEVICE);
-	if (!rsp_sg_cnt) {
+        if (!rsp_sg_cnt) {
 		dma_unmap_sg(&ha->pdev->dev, bsg_job->reply_payload.sg_list,
 		    bsg_job->reply_payload.sg_cnt, DMA_FROM_DEVICE);
 		rval = -ENOMEM;
