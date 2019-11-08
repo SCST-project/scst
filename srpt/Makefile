@@ -269,6 +269,12 @@ conftest/register_mad_agent/result-$(KVER).txt:				\
 	echo "$(call run_conftest,register_mad_agent,			\
 		-DREGISTER_MAD_AGENT_HAS_FLAGS_ARG)" >"$@"
 
+conftest/srp_data_desc_imm/result-$(KVER).txt:				\
+	conftest/srp_data_desc_imm/srp_data_desc_imm.c			\
+	conftest/srp_data_desc_imm/Makefile
+	echo "$(call run_conftest_bool,srp_data_desc_imm,		\
+		HAVE_SRP_DATA_DESC_IMM)" >"$@"
+
 conftest/srp_login_req_rdma/result-$(KVER).txt:				\
 	conftest/srp_login_req_rdma/srp_login_req_rdma.c		\
 	conftest/srp_login_req_rdma/Makefile
