@@ -148,6 +148,9 @@ function evaluate(stmnt, pattern, arg, op, result) {
   gsub("defined\\(HAVE_IB_DMA_MAP_OPS\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(0, 0, 0))", stmnt)
 
+  gsub("defined\\(HAVE_IB_SG_DMA_LEN\\)",
+       "(LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0))", stmnt)
+
   gsub("defined(ENABLE_NPIV)", 0, stmnt)
 
   gsub("defined(FC_VPORT_CREATE_DEFINED)", 0, stmnt)
@@ -398,6 +401,7 @@ function handle_if(evaluated)
       || $0 ~ "HAVE_IB_DMA_MAP_OPS"					\
       || $0 ~ "HAVE_IB_QUERY_DEVICE"					\
       || $0 ~ "HAVE_IB_SET_CPI_RESP_TIME"				\
+      || $0 ~ "HAVE_IB_SG_DMA_LEN"					\
       || $0 ~ "HAVE_RDMA_DESTROY_AH"					\
       || $0 ~ "HAVE_RDMA_DESTROY_AH_WITH_FLAGS"				\
       || $0 ~ "HAVE_RDMA_QUERY_GID"					\

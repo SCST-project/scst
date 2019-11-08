@@ -66,6 +66,11 @@
 
 struct srpt_nexus;
 
+#if !HAVE_IB_SG_DMA_LEN
+#define ib_sg_dma_len(dev, sg) sg_dma_len(sg)
+#define ib_sg_dma_address(dev, sg) sg_dma_address(sg)
+#endif
+
 #if !HAVE_SRP_DATA_DESC_IMM
 enum {
 	SRP_DATA_DESC_IMM	 = 3,
