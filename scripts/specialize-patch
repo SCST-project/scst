@@ -117,6 +117,9 @@ function evaluate(stmnt, pattern, arg, op, result) {
   gsub("HAVE_RDMA_QUERY_GID",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))", stmnt)
 
+  gsub("HAVE_SRP_DATA_DESC_IMM",
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0))", stmnt)
+
   gsub("HAVE_STRUCT_SRP_LOGIN_REQ_RDMA",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0))", stmnt)
 
@@ -384,42 +387,43 @@ function handle_if(evaluated)
 {
   # Only act on preprocessor conditional expressions with regard to the Linux
   # kernel version, and do not interpret other expressions.
-  if ($0 ~ "LINUX_VERSION_CODE"    \
-      || $0 ~ "CONFIG_SCST_PROC"   \
-      || $0 ~ "CONFIG_SCST_STRICT_SERIALIZING" \
-      || $0 ~ "CREATE_SEND_MAD_HAS_BASE_ARG"   \
-      || $0 ~ "ENABLE_NPIV" \
-      || $0 ~ "FC_VPORT_CREATE_DEFINED" \
-      || $0 ~ "HAVE_DEV_ATTR_MAX_RECV_SGE" \
-      || $0 ~ "HAVE_DEV_ATTR_MAX_SEND_SGE" \
-      || $0 ~ "HAVE_IB_DMA_MAP_OPS" \
-      || $0 ~ "HAVE_IB_QUERY_DEVICE" \
-      || $0 ~ "HAVE_IB_SET_CPI_RESP_TIME" \
-      || $0 ~ "HAVE_RDMA_DESTROY_AH" \
-      || $0 ~ "HAVE_RDMA_DESTROY_AH_WITH_FLAGS" \
-      || $0 ~ "HAVE_RDMA_QUERY_GID" \
-      || $0 ~ "HAVE_STRUCT_SRP_LOGIN_REQ_RDMA" \
-      || $0 ~ "IB_CLIENT_REMOVE_TAKES_TWO_ARGS" \
-      || $0 ~ "IB_CM_LISTEN_TAKES_FOURTH_ARG" \
-      || $0 ~ "IB_CREATE_CQ_HAS_INIT_ATTR" \
-      || $0 ~ "IB_PD_HAS_LOCAL_DMA_LKEY" \
-      || $0 ~ "IB_QUERY_GID_HAS_ATTR_ARG" \
-      || $0 ~ "INSIDE_KERNEL_TREE" \
-      || $0 ~ "MAD_HANDLER_TAKES_SEND_BUF" \
-      || $0 ~ "MOFED_MAJOR"        \
-      || $0 ~ "MOFED_MINOR"        \
-      || $0 ~ "RDMA_CREATE_ID_TAKES_NET_ARG" \
-      || $0 ~ "REGISTER_MAD_AGENT_HAS_FLAGS_ARG" \
-      || $0 ~ "RHEL_MAJOR"         \
-      || $0 ~ "RHEL_MINOR"         \
-      || $0 ~ "RHEL_RELEASE_CODE"  \
-      || $0 ~ "SOCK_RECVMSG_HAS_FOUR_ARGS" \
-      || $0 ~ "UEK_KABI_RENAME"  \
-      || $0 ~ "USE_PRE_440_WR_STRUCTURE" \
-      || generating_upstream_patch_defined \
-         && $0 ~ "GENERATING_UPSTREAM_PATCH" \
-      || $0 ~ "CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION" \
-      || ($0 ~ "CONFIG_SCST_PROC" && config_scst_proc_undefined) \
+  if ($0 ~ "LINUX_VERSION_CODE"						\
+      || $0 ~ "CONFIG_SCST_PROC"					\
+      || $0 ~ "CONFIG_SCST_STRICT_SERIALIZING"				\
+      || $0 ~ "CREATE_SEND_MAD_HAS_BASE_ARG"				\
+      || $0 ~ "ENABLE_NPIV"						\
+      || $0 ~ "FC_VPORT_CREATE_DEFINED"					\
+      || $0 ~ "HAVE_DEV_ATTR_MAX_RECV_SGE"				\
+      || $0 ~ "HAVE_DEV_ATTR_MAX_SEND_SGE"				\
+      || $0 ~ "HAVE_IB_DMA_MAP_OPS"					\
+      || $0 ~ "HAVE_IB_QUERY_DEVICE"					\
+      || $0 ~ "HAVE_IB_SET_CPI_RESP_TIME"				\
+      || $0 ~ "HAVE_RDMA_DESTROY_AH"					\
+      || $0 ~ "HAVE_RDMA_DESTROY_AH_WITH_FLAGS"				\
+      || $0 ~ "HAVE_RDMA_QUERY_GID"					\
+      || $0 ~ "HAVE_SRP_DATA_DESC_IMM"					\
+      || $0 ~ "HAVE_STRUCT_SRP_LOGIN_REQ_RDMA"				\
+      || $0 ~ "IB_CLIENT_REMOVE_TAKES_TWO_ARGS"				\
+      || $0 ~ "IB_CM_LISTEN_TAKES_FOURTH_ARG"				\
+      || $0 ~ "IB_CREATE_CQ_HAS_INIT_ATTR"				\
+      || $0 ~ "IB_PD_HAS_LOCAL_DMA_LKEY"				\
+      || $0 ~ "IB_QUERY_GID_HAS_ATTR_ARG"				\
+      || $0 ~ "INSIDE_KERNEL_TREE"					\
+      || $0 ~ "MAD_HANDLER_TAKES_SEND_BUF"				\
+      || $0 ~ "MOFED_MAJOR"						\
+      || $0 ~ "MOFED_MINOR"						\
+      || $0 ~ "RDMA_CREATE_ID_TAKES_NET_ARG"				\
+      || $0 ~ "REGISTER_MAD_AGENT_HAS_FLAGS_ARG"			\
+      || $0 ~ "RHEL_MAJOR"						\
+      || $0 ~ "RHEL_MINOR"						\
+      || $0 ~ "RHEL_RELEASE_CODE"					\
+      || $0 ~ "SOCK_RECVMSG_HAS_FOUR_ARGS"				\
+      || $0 ~ "UEK_KABI_RENAME"						\
+      || $0 ~ "USE_PRE_440_WR_STRUCTURE"				\
+      || generating_upstream_patch_defined				\
+         && $0 ~ "GENERATING_UPSTREAM_PATCH"				\
+      || $0 ~ "CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION"	\
+      || ($0 ~ "CONFIG_SCST_PROC" && config_scst_proc_undefined)	\
       || ($0 ~ "SCSI_EXEC_REQ_FIFO_DEFINED" && SCSI_EXEC_REQ_FIFO_DEFINED!="") \
       || ($0 ~ "SCST_IO_CONTEXT" && SCST_IO_CONTEXT != ""))
   {
