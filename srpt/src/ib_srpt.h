@@ -66,7 +66,12 @@
 
 struct srpt_nexus;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0)
+#if !HAVE_IB_SG_DMA_LEN
+#define ib_sg_dma_len(dev, sg) sg_dma_len(sg)
+#define ib_sg_dma_address(dev, sg) sg_dma_address(sg)
+#endif
+
+#if !HAVE_SRP_DATA_DESC_IMM
 enum {
 	SRP_DATA_DESC_IMM	 = 3,
 	SRP_IMMED_REQUESTED	 = 0x80,
@@ -164,7 +169,7 @@ enum {
 	SRP_CMD_ORDERED_Q = 0x2,
 	SRP_CMD_ACA = 0x4,
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0)
+#if !HAVE_SRP_DATA_DESC_IMM
 	SRP_LOGIN_RSP_MULTICHAN_NO_CHAN = 0x0,
 	SRP_LOGIN_RSP_MULTICHAN_TERMINATED = 0x1,
 	SRP_LOGIN_RSP_MULTICHAN_MAINTAINED = 0x2,

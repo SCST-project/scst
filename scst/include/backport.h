@@ -1588,11 +1588,6 @@ static inline struct ib_pd *ib_alloc_pd_backport(struct ib_device *device)
 	})
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
-#define ib_sg_dma_len(dev, sg) sg_dma_len(sg)
-#define ib_sg_dma_address(dev, sg) sg_dma_address(sg)
-#endif
-
 /* <scsi/scsi_cmnd.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) || \

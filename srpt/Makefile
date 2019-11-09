@@ -212,6 +212,11 @@ conftest/ib_set_cpi_resp_time/result-$(KVER).txt:			\
 	echo "$(call run_conftest,ib_set_cpi_resp_time,			\
 		-DHAVE_IB_SET_CPI_RESP_TIME)" >"$@"
 
+conftest/ib_sg_dma_len/result-$(KVER).txt:				\
+	conftest/ib_sg_dma_len/ib_sg_dma_len.c				\
+	conftest/ib_sg_dma_len/Makefile
+	echo "$(call run_conftest_bool,ib_sg_dma_len,HAVE_IB_SG_DMA_LEN)" >"$@"
+
 conftest/mad_handler_takes_send_buf/result-$(KVER).txt:			\
 	conftest/mad_handler_takes_send_buf/mad_handler_takes_send_buf.c\
 	conftest/mad_handler_takes_send_buf/Makefile
@@ -268,6 +273,12 @@ conftest/register_mad_agent/result-$(KVER).txt:				\
 	conftest/register_mad_agent/Makefile
 	echo "$(call run_conftest,register_mad_agent,			\
 		-DREGISTER_MAD_AGENT_HAS_FLAGS_ARG)" >"$@"
+
+conftest/srp_data_desc_imm/result-$(KVER).txt:				\
+	conftest/srp_data_desc_imm/srp_data_desc_imm.c			\
+	conftest/srp_data_desc_imm/Makefile
+	echo "$(call run_conftest_bool,srp_data_desc_imm,		\
+		HAVE_SRP_DATA_DESC_IMM)" >"$@"
 
 conftest/srp_login_req_rdma/result-$(KVER).txt:				\
 	conftest/srp_login_req_rdma/srp_login_req_rdma.c		\
