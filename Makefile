@@ -60,6 +60,8 @@ REVISION ?= $(shell if [ -e .svn ]; then				\
 		    fi)
 VERSION := $(shell echo -n "$$(sed -n 's/^\#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^-]*\).*\"/\1/p' scst/include/scst_const.h)$(REVISION)")
 DEBIAN_REVISION=1
+RPMTOPDIR ?= $(shell if [ $$(id -u) = 0 ]; then echo /usr/src/packages;\
+		else echo $$PWD/rpmbuilddir; fi)
 
 help:
 	@echo "		all               : make all"
@@ -397,8 +399,7 @@ scst-dist-gzip:
 
 scst-rpm:
 	name=scst &&							\
-	rpmtopdir="$$(if [ $$(id -u) = 0 ]; then echo /usr/src/packages;\
-		    else echo $$PWD/rpmbuilddir; fi)" &&		\
+	rpmtopdir=$(RPMTOPDIR) &&					\
 	$(MAKE) scst-dist-gzip &&					\
 	for d in BUILD RPMS SOURCES SPECS SRPMS; do			\
 	  mkdir -p $${rpmtopdir}/$$d;					\
@@ -415,8 +416,7 @@ scst-rpm:
 
 scst-dkms-rpm:
 	name=scst-dkms &&						\
-	rpmtopdir="$$(if [ $$(id -u) = 0 ]; then echo /usr/src/packages;\
-		    else echo $$PWD/rpmbuilddir; fi)" &&		\
+	rpmtopdir=$(RPMTOPDIR) &&					\
 	$(MAKE) scst-dist-gzip &&					\
 	for d in BUILD RPMS SOURCES SPECS SRPMS; do			\
 	  mkdir -p $${rpmtopdir}/$$d;					\

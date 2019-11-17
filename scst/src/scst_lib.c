@@ -2666,8 +2666,8 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 
 		list_for_each_entry_rcu(tgt_dev, head,
 				sess_tgt_dev_list_entry) {
-			/* Lockdep triggers here a false positive.. */
-			spin_lock_nolockdep(&tgt_dev->tgt_dev_lock);
+			/* Lockdep reports a false positive here before v5.1. */
+			spin_lock(&tgt_dev->tgt_dev_lock);
 		}
 	}
 #endif
@@ -2698,7 +2698,7 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 
 		list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
-			spin_unlock_nolockdep(&tgt_dev->tgt_dev_lock);
+			spin_unlock(&tgt_dev->tgt_dev_lock);
 		}
 	}
 #endif
@@ -4213,6 +4213,8 @@ static void scst_free_device(struct work_struct *work)
 
 	scst_pr_cleanup(dev);
 
+	lockdep_unregister_key(&dev->dev_lock_key);
+
 	kfree(dev->virt_name);
 	percpu_ref_exit(&dev->refcnt);
 	kmem_cache_free(scst_dev_cachep, dev);
@@ -4256,6 +4258,8 @@ int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev)
 #endif
 	scst_init_mem_lim(&dev->dev_mem_lim);
 	spin_lock_init(&dev->dev_lock);
+	lockdep_register_key(&dev->dev_lock_key);
+	lockdep_set_class(&dev->dev_lock, &dev->dev_lock_key);
 	INIT_LIST_HEAD(&dev->dev_exec_cmd_list);
 	INIT_LIST_HEAD(&dev->blocked_cmd_list);
 	INIT_LIST_HEAD(&dev->dev_tgt_dev_list);
@@ -5398,6 +5402,8 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	       dev->virt_name, (unsigned long long)tgt_dev->lun);
 
 	spin_lock_init(&tgt_dev->tgt_dev_lock);
+	lockdep_register_key(&tgt_dev->tgt_dev_key);
+	lockdep_set_class(&tgt_dev->tgt_dev_lock, &tgt_dev->tgt_dev_key);
 	INIT_LIST_HEAD(&tgt_dev->UA_list);
 
 	scst_init_order_data(&tgt_dev->tgt_dev_order_data);
@@ -5496,6 +5502,8 @@ out_dec_free:
 out_free_ua:
 	scst_free_all_UA(tgt_dev);
 
+	lockdep_unregister_key(&tgt_dev->tgt_dev_key);
+
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 	goto out;
 }
@@ -5573,6 +5581,8 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	}
 
 	scst_tgt_dev_stop_threads(tgt_dev);
+
+	lockdep_unregister_key(&tgt_dev->tgt_dev_key);
 
 	kmem_cache_free(scst_tgtd_cachep, tgt_dev);
 
@@ -12971,8 +12981,11 @@ again:
 
 			list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
-				/* Lockdep triggers here a false positive.. */
-				spin_lock_nolockdep(&tgt_dev->tgt_dev_lock);
+				/*
+				 * Lockdep reports a false positive here before
+				 * kernel version v5.1.
+				 */
+				spin_lock(&tgt_dev->tgt_dev_lock);
 			}
 		}
 #endif
@@ -13046,7 +13059,7 @@ out_unlock:
 
 			list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
-				spin_unlock_nolockdep(&tgt_dev->tgt_dev_lock);
+				spin_unlock(&tgt_dev->tgt_dev_lock);
 			}
 		}
 		rcu_read_unlock();

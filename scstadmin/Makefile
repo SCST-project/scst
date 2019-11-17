@@ -67,6 +67,9 @@ DEFAULTDIR := $(shell if [ -f /etc/gentoo-release ]; then	        \
                           echo /etc/default;                            \
 		      fi)
 
+RPMTOPDIR ?= $(shell if [ $$(id -u) = 0 ]; then echo /usr/src/packages;\
+		else echo $$PWD/rpmbuilddir; fi)
+
 all:
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 
@@ -139,8 +142,7 @@ dist-gzip:
 
 rpm:
 	name=$(shell basename $$PWD) &&					\
-	rpmtopdir="$$(if [ $$(id -u) = 0 ]; then echo /usr/src/packages;\
-		      else echo $$PWD/rpmbuilddir; fi)" &&		\
+	rpmtopdir=$(RPMTOPDIR) &&					\
 	$(MAKE) dist-gzip &&						\
 	for d in BUILD RPMS SOURCES SPECS SRPMS; do			\
 	  mkdir -p $${rpmtopdir}/$$d;					\
