@@ -1856,29 +1856,15 @@ out_unlock:
 	return;
 }
 
-static void scst_cm_del_free_list_id(struct scst_cm_list_id *l, bool locked)
+static void scst_cm_del_free_list_id(struct scst_cm_list_id *l)
 {
-	unsigned long flags = 0;
-
 	TRACE_ENTRY();
 
 	TRACE_DBG("Freeing list id %p", l);
 
-#if !defined(__CHECKER__)
-	if (!locked)
-		spin_lock_irqsave(&scst_cm_lock, flags);
-#endif
-
-#ifdef CONFIG_SMP
-	EXTRACHECKS_BUG_ON(!spin_is_locked(&scst_cm_lock));
-#endif
+	lockdep_assert_held(&scst_cm_lock);
 
 	list_del(&l->sess_cm_list_id_entry);
-
-#if !defined(__CHECKER__)
-	if (!locked)
-		spin_unlock_irqrestore(&scst_cm_lock, flags);
-#endif
 
 	kfree(l);
 
@@ -1916,7 +1902,7 @@ static void scst_cm_sched_del_list_id(struct scst_cmd *ec_cmd)
 	if (test_bit(SCST_CMD_ABORTED, &ec_cmd->cmd_flags) ||
 	    l->cm_can_be_immed_free) {
 		TRACE_DBG("List id %p can be immed freed", l);
-		scst_cm_del_free_list_id(l, true);
+		scst_cm_del_free_list_id(l);
 		spin_unlock_irqrestore(&scst_cm_lock, flags);
 		goto out;
 	}
@@ -1960,7 +1946,7 @@ static struct scst_cm_list_id *scst_cm_add_list_id(struct scst_cmd *cmd,
 	list_for_each_entry(l, &sess->sess_cm_list_id_list, sess_cm_list_id_entry) {
 		if (l->cm_lid == list_id) {
 			if (l->cm_list_id_state == SCST_CM_LIST_ID_STATE_PENDING_FREE) {
-				scst_cm_del_free_list_id(l, true);
+				scst_cm_del_free_list_id(l);
 				break;
 			} else {
 				TRACE_DBG("List id %d already exists", list_id);
@@ -2013,7 +1999,7 @@ void sess_cm_list_id_cleanup_work_fn(struct work_struct *work)
 		if (l->cm_list_id_state != SCST_CM_LIST_ID_STATE_PENDING_FREE)
 			break;
 		if (time_after_eq(cur_time, l->cm_time_to_free))
-			scst_cm_del_free_list_id(l, true);
+			scst_cm_del_free_list_id(l);
 		else {
 			TRACE_DBG("Reschedule pending free list ids cleanup");
 			schedule_delayed_work(&sess->sess_cm_list_id_cleanup_work,
@@ -2038,7 +2024,7 @@ void scst_cm_free_pending_list_ids(struct scst_session *sess)
 	list_for_each_entry_safe(l, t, &sess->sess_cm_list_id_list, sess_cm_list_id_entry) {
 		TRACE_DBG("List id %p, state %d", l, l->cm_list_id_state);
 		if (l->cm_list_id_state == SCST_CM_LIST_ID_STATE_PENDING_FREE)
-			scst_cm_del_free_list_id(l, true);
+			scst_cm_del_free_list_id(l);
 	}
 	spin_unlock_irq(&scst_cm_lock);
 
@@ -2083,7 +2069,7 @@ static void scst_cm_copy_status(struct scst_cmd *cmd)
 		put_unaligned_be32(l->cm_written_size >> 10, &tbuf[8]);
 
 		if (l->cm_done)
-			scst_cm_del_free_list_id(l, true);
+			scst_cm_del_free_list_id(l);
 	}
 
 	l = NULL; /* after unlock it can be immediately get dead */
@@ -2172,7 +2158,7 @@ static void scst_cm_failed_seg_details(struct scst_cmd *cmd)
 			memcpy(&tbuf[60], l->cm_sense, l->cm_sense_len);
 
 		if (l->cm_can_be_immed_free && l->cm_done)
-			scst_cm_del_free_list_id(l, true);
+			scst_cm_del_free_list_id(l);
 	}
 
 skip:
@@ -3353,6 +3339,7 @@ int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd)
 	struct scst_cm_ec_cmd_priv *p;
 	int tgt_cnt, seg_cnt, i, offs, t;
 	struct scst_cm_tgt_descr *tgt_descrs;
+	unsigned long flags;
 
 	TRACE_ENTRY();
 
@@ -3560,8 +3547,11 @@ int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd)
 	kfree(tgt_descrs);
 
 out_del_put:
-	if (plist_id != NULL)
-		scst_cm_del_free_list_id(plist_id, false);
+	if (plist_id != NULL) {
+		spin_lock_irqsave(&scst_cm_lock, flags);
+		scst_cm_del_free_list_id(plist_id);
+		spin_unlock_irqrestore(&scst_cm_lock, flags);
+	}
 
 out_put:
 	scst_put_buf_full(ec_cmd, buf);
@@ -3577,8 +3567,11 @@ out_free_tgt_descr:
 	kfree(tgt_descrs);
 
 out_del_abn_put:
-	if (plist_id != NULL)
-		scst_cm_del_free_list_id(plist_id, false);
+	if (plist_id != NULL) {
+		spin_lock_irqsave(&scst_cm_lock, flags);
+		scst_cm_del_free_list_id(plist_id);
+		spin_unlock_irqrestore(&scst_cm_lock, flags);
+	}
 
 out_abn_put:
 	scst_put_buf_full(ec_cmd, buf);
