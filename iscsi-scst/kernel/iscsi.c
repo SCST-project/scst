@@ -985,9 +985,6 @@ static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 			if (send_status) {
 				TRACE_DBG("status %x", status);
 
-				EXTRACHECKS_BUG_ON((cmnd_hdr(req)->flags &
-						    ISCSI_CMD_WRITE) != 0);
-
 				rsp_hdr->flags = ISCSI_FLG_FINAL |
 					ISCSI_FLG_STATUS;
 				rsp_hdr->cmd_status = status;
