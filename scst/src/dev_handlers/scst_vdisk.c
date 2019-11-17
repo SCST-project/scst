@@ -3261,7 +3261,7 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 		length = scst_get_buf_next(cmd, &address);
 	}
 
-	WARN_ON_ONCE(sg_cnt != scst_get_buf_count(cmd));
+	WARN_ON_ONCE(sg_cnt != cmd->sg_cnt);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
 	iov_iter_kvec(&iter, dir, p->async.kvec, sg_cnt, total);
