@@ -3190,7 +3190,8 @@ static void fileio_async_complete(struct kiocb *iocb, long ret, long ret2)
 	struct vdisk_cmd_params *p = container_of(iocb, typeof(*p), async.iocb);
 	struct scst_cmd *cmd = p->cmd;
 
-	WARN_ON_ONCE(ret >= 0 && ret != cmd->bufflen);
+	if (ret >= 0 && ret != cmd->bufflen)
+		scst_set_resp_data_len(cmd, ret);
 
 	if (ret < 0 &&
 	    scst_cmd_get_data_direction(cmd) & SCST_DATA_WRITE) {
@@ -3211,8 +3212,6 @@ static void fileio_async_complete(struct kiocb *iocb, long ret, long ret2)
 		} else {
 			scst_set_busy(cmd);
 		}
-	} else {
-		WARN_ON_ONCE(ret != scst_cmd_get_data_len(cmd));
 	}
 	cmd->completed = 1;
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
