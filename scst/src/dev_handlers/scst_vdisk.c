@@ -3706,14 +3706,14 @@ static int vdisk_usn_vpd(uint8_t *buf, struct scst_cmd *cmd,
 {
 	uint16_t usn_len, max_len = INQ_BUF_SZ - 4;
 
+	BUILD_BUG_ON(sizeof(virt_dev->usn) > INQ_BUF_SZ - 4);
+
 	buf[1] = 0x80;
 	if (cmd->tgtt->get_serial) {
 		usn_len = cmd->tgtt->get_serial(cmd->tgt_dev, &buf[4], max_len);
 	} else {
 		read_lock(&vdisk_serial_rwlock);
 		usn_len = strlen(virt_dev->usn);
-		if (WARN_ON_ONCE(usn_len > max_len))
-			usn_len = max_len;
 		memcpy(&buf[4], virt_dev->usn, usn_len);
 		read_unlock(&vdisk_serial_rwlock);
 	}
