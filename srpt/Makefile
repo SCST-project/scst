@@ -40,12 +40,12 @@ MODULE_SYMVERS:=$(shell if [ -e "$(KDIR)/Modules.symvers" ]; then \
 
 # Name of the OFED kernel package.
 OFED_KERNEL_IB_RPM:=$(shell for r in mlnx-ofa_kernel compat-rdma kernel-ib; do rpm -q $$r 2>/dev/null | grep -q "^$$r" && echo "$$r" && break; done)
-OFED_KERNEL_IB_DEB:=$(shell for p in mlnx-ofed-kernel-dkms; do dpkg-query -s "$$p" >/dev/null 2>&1 && echo "$$p" && break; done)
+OFED_KERNEL_IB_DEB:=$(shell for p in mlnx-ofed-kernel-dkms mlnx-ofed-kernel-modules; do dpkg-query -s "$$p" >/dev/null 2>&1 && echo "$$p" && break; done)
 OFED_KERNEL_IB_PKG:=$(OFED_KERNEL_IB_RPM)$(OFED_KERNEL_IB_DEB)
 
 # Name of the OFED kernel development package.
 OFED_KERNEL_IB_DEVEL_RPM:=$(shell for r in mlnx-ofa_kernel-devel compat-rdma-devel kernel-ib-devel; do rpm -q $$r 2>/dev/null | grep -q "^$$r" && echo "$$r" && break; done)
-OFED_KERNEL_IB_DEVEL_DEB:=$(shell for p in mlnx-ofed-kernel-dkms; do dpkg-query -s "$$p" >/dev/null 2>&1 && echo "$$p" && break; done)
+OFED_KERNEL_IB_DEVEL_DEB:=$(shell for p in mlnx-ofed-kernel-dkms mlnx-ofed-kernel-modules; do dpkg-query -s "$$p" >/dev/null 2>&1 && echo "$$p" && break; done)
 OFED_KERNEL_IB_DEVEL_PKG:=$(OFED_KERNEL_IB_DEVEL_RPM)$(OFED_KERNEL_IB_DEVEL_DEB)
 
 OFED_FLAVOR=$(shell if [ -e /usr/bin/ofed_info ]; then /usr/bin/ofed_info 2>/dev/null | head -n1 | sed -n 's/^\(MLNX_OFED\|OFED-internal\).*/MOFED/p;s/^OFED-.*/OFED/p'; else echo in-tree; fi)
@@ -61,8 +61,8 @@ ifeq ($(OFED_FLAVOR),MOFED)
 # header files use the LINUX_BACKPORT() macro without including
 # <linux/compat-2.6.h>, include that header file explicitly.
 OFED_KERNEL_DIR:=/usr/src/ofa_kernel/default
-OFED_RPM_VERS=$(shell rpm -q --qf '%{version}\n' mlnx-ofa_kernel-devel 2>/dev/null | grep -v ' ')
-OFED_DEB_VERS=$(shell dpkg-query -W --showformat='$${Version}\n' mlnx-ofed-kernel-dkms 2>/dev/null)
+OFED_RPM_VERS=$(shell rpm -q --qf '%{version}\n' $(OFED_KERNEL_IB_DEVEL_RPM) 2>/dev/null | grep -v ' ')
+OFED_DEB_VERS=$(shell dpkg-query -W --showformat='$${Version}\n' $(OFED_KERNEL_IB_DEVEL_DEB) 2>/dev/null)
 OFED_VERS=$(OFED_RPM_VERS)$(OFED_DEB_VERS)
 OFED_CFLAGS:=-I$(OFED_KERNEL_DIR)/include      \
              -I$(OFED_KERNEL_DIR)/include/uapi \
