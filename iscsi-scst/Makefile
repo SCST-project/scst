@@ -57,12 +57,12 @@ OFED_CFLAGS:=
 OFED_FLAVOR=$(shell if [ -e /usr/bin/ofed_info ]; then /usr/bin/ofed_info 2>/dev/null | head -n1 | sed -n 's/^\(MLNX_OFED\|OFED-internal\).*/MOFED/p;s/^OFED-.*/OFED/p'; else echo in-tree; fi)
 
 ifeq ($(OFED_FLAVOR),MOFED)
-	ifeq ($(shell	if dpkg -s mlnx-ofed-kernel-dkms >/dev/null 2>&1; then \
+	ifeq ($(shell	if { dpkg -s mlnx-ofed-kernel-dkms || dpkg -s mlnx-ofed-kernel-modules; } >/dev/null 2>&1; then \
 			  echo true;					       \
 			else						       \
 			  echo false;					       \
 			fi),true)
-	OFED_VERS=$(shell dpkg-query -W --showformat='$${Version}\n' mlnx-ofed-kernel-dkms)
+	OFED_VERS=$(shell dpkg-query -W --showformat='$${Version}\n' mlnx-ofed-kernel-dkms mlnx-ofed-kernel-modules 2>/dev/null | head -n 1)
 	else
 	ifeq ($(shell	if { rpm -q mlnx-ofa_kernel-devel ||		 \
 			     rpm -q kernel-ib-devel; } >&/dev/null; then \
