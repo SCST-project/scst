@@ -839,6 +839,20 @@ static inline bool list_entry_in_list(const struct list_head *entry)
 #define lockdep_assert_held(l) (void)(l)
 #endif
 
+/*
+ * See also commit 108c14858b9e ("locking/lockdep: Add support for dynamic
+ * keys").
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
+static inline void lockdep_register_key(struct lock_class_key *key)
+{
+}
+
+static inline void lockdep_unregister_key(struct lock_class_key *key)
+{
+}
+#endif
+
 /* <linux/mempoool.h> */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
 /*
