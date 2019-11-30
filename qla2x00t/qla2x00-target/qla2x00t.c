@@ -7108,4 +7108,6 @@ module_exit(q2t_exit);
 MODULE_AUTHOR("Vladislav Bolkhovitin and others");
 MODULE_DESCRIPTION("Target mode addon for qla2[2,3,4,5+]xx");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS(SCST);
+MODULE_IMPORT_NS(QLA16GB);
 MODULE_VERSION(Q2T_VERSION_STRING);

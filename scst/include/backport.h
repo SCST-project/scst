@@ -960,6 +960,11 @@ static inline void kvfree(void *addr)
 }
 #endif
 
+/* <linux/module.h> */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
+#define MODULE_IMPORT_NS(ns)
+#endif
+
 /* <linux/nvme-fc.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) &&	\

@@ -36,8 +36,11 @@ SHELL=/bin/bash
 DEV_HANDLERS_DIR = dev_handlers
 
 ifneq ($(PATCHLEVEL),)
+# See also Documentation/core-api/symbol-namespaces.rst for more information
+# about DEFAULT_SYMBOL_NAMESPACE.
 ccflags-y += -I$(KBUILD_EXTMOD)/../include $(call cc-option,-Wextra) \
 	-Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare\
+	-DDEFAULT_SYMBOL_NAMESPACE=SCST\
 	$(shell [ -n "${CONFIG_SCST_NO_DLM}" ] && echo -DCONFIG_SCST_NO_DLM)
 
 #ccflags-y += -DCONFIG_SCST_STRICT_SERIALIZING

@@ -79,6 +79,7 @@ MODULE_AUTHOR("Vu Pham and Bart Van Assche");
 MODULE_DESCRIPTION("SCSI RDMA Protocol target driver "
 		   "v" DRV_VERSION " (" DRV_RELDATE ")");
 MODULE_LICENSE("Dual BSD/GPL");
+MODULE_IMPORT_NS(SCST);
 
 /*
  * Global Variables
