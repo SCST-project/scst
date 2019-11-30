@@ -2178,4 +2178,6 @@ late_initcall(sqa_init);
 
 MODULE_DESCRIPTION("SCST Cavium adapter target interface driver.");
 MODULE_LICENSE("GPL");
+MODULE_IMPORT_NS(SCST);
+MODULE_IMPORT_NS(QLA32GB);
 MODULE_VERSION(SQA_VERSION);
