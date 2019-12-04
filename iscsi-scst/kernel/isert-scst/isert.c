@@ -515,8 +515,9 @@ out:
 MODULE_AUTHOR("Yan Burman");
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_IMPORT_NS(SCST);
-MODULE_DESCRIPTION("iSER target transport driver v3.0.1-pre#"
-		   __stringify(OFED_FLAVOR));
-
+#define DRV_VERSION		"3.4.0" "#" __stringify(OFED_FLAVOR)
+#define DRV_RELDATE		"02 December 2019"
+MODULE_DESCRIPTION("iSER target transport driver "
+		   "v" DRV_VERSION " (" DRV_RELDATE ")");
 module_init(isert_init_module);
 module_exit(isert_cleanup_module);
