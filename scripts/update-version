@@ -24,4 +24,4 @@ sed -i "s/^\(\(static const char \*scst_local_version_date\|#define[[:blank:]]*D
 sed -i "s/^\(#define[[:blank:]]*[^[:blank:]]*_REV[[:blank:]]*\)\"[[:blank:]0-9]*\"/\1\"$(printf "%-4s" ${major}${minor}${release})\"/" usr/fileio/common.h scst/src/dev_handlers/scst_vdisk.c
 sed -i "s/^\(#define[[:blank:]]*SCST_VERSION_CODE[[:blank:]]*\).*/\1SCST_VERSION($major, $minor, $release, 0)/" scst/include/scst.h
 sed -i "s/^\(#define[[:blank:]]*Q2T_VERSION_CODE[[:blank:]]*\).*/\1Q2T_VERSION($major, $minor, $release, 0)/" qla2x00t/qla2x00-target/qla2x00t.h
-sed -i "s/^\(.Version[[:blank:]]*=[[:blank:]]*'SCST Configurator v\)[0-9.]*/\1$fv/" scstadmin/scstadmin.sysfs/scstadmin
+sed -i "s/^\(my .Version[[:blank:]]*=[[:blank:]]*'SCST Configurator v\)[^']*/\1$fv/" scstadmin/scstadmin.sysfs/scstadmin
