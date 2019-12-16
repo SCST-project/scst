@@ -48,11 +48,11 @@ MODULE_SYMVERS:=$(shell if [ -e "$(KDIR)/Modules.symvers" ]; then \
 		       echo Modules.symvers; else echo Module.symvers; fi)
 
 all: $(MODULE_SYMVERS)
-	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m
+	$(MAKE) -C $(KDIR) M=$(shell pwd)
 
 install: all
 	KDIR=$(KDIR) ../scripts/sign-modules
-	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m			\
+	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
 		$$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
 		CONFIG_MODULE_SIG_ALL= modules_install
 
