@@ -84,18 +84,14 @@ INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 SCST_DIR := $(shell echo "$$PWD/../../scst/src")
 
-ifneq ($(BUILD_2X_MODULE),)
-# We need to make qla2xxx_scst before Module.symvers
-.NOTPARALLEL:
-endif
-
 # The file Modules.symvers has been renamed in the 2.6.18 kernel to
 # Module.symvers. Find out which name to use by looking in $(KDIR).
 MODULE_SYMVERS:=$(shell if [ -e "$(KDIR)/Modules.symvers" ]; then \
 		       echo Modules.symvers; else echo Module.symvers; fi)
 
-all: $(QLA2XXX_SCST) $(MODULE_SYMVERS)
-	$(MAKE) -C $(KDIR) M=$(shell pwd)
+all: $(QLA2XXX_SCST)
+	$(MAKE) -C $(KDIR) M=$(shell pwd)			\
+		KBUILD_EXTRA_SYMBOLS="$(SCST_DIR)/$(MODULE_SYMVERS) $(QLA2XXX_DIR)/$(MODULE_SYMVERS)"
 
 install: all
 ifneq ($(BUILD_2X_MODULE),)
@@ -117,12 +113,6 @@ ifneq ($(BUILD_2X_MODULE),)
 qla2xxx_scst:
 	$(MAKE) BUILD_2X_MODULE=$(BUILD_2X_MODULE) CONFIG_SCSI_QLA2XXX_TARGET=y \
 		M=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) all
-endif
-
-$(MODULE_SYMVERS): $(SCST_DIR)/$(MODULE_SYMVERS)
-	cp $< .
-ifneq ($(BUILD_2X_MODULE),)
-	cat $(QLA2XXX_DIR)/$(MODULE_SYMVERS) >>$(MODULE_SYMVERS)
 endif
 
 ########## END OUT-OF-TREE RULES ##########

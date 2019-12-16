@@ -47,17 +47,15 @@ SCST_DIR := $(shell echo "$$PWD")/../scst/src
 MODULE_SYMVERS:=$(shell if [ -e "$(KDIR)/Modules.symvers" ]; then \
 		       echo Modules.symvers; else echo Module.symvers; fi)
 
-all: $(MODULE_SYMVERS)
-	$(MAKE) -C $(KDIR) M=$(shell pwd)
+all:
+	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
+		KBUILD_EXTRA_SYMBOLS=$(SCST_DIR)/$(MODULE_SYMVERS)
 
 install: all
 	KDIR=$(KDIR) ../scripts/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
 		$$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
 		CONFIG_MODULE_SIG_ALL= modules_install
-
-$(MODULE_SYMVERS): $(SCST_DIR)/$(MODULE_SYMVERS)
-	cp $< $@
 
 uninstall:
 	rm -f $(INSTALL_DIR)/scst_local.ko
