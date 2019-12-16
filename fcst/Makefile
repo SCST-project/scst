@@ -70,9 +70,6 @@ MODULE_SYMVERS:=$(shell if [ -e "$(KDIR)/Modules.symvers" ]; then \
 all: $(MODULE_SYMVERS)
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m
 
-tgt: $(MODULE_SYMVERS)
-	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=n
-
 install: all
 	KDIR=$(KDIR) ../scripts/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m		\
