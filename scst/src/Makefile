@@ -115,7 +115,8 @@ $(SCST_INTF_VER_FILE): $(SCST_INC_DIR)/scst.h $(SCST_INC_DIR)/scst_const.h $(SCS
 
 all: $(SCST_INTF_VER_FILE)
 	$(MAKE) -C certs KDIR=$(KDIR)
-	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_DEV=m
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_DEV=m			\
+		KBUILD_EXTRA_SYMBOLS=$(SCST_DIR)/$(MODULE_SYMVERS)
 
 scst:
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_DEV=n

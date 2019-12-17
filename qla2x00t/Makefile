@@ -56,7 +56,7 @@ qla2xxx_scst-objs := qla_os.o qla_init.o qla_mbx.o qla_iocb.o qla_isr.o qla_gs.o
 else
 
 all:
-	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m \
+	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
 		$(CONFIG_SCSI_QLA2XXX_TARGET)=CONFIG_SCSI_QLA2XXX_TARGET
 
 install: all

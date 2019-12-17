@@ -97,12 +97,10 @@ PRE_CFLAGS = $(OFED_CFLAGS)			\
 		cat $$t/result-$(KVER).txt 2>/dev/null; \
 	done)
 
-all: check src/$(MODULE_SYMVERS) $(CONFTEST_OUTPUTS)
-	$(MAKE) -C $(KDIR) M=$(shell pwd)/src PRE_CFLAGS="$(PRE_CFLAGS)" $(OFED_CONFIG) modules
-
-src/$(MODULE_SYMVERS): $(SCST_DIR)/$(MODULE_SYMVERS) $(OFED_MODULE_SYMVERS)
-	cat $^ |							\
-	awk '{sym[$$2]=$$0} END {for (s in sym){print sym[s]}}' >"$@"
+all: check $(CONFTEST_OUTPUTS)
+	$(MAKE) -C $(KDIR) M=$(shell pwd)/src PRE_CFLAGS="$(PRE_CFLAGS)"\
+		$(OFED_CONFIG) modules\
+		KBUILD_EXTRA_SYMBOLS="$(SCST_DIR)/$(MODULE_SYMVERS) $(OFED_MODULE_SYMVERS)"
 
 install: all
 	@[ -z "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && \
