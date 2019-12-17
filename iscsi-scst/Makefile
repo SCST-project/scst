@@ -51,7 +51,7 @@ MODULE_SYMVERS:=$(shell if [ -e "$(KDIR)/Modules.symvers" ]; then \
 
 all: progs mods
 
-ISER_SYMVERS:=$(SCST_DIR)/$(MODULE_SYMVERS) $(KMOD)/$(MODULE_SYMVERS)
+ISER_SYMVERS:=$(KMOD)/$(MODULE_SYMVERS)
 OFED_CFLAGS:=
 
 OFED_FLAVOR=$(shell if [ -e /usr/bin/ofed_info ]; then /usr/bin/ofed_info 2>/dev/null | head -n1 | sed -n 's/^\(MLNX_OFED\|OFED-internal\).*/MOFED/p;s/^OFED-.*/OFED/p'; else echo in-tree; fi)
