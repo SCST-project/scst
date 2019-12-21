@@ -8294,7 +8294,7 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 	}
 
 	rq = blk_make_request(q, hbio, gfp_mask);
-	if (unlikely(IS_ERR(rq)))
+	if (IS_ERR(rq))
 		goto out_free_bios;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0)
@@ -8371,11 +8371,11 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 	}
 
 	rq = __blk_map_kern_sg(q, sgl, nents, NULL, gfp, reading);
-	if (unlikely(IS_ERR(rq))) {
+	if (IS_ERR(rq)) {
 		struct blk_kern_sg_work *bw;
 
 		bw = blk_copy_kern_sg(q, sgl, nents, gfp, reading);
-		if (unlikely(IS_ERR(bw))) {
+		if (IS_ERR(bw)) {
 			rq = ERR_PTR(PTR_ERR(bw));
 			goto out;
 		}
