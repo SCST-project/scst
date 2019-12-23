@@ -48,10 +48,8 @@ details.
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) && \
-	!defined(SCSI_EXEC_REQ_FIFO_DEFINED) &&	     \
 	!defined(CONFIG_SCST_STRICT_SERIALIZING)
-#warning Patch scst_exec_req_fifo-<kernel-version> was not applied on \
-your kernel and CONFIG_SCST_STRICT_SERIALIZING is not defined. \
+#warning CONFIG_SCST_STRICT_SERIALIZING has not been defined. \
 Pass-through dev handlers will not work.
 #endif
 
@@ -1538,7 +1536,6 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 		goto out;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) && \
-	!defined(SCSI_EXEC_REQ_FIFO_DEFINED) && \
 	!defined(CONFIG_SCST_STRICT_SERIALIZING)
 	if (dev_type->exec == NULL) {
 		PRINT_ERROR("Pass-through dev handlers (handler \"%s\") not "

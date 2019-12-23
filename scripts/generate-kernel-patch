@@ -114,7 +114,6 @@ function specialize_patch {
     "$(dirname "$0")/specialize-patch" \
          "${specialize_patch_options[@]}" \
          -v kernel_version="${kver3}" \
-         -v SCSI_EXEC_REQ_FIFO_DEFINED="${scsi_exec_req_fifo_defined}" \
          -v SCST_IO_CONTEXT="${scst_io_context}"
   else
     cat
