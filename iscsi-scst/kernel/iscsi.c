@@ -3464,10 +3464,15 @@ static int iscsi_tcp_send_locally(struct iscsi_cmnd *req,
 
 static void iscsi_tcp_conn_close(struct iscsi_conn *conn, int flags)
 {
-	if (!flags)
-		conn->sock->sk->sk_prot->disconnect(conn->sock->sk, 0);
-	else
+	struct sock *sk = conn->sock->sk;
+
+	if (!flags) {
+		lock_sock(sk);
+		sk->sk_prot->disconnect(sk, 0);
+		release_sock(sk);
+	} else {
 		conn->sock->ops->shutdown(conn->sock, flags);
+	}
 }
 
 static int iscsi_xmit_response(struct scst_cmd *scst_cmd)

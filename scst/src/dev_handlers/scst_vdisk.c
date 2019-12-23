@@ -2718,7 +2718,7 @@ out_err:
 	goto out;
 }
 
-static int vdisk_parse(struct scst_cmd *cmd)
+static int fileio_parse(struct scst_cmd *cmd)
 {
 	int res, rc;
 
@@ -3312,6 +3312,14 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 }
 #endif
 
+static void blockio_on_free_cmd(struct scst_cmd *cmd)
+{
+	if (!scst_cmd_get_dh_data_buff_alloced(cmd))
+		return;
+	sgv_pool_free(cmd->sgv, &cmd->dev->dev_mem_lim);
+	cmd->sgv = NULL;
+}
+
 static void vdisk_on_free_cmd_params(const struct vdisk_cmd_params *p)
 {
 	if (!p->execute_async) {
@@ -3400,6 +3408,29 @@ static bool vdisk_no_fd_allowed_commands(const struct scst_cmd *cmd)
 
 out:
 	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static int blockio_alloc(struct scst_cmd *cmd)
+{
+	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+	struct sgv_pool *pool = tgt_dev->pools[raw_smp_processor_id()];
+	int res = SCST_CMD_STATE_DEFAULT;
+
+	if (cmd->sg && (cmd->sg->offset & 511) == 0)
+		return res;
+
+	WARN_ON_ONCE(cmd->sgv);
+	cmd->sg = sgv_pool_alloc(pool, cmd->bufflen, cmd->cmd_gfp_mask, 0,
+				 &cmd->sg_cnt, &cmd->sgv,
+				 &cmd->dev->dev_mem_lim, NULL);
+	if (!cmd->sg) {
+		res = SCST_CMD_STATE_STOP;
+		goto out;
+	}
+	scst_cmd_set_dh_data_buff_alloced(cmd);
+
+out:
 	return res;
 }
 
@@ -9871,7 +9902,7 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 	NULL,
 };
 
-static const char *fileio_add_dev_params[] = {
+static const char *const fileio_add_dev_params[] = {
 	"async",
 	"blocksize",
 	"cluster_mode",
@@ -9909,7 +9940,7 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.detach =		vdisk_detach,
 	.attach_tgt =		vdisk_attach_tgt,
 	.detach_tgt =		vdisk_detach_tgt,
-	.parse =		vdisk_parse,
+	.parse =		fileio_parse,
 	.exec =			fileio_exec,
 	.on_free_cmd =		fileio_on_free_cmd,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
@@ -9962,7 +9993,7 @@ static const struct attribute *vdisk_blockio_attrs[] = {
 	NULL,
 };
 
-static const char *blockio_add_dev_params[] = {
+static const char *const blockio_add_dev_params[] = {
 	"active",
 	"bind_alua_state",
 	"blocksize",
@@ -9995,7 +10026,9 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.attach_tgt =		vdisk_attach_tgt,
 	.detach_tgt =		vdisk_detach_tgt,
 	.parse =		non_fileio_parse,
+	.dev_alloc_data_buf =	blockio_alloc,
 	.exec =			blockio_exec,
+	.on_free_cmd =		blockio_on_free_cmd,
 	.on_alua_state_change_start = blockio_on_alua_state_change_start,
 	.on_alua_state_change_finish = blockio_on_alua_state_change_finish,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
@@ -10038,7 +10071,7 @@ static const struct attribute *vdisk_nullio_attrs[] = {
 	NULL,
 };
 
-static const char *nullio_add_dev_params[] = {
+static const char *const nullio_add_dev_params[] = {
 	"blocksize",
 	"cluster_mode",
 	"dif_mode",

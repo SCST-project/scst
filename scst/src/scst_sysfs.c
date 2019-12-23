@@ -464,7 +464,7 @@ static void scst_process_sysfs_works(void)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 		if (work->dep_map)
-			mutex_release(work->dep_map, 0, _RET_IP_);
+			mutex_release(work->dep_map, _RET_IP_);
 #endif
 
 		spin_lock(&sysfs_work_lock);
@@ -1213,7 +1213,7 @@ void scst_kobject_put_and_wait(struct kobject *kobj, const char *category,
 out_free:
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 	lock_acquired(dep_map, _RET_IP_);
-	mutex_release(dep_map, 0, _RET_IP_);
+	mutex_release(dep_map, _RET_IP_);
 #endif
 
 	kfree(name);

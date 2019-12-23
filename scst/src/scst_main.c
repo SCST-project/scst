@@ -48,10 +48,8 @@ details.
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) && \
-	!defined(SCSI_EXEC_REQ_FIFO_DEFINED) &&	     \
 	!defined(CONFIG_SCST_STRICT_SERIALIZING)
-#warning Patch scst_exec_req_fifo-<kernel-version> was not applied on \
-your kernel and CONFIG_SCST_STRICT_SERIALIZING is not defined. \
+#warning CONFIG_SCST_STRICT_SERIALIZING has not been defined. \
 Pass-through dev handlers will not work.
 #endif
 
@@ -979,7 +977,7 @@ out:
 	if (res == 0)
 		lock_acquired(&scst_suspend_dep_map, _RET_IP_);
 	else
-		rwlock_release(&scst_suspend_dep_map, 1, _RET_IP_);
+		rwlock_release(&scst_suspend_dep_map, _RET_IP_);
 #endif
 
 	TRACE_EXIT_RES(res);
@@ -1059,7 +1057,7 @@ void scst_resume_activity(void)
 	TRACE_ENTRY();
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-	rwlock_release(&scst_suspend_dep_map, 1, _RET_IP_);
+	rwlock_release(&scst_suspend_dep_map, _RET_IP_);
 #endif
 
 	mutex_lock(&scst_suspend_mutex);
@@ -1538,7 +1536,6 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 		goto out;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) && \
-	!defined(SCSI_EXEC_REQ_FIFO_DEFINED) && \
 	!defined(CONFIG_SCST_STRICT_SERIALIZING)
 	if (dev_type->exec == NULL) {
 		PRINT_ERROR("Pass-through dev handlers (handler \"%s\") not "

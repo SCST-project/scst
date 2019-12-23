@@ -2265,11 +2265,11 @@ ql_dbg(uint32_t level, scsi_qla_host_t *vha, int32_t id, const char *fmt, ...)
 	if (vha != NULL) {
 		const struct pci_dev *pdev = vha->hw->pdev;
 		/* <module-name> <pci-name> <msg-id>:<host> Message */
-		pr_warning("%s [%s]-%04x:%ld: ",
+		pr_warn("%s [%s]-%04x:%ld: ",
 			QL_MSGHDR, dev_name(&(pdev->dev)), id + ql_dbg_offset,
 			vha->host_no);
 	} else {
-		pr_warning("%s [%s]-%04x: ",
+		pr_warn("%s [%s]-%04x: ",
 			QL_MSGHDR, "0000:00:00.0", id + ql_dbg_offset);
 	}
 
@@ -2306,7 +2306,7 @@ ql_dbg_pci(uint32_t level, struct pci_dev *pdev, int32_t id,
 	va_start(va, fmt);
 
 	/* <module-name> <dev-name>:<msg-id> Message */
-	pr_warning("%s [%s]-%04x: ",
+	pr_warn("%s [%s]-%04x: ",
 		QL_MSGHDR, dev_name(&(pdev->dev)), id + ql_dbg_offset);
 
 	vprintk(fmt, va);
@@ -2356,7 +2356,7 @@ ql_log(uint32_t level, scsi_qla_host_t *vha, int32_t id, const char *fmt, ...)
 		pr_err("%s", pbuf);
 		break;
 	case ql_log_info:
-		pr_warning("%s", pbuf);
+		pr_warn("%s", pbuf);
 		break;
 	default:
 		pr_info("%s", pbuf);
@@ -2406,7 +2406,7 @@ ql_log_pci(uint32_t level, struct pci_dev *pdev, int32_t id,
 		pr_err("%s", pbuf);
 		break;
 	case ql_log_info:
-		pr_warning("%s", pbuf);
+		pr_warn("%s", pbuf);
 		break;
 	default:
 		pr_info("%s", pbuf);
