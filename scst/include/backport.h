@@ -853,6 +853,17 @@ static inline void lockdep_unregister_key(struct lock_class_key *key)
 }
 #endif
 
+/*
+ * See also commit 5facae4f3549 ("locking/lockdep: Remove unused @nested
+ * argument from lock_release()").
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0)
+#undef rwlock_release
+#define rwlock_release(l, i) lock_release(l, 1, i)
+#undef mutex_release
+#define mutex_release(l, i) lock_release(l, 0, i)
+#endif
+
 /* <linux/mempoool.h> */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
 /*

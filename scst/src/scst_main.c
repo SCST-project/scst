@@ -979,7 +979,7 @@ out:
 	if (res == 0)
 		lock_acquired(&scst_suspend_dep_map, _RET_IP_);
 	else
-		rwlock_release(&scst_suspend_dep_map, 1, _RET_IP_);
+		rwlock_release(&scst_suspend_dep_map, _RET_IP_);
 #endif
 
 	TRACE_EXIT_RES(res);
@@ -1059,7 +1059,7 @@ void scst_resume_activity(void)
 	TRACE_ENTRY();
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-	rwlock_release(&scst_suspend_dep_map, 1, _RET_IP_);
+	rwlock_release(&scst_suspend_dep_map, _RET_IP_);
 #endif
 
 	mutex_lock(&scst_suspend_mutex);
