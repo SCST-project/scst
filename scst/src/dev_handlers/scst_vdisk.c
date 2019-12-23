@@ -2718,7 +2718,7 @@ out_err:
 	goto out;
 }
 
-static int vdisk_parse(struct scst_cmd *cmd)
+static int fileio_parse(struct scst_cmd *cmd)
 {
 	int res, rc;
 
@@ -9909,7 +9909,7 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.detach =		vdisk_detach,
 	.attach_tgt =		vdisk_attach_tgt,
 	.detach_tgt =		vdisk_detach_tgt,
-	.parse =		vdisk_parse,
+	.parse =		fileio_parse,
 	.exec =			fileio_exec,
 	.on_free_cmd =		fileio_on_free_cmd,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
