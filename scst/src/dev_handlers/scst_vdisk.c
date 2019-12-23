@@ -9871,7 +9871,7 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 	NULL,
 };
 
-static const char *fileio_add_dev_params[] = {
+static const char *const fileio_add_dev_params[] = {
 	"async",
 	"blocksize",
 	"cluster_mode",
@@ -9962,7 +9962,7 @@ static const struct attribute *vdisk_blockio_attrs[] = {
 	NULL,
 };
 
-static const char *blockio_add_dev_params[] = {
+static const char *const blockio_add_dev_params[] = {
 	"active",
 	"bind_alua_state",
 	"blocksize",
@@ -10038,7 +10038,7 @@ static const struct attribute *vdisk_nullio_attrs[] = {
 	NULL,
 };
 
-static const char *nullio_add_dev_params[] = {
+static const char *const nullio_add_dev_params[] = {
 	"blocksize",
 	"cluster_mode",
 	"dif_mode",
