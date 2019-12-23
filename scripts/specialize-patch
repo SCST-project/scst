@@ -148,7 +148,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
   gsub("defined\\(HAVE_IB_DMA_MAP_OPS\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(0, 0, 0))", stmnt)
 
-  gsub("defined\\(HAVE_IB_SG_DMA_LEN\\)",
+  gsub("HAVE_IB_SG_DMA_LEN",
        "(LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0))", stmnt)
 
   gsub("defined(ENABLE_NPIV)", 0, stmnt)
