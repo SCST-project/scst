@@ -10,4 +10,4 @@ ignore=(
     SPDX_LICENSE_TAG
     SYMBOLIC_PERMS
 )
-../linux-kernel/scripts/checkpatch.pl -f --show-types --ignore="$(echo "${ignore[@]}" | sed 's/ /,/g')" $(list-source-files | grep -vE 'fcst/linux-patches|patch$|pdf$|png$|^ibmvstgt/|^mpt/|^qla_isp/|^mvsas_tgt/') | sed 's/^#[0-9]*: FILE: \(.*\):/\1:1:/'
+../linux-kernel/scripts/checkpatch.pl -f --show-types --ignore="$(echo "${ignore[@]}" | sed 's/ /,/g')" $(list-source-files | grep -vE 'fcst/linux-patches|patch$|pdf$|png$|^ibmvstgt/|^iscsi-scst/usr|^mpt/|^qla_isp/|^mvsas_tgt/') | sed 's/^#[0-9]*: FILE: \(.*\):/\1:1:/'
