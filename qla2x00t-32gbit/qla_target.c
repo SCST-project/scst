@@ -5458,8 +5458,6 @@ qlt_alloc_qfull_cmd(struct scsi_qla_host *vha,
 		return;
 	}
 
-	memset(cmd, 0, sizeof(struct qla_tgt_cmd));
-
 	qlt_incr_num_pend_cmds(vha);
 	INIT_LIST_HEAD(&cmd->cmd_list);
 	memcpy(&cmd->atio, atio, sizeof(*atio));
