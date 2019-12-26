@@ -1398,8 +1398,6 @@ static struct fc_port *qlt_create_sess(
 			return NULL;
 		}
 
-		INIT_WORK(&sess->del_work, qla24xx_delete_sess_fn);
-
 		spin_lock_irqsave(&ha->tgt.sess_lock, flags);
 		if (!IS_SW_RESV_ADDR(sess->d_id))
 			vha->vha_tgt.qla_tgt->sess_count++;
