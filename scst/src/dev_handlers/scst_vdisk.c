@@ -10134,7 +10134,7 @@ static const struct attribute *vcdrom_attrs[] = {
 	NULL,
 };
 
-static const char *cdrom_add_dev_params[] = {
+static const char *const cdrom_add_dev_params[] = {
 	"tst",
 	NULL,
 };
