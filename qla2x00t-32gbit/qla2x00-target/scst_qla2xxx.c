@@ -870,6 +870,8 @@ static int sqa_close_session(struct scst_session *scst_sess)
 	unsigned long flags;
 	struct qla_hw_data *ha = fcport->vha->hw;
 
+	fcport->explicit_logout = 1;
+
 	spin_lock_irqsave(&ha->tgt.sess_lock, flags);
 	sqa_qla2xxx_put_sess(fcport);
 	spin_unlock_irqrestore(&ha->tgt.sess_lock, flags);
