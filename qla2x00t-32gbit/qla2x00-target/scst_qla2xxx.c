@@ -392,7 +392,6 @@ static struct qla_tgt_cmd *sqa_qla2xxx_get_cmd(struct fc_port *sess)
 #endif
 	cmd->sess = sess;
 	cmd->vha = sess->vha;
-	cmd->rel_cmd = sqa_qla2xxx_rel_cmd;
 	return cmd;
 }
 
@@ -1892,6 +1891,7 @@ static struct qla_tgt_func_tmpl sqa_qla2xxx_template = {
 	.handle_data		    = sqa_qla2xxx_handle_data,
 	.handle_tmr		    = sqa_qla2xxx_handle_tmr,
 	.get_cmd		    = sqa_qla2xxx_get_cmd,
+	.rel_cmd		    = sqa_qla2xxx_rel_cmd,
 	.free_cmd		    = sqa_qla2xxx_free_cmd,
 	.free_mcmd		    = sqa_qla2xxx_free_mcmd,
 	.free_session		    = sqa_qla2xxx_free_session,
