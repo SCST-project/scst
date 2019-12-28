@@ -84,7 +84,8 @@ ifeq ($(OFED_FLAVOR),MOFED)
 			-include $(OFED_DIR)/include/linux/compat-2.6.h \
 			-DMOFED_MAJOR=$(shell echo $(OFED_VERS) | cut -f1 -d.)\
 			-DMOFED_MINOR=$(shell echo $(OFED_VERS) | cut -f2 -d.)
-	ISER_SYMVERS:=$(ISER_SYMVERS) $(OFED_DIR)/$(MODULE_SYMVERS)
+	OFED_MODULE_SYMVERS:=$(OFED_DIR)/$(MODULE_SYMVERS)
+	ISER_SYMVERS:=$(ISER_SYMVERS) $(OFED_MODULE_SYMVERS)
 	OFED_CONFIG:= CONFIG_DTRACE=
 else
 	# Whether or not the OFED kernel-ib-devel RPM has been installed.
@@ -108,7 +109,7 @@ else
 endif
 
 # Use make instead of $(MAKE) to get rid of command-line option -i
-run_conftest = $(shell if [ "0$(V)" -gt 0 ]; then output=/dev/stdout; else output=/dev/null; fi; if MAKEFLAGS= make -C $(KDIR) V=$(V) M="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" $(OFED_CONFIG) 1>&2 2>$${output}; then echo "$(strip $2)"; else echo "$(strip $3)"; fi)
+run_conftest = $(shell if [ "0$(V)" -gt 0 ]; then output=/dev/stdout; else output=/dev/null; fi; if MAKEFLAGS= make -C $(KDIR) V=$(V) M="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" $(OFED_CONFIG) KBUILD_EXTRA_SYMBOLS="$(OFED_MODULE_SYMVERS)" 1>&2 2>$${output}; then echo "$(strip $2)"; else echo "$(strip $3)"; fi)
 run_conftest_bool = $(call run_conftest,$1,-D$(strip $2)=1,-D$(strip $2)=0)
 
 CONFTESTS = $(shell ls -d conftest/*)

@@ -82,7 +82,7 @@ OFED_MODULE_SYMVERS:=$(OFED_KERNEL_DIR)/$(MODULE_SYMVERS)
 endif
 
 # Use make instead of $(MAKE) to get rid of command-line option -i
-run_conftest = $(shell if [ "0$(V)" -gt 0 ]; then output=/dev/stdout; else output=/dev/null; fi; if MAKEFLAGS= make -C $(KDIR) V=$(V) M="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" $(OFED_CONFIG) 1>&2 2>$${output}; then echo "$(strip $2)"; else echo "$(strip $3)"; fi)
+run_conftest = $(shell if [ "0$(V)" -gt 0 ]; then output=/dev/stdout; else output=/dev/null; fi; if MAKEFLAGS= make -C $(KDIR) V=$(V) M="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" $(OFED_CONFIG) KBUILD_EXTRA_SYMBOLS="$(OFED_MODULE_SYMVERS)" 1>&2 2>$${output}; then echo "$(strip $2)"; else echo "$(strip $3)"; fi)
 run_conftest_bool = $(call run_conftest,$1,-D$(strip $2)=1,-D$(strip $2)=0)
 
 CONFTESTS = $(shell ls -d conftest/*)
