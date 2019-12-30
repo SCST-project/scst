@@ -1253,7 +1253,9 @@ struct scatterlist *scst_alloc_sg(int size, gfp_t gfp_mask, int *count)
 	struct scatterlist *res;
 	int pages = PAGE_ALIGN(size) >> PAGE_SHIFT;
 	struct sgv_pool_alloc_fns sys_alloc_fns = {
-		sgv_alloc_sys_pages, sgv_free_sys_sg_entries };
+		.alloc_pages_fn	= sgv_alloc_sys_pages,
+		.free_pages_fn	= sgv_free_sys_sg_entries,
+	};
 	int no_fail = ((gfp_mask & __GFP_NOFAIL) == __GFP_NOFAIL);
 	int cnt;
 
