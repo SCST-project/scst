@@ -567,10 +567,10 @@ out:
 
 /*
  * scst_event_mutex supposed to be held. Caller supposed to free returned
- * out_event_entry using kfree(). This function returnes event_entry, not
+ * out_event_entry using kfree(). This function returns event_entry, not
  * plain event, because this entry can then be queued in some list.
  */
-static int scst_event_get_event_from_user(void __user *arg,
+static int scst_event_get_event_from_user(struct scst_event_user __user *arg,
 	struct scst_event_entry **out_event_entry)
 {
 	int res, rc, event_entry_len;
@@ -579,7 +579,7 @@ static int scst_event_get_event_from_user(void __user *arg,
 
 	TRACE_ENTRY();
 
-	res = get_user(payload_len, (uint32_t __user *)arg);
+	res = get_user(payload_len, &arg->max_event_size);
 	if (res != 0) {
 		PRINT_ERROR("Failed to get payload len: %d", res);
 		goto out;
@@ -606,11 +606,19 @@ static int scst_event_get_event_from_user(void __user *arg,
 
 	TRACE_MEM("Allocated event entry %p", event_entry);
 
-	rc = copy_from_user(&event_entry->event, arg,
-		sizeof(event_entry->event) + payload_len);
+	rc = copy_from_user((u8 *)event_entry +
+			    offsetof(typeof(*event_entry), event), arg,
+			    event_entry_len);
 	if (rc != 0) {
 		PRINT_ERROR("Failed to copy %d user's bytes", rc);
 		res = -EFAULT;
+		goto out_free;
+	}
+
+	/* payload_len has been recopied, so recheck it. */
+	if (event_entry->event.payload_len != event_entry_len) {
+		PRINT_ERROR("Payload len changed while being read");
+		res = -EINVAL;
 		goto out_free;
 	}
 
