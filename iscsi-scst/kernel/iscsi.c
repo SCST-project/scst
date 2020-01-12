@@ -335,6 +335,9 @@ static struct iscsi_cmnd *cmnd_alloc(struct iscsi_conn *conn,
 	/* ToDo: __GFP_NOFAIL?? */
 	cmnd = kmem_cache_zalloc(iscsi_cmnd_cache, GFP_KERNEL|__GFP_NOFAIL);
 
+	/* Tell Coverity about __GFP_NOFAIL. */
+	EXTRACHECKS_BUG_ON(cmnd == NULL);
+
 	iscsi_cmnd_init(conn, cmnd, parent);
 
 	TRACE_DBG("conn %p, parent %p, cmnd %p", conn, parent, cmnd);
@@ -1620,6 +1623,8 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 			offset = 0;
 		}
 
+		/* To suppress a false positive Coverity complaint. */
+		EXTRACHECKS_BUG_ON(sg == &dummy_sg[0] && idx > 0);
 		addr = page_address(sg_page(&sg[idx]));
 		EXTRACHECKS_BUG_ON(addr == NULL);
 		sg_len = sg[idx].offset + sg[idx].length - offset;

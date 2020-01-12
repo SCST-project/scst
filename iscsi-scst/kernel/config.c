@@ -241,6 +241,14 @@ static int del_session(void __user *ptr)
 		goto out_free;
 	}
 
+#ifdef __COVERITY__
+	/* To suppress a Coverity "tainted scalar" complaint. */
+	if (info->initiator_name[sizeof(info->initiator_name) - 1]) {
+		err = -EINVAL;
+		goto out_free;
+	}
+#endif
+
 	info->initiator_name[sizeof(info->initiator_name)-1] = '\0';
 
 	target = target_lookup_by_id(info->tid);
@@ -321,6 +329,14 @@ static int iscsi_initiator_allowed(void __user *ptr)
 		err = -EFAULT;
 		goto out;
 	}
+
+#ifdef __COVERITY__
+	/* To suppress a Coverity "tainted scalar" complaint. */
+	if (cinfo.full_initiator_name[sizeof(cinfo.full_initiator_name) - 1]) {
+		err = -EINVAL;
+		goto out_free;
+	}
+#endif
 
 	cinfo.full_initiator_name[sizeof(cinfo.full_initiator_name)-1] = '\0';
 
@@ -734,6 +750,14 @@ static int add_target(void __user *ptr)
 		}
 	} else
 		uinfo = NULL;
+
+#ifdef __COVERITY__
+	/* To suppress a Coverity "tainted scalar" complaint (CID 344743). */
+	if (info->attrs_num > 65536) {
+		err = -EINVAL;
+		goto out_free;
+	}
+#endif
 
 	err = __add_target(info);
 
