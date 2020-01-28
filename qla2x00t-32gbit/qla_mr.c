@@ -788,8 +788,7 @@ qlafx00_iospace_config(struct qla_hw_data *ha)
 		goto iospace_error_exit;
 	}
 
-	ha->cregbase =
-	    ioremap_nocache(pci_resource_start(ha->pdev, 0), BAR0_LEN_FX00);
+	ha->cregbase = ioremap(pci_resource_start(ha->pdev, 0), BAR0_LEN_FX00);
 	if (!ha->cregbase) {
 		ql_log_pci(ql_log_fatal, ha->pdev, 0x0128,
 		    "cannot remap MMIO (%s), aborting\n", pci_name(ha->pdev));
@@ -809,8 +808,7 @@ qlafx00_iospace_config(struct qla_hw_data *ha)
 		goto iospace_error_exit;
 	}
 
-	ha->iobase =
-	    ioremap_nocache(pci_resource_start(ha->pdev, 2), BAR2_LEN_FX00);
+	ha->iobase = ioremap(pci_resource_start(ha->pdev, 2), BAR2_LEN_FX00);
 	if (!ha->iobase) {
 		ql_log_pci(ql_log_fatal, ha->pdev, 0x012b,
 		    "cannot remap MMIO (%s), aborting\n", pci_name(ha->pdev));
