@@ -1,0 +1,11 @@
+diff -Naur linux-5.4.6.orig/drivers/Makefile linux-5.4.6/drivers/Makefile
+--- linux-5.4.6.orig/drivers/Makefile	2019-12-21 11:05:23.000000000 +0100
++++ linux-5.4.6/drivers/Makefile	2019-12-22 17:57:42.265448215 +0100
+@@ -146,6 +146,7 @@
+ obj-$(CONFIG_VHOST_RING)	+= vhost/
+ obj-$(CONFIG_VHOST)		+= vhost/
+ obj-$(CONFIG_VLYNQ)		+= vlynq/
++obj-$(CONFIG_SCST)             += scst/
+ obj-$(CONFIG_GREYBUS)		+= greybus/
+ obj-$(CONFIG_STAGING)		+= staging/
+ obj-y				+= platform/
