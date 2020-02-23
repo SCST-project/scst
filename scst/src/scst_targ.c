@@ -4,6 +4,8 @@
  *  Copyright (C) 2004 - 2018 Vladislav Bolkhovitin <vst@vlnb.net>
  *  Copyright (C) 2004 - 2005 Leonid Stoljar
  *  Copyright (C) 2007 - 2018 Western Digital Corporation
+ *  Copyright (C) 2020 Tamas Bartha <tamas.bartha@barre.hu>
+ *  Copyright (C) 2008 - 2020 Bart Van Assche <bvanassche@acm.org>
  *
  *  This program is free software; you can redistribute it and/or
  *  modify it under the terms of the GNU General Public License
@@ -2203,6 +2205,61 @@ static inline enum scst_exec_context scst_optimize_post_exec_context(
 	return context;
 }
 
+/*
+ * In a H.A. setup, when using dev_disk for redirecting I/O between H.A. nodes,
+ * and with 'forwarding' mode enabled, the INQUIRY command returns the relative
+ * target port ID of the other node. That breaks the ALUA code at the initiator
+ * side. Hence this function that replaces the relative target port IDs in the
+ * INQUIRY response.
+ */
+static void scst_replace_port_info(struct scst_cmd *cmd)
+{
+	uint8_t *buf, *end, *p, designator_length;
+	int32_t length, page_length;
+
+	if (cmd->cdb[0] != INQUIRY || (cmd->cdb[1] & 0x01/*EVPD*/) == 0 ||
+	    cmd->cdb[2] != 0x83/*device identification*/)
+		return;
+
+	length = scst_get_buf_full_sense(cmd, &buf);
+	if (length < 4)
+		goto out_put;
+
+	page_length = get_unaligned_be16(&buf[2]);
+	end = buf + min(length, 4 + page_length);
+
+	for (p = buf + 4; p + 4 <= end; p += 4 + designator_length) {
+		const uint8_t code_set = p[0] & 0xf;
+		const uint8_t association = (p[1] & 0x30) >> 4;
+		const uint8_t designator_type = p[1] & 0xf;
+		uint16_t tg_id;
+
+		designator_length = p[3];
+
+		/*
+		 * Only process designators with code set 'binary', target port
+		 * association and designator length 4.
+		 */
+		if (code_set != 1 || association != 1 || designator_length != 4)
+			continue;
+		switch (designator_type) {
+		case 4:
+			/* relative target port */
+			put_unaligned_be16(cmd->tgt->rel_tgt_id, p + 6);
+			break;
+		case 5:
+			/* target port group */
+			tg_id = scst_lookup_tg_id(cmd->dev, cmd->tgt);
+			if (tg_id)
+				put_unaligned_be16(tg_id, p + 6);
+			break;
+		}
+	}
+
+out_put:
+	scst_put_buf_full(cmd, buf);
+}
+
 /**
  * scst_pass_through_cmd_done - done callback for pass-through commands
  * @data:	private opaque data
@@ -2223,6 +2280,9 @@ void scst_pass_through_cmd_done(void *data, char *sense, int result, int resid)
 		  cmd->cdb_len, cmd->cdb[0], result, resid);
 
 	scst_do_cmd_done(cmd, result, sense, SCSI_SENSE_BUFFERSIZE, resid);
+
+	if (result == 0)
+		scst_replace_port_info(cmd);
 
 	scst_set_cmd_state(cmd, SCST_CMD_STATE_PRE_DEV_DONE);
 
