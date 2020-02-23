@@ -253,6 +253,82 @@ out_unlock_put_not_completed:
 	goto out;
 }
 
+/* SPC-4 REPORT TARGET PORT GROUPS command */
+static enum scst_exec_res scst_report_tpgs(struct scst_cmd *cmd)
+{
+	struct scst_device *dev;
+	uint8_t *address;
+	void *buf;
+	int32_t buf_len;
+	uint32_t data_length, length;
+	uint8_t data_format;
+	int res;
+
+	TRACE_ENTRY();
+
+	buf_len = scst_get_buf_full_sense(cmd, &address);
+	if (buf_len <= 0)
+		goto out;
+
+	dev = cmd->dev;
+	data_format = cmd->cdb[1] >> 5;
+
+	res = scst_tg_get_group_info(&buf, &data_length, dev, data_format);
+	if (res == -ENOMEM) {
+		scst_set_busy(cmd);
+		goto out_put;
+	} else if (res < 0) {
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		goto out_put;
+	}
+
+	length = min_t(uint32_t, data_length, buf_len);
+	memcpy(address, buf, length);
+	kfree(buf);
+	if (length < cmd->resp_data_len)
+		scst_set_resp_data_len(cmd, length);
+
+out_put:
+	scst_put_buf_full(cmd, address);
+
+out:
+	cmd->completed = 1;
+
+	/* Report the result */
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
+
+	return SCST_EXEC_COMPLETED;
+}
+
+/* SPC-4 SET TARGET PORT GROUPS command */
+static enum scst_exec_res scst_exec_set_tpgs(struct scst_cmd *cmd)
+{
+	struct scst_device *dev = cmd->dev;
+	int rc;
+
+	if (!dev->expl_alua) {
+		PRINT_ERROR("SET TARGET PORT GROUPS: not explicit ALUA mode "
+			"(dev %s)", dev->virt_name);
+		/* Invalid opcode, i.e. SA field */
+		scst_set_invalid_field_in_cdb(cmd, 1,
+			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		goto out;
+	}
+
+	rc = scst_tg_set_group_info(cmd);
+	if (rc == 0) {
+		/* Running async */
+		return SCST_CMD_STATE_RES_CONT_NEXT;
+	}
+	scst_stpg_del_unblock_next(cmd);
+
+out:
+	cmd->completed = 1;
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
+	return SCST_EXEC_COMPLETED;
+}
+
 static enum scst_exec_res scst_report_supported_tm_fns(struct scst_cmd *cmd)
 {
 	const enum scst_exec_res res = SCST_EXEC_COMPLETED;
@@ -505,6 +581,9 @@ enum scst_exec_res scst_maintenance_in(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	switch (cmd->cdb[1] & 0x1f) {
+	case MI_REPORT_TARGET_PGS:
+		res = scst_report_tpgs(cmd);
+		break;
 	case MI_REPORT_SUPPORTED_TASK_MANAGEMENT_FUNCTIONS:
 		res = scst_report_supported_tm_fns(cmd);
 		break;
@@ -517,6 +596,22 @@ enum scst_exec_res scst_maintenance_in(struct scst_cmd *cmd)
 	}
 
 	TRACE_EXIT_RES(res);
+	return res;
+}
+
+enum scst_exec_res scst_maintenance_out(struct scst_cmd *cmd)
+{
+	enum scst_exec_res res;
+
+	switch (cmd->cdb[1] & 0x1f) {
+	case MO_SET_TARGET_PGS:
+		res = scst_exec_set_tpgs(cmd);
+		break;
+	default:
+		res = SCST_EXEC_NOT_COMPLETED;
+		break;
+	}
+
 	return res;
 }
 

@@ -11936,7 +11936,7 @@ static int get_cdb_info_min(struct scst_cmd *cmd,
 		break;
 	case MI_REPORT_TARGET_PGS:
 		cmd->op_name = "REPORT TARGET PORT GROUPS";
-		cmd->op_flags |= SCST_REG_RESERVE_ALLOWED |
+		cmd->op_flags |= SCST_LOCAL_CMD | SCST_REG_RESERVE_ALLOWED |
 			SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED;
 		break;
 	case MI_REPORT_SUPPORTED_OPERATION_CODES:
@@ -11967,7 +11967,7 @@ static int get_cdb_info_mo(struct scst_cmd *cmd,
 		unsigned long flags;
 
 		cmd->op_name = "SET TARGET PORT GROUPS";
-		cmd->op_flags |= SCST_STRICTLY_SERIALIZED;
+		cmd->op_flags |= SCST_LOCAL_CMD | SCST_STRICTLY_SERIALIZED;
 		spin_lock_irqsave(&scst_global_stpg_list_lock, flags);
 		TRACE_DBG("Adding STPG cmd %p to global_stpg_list", cmd);
 		cmd->cmd_on_global_stpg_list = 1;

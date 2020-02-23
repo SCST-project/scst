@@ -2708,6 +2708,7 @@ static scst_local_exec_fn scst_local_fns[256] = {
 	[EXTENDED_COPY] = scst_cm_ext_copy_exec,
 	[RECEIVE_COPY_RESULTS] = scst_cm_rcv_copy_res_exec,
 	[MAINTENANCE_IN] = scst_maintenance_in,
+	[MAINTENANCE_OUT] = scst_maintenance_out,
 };
 
 static enum scst_exec_res scst_do_local_exec(struct scst_cmd *cmd)

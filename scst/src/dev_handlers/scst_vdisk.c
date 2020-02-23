@@ -5106,80 +5106,6 @@ static enum compl_status_e vdisk_exec_get_lba_status(struct vdisk_cmd_params *p)
 	return CMD_SUCCEEDED;
 }
 
-/* SPC-4 REPORT TARGET PORT GROUPS command */
-static enum compl_status_e vdisk_exec_report_tpgs(struct vdisk_cmd_params *p)
-{
-	struct scst_cmd *cmd = p->cmd;
-	struct scst_device *dev;
-	uint8_t *address;
-	void *buf;
-	int32_t buf_len;
-	uint32_t data_length, length;
-	uint8_t data_format;
-	int res;
-
-	TRACE_ENTRY();
-
-	buf_len = scst_get_buf_full_sense(cmd, &address);
-	if (buf_len <= 0)
-		goto out;
-
-	dev = cmd->dev;
-	data_format = cmd->cdb[1] >> 5;
-
-	res = scst_tg_get_group_info(&buf, &data_length, dev, data_format);
-	if (res == -ENOMEM) {
-		scst_set_busy(cmd);
-		goto out_put;
-	} else if (res < 0) {
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
-		goto out_put;
-	}
-
-	length = min_t(uint32_t, data_length, buf_len);
-	memcpy(address, buf, length);
-	kfree(buf);
-	if (length < cmd->resp_data_len)
-		scst_set_resp_data_len(cmd, length);
-
-out_put:
-	scst_put_buf_full(cmd, address);
-
-out:
-	TRACE_EXIT();
-	return CMD_SUCCEEDED;
-}
-
-/* SPC-4 SET TARGET PORT GROUPS command */
-static enum compl_status_e vdisk_exec_set_tpgs(struct vdisk_cmd_params *p)
-{
-	struct scst_cmd *cmd = p->cmd;
-	struct scst_device *dev = cmd->dev;
-	int res = CMD_SUCCEEDED, rc;
-
-	TRACE_ENTRY();
-
-	if (!dev->expl_alua) {
-		PRINT_ERROR("SET TARGET PORT GROUPS: not explicit ALUA mode "
-			"(dev %s)", dev->virt_name);
-		/* Invalid opcode, i.e. SA field */
-		scst_set_invalid_field_in_cdb(cmd, 1,
-			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
-		goto out;
-	}
-
-	rc = scst_tg_set_group_info(cmd);
-	if (rc == 0)
-		res = RUNNING_ASYNC;
-	else
-		scst_stpg_del_unblock_next(cmd);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
 static enum compl_status_e vdisk_exec_sai_16(struct vdisk_cmd_params *p)
 {
 	switch (p->cmd->cdb[1] & 0x1f) {
@@ -5196,25 +5122,15 @@ static enum compl_status_e vdisk_exec_sai_16(struct vdisk_cmd_params *p)
 
 static enum compl_status_e vdisk_exec_maintenance_in(struct vdisk_cmd_params *p)
 {
-	switch (p->cmd->cdb[1] & 0x1f) {
-	case MI_REPORT_TARGET_PGS:
-		vdisk_exec_report_tpgs(p);
-		return CMD_SUCCEEDED;
-	}
-	scst_set_invalid_field_in_cdb(p->cmd, 1,
-			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
-	return CMD_SUCCEEDED;
+	/* For the code that handles RTPG, see also scst_local_cmd.c. */
+	return CMD_FAILED;
 }
 
-static enum compl_status_e vdisk_exec_maintenance_out(struct vdisk_cmd_params *p)
+static enum compl_status_e
+vdisk_exec_maintenance_out(struct vdisk_cmd_params *p)
 {
-	switch (p->cmd->cdb[1] & 0x1f) {
-	case MO_SET_TARGET_PGS:
-		return vdisk_exec_set_tpgs(p);
-	}
-	scst_set_invalid_field_in_cdb(p->cmd, 1,
-			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
-	return CMD_SUCCEEDED;
+	/* For the code that handles RTPG, see also scst_local_cmd.c. */
+	return CMD_FAILED;
 }
 
 static enum compl_status_e vdisk_exec_read_toc(struct vdisk_cmd_params *p)
