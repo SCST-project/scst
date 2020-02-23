@@ -288,7 +288,8 @@ scst/include/scst_event.h scst/include/backport.h"
 scst_04_main="scst/src/scst_main.c scst/src/scst_module.c scst/src/scst_priv.h \
 scst/src/scst_copy_mgr.c scst/src/scst_dlm.c scst/src/scst_dlm.h \
 scst/src/scst_event.c scst/src/scst_no_dlm.c"
-scst_05_targ="scst/src/scst_targ.c"
+scst_05_targ="scst/src/scst_targ.c scst/src/scst_local_cmd.c \
+scst/src/scst_local_cmd.h"
 scst_06_lib="scst/src/scst_lib.c"
 scst_07_pres="scst/src/scst_pres.h scst/src/scst_pres.c"
 scst_08_sysfs="scst/src/scst_sysfs.c"

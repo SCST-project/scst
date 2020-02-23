@@ -62,6 +62,7 @@ obj-m := scst.o
 
 scst-y        += scst_main.o
 scst-y        += scst_targ.o
+scst-y        += scst_local_cmd.o
 scst-y        += scst_lib.o
 #scst-y        += scst_proc.o
 scst-y        += scst_sysfs.o
