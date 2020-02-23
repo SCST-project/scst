@@ -253,9 +253,9 @@ out_unlock_put_not_completed:
 	goto out;
 }
 
-static int scst_report_supported_tm_fns(struct scst_cmd *cmd)
+static enum scst_exec_res scst_report_supported_tm_fns(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_COMPLETED;
+	const enum scst_exec_res res = SCST_EXEC_COMPLETED;
 	int length, resp_len = 0;
 	uint8_t *address;
 	uint8_t buf[16];
@@ -302,9 +302,9 @@ out_compl:
 	return res;
 }
 
-static int scst_report_supported_opcodes(struct scst_cmd *cmd)
+static enum scst_exec_res scst_report_supported_opcodes(struct scst_cmd *cmd)
 {
-	int res = SCST_EXEC_COMPLETED;
+	const enum scst_exec_res res = SCST_EXEC_COMPLETED;
 	int length, buf_len, i, offs;
 	uint8_t *address;
 	uint8_t *buf;
