@@ -28,7 +28,6 @@
 
 /** See README for description of those conditional defines **/
 #define CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
-/* #define CONFIG_SCST_FORWARD_MODE_PASS_THROUGH */
 #define CONFIG_SCST_NO_TOTAL_MEM_CHECKS
 
 #include <linux/types.h>
@@ -1686,6 +1685,18 @@ struct scst_tgt {
 	struct scst_acg *default_acg; /* default acg for this target */
 
 	struct list_head tgt_acg_list; /* target ACG groups */
+
+	/*
+	 * Set if and only if this target port is a forwarding source. If
+	 * enabled, the dev_disk handler submits COMPARE AND WRITE, EXTENDED
+	 * COPY and RECEIVE COPY RESULTS commands to the SCSI device instead
+	 * of handling these inside the SCST core. PERSISTENT RESERVE IN and
+	 * OUT commands are processed by the SCST core, whether or not this
+	 * mode is enabled. The name 'forwarding_src' refers to the use case
+	 * where SCSI passthrough is used to send SCSI commands to another
+	 * H.A. node.
+	 */
+	unsigned tgt_forward_src:1;
 
 	/*
 	 * Set, if this target is forwarding destination, i.e. does not check

@@ -1,3 +1,8 @@
+Summary of changes between versions 3.4 and 3.5
+-----------------------------------------------
+- Added the forward_src and forward_dst sysfs attributes. Removed
+  CONFIG_SCST_FORWARD_MODE_PASS_THROUGH.
+
 Summary of changes between versions 3.3 and 3.4
 -----------------------------------------------
 - I/O keeps running at full speed if a LUN is added or removed and also if

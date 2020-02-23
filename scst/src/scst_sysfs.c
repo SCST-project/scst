@@ -2513,6 +2513,44 @@ static struct kobj_attribute scst_rel_tgt_id =
 	__ATTR(rel_tgt_id, S_IRUGO | S_IWUSR, scst_rel_tgt_id_show,
 	       scst_rel_tgt_id_store);
 
+static ssize_t scst_tgt_forward_src_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_tgt *tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+
+	return sprintf(buf, "%d\n%s", tgt->tgt_forward_src,
+		       tgt->tgt_forward_src ? SCST_SYSFS_KEY_MARK "\n" : "");
+}
+
+static ssize_t scst_tgt_forward_src_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_tgt *tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	int res, old, new;
+
+	res = kstrtoint(buf, 0, &new);
+	if (res < 0)
+		return res;
+	if (new < 0 || new > 1)
+		return -EINVAL;
+
+	mutex_lock(&scst_mutex);
+	old = tgt->tgt_forward_src;
+	if (old != new) {
+		tgt->tgt_forward_src = new;
+		PRINT_INFO("%s target %s as forwarding source",
+			   tgt->tgt_forward_src ? "Set" : "Clear",
+			   tgt->tgt_name);
+	}
+	mutex_unlock(&scst_mutex);
+
+	return count;
+}
+
+static struct kobj_attribute scst_tgt_forward_src =
+	__ATTR(forward_src, S_IRUGO | S_IWUSR, scst_tgt_forward_src_show,
+	       scst_tgt_forward_src_store);
+
 static ssize_t scst_tgt_forward_dst_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -2885,6 +2923,7 @@ SCST_TGT_SYSFS_STAT_ATTR(cmd_count, none_cmd_count, SCST_DATA_NONE, >> 0);
 
 static struct attribute *scst_tgt_attrs[] = {
 	&scst_rel_tgt_id.attr,
+	&scst_tgt_forward_src.attr,
 	&scst_tgt_forward_dst.attr,
 	&scst_tgt_forwarding.attr,
 	&scst_tgt_comment.attr,

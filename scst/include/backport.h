@@ -674,6 +674,20 @@ static inline int __must_check kstrtol(const char *s, unsigned int base,
 {
 	return strict_strtol(s, base, res);
 }
+
+static inline int __must_check kstrtoint(const char *s, unsigned int base,
+					 int *result)
+{
+	long val;
+	int ret = strict_strtol(s, base, &val);
+
+	if (ret)
+		return ret;
+	*result = val;
+	if (*result != val)
+		return -EINVAL;
+	return 0;
+}
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)

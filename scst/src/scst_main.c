@@ -1111,7 +1111,7 @@ static int scst_register_device(struct scsi_device *scsidp)
 
 	dev->scsi_dev = scsidp;
 
-#ifdef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
+	/* For target ports that function as forwarding source. */
 	res = scst_pr_set_file_name(dev, NULL, "%s/%s", SCST_PR_DIR,
 				    dev->virt_name);
 	if (res != 0)
@@ -1120,7 +1120,6 @@ static int scst_register_device(struct scsi_device *scsidp)
 	res = scst_pr_init_dev(dev);
 	if (res != 0)
 		goto out_free_dev;
-#endif
 
 	list_add_tail(&dev->dev_list_entry, &scst_dev_list);
 
@@ -1143,14 +1142,9 @@ out:
 out_del_unlocked:
 	mutex_lock(&scst_mutex);
 	list_del_init(&dev->dev_list_entry);
-	mutex_unlock(&scst_mutex);
 
-	percpu_ref_kill(&dev->refcnt);
-	goto out;
-
-#ifdef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
+	/* If used as a forwarding source (see also tgt_forward_src). */
 	scst_pr_clear_dev(dev);
-#endif
 
 out_free_dev:
 	percpu_ref_kill(&dev->refcnt);
@@ -1193,9 +1187,8 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 
 	list_del_init(&dev->dev_list_entry);
 
-#ifdef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
+	/* For forwarding sources (see also tgt_forward_src). */
 	scst_pr_clear_dev(dev);
-#endif
 
 	scst_dg_dev_remove_by_dev(dev);
 

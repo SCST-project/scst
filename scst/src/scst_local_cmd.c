@@ -714,15 +714,13 @@ enum scst_exec_res scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-#ifndef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
-	if (dev->scsi_dev != NULL) {
+	if (cmd->tgt->tgt_forward_src && dev->scsi_dev) {
 		PRINT_WARNING("PR commands for pass-through devices not "
 			"supported (device %s)", dev->virt_name);
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out_done;
 	}
-#endif
 
 	buffer_size = scst_get_buf_full_sense(cmd, &buffer);
 	if (unlikely(buffer_size <= 0))

@@ -343,16 +343,6 @@ in/out in Makefile and scst.h:
    functionality is working only if dif_mode doesn't contain dev_store
    and dif_type is 1.
 
- - CONFIG_SCST_FORWARD_MODE_PASS_THROUGH - if defined, the pass-through
-   subsystem starts working in the forwarding mode, where reservation
-   commands processed locally and not passed to the backend SCSI device,
-   while COMPARE AND WRITE, EXTENDED COPY and RECEIVE COPY RESULTS
-   commands, which normally processed locally by the SCST core, not
-   processed locally, but passed to the backend device. Intended to be
-   used to implement NON-OPTIMIZED ALUA state together with "forwarding"
-   target attribute on the remote node. See below for more details.
-   Disabled by default for safety.
-
  - CONFIG_SCST_NO_TOTAL_MEM_CHECKS - disables checks of allocated
    memory, see scst_max_cmd_mem below. Allows to avoid 2 global
    variables on the fast path, hence get better multi-queue performance.
@@ -806,6 +796,14 @@ Every target should have at least the following entries:
    rel_tgt_id. In this case SCST will not allow to enable this target
    until rel_tgt_id becomes unique. This attribute initialized unique by
    SCST by default.
+
+ - forward_src - if set this target port is a forwarding source. This means
+   that commands like COMPARE AND WRITE, EXTENDED COPY and RECEIVE COPY
+   RESULTS are submitted to the SCSI device instead of being handled inside
+   the SCST core. PERSISTENT RESERVE IN and OUT commands are processed by the
+   SCST core, whether or not this mode is enabled. The name 'forwarding_src'
+   refers to the use case where SCSI passthrough is used to send SCSI commands
+   to another H.A. node.
 
  - forward_dst - if set this target port is a forwarding destination. This means
    that it does not check any local SCSI events (reservations, etc.). Those
@@ -1986,13 +1984,13 @@ The link between block devices I and J stands for synchronous replication.
 
 Such a setup can be configured as follows:
 
-1. Build SCST with CONFIG_SCST_FORWARD_MODE_PASS_THROUGH enabled in scst.h
+1. Build SCST.
 
 2. Setup on active node internal redirect target, which is going to
 accept redirected commands from the passive node. It must be visible
 only to the passive node.
 
-3. Set "forwarding" attribute for this target to 1. This is necessary to
+3. Set "forward_dst" attribute for this target to 1. This is necessary to
 correctly handle PRs.
 
 4. Export through this target the SAME backend SCST device as being
@@ -2007,7 +2005,8 @@ device on the passive side pointing to the active node.
 *pass-through* handler (scst_disk). Pass-though is needed to redirect
 non-block commands as well: ATS, XCOPY, etc.
 
-7. Set ALUA state to this target as "nonoptimized".
+7. Set ALUA state to this target as "nonoptimized". Set the forward_src
+attribute to one.
 
 That's it on the normal path. Now the initiator(s) would see 2 paths:
 OPTIMIZED going to the active node and NON-OPTIMIZED going to the
