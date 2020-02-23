@@ -210,6 +210,10 @@ enum scst_cdb_flags {
 	SCST_IMPLICIT_HQ =			0x0080,
 	SCST_SKIP_UA =				0x0100,
 	SCST_WRITE_MEDIUM =			0x0200,
+	/*
+	 * Set if a command should be executed by the SCST core instead
+	 * of by the device handler.
+	 */
 	SCST_LOCAL_CMD =			0x0400,
 
 	/*
