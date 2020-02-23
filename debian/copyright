@@ -220,6 +220,7 @@ Files: scst/Makefile
        scst/src/scst_dlm.c
        scst/src/scst_dlm.h
        scst/src/scst_lib.c
+       scst/src/scst_local_cmd.c
        scst/src/scst_main.c
        scst/src/scst_mem.c
        scst/src/scst_mem.h
