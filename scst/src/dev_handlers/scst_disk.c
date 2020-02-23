@@ -144,6 +144,7 @@ static void disk_detach(struct scst_device *dev)
 
 static int disk_parse(struct scst_cmd *cmd)
 {
+	struct scst_tgt *tgt = cmd->tgt;
 	int res = SCST_CMD_STATE_DEFAULT, rc;
 
 	rc = scst_sbc_generic_parse(cmd);
@@ -152,8 +153,7 @@ static int disk_parse(struct scst_cmd *cmd)
 		goto out;
 	}
 
-#ifdef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
-	if (unlikely(cmd->op_flags & SCST_LOCAL_CMD)) {
+	if (unlikely(tgt->tgt_forward_src && cmd->op_flags & SCST_LOCAL_CMD)) {
 		switch (cmd->cdb[0]) {
 		case COMPARE_AND_WRITE:
 		case EXTENDED_COPY:
@@ -164,7 +164,6 @@ static int disk_parse(struct scst_cmd *cmd)
 			break;
 		}
 	}
-#endif
 
 	cmd->retries = SCST_PASSTHROUGH_RETRIES;
 out:
@@ -286,6 +285,7 @@ out_complete:
 /* Executes command and split CDB, if necessary */
 static enum scst_exec_res disk_exec(struct scst_cmd *cmd)
 {
+	struct scst_tgt *tgt = cmd->tgt;
 	enum scst_exec_res res;
 	int rc;
 	struct disk_work work;
@@ -299,8 +299,7 @@ static enum scst_exec_res disk_exec(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-#ifdef CONFIG_SCST_FORWARD_MODE_PASS_THROUGH
-	if (unlikely(cmd->op_flags & SCST_LOCAL_CMD)) {
+	if (unlikely(tgt->tgt_forward_src && cmd->op_flags & SCST_LOCAL_CMD)) {
 		switch (cmd->cdb[0]) {
 		case RESERVE:
 		case RESERVE_10:
@@ -315,7 +314,6 @@ static enum scst_exec_res disk_exec(struct scst_cmd *cmd)
 			break;
 		}
 	}
-#endif
 
 	/*
 	 * For PC requests we are going to submit max_hw_sectors used instead

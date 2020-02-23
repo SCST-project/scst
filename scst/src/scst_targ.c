@@ -2363,7 +2363,8 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 		goto out;
 	}
 
-	if (unlikely(test_bit(SCST_TGT_DEV_FORWARDING, &cmd->tgt_dev->tgt_dev_flags))) {
+	if (unlikely(test_bit(SCST_TGT_DEV_FORWARD_DST,
+			      &cmd->tgt_dev->tgt_dev_flags))) {
 		/*
 		 * All the checks are supposed to be done on the
 		 * forwarding requester's side.
@@ -2707,6 +2708,7 @@ static scst_local_exec_fn scst_local_fns[256] = {
 	[EXTENDED_COPY] = scst_cm_ext_copy_exec,
 	[RECEIVE_COPY_RESULTS] = scst_cm_rcv_copy_res_exec,
 	[MAINTENANCE_IN] = scst_maintenance_in,
+	[MAINTENANCE_OUT] = scst_maintenance_out,
 };
 
 static enum scst_exec_res scst_do_local_exec(struct scst_cmd *cmd)

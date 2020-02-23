@@ -1594,7 +1594,7 @@ static int scst_pr_register_all_tg_pt(struct scst_cmd *cmd, uint8_t *buffer,
 				continue;
 			if (tgt->rel_tgt_id == 0)
 				continue;
-			if (tgt->tgt_forwarding) {
+			if (tgt->tgt_forward_dst) {
 				TRACE_PR("ALL_TG_PT: skipping forwarding "
 					"target %s", tgt->tgt_name);
 				continue;

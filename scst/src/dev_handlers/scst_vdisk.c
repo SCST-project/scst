@@ -184,7 +184,6 @@ struct scst_vdisk_dev {
 	unsigned int tst:3;
 	unsigned int format_active:1;
 	unsigned int discard_zeroes_data:1;
-	unsigned int expl_alua:1;
 	unsigned int reexam_pending:1;
 	unsigned int size_key:1;
 	unsigned int opt_trans_len_set:1;
@@ -2554,7 +2553,6 @@ static int vdisk_get_supported_opcodes(struct scst_cmd *cmd,
 	int *out_supp_opcodes_cnt)
 {
 	struct scst_device *dev = cmd->dev;
-	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 
 	if (cmd->dev->dev_dif_type != 2) {
 		*out_supp_opcodes = vdisk_opcode_descriptors;
@@ -2563,7 +2561,7 @@ static int vdisk_get_supported_opcodes(struct scst_cmd *cmd,
 		*out_supp_opcodes = vdisk_opcode_descriptors_type2;
 		*out_supp_opcodes_cnt = ARRAY_SIZE(vdisk_opcode_descriptors_type2);
 	}
-	if (!virt_dev->expl_alua) {
+	if (!dev->expl_alua) {
 		(*out_supp_opcodes_cnt)--;
 		sBUG_ON((*out_supp_opcodes)[*out_supp_opcodes_cnt]->od_serv_action != MO_SET_TARGET_PGS);
 	}
@@ -3981,6 +3979,7 @@ static int vdisk_tp_vpd(uint8_t *buf, struct scst_cmd *cmd,
 static int vdisk_inq(uint8_t *buf, struct scst_cmd *cmd,
 		     struct scst_vdisk_dev *virt_dev)
 {
+	struct scst_device *dev = cmd->dev;
 	int num;
 
 	if (virt_dev->removable)
@@ -3993,7 +3992,7 @@ static int vdisk_inq(uint8_t *buf, struct scst_cmd *cmd,
 		buf[5] |= 1; /* PROTECT */
 	if (scst_alua_configured(cmd->dev)) {
 		buf[5] |= SCST_INQ_TPGS_MODE_IMPLICIT;
-		if (virt_dev->expl_alua)
+		if (dev->expl_alua)
 			buf[5] |= SCST_INQ_TPGS_MODE_EXPLICIT;
 	}
 	buf[5] |= 8; /* 3PC */
@@ -5107,81 +5106,6 @@ static enum compl_status_e vdisk_exec_get_lba_status(struct vdisk_cmd_params *p)
 	return CMD_SUCCEEDED;
 }
 
-/* SPC-4 REPORT TARGET PORT GROUPS command */
-static enum compl_status_e vdisk_exec_report_tpgs(struct vdisk_cmd_params *p)
-{
-	struct scst_cmd *cmd = p->cmd;
-	struct scst_device *dev;
-	uint8_t *address;
-	void *buf;
-	int32_t buf_len;
-	uint32_t data_length, length;
-	uint8_t data_format;
-	int res;
-
-	TRACE_ENTRY();
-
-	buf_len = scst_get_buf_full_sense(cmd, &address);
-	if (buf_len <= 0)
-		goto out;
-
-	dev = cmd->dev;
-	data_format = cmd->cdb[1] >> 5;
-
-	res = scst_tg_get_group_info(&buf, &data_length, dev, data_format);
-	if (res == -ENOMEM) {
-		scst_set_busy(cmd);
-		goto out_put;
-	} else if (res < 0) {
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
-		goto out_put;
-	}
-
-	length = min_t(uint32_t, data_length, buf_len);
-	memcpy(address, buf, length);
-	kfree(buf);
-	if (length < cmd->resp_data_len)
-		scst_set_resp_data_len(cmd, length);
-
-out_put:
-	scst_put_buf_full(cmd, address);
-
-out:
-	TRACE_EXIT();
-	return CMD_SUCCEEDED;
-}
-
-/* SPC-4 SET TARGET PORT GROUPS command */
-static enum compl_status_e vdisk_exec_set_tpgs(struct vdisk_cmd_params *p)
-{
-	struct scst_cmd *cmd = p->cmd;
-	struct scst_device *dev = cmd->dev;
-	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
-	int res = CMD_SUCCEEDED, rc;
-
-	TRACE_ENTRY();
-
-	if (!virt_dev->expl_alua) {
-		PRINT_ERROR("SET TARGET PORT GROUPS: not explicit ALUA mode "
-			"(dev %s)", dev->virt_name);
-		/* Invalid opcode, i.e. SA field */
-		scst_set_invalid_field_in_cdb(cmd, 1,
-			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
-		goto out;
-	}
-
-	rc = scst_tg_set_group_info(cmd);
-	if (rc == 0)
-		res = RUNNING_ASYNC;
-	else
-		scst_stpg_del_unblock_next(cmd);
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
-}
-
 static enum compl_status_e vdisk_exec_sai_16(struct vdisk_cmd_params *p)
 {
 	switch (p->cmd->cdb[1] & 0x1f) {
@@ -5198,25 +5122,15 @@ static enum compl_status_e vdisk_exec_sai_16(struct vdisk_cmd_params *p)
 
 static enum compl_status_e vdisk_exec_maintenance_in(struct vdisk_cmd_params *p)
 {
-	switch (p->cmd->cdb[1] & 0x1f) {
-	case MI_REPORT_TARGET_PGS:
-		vdisk_exec_report_tpgs(p);
-		return CMD_SUCCEEDED;
-	}
-	scst_set_invalid_field_in_cdb(p->cmd, 1,
-			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
-	return CMD_SUCCEEDED;
+	/* For the code that handles RTPG, see also scst_local_cmd.c. */
+	return CMD_FAILED;
 }
 
-static enum compl_status_e vdisk_exec_maintenance_out(struct vdisk_cmd_params *p)
+static enum compl_status_e
+vdisk_exec_maintenance_out(struct vdisk_cmd_params *p)
 {
-	switch (p->cmd->cdb[1] & 0x1f) {
-	case MO_SET_TARGET_PGS:
-		return vdisk_exec_set_tpgs(p);
-	}
-	scst_set_invalid_field_in_cdb(p->cmd, 1,
-			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
-	return CMD_SUCCEEDED;
+	/* For the code that handles RTPG, see also scst_local_cmd.c. */
+	return CMD_FAILED;
 }
 
 static enum compl_status_e vdisk_exec_read_toc(struct vdisk_cmd_params *p)
@@ -7010,7 +6924,6 @@ static int vdev_create_node(struct scst_dev_type *devt,
 	virt_dev->rotational = DEF_ROTATIONAL;
 	virt_dev->thin_provisioned = DEF_THIN_PROVISIONED;
 	virt_dev->tst = DEF_TST;
-	virt_dev->expl_alua = DEF_EXPL_ALUA;
 	INIT_WORK(&virt_dev->vdev_inq_changed_work, vdev_inq_changed_fn);
 
 	virt_dev->blk_shift = DEF_DISK_BLOCK_SHIFT;
@@ -8217,7 +8130,7 @@ static ssize_t vdisk_sysfs_rd_only_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
-	pos = sprintf(buf, "%d\n%s", virt_dev->rd_only ? 1 : 0,
+	pos = sprintf(buf, "%d\n%s", virt_dev->rd_only,
 		(virt_dev->rd_only == DEF_RD_ONLY) ? "" :
 			SCST_SYSFS_KEY_MARK "\n");
 
@@ -8237,7 +8150,7 @@ static ssize_t vdisk_sysfs_wt_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
-	pos = sprintf(buf, "%d\n%s", virt_dev->wt_flag ? 1 : 0,
+	pos = sprintf(buf, "%d\n%s", virt_dev->wt_flag,
 		(virt_dev->wt_flag == DEF_WRITE_THROUGH) ? "" :
 			SCST_SYSFS_KEY_MARK "\n");
 
@@ -8257,7 +8170,7 @@ static ssize_t vdisk_sysfs_tp_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
-	pos = sprintf(buf, "%d\n%s", virt_dev->thin_provisioned ? 1 : 0,
+	pos = sprintf(buf, "%d\n%s", virt_dev->thin_provisioned,
 		      virt_dev->thin_provisioned_manually_set &&
 		      (virt_dev->thin_provisioned !=
 		       virt_dev->dev_thin_provisioned) ?
@@ -8297,50 +8210,33 @@ static ssize_t vdisk_sysfs_expl_alua_show(struct kobject *kobj,
 					  struct kobj_attribute *attr,
 					  char *buf)
 {
-	struct scst_device *dev;
-	struct scst_vdisk_dev *virt_dev;
-	int pos;
+	struct scst_device *dev = container_of(kobj, struct scst_device,
+					       dev_kobj);
 
-	TRACE_ENTRY();
-
-	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = dev->dh_priv;
-	pos = sprintf(buf, "%d\n%s", virt_dev->expl_alua,
-		      virt_dev->expl_alua != DEF_EXPL_ALUA ?
+	return sprintf(buf, "%d\n%s", dev->expl_alua,
+		      dev->expl_alua != DEF_EXPL_ALUA ?
 		      SCST_SYSFS_KEY_MARK "\n" : "");
 
-	TRACE_EXIT_RES(pos);
-	return pos;
 }
 
 static ssize_t vdisk_sysfs_expl_alua_store(struct kobject *kobj,
 					   struct kobj_attribute *attr,
 					   const char *buf, size_t count)
 {
-	struct scst_device *dev;
-	struct scst_vdisk_dev *virt_dev;
-	char ch[16];
+	struct scst_device *dev = container_of(kobj, struct scst_device,
+					       dev_kobj);
 	unsigned long expl_alua;
 	int res;
 
-	TRACE_ENTRY();
-
-	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = dev->dh_priv;
-	sprintf(ch, "%.*s", min_t(int, sizeof(ch) - 1, count), buf);
-	res = kstrtoul(ch, 0, &expl_alua);
+	res = kstrtoul(buf, 0, &expl_alua);
 	if (res < 0)
-		goto out;
+		return res;
 
-	spin_lock(&virt_dev->flags_lock);
-	virt_dev->expl_alua = !!expl_alua;
-	spin_unlock(&virt_dev->flags_lock);
+	spin_lock_bh(&dev->dev_lock);
+	dev->expl_alua = !!expl_alua;
+	spin_unlock_bh(&dev->dev_lock);
 
-	res = count;
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
+	return count;
 }
 
 static ssize_t vdisk_sysfs_nv_cache_show(struct kobject *kobj,
@@ -8355,7 +8251,7 @@ static ssize_t vdisk_sysfs_nv_cache_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
-	pos = sprintf(buf, "%d\n%s", virt_dev->nv_cache ? 1 : 0,
+	pos = sprintf(buf, "%d\n%s", virt_dev->nv_cache,
 		(virt_dev->nv_cache == DEF_NV_CACHE) ? "" :
 			SCST_SYSFS_KEY_MARK "\n");
 
@@ -8375,7 +8271,7 @@ static ssize_t vdisk_sysfs_o_direct_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
-	pos = sprintf(buf, "%d\n%s", virt_dev->o_direct_flag ? 1 : 0,
+	pos = sprintf(buf, "%d\n%s", virt_dev->o_direct_flag,
 		(virt_dev->o_direct_flag == DEF_O_DIRECT) ? "" :
 			SCST_SYSFS_KEY_MARK "\n");
 
@@ -8447,7 +8343,7 @@ static ssize_t vdisk_sysfs_removable_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
-	pos = sprintf(buf, "%d\n", virt_dev->removable ? 1 : 0);
+	pos = sprintf(buf, "%d\n", virt_dev->removable);
 
 	if ((virt_dev->dev->type != TYPE_ROM) &&
 	    (virt_dev->removable != DEF_REMOVABLE))
@@ -8490,7 +8386,7 @@ static ssize_t vdisk_sysfs_rotational_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
-	pos = sprintf(buf, "%d\n", virt_dev->rotational ? 1 : 0);
+	pos = sprintf(buf, "%d\n", virt_dev->rotational);
 
 	if (virt_dev->rotational != DEF_ROTATIONAL)
 		pos += sprintf(&buf[pos], "%s\n", SCST_SYSFS_KEY_MARK);

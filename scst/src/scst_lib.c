@@ -5337,10 +5337,10 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	tgt_dev->lun = acg_dev->lun;
 	tgt_dev->acg_dev = acg_dev;
 	tgt_dev->tgt_dev_rd_only = acg_dev->acg_dev_rd_only || dev->dev_rd_only;
-	if (sess->tgt->tgt_forwarding)
-		set_bit(SCST_TGT_DEV_FORWARDING, &tgt_dev->tgt_dev_flags);
+	if (sess->tgt->tgt_forward_dst)
+		set_bit(SCST_TGT_DEV_FORWARD_DST, &tgt_dev->tgt_dev_flags);
 	else
-		clear_bit(SCST_TGT_DEV_FORWARDING, &tgt_dev->tgt_dev_flags);
+		clear_bit(SCST_TGT_DEV_FORWARD_DST, &tgt_dev->tgt_dev_flags);
 	tgt_dev->hw_dif_same_sg_layout_required = sess->tgt->tgt_hw_dif_same_sg_layout_required;
 	tgt_dev->tgt_dev_dif_guard_format = acg_dev->acg_dev_dif_guard_format;
 	if (tgt_dev->tgt_dev_dif_guard_format == SCST_DIF_GUARD_FORMAT_IP)
@@ -11936,7 +11936,7 @@ static int get_cdb_info_min(struct scst_cmd *cmd,
 		break;
 	case MI_REPORT_TARGET_PGS:
 		cmd->op_name = "REPORT TARGET PORT GROUPS";
-		cmd->op_flags |= SCST_REG_RESERVE_ALLOWED |
+		cmd->op_flags |= SCST_LOCAL_CMD | SCST_REG_RESERVE_ALLOWED |
 			SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED;
 		break;
 	case MI_REPORT_SUPPORTED_OPERATION_CODES:
@@ -11967,7 +11967,7 @@ static int get_cdb_info_mo(struct scst_cmd *cmd,
 		unsigned long flags;
 
 		cmd->op_name = "SET TARGET PORT GROUPS";
-		cmd->op_flags |= SCST_STRICTLY_SERIALIZED;
+		cmd->op_flags |= SCST_LOCAL_CMD | SCST_STRICTLY_SERIALIZED;
 		spin_lock_irqsave(&scst_global_stpg_list_lock, flags);
 		TRACE_DBG("Adding STPG cmd %p to global_stpg_list", cmd);
 		cmd->cmd_on_global_stpg_list = 1;
