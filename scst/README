@@ -1788,7 +1788,7 @@ attribute.
 closes open handles on all affected SCST devices and after transition
 reopens them, if the new state is active or nonoptimized. Alternatively,
 set "bind_alua_state=0" for SCST BLOCKIO devices and ALUA state changes
-will not open/close the backing block device, the user will neeed to handle
+will not open/close the backing block device, the user will need to handle
 this manually or via a cluster RA in an HA setup.
 
 Thus, the recommended implicit ALUA state change procedure for primary
