@@ -2072,10 +2072,10 @@ static ssize_t __scst_acg_cpu_mask_store(struct scst_acg *acg,
 	 * We can't use cpumask_parse_user() here, because it expects
 	 * buffer in the user space.
 	 */
-	res = __bitmap_parse(buf, count, 0, cpumask_bits(&work->cpu_mask),
-				nr_cpumask_bits);
+	res = bitmap_parse(buf, count, cpumask_bits(&work->cpu_mask),
+			   nr_cpumask_bits);
 	if (res != 0) {
-		PRINT_ERROR("__bitmap_parse() failed: %d", res);
+		PRINT_ERROR("bitmap_parse() failed: %d", res);
 		goto out_release;
 	}
 
