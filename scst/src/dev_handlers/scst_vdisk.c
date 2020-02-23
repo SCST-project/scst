@@ -184,7 +184,6 @@ struct scst_vdisk_dev {
 	unsigned int tst:3;
 	unsigned int format_active:1;
 	unsigned int discard_zeroes_data:1;
-	unsigned int expl_alua:1;
 	unsigned int reexam_pending:1;
 	unsigned int size_key:1;
 	unsigned int opt_trans_len_set:1;
@@ -2554,7 +2553,6 @@ static int vdisk_get_supported_opcodes(struct scst_cmd *cmd,
 	int *out_supp_opcodes_cnt)
 {
 	struct scst_device *dev = cmd->dev;
-	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 
 	if (cmd->dev->dev_dif_type != 2) {
 		*out_supp_opcodes = vdisk_opcode_descriptors;
@@ -2563,7 +2561,7 @@ static int vdisk_get_supported_opcodes(struct scst_cmd *cmd,
 		*out_supp_opcodes = vdisk_opcode_descriptors_type2;
 		*out_supp_opcodes_cnt = ARRAY_SIZE(vdisk_opcode_descriptors_type2);
 	}
-	if (!virt_dev->expl_alua) {
+	if (!dev->expl_alua) {
 		(*out_supp_opcodes_cnt)--;
 		sBUG_ON((*out_supp_opcodes)[*out_supp_opcodes_cnt]->od_serv_action != MO_SET_TARGET_PGS);
 	}
@@ -3981,6 +3979,7 @@ static int vdisk_tp_vpd(uint8_t *buf, struct scst_cmd *cmd,
 static int vdisk_inq(uint8_t *buf, struct scst_cmd *cmd,
 		     struct scst_vdisk_dev *virt_dev)
 {
+	struct scst_device *dev = cmd->dev;
 	int num;
 
 	if (virt_dev->removable)
@@ -3993,7 +3992,7 @@ static int vdisk_inq(uint8_t *buf, struct scst_cmd *cmd,
 		buf[5] |= 1; /* PROTECT */
 	if (scst_alua_configured(cmd->dev)) {
 		buf[5] |= SCST_INQ_TPGS_MODE_IMPLICIT;
-		if (virt_dev->expl_alua)
+		if (dev->expl_alua)
 			buf[5] |= SCST_INQ_TPGS_MODE_EXPLICIT;
 	}
 	buf[5] |= 8; /* 3PC */
@@ -5157,12 +5156,11 @@ static enum compl_status_e vdisk_exec_set_tpgs(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
 	struct scst_device *dev = cmd->dev;
-	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	int res = CMD_SUCCEEDED, rc;
 
 	TRACE_ENTRY();
 
-	if (!virt_dev->expl_alua) {
+	if (!dev->expl_alua) {
 		PRINT_ERROR("SET TARGET PORT GROUPS: not explicit ALUA mode "
 			"(dev %s)", dev->virt_name);
 		/* Invalid opcode, i.e. SA field */
@@ -7010,7 +7008,6 @@ static int vdev_create_node(struct scst_dev_type *devt,
 	virt_dev->rotational = DEF_ROTATIONAL;
 	virt_dev->thin_provisioned = DEF_THIN_PROVISIONED;
 	virt_dev->tst = DEF_TST;
-	virt_dev->expl_alua = DEF_EXPL_ALUA;
 	INIT_WORK(&virt_dev->vdev_inq_changed_work, vdev_inq_changed_fn);
 
 	virt_dev->blk_shift = DEF_DISK_BLOCK_SHIFT;
@@ -8297,50 +8294,33 @@ static ssize_t vdisk_sysfs_expl_alua_show(struct kobject *kobj,
 					  struct kobj_attribute *attr,
 					  char *buf)
 {
-	struct scst_device *dev;
-	struct scst_vdisk_dev *virt_dev;
-	int pos;
+	struct scst_device *dev = container_of(kobj, struct scst_device,
+					       dev_kobj);
 
-	TRACE_ENTRY();
-
-	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = dev->dh_priv;
-	pos = sprintf(buf, "%d\n%s", virt_dev->expl_alua,
-		      virt_dev->expl_alua != DEF_EXPL_ALUA ?
+	return sprintf(buf, "%d\n%s", dev->expl_alua,
+		      dev->expl_alua != DEF_EXPL_ALUA ?
 		      SCST_SYSFS_KEY_MARK "\n" : "");
 
-	TRACE_EXIT_RES(pos);
-	return pos;
 }
 
 static ssize_t vdisk_sysfs_expl_alua_store(struct kobject *kobj,
 					   struct kobj_attribute *attr,
 					   const char *buf, size_t count)
 {
-	struct scst_device *dev;
-	struct scst_vdisk_dev *virt_dev;
-	char ch[16];
+	struct scst_device *dev = container_of(kobj, struct scst_device,
+					       dev_kobj);
 	unsigned long expl_alua;
 	int res;
 
-	TRACE_ENTRY();
-
-	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = dev->dh_priv;
-	sprintf(ch, "%.*s", min_t(int, sizeof(ch) - 1, count), buf);
-	res = kstrtoul(ch, 0, &expl_alua);
+	res = kstrtoul(buf, 0, &expl_alua);
 	if (res < 0)
-		goto out;
+		return res;
 
-	spin_lock(&virt_dev->flags_lock);
-	virt_dev->expl_alua = !!expl_alua;
-	spin_unlock(&virt_dev->flags_lock);
+	spin_lock_bh(&dev->dev_lock);
+	dev->expl_alua = !!expl_alua;
+	spin_unlock_bh(&dev->dev_lock);
 
-	res = count;
-
-out:
-	TRACE_EXIT_RES(res);
-	return res;
+	return count;
 }
 
 static ssize_t vdisk_sysfs_nv_cache_show(struct kobject *kobj,

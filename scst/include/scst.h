@@ -2874,6 +2874,11 @@ struct scst_device {
 	int dev_scsi_atomic_cmd_active;
 
 	/*
+	 * Whether or not explicit ALUA has been enabled. Protected by dev_lock.
+	 */
+	unsigned int expl_alua:1;
+
+	/*
 	 * List of all being executed on the dev commands.
 	 * Protected by dev_lock.
 	 */
