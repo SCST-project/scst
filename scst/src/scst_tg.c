@@ -1663,6 +1663,169 @@ static void scst_stpg_ext_blocking_done(struct scst_device *dev,
 	scst_stpg_check_blocking_done(*((struct scst_stpg_wait **)data));
 }
 
+/**
+ * struct osi - Information needed to process an STPG command.
+ *
+ * The 'on' in 'osi' refers to 'on_stpg', a concept from the ION SCST code base
+ * that has not yet been ported.
+ *
+ * @group_id: Target port group ID.
+ * @tg: Target port group.
+ * @prev_state: previous target port group ALUA state.
+ * @new_state: new target port group ALUA state.
+ */
+struct osi {
+	uint16_t	       group_id;
+	struct scst_target_group *tg;
+	enum scst_tg_state     prev_state;
+	enum scst_tg_state     new_state;
+};
+
+static int scst_emit_stpg_event(struct scst_cmd *cmd, struct scst_dev_group *dg,
+				struct osi *osi, int tpg_desc_count)
+{
+	int j, payload_len, event_entry_len, valid_desc_count, res;
+	struct scst_event_stpg_payload *payload;
+	struct scst_event_entry *event_entry;
+	struct scst_event_stpg_descr *descr;
+	struct scst_device *dev = cmd->dev;
+	struct scst_stpg_wait *wait;
+	struct scst_event *event;
+	struct scst_dg_dev *dgd;
+
+	payload_len = sizeof(*payload) + sizeof(*descr) * tpg_desc_count;
+	event_entry_len = sizeof(*event_entry) + payload_len;
+	event_entry = kzalloc(event_entry_len, GFP_KERNEL);
+	if (event_entry == NULL) {
+		PRINT_ERROR("Unable to allocate event (size %d)", event_entry_len);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	TRACE_MEM("event_entry %p (len %d) allocated", event_entry,
+		event_entry_len);
+
+	event = &event_entry->event;
+	event->payload_len = payload_len;
+
+	payload = (struct scst_event_stpg_payload *)event->payload;
+	payload->stpg_cmd_tag = cmd->tag;
+
+	res = 1;
+
+	if (strlcpy(payload->device_name, dev->virt_name,
+		    sizeof(payload->device_name)) >=
+	    sizeof(payload->device_name)) {
+		PRINT_ERROR("Device name %s too long", dev->virt_name);
+		goto out_too_long;
+	}
+
+	valid_desc_count = 0;
+	for (j = 0, descr = &payload->stpg_descriptors[0]; j < tpg_desc_count;
+	     j++) {
+		if (osi[j].prev_state == osi[j].new_state)
+			continue;
+
+		if (strlcpy(descr->prev_state,
+			    scst_alua_state_name(osi[j].prev_state),
+			    sizeof(descr->prev_state)) >=
+		    sizeof(descr->prev_state) ||
+		    strlcpy(descr->new_state,
+			    scst_alua_state_name(osi[j].new_state),
+			    sizeof(descr->new_state)) >=
+		    sizeof(descr->new_state) ||
+		    strlcpy(descr->dg_name, dg->name, sizeof(descr->dg_name))
+		    >= sizeof(descr->dg_name) ||
+		    strlcpy(descr->tg_name, osi[j].tg->name,
+			    sizeof(descr->tg_name)) >=
+		    sizeof(descr->tg_name))
+			goto out_too_long;
+
+		descr->group_id = osi[j].group_id;
+
+		TRACE_DBG("group_id %u, prev_state %s, new_state %s, dg_name %s, tg_name %s",
+			  descr->group_id, descr->prev_state, descr->new_state,
+			  descr->dg_name, descr->tg_name);
+
+		valid_desc_count++;
+		descr++;
+	}
+
+	payload->stpg_descriptors_cnt = valid_desc_count;
+
+	if (valid_desc_count == 0) {
+		TRACE_DBG("Nothing to do");
+		goto out;
+	}
+
+	dg->stpg_rel_tgt_id = cmd->tgt->rel_tgt_id;
+	dg->stpg_transport_id = kmemdup(cmd->sess->transport_id,
+		scst_tid_size(cmd->sess->transport_id), GFP_KERNEL);
+	if (dg->stpg_transport_id == NULL) {
+		PRINT_ERROR("Unable to duplicate stpg_transport_id");
+		goto out;
+	}
+
+	wait = kzalloc(sizeof(*wait), GFP_KERNEL);
+	if (wait == NULL) {
+		PRINT_ERROR("Unable to allocate STPG wait struct "
+			    "(size %zd)", sizeof(*wait));
+		res = -ENOMEM;
+		goto out;
+	}
+
+	atomic_set(&wait->stpg_wait_left, 1);
+	wait->event_entry = event_entry;
+
+	event_entry->event_notify_fn = scst_event_stpg_notify_fn;
+	event_entry->notify_fn_priv = cmd;
+
+	mutex_lock(&scst_dg_mutex);
+	list_for_each_entry(dgd, &dg->dev_list, entry) {
+		int rc;
+
+		if (dgd->dev == dev)
+			continue;
+
+		TRACE_DBG("STPG: ext blocking dev %s",
+			  dgd->dev->virt_name);
+
+		atomic_inc(&wait->stpg_wait_left);
+
+		rc = scst_ext_block_dev(dgd->dev,
+					scst_stpg_ext_blocking_done,
+					(uint8_t *)&wait, sizeof(wait),
+					SCST_EXT_BLOCK_STPG);
+		if (rc != 0) {
+			TRACE_DBG("scst_ext_block_dev() failed "
+				  "with %d, reverting (cmd %p)", rc, cmd);
+			wait->status = rc;
+			wait->dg = dg;
+			atomic_dec(&wait->stpg_wait_left);
+			spin_lock_bh(&dev->dev_lock);
+			WARN_ON(dgd->dev->stpg_ext_blocked);
+			dgd->dev->stpg_ext_blocked = 0;
+			spin_unlock_bh(&dev->dev_lock);
+			break;
+		}
+	}
+	mutex_unlock(&scst_dg_mutex);
+
+	scst_stpg_check_blocking_done(wait);
+	/* !! cmd can be already dead here !! */
+
+	return 0;
+
+out_too_long:
+	res = -EOVERFLOW;
+
+out:
+	kfree(dg->stpg_transport_id);
+	dg->stpg_transport_id = NULL;
+	kfree(event_entry);
+	return res;
+}
+
 /*
  * scst_tg_set_group_info - SET TARGET PORT GROUPS implementation.
  *
@@ -1679,19 +1842,9 @@ int scst_tg_set_group_info(struct scst_cmd *cmd)
 	struct scst_device *dev = cmd->dev;
 	uint8_t *buf;
 	int len;
-	int i, j, res = 1, tpg_desc_count, valid_desc_count;
+	int i, j, res = 1, tpg_desc_count;
 	struct scst_dev_group *dg;
-	struct osi {
-		uint16_t	       group_id;
-		struct scst_target_group *tg;
-		enum scst_tg_state     prev_state;
-		enum scst_tg_state     new_state;
-	} *osi = NULL;
-	int event_entry_len, payload_len;
-	struct scst_event_entry *event_entry;
-	struct scst_event *event;
-	struct scst_event_stpg_payload *payload;
-	struct scst_event_stpg_descr *descr;
+	struct osi *osi = NULL;
 
 	TRACE_ENTRY();
 
@@ -1816,139 +1969,22 @@ int scst_tg_set_group_info(struct scst_cmd *cmd)
 
 	scst_put_buf_full(cmd, buf);
 
-	payload_len = sizeof(*payload) + sizeof(*descr) * tpg_desc_count;
-	event_entry_len = sizeof(*event_entry) + payload_len;
-	event_entry = kzalloc(event_entry_len, GFP_KERNEL);
-	if (event_entry == NULL) {
-		PRINT_ERROR("Unable to allocate event (size %d)", event_entry_len);
-		res = -ENOMEM;
+	res = scst_emit_stpg_event(cmd, dg, osi, tpg_desc_count);
+	switch (res) {
+	case 1:
+	case 0:
+		break;
+	case -ENOMEM:
 		scst_set_busy(cmd);
-		goto out_free;
+		break;
+	default:
+		WARN_ONCE(true, "res = %d\n", res);
+		/* fall through */
+	case -EOVERFLOW:
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_set_target_pgs_failed));
+		break;
 	}
-
-	TRACE_MEM("event_entry %p (len %d) allocated", event_entry,
-		event_entry_len);
-
-	event = &event_entry->event;
-	event->payload_len = payload_len;
-
-	payload = (struct scst_event_stpg_payload *)event->payload;
-	payload->stpg_cmd_tag = cmd->tag;
-
-	res = 1;
-
-	if (strlen(dev->virt_name) >= sizeof(payload->device_name)) {
-		PRINT_ERROR("Device name %s too long", dev->virt_name);
-		goto out_too_long;
-	}
-	strlcpy(payload->device_name, dev->virt_name, sizeof(payload->device_name));
-
-	valid_desc_count = 0;
-	for (j = 0, descr = &payload->stpg_descriptors[0]; j < tpg_desc_count; j++) {
-		if (osi[j].prev_state == osi[j].new_state)
-			continue;
-
-		if (strlen(scst_alua_state_name(osi[j].prev_state)) >= sizeof(descr->prev_state)) {
-			PRINT_ERROR("prev state too long (%d)", osi[j].prev_state);
-			goto out_too_long;
-		}
-		strlcpy(descr->prev_state, scst_alua_state_name(osi[j].prev_state),
-			sizeof(descr->prev_state));
-
-		if (strlen(scst_alua_state_name(osi[j].new_state)) >= sizeof(descr->new_state)) {
-			PRINT_ERROR("new state too long (%d)", osi[j].new_state);
-			goto out_too_long;
-		}
-		strlcpy(descr->new_state, scst_alua_state_name(osi[j].new_state),
-			sizeof(descr->new_state));
-
-		if (strlen(dg->name) >= sizeof(descr->dg_name)) {
-			PRINT_ERROR("dg_name too long (%s)", dg->name);
-			goto out_too_long;
-		}
-		strlcpy(descr->dg_name, dg->name, sizeof(descr->dg_name));
-
-		if (strlen(osi[j].tg->name) >= sizeof(descr->tg_name)) {
-			PRINT_ERROR("tg_name too long (%s)", osi[j].tg->name);
-			goto out_too_long;
-		}
-		strlcpy(descr->tg_name, osi[j].tg->name,
-			sizeof(descr->tg_name));
-
-		descr->group_id = osi[j].group_id;
-
-		TRACE_DBG("group_id %u, prev_state %s, new_state %s, dg_name %s, "
-			"tg_name %s", descr->group_id, descr->prev_state,
-			descr->new_state, descr->dg_name, descr->tg_name);
-
-		valid_desc_count++;
-		descr++;
-	}
-
-	payload->stpg_descriptors_cnt = valid_desc_count;
-
-	if (valid_desc_count > 0) {
-		struct scst_dg_dev *dgd;
-		struct scst_stpg_wait *wait;
-		int rc;
-
-		dg->stpg_rel_tgt_id = cmd->tgt->rel_tgt_id;
-		dg->stpg_transport_id = kmemdup(cmd->sess->transport_id,
-			scst_tid_size(cmd->sess->transport_id), GFP_KERNEL);
-		if (dg->stpg_transport_id == NULL) {
-			PRINT_ERROR("Unable to duplicate stpg_transport_id");
-			goto out_free_event;
-		}
-
-		wait = kzalloc(sizeof(*wait), GFP_KERNEL);
-		if (wait == NULL) {
-			PRINT_ERROR("Unable to allocate STPG wait struct "
-				"(size %zd)", sizeof(*wait));
-			scst_set_busy(cmd);
-			res = -ENOMEM;
-			goto out_free_tr_id;
-		}
-
-		atomic_set(&wait->stpg_wait_left, 1);
-		wait->event_entry = event_entry;
-
-		event_entry->event_notify_fn = scst_event_stpg_notify_fn;
-		event_entry->notify_fn_priv = cmd;
-
-		mutex_lock(&scst_dg_mutex);
-		list_for_each_entry(dgd, &dg->dev_list, entry) {
-			if (dgd->dev == dev)
-				continue;
-
-			TRACE_DBG("STPG: ext blocking dev %s", dgd->dev->virt_name);
-
-			atomic_inc(&wait->stpg_wait_left);
-
-			rc = scst_ext_block_dev(dgd->dev, scst_stpg_ext_blocking_done,
-				(uint8_t *)&wait, sizeof(wait), SCST_EXT_BLOCK_STPG);
-			if (rc != 0) {
-				TRACE_DBG("scst_ext_block_dev() failed "
-					"with %d, reverting (cmd %p)", rc, cmd);
-				wait->status = rc;
-				wait->dg = dg;
-				atomic_dec(&wait->stpg_wait_left);
-				spin_lock_bh(&dev->dev_lock);
-				WARN_ON(dgd->dev->stpg_ext_blocked);
-				dgd->dev->stpg_ext_blocked = 0;
-				spin_unlock_bh(&dev->dev_lock);
-				break;
-			}
-		}
-		mutex_unlock(&scst_dg_mutex);
-
-		scst_stpg_check_blocking_done(wait);
-		/* !! cmd can be already dead here !! */
-	} else {
-		TRACE_DBG("Nothing to do");
-		goto out_free_event;
-	}
-
-	res = 0;
 
 out_free:
 	kfree(osi);
@@ -1967,17 +2003,6 @@ out_unlock_sm_fail:
 
 out_put:
 	scst_put_buf_full(cmd, buf);
-	goto out_free;
-
-out_too_long:
-	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_set_target_pgs_failed));
-	res = -EOVERFLOW;
-
-out_free_tr_id:
-	kfree(dg->stpg_transport_id);
-
-out_free_event:
-	kfree(event_entry);
 	goto out_free;
 }
 EXPORT_SYMBOL_GPL(scst_tg_set_group_info);
