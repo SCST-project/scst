@@ -8217,7 +8217,7 @@ static ssize_t vdisk_sysfs_rd_only_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
-	pos = sprintf(buf, "%d\n%s", virt_dev->rd_only ? 1 : 0,
+	pos = sprintf(buf, "%d\n%s", virt_dev->rd_only,
 		(virt_dev->rd_only == DEF_RD_ONLY) ? "" :
 			SCST_SYSFS_KEY_MARK "\n");
 
@@ -8237,7 +8237,7 @@ static ssize_t vdisk_sysfs_wt_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
-	pos = sprintf(buf, "%d\n%s", virt_dev->wt_flag ? 1 : 0,
+	pos = sprintf(buf, "%d\n%s", virt_dev->wt_flag,
 		(virt_dev->wt_flag == DEF_WRITE_THROUGH) ? "" :
 			SCST_SYSFS_KEY_MARK "\n");
 
@@ -8257,7 +8257,7 @@ static ssize_t vdisk_sysfs_tp_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
-	pos = sprintf(buf, "%d\n%s", virt_dev->thin_provisioned ? 1 : 0,
+	pos = sprintf(buf, "%d\n%s", virt_dev->thin_provisioned,
 		      virt_dev->thin_provisioned_manually_set &&
 		      (virt_dev->thin_provisioned !=
 		       virt_dev->dev_thin_provisioned) ?
@@ -8355,7 +8355,7 @@ static ssize_t vdisk_sysfs_nv_cache_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
-	pos = sprintf(buf, "%d\n%s", virt_dev->nv_cache ? 1 : 0,
+	pos = sprintf(buf, "%d\n%s", virt_dev->nv_cache,
 		(virt_dev->nv_cache == DEF_NV_CACHE) ? "" :
 			SCST_SYSFS_KEY_MARK "\n");
 
@@ -8375,7 +8375,7 @@ static ssize_t vdisk_sysfs_o_direct_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
-	pos = sprintf(buf, "%d\n%s", virt_dev->o_direct_flag ? 1 : 0,
+	pos = sprintf(buf, "%d\n%s", virt_dev->o_direct_flag,
 		(virt_dev->o_direct_flag == DEF_O_DIRECT) ? "" :
 			SCST_SYSFS_KEY_MARK "\n");
 
@@ -8447,7 +8447,7 @@ static ssize_t vdisk_sysfs_removable_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
-	pos = sprintf(buf, "%d\n", virt_dev->removable ? 1 : 0);
+	pos = sprintf(buf, "%d\n", virt_dev->removable);
 
 	if ((virt_dev->dev->type != TYPE_ROM) &&
 	    (virt_dev->removable != DEF_REMOVABLE))
@@ -8490,7 +8490,7 @@ static ssize_t vdisk_sysfs_rotational_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
-	pos = sprintf(buf, "%d\n", virt_dev->rotational ? 1 : 0);
+	pos = sprintf(buf, "%d\n", virt_dev->rotational);
 
 	if (virt_dev->rotational != DEF_ROTATIONAL)
 		pos += sprintf(&buf[pos], "%s\n", SCST_SYSFS_KEY_MARK);
