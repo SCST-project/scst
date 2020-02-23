@@ -479,8 +479,8 @@ enum scst_exec_res {
 /* Cache of acg->acg_black_hole_type */
 #define SCST_TGT_DEV_BLACK_HOLE		1
 
-/* Cache of tgt->tgt_forwarding */
-#define SCST_TGT_DEV_FORWARDING		5
+/* Cache of tgt->tgt_forward_dst */
+#define SCST_TGT_DEV_FORWARD_DST	5
 
 /*************************************************************
  ** I/O grouping types. Changing them don't forget to change
@@ -1688,11 +1688,11 @@ struct scst_tgt {
 	struct list_head tgt_acg_list; /* target ACG groups */
 
 	/*
-	 * Set, if this target is forwarding target, i.e. does not check
-	 * any local SCSI events (reservations, etc.). Those event supposed
-	 * to be checked on the another, requester's side.
+	 * Set, if this target is forwarding destination, i.e. does not check
+	 * any local SCSI events (reservations, etc.). Those events are
+	 * supposed to be checked at the side of the forwarding source.
 	 */
-	unsigned tgt_forwarding:1;
+	unsigned tgt_forward_dst:1;
 
 	/* Per target analog of the corresponding driver's fields */
 	unsigned tgt_dif_supported:1;

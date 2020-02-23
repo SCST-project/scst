@@ -2363,7 +2363,8 @@ int __scst_check_local_events(struct scst_cmd *cmd, bool preempt_tests_only)
 		goto out;
 	}
 
-	if (unlikely(test_bit(SCST_TGT_DEV_FORWARDING, &cmd->tgt_dev->tgt_dev_flags))) {
+	if (unlikely(test_bit(SCST_TGT_DEV_FORWARD_DST,
+			      &cmd->tgt_dev->tgt_dev_flags))) {
 		/*
 		 * All the checks are supposed to be done on the
 		 * forwarding requester's side.

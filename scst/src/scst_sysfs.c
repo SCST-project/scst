@@ -2513,7 +2513,7 @@ static struct kobj_attribute scst_rel_tgt_id =
 	__ATTR(rel_tgt_id, S_IRUGO | S_IWUSR, scst_rel_tgt_id_show,
 	       scst_rel_tgt_id_store);
 
-static ssize_t scst_tgt_forwarding_show(struct kobject *kobj,
+static ssize_t scst_tgt_forward_dst_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
 	struct scst_tgt *tgt;
@@ -2523,14 +2523,14 @@ static ssize_t scst_tgt_forwarding_show(struct kobject *kobj,
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
-	res = sprintf(buf, "%d\n%s", tgt->tgt_forwarding,
-			tgt->tgt_forwarding ? SCST_SYSFS_KEY_MARK "\n" : "");
+	res = sprintf(buf, "%d\n%s", tgt->tgt_forward_dst,
+			tgt->tgt_forward_dst ? SCST_SYSFS_KEY_MARK "\n" : "");
 
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
-static ssize_t scst_tgt_forwarding_store(struct kobject *kobj,
+static ssize_t scst_tgt_forward_dst_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	int res = 0;
@@ -2549,14 +2549,14 @@ static ssize_t scst_tgt_forwarding_store(struct kobject *kobj,
 
 	mutex_lock(&scst_mutex);
 
-	old = tgt->tgt_forwarding;
+	old = tgt->tgt_forward_dst;
 
 	switch (buf[0]) {
 	case '0':
-		tgt->tgt_forwarding = 0;
+		tgt->tgt_forward_dst = 0;
 		break;
 	case '1':
-		tgt->tgt_forwarding = 1;
+		tgt->tgt_forward_dst = 1;
 		break;
 	default:
 		PRINT_ERROR("%s: Requested action not understood: %s",
@@ -2565,7 +2565,7 @@ static ssize_t scst_tgt_forwarding_store(struct kobject *kobj,
 		goto out_unlock;
 	}
 
-	if (tgt->tgt_forwarding == old)
+	if (tgt->tgt_forward_dst == old)
 		goto out_unlock;
 
 	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
@@ -2576,18 +2576,22 @@ static ssize_t scst_tgt_forwarding_store(struct kobject *kobj,
 			struct scst_tgt_dev *tgt_dev;
 
 			list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
-				if (tgt->tgt_forwarding)
-					set_bit(SCST_TGT_DEV_FORWARDING, &tgt_dev->tgt_dev_flags);
+				if (tgt->tgt_forward_dst)
+					set_bit(SCST_TGT_DEV_FORWARD_DST,
+						&tgt_dev->tgt_dev_flags);
 				else
-					clear_bit(SCST_TGT_DEV_FORWARDING, &tgt_dev->tgt_dev_flags);
+					clear_bit(SCST_TGT_DEV_FORWARD_DST,
+						  &tgt_dev->tgt_dev_flags);
 			}
 		}
 	}
 
-	if (tgt->tgt_forwarding)
-		PRINT_INFO("Set target %s as forwarding", tgt->tgt_name);
+	if (tgt->tgt_forward_dst)
+		PRINT_INFO("Set target %s as forwarding destination",
+			   tgt->tgt_name);
 	else
-		PRINT_INFO("Clear target %s as forwarding", tgt->tgt_name);
+		PRINT_INFO("Clear target %s as forwarding destination",
+			   tgt->tgt_name);
 
 out_unlock:
 	mutex_unlock(&scst_mutex);
@@ -2600,9 +2604,14 @@ out:
 	return res;
 }
 
+static struct kobj_attribute scst_tgt_forward_dst =
+	__ATTR(forward_dst, S_IRUGO | S_IWUSR, scst_tgt_forward_dst_show,
+	       scst_tgt_forward_dst_store);
+
+// To do: remove the 'forwarding' sysfs attribute and keep 'forward_dst'.
 static struct kobj_attribute scst_tgt_forwarding =
-	__ATTR(forwarding, S_IRUGO | S_IWUSR, scst_tgt_forwarding_show,
-	       scst_tgt_forwarding_store);
+	__ATTR(forwarding, S_IRUGO | S_IWUSR, scst_tgt_forward_dst_show,
+	       scst_tgt_forward_dst_store);
 
 static ssize_t scst_tgt_comment_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
@@ -2876,6 +2885,7 @@ SCST_TGT_SYSFS_STAT_ATTR(cmd_count, none_cmd_count, SCST_DATA_NONE, >> 0);
 
 static struct attribute *scst_tgt_attrs[] = {
 	&scst_rel_tgt_id.attr,
+	&scst_tgt_forward_dst.attr,
 	&scst_tgt_forwarding.attr,
 	&scst_tgt_comment.attr,
 	&scst_tgt_addr_method.attr,

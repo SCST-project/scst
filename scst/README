@@ -807,9 +807,11 @@ Every target should have at least the following entries:
    until rel_tgt_id becomes unique. This attribute initialized unique by
    SCST by default.
 
- - forwarding - if set this target is forwarding target, i.e. does not check
-   any local SCSI events (reservations, etc.). Those event supposed to
-   be checked on the another, requester's side.
+ - forward_dst - if set this target port is a forwarding destination. This means
+   that it does not check any local SCSI events (reservations, etc.). Those
+   event are supposed to be checked at the forwarding source side.
+
+ - forwarding - obsolete synonym for forward_dst.
 
  - *count*, e.g. read_io_count_kb, - statistics about executed
    commands and transferred data. Those attributes have speaking names
