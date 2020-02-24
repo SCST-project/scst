@@ -7,6 +7,8 @@ Summary of changes between versions 3.4 and 3.5
   target port ID is now correct in the device identification inquiry response.
   The REPORT TARGET PORT GROUPS and SET TARGET PORT GROUPS commands are now
   processed locally instead of being forwarded.
+- Fixed a hard to trigger race condition in the iSCSI connection shutdown code.
+- Added support for unaligned buffers in vdisk_blockio.
 
 Summary of changes between versions 3.3 and 3.4
 -----------------------------------------------
