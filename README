@@ -31,24 +31,12 @@ For more information about each subproject see their README files.
 QLogic target driver
 ====================
 
-QLogic target driver qla2x00t is the old driver, forked from qla2xxx
+The QLogic target driver qla2x00t is the old driver, forked from qla2xxx
 several years ago. It is very stable, well tested and actively used in
 many production setups.
 
-There is also new driver, maintained by QLogic, which, among other,
-supports 32G FC, see http://scst.sourceforge.net/target_qla2x00t.html.
-You can find the latest version of it in git://git.qlogic.com/scst-qla2xxx.git.
-
-To integrate it into the SCST build tree you need to clone the QLogic
-git tree in a subdirectory of this directory (SCST root tree) with name
-qla2x00t_git (or create a symlink with this name pointing to any other
-location in your system).
-
-Now common and QLA specific root Makefile targets "magically" start
-working with the new driver. Then follow instructions in the git's
-README.
-
-In presence of qla2x00t_git subdirectory you can still build the
-qla2x00t using qla_old* root Makefile targets.
+There is also a new driver that supports 32 Gb/s FC in the qla2x00t-32gbit
+directory. That driver has not yet reached the same maturity level as the
+old qla2x00t driver.
 
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net
