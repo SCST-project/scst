@@ -56,6 +56,8 @@ void conn_free(struct connection *conn)
 	free(conn->initiator);
 	free(conn->target_portal);
 	free(conn->user);
+	if (conn->auth_method == AUTH_CHAP)
+		free(conn->auth.chap.challenge);
 	free(conn);
 	return;
 }

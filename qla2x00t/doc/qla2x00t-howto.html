@@ -112,11 +112,10 @@ And on SUSE systems these packages can be installed by running the following com
 </li>
 
 <li>
-  If you want to use the latest QLogic SCST target driver from the QLogic git, download it by:
-  <pre>[root@proj ]# git clone git://git.qlogic.com/scst-qla2xxx.git
-[root@proj ]# cd scst
-[root@proj scst]# ln -s ../scst-qla2xxx/drivers/scsi/qla2xxx qla2x00t_git</pre>
-  Note, this driver is not stable at the moment, therefore use of the driver from the SCST tree is recommended.
+  If you want to use the latest QLogic SCST target driver from the QLogic git,
+  use the driver from the qla2x00t-32gbit directory. Please note that this
+  driver has not yet reached the same maturity level as the driver in the
+  qla2x00t directory.
 </li>
 
 <li id="blacklist">
