@@ -777,7 +777,7 @@ qla2x00_process_loopback(struct bsg_job *bsg_job)
 	uint16_t response[MAILBOX_REGISTER_COUNT];
 	uint16_t config[4], new_config[4];
 	uint8_t *fw_sts_ptr;
-	uint8_t *req_data = NULL;
+	void *req_data = NULL;
 	dma_addr_t req_data_dma;
 	uint32_t req_data_len;
 	uint8_t *rsp_data = NULL;
