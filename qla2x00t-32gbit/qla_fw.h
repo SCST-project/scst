@@ -791,9 +791,8 @@ struct els_entry_24xx {
 
 	uint32_t handle;		/* System handle. */
 
-	uint16_t reserved_1;
-
-	uint16_t nport_handle;		/* N_PORT handle. */
+	uint16_t comp_status;		/* response only */
+	uint16_t nport_handle;
 
 	uint16_t tx_dsd_count;
 
@@ -808,7 +807,7 @@ struct els_entry_24xx {
 	uint8_t opcode;
 	uint8_t reserved_2;
 
-	uint8_t port_id[3];
+	uint8_t d_id[3];
 	uint8_t s_id[3];
 
 	uint16_t control_flags;		/* Control flags. */
@@ -820,13 +819,24 @@ struct els_entry_24xx {
 #define ECF_CLR_PASSTHRU_PEND	BIT_12
 #define ECF_INCL_FRAME_HDR	BIT_11
 
-	__le32	 rx_byte_count;
-	__le32	 tx_byte_count;
+	union {
+		struct {
+			__le32	 rx_byte_count;
+			__le32	 tx_byte_count;
 
-	__le64	 tx_address __packed;	/* Data segment 0 address. */
-	__le32	 tx_len;		/* Data segment 0 length. */
-	__le64	 rx_address __packed;	/* Data segment 1 address. */
-	__le32	 rx_len;		/* Data segment 1 length. */
+			__le64	 tx_address __packed;	/* DSD 0 address. */
+			__le32	 tx_len;		/* DSD 0 length. */
+
+			__le64	 rx_address __packed;	/* DSD 1 address. */
+			__le32	 rx_len;		/* DSD 1 length. */
+		};
+		struct {
+			uint32_t total_byte_count;
+			uint32_t error_subcode_1;
+			uint32_t error_subcode_2;
+			uint32_t error_subcode_3;
+		};
+	};
 };
 
 struct els_sts_entry_24xx {
@@ -852,15 +862,16 @@ struct els_sts_entry_24xx {
 	uint8_t opcode;
 	uint8_t reserved_3;
 
-	uint8_t port_id[3];
-	uint8_t reserved_4;
-
-	uint16_t reserved_5;
+	uint8_t d_id[3];
+	uint8_t s_id[3];
 
 	uint16_t control_flags;		/* Control flags. */
 	uint32_t total_byte_count;
 	uint32_t error_subcode_1;
 	uint32_t error_subcode_2;
+	uint32_t error_subcode_3;
+
+	uint32_t reserved_4[4];
 };
 /*
  * ISP queue - Mailbox Command entry structure definition.
