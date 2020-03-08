@@ -7,31 +7,48 @@
 %{echo:kversion=%{kversion}
 }
 # kernel_rpm: Name of the kernel RPM if the kernel is available as an RPM.
-%if %{expand:%%(rpm --quiet -q kernel-headers ||
-	        rpm --quiet -qf /lib/modules/%{kversion}/kernel/arch 2>/dev/null;
+# krpmver: Version of the kernel RPM. Not necessarily identical to kversion.
+%if %{expand:%%(rpm --quiet -qf /lib/modules/%{kversion}/kernel/arch 2>/dev/null;
 		echo $((1-$?)))}
 %define kernel_rpm %{expand:%%(
-	    if rpm --quiet -q kernel-headers; then
-		echo kernel;
-	    else
-		rpm -q --qf '%%%%{name}\\n' \\
-		    "$(rpm -qf /lib/modules/%%{kversion}/kernel/arch | head -n1)";
-	    fi
+	    rpm -q --qf '%%%%{name}\\n' -f \\
+		/lib/modules/%%{kversion}/kernel/arch | uniq
+	)}
+%define krpmver %{expand:%%(
+	    rpm -q --qf '%%%%{version}-%%%%{release}\\n' -f \\
+		/lib/modules/%%{kversion}/kernel/arch | uniq
+	)}
+%else
+%if %{expand:%%(rpm --quiet -q kernel-headers; echo $((1-$?)))}
+%define kernel_rpm kernel
+%define krpmver %{expand:%%(
+	    rpm -q --qf '%%%%{BUILDTIME} %%%%{version}-%%%%{release}\\n' \\
+		kernel-headers | sort | tail -n1 | { read a b; echo $b; }
 	)}
 %endif
-# krpmver: Version of the kernel RPM. Not necessarily identical to %{kversion}.
-%{?kernel_rpm:%define krpmver %{expand:%%(
-	    if rpm --quiet -q %%{kernel_rpm}; then
-		rpm -q --qf '%%%%{version}-%%%%{release}\\n' "%%{kernel_rpm}";
-	    else
-		rpm -q --qf '%%%%{version}-%%%%{release}\\n' kernel-headers;
-	    fi |
-	    head -n1
-	)}}
-%{echo:krpmver=%{krpmver}
+%endif
+%{?kernel_rpm:
+%{echo:kernel_rpm=%{kernel_rpm}
 }
+%{echo:krpmver=%{krpmver}
+}}
 # kernel_devel_rpm: Name of the kernel development RPM.
-%{?kernel_rpm:%define kernel_devel_rpm %{kernel_rpm}-devel}
+%if 0%{?kernel_rpm:1}
+%if %([ %{kernel_rpm} = kernel-plus-core ]; echo $((1-$?)))
+# CentOSPlus
+%define kernel_devel_rpm kernel-plus-devel
+%else
+%if %([ %{kernel_rpm} = kernel-core ]; echo $((1-$?)))
+# Fedora
+%define kernel_devel_rpm kernel-devel
+%else
+# Other Linux distros
+%define kernel_devel_rpm %{kernel_rpm}-devel
+%endif
+%endif
+%{echo:kernel_devel_rpm=%{kernel_devel_rpm}
+}
+%endif
 # Version of the RPM that is being built.
 %define rpm_version @rpm_version@
 # Make command with or without flags.
@@ -234,6 +251,8 @@ true
 /usr/include/scst/scst_user.h
 
 %changelog
+* Sun Mar  8 2020 Bart Van Assche <bvanassche@acm.org>
+- Added support for the CentOSPlus kernel.
 * Tue Oct  8 2019 Bart Van Assche <bvanassche@acm.org>
 - Make this spec file compatible with rpmbuild v4.14.
 * Wed May  6 2015 Bart Van Assche <bart.vanassche@sandisk.com>
