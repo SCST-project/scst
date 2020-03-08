@@ -39,12 +39,17 @@
 }}
 # kernel_devel_rpm: Name of the kernel development RPM.
 %if 0%{?kernel_rpm:1}
+%if %([ %{kernel_rpm} = kernel-plus-core ]; echo $((1-$?)))
+# CentOSPlus
+%define kernel_devel_rpm kernel-plus-devel
+%else
 %if %([ %{kernel_rpm} = kernel-core ]; echo $((1-$?)))
 # Fedora
 %define kernel_devel_rpm kernel-devel
 %else
 # Other Linux distros
 %define kernel_devel_rpm %{kernel_rpm}-devel
+%endif
 %endif
 %{echo:kernel_devel_rpm=%{kernel_devel_rpm}
 }
@@ -193,6 +198,8 @@ rm -rf /usr/local/include/scst
 /usr/include/scst/scst_user.h
 
 %changelog
+* Sun Mar  8 2020 Bart Van Assche <bvanassche@acm.org>
+- Added support for the CentOSPlus kernel.
 * Tue Oct  8 2019 Bart Van Assche <bvanassche@acm.org>
 - Make this spec file compatible with rpmbuild v4.14.
 * Wed May  6 2015 Bart Van Assche <bart.vanassche@sandisk.com>
