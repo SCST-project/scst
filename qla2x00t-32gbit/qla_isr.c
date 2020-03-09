@@ -3241,8 +3241,8 @@ void qla24xx_process_response_queue(struct scsi_qla_host *vha,
 	if (!ha->flags.fw_started)
 		return;
 
-	if (rsp->qpair->cpuid != smp_processor_id())
-		qla_cpu_update(rsp->qpair, smp_processor_id());
+	if (rsp->qpair->cpuid != raw_smp_processor_id())
+		qla_cpu_update(rsp->qpair, raw_smp_processor_id());
 
 	while (rsp->ring_ptr->signature != RESPONSE_PROCESSED) {
 		pkt = (struct sts_entry_24xx *)rsp->ring_ptr;
