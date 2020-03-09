@@ -210,7 +210,8 @@ static const int qla_tgt_supported_dif_block_size[] = {
 	0,			/* null terminated */
 };
 
-static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd, uint8_t xmit_rsp)
+static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd,
+					   uint8_t xmit_rsp)
 {
 	struct scst_cmd *scst_cmd = cmd->scst_cmd;
 	int dir = scst_cmd_get_data_direction(scst_cmd);
@@ -240,11 +241,10 @@ static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd, uint8_t xmit
 			cmd->se_cmd.prot_op = TARGET_PROT_DIN_STRIP;
 			break;
 		case SCST_DATA_BIDI:
-			if (xmit_rsp) {
+			if (xmit_rsp)
 				cmd->se_cmd.prot_op = TARGET_PROT_DOUT_STRIP;
-			} else {
+			else
 				cmd->se_cmd.prot_op = TARGET_PROT_DIN_STRIP;
-			}
 			break;
 		case SCST_DATA_NONE:
 			cmd->se_cmd.prot_op = TARGET_PROT_NORMAL;
@@ -266,11 +266,10 @@ static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd, uint8_t xmit
 			cmd->se_cmd.prot_op = TARGET_PROT_DIN_INSERT;
 			break;
 		case SCST_DATA_BIDI:
-			if (xmit_rsp) {
+			if (xmit_rsp)
 				cmd->se_cmd.prot_op = TARGET_PROT_DOUT_INSERT;
-			} else {
+			else
 				cmd->se_cmd.prot_op = TARGET_PROT_DIN_INSERT;
-			}
 			break;
 		case SCST_DATA_NONE:
 			cmd->se_cmd.prot_op = TARGET_PROT_NORMAL;
@@ -417,9 +416,7 @@ static int sqa_qla2xxx_handle_cmd(scsi_qla_host_t *vha,
 	scst_data_direction dir;
 
 	TRACE_ENTRY();
-	TRACE_DBG("sqatgt(%ld/%d): Handling command: length=%d, "
-		"fcp_task_attr=%d, direction=%d, bidirectional=%d lun=%llx cdb=%x "
-		"tag=%d cmd %p ulpcmd %p\n",
+	TRACE_DBG("sqatgt(%ld/%d): Handling command: length=%d, fcp_task_attr=%d, direction=%d, bidirectional=%d lun=%llx cdb=%x tag=%d cmd %p ulpcmd %p\n",
 		vha->host_no, vha->vp_idx, data_length, task_codes,
 		data_dir, bidi, cmd->unpacked_lun,
 		atio->u.isp24.fcp_cmnd.cdb[0],
@@ -476,17 +473,17 @@ static int sqa_qla2xxx_handle_cmd(scsi_qla_host_t *vha,
 			SCST_CMD_QUEUE_UNTAGGED);
 		break;
 	default:
-		PRINT_ERROR("sqatgt(%ld/%d): unknown task code %x, use "
-			"ORDERED instead.", vha->host_no, vha->vp_idx,
-			atio->u.isp24.fcp_cmnd.task_attr);
+		PRINT_ERROR("sqatgt(%ld/%d): unknown task code %x, use ORDERED instead.",
+			    vha->host_no, vha->vp_idx,
+			    atio->u.isp24.fcp_cmnd.task_attr);
 		scst_cmd_set_queue_type(cmd->scst_cmd,
 			SCST_CMD_QUEUE_ORDERED);
 		break;
 	}
 
-	TRACE(TRACE_SCSI, "sqatgt(%ld/%d): START Command=%p tag=%d, "
-	      "queue type=%x", vha->host_no, vha->vp_idx, cmd,
-		  cmd->atio.u.isp24.exchange_addr,
+	TRACE(TRACE_SCSI,
+	      "sqatgt(%ld/%d): START Command=%p tag=%d, queue type=%x",
+	      vha->host_no, vha->vp_idx, cmd, cmd->atio.u.isp24.exchange_addr,
 	      scst_cmd_get_queue_type(cmd->scst_cmd));
 
 	/* we're being call by wq, so do direct */
@@ -525,12 +522,12 @@ static void sqa_qla2xxx_handle_data(struct qla_tgt_cmd *cmd)
 		case DIF_ERR_GRD:
 			scst_dif_acc_guard_check_failed_tgt(scst_cmd);
 			scst_set_cmd_error(scst_cmd,
-			SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
+				SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
 			break;
 		case DIF_ERR_REF:
 			scst_dif_acc_ref_check_failed_tgt(scst_cmd);
 			scst_set_cmd_error(scst_cmd,
-			SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
+				SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
 			break;
 		case DIF_ERR_APP:
 			scst_dif_acc_app_check_failed_tgt(scst_cmd);
@@ -552,8 +549,6 @@ static void sqa_qla2xxx_handle_data(struct qla_tgt_cmd *cmd)
 	scst_rx_data(scst_cmd, rx_status, scst_work_context);
 
 	TRACE_EXIT();
-
-	return;
 }
 
 static int sqa_qla2xxx_handle_tmr(struct qla_tgt_mgmt_cmd *mcmd, u64 lun,
@@ -566,9 +561,9 @@ static int sqa_qla2xxx_handle_tmr(struct qla_tgt_mgmt_cmd *mcmd, u64 lun,
 	struct scsi_lun sl;
 
 	TRACE_ENTRY();
-	TRACE(TRACE_MGMT, "sqatgt(%ld/%d): Received task management cmd: lun=%llu, "
-		  "type=%d, tag=%d\n", sess->vha->host_no, sess->vha->vp_idx,
-		  lun, tmr_func, tag);
+	TRACE(TRACE_MGMT,
+	      "sqatgt(%ld/%d): Received task management cmd: lun=%llu, type=%d, tag=%d\n",
+	      sess->vha->host_no, sess->vha->vp_idx, lun, tmr_func, tag);
 
 	mcmd->tmr_func = tmr_func;
 	memset(&sl, 0, sizeof(sl));
@@ -630,9 +625,9 @@ static int sqa_qla2xxx_handle_tmr(struct qla_tgt_mgmt_cmd *mcmd, u64 lun,
 		break;
 
 	case QLA_TGT_ABORT_ALL_SESS: //TMR_TARGET_ABORT_ALL:
-		TRACE(TRACE_MGMT, "sqatgt(%ld/%d): ABORT_ALL_TASKS_SESS "
-		      "received.", sess->tgt->vha->host_no,
-		      sess->tgt->vha->vp_idx);
+		TRACE(TRACE_MGMT,
+		      "sqatgt(%ld/%d): ABORT_ALL_TASKS_SESS received.",
+		      sess->tgt->vha->host_no, sess->tgt->vha->vp_idx);
 		rc = scst_rx_mgmt_fn_lun(scst_sess, SCST_ABORT_ALL_TASKS_SESS,
 			&sl, lun_size, SCST_ATOMIC, mcmd);
 		break;
@@ -657,12 +652,10 @@ static int sqa_qla2xxx_handle_tmr(struct qla_tgt_mgmt_cmd *mcmd, u64 lun,
 			    tmr_func);
 		res = -EFAULT;
 		goto done;
-		break;
 	}
 
 	if (rc != 0) {
-		PRINT_ERROR("sqatgt(%ld/%d) scst_rx_mgmt_fn_lun() failed: "
-			    "tmf=%d, lun=%llu, code=%d",
+		PRINT_ERROR("sqatgt(%ld/%d) scst_rx_mgmt_fn_lun() failed: tmf=%d, lun=%llu, code=%d",
 			    sess->tgt->vha->host_no, sess->tgt->vha->vp_idx,
 			    tmr_func, lun, rc);
 		res = -EFAULT;
@@ -683,7 +676,6 @@ static void sqa_qla2xxx_free_cmd(struct qla_tgt_cmd *cmd)
 	scst_tgt_cmd_done(scst_cmd, scst_work_context);
 
 	TRACE_EXIT();
-	return;
 }
 
 
@@ -692,7 +684,6 @@ static void sqa_qla2xxx_free_mcmd(struct qla_tgt_mgmt_cmd *mcmd)
 	TRACE_ENTRY();
 	qlt_free_mcmd(mcmd);
 	TRACE_EXIT();
-	return;
 }
 
 static void sqa_free_session_done(struct scst_session *scst_sess)
@@ -722,13 +713,12 @@ static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 		wait_for_completion(&c);
 	}
 
-	TRACE_MGMT_DBG("sqatgt(%ld/%d):	Unregister completed %8phC done \n",
+	TRACE_MGMT_DBG("sqatgt(%ld/%d):	Unregister completed %8phC done\n",
 		vha->host_no, vha->vp_idx, fcport->port_name);
 
 	kfree(se_sess);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void sqa_qla2xxx_update_sess(struct fc_port *sess, port_id_t s_id,
@@ -736,7 +726,6 @@ static void sqa_qla2xxx_update_sess(struct fc_port *sess, port_id_t s_id,
 {
 	TRACE_ENTRY();
 	TRACE_EXIT();
-	return;
 }
 
 static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
@@ -770,10 +759,8 @@ static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
 	scst_sess = scst_register_session(sqa_tgt->scst_tgt, 0,
 	    ini_name, fcport, NULL, NULL);
 	if (scst_sess == NULL) {
-		PRINT_ERROR("sqatgt(%ld/%d): SCST session registration "
-			    "failed, all commands will be refused: "
-			    "pwwn=%s", vha->host_no, vha->vp_idx,
-			    ini_name);
+		PRINT_ERROR("sqatgt(%ld/%d): SCST session registration failed, all commands will be refused: pwwn=%s",
+			    vha->host_no, vha->vp_idx, ini_name);
 		goto free_sess;
 	}
 
@@ -802,9 +789,8 @@ static struct fc_port *sqa_qla2xxx_find_sess_by_s_id(scsi_qla_host_t *vha,
 
 	TRACE_ENTRY();
 #if 0
-	TRACE_DBG("sqatgt(%ld/%d): Looking up session for fcid: "
-		  "0x%02x%02x%02x\n", vha->host_no, vha->vp_idx, s_id[0],
-		  s_id[1], s_id[2]);
+	TRACE_DBG("sqatgt(%ld/%d): Looking up session for fcid: 0x%02x%02x%02x\n",
+		  vha->host_no, vha->vp_idx, s_id[0], s_id[1], s_id[2]);
 #endif
 	list_for_each_entry(sess, &vha->vp_fcports, list) {
 		if (sess->d_id.b.al_pa == s_id.al_pa &&
@@ -824,11 +810,11 @@ static struct fc_port *sqa_qla2xxx_find_sess_by_loop_id(scsi_qla_host_t *vha,
 	struct fc_port *sess;
 
 	TRACE_ENTRY();
-	TRACE_DBG("sqatgt(%ld/%d): Looking up session for loop id: "
-		  "0x%04x\n", vha->host_no, vha->vp_idx, loop_id);
+	TRACE_DBG("sqatgt(%ld/%d): Looking up session for loop id: 0x%04x\n",
+		  vha->host_no, vha->vp_idx, loop_id);
 
 	list_for_each_entry(sess, &vha->vp_fcports, list) {
-		if ((loop_id == sess->loop_id) && !sess->deleted && sess->se_sess)
+		if (loop_id == sess->loop_id && !sess->deleted && sess->se_sess)
 			return sess;
 	}
 
@@ -841,7 +827,6 @@ static void sqa_qla2xxx_clear_nacl_from_fcport_map(struct fc_port *sess)
 	TRACE_ENTRY();
 
 	TRACE_EXIT();
-	return;
 }
 
 static void sqa_qla2xxx_release_sess(struct kref *kref)
@@ -849,8 +834,6 @@ static void sqa_qla2xxx_release_sess(struct kref *kref)
 	struct fc_port *fcport = container_of(kref, struct fc_port, sess_kref);
 
 	qlt_unreg_sess(fcport);
-
-	return;
 }
 
 static void sqa_qla2xxx_put_sess(struct fc_port *sess)
@@ -860,7 +843,6 @@ static void sqa_qla2xxx_put_sess(struct fc_port *sess)
 	kref_put(&sess->sess_kref, sqa_qla2xxx_release_sess);
 
 	TRACE_EXIT();
-	return;
 }
 
 static int sqa_close_session(struct scst_session *scst_sess)
@@ -881,9 +863,7 @@ static int sqa_close_session(struct scst_session *scst_sess)
 static void sqa_qla2xxx_shutdown_sess(struct fc_port *sess)
 {
 	TRACE_ENTRY();
-
 	TRACE_EXIT();
-	return;
 }
 
 
@@ -1084,8 +1064,9 @@ static ssize_t sqa_show_expl_conf_enabled(struct kobject *kobj,
 
 
 	size = scnprintf(buffer, PAGE_SIZE, "%d\n%s",
-	    ha->base_qpair->enable_explicit_conf,
-	    ha->base_qpair->enable_explicit_conf ? SCST_SYSFS_KEY_MARK "\n" : "");
+			 ha->base_qpair->enable_explicit_conf,
+			 ha->base_qpair->enable_explicit_conf ?
+			 SCST_SYSFS_KEY_MARK "\n" : "");
 
 	return size;
 }
@@ -1121,9 +1102,8 @@ static ssize_t sqa_store_expl_conf_enabled(struct kobject *kobj,
 			vha->host_no, vha->vp_idx);
 		break;
 	default:
-		PRINT_ERROR("sqatgt(%ld/%d): Requested action not "
-			    "understood: %s", vha->host_no, vha->vp_idx,
-			    buffer);
+		PRINT_ERROR("sqatgt(%ld/%d): Requested action not understood: %s",
+			    vha->host_no, vha->vp_idx, buffer);
 		break;
 	}
 
@@ -1317,8 +1297,8 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 		0;
 #endif
 	if (res < 0) {
-		pr_err("Unable to init se_sess->tgt_tag_pool,"
-			   " tag_num: %u\n", tag_num);
+		pr_err("Unable to init se_sess->tgt_tag_pool, tag_num: %u\n",
+		       tag_num);
 		kvfree(sqa_tgt->tgt_cmd_map);
 		kfree(sqa_tgt);
 		goto done;
@@ -1338,7 +1318,8 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 
 #if QLA_ENABLE_PI
 	if (IS_T10_PI_CAPABLE(vha->hw)) {
-		scst_tgt_set_supported_dif_block_sizes(scst_tgt, qla_tgt_supported_dif_block_size);
+		scst_tgt_set_supported_dif_block_sizes(scst_tgt,
+					qla_tgt_supported_dif_block_size);
 		scst_tgt_set_dif_supported(scst_tgt, true);
 		scst_tgt_set_hw_dif_type1_supported(scst_tgt, true);
 		scst_tgt_set_hw_dif_type3_supported(scst_tgt, true);
@@ -1355,27 +1336,26 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 	res = sysfs_create_link(scst_sysfs_get_tgt_kobj(scst_tgt),
 				&vha->host->shost_dev.kobj, "host");
 	if (res != 0)
-		PRINT_ERROR("sqatgt(%ld/%d) Unable to create \"host\" link "
-			    "for, target=%s", vha->host_no, vha->vp_idx,
+		PRINT_ERROR("sqatgt(%ld/%d) Unable to create \"host\" link for, target=%s",
+			    vha->host_no, vha->vp_idx,
 			    scst_get_tgt_name(scst_tgt));
 
 	res = sysfs_create_file(scst_sysfs_get_tgt_kobj(scst_tgt),
 				&sqa_hw_target_attr.attr);
 	if (res != 0)
-		PRINT_ERROR("sqatgt(%ld/%dd) Unable to create \"hw_target\" "
-			    "file, target=%s", vha->host_no, vha->vp_idx,
+		PRINT_ERROR("sqatgt(%ld/%dd) Unable to create \"hw_target\" file, target=%s",
+			    vha->host_no, vha->vp_idx,
 			    scst_get_tgt_name(scst_tgt));
 
 	res = sysfs_create_file(scst_sysfs_get_tgt_kobj(scst_tgt),
 				&sqa_hw_node_name_attr.attr);
 	if (res != 0)
-		PRINT_ERROR("sqatgt(%ld/%d) Unable to create \"node_name\" "
-			    "file for HW target %s", vha->host_no, vha->vp_idx,
+		PRINT_ERROR("sqatgt(%ld/%d) Unable to create \"node_name\" file for HW target %s",
+			    vha->host_no, vha->vp_idx,
 			    scst_get_tgt_name(scst_tgt));
 
 	list_add_tail(&sqa_tgt->list, &sqa_tgt_glist);
-	TRACE(TRACE_MGMT, "sqatgt(%ld/%d): Registering target pwwn=%s "
-	    "scst_tgt %p sqa_tgt %p",
+	TRACE(TRACE_MGMT, "sqatgt(%ld/%d): Registering target pwwn=%s scst_tgt %p sqa_tgt %p",
 	    vha->host_no, vha->vp_idx, pwwn, scst_tgt, sqa_tgt);
 done:
 	kfree(pwwn);
@@ -1414,7 +1394,6 @@ static void sqa_qla2xxx_add_target(struct scsi_qla_host *vha)
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 static void sqa_qla2xxx_remove_target(struct scsi_qla_host *vha)
@@ -1529,17 +1508,16 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 
 		qla_tgt_set_cmd_prot_op(cmd, true);
 
-		TRACE_DBG("cmd[%p] ulpcmd[%p] dif_actions=0x%x, cdb=0x%x, prot_sg[%p] "
-			"prot_sg_cnt[%x], prot_type[%x] prot_op[%x]",
-			cmd, cmd->scst_cmd, scst_cmd->cmd_dif_actions, scst_cmd->cdb_buf[0],
-			cmd->prot_sg, cmd->prot_sg_cnt, cmd->se_cmd.prot_type,
-			cmd->se_cmd.prot_op);
+		TRACE_DBG("cmd[%p] ulpcmd[%p] dif_actions=0x%x, cdb=0x%x, prot_sg[%p] prot_sg_cnt[%x], prot_type[%x] prot_op[%x]",
+			  cmd, cmd->scst_cmd, scst_cmd->cmd_dif_actions,
+			  scst_cmd->cdb_buf[0], cmd->prot_sg, cmd->prot_sg_cnt,
+			  cmd->se_cmd.prot_type, cmd->se_cmd.prot_op);
 
 		if ((cmd->se_cmd.prot_op == TARGET_PROT_DIN_INSERT) &&
 			(!cmd->prot_sg_cnt || !cmd->prot_sg)) {
-			PRINT_ERROR("qla2x00t(%ld): %s: DIN Insert w/out DIF "
-				"buf[%p:%d]", cmd->vha->host_no, __func__,
-				cmd->prot_sg, cmd->prot_sg_cnt);
+			PRINT_ERROR("qla2x00t(%ld): %s: DIN Insert w/out DIF buf[%p:%d]",
+				    cmd->vha->host_no, __func__, cmd->prot_sg,
+				    cmd->prot_sg_cnt);
 		}
 	}
 #endif
@@ -1560,10 +1538,10 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 	}
 
 
-	TRACE_DBG("sqatgt(%ld/%d): is_send_status=%x, bufflen=%d, "
-		  "sg_cnt=%d, flipped dma_direction=%d resid=%d", cmd->vha->host_no,
-		  cmd->vha->vp_idx, is_send_status, cmd->bufflen, cmd->sg_cnt,
-		  cmd->dma_data_direction, cmd->se_cmd.residual_count);
+	TRACE_DBG("sqatgt(%ld/%d): is_send_status=%x, bufflen=%d, sg_cnt=%d, flipped dma_direction=%d resid=%d",
+		  cmd->vha->host_no, cmd->vha->vp_idx, is_send_status,
+		  cmd->bufflen, cmd->sg_cnt, cmd->dma_data_direction,
+		  cmd->se_cmd.residual_count);
 
 	res = qlt_xmit_response(cmd, xmit_type, scst_cmd_get_status(scst_cmd));
 
@@ -1615,12 +1593,11 @@ static int sqa_rdy_to_xfer(struct scst_cmd *scst_cmd)
 		/* translate dif_actions to prot_op */
 		qla_tgt_set_cmd_prot_op(cmd, false);
 
-		TRACE_DBG("%s: cmd[%p] ulpcmd[%p] dif_actions=0x%x, cdb=0x%x, "
-			"prot_sg_cnt[%x], prot_type[%x] prot_op[%x], bufflen[%x]",
-			__func__, cmd, cmd->scst_cmd,
-			scst_cmd->cmd_dif_actions, scst_cmd->cdb_buf[0],
-			cmd->prot_sg_cnt, cmd->se_cmd.prot_type, cmd->se_cmd.prot_op,
-			cmd->bufflen);
+		TRACE_DBG("%s: cmd[%p] ulpcmd[%p] dif_actions=0x%x, cdb=0x%x, prot_sg_cnt[%x], prot_type[%x] prot_op[%x], bufflen[%x]",
+			  __func__, cmd, cmd->scst_cmd,
+			  scst_cmd->cmd_dif_actions, scst_cmd->cdb_buf[0],
+			  cmd->prot_sg_cnt, cmd->se_cmd.prot_type,
+			  cmd->se_cmd.prot_op, cmd->bufflen);
 }
 #endif
 	/*
@@ -1661,8 +1638,8 @@ static void sqa_on_free_cmd(struct scst_cmd *scst_cmd)
 	qlt_free_cmd(cmd);
 
 	TRACE_EXIT();
-	return;
 }
+
 static uint32_t sqa_convert_to_fc_tm_status(int scst_mstatus)
 {
 	uint32_t res;
@@ -1699,28 +1676,26 @@ static void sqa_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 
 	mcmd = scst_mgmt_cmd_get_tgt_priv(scst_mcmd);
 	if (unlikely(mcmd == NULL)) {
-		PRINT_ERROR("sqatgt: Null target pointer for SCST task "
-			"management, command=%p", scst_mcmd);
+		PRINT_ERROR("sqatgt: Null target pointer for SCST task management, command=%p",
+			    scst_mcmd);
 		goto out;
 	}
 
 	vha = mcmd->sess->vha;
-	TRACE_MGMT_DBG("sqatgt(%ld/%d):	scst_mcmd %p status %#x state %#x; "
-		"mcmd %p flags %x\n",
-		vha->host_no, vha->vp_idx, scst_mcmd,
-		scst_mcmd->status, scst_mcmd->state,
-		mcmd, mcmd->flags);
+	TRACE_MGMT_DBG("sqatgt(%ld/%d):	scst_mcmd %p status %#x state %#x; mcmd %p flags %x\n",
+		       vha->host_no, vha->vp_idx, scst_mcmd, scst_mcmd->status,
+		       scst_mcmd->state, mcmd, mcmd->flags);
 
 	TRACE_MGMT_DBG("sqatgt(%ld/%d): scst_mcmd (%p) status %#x state %#x",
 		       vha->host_no, vha->vp_idx, scst_mcmd,
 		       scst_mcmd->status, scst_mcmd->state);
 
-	mcmd->fc_tm_rsp = sqa_convert_to_fc_tm_status(scst_mgmt_cmd_get_status(scst_mcmd));
+	mcmd->fc_tm_rsp = sqa_convert_to_fc_tm_status(
+				scst_mgmt_cmd_get_status(scst_mcmd));
 	qlt_xmit_tm_rsp(mcmd);
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 static int sqa_get_initiator_port_transport_id(struct scst_tgt *tgt,
@@ -1745,17 +1720,15 @@ static int sqa_get_initiator_port_transport_id(struct scst_tgt *tgt,
 		goto out;
 	}
 
-	TRACE_DBG("sqatgt(%ld/%d): Creating transport id: target session=%p, "
-		"initiator=%8phC, fcid=%3phC, loop=0x%04x",
+	TRACE_DBG("sqatgt(%ld/%d): Creating transport id: target session=%p, initiator=%8phC, fcid=%3phC, loop=0x%04x",
 		sess->vha->host_no, sess->vha->vp_idx, sess,
 		sess->port_name, &sess->d_id.b, sess->loop_id);
 
 	tr_id_size = 24;
 	tr_id = kzalloc(tr_id_size, GFP_KERNEL);
 	if (tr_id == NULL) {
-		PRINT_ERROR("sqatgt(%ld/%d): Allocation of TransportID "
-			    "size=%d failed.", sess->vha->host_no,
-			    sess->vha->vp_idx, tr_id_size);
+		PRINT_ERROR("sqatgt(%ld/%d): Allocation of TransportID size=%d failed.",
+			    sess->vha->host_no, sess->vha->vp_idx, tr_id_size);
 		res = -ENOMEM;
 		goto out;
 	}
@@ -1815,13 +1788,13 @@ static void sqa_cleanup_hw_pending_cmd(scsi_qla_host_t *vha,
 
 	for (h = 1; h < qpair->req->num_outstanding_cmds; h++) {
 		if (qpair->req->outstanding_cmds[h] == (srb_t *)cmd) {
-			printk(KERN_INFO "Clearing handle %d for cmd %p", h, cmd);
+			printk(KERN_INFO "Clearing handle %d for cmd %p", h,
+			       cmd);
 			//TRACE_DBG("Clearing handle %d for cmd %p", h, cmd);
 			qpair->req->outstanding_cmds[h] = NULL;
 			break;
 		}
 	}
-	return;
 }
 
 static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
@@ -1833,12 +1806,11 @@ static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 	unsigned long flags;
 
 	TRACE_ENTRY();
-	TRACE_MGMT_DBG("sqatgt(%ld/%d): Cmd %p HW pending for too long "
-		"(state %s) %s; %s;",
-		vha->host_no, vha->vp_idx, cmd,
-		cmdstate_to_str((uint8_t)cmd->state),
-		cmd->cmd_sent_to_fw ? "sent to fw" : "not sent to fw",
-		aborted ? "aborted":"not aborted");
+	TRACE_MGMT_DBG("sqatgt(%ld/%d): Cmd %p HW pending for too long (state %s) %s; %s;",
+		       vha->host_no, vha->vp_idx, cmd,
+		       cmdstate_to_str((uint8_t)cmd->state),
+		       cmd->cmd_sent_to_fw ? "sent to fw" : "not sent to fw",
+		       aborted ? "aborted" : "not aborted");
 
 
 	qlt_abort_cmd(cmd);
@@ -1847,10 +1819,8 @@ static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 	switch (cmd->state) {
 	case QLA_TGT_STATE_NEW:
 	case QLA_TGT_STATE_DATA_IN:
-		PRINT_ERROR("sqa(%ld): A command in state (%s) should "
-			"not be HW pending. %s",
-			vha->host_no,
-			cmdstate_to_str((uint8_t)cmd->state),
+		PRINT_ERROR("sqa(%ld): A command in state (%s) should not be HW pending. %s",
+			vha->host_no, cmdstate_to_str((uint8_t)cmd->state),
 			aborted ? "aborted" : "not aborted");
 		break;
 
@@ -1864,12 +1834,11 @@ static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 		    SCST_CONTEXT_THREAD);
 		break;
 	case QLA_TGT_STATE_PROCESSED:
-		if (!cmd->cmd_sent_to_fw) {
-			PRINT_ERROR("sqa(%ld): command should not be in HW pending. "
-			"It's already processed. ", vha->host_no);
-		} else {
+		if (!cmd->cmd_sent_to_fw)
+			PRINT_ERROR("sqa(%ld): command should not be in HW pending. It's already processed. ",
+				    vha->host_no);
+		else
 			TRACE_MGMT_DBG("Force finishing cmd %p", cmd);
-		}
 		sqa_cleanup_hw_pending_cmd(vha, cmd);
 		scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
 		scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_THREAD);
@@ -1878,7 +1847,6 @@ static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 	spin_unlock_irqrestore(qpair->qp_lock_ptr, flags);
 
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -1948,8 +1916,7 @@ static int sqa_enable_tgt(struct scst_tgt *scst_tgt, bool enable)
 		return -EINVAL;
 	}
 
-	PRINT_INFO("sqatgt(%ld/%d): %s target pwwn="
-		   "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+	PRINT_INFO("sqatgt(%ld/%d): %s target pwwn=%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
 		   vha->host_no, vha->vp_idx, enable ? "Enabling" : "Disabling",
 		   vha->port_name[0], vha->port_name[1],
 		   vha->port_name[2], vha->port_name[3],
@@ -2017,15 +1984,15 @@ static ssize_t sqa_add_vtarget(const char *target_name, char *params)
 
 		pp = scst_get_next_lexem(&param);
 		if (*pp == '\0') {
-			PRINT_ERROR("sqatgt: Parameter %s value missed for "
-				"target %s", p, target_name);
+			PRINT_ERROR("sqatgt: Parameter %s value missed for target %s",
+				    p, target_name);
 			res = -EINVAL;
 			goto out;
 		}
 
 		if (scst_get_next_lexem(&param)[0] != '\0') {
-			PRINT_ERROR("sqatgt: Too many parameter's %s values "
-				"(target %s)", p, target_name);
+			PRINT_ERROR("sqatgt: Too many parameter's %s values (target %s)",
+				    p, target_name);
 			res = -EINVAL;
 			goto out;
 		}
@@ -2033,8 +2000,8 @@ static ssize_t sqa_add_vtarget(const char *target_name, char *params)
 		if (!strcasecmp("node_name", p)) {
 			res = sqa_parse_wwn(pp, &node_name);
 			if (res) {
-				PRINT_ERROR("sqatgt: Illegal node_name %s "
-					"(target %s)", pp, target_name);
+				PRINT_ERROR("sqatgt: Illegal node_name %s (target %s)",
+					    pp, target_name);
 				res = -EINVAL;
 				goto out;
 			}
@@ -2045,8 +2012,8 @@ static ssize_t sqa_add_vtarget(const char *target_name, char *params)
 		if (!strcasecmp("parent_host", p)) {
 			res = sqa_parse_wwn(pp, &parent_host);
 			if (res != 0) {
-				PRINT_ERROR("sqatgt: Illegal parent_host %s"
-					" (target %s)", pp, target_name);
+				PRINT_ERROR("sqatgt: Illegal parent_host %s (target %s)",
+					    pp, target_name);
 				goto out;
 			}
 			pparent_host = parent_host;
@@ -2067,8 +2034,8 @@ static ssize_t sqa_add_vtarget(const char *target_name, char *params)
 	}
 
 	if (!pparent_host) {
-		PRINT_ERROR("sqatgt: Missing parameter parent_host "
-			"(target %s)", target_name);
+		PRINT_ERROR("sqatgt: Missing parameter parent_host (target %s)",
+			    target_name);
 		res = -EINVAL;
 		goto out;
 	}
@@ -2106,10 +2073,8 @@ static int __init sqa_init(void)
 
 	TRACE_ENTRY();
 
-	PRINT_INFO("sqatgt: Initializing SCST Cavium adapter target driver "
-		   "interface - driver version=%s, SCST version=%s, "
-		   "Cavium version=%s", SQA_VERSION, SCST_VERSION_NAME,
-		   QLA2XXX_VERSION);
+	PRINT_INFO("sqatgt: Initializing SCST Cavium adapter target driver interface - driver version=%s, SCST version=%s, Cavium version=%s",
+		   SQA_VERSION, SCST_VERSION_NAME, QLA2XXX_VERSION);
 
 	res = scst_register_target_template(&sqa_scst_template);
 
@@ -2131,8 +2096,7 @@ static void __exit sqa_exit(void)
 	struct scsi_qla_host *vha;
 
 	TRACE_ENTRY();
-	PRINT_INFO("sqatgt: %s", "Unloading SCST Cavium adapter target "
-		   "driver interface.");
+	PRINT_INFO("sqatgt: Unloading SCST Cavium adapter target driver interface.");
 
 	list_for_each_entry_safe(sqa_tgt, t, &sqa_tgt_glist, list) {
 		vha = sqa_tgt->qla_tgt->vha;
@@ -2167,7 +2131,6 @@ static void __exit sqa_exit(void)
 	scst_unregister_target_template(&sqa_scst_template);
 
 	TRACE_EXIT();
-	return;
 }
 
 #ifdef MODULE
