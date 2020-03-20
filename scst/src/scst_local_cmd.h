@@ -16,6 +16,5 @@ enum scst_exec_res scst_release_local(struct scst_cmd *cmd);
 enum scst_exec_res scst_report_luns_local(struct scst_cmd *cmd);
 enum scst_exec_res scst_request_sense_local(struct scst_cmd *cmd);
 enum scst_exec_res scst_reserve_local(struct scst_cmd *cmd);
-enum scst_exec_res scst_reserve_local(struct scst_cmd *cmd);
 
 #endif /* _SCST_LOCAL_CMD_H_ */

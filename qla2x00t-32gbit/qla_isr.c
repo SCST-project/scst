@@ -2153,7 +2153,17 @@ static void qla24xx_nvme_iocb_entry(scsi_qla_host_t *vha, struct req_que *req,
 		struct nvme_fc_ersp_iu *rsp_iu = fd->rspaddr;
 		u32 tgt_xfer_len;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+		/*
+		 * xfrd_len was introduced by commit b1ad1475b447
+		 * ("nvme-fabrics: Add FC transport FC-NVME definitions")
+		 * # v4.10.
+		 */
 		tgt_xfer_len = be32_to_cpu(rsp_iu->xfrd_len);
+#else
+		WARN_ON_ONCE(true);
+		tgt_xfer_len = 0;
+#endif
 		if (fd->transferred_length != tgt_xfer_len) {
 			ql_dbg(ql_dbg_io, fcport->vha, 0x3079,
 				"Dropped frame(s) detected (sent/rcvd=%u/%u).\n",
