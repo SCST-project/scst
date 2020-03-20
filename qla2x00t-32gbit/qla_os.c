@@ -1787,8 +1787,13 @@ static void qla2x00_abort_srb(struct qla_qpair *qp, srb_t *sp, const int res,
 		}
 
 		spin_lock_irqsave(qp->qp_lock_ptr, *flags);
+#if HAVE_SCSI_MQ
 		if (ret_cmd && blk_mq_request_started(cmd->request))
 			sp->done(sp, res);
+#else
+		if (ret_cmd && list_empty(&cmd->request->queuelist))
+			sp->done(sp, res);
+#endif
 	} else {
 		sp->done(sp, res);
 	}
