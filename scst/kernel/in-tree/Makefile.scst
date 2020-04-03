@@ -5,6 +5,7 @@ scst-y        += scst_debug.o
 scst-y        += scst_dlm.o
 scst-y        += scst_event.o
 scst-y        += scst_lib.o
+scst-y        += scst_local_cmd.o
 scst-y        += scst_main.o
 scst-y        += scst_mem.o
 scst-y        += scst_no_dlm.o
