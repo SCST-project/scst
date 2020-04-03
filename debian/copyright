@@ -229,7 +229,6 @@ Files: scst/Makefile
        scst/src/scst_pres.c
        scst/src/scst_pres.h
        scst/src/scst_priv.h
-       scst/src/scst_proc.c
        scst/src/scst_sysfs.c
        scst/src/scst_targ.c
        scst/src/scst_tg.c
