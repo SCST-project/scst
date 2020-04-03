@@ -60,20 +60,19 @@ ccflags-y += -I$(KBUILD_EXTMOD)/../include $(call cc-option,-Wextra) \
 
 obj-m := scst.o
 
-scst-y        += scst_main.o
-scst-y        += scst_targ.o
-scst-y        += scst_local_cmd.o
-scst-y        += scst_lib.o
-#scst-y        += scst_proc.o
-scst-y        += scst_sysfs.o
-scst-y        += scst_mem.o
-scst-y        += scst_debug.o
-scst-y        += scst_pres.o
-scst-y        += scst_no_dlm.o
-scst-y        += scst_dlm.o
-scst-y        += scst_tg.o
-scst-y        += scst_event.o
 scst-y        += scst_copy_mgr.o
+scst-y        += scst_debug.o
+scst-y        += scst_dlm.o
+scst-y        += scst_event.o
+scst-y        += scst_lib.o
+scst-y        += scst_local_cmd.o
+scst-y        += scst_main.o
+scst-y        += scst_mem.o
+scst-y        += scst_no_dlm.o
+scst-y        += scst_pres.o
+scst-y        += scst_sysfs.o
+scst-y        += scst_targ.o
+scst-y        += scst_tg.o
 obj-$(CONFIG_SCST)   += scst.o dev_handlers/
 
 obj-$(BUILD_DEV) += $(DEV_HANDLERS_DIR)/
