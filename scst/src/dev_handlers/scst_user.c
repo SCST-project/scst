@@ -2305,7 +2305,8 @@ again:
 	return res;
 }
 
-static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
+static int dev_user_reply_get_cmd(struct file *file,
+				  struct scst_user_get_cmd __user *get_cmd)
 {
 	int res = 0, rc;
 	struct scst_user_dev *dev;
@@ -2320,9 +2321,7 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 		goto out;
 
 	/* get_user() can't be used with 64-bit values on x86_32 */
-	rc = copy_from_user(&ureply, (uint64_t __user *)
-		&((struct scst_user_get_cmd __user *)arg)->preply,
-		sizeof(ureply));
+	rc = copy_from_user(&ureply, &get_cmd->preply, sizeof(ureply));
 	if (unlikely(rc != 0)) {
 		PRINT_ERROR("Failed to copy %d user's bytes", rc);
 		res = -EFAULT;
@@ -2333,9 +2332,9 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 		dev->name);
 
 	if (ureply != 0) {
-		unsigned long u = (unsigned long)ureply;
+		void __user *u = (void __user *)ureply;
 
-		rc = copy_from_user(&reply, (void __user *)u, sizeof(reply));
+		rc = copy_from_user(&reply, u, sizeof(reply));
 		if (unlikely(rc != 0)) {
 			PRINT_ERROR("Failed to copy %d user's bytes", rc);
 			res = -EFAULT;
@@ -2349,36 +2348,34 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 			goto out;
 	}
 
-	res = dev_user_get_cmd_to_user(dev, arg, true);
+	res = dev_user_get_cmd_to_user(dev, get_cmd, true);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
-static int dev_user_reply_get_multi(struct file *file, void __user *arg)
+static int dev_user_reply_get_multi(struct file *file,
+				    struct scst_user_get_multi __user* gm)
 {
 	int res = 0, rc;
-	struct scst_user_dev *dev;
+	struct scst_user_dev *dev = file->private_data;
 	struct scst_user_reply_cmd __user *replies;
 	int16_t i, replies_cnt, replies_done = 0, cmds_cnt = 0;
 
 	TRACE_ENTRY();
 
-	dev = (struct scst_user_dev *)file->private_data;
 	res = dev_user_check_reg(dev);
 	if (unlikely(res != 0))
 		goto out;
 
-	res = get_user(replies_cnt, (int16_t __user *)
-		&((struct scst_user_get_multi __user *)arg)->replies_cnt);
+	res = get_user(replies_cnt, &gm->replies_cnt);
 	if (unlikely(res < 0)) {
 		PRINT_ERROR("%s", "Unable to get replies_cnt");
 		goto out;
 	}
 
-	res = get_user(cmds_cnt, (int16_t __user *)
-		&((struct scst_user_get_multi __user *)arg)->cmds_cnt);
+	res = get_user(cmds_cnt, &gm->cmds_cnt);
 	if (unlikely(res < 0)) {
 		PRINT_ERROR("%s", "Unable to get cmds_cnt");
 		goto out;
@@ -2391,8 +2388,7 @@ static int dev_user_reply_get_multi(struct file *file, void __user *arg)
 		goto get_cmds;
 
 	/* get_user() can't be used with 64-bit values on x86_32 */
-	rc = copy_from_user(&replies, (uint64_t __user *)
-		&((struct scst_user_get_multi __user *)arg)->preplies, sizeof(replies));
+	rc = copy_from_user(&replies, &gm->preplies, sizeof(replies));
 	if (unlikely(rc != 0)) {
 		PRINT_ERROR("%s", "Unable to get preply");
 		res = -EFAULT;
@@ -2419,15 +2415,13 @@ static int dev_user_reply_get_multi(struct file *file, void __user *arg)
 	}
 
 	TRACE_DBG("Returning %d replies_done", replies_done);
-	res = put_user(replies_done, (int16_t __user *)
-		&((struct scst_user_get_multi __user *)arg)->replies_done);
+	res = put_user(replies_done, &gm->replies_done);
 	if (unlikely(res < 0))
 		goto out;
 
 get_cmds:
 	for (i = 0; i < cmds_cnt; i++) {
-		res = dev_user_get_cmd_to_user(dev,
-			&((struct scst_user_get_multi __user *)arg)->cmds[i], i == 0);
+		res = dev_user_get_cmd_to_user(dev, &gm->cmds[i], i == 0);
 		if (res != 0) {
 			if ((res == -EAGAIN) && (i > 0))
 				res = 0;
@@ -2436,8 +2430,7 @@ get_cmds:
 	}
 
 	TRACE_DBG("Returning %d cmds_ret", i);
-	rc = put_user(i, (int16_t __user *)
-		&((struct scst_user_get_multi __user *)arg)->cmds_cnt);
+	rc = put_user(i, &gm->cmds_cnt);
 	if (unlikely(rc < 0)) {
 		res = rc; /* this error is more important */
 		goto out;
@@ -2449,10 +2442,8 @@ out:
 
 out_part_replies_done:
 	TRACE_DBG("Partial returning %d replies_done", replies_done);
-	put_user(replies_done, (int16_t __user *)
-		&((struct scst_user_get_multi __user *)arg)->replies_done);
-	rc = put_user(0, (int16_t __user *)
-		&((struct scst_user_get_multi __user *)arg)->cmds_cnt);
+	put_user(replies_done, &gm->replies_done);
+	rc = put_user(0, &gm->cmds_cnt);
 	goto out;
 }
 
