@@ -2305,7 +2305,8 @@ again:
 	return res;
 }
 
-static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
+static int dev_user_reply_get_cmd(struct file *file,
+				  struct scst_user_get_cmd __user *get_cmd)
 {
 	int res = 0, rc;
 	struct scst_user_dev *dev;
@@ -2320,9 +2321,7 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 		goto out;
 
 	/* get_user() can't be used with 64-bit values on x86_32 */
-	rc = copy_from_user(&ureply, (uint64_t __user *)
-		&((struct scst_user_get_cmd __user *)arg)->preply,
-		sizeof(ureply));
+	rc = copy_from_user(&ureply, &get_cmd->preply, sizeof(ureply));
 	if (unlikely(rc != 0)) {
 		PRINT_ERROR("Failed to copy %d user's bytes", rc);
 		res = -EFAULT;
@@ -2333,9 +2332,9 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 		dev->name);
 
 	if (ureply != 0) {
-		unsigned long u = (unsigned long)ureply;
+		void __user *u = (void __user *)ureply;
 
-		rc = copy_from_user(&reply, (void __user *)u, sizeof(reply));
+		rc = copy_from_user(&reply, u, sizeof(reply));
 		if (unlikely(rc != 0)) {
 			PRINT_ERROR("Failed to copy %d user's bytes", rc);
 			res = -EFAULT;
@@ -2349,7 +2348,7 @@ static int dev_user_reply_get_cmd(struct file *file, void __user *arg)
 			goto out;
 	}
 
-	res = dev_user_get_cmd_to_user(dev, arg, true);
+	res = dev_user_get_cmd_to_user(dev, get_cmd, true);
 
 out:
 	TRACE_EXIT_RES(res);
