@@ -63,6 +63,9 @@ INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 all:
 	$(MAKE) -C $(KDIR) M=$(shell pwd)
 
+%.lst: %.c
+	$(MAKE) -C $(KDIR) M=$(shell pwd) $@
+
 install: all
 	mkdir -p $(DESTDIR)/var/lib/scst/vdev_mode_pages
 	KDIR=$(KDIR) ../../../scripts/sign-modules
