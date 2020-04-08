@@ -51,7 +51,7 @@ MODULE_SYMVERS:=$(shell if [ -e "$(KDIR)/Modules.symvers" ]; then \
 
 all: progs mods
 
-ISER_SYMVERS:=$(KMOD)/$(MODULE_SYMVERS)
+ISER_SYMVERS:=$(SCST_DIR)/$(MODULE_SYMVERS) $(KMOD)/$(MODULE_SYMVERS)
 OFED_CFLAGS:=
 
 OFED_FLAVOR=$(shell if [ -e /usr/bin/ofed_info ]; then /usr/bin/ofed_info 2>/dev/null | head -n1 | sed -n 's/^\(MLNX_OFED\|OFED-internal\).*/MOFED/p;s/^OFED-.*/OFED/p'; else echo in-tree; fi)
@@ -84,7 +84,7 @@ ifeq ($(OFED_FLAVOR),MOFED)
 			-include $(OFED_DIR)/include/linux/compat-2.6.h \
 			-DMOFED_MAJOR=$(shell echo $(OFED_VERS) | cut -f1 -d.)\
 			-DMOFED_MINOR=$(shell echo $(OFED_VERS) | cut -f2 -d.)
-	ISER_SYMVERS:="$(ISER_SYMVERS) $(OFED_DIR)/$(MODULE_SYMVERS)"
+	ISER_SYMVERS:=$(ISER_SYMVERS) $(OFED_DIR)/$(MODULE_SYMVERS)
 	OFED_CONFIG:= CONFIG_DTRACE=
 else
 	# Whether or not the OFED kernel-ib-devel RPM has been installed.
@@ -98,12 +98,12 @@ else
 	# BACKPORT_INCLUDES.
 	include /usr/src/ofa_kernel/config.mk
 	OFED_CFLAGS:=$(shell echo $(BACKPORT_INCLUDES) -I/usr/src/ofa_kernel/include)
-	ISER_SYMVERS:="$(ISER_SYMVERS) /usr/src/ofa_kernel/$(MODULE_SYMVERS)"
+	ISER_SYMVERS:=$(ISER_SYMVERS) /usr/src/ofa_kernel/$(MODULE_SYMVERS)
 	endif
 
 	ifeq ($(OFED_COMPAT_RDMA_DEVEL_RPM_INSTALLED),true)
 	OFED_CFLAGS:=-I/usr/src/compat-rdma/include -include /usr/src/compat-rdma/include/linux/compat-2.6.h
-	ISER_SYMVERS:="$(ISER_SYMVERS) /usr/src/compat-rdma/$(MODULE_SYMVERS)"
+	ISER_SYMVERS:=$(ISER_SYMVERS) /usr/src/compat-rdma/$(MODULE_SYMVERS)
 	endif
 endif
 
@@ -124,13 +124,14 @@ PRE_CFLAGS = $(shell					\
 
 ISER_CFLAGS = $(OFED_CFLAGS) -DOFED_FLAVOR=$(OFED_FLAVOR) $(PRE_CFLAGS)
 
-mods: include/iscsi_scst_itf_ver.h $(MODULE_SYMVERS) $(CONFTEST_OUTPUTS)
-	$(MAKE) -C $(KDIR) M=$(KMOD) PRE_CFLAGS="$(PRE_CFLAGS)" modules
+mods: include/iscsi_scst_itf_ver.h $(CONFTEST_OUTPUTS)
+	$(MAKE) -C $(KDIR) M=$(KMOD) PRE_CFLAGS="$(PRE_CFLAGS)" modules		\
+		KBUILD_EXTRA_SYMBOLS=$(SCST_DIR)/$(MODULE_SYMVERS)
 	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
 	if $(INFINIBAND_ENABLED); then					       \
 	  echo "  Building against $(OFED_FLAVOR) InfiniBand kernel headers."; \
 	  $(MAKE) -C $(KDIR) M=$(ISERTMOD) PRE_CFLAGS="$(ISER_CFLAGS)"         \
-	  KBUILD_EXTRA_SYMBOLS=$(ISER_SYMVERS) $(OFED_CONFIG) modules;	       \
+	  KBUILD_EXTRA_SYMBOLS="$(ISER_SYMVERS)" $(OFED_CONFIG) modules;	       \
 	fi
 
 progs: include/iscsi_scst_itf_ver.h
@@ -170,10 +171,6 @@ uninstall:
 		$(INSTALL_DIR)/iscsi-scst.ko \
 		$(INSTALL_DIR)/isert-scst.ko
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
-
-$(MODULE_SYMVERS): $(SCST_DIR)/$(MODULE_SYMVERS)
-	cp $< kernel/
-	if $(INFINIBAND_ENABLED); then cp $< kernel/isert-scst; fi
 
 clean:
 	$(MAKE) -C usr $@
