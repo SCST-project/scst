@@ -2414,12 +2414,12 @@ static int dev_user_reply_get_multi(struct file *file,
 		replies_done++;
 	}
 
+get_cmds:
 	TRACE_DBG("Returning %d replies_done", replies_done);
 	res = put_user(replies_done, &gm->replies_done);
 	if (unlikely(res < 0))
 		goto out;
 
-get_cmds:
 	for (i = 0; i < cmds_cnt; i++) {
 		res = dev_user_get_cmd_to_user(dev, &gm->cmds[i], i == 0);
 		if (res != 0) {
@@ -2442,8 +2442,12 @@ out:
 
 out_part_replies_done:
 	TRACE_DBG("Partial returning %d replies_done", replies_done);
-	put_user(replies_done, &gm->replies_done);
+	rc = put_user(replies_done, &gm->replies_done);
+	if (unlikely(rc < 0))
+		res = rc;
 	rc = put_user(0, &gm->cmds_cnt);
+	if (unlikely(rc < 0))
+		res = rc;
 	goto out;
 }
 
