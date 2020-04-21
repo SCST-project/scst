@@ -1600,6 +1600,21 @@ static inline void put_unaligned_be64(uint64_t i, void *p)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0)
+/* Only use get_unaligned_be24() if reading p - 1 is allowed. */
+static inline uint32_t get_unaligned_be24(const uint8_t *const p)
+{
+	return get_unaligned_be32(p - 1) & 0xffffffU;
+}
+
+static inline void put_unaligned_be24(const uint32_t v, uint8_t *const p)
+{
+	p[0] = v >> 16;
+	p[1] = v >>  8;
+	p[2] = v >>  0;
+}
+#endif
+
 /* <linux/vmalloc.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37) && \
