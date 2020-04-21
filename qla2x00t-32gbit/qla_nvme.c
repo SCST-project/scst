@@ -621,7 +621,8 @@ static void qla_nvme_remoteport_delete(struct nvme_fc_remote_port *rport)
 }
 
 static struct nvme_fc_port_template qla_nvme_fc_transport = {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0) &&	\
+	LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0)
 	/*
 	 * See also commit 863fbae929c7 ("nvme_fc: add module to ops template
 	 * to allow module references").
