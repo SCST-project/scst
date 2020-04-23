@@ -5406,19 +5406,6 @@ if (!(condition)) {							\
 }									\
 } while (0)
 
-/* Only use get_unaligned_be24() if reading p - 1 is allowed. */
-static inline uint32_t get_unaligned_be24(const uint8_t *const p)
-{
-	return get_unaligned_be32(p - 1) & 0xffffffU;
-}
-
-static inline void put_unaligned_be24(const uint32_t v, uint8_t *const p)
-{
-	p[0] = v >> 16;
-	p[1] = v >>  8;
-	p[2] = v >>  0;
-}
-
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 const char *scst_get_opcode_name(struct scst_cmd *cmd);
 #else
