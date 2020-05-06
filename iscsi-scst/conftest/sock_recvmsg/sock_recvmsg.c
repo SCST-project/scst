@@ -1,7 +1,7 @@
 #include <linux/module.h>
 #include <linux/net.h>
 
-static int modinit(void)
+static int __init modinit(void)
 {
 	int (*f)(struct socket *, struct msghdr *, size_t, int) = sock_recvmsg;
 
