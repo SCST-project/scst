@@ -48,6 +48,11 @@ static int apidev_major;
  */
 struct kmem_cache *srb_cachep;
 
+int ql2xfulldump_on_mpifail;
+module_param(ql2xfulldump_on_mpifail, int, S_IRUGO | S_IWUSR);
+MODULE_PARM_DESC(ql2xfulldump_on_mpifail,
+		 "Set this to take full dump on MPI hang.");
+
 /*
  * CT6 CTX allocation cache
  */
@@ -2564,6 +2569,7 @@ static struct isp_operations qla27xx_isp_ops = {
 	.read_nvram		= NULL,
 	.write_nvram		= NULL,
 	.fw_dump		= qla27xx_fwdump,
+	.mpi_fw_dump		= qla27xx_mpi_fwdump,
 	.beacon_on		= qla24xx_beacon_on,
 	.beacon_off		= qla24xx_beacon_off,
 	.beacon_blink		= qla83xx_beacon_blink,
@@ -3983,19 +3989,6 @@ void qla2x00_mark_device_lost(scsi_qla_host_t *vha, fc_port_t *fcport,
 	set_bit(RELOGIN_NEEDED, &vha->dpc_flags);
 }
 
-/*
- * qla2x00_mark_all_devices_lost
- *	Updates fcport state when device goes offline.
- *
- * Input:
- *	ha = adapter block pointer.
- *	fcport = port structure pointer.
- *
- * Return:
- *	None.
- *
- * Context:
- */
 void
 qla2x00_mark_all_devices_lost(scsi_qla_host_t *vha)
 {
@@ -4007,16 +4000,6 @@ qla2x00_mark_all_devices_lost(scsi_qla_host_t *vha)
 	list_for_each_entry(fcport, &vha->vp_fcports, list) {
 		fcport->scan_state = 0;
 		qlt_schedule_sess_for_deletion(fcport);
-
-		if (vha->vp_idx != 0 && vha->vp_idx != fcport->vha->vp_idx)
-			continue;
-
-		/*
-		 * No point in marking the device as lost, if the device is
-		 * already DEAD.
-		 */
-		if (atomic_read(&fcport->state) == FCS_DEVICE_DEAD)
-			continue;
 	}
 }
 
