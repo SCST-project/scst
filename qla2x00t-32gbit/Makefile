@@ -46,7 +46,7 @@ INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 ifneq ($(PATCHLEVEL),)
 ccflags-y += $(call cc-option,-Wextra) -Wno-unused-parameter \
-	-Wno-missing-field-initializers -I$(src)/../scst/include\
+	-Wno-missing-field-initializers -I$(src)/../scst/include -I$(src)\
 	-DDEFAULT_SYMBOL_NAMESPACE=QLA32GB
 
 ifneq ($(CONFIG_SCSI_QLA2XXX_TARGET),)
