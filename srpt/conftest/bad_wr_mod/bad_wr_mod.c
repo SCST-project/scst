@@ -1,7 +1,7 @@
 #include <linux/module.h>
 #include <rdma/ib_cm.h>
 
-static int modinit(void)
+static int __init modinit(void)
 {
 	struct ib_qp qp = { };
 	const struct ib_recv_wr recv_wr = { };
