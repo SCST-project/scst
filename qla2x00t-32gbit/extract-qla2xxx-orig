@@ -18,12 +18,12 @@ cd qla2xxx-orig || exit $?
 download_and_extract_kernel_tree "${kernel_version}"
 touch "linux-${kernel_version}"/drivers/scsi/qla2xxx/*
 rm -rf "${kernel_version}"
-mkdir -p "${kernel_version}/trace/events"
+mkdir -p "${kernel_version}/include/trace/events"
 mv "linux-${kernel_version}"/drivers/scsi/qla2xxx/* "${kernel_version}"
-if [ -e "linux-${kernel_version}"/trace/events/qla.h ]; then
-    touch "linux-${kernel_version}"/trace/events/qla.h
-    mv "linux-${kernel_version}"/trace/events/qla.h \
-       "${kernel_version}/trace/events"
+if [ -e "linux-${kernel_version}"/include/trace/events/qla.h ]; then
+    touch "linux-${kernel_version}"/include/trace/events/qla.h
+    mv "linux-${kernel_version}"/include/trace/events/qla.h \
+       "${kernel_version}/include/trace/events"
 fi
 rm -rf "linux-${kernel_version}"
 cd ..
