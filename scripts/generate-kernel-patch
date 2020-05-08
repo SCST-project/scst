@@ -539,7 +539,11 @@ elif [ "${qla2x00t_32gbit}" = "true" ]; then
     [ -e "$f" ] || continue
     g="${f#qla2x00t-32gbit/in-tree-patches/$1/}"
     g="${g%.patch}"
-    add_patch "${f}" "drivers/scsi/qla2xxx/${g}"
+    if [ "$g" = "qla.h" ]; then
+	add_patch "${f}" "include/trace/events/${g}"
+    else
+	add_patch "${f}" "drivers/scsi/qla2xxx/${g}"
+    fi
   done
 
   for f in qla2x00t-32gbit/qla2x00-target/*.[ch]; do
