@@ -507,7 +507,7 @@ add_file "iscsi-scst/README_in-tree" "Documentation/scst/README.iscsi" \
 
 if [ "${qla2x00t}" = "true" ]; then
 
-  ( cd qla2x00t && ./generate-in-tree-patches "$1" )
+  ( cd qla2x00t && "$PWD/generate-in-tree-patches" "$1" )
 
   for f in qla2x00t/in-tree-patches/"$1"/*.patch; do
     [ -e "$f" ] || continue
@@ -533,7 +533,7 @@ if [ "${qla2x00t}" = "true" ]; then
 
 elif [ "${qla2x00t_32gbit}" = "true" ]; then
 
-  ( cd qla2x00t-32gbit && ./generate-in-tree-patches "$1" )
+  ( cd qla2x00t-32gbit && "$PWD/generate-in-tree-patches" "$1" )
 
   for f in qla2x00t-32gbit/in-tree-patches/"$1"/*.patch; do
     [ -e "$f" ] || continue
