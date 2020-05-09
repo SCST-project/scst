@@ -4,7 +4,7 @@
 #
 # Script for running those SCST regression tests that can be run automatically.
 #
-# Copyright (C) 2008-2009 Bart Van Assche <bvanassche@acm.org>
+# Copyright (C) 2008-2020 Bart Van Assche <bvanassche@acm.org>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -199,22 +199,23 @@ function compile_scst_patched {
 }
 
 # Generate a kernel patch from the SCST source tree for kernel version $1
-# and with generate-kernel-patch options $2.
+# and with generate-kernel-patch options $2. $1 may be a
+# ${kver}^${distro}^${release} triplet.
 function generate_kernel_patch {
   local kver
-  local patchfile="${outputdir}/scst-$1-kernel.patch"
-  local patchfile_m="${outputdir}/scst-$1-kernel-matching-line-numbers.patch"
+  local patchfile="${outputdir}/scst-${1/^*}-kernel.patch"
+  local patchfile_m="${outputdir}/scst-${1/^*}-kernel-matching-line-numbers.patch"
   local driver_options=""
 
-  kver="$(kernel_version "$1")"
+  kver="$(kernel_version "${1/^*}")"
   driver_options=(-l)
   [ "${mpt_scst}" = "true" ] && driver_options+=("-m")
 
-  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" "$2" "$1" > "${patchfile}"
+  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" $2 "$1" > "${patchfile}"
 
-  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" -n "$2" "$1" > "${patchfile_m}"
+  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" -n $2 "$1" > "${patchfile_m}"
 
-  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" -p "${outputdir}/${patchdir}" "$2" "$1"
+  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" -p "${outputdir}/${patchdir}" $2 "$1"
 }
 
 # Run checkpatch on the generated kernel patch. Assumes that there is a
@@ -267,6 +268,7 @@ CONFIG_BINARY_PRINTF				\
 CONFIG_BLK_DEV_IO_TRACE				\
 CONFIG_BRANCH_PROFILE_NONE			\
 CONFIG_CONTEXT_SWITCH_TRACER			\
+CONFIG_DEBUG_SECTION_MISMATCH			\
 CONFIG_DEBUG_STRICT_USER_COPY_CHECKS		\
 CONFIG_DYNAMIC_FTRACE				\
 CONFIG_EVENT_TRACE_TEST_SYSCALLS		\
@@ -292,6 +294,7 @@ CONFIG_MMIOTRACE				\
 CONFIG_NET_DROP_MONITOR				\
 CONFIG_NOP_TRACER				\
 CONFIG_RETPOLINE				\
+CONFIG_RH_KABI_SIZE_ALIGN_CHECKS		\
 CONFIG_SCHED_TRACER				\
 CONFIG_SECURITY_SELINUX				\
 CONFIG_STACK_TRACER				\
@@ -630,7 +633,7 @@ do
   run_smatch="true"
   ipv6="true"
   global_multiple_patches="${multiple_patches}"
-  while [ "${kv%-?}" != "${kv}" ] || [ "${kv%-??}" != "${kv}" ]; do
+  while true; do
     kv_without_opt="${kv%-?}"
     if [ "${kv_without_opt}" = "${kv}" ]; then
       kv_without_opt="${kv%-??}"
@@ -645,7 +648,7 @@ do
       '-nm') run_smatch="false";;
       '-u')  generate_kernel_patch_options="-u";;
       '-p')  multiple_patches="true";;
-      *)     echo "Error: unknown option ${kopt}."; exit 1;;
+      *)     break;;
     esac
     kv="${kv_without_opt}"
   done
@@ -656,6 +659,7 @@ do
   (
       cd "${outputdir}" &&
 	  download_and_extract_kernel_tree "$k" &&
+	  k="${k/^*}" &&
 	  cd "linux-$k/include/linux" &&
 	  if [ ! -e compiler-gcc6.h ]; then
 	      for f in compiler-gcc5.h compiler-gcc4.h; do
@@ -667,6 +671,7 @@ do
 	  fi
   ) ||
       continue
+  k="${k/^*}"
   if [ "${run_checkpatch}" = "true" ]; then
     run_checkpatch "$k"
   fi
