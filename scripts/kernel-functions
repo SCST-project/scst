@@ -2,6 +2,9 @@
 # Shell functions for parsing the Linux kernel version and for downloading
 # from kernel.org.
 
+# shellcheck source=./rhel-rpm-functions
+source "$(dirname "$0")/../scripts/rhel-rpm-functions" || return $?
+
 kernel_mirror="http://cdn.kernel.org/pub/linux/kernel"
 kernel_downloads="$HOME/software/downloads"
 kernel_tree="$HOME/software/linux-kernel"
@@ -435,10 +438,37 @@ EOF
     done
 }
 
+function download_and_extract_distro_rpm {
+    [ -n "$1" ] || return $?
+    local arr
+    readarray -d ^ -t arr <<<"$1^^^^"
+    local kver=${arr[0]}
+    local distro=${arr[1]}
+    local release=${arr[2]}
+    (
+	cd "${kernel_downloads}" || exit $?
+	urls=($(get_srpm_urls "$distro" "$release" x86_64))
+	for url in "${urls[@]}"; do
+	    wget -q -nc "${url}/kernel-${kver}.src.rpm" && break
+	done
+    )
+    local tmpdir=kernel-tree-tmp-$$
+    rm -rf "linux-$1" "${tmpdir}"
+    mkdir "${tmpdir}" || return $?
+    (
+	cd "${tmpdir}" &&
+	    rpm2cpio "${kernel_downloads}/kernel-${kver}.src.rpm" |
+		cpio -i --make-directories --quiet &&
+	    tar xaf linux-${kver}.tar.* &&
+	    mv "linux-${kver}" ".." &&
+	    cd "../linux-${kver}"
+    ) || return $?
+    rm -rf "${tmpdir}"
+}
+
 function download_and_extract_kernel_tree {
     if [ -e "${kernel_tree}" ]; then
-	rm -rf "linux-$1"
-	mkdir "linux-$1"
+	{ [ "${1/^}" = "$1" ] &&
 	(
 	    cd "${kernel_tree}" &&
 		{
@@ -450,12 +480,17 @@ function download_and_extract_kernel_tree {
 			    git fetch stable
 			}
 		} &&
+		{ git tag -l "v$1" | grep -q '^v'; } &&
 		git archive "v$1"
-	) | tar -C "linux-$1" -xf-
+	) | {
+	    rm -rf "linux-$1" &&
+		mkdir "linux-$1" &&
+		tar -C "linux-$1" -xf- 2>/dev/null
+	}; } || download_and_extract_distro_rpm "$1"
     else
 	download_kernel "$1" && extract_kernel_tree "$1"
     fi &&
-	(cd "linux-$1" && patch_kernel "$1")
+	(cd "linux-${1/^*}" && patch_kernel "${1/^*}")
 }
 
 # For shellcheck

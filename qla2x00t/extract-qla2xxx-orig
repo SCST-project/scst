@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source ../scripts/kernel-functions
+source "$(dirname "$0")/../scripts/kernel-functions" || exit $?
 
 #########################
 # Argument verification #
@@ -15,7 +15,8 @@ fi
 
 mkdir -p qla2xxx-orig
 cd qla2xxx-orig || exit $?
-download_and_extract_kernel_tree "${kernel_version}"
+download_and_extract_kernel_tree "${kernel_version}" || exit $?
+kernel_version=${kernel_version/^*}
 touch "linux-${kernel_version}"/drivers/scsi/qla2xxx/*
 rm -rf "${kernel_version}"
 mkdir -p "${kernel_version}"

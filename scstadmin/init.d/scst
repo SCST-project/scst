@@ -102,8 +102,8 @@ start_daemon() {
     "$@" >/dev/null 2>&1 &
 }
 killproc() {
-    local exe="`basename "$1"`"
-    killall $exe
+    exe=$(basename "$1")
+    killall "$exe"
     rm -f "/var/run/$exe.pid"
 }
 fi
@@ -111,7 +111,7 @@ fi
 # Whether or not there is a "TARGET_DRIVER iscsi" section in scst.conf.
 using_iscsi() {
     for m in $SCST_MODULES; do
-        if [ $m = "iscsi_scst" ]; then
+        if [ "$m" = "iscsi_scst" ]; then
             return 0
         fi
     done
@@ -127,12 +127,12 @@ parse_scst_conf() {
     if [ ! -e $SCST_CFG ]; then
         return 0
     fi
-    local nonblanks="[^[:blank:]]\{1,\}"
-    local blanks="[[:blank:]]\{1,\}"
-    local optblanks="[[:blank:]]*"
-    SCST_MODULES="$SCST_MODULES `sed -n -e 's/^HANDLER'"$blanks"'\('"$nonblanks"'\)'"$blanks"'{'"$optblanks"'$/\1/p' \
-                         -e 's/^\[HANDLER'"$blanks"'\('"$nonblanks"'\)\]$/\1/p' $SCST_CFG \
-        | while read h; do
+    nonblanks="[^[:blank:]]\{1,\}"
+    blanks="[[:blank:]]\{1,\}"
+    optblanks="[[:blank:]]*"
+    SCST_MODULES="$SCST_MODULES $(sed -n -e "s/^HANDLER$blanks\($nonblanks\)$blanks{$optblanks\$/\1/p" \
+                    -e "s/^\[HANDLER$blanks\($nonblanks\)\]\$/\1/p" $SCST_CFG \
+        | while read -r h; do
             case "$h" in
                 dev_cdrom)      echo scst_cdrom;;
                 dev_changer)    echo scst_changer;;
@@ -145,18 +145,18 @@ parse_scst_conf() {
                 vdisk*|vcdrom)  echo scst_vdisk;;
                 *)              echo "$h";;
             esac
-        done | sort -u` \
-        `sed -n 's/^TARGET_DRIVER'"$blanks"'\('"$nonblanks"'\)'"$blanks"'{'"$optblanks"'$/\1/p' $SCST_CFG | while read d; do
+        done | sort -u) \
+        $(sed -n "s/^TARGET_DRIVER$blanks\($nonblanks\)$blanks{$optblanks\$/\1/p" $SCST_CFG | while read -r d; do
             case "$d" in
                 iscsi)    echo iscsi_scst;;
                 qla2x00t) echo qla2x00tgt;;
                 copy_manager) ;;
                 *)        echo "$d";;
             esac
-        done | sort -u` \
+        done | sort -u) \
         $SCST_TARGET_MODULES"
     if using_iscsi; then
-        case "`uname -m`" in
+        case "$(uname -m)" in
             x86_64|i686)
                 SCST_OPT_MODULES="crc32c-intel $SCST_OPT_MODULES";;
         esac
@@ -168,8 +168,6 @@ parse_scst_conf() {
 # Keep trying to unload kernel module $1 for up to $2 seconds. Return true
 # if and only if the kernel module was unloaded before the timeout expired.
 unload_kmod() {
-    local i m t
-
     m="$1"
     t="$2"
     i=0
@@ -185,7 +183,7 @@ unload_kmod() {
 # Unload SCST. parse_scst_conf must already have been invoked.
 unload_scst() {
     for d in $SCST_DAEMONS; do
-        killproc $d
+        killproc "$d"
     done
 
     # isert_scst must be unloaded before iscsi_scst. Note that unloading
@@ -199,14 +197,14 @@ unload_scst() {
         reverse_list="$m $reverse_list"
     done
     for m in $reverse_list; do
-        refcnt="`cat /sys/module/$m/refcnt 2>/dev/null`"
-        if [ ! -z "$refcnt" ] && [ "$refcnt" -gt 0 ]; then
+        refcnt=$(cat "/sys/module/$m/refcnt" 2>/dev/null)
+        if [ -n "$refcnt" ] && [ "$refcnt" -gt 0 ]; then
             # Apparently it can happen that the iscsi_scst refcnt is only
             # decremented a short time after killproc finished. If that
             # occurs, sleep for a short time.
             sleep 1
         fi
-        unload_kmod $m 30 || return 1
+        unload_kmod "$m" 30 || return 1
     done
     # Loading qla2x00tgt causes qla2xxx_scst to be loaded but removing
     # qla2x00tgt does not cause qla2xxx_scst to be unloaded. Hence unload it
@@ -216,7 +214,7 @@ unload_scst() {
         reverse_list="$m $reverse_list"
     done
     for m in $reverse_list; do
-        rmmod $m >/dev/null 2>&1
+        rmmod "$m" >/dev/null 2>&1
     done
 
     # Clear the config in case unloading failed or SCST has been built into the
@@ -229,7 +227,7 @@ unload_scst() {
 }
 
 start_scst() {
-        if [ -e /sys/module/scst -a -e /sys/module/scst/refcnt ]; then
+        if [ -e /sys/module/scst ] && [ -e /sys/module/scst/refcnt ]; then
             echo Already started
             return 0
         fi
@@ -237,13 +235,13 @@ start_scst() {
         parse_scst_conf
 
         for m in $SCST_OPT_MODULES; do
-            modprobe $m >/dev/null 2>&1
+            modprobe "$m" >/dev/null 2>&1
         done
 
         for m in $SCST_MODULES; do
-            if [ ! -e /sys/module/$m ]; then
-                if ! modprobe $m; then
-                    echo modprobe $m failed.
+            if [ ! -e "/sys/module/$m" ]; then
+                if ! modprobe "$m"; then
+                    echo "modprobe $m failed."
                     unload_scst
                     return 5
                 fi
@@ -253,9 +251,9 @@ start_scst() {
         for d in $SCST_DAEMONS; do
             options=""
             if [ "$(basename "$d")" = "iscsi-scstd" ]; then
-                options="${ISCSID_OPTIONS}"
+                options=${ISCSID_OPTIONS}
             fi
-            if ! start_daemon $d $options; then
+            if ! start_daemon "$d" $options; then
                 echo "Starting $d failed"
                 unload_scst
                 return 1
@@ -298,16 +296,15 @@ scst_status() {
         parse_scst_conf
 
         for m in $SCST_MODULES; do
-            if [ ! -e /sys/module/$m ]; then
+            if [ ! -e "/sys/module/$m" ]; then
                 echo "$m: not loaded"
                 return 3
             fi
         done
 
         for d in $SCST_DAEMONS; do
-            daemon_name=`basename ${d}`
-            pgrep ${daemon_name} > /dev/null 2>&1
-            if [ $? -ne 0 ]; then
+            daemon_name=$(basename "${d}")
+            if ! pgrep "${daemon_name}" > /dev/null 2>&1; then
                 echo "${daemon_name}: not running"
                 return 3
             fi

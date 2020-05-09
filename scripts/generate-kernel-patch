@@ -105,6 +105,21 @@ EOF
 # Run the script specialize_patch with appropriate options on the patch
 # passed via stdin and send the specialized patch to stdout.
 function specialize_patch {
+  local arr ao
+  readarray -d ^ -t arr <<<"$1^^^^"
+  local kver=${arr[0]}
+  local distro=${arr[1]}
+  local release=${arr[2]}
+  readarray -d . -t arr <<<"$release..."
+  local releasevermajor="${arr[0]}"
+  local releaseverminor="${arr[1]}"
+  if [ -n "$releasevermajor" ]; then
+      ao=(
+	  -v RHEL_MAJOR=$releasevermajor
+	  -v RHEL_MINOR=$releaseverminor
+	  -v RHEL_RELEASE_CODE=$((releasevermajor * 256 + releaseverminor))
+      )
+  fi
   if [ "${enable_specialize}" = "true" ]; then
     if [ "${generating_upstream_patch}" = "true" ]; then
       scripts/filter-trace-entry-exit
@@ -113,14 +128,14 @@ function specialize_patch {
     fi |
     "$(dirname "$0")/specialize-patch" \
          "${specialize_patch_options[@]}" \
-         -v kernel_version="${kver3}" \
-         -v SCST_IO_CONTEXT="${scst_io_context}"
+         -v kernel_version="${kver/-*}" \
+         -v SCST_IO_CONTEXT="${scst_io_context}" "${ao[@]}"
   else
     cat
   fi
 }
 
-# Read a patch from stdin, specialize it for kernel version ${kver}
+# Read a patch from stdin, specialize it for kernel version ${full_kver}
 # and write the output either to stdout or to the file $1 (if not empty),
 # depending on the value of the variable ${multiple_patches}.
 function process_patch {
@@ -132,7 +147,7 @@ function process_patch {
       fi
       tmppatch="$(/bin/mktemp)"
       (
-        specialize_patch
+        specialize_patch "${full_kver}"
       ) >"${tmppatch}"
       touch "${tmppatch}"
       {
@@ -151,7 +166,7 @@ function process_patch {
       true
     fi
   else
-    specialize_patch
+    specialize_patch "${full_kver}"
   fi
 }
 
@@ -208,6 +223,7 @@ if [ $# != 1 ]; then
 fi
 
 # Strip patch level from the kernel version number.
+full_kver="$1"
 kver="$(kernel_version "$1")"
 # kver3: first three components of the version number.
 if [ "${1#2.}" != "$1" ]; then
@@ -507,7 +523,7 @@ add_file "iscsi-scst/README_in-tree" "Documentation/scst/README.iscsi" \
 
 if [ "${qla2x00t}" = "true" ]; then
 
-  ( cd qla2x00t && ./generate-in-tree-patches "$1" )
+  ( cd qla2x00t && "$PWD/generate-in-tree-patches" "$1" ) || exit $?
 
   for f in qla2x00t/in-tree-patches/"$1"/*.patch; do
     [ -e "$f" ] || continue
@@ -533,7 +549,7 @@ if [ "${qla2x00t}" = "true" ]; then
 
 elif [ "${qla2x00t_32gbit}" = "true" ]; then
 
-  ( cd qla2x00t-32gbit && ./generate-in-tree-patches "$1" )
+  ( cd qla2x00t-32gbit && "$PWD/generate-in-tree-patches" "$1" ) || exit $?
 
   for f in qla2x00t-32gbit/in-tree-patches/"$1"/*.patch; do
     [ -e "$f" ] || continue
