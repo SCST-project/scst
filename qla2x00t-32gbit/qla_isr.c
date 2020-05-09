@@ -2170,10 +2170,11 @@ static void qla24xx_nvme_iocb_entry(scsi_qla_host_t *vha, struct req_que *req,
 	}
 
 	if (state_flags & SF_NVME_ERSP) {
-		struct nvme_fc_ersp_iu *rsp_iu = fd->rspaddr;
 		u32 tgt_xfer_len;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+		struct nvme_fc_ersp_iu *rsp_iu = fd->rspaddr;
+
 		/*
 		 * xfrd_len was introduced by commit b1ad1475b447
 		 * ("nvme-fabrics: Add FC transport FC-NVME definitions")
