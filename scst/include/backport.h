@@ -187,7 +187,8 @@ static inline void *bsg_job_sense(struct bsg_job *job)
  * See also f2f2efb807d3 ("byteorder: Move {cpu_to_be32, be32_to_cpu}_array()
  * from Thunderbolt to core") # v4.15.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
 static inline void cpu_to_be32_array(__be32 *dst, const u32 *src, size_t len)
 {
 	int i;
