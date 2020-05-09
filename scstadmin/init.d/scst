@@ -130,8 +130,8 @@ parse_scst_conf() {
     nonblanks="[^[:blank:]]\{1,\}"
     blanks="[[:blank:]]\{1,\}"
     optblanks="[[:blank:]]*"
-    SCST_MODULES="$SCST_MODULES $(sed -n -e 's/^HANDLER'"$blanks"'\('"$nonblanks"'\)'"$blanks"'{'"$optblanks"'$/\1/p' \
-                         -e 's/^\[HANDLER'"$blanks"'\('"$nonblanks"'\)\]$/\1/p' $SCST_CFG \
+    SCST_MODULES="$SCST_MODULES $(sed -n -e "s/^HANDLER$blanks\($nonblanks\)$blanks{$optblanks\$/\1/p" \
+                    -e "s/^\[HANDLER$blanks\($nonblanks\)\]\$/\1/p" $SCST_CFG \
         | while read -r h; do
             case "$h" in
                 dev_cdrom)      echo scst_cdrom;;
@@ -146,7 +146,7 @@ parse_scst_conf() {
                 *)              echo "$h";;
             esac
         done | sort -u) \
-        $(sed -n 's/^TARGET_DRIVER'"$blanks"'\('"$nonblanks"'\)'"$blanks"'{'"$optblanks"'$/\1/p' $SCST_CFG | while read -r d; do
+        $(sed -n "s/^TARGET_DRIVER$blanks\($nonblanks\)$blanks{$optblanks\$/\1/p" $SCST_CFG | while read -r d; do
             case "$d" in
                 iscsi)    echo iscsi_scst;;
                 qla2x00t) echo qla2x00tgt;;
