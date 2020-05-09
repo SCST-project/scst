@@ -21,19 +21,26 @@ function get_srpm_urls() {
 	"CentOS"*)
 	    case $releasever in
 		5.*|6.[01])
-		    echo "http://vault.centos.org/${releasever}/os/SRPMS http://vault.centos.org/${releasever}/updates/SRPMS";;
-		[67].*)
-		    echo "http://vault.centos.org/${releasever}/os/Source/SPackages http://vault.centos.org/${releasever}/updates/Source/SPackages";;
+		    echo "http://vault.centos.org/${releasever}/os/SRPMS"
+		    echo "http://vault.centos.org/${releasever}/updates/SRPMS";;
+		[67]*)
+		    echo "http://vault.centos.org/${releasever}/os/Source/SPackages"
+		    echo "http://vault.centos.org/${releasever}/updates/Source/SPackages";;
+		8*)
+		    echo "http://vault.centos.org/${releasever}/BaseOS/Source/SPackages/";;
 	    esac
 	    ;;
 	"Red Hat Enterprise Linux"*)
 	    case $releasever in
 		[56].*)
-		    echo "http://ftp.redhat.com/pub/redhat/linux/enterprise/${releasevermajor}Server/en/os/SRPMS http://ftp.redhat.com/redhat/rhel/rc/7/Server/source/tree/Packages";;
+		    echo "http://ftp.redhat.com/pub/redhat/linux/enterprise/${releasevermajor}Server/en/os/SRPMS"
+		    echo "http://ftp.redhat.com/redhat/rhel/rc/7/Server/source/tree/Packages";;
 	    esac
 	    ;;
 	"Oracle Linux Server")
-	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/${releaseverminor}/base/${arch}/getPackageSource http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/latest/${arch}/getPackageSource http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/UEK/latest/${arch}/getPackageSource"
+	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/${releaseverminor}/base/${arch}/getPackageSource"
+	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/latest/${arch}/getPackageSource"
+	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/UEK/latest/${arch}/getPackageSource"
 	    ;;
 	"Scientific Linux")
 	    case $releasever in
@@ -72,15 +79,22 @@ function get_rpm_urls() {
 		5.*)
 		    echo "http://vault.centos.org/${releasever}/os/${arch}/CentOS http://vault.centos.org/${releasever}/updates/${arch}/RPMS";;
 		6.[01])
+		    echo "http://vault.centos.org/${releasever}/os/${arch}/Packages"
+		    echo "http://vault.centos.org/${releasever}/updates/${arch}/Packages";;
+		[67]*)
+		    echo "https://mirrors.edge.kernel.org/centos/${releasever}/updates/${arch}/Packages"
+		    echo "http://vault.centos.org/${releasever}/updates/${arch}/Packages"
 		    echo "http://vault.centos.org/${releasever}/os/${arch}/Packages http://vault.centos.org/${releasever}/updates/${arch}/Packages";;
-		[67].*)
-		    echo "http://vault.centos.org/${releasever}/os/${arch}/Packages http://vault.centos.org/${releasever}/updates/${arch}/Packages";;
+		8*)
+		    echo "https://mirrors.edge.kernel.org/centos/8-stream/BaseOS/${arch}/os/Packages";;
 	    esac
 	    ;;
 	"Red Hat Enterprise Linux"*)
 	    echo "";;
 	"Oracle Linux Server")
-	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/${releaseverminor}/base/${arch}/getPackageSource http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/latest/${arch}/getPackageSource http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/UEK/latest/${arch}/getPackageSource"
+	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/${releaseverminor}/base/${arch}/getPackageSource"
+	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/latest/${arch}/getPackageSource"
+	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/UEK/latest/${arch}/getPackageSource"
 	    ;;
 	"Scientific Linux")
 	    case $releasever in
