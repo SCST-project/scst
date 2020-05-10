@@ -273,7 +273,6 @@ CONFIG_DEBUG_SECTION_MISMATCH			\
 CONFIG_DEBUG_STRICT_USER_COPY_CHECKS		\
 CONFIG_DYNAMIC_FTRACE				\
 CONFIG_EVENT_TRACE_TEST_SYSCALLS		\
-CONFIG_EVENT_TRACING				\
 CONFIG_FTRACE					\
 CONFIG_FTRACE_MCOUNT_RECORD			\
 CONFIG_FTRACE_NMI_ENTER				\
@@ -308,6 +307,18 @@ CONFIG_X86_32					\
 CONFIG_X86_X32					\
 "
   local enable="CONFIG_UNWINDER_FRAME_POINTER"
+
+  case "$1" in
+      2.6.32-*)
+         echo "Enabling CONFIG_EVENT_TRACING for CentOS 6.x"
+         enable="$enable \
+                 CONFIG_DEBUG_KERNEL \
+                 CONFIG_FTRACE \
+                 CONFIG_EVENT_TRACING \
+                 CONFIG_DYNAMIC_DEBUG";;
+      *)
+         disable="$disable CONFIG_EVENT_TRACING";;
+  esac
 
   echo "Patching and configuring kernel ..."
   if [ "$ipv6" = "false" ]; then
