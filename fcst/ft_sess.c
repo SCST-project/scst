@@ -49,7 +49,8 @@ static struct ft_tport *ft_tport_create(struct fc_lport *lport)
 	ft_format_wwn(name, sizeof(name), lport->wwpn);
 	FT_SESS_DBG("create %s\n", name);
 
-	tport = rcu_dereference_protected(lport->prov[FC_TYPE_FCP],
+	tport = rcu_dereference_protected((void __force __rcu *)
+					  lport->prov[FC_TYPE_FCP],
 					  lockdep_is_held(&ft_lport_lock));
 	if (tport) {
 		FT_SESS_DBG("tport alloc %s - already setup\n", name);
@@ -74,7 +75,8 @@ static struct ft_tport *ft_tport_create(struct fc_lport *lport)
 	for (i = 0; i < FT_SESS_HASH_SIZE; i++)
 		INIT_HLIST_HEAD(&tport->hash[i]);
 
-	rcu_assign_pointer(lport->prov[FC_TYPE_FCP], tport);
+	rcu_assign_pointer(*(void __force __rcu **)&lport->prov[FC_TYPE_FCP],
+			   tport);
 	FT_SESS_DBG("register_target %s succeeded\n", name);
 	return tport;
 }
@@ -106,7 +108,8 @@ static void ft_tport_delete(struct ft_tport *tport)
 	scst_unregister_target(tgt);
 	lport = tport->lport;
 	BUG_ON(tport != lport->prov[FC_TYPE_FCP]);
-	rcu_assign_pointer(lport->prov[FC_TYPE_FCP], NULL);
+	rcu_assign_pointer(*(void __force __rcu **)&lport->prov[FC_TYPE_FCP],
+			   NULL);
 	tport->lport = NULL;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
 	kfree_rcu(tport, rcu);
@@ -183,7 +186,8 @@ static struct ft_sess *ft_sess_get(struct fc_lport *lport, u32 port_id)
 	struct ft_sess *sess;
 
 	rcu_read_lock();
-	tport = rcu_dereference_protected(lport->prov[FC_TYPE_FCP], true);
+	tport = rcu_dereference_protected((void __force __rcu *)
+					  lport->prov[FC_TYPE_FCP], true);
 	if (!tport)
 		goto out;
 
@@ -398,7 +402,7 @@ static int ft_prli_locked(struct fc_rport_priv *rdata, u32 spp_len,
 
 		if (!(fcp_parm & FCP_SPPF_INIT_FCN))
 			return FC_SPP_RESP_CONF;
-		tport = rcu_dereference_protected(
+		tport = rcu_dereference_protected((void __force __rcu *)
 					rdata->local_port->prov[FC_TYPE_FCP],
 					lockdep_is_held(&ft_lport_lock));
 		if (!tport) {
@@ -480,7 +484,8 @@ static void ft_prlo(struct fc_rport_priv *rdata)
 	struct ft_tport *tport;
 
 	mutex_lock(&ft_lport_lock);
-	tport = rcu_dereference_protected(rdata->local_port->prov[FC_TYPE_FCP],
+	tport = rcu_dereference_protected((void __force __rcu *)
+					  rdata->local_port->prov[FC_TYPE_FCP],
 					  lockdep_is_held(&ft_lport_lock));
 	if (!tport) {
 		mutex_unlock(&ft_lport_lock);
