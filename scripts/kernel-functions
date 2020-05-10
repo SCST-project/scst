@@ -127,8 +127,8 @@ function extract_kernel_tree {
 
 # Patch a kernel tree where $1 is the kernel version.
 function patch_kernel {
-    if [ "$1" = "2.6.29" ] || [ "$1" = "2.6.29.1" ] || [ "$1" = "2.6.29.2" ] || [ "$1" = "2.6.29.3" ]
-    then
+    if [ "$1" = "2.6.29" ] || [ "$1" = "2.6.29.1" ] || [ "$1" = "2.6.29.2" ] ||
+	   [ "$1" = "2.6.29.3" ]; then
       patch -f -s -p1 <<'EOF'
 Make sure that branch profiling does not trigger sparse warnings.
 See also http://bugzilla.kernel.org/show_bug.cgi?id=12925
@@ -148,8 +148,8 @@ See also http://lkml.org/lkml/2009/4/5/120
  #define likely_notrace(x)	__builtin_expect(!!(x), 1)
 EOF
     fi
-    if [ "${1#2.6.31}" != "$1" ]
-    then
+
+    if [ "${1#2.6.31}" != "$1" ]; then
       patch -f -s -p1 <<'EOF'
 Checking a 2.6.31.1 kernel configured with allyesconfig/allmodconfig
 with sparse (make C=2) triggers a sparse warning on code that uses the
@@ -203,6 +203,7 @@ Get rid of sparse errors on sk_buff.protocol.
  #if defined(CONFIG_NF_CONNTRACK) || defined(CONFIG_NF_CONNTRACK_MODULE)
 EOF
     fi
+
     if [ "${1#3.13}" != "$1" ]; then
       if [ "$1" = "3.13" ] || [ "${1#3.13.}" -lt 6 ]; then
         patch -f -s -p1 <<'EOF'
@@ -244,6 +245,7 @@ index 3f2793d..96e45ea 100644
 EOF
       fi
     fi
+
     if [ "${1#4.15}" != "$1" ]; then
         patch -f -s -p1 <<'EOF'
 From ad343a98e74e85aa91d844310e797f96fee6983b Mon Sep 17 00:00:00 2001
@@ -334,6 +336,7 @@ index d6d65537b0d9..6aad8308a0ac 100644
  }
 EOF
     fi
+
     case "$1" in
 	2.6.3[6-9]*|3.[0-9]|3.[0-9].*|3.1[01345]|3.1[01345].*|3.1[789]|3.1[789].*|4.[023567]|4.[023567].*)
 	    patch -p1 <<'EOF'
@@ -399,6 +402,9 @@ index 0ed6ce300543..c324b43712f0 100644
  KBUILD_LDFLAGS_MODULE := -T $(srctree)/scripts/module-common.lds
 EOF
 	    ;;
+	# The patch below does not apply on the CentOS 6 kernel.
+	2.6.32-*)
+	    ;;
 	2.6.3[1-5]*)
 	    patch -p1 <<'EOF'
 diff --git a/Makefile b/Makefile
@@ -421,6 +427,113 @@ index 141da26fda4b..343ec388ae2e 100644
  
  # Read KERNELRELEASE from include/config/kernel.release (if it exists)
  KERNELRELEASE = $(shell cat include/config/kernel.release 2> /dev/null)
+EOF
+	    ;;
+    esac
+
+    case "$1" in
+	4.18.0-*) # CentOS 8.x
+	    patch -p1 <<'EOF'
+From a6e60d84989fa0e91db7f236eda40453b0e44afa Mon Sep 17 00:00:00 2001
+From: Miguel Ojeda <miguel.ojeda.sandonis@gmail.com>
+Date: Sat, 19 Jan 2019 20:59:34 +0100
+Subject: [PATCH] include/linux/module.h: copy __init/__exit attrs to
+ init/cleanup_module
+
+The upcoming GCC 9 release extends the -Wmissing-attributes warnings
+(enabled by -Wall) to C and aliases: it warns when particular function
+attributes are missing in the aliases but not in their target.
+
+In particular, it triggers for all the init/cleanup_module
+aliases in the kernel (defined by the module_init/exit macros),
+ending up being very noisy.
+
+These aliases point to the __init/__exit functions of a module,
+which are defined as __cold (among other attributes). However,
+the aliases themselves do not have the __cold attribute.
+
+Since the compiler behaves differently when compiling a __cold
+function as well as when compiling paths leading to calls
+to __cold functions, the warning is trying to point out
+the possibly-forgotten attribute in the alias.
+
+In order to keep the warning enabled, we decided to silence
+this case. Ideally, we would mark the aliases directly
+as __init/__exit. However, there are currently around 132 modules
+in the kernel which are missing __init/__exit in their init/cleanup
+functions (either because they are missing, or for other reasons,
+e.g. the functions being called from somewhere else); and
+a section mismatch is a hard error.
+
+A conservative alternative was to mark the aliases as __cold only.
+However, since we would like to eventually enforce __init/__exit
+to be always marked,  we chose to use the new __copy function
+attribute (introduced by GCC 9 as well to deal with this).
+With it, we copy the attributes used by the target functions
+into the aliases. This way, functions that were not marked
+as __init/__exit won't have their aliases marked either,
+and therefore there won't be a section mismatch.
+
+Note that the warning would go away marking either the extern
+declaration, the definition, or both. However, we only mark
+the definition of the alias, since we do not want callers
+(which only see the declaration) to be compiled as if the function
+was __cold (and therefore the paths leading to those calls
+would be assumed to be unlikely).
+
+Link: https://lore.kernel.org/lkml/20190123173707.GA16603@gmail.com/
+Link: https://lore.kernel.org/lkml/20190206175627.GA20399@gmail.com/
+Suggested-by: Martin Sebor <msebor@gcc.gnu.org>
+Acked-by: Jessica Yu <jeyu@kernel.org>
+Signed-off-by: Miguel Ojeda <miguel.ojeda.sandonis@gmail.com>
+---
+ include/linux/module.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/include/linux/module.h b/include/linux/module.h
+index 8fa38d3e7538..f5bc4c046461 100644
+--- a/include/linux/module.h
++++ b/include/linux/module.h
+@@ -129,13 +129,13 @@ extern void cleanup_module(void);
+ #define module_init(initfn)					\
+ 	static inline initcall_t __maybe_unused __inittest(void)		\
+ 	{ return initfn; }					\
+-	int init_module(void) __attribute__((alias(#initfn)));
++	int init_module(void) __attribute__((__copy__(initfn))) __attribute__((alias(#initfn)));
+ 
+ /* This is only required if you want to be unloadable. */
+ #define module_exit(exitfn)					\
+ 	static inline exitcall_t __maybe_unused __exittest(void)		\
+ 	{ return exitfn; }					\
+-	void cleanup_module(void) __attribute__((alias(#exitfn)));
++	void cleanup_module(void) __attribute__((__copy__(exitfn))) __attribute__((alias(#exitfn)));
+ 
+ #endif
+ 
+EOF
+	;;
+	*) # CentOS 6.x and 7.x
+	    patch -p1 <<'EOF'
+--- linux-3.10.0-1127.el7/include/linux/init.h.orig	2020-05-09 20:55:48.638956513 -0700
++++ linux-3.10.0-1127.el7/include/linux/init.h	2020-05-09 20:56:46.947612445 -0700
+@@ -309,13 +309,15 @@
+ #define module_init(initfn)					\
+ 	static inline initcall_t __inittest(void)		\
+ 	{ return initfn; }					\
+-	int init_module(void) __attribute__((alias(#initfn)));
++	int init_module(void) __attribute__((__copy__(initfn)))	\
++	__attribute__((alias(#initfn)));
+ 
+ /* This is only required if you want to be unloadable. */
+ #define module_exit(exitfn)					\
+ 	static inline exitcall_t __exittest(void)		\
+ 	{ return exitfn; }					\
+-	void cleanup_module(void) __attribute__((alias(#exitfn)));
++	void cleanup_module(void) __attribute__((__copy__(exitfn)))\
++	__attribute__((alias(#exitfn)));
+ 
+ #define __setup_param(str, unique_id, fn)	/* nothing */
+ #define __setup(str, func) 			/* nothing */
 EOF
 	    ;;
     esac
