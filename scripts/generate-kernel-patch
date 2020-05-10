@@ -5,7 +5,7 @@
 # Script for converting the SCST source tree as it exists in the Subversion
 # repository to a Linux kernel patch.
 #
-# Copyright (C) 2008-2009 Bart Van Assche <bvanassche@acm.org>
+# Copyright (C) 2008-2020 Bart Van Assche <bvanassche@acm.org>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -342,7 +342,8 @@ else
             "drivers/Kconfig"
 fi
 
-if [ -e "scst/kernel/in-tree/Makefile.drivers.Linux-${kver}.patch" ]; then
+if [ "${full_kver#2.6.32-}" = "${full_kver}" ] &&
+       [ -e "scst/kernel/in-tree/Makefile.drivers.Linux-${kver}.patch" ]; then
   add_patch "scst/kernel/in-tree/Makefile.drivers.Linux-${kver}.patch"\
             "drivers/Makefile"
 else
