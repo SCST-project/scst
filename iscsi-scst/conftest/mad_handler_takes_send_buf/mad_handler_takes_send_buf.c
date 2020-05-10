@@ -7,7 +7,7 @@ static void imrh(struct ib_mad_agent *mad_agent,
 {
 }
 
-static int modinit(void)
+static int __init modinit(void)
 {
 	ib_mad_recv_handler h = imrh;
 
