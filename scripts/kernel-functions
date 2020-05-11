@@ -553,14 +553,14 @@ EOF
 
 function download_and_extract_distro_rpm {
     [ -n "$1" ] || return $?
-    local arr
-    readarray -d ^ -t arr <<<"$1^^^^"
-    local kver=${arr[0]}
-    local distro=${arr[1]}
-    local release=${arr[2]}
+    set -- ${1//^/ }
+    local kver=$1
+    local distro=$2
+    local release=$3
     (
 	cd "${kernel_downloads}" || exit $?
-	urls=($(get_srpm_urls "$distro" "$release" x86_64))
+	read -a urls -r <<<"$(get_srpm_urls "$distro" "$release" x86_64 |
+			      tr '\n' ' ')"
 	for url in "${urls[@]}"; do
 	    wget -q -nc "${url}/kernel-${kver}.src.rpm" && break
 	done
@@ -572,7 +572,7 @@ function download_and_extract_distro_rpm {
 	cd "${tmpdir}" &&
 	    rpm2cpio "${kernel_downloads}/kernel-${kver}.src.rpm" |
 		cpio -i --make-directories --quiet &&
-	    tar xaf linux-${kver}.tar.* &&
+	    tar xaf "linux-${kver}.tar."* &&
 	    mv "linux-${kver}" ".." &&
 	    cd "../linux-${kver}"
     ) || return $?

@@ -11,9 +11,7 @@ function get_srpm_urls() {
     distro="$1"
     releasever="$2"
     arch="$3"
-    IFS=.
-    set -- "$2"
-    unset IFS
+    set -- ${2//./ }
     releasevermajor="$1"
     releaseverminor="$2"
 
@@ -67,9 +65,7 @@ function get_rpm_urls() {
     distro="$1"
     releasever="$2"
     arch="$3"
-    IFS=.
-    set -- "$2"
-    unset IFS
+    set -- ${2//./ }
     releasevermajor="$1"
     releaseverminor="$2"
 

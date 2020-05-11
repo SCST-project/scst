@@ -105,19 +105,19 @@ EOF
 # Run the script specialize_patch with appropriate options on the patch
 # passed via stdin and send the specialized patch to stdout.
 function specialize_patch {
-  local arr ao
-  readarray -d ^ -t arr <<<"$1^^^^"
-  local kver=${arr[0]}
-  local distro=${arr[1]}
-  local release=${arr[2]}
-  readarray -d . -t arr <<<"$release..."
-  local releasevermajor="${arr[0]}"
-  local releaseverminor="${arr[1]}"
+  local ao
+  set -- ${1//^/ }
+  local kver=$1
+  local distro=$2
+  local release=$3
+  set -- ${release//./ }
+  local releasevermajor="$1"
+  local releaseverminor="$2"
   if [ -n "$releasevermajor" ]; then
       ao=(
-	  -v RHEL_MAJOR=$releasevermajor
-	  -v RHEL_MINOR=$releaseverminor
-	  -v RHEL_RELEASE_CODE=$((releasevermajor * 256 + releaseverminor))
+	  -v "RHEL_MAJOR=$releasevermajor"
+	  -v "RHEL_MINOR=$releaseverminor"
+	  -v "RHEL_RELEASE_CODE=$((releasevermajor * 256 + releaseverminor))"
       )
   fi
   if [ "${enable_specialize}" = "true" ]; then
@@ -225,12 +225,6 @@ fi
 # Strip patch level from the kernel version number.
 full_kver="$1"
 kver="$(kernel_version "$1")"
-# kver3: first three components of the version number.
-if [ "${1#2.}" != "$1" ]; then
-  kver3="$kver"
-else
-  kver3="$1"
-fi
 
 # Include fcst in the patch for kernel versions 2.6.33 and later.
 if kernel_version_le "2.6.37" "${kver}"; then
@@ -296,7 +290,6 @@ done
 
 # General kernel patches.
 
-scsi_exec_req_fifo_defined=0
 scst_io_context=0
 
 scst_03_public_headers="scst/include/scst.h scst/include/scst_const.h \
