@@ -59,16 +59,16 @@ static ssize_t iscsi_open_state_show(struct kobject *kobj,
 {
 	switch (ctr_open_state) {
 	case ISCSI_CTR_OPEN_STATE_CLOSED:
-		sprintf(buf, "%s\n", "closed");
+		sprintf(buf, "closed\n");
 		break;
 	case ISCSI_CTR_OPEN_STATE_OPEN:
-		sprintf(buf, "%s\n", "open");
+		sprintf(buf, "open\n");
 		break;
 	case ISCSI_CTR_OPEN_STATE_CLOSING:
-		sprintf(buf, "%s\n", "closing");
+		sprintf(buf, "closing\n");
 		break;
 	default:
-		sprintf(buf, "%s\n", "unknown");
+		sprintf(buf, "unknown\n");
 		break;
 	}
 

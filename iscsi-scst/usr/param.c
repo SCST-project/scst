@@ -181,7 +181,7 @@ static int digest_val_to_str(unsigned int val, char *str, int len)
 
 	if (val & DIGEST_NONE) {
 		len -= pos;
-		pos = snprintf(&str[pos], len, "%s", "None");
+		pos = snprintf(&str[pos], len, "None");
 	}
 
 	if (pos >= len)
@@ -197,7 +197,7 @@ static int digest_val_to_str(unsigned int val, char *str, int len)
 		goto out;
 
 	if (pos == 0)
-		pos = snprintf(&str[0], len, "%s", "Unknown");
+		pos = snprintf(&str[0], len, "Unknown");
 
 out:
 	return 0;

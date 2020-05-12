@@ -66,14 +66,14 @@ const char *iscsi_get_digest_name(int val, char *res)
 	int pos = 0;
 
 	if (val & DIGEST_NONE)
-		pos = sprintf(&res[pos], "%s", "None");
+		pos = sprintf(&res[pos], "None");
 
 	if (val & DIGEST_CRC32C)
 		pos += sprintf(&res[pos], "%s%s", (pos != 0) ? ", " : "",
 			"CRC32C");
 
 	if (pos == 0)
-		sprintf(&res[pos], "%s", "Unknown");
+		sprintf(&res[pos], "Unknown");
 
 	return res;
 }
