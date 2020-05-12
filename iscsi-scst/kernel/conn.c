@@ -39,7 +39,7 @@ static int print_conn_state(char *p, size_t size, struct iscsi_conn *conn)
 	int pos = 0;
 
 	if (conn->closing) {
-		pos += scnprintf(p, size, "%s", "closing");
+		pos += scnprintf(p, size, "closing");
 		goto out;
 	}
 

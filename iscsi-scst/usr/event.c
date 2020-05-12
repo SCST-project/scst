@@ -624,7 +624,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 				isns_access_control ? ISCSI_ISNS_SYSFS_ACCESS_CONTROL_ENABLED : "");
 			add_key_mark(res_str, sizeof(res_str), 0);
 		} else
-			snprintf(res_str, sizeof(res_str), "%s\n", "");
+			snprintf(res_str, sizeof(res_str), "\n");
 	} else if (strcasecmp(ISCSI_ISNS_ENTITY_ATTR_NAME, pp) == 0)	{
 		if (target != NULL) {
 			log_error("Not NULL target %s for global attribute %s",
