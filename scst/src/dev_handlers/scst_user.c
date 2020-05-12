@@ -2356,7 +2356,7 @@ out:
 }
 
 static int dev_user_reply_get_multi(struct file *file,
-				    struct scst_user_get_multi __user* gm)
+				    struct scst_user_get_multi __user *gm)
 {
 	int res = 0, rc;
 	struct scst_user_dev *dev = file->private_data;
