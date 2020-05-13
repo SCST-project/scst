@@ -435,7 +435,7 @@ ssize_t iscsi_sysfs_send_event(uint32_t tid, enum iscsi_kern_event_code code,
 	TRACE_ENTRY();
 
 	if (ctr_open_state != ISCSI_CTR_OPEN_STATE_OPEN) {
-		PRINT_ERROR("%s", "User space process not connected");
+		PRINT_ERROR("User space process is not connected. Is iscsi-scstd running?");
 		res = -EPERM;
 		goto out;
 	}
@@ -627,4 +627,3 @@ const struct attribute *iscsi_acg_attrs[] = {
 	&iscsi_acg_attr_sess_dedicated_threads.attr,
 	NULL,
 };
-
