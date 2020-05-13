@@ -402,8 +402,31 @@ index 0ed6ce300543..c324b43712f0 100644
  KBUILD_LDFLAGS_MODULE := -T $(srctree)/scripts/module-common.lds
 EOF
 	    ;;
-	# The patch below does not apply on the CentOS 6 kernel.
+	# CentOS 6.x.
 	2.6.32-*)
+	    patch -p1 <<'EOF'
+--- linux-2.6.32-754.29.1.el6/Makefile.orig	2020-05-13 14:09:18.448503420 -0700
++++ linux-2.6.32-754.29.1.el6/Makefile	2020-05-13 14:11:24.265441790 -0700
+@@ -355,7 +355,8 @@
+ 
+ KBUILD_CPPFLAGS := -D__KERNEL__
+ 
+-KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
++KBUILD_CFLAGS   := $(call cc-option,-fno-PIE) \
++		   -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
+ 		   -fno-strict-aliasing -fno-common \
+ 		   -Werror-implicit-function-declaration \
+ 		   -Wno-format-security \
+@@ -380,7 +381,7 @@
+ endif ##($(KBUILD_EXTMOD),)
+ endif #(,$(filter $(ARCH), i386 x86_64))
+ 
+-KBUILD_AFLAGS   := -D__ASSEMBLY__
++KBUILD_AFLAGS   := -D__ASSEMBLY__ $(call cc-option,-fno-PIE)
+ 
+ # Read KERNELRELEASE from include/config/kernel.release (if it exists)
+ KERNELRELEASE = $(shell cat include/config/kernel.release 2> /dev/null)
+EOF
 	    ;;
 	2.6.3[1-5]*)
 	    patch -p1 <<'EOF'
