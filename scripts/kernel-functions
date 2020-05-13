@@ -512,7 +512,7 @@ index 8fa38d3e7538..f5bc4c046461 100644
  
 EOF
 	;;
-	*) # CentOS 6.x and 7.x
+	2.6.32-*|3.10.0-*) # CentOS 6.x and 7.x
 	    patch -p1 <<'EOF'
 --- linux-3.10.0-1127.el7/include/linux/init.h.orig	2020-05-09 20:55:48.638956513 -0700
 +++ linux-3.10.0-1127.el7/include/linux/init.h	2020-05-09 20:56:46.947612445 -0700

@@ -1497,7 +1497,7 @@ sub serializeKeyAttr {
 	    foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
 		my $value =
 		    $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
-		push (@values, $value) if ($value ne '');
+		push (@values, $value) if ($value);
 	    }
 	    foreach my $value (sort @values) {
 		$result .= "$prefix$attribute " . escapeMeta($value) . "\n";
@@ -1532,7 +1532,7 @@ sub serializeNkAttr {
 	    && $attribute ne 'enabled'
 	    && $attribute ne 'hw_target') {
 	    my $value = $$attributes{$attribute}->{'value'};
-	    if ($value ne '') {
+	    if ($value) {
 		$result .= "$prefix$attribute " . escapeMeta($value) . "\n";
 	    }
 	}
@@ -3140,7 +3140,7 @@ sub listDevices {
 	my $device = shift;
 	my $nonkey = shift;
 
-	return listDevice($device, $nonkey) if ($device ne '');
+	return listDevice($device, $nonkey) if ($device);
 	return listHandler();
 }
 
@@ -3164,7 +3164,7 @@ sub listDeviceGroups {
 	my $group = shift;
 	my $showall = shift;
 
-	return listDeviceGroup($group) if ($group ne '');
+	return listDeviceGroup($group) if ($group);
 
 	my ($groups, $errorString) = $SCST->deviceGroups();
 
@@ -3244,7 +3244,7 @@ sub listTargetGroups {
 	my $indent = shift;
 
 	return listDeviceGroups(undef, TRUE) if ($group eq '');
-	return listTargetGroup($group, $tgroup) if ($tgroup ne '');
+	return listTargetGroup($group, $tgroup) if ($tgroup);
 
 	my ($tgroups, $errorString) = $SCST->targetGroups($group);
 
@@ -3304,7 +3304,7 @@ sub listDeviceGroupDevices {
 	my $group = shift;
 	my $device = shift;
 
-	return listDevice($device) if ($device ne '');
+	return listDevice($device) if ($device);
 
 	my ($devices, $errorString) = $SCST->deviceGroupDevices($group);
 
@@ -3332,7 +3332,7 @@ sub listDeviceGroupDevices {
 sub listDrivers {
 	my $driver = shift;
 
-	return listTargets($driver, undef) if ($driver ne '');
+	return listTargets($driver, undef) if ($driver);
 
 	my ($drivers, $errorString) = $SCST->drivers();
 
@@ -3360,7 +3360,7 @@ sub listTargets {
 	my $target = shift;
 	my %toprint;
 
-	return listGroups($driver, $target, undef) if (($target ne '') && ($driver ne ''));
+	return listGroups($driver, $target, undef) if ($target and $driver);
 
 	my $got_driver = defined($driver);
 
@@ -3539,7 +3539,7 @@ sub listGroups {
 	my $group = shift;
 	my $found = FALSE;
 
-	if (($group ne '') && ($driver ne '') && ($target ne '')) {
+	if ($group and $driver and $target) {
 		return listGroup($driver, $target, $group);
 	}
 
@@ -3948,7 +3948,7 @@ sub listLunAttributes {
 	return TRUE if issueWarning($errorString);
 
 	if (!scalar(keys %{$attributes})) {
-		if ($group ne '') {
+		if ($group) {
 			print "No such driver/target/group/lun '$driver/$target/$group/$lun' found.\n";
 		} else {
 			print "No such driver/target/lun '$driver/$target/$lun' found.\n";
