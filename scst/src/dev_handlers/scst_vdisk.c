@@ -6230,7 +6230,6 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 
 		lba_start += length >> block_shift;
 
-		scst_put_sg_page(cmd, page, offset);
 		length = scst_get_sg_page_next(cmd, &page, &offset);
 	}
 

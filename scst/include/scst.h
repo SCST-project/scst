@@ -5093,12 +5093,6 @@ static inline int scst_get_sg_page_next(struct scst_cmd *cmd,
 	return __scst_get_sg_page(cmd, cmd->sg_cnt, page, offset);
 }
 
-static inline void scst_put_sg_page(struct scst_cmd *cmd,
-	struct page *page, int offset)
-{
-	/* Nothing to do */
-}
-
 static inline int scst_get_out_sg_page_first(struct scst_cmd *cmd,
 	struct page **page, int *offset)
 {
