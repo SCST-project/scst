@@ -1402,34 +1402,6 @@ struct scst_dev_type {
 		struct scst_ext_copy_seg_descr *descr);
 
 	/*
-	 * Called to notify dev handler that a ALUA state change is about to
-	 * be started. Can be used to close open file handlers, which might
-	 * prevent the state switch.
-	 *
-	 * Called under scst_dg_mutex and no activities on the dev handler level
-	 * (for implicit ALUA case supposed to be done by the user space via
-	 * "block" sysfs attribute as described in the README).
-	 *
-	 * OPTIONAL
-	 */
-	void (*on_alua_state_change_start)(struct scst_device *dev,
-		enum scst_tg_state old_state, enum scst_tg_state new_state);
-
-	/*
-	 * Called to notify dev handler that a ALUA state change is about to
-	 * be finished. Can be used to (re)open file handlers closed in
-	 * on_alua_state_change_start().
-	 *
-	 * Called under scst_dg_mutex and no activities on the dev handler level
-	 * (for implicit ALUA case supposed to be done by the user space via
-	 * "block" sysfs attribute as described in the README).
-	 *
-	 * OPTIONAL
-	 */
-	void (*on_alua_state_change_finish)(struct scst_device *dev,
-		enum scst_tg_state old_state, enum scst_tg_state new_state);
-
-	/*
 	 * Called to notify dev handler that a task management command received
 	 *
 	 * Can be called under many internal SCST locks, including under
