@@ -5883,9 +5883,8 @@ sub cacheAttributes {
 			my $value = $$attributes{$attribute}->{'value'};
 			# Write-only attributes (e.g. abort_isp) do not have
 			# a value.
-			if (defined($value)) {
-				$cache{$attribute}->{$value} = FALSE;
-			}
+			$value = "" if (!defined($value));
+			$cache{$attribute}->{$value} = FALSE;
 		}
 	}
 
