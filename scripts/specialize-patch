@@ -72,78 +72,82 @@ function evaluate(stmnt, pattern, arg, op, result) {
        "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0))", stmnt)
 
   gsub("defined\\(USE_PRE_440_WR_STRUCTURE\\)",
-       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))", stmnt)
+       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) \\&\\& " \
+       "RHEL_RELEASE_CODE -0 < 7 * 256 + 5)", stmnt)
 
   gsub("defined\\(IB_CREATE_CQ_HAS_INIT_ATTR\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 6)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
+
+  gsub("defined\\(CREATE_SEND_MAD_HAS_AH_ARG\\)",
+       "(LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 16))", stmnt)
 
   gsub("defined\\(CREATE_SEND_MAD_HAS_BASE_ARG\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 6)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
 
   gsub("defined\\(IB_CM_LISTEN_TAKES_FOURTH_ARG\\)",
-       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0))", stmnt)
+       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) \\&\\& " \
+       "RHEL_RELEASE_CODE -0 < 7 * 256 + 5)", stmnt)
 
   gsub("defined\\(IB_CLIENT_REMOVE_TAKES_TWO_ARGS\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 6)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
   
   gsub("defined\\(IB_QUERY_GID_HAS_ATTR_ARG\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 6)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
 
   gsub("RDMA_CREATE_ID_TAKES_NET_ARG",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 6)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
 
   gsub("defined\\(HAVE_DEV_ATTR_MAX_RECV_SGE\\)",
-       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))", stmnt)
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) || " \
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 7)", stmnt)
 
   gsub("HAVE_DEV_ATTR_MAX_SEND_SGE",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 8 * 256 + 0)", stmnt)
-
-  gsub("defined\\(HAVE_DEV_ATTR_MAX_RECV_SGE\\)",
-       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 8 * 256 + 0)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 7)", stmnt)
 
   gsub("HAVE_RDMA_DESTROY_AH_WITH_FLAGS",
-       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0))", stmnt)
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0) || " \
+       "RHEL_RELEASE_CODE -0 >= 8 * 256 + 1)", stmnt)
   
   gsub("HAVE_RDMA_DESTROY_AH",
-       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0))", stmnt)
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0) || " \
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
   
   gsub("HAVE_RDMA_QUERY_GID",
-       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))", stmnt)
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) || " \
+       "RHEL_RELEASE_CODE -0 >= 8 * 256 + 1)", stmnt)
 
   gsub("HAVE_SRP_DATA_DESC_IMM",
-       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0))", stmnt)
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0) || " \
+       "RHEL_RELEASE_CODE -0 >= 8 * 256 + 1)", stmnt)
 
   gsub("HAVE_STRUCT_SRP_LOGIN_REQ_RDMA",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0))", stmnt)
-
-  gsub("defined\\(USE_PRE_440_WR_STRUCTURE\\)",
-       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))", stmnt)
 
   gsub("defined\\(HAVE_IB_EVENT_GID_CHANGE\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0) || " \
        "RHEL_RELEASE_CODE -0 >= 6 * 256 + 10)", stmnt)
 
   gsub("defined\\(HAVE_IB_QUERY_DEVICE\\)",
-       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0))", stmnt)
+       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0) \\&\\& " \
+       "RHEL_RELEASE_CODE -0 < 7 * 256 + 5)", stmnt)
 
   gsub("defined\\(MAD_HANDLER_TAKES_SEND_BUF\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 6)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
 
   gsub("defined\\(HAVE_IB_SET_CPI_RESP_TIME\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 6)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
 
   gsub("defined\\(IB_PD_HAS_LOCAL_DMA_LKEY\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 6)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
 
   gsub("defined\\(HAVE_IB_DMA_MAP_OPS\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(0, 0, 0))", stmnt)
@@ -275,6 +279,12 @@ function evaluate(stmnt, pattern, arg, op, result) {
       sub(pattern, op[1] == 0, stmnt)
     }
     
+    pattern = "\\([[:blank:]]*(-*[0-9]+)[[:blank:]]*\\)"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      sub(pattern, op[1], stmnt)
+    }
+    
     pattern="(-*[0-9]+)[[:blank:]]*(\\*|/)[[:blank:]]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
@@ -393,6 +403,7 @@ function handle_if(evaluated)
   if ($0 ~ "LINUX_VERSION_CODE"						\
       || $0 ~ "CONFIG_SCST_PROC"					\
       || $0 ~ "CONFIG_SCST_STRICT_SERIALIZING"				\
+      || $0 ~ "CREATE_SEND_MAD_HAS_AH_ARG"				\
       || $0 ~ "CREATE_SEND_MAD_HAS_BASE_ARG"				\
       || $0 ~ "ENABLE_NPIV"						\
       || $0 ~ "FC_VPORT_CREATE_DEFINED"					\
@@ -614,10 +625,13 @@ function dump_lines() {
     if (h[0] != "")
       printf "@@ -%d,%d +%d,%d @@%s\n",h[1],h[2]-lines_less_deleted,h[3],h[4]-lines_less_added,h[5]
     for (i = 0; i < lines; i++) {
-      gsub("BAD_WR_MODIFIER",
-           LINUX_VERSION_CODE < version_code("4.19.0") ? "" : "const", line[i])
-      gsub("CM_HANDLER_EVENT_MODIFIER",
-           LINUX_VERSION_CODE < version_code("4.19.0") ? "" : "const", line[i])
+      modifier = (LINUX_VERSION_CODE < version_code("4.19.0") &&
+                  (RHEL_MAJOR == "" ||
+                   RHEL_MAJOR * 256 + RHEL_MINOR < 7 * 256 + 7 ||
+                   RHEL_MAJOR * 256 + RHEL_MINOR == 8 * 256 + 0) ?
+                  "" : "const");
+      gsub("BAD_WR_MODIFIER", modifier, line[i])
+      gsub("CM_HANDLER_EVENT_MODIFIER", modifier, line[i])
       print line[i]
     }
   }
