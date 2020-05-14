@@ -1230,6 +1230,7 @@ static int srpt_get_desc_tbl(struct srpt_recv_ioctx *recv_ioctx,
 			pr_warn_once("Internal error - the receive buffers are not aligned properly.\n");
 			return -EINVAL;
 		}
+		/* Note: this sg entry may span more than one physical page. */
 		sg_init_one(&ioctx->imm_sg, data, len);
 		scst_cmd_set_tgt_sg(&ioctx->cmd, &ioctx->imm_sg, 1);
 		return 0;
@@ -3615,6 +3616,10 @@ static int srpt_xfer_data(struct srpt_rdma_ch *ch,
 						  SRPT_STATE_DATA_IN);
 		BUG_ON(!res);
 		WARN_ON_ONCE(!scst_cmd_get_tgt_data_buff_alloced(cmd));
+		if (cmd->tgt_i_data_buf_alloced && cmd->dh_data_buf_alloced &&
+		    scst_cmd_get_data_direction(cmd) & SCST_DATA_WRITE) {
+			scst_copy_sg(cmd, SCST_SG_COPY_FROM_TARGET);
+		}
 		scst_rx_data(cmd, SCST_RX_STATUS_SUCCESS,
 			     in_irq() ? SCST_CONTEXT_TASKLET :
 			     in_softirq() ? SCST_CONTEXT_DIRECT_ATOMIC :
@@ -3759,6 +3764,10 @@ static int srpt_xmit_response(struct scst_cmd *cmd)
 	EXTRACHECKS_BUG_ON(scst_cmd_atomic(cmd));
 
 	dir = scst_cmd_get_data_direction(cmd);
+
+	if (cmd->tgt_i_data_buf_alloced && cmd->dh_data_buf_alloced &&
+	    dir & SCST_DATA_READ)
+		scst_copy_sg(cmd, SCST_SG_COPY_TO_TARGET);
 
 	/* For read commands, transfer the data to the initiator. */
 	if (dir == SCST_DATA_READ

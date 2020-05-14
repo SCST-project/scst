@@ -3310,14 +3310,6 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 }
 #endif
 
-static void blockio_on_free_cmd(struct scst_cmd *cmd)
-{
-	if (!scst_cmd_get_dh_data_buff_alloced(cmd))
-		return;
-	sgv_pool_free(cmd->sgv, &cmd->dev->dev_mem_lim);
-	cmd->sgv = NULL;
-}
-
 static void vdisk_on_free_cmd_params(const struct vdisk_cmd_params *p)
 {
 	if (!p->execute_async) {
@@ -3406,29 +3398,6 @@ static bool vdisk_no_fd_allowed_commands(const struct scst_cmd *cmd)
 
 out:
 	TRACE_EXIT_RES(res);
-	return res;
-}
-
-static int blockio_alloc(struct scst_cmd *cmd)
-{
-	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
-	struct sgv_pool *pool = tgt_dev->pools[raw_smp_processor_id()];
-	int res = SCST_CMD_STATE_DEFAULT;
-
-	if (cmd->sg && (cmd->sg->offset & 511) == 0)
-		return res;
-
-	WARN_ON_ONCE(cmd->sgv);
-	cmd->sg = sgv_pool_alloc(pool, cmd->bufflen, cmd->cmd_gfp_mask, 0,
-				 &cmd->sg_cnt, &cmd->sgv,
-				 &cmd->dev->dev_mem_lim, NULL);
-	if (!cmd->sg) {
-		res = SCST_CMD_STATE_STOP;
-		goto out;
-	}
-	scst_cmd_set_dh_data_buff_alloced(cmd);
-
-out:
 	return res;
 }
 
@@ -6477,91 +6446,6 @@ static enum compl_status_e nullio_exec_verify(struct vdisk_cmd_params *p)
 	return CMD_SUCCEEDED;
 }
 
-static void blockio_on_alua_state_change_start(struct scst_device *dev,
-	enum scst_tg_state old_state, enum scst_tg_state new_state)
-{
-	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
-
-	TRACE_ENTRY();
-
-	lockdep_assert_alua_lock_held();
-
-	if (!virt_dev->bind_alua_state)
-		return;
-
-	/*
-	 * As required for on_alua_state_change_* callbacks,
-	 * no parallel fd activities could be here.
-	 */
-
-	TRACE_MGMT_DBG("ALUA state change from %s to %s started, closing FD (dev %s, active %d)",
-		scst_alua_state_name(old_state), scst_alua_state_name(new_state),
-		dev->virt_name, virt_dev->dev_active);
-
-	virt_dev->dev_active = 0;
-
-	/* Just in case always close */
-	vdisk_close_fd(virt_dev);
-
-	TRACE_EXIT();
-	return;
-}
-
-static void blockio_on_alua_state_change_finish(struct scst_device *dev,
-	enum scst_tg_state old_state, enum scst_tg_state new_state)
-{
-	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
-
-	TRACE_ENTRY();
-
-	lockdep_assert_alua_lock_held();
-
-	if (!virt_dev->bind_alua_state)
-		return;
-
-	/*
-	 * As required for on_alua_state_change_* callbacks,
-	 * no parallel fd activities could be here.
-	 */
-
-	if (((new_state == SCST_TG_STATE_OPTIMIZED) ||
-	     (new_state == SCST_TG_STATE_NONOPTIMIZED)) && (virt_dev->fd == NULL)) {
-		/* Try non-optimized as well, it might be new redirection device */
-		int rc = 0;
-
-		TRACE_MGMT_DBG("ALUA state change from %s to %s finished (dev %s, active %d), "
-			"reopening FD", scst_alua_state_name(old_state),
-			scst_alua_state_name(new_state), dev->virt_name, virt_dev->dev_active);
-
-		virt_dev->dev_active = 1;
-
-		/*
-		 * only reopen fd if tgt_dev_cnt is not zero, otherwise we will
-		 * leak reference.
-		 */
-		if (virt_dev->tgt_dev_cnt)
-			rc = vdisk_open_fd(virt_dev, dev->dev_rd_only);
-
-		if (rc == 0) {
-			if (virt_dev->reexam_pending) {
-				rc = vdisk_reexamine(virt_dev);
-				WARN_ON(rc != 0);
-				virt_dev->reexam_pending = 0;
-			}
-		} else {
-			PRINT_ERROR("Unable to open fd on ALUA state change "
-				"to %s (dev %s)", dev->virt_name,
-				scst_alua_state_name(new_state));
-		}
-	} else
-		TRACE_DBG("ALUA state change from %s to %s finished (dev %s)",
-			scst_alua_state_name(old_state), scst_alua_state_name(new_state),
-			dev->virt_name);
-
-	TRACE_EXIT();
-	return;
-}
-
 static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev)
 {
@@ -9437,10 +9321,7 @@ static int vdev_sysfs_process_active_store(
 	res = mutex_lock_interruptible(&scst_mutex);
 	if (res)
 		goto resume;
-	/*
-	 * This is used to serialize against the *_on_alua_state_change_*()
-	 * calls in scst_tg.c
-	 */
+	/* To do: verify whether this call is still necessary. */
 	scst_alua_lock();
 
 	/*
@@ -9921,11 +9802,7 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.attach_tgt =		vdisk_attach_tgt,
 	.detach_tgt =		vdisk_detach_tgt,
 	.parse =		non_fileio_parse,
-	.dev_alloc_data_buf =	blockio_alloc,
 	.exec =			blockio_exec,
-	.on_free_cmd =		blockio_on_free_cmd,
-	.on_alua_state_change_start = blockio_on_alua_state_change_start,
-	.on_alua_state_change_finish = blockio_on_alua_state_change_finish,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
 	.get_supported_opcodes = vdisk_get_supported_opcodes,
 	.devt_priv =		(void *)blockio_ops,

@@ -513,11 +513,22 @@ sub scstAttributes {
 	return (\%attributes, undef);
 }
 
-sub setAttrFailed {
-	my $path = shift;
-	my $no_such_attr = shift;
-	my $is_static = shift;
+# Convert e.g. EINVAL into "EINVAL".
+sub my_strerror {
+	my ($errorcode) = @_;
 
+	return $errorcode if (!defined($errorcode));
+	for my $errstr (keys(%!)) {
+		my $err = eval($errstr);
+		return $errstr if (defined($err) and $err == $errorcode);
+	}
+	return $errorcode;
+}
+
+sub setAttrFailed {
+	my ($path, $bytes, $no_such_attr, $is_static) = @_;
+
+	print STDERR "(" . my_strerror(-$bytes) . ") ";
 	return (-f $path) && (-r $path) ? $is_static : $no_such_attr;
 }
 
@@ -528,19 +539,19 @@ sub setScstAttribute {
 
 	return TRUE if (!defined($attribute) || !defined($value));
 
+	my $bytes = -ENOENT;
 	my $path = make_path(SCST_ROOT_DIR(), $attribute);
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $attribute = $value\n";
 		} else {
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
-	return setAttrFailed($path, SCST_C_BAD_ATTRIBUTES,
+	return setAttrFailed($path, $bytes, SCST_C_BAD_ATTRIBUTES,
 			     SCST_C_ATTRIBUTE_STATIC);
 }
 
@@ -1042,16 +1053,16 @@ sub addDriverDynamicAttribute {
 	}
 	$cmd .= "add_attribute $attribute $value";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
@@ -1085,16 +1096,16 @@ sub removeDriverDynamicAttribute {
 	}
 	$cmd .= "del_attribute $attribute $value";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
@@ -1192,16 +1203,16 @@ sub addVirtualTarget {
 	}
 	$cmd .= "add_target $target $o_string";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
@@ -1327,16 +1338,16 @@ sub addTargetDynamicAttribute {
 	}
 	$cmd .= "add_target_attribute $target $attribute $value";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
@@ -1376,16 +1387,16 @@ sub removeTargetDynamicAttribute {
 	}
 	$cmd .= "del_target_attribute $target $attribute $value";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
@@ -1453,16 +1464,16 @@ sub removeVirtualTarget {
 	}
 	$cmd .= "del_target $target";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
@@ -1586,16 +1597,16 @@ sub addGroup {
 	}
 	$cmd .= "create $group";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
@@ -1633,16 +1644,16 @@ sub removeGroup {
 	}
 	$cmd .= "del $group";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
@@ -1675,16 +1686,16 @@ sub addDeviceGroup {
 	}
 	$cmd .= "create $group";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->deviceGroupExists($group);
@@ -1707,16 +1718,16 @@ sub removeDeviceGroup {
 	}
 	$cmd .= "del $group";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->deviceGroupExists($group);
@@ -1745,16 +1756,16 @@ sub addDeviceGroupDevice {
 	}
 	$cmd .= "add $device";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->deviceGroupExists($group);
@@ -1801,16 +1812,16 @@ sub addTargetGroup {
 	}
 	$cmd .= "add $tgroup";
 
+	my $bytes = -ENONENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->deviceGroupExists($group);
@@ -1843,16 +1854,16 @@ sub addTargetGroupTarget {
 	}
 	$cmd .= "add $tgt";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->deviceGroupExists($group);
@@ -1884,16 +1895,16 @@ sub removeDeviceGroupDevice {
 	}
 	$cmd .= "del $device";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->deviceGroupExists($group);
@@ -1928,16 +1939,16 @@ sub removeTargetGroup {
 	}
 	$cmd .= "del $tgroup";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->deviceGroupExists($group);
@@ -1970,16 +1981,16 @@ sub removeTargetGroupTarget {
 	}
 	$cmd .= "del $tgt";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->deviceGroupExists($group);
@@ -2021,16 +2032,16 @@ sub addInitiator {
 	}
 	$cmd .= "add $initiator";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	return SCST_C_GRP_REM_INI_FAIL if (!defined($driver) ||
@@ -2078,16 +2089,16 @@ sub removeInitiator {
 	}
 	$cmd .= "del $initiator";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
@@ -2130,16 +2141,16 @@ sub moveInitiator {
 	}
 	$cmd .= "move $initiator $to";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
@@ -2188,16 +2199,16 @@ sub clearInitiators {
 	}
 	$cmd .= "clear";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
@@ -2263,16 +2274,16 @@ sub addLun {
 
 	$cmd .= "add $device $lun $o_string";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	if (defined($group)) {
@@ -2341,16 +2352,16 @@ sub removeLun {
 	}
 	$cmd .= "del $lun";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
@@ -2453,16 +2464,16 @@ sub replaceLun {
 	}
 	$cmd .= "replace $device $lun $o_string";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	return SCST_C_LUN_RPL_DEV_FAIL;
@@ -2502,16 +2513,16 @@ sub clearLuns {
 	}
 	$cmd .= "clear";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
@@ -2836,23 +2847,23 @@ sub setDriverAttribute {
 
 	my $path = make_path(SCST_TARGETS_DIR(), $driver, $attribute);
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $attribute = $value\n";
 		} else {
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
 	return $rc if ($rc > 1);
 
-	return setAttrFailed($path, SCST_C_DRV_BAD_ATTRIBUTES,
+	return setAttrFailed($path, $bytes, SCST_C_DRV_BAD_ATTRIBUTES,
 			     SCST_C_DRV_ATTRIBUTE_STATIC);
 }
 
@@ -2984,16 +2995,16 @@ sub setTargetAttribute {
 		$cmd = $value;
 	}
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $cmd > $path\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
@@ -3004,7 +3015,7 @@ sub setTargetAttribute {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	return setAttrFailed($path, SCST_C_TGT_BAD_ATTRIBUTES,
+	return setAttrFailed($path, $bytes, SCST_C_TGT_BAD_ATTRIBUTES,
 			     SCST_C_TGT_ATTRIBUTE_STATIC);
 }
 
@@ -3118,16 +3129,16 @@ sub setGroupAttribute {
 	}
 	$cmd .= $value;
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $cmd > $path\n";
 		} else {
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
@@ -3142,7 +3153,7 @@ sub setGroupAttribute {
 	return SCST_C_GRP_NO_GROUP if (!$rc);
 	return $rc if ($rc > 1);
 
-	return setAttrFailed($path, SCST_C_GRP_BAD_ATTRIBUTES,
+	return setAttrFailed($path, $bytes, SCST_C_GRP_BAD_ATTRIBUTES,
 			     SCST_C_GRP_ATTRIBUTE_STATIC);
 }
 
@@ -3278,16 +3289,16 @@ sub setLunAttribute {
 				  SCST_LUNS, $lun, $attribute);
 	}
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $attribute = $value\n";
 		} else {
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
@@ -3421,16 +3432,16 @@ sub setInitiatorAttribute {
 	my $path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
 			     $group, SCST_LUNS, $initiator, $attribute);
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $attribute = $value\n";
 		} else {
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->driverExists($driver);
@@ -3708,20 +3719,20 @@ sub setAluaAttribute {
 
 	return TRUE if (!defined($attribute) || !defined($value));
 
+	my $bytes = -ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $attribute);
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $value > $path\n";
 		} else {
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
-	return setAttrFailed($path, SCST_C_ALUA_BAD_ATTRIBUTES,
+	return setAttrFailed($path, $bytes, SCST_C_ALUA_BAD_ATTRIBUTES,
 			     SCST_C_ALUA_ATTRIBUTE_STATIC);
 }
 
@@ -3733,25 +3744,24 @@ sub setDeviceGroupAttribute {
 
 	return TRUE if (!defined($attribute) || !defined($value));
 
+	my $bytes = -ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $group, $attribute);
-
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $attribute = $value\n";
 		} else {
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->deviceGroupExists($group);
 	return SCST_C_DEV_GRP_NO_GROUP if (!$rc);
 	return $rc if ($rc > 1);
 
-	return setAttrFailed($path, SCST_C_DGRP_BAD_ATTRIBUTES,
+	return setAttrFailed($path, $bytes, SCST_C_DGRP_BAD_ATTRIBUTES,
 				     SCST_C_DGRP_ATTRIBUTE_STATIC);
 }
 
@@ -3765,18 +3775,17 @@ sub setTargetGroupAttribute {
 	return TRUE if (!defined($group) || !defined($tgroup) ||
 			!defined($attribute) || !defined($value));
 
+	my $bytes = -ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, $tgroup, $attribute);
-
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $attribute = $value\n";
 		} else {
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->deviceGroupExists($group);
@@ -3787,7 +3796,7 @@ sub setTargetGroupAttribute {
 	return SCST_C_DGRP_NO_GROUP if (!$rc);
 	return $rc if ($rc > 1);
 
-	return setAttrFailed($path, SCST_C_TGRP_BAD_ATTRIBUTES,
+	return setAttrFailed($path, $bytes, SCST_C_TGRP_BAD_ATTRIBUTES,
 			     SCST_C_TGRP_ATTRIBUTE_STATIC);
 }
 
@@ -3803,19 +3812,18 @@ sub setTargetGroupTargetAttribute {
 			!defined($tgt) || !defined($attribute) ||
 			!defined($value));
 
+	my $bytes = -ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
 			     $tgroup, $tgt, $attribute);
-
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $attribute = $value\n";
 		} else {
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->deviceGroupExists($group);
@@ -3830,7 +3838,7 @@ sub setTargetGroupTargetAttribute {
 	return SCST_C_TGRP_NO_TGT if (!$rc);
 	return $rc if ($rc > 1);
 
-	return setAttrFailed($path, SCST_C_TGRP_TGT_BAD_ATTR,
+	return setAttrFailed($path, $bytes, SCST_C_TGRP_TGT_BAD_ATTR,
 			     SCST_C_TGRP_TGT_ATTR_STATIC);
 }
 
@@ -3884,24 +3892,24 @@ sub setHandlerAttribute {
 
 	return TRUE if (!defined($attribute) || !defined($value));
 
+	my $bytes = -ENOENT;
 	my $path = make_path(SCST_HANDLERS_DIR(), $handler, $attribute);
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $attribute = $value\n";
 		} else {
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->handlerExists($handler);
 	return SCST_C_HND_NO_HANDLER if (!$rc);
 	return $rc if ($rc > 1);
 
-	return setAttrFailed($path, SCST_C_HND_BAD_ATTRIBUTES,
+	return setAttrFailed($path, $bytes, SCST_C_HND_BAD_ATTRIBUTES,
 			     SCST_C_HND_ATTRIBUTE_STATIC);
 }
 
@@ -4184,16 +4192,16 @@ sub openDevice {
 	}
 	$cmd .= "add_device $device $o_string";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $errno = $!;
@@ -4232,16 +4240,16 @@ sub closeDevice {
 	}
 	$cmd .= "del_device $device";
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $errno = $!;
@@ -4275,23 +4283,23 @@ sub setDeviceAttribute {
 	}
 	$cmd .= $value;
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $cmd > $path\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
 	my $rc = $self->deviceOpen($device);
 	return SCST_C_DEV_NO_DEVICE if (!$rc);
 	return $rc if ($rc > 1);
 
-	return setAttrFailed($path, SCST_C_DEV_BAD_ATTRIBUTES,
+	return setAttrFailed($path, $bytes, SCST_C_DEV_BAD_ATTRIBUTES,
 			     SCST_C_DEV_ATTRIBUTE_STATIC);
 }
 
@@ -4801,17 +4809,17 @@ sub closeSession {
 	my $path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 			     SCST_SESSIONS, $session, 'force_close');
 
+	my $bytes = -ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		my $cmd = "1";
-		my $bytes;
 		if ($self->{'debug'}) {
 			print "DBG($$): $cmd\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
 		close $io;
-		return FALSE if ($self->{'debug'} || $bytes);
+		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 	return SCST_C_SESSION_CLOSE_FAIL;
 }
@@ -4902,7 +4910,7 @@ sub _sysread {
 }
 
 # Write the first $3 bytes of $2 into the SCST sysfs file $1. Return either
-# the number of bytes written or undef if writing failed.
+# the number of bytes written or -errno if writing failed.
 sub _syswrite {
 	my $io = shift;
 	my $cmd = shift;
@@ -4912,13 +4920,14 @@ sub _syswrite {
 	my $res_file = SCST_QUEUE_RES_PATH();
 
 	my $bytes = syswrite($io, $cmd, $length);
+	$bytes = -$! if (!defined($bytes));
 
-	if (!defined($bytes) && defined($res_file) && $! == EAGAIN) {
+	if (defined($res_file) && $bytes == -EAGAIN) {
 		my $res_io = new IO::File $res_file, O_RDONLY;
 
 		if (!$res_io) {
 			cluck("FATAL: Failed opening $res_file: $!");
-			return undef;
+			return -ENOENT;
 		}
 
 		my $res_val;
