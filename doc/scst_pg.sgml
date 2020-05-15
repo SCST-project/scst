@@ -278,7 +278,7 @@ Target driver doesn't have to always allocate buffer in this function,
 but if it decided to do it, it must check that
 scst_cmd_get_data_buff_alloced() returns 0, otherwise to avoid double
 buffer allocation and memory leaks alloc_data_buf() shall fail. Returns
-0 in case of success or < 0 (preferrably -ENOMEM) in case of error, or >
+0 in case of success or < 0 (preferably -ENOMEM) in case of error, or >
 0 if the regular SCST allocation should be done. In case of returning
 successfully, scst_cmd->tgt_data_buf_alloced will be set by SCST. It is
 possible that both target driver and dev handler request own memory

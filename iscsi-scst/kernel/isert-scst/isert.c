@@ -496,7 +496,7 @@ static int __init isert_init_module(void)
 	int ret;
 
 	if (isert_nr_devs > 999) {
-		PRINT_ERROR("Invalid argument for isert_nr_devs provded: %d",
+		PRINT_ERROR("Invalid argument for isert_nr_devs provided: %d",
 			    isert_nr_devs);
 		ret = -EINVAL;
 		goto out;

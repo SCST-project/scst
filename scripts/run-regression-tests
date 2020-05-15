@@ -176,7 +176,7 @@ function compile_scst_no_dlm {
   )
 }
 
-# Test out-of-tree compilation agains the kernel header files in
+# Test out-of-tree compilation against the kernel header files in
 # /lib/modules/$(uname -r)/build.
 function compile_scst_patched {
   local scst="$PWD"

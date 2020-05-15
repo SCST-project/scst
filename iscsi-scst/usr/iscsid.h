@@ -287,7 +287,7 @@ extern void __log_pdu(const char *func, int line, int level, struct PDU *pdu);
 
 /* Conditional versions of log_* functions. Useful when log priority depends
  * on some parameter, say recurrence of some event. In these cases the first
- * occurence could be logged as log_info while the latter ones may be logged
+ * occurrence could be logged as log_info while the latter ones may be logged
  * with log_debug. So, if level != 0 then log_debug is called.
  */
 #define log_info_cond(level, args...)		\

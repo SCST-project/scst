@@ -56,7 +56,7 @@ h. echo "add vdisk2 2" >/proc/scsi_tgt/groups/Default/devices
 2. modprobe ib_srpt
 
 
-B. On initiator machines you can manualy do the following steps:
+B. On initiator machines you can manually do the following steps:
 1. modprobe ib_srp
 2. ibsrpdm -c (to discover new SRP target)
 3. echo <new target info> > /sys/class/infiniband_srp/srp-mthca0-1/add_target
