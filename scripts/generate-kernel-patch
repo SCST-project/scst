@@ -5,7 +5,7 @@
 # Script for converting the SCST source tree as it exists in the Subversion
 # repository to a Linux kernel patch.
 #
-# Copyright (C) 2008-2020 Bart Van Assche <bvanassche@acm.org>
+# Copyright (C) 2008-2009 Bart Van Assche <bvanassche@acm.org>
 #
 # This program is free software; you can redistribute it and/or
 # modify it under the terms of the GNU General Public License
@@ -105,21 +105,6 @@ EOF
 # Run the script specialize_patch with appropriate options on the patch
 # passed via stdin and send the specialized patch to stdout.
 function specialize_patch {
-  local arr ao
-  readarray -d ^ -t arr <<<"$1^^^^"
-  local kver=${arr[0]}
-  local distro=${arr[1]}
-  local release=${arr[2]}
-  readarray -d . -t arr <<<"$release..."
-  local releasevermajor="${arr[0]}"
-  local releaseverminor="${arr[1]}"
-  if [ -n "$releasevermajor" ]; then
-      ao=(
-	  -v RHEL_MAJOR=$releasevermajor
-	  -v RHEL_MINOR=$releaseverminor
-	  -v RHEL_RELEASE_CODE=$((releasevermajor * 256 + releaseverminor))
-      )
-  fi
   if [ "${enable_specialize}" = "true" ]; then
     if [ "${generating_upstream_patch}" = "true" ]; then
       scripts/filter-trace-entry-exit
@@ -128,14 +113,14 @@ function specialize_patch {
     fi |
     "$(dirname "$0")/specialize-patch" \
          "${specialize_patch_options[@]}" \
-         -v kernel_version="${kver/-*}" \
-         -v SCST_IO_CONTEXT="${scst_io_context}" "${ao[@]}"
+         -v kernel_version="${kver3}" \
+         -v SCST_IO_CONTEXT="${scst_io_context}"
   else
     cat
   fi
 }
 
-# Read a patch from stdin, specialize it for kernel version ${full_kver}
+# Read a patch from stdin, specialize it for kernel version ${kver}
 # and write the output either to stdout or to the file $1 (if not empty),
 # depending on the value of the variable ${multiple_patches}.
 function process_patch {
@@ -147,7 +132,7 @@ function process_patch {
       fi
       tmppatch="$(/bin/mktemp)"
       (
-        specialize_patch "${full_kver}"
+        specialize_patch
       ) >"${tmppatch}"
       touch "${tmppatch}"
       {
@@ -166,7 +151,7 @@ function process_patch {
       true
     fi
   else
-    specialize_patch "${full_kver}"
+    specialize_patch
   fi
 }
 
@@ -223,7 +208,6 @@ if [ $# != 1 ]; then
 fi
 
 # Strip patch level from the kernel version number.
-full_kver="$1"
 kver="$(kernel_version "$1")"
 # kver3: first three components of the version number.
 if [ "${1#2.}" != "$1" ]; then
@@ -341,8 +325,7 @@ else
             "drivers/Kconfig"
 fi
 
-if [ "${full_kver#2.6.32-}" = "${full_kver}" ] &&
-       [ -e "scst/kernel/in-tree/Makefile.drivers.Linux-${kver}.patch" ]; then
+if [ -e "scst/kernel/in-tree/Makefile.drivers.Linux-${kver}.patch" ]; then
   add_patch "scst/kernel/in-tree/Makefile.drivers.Linux-${kver}.patch"\
             "drivers/Makefile"
 else
@@ -523,7 +506,7 @@ add_file "iscsi-scst/README_in-tree" "Documentation/scst/README.iscsi" \
 
 if [ "${qla2x00t}" = "true" ]; then
 
-  ( cd qla2x00t && "$PWD/generate-in-tree-patches" "$1" ) || exit $?
+  ( cd qla2x00t && ./generate-in-tree-patches "$1" )
 
   for f in qla2x00t/in-tree-patches/"$1"/*.patch; do
     [ -e "$f" ] || continue
@@ -549,17 +532,13 @@ if [ "${qla2x00t}" = "true" ]; then
 
 elif [ "${qla2x00t_32gbit}" = "true" ]; then
 
-  ( cd qla2x00t-32gbit && "$PWD/generate-in-tree-patches" "$1" ) || exit $?
+  ( cd qla2x00t-32gbit && ./generate-in-tree-patches "$1" )
 
   for f in qla2x00t-32gbit/in-tree-patches/"$1"/*.patch; do
     [ -e "$f" ] || continue
     g="${f#qla2x00t-32gbit/in-tree-patches/$1/}"
     g="${g%.patch}"
-    if [ "$g" = "qla.h" ]; then
-	add_patch "${f}" "include/trace/events/${g}"
-    else
-	add_patch "${f}" "drivers/scsi/qla2xxx/${g}"
-    fi
+    add_patch "${f}" "drivers/scsi/qla2xxx/${g}"
   done
 
   for f in qla2x00t-32gbit/qla2x00-target/*.[ch]; do
