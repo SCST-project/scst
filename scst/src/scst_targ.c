@@ -2465,7 +2465,7 @@ EXPORT_SYMBOL_GPL(__scst_check_local_events);
  * No locks. Returns true, if expected_sn was incremented.
  *
  * !! At this point cmd can be processed in parallel by some other thread!
- * !! As consecuence, no pointer in cmd, except cur_order_data and
+ * !! As consequence, no pointer in cmd, except cur_order_data and
  * !! sn_slot, can be touched here! The same is for assignments to cmd's
  * !! fields. As protection cmd declared as const.
  *

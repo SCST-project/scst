@@ -58,7 +58,7 @@ Remove any distro-provided InfiniBand drivers:
   rm -rf /lib/modules/$(uname -r)/kernel/drivers/infiniband
   rm -rf /lib/modules/$(uname -r)/kernel/drivers/net/mlx4
 
-Next, download and install an OFED pacakge.
+Next, download and install an OFED package.
 
 For MLNX_OFED, just run the mlnxofedinstall script inside the MLNX_OFED directory.
 

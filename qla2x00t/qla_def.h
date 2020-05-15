@@ -725,7 +725,7 @@ typedef struct {
 #define MBC_GET_LINK_STATUS		0x6b	/* Get port link status. */
 #define MBC_LIP_RESET			0x6c	/* LIP reset. */
 #define MBC_SEND_SNS_COMMAND		0x6e	/* Send Simple Name Server */
-						/* commandd. */
+						/* command. */
 #define MBC_LOGIN_FABRIC_PORT		0x6f	/* Login fabric port. */
 #define MBC_SEND_CHANGE_REQUEST		0x70	/* Send Change Request. */
 #define MBC_LOGOUT_FABRIC_PORT		0x71	/* Logout fabric port. */

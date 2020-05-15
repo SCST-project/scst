@@ -58,7 +58,7 @@ Summary of changes between versions 3.0 and 3.1
 - scst_vdisk: LBPRZ now follows limits.discard_zeroes_data.
 - scst core: support for 64-bit LUNs has been added. This requires a Linux
   kernel that supports 64-bit LUNs.
-- A new kernel module parameter, scst_forcibly_close_sessions, controls wheter
+- A new kernel module parameter, scst_forcibly_close_sessions, controls whether
   or not attempting to remove an access control group with one or more active
   sessions succeeds or fails with -EBUSY.
 - scst_vdisk: the EUI-64 and NAA IDs are now configurable.
@@ -245,7 +245,7 @@ Summary of changes between versions 1.0.0 and 1.0.1
 
  - Depecated scst_cmd_get_tgt_resp_flags() removed
 
- - SWP and TAS parameters made changable in vdisk handler
+ - SWP and TAS parameters made changeable in vdisk handler
 
  - External interface changed to fix usage of in_atomic(). Now target
    drivers and dev handlers need to explicitly supply preferred execution
@@ -290,7 +290,7 @@ Summary of changes between versions 0.9.5 and 1.0.0
 
  - Fixed READ POSITION command handling
 
- - TM processing made independant from other TM commands (before it was serialized)
+ - TM processing made independent from other TM commands (before it was serialized)
 
  - Sense buffer made dynamic
 
@@ -302,7 +302,7 @@ Summary of changes between versions 0.9.5 and 1.0.0
 
  - Processing latency measurement facility added
 
- - Sessions registration/unregistration made independant from other activities
+ - Sessions registration/unregistration made independent from other activities
 
  - Major performance improvements
 

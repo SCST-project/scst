@@ -973,7 +973,7 @@ qla82xx_rom_fast_read(struct qla_hw_data *ha, int addr, int *valp)
 	}
 	if (loops >= 50000) {
 		ql_log(ql_log_fatal, vha, 0x00b9,
-		    "Failed to aquire SEM2 lock.\n");
+		    "Failed to acquire SEM2 lock.\n");
 		return -1;
 	}
 	ret = qla82xx_do_rom_fast_read(ha, addr, valp);

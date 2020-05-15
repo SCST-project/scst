@@ -73,7 +73,7 @@ b) Specific branch (3.0 used in example)
 In this example disk01 is a virtual disk that is stored in the file
 /vdisks/vdisk1 and is mounted read_only, disk02 is the same as disk01
 but with file /vdisks/vdisk2 and it has its blocksize increased from 512
-to 4096 (see notes below), and finaly disk03 is a real disk used as a
+to 4096 (see notes below), and finally disk03 is a real disk used as a
 blockdevice. Both disk01 and disk02 are connected to the same target
 with different luns and disk03 is connected to a different target as
 LUN0, if the allowed_target atttribute is not set the target is open

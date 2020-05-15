@@ -1,6 +1,6 @@
 * Add suppport for immediate data in iSER
 * Add suppport for data-out in iSER
-* Look into seperating between RX pdu and TX pdu
+* Look into separating between RX pdu and TX pdu
 * Do not signal every "response sent" notification
 * Make the code NUMA aware
 * Add support for AHS
