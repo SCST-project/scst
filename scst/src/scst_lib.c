@@ -6846,7 +6846,7 @@ static void scst_cwr_read_cmd_finished(struct scst_cmd *cmd)
 	 * It must not happen, because get_cdb_info_compare_and_write()
 	 * supposed to ensure that.
 	 */
-	EXTRACHECKS_BUG_ON(rc != 0);
+	WARN_ONCE(rc != 0, "scst_adjust_sg_get_tail() failed: %d\n", rc);
 
 	wcmd->tgt_i_data_buf_alloced = 1;
 
