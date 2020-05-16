@@ -6876,7 +6876,8 @@ enum scst_exec_res scst_cmp_wr_local(struct scst_cmd *cmd)
 	struct scst_cwr_priv *cwrp;
 	uint8_t read16_cdb[16];
 	struct scst_cmd *rcmd;
-	int data_len;
+	const int data_len = cmd->data_len;
+	const uint32_t num_lbas = data_len >> cmd->dev->block_shift;
 
 	TRACE_ENTRY();
 
@@ -6912,8 +6913,6 @@ enum scst_exec_res scst_cmp_wr_local(struct scst_cmd *cmd)
 	cwrp->cwr_orig_cmd = cmd;
 	cwrp->cwr_finish_fn = scst_cwr_read_cmd_finished;
 
-	data_len = cmd->data_len;
-
 	/*
 	 * As required by SBC, DIF PI, if any, is not checked for the read part
 	 */
@@ -6922,7 +6921,7 @@ enum scst_exec_res scst_cmp_wr_local(struct scst_cmd *cmd)
 	read16_cdb[0] = READ_16;
 	read16_cdb[1] = cmd->cdb[1] & ~0xE0; /* as required, see above */
 	put_unaligned_be64(cmd->lba, &read16_cdb[2]);
-	put_unaligned_be32(data_len >> cmd->dev->block_shift, &read16_cdb[10]);
+	put_unaligned_be32(num_lbas, &read16_cdb[10]);
 
 	rcmd = scst_create_prepare_internal_cmd(cmd, read16_cdb,
 		sizeof(read16_cdb), SCST_CMD_QUEUE_HEAD_OF_QUEUE);
