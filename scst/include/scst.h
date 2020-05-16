@@ -5020,9 +5020,6 @@ static inline void scst_put_sg_buf(struct scst_cmd *cmd, void *buf,
  * negative error code otherwise.
  *
  * "Page" argument returns the starting page, "offset" - offset in it.
- *
- * The "put" function "puts" the buffer. It should be always be used, because
- * in future may need to do some additional operations.
  */
 static inline int __scst_get_sg_page(struct scst_cmd *cmd, int sg_cnt,
 	struct page **page, int *offset)
