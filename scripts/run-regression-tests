@@ -713,7 +713,7 @@ do
   # v4.13) and commit 6f303d60534c ("gcc-9: silence 'address-of-packed-member'
   # warning"; v5.1).
   for w in -Wno-format-truncation -Wno-format-overflow -Wno-int-in-bool-context -Wno-address-of-packed-member; do
-      if gcc -c -xc - "$w" </dev/null >&/dev/null; then
+      if gcc -c -xc -E - "$w" </dev/null >&/dev/null; then
 	  KCFLAGS+=" $w"
       fi
   done
