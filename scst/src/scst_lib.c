@@ -6846,7 +6846,7 @@ static void scst_cwr_read_cmd_finished(struct scst_cmd *cmd)
 	 * It must not happen, because get_cdb_info_compare_and_write()
 	 * supposed to ensure that.
 	 */
-	EXTRACHECKS_BUG_ON(rc != 0);
+	WARN_ONCE(rc != 0, "scst_adjust_sg_get_tail() failed: %d\n", rc);
 
 	wcmd->tgt_i_data_buf_alloced = 1;
 
@@ -6870,13 +6870,27 @@ out_finish:
 	goto out;
 }
 
+/*
+ * The Data-Out Buffer contains two instances of logical block data:
+ * 1) the compare instance, in which:
+ *   A) the user data is used for the compare operation; and
+ *   B) the protection information, if any, is not used;
+ * and
+ * 2) the write instance, in which:
+ *   A) the user data is used for the write operations; and
+ *   B) the protection information, if any, is used for the write operations.
+ *
+ * Note: cmd->data_len is half of the DataOut buffer size while cmd->bufflen
+ * and cmd->expected_transfer_len refer to the entire DataOut buffer.
+ */
 enum scst_exec_res scst_cmp_wr_local(struct scst_cmd *cmd)
 {
 	enum scst_exec_res res = SCST_EXEC_COMPLETED;
 	struct scst_cwr_priv *cwrp;
 	uint8_t read16_cdb[16];
 	struct scst_cmd *rcmd;
-	int data_len;
+	const int data_len = cmd->data_len;
+	const uint32_t num_lbas = data_len >> cmd->dev->block_shift;
 
 	TRACE_ENTRY();
 
@@ -6912,7 +6926,13 @@ enum scst_exec_res scst_cmp_wr_local(struct scst_cmd *cmd)
 	cwrp->cwr_orig_cmd = cmd;
 	cwrp->cwr_finish_fn = scst_cwr_read_cmd_finished;
 
-	data_len = cmd->data_len;
+	if (cmd->bufflen != scst_cmd_get_expected_transfer_len_data(cmd)) {
+		PRINT_ERROR("COMPARE AND WRITE: data buffer length mismatch (CDB %u <> ini %u)",
+			    cmd->bufflen,
+			    scst_cmd_get_expected_transfer_len_data(cmd));
+		scst_set_invalid_field_in_cdb(cmd, 13/*NLB*/, 0);
+		goto out_done;
+	}
 
 	/*
 	 * As required by SBC, DIF PI, if any, is not checked for the read part
@@ -6922,7 +6942,7 @@ enum scst_exec_res scst_cmp_wr_local(struct scst_cmd *cmd)
 	read16_cdb[0] = READ_16;
 	read16_cdb[1] = cmd->cdb[1] & ~0xE0; /* as required, see above */
 	put_unaligned_be64(cmd->lba, &read16_cdb[2]);
-	put_unaligned_be32(data_len >> cmd->dev->block_shift, &read16_cdb[10]);
+	put_unaligned_be32(num_lbas, &read16_cdb[10]);
 
 	rcmd = scst_create_prepare_internal_cmd(cmd, read16_cdb,
 		sizeof(read16_cdb), SCST_CMD_QUEUE_HEAD_OF_QUEUE);
