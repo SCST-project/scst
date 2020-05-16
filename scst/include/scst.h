@@ -4846,6 +4846,7 @@ static inline struct scatterlist *__sg_next_inline(struct scatterlist *sg)
 	return sg;
 }
 
+/* Inline version of sg_next() from lib/scatterlist.c in the Linux kernel. */
 static inline struct scatterlist *sg_next_inline(struct scatterlist *sg)
 {
 	if (sg_is_last(sg))
