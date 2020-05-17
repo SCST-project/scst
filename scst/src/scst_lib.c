@@ -3305,13 +3305,8 @@ static bool __scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
 
 	l = 0;
 	for_each_sg(sg, sgi, *sg_cnt, i) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
-		TRACE_DBG("i %d, sg_cnt %d, sg %p, page_link %lx, len %d", i,
-			*sg_cnt, sg, sgi->page_link, sgi->length);
-#else
-		TRACE_DBG("i %d, sg_cnt %d, sg %p, page_link %lx", i,
-			*sg_cnt, sg, 0UL);
-#endif
+		TRACE_DBG("sg[%d/%d]: addr %p, offset %d, len %d", i, *sg_cnt,
+			  sgi, sgi->offset, sgi->length);
 		l += sgi->length;
 		if (l >= adjust_len) {
 			int left = adjust_len - (l - sgi->length);
