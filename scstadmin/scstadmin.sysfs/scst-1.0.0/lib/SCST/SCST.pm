@@ -539,7 +539,7 @@ sub setScstAttribute {
 
 	return TRUE if (!defined($attribute) || !defined($value));
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $path = make_path(SCST_ROOT_DIR(), $attribute);
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
@@ -1053,7 +1053,7 @@ sub addDriverDynamicAttribute {
 	}
 	$cmd .= "add_attribute $attribute $value";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -1096,7 +1096,7 @@ sub removeDriverDynamicAttribute {
 	}
 	$cmd .= "del_attribute $attribute $value";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -1203,7 +1203,7 @@ sub addVirtualTarget {
 	}
 	$cmd .= "add_target $target $o_string";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -1338,7 +1338,7 @@ sub addTargetDynamicAttribute {
 	}
 	$cmd .= "add_target_attribute $target $attribute $value";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -1387,7 +1387,7 @@ sub removeTargetDynamicAttribute {
 	}
 	$cmd .= "del_target_attribute $target $attribute $value";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -1464,7 +1464,7 @@ sub removeVirtualTarget {
 	}
 	$cmd .= "del_target $target";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -1597,7 +1597,7 @@ sub addGroup {
 	}
 	$cmd .= "create $group";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -1644,7 +1644,7 @@ sub removeGroup {
 	}
 	$cmd .= "del $group";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -1686,7 +1686,7 @@ sub addDeviceGroup {
 	}
 	$cmd .= "create $group";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -1718,7 +1718,7 @@ sub removeDeviceGroup {
 	}
 	$cmd .= "del $group";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -1756,7 +1756,7 @@ sub addDeviceGroupDevice {
 	}
 	$cmd .= "add $device";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -1812,7 +1812,7 @@ sub addTargetGroup {
 	}
 	$cmd .= "add $tgroup";
 
-	my $bytes = -ENONENT;
+	my $bytes = - ENONENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -1854,7 +1854,7 @@ sub addTargetGroupTarget {
 	}
 	$cmd .= "add $tgt";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -1895,7 +1895,7 @@ sub removeDeviceGroupDevice {
 	}
 	$cmd .= "del $device";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -1939,7 +1939,7 @@ sub removeTargetGroup {
 	}
 	$cmd .= "del $tgroup";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -1981,7 +1981,7 @@ sub removeTargetGroupTarget {
 	}
 	$cmd .= "del $tgt";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -2032,7 +2032,7 @@ sub addInitiator {
 	}
 	$cmd .= "add $initiator";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -2089,7 +2089,7 @@ sub removeInitiator {
 	}
 	$cmd .= "del $initiator";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -2141,7 +2141,7 @@ sub moveInitiator {
 	}
 	$cmd .= "move $initiator $to";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -2199,7 +2199,7 @@ sub clearInitiators {
 	}
 	$cmd .= "clear";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -2274,7 +2274,7 @@ sub addLun {
 
 	$cmd .= "add $device $lun $o_string";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -2352,7 +2352,7 @@ sub removeLun {
 	}
 	$cmd .= "del $lun";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -2464,7 +2464,7 @@ sub replaceLun {
 	}
 	$cmd .= "replace $device $lun $o_string";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -2513,7 +2513,7 @@ sub clearLuns {
 	}
 	$cmd .= "clear";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -2847,7 +2847,7 @@ sub setDriverAttribute {
 
 	my $path = make_path(SCST_TARGETS_DIR(), $driver, $attribute);
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -2995,7 +2995,7 @@ sub setTargetAttribute {
 		$cmd = $value;
 	}
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -3129,7 +3129,7 @@ sub setGroupAttribute {
 	}
 	$cmd .= $value;
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -3289,7 +3289,7 @@ sub setLunAttribute {
 				  SCST_LUNS, $lun, $attribute);
 	}
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -3432,7 +3432,7 @@ sub setInitiatorAttribute {
 	my $path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
 			     $group, SCST_LUNS, $initiator, $attribute);
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -3719,7 +3719,7 @@ sub setAluaAttribute {
 
 	return TRUE if (!defined($attribute) || !defined($value));
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $attribute);
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
@@ -3744,7 +3744,7 @@ sub setDeviceGroupAttribute {
 
 	return TRUE if (!defined($attribute) || !defined($value));
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $group, $attribute);
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
@@ -3775,7 +3775,7 @@ sub setTargetGroupAttribute {
 	return TRUE if (!defined($group) || !defined($tgroup) ||
 			!defined($attribute) || !defined($value));
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, $tgroup, $attribute);
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
@@ -3812,7 +3812,7 @@ sub setTargetGroupTargetAttribute {
 			!defined($tgt) || !defined($attribute) ||
 			!defined($value));
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
 			     $tgroup, $tgt, $attribute);
 	my $io = new IO::File $path, O_WRONLY;
@@ -3892,7 +3892,7 @@ sub setHandlerAttribute {
 
 	return TRUE if (!defined($attribute) || !defined($value));
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $path = make_path(SCST_HANDLERS_DIR(), $handler, $attribute);
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
@@ -4192,7 +4192,7 @@ sub openDevice {
 	}
 	$cmd .= "add_device $device $o_string";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -4240,7 +4240,7 @@ sub closeDevice {
 	}
 	$cmd .= "del_device $device";
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -4283,7 +4283,7 @@ sub setDeviceAttribute {
 	}
 	$cmd .= $value;
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
@@ -4809,7 +4809,7 @@ sub closeSession {
 	my $path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 			     SCST_SESSIONS, $session, 'force_close');
 
-	my $bytes = -ENOENT;
+	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		my $cmd = "1";
@@ -4922,12 +4922,12 @@ sub _syswrite {
 	my $bytes = syswrite($io, $cmd, $length);
 	$bytes = -$! if (!defined($bytes));
 
-	if (defined($res_file) && $bytes == -EAGAIN) {
+	if (defined($res_file) && $bytes == - EAGAIN) {
 		my $res_io = new IO::File $res_file, O_RDONLY;
 
 		if (!$res_io) {
 			cluck("FATAL: Failed opening $res_file: $!");
-			return -ENOENT;
+			return - ENOENT;
 		}
 
 		my $res_val;
