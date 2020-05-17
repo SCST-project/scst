@@ -9,8 +9,10 @@
 
 #define QLA_MSG_MAX 256
 
+#if __GNUC__ * 256 + __GNUC_MINOR__ >= 4 * 256 + 6
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsuggest-attribute=format"
+#endif
 
 DECLARE_EVENT_CLASS(qla_log_event,
 	TP_PROTO(const char *buf,
@@ -35,7 +37,9 @@ DEFINE_EVENT(qla_log_event, ql_dbg_log,
 	TP_ARGS(buf, vaf)
 );
 
+#if __GNUC__ * 256 + __GNUC_MINOR__ >= 4 * 256 + 6
 #pragma GCC diagnostic pop
+#endif
 
 #endif /* _TRACE_QLA_H */
 

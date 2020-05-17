@@ -19,6 +19,7 @@
 .depend_f
 .directory
 .tmp_versions
+built-in.a
 debian/*.debhelper.log
 debian/*.substvars
 debian/.debhelper/

@@ -3294,6 +3294,18 @@ next:
 	return;
 }
 
+/**
+ * __scst_adjust_sg - reduce the length of a scatterlist
+ * @cmd:        [in]     SCST command that owns the scatterlist.
+ * @sg:         [in/out] Scatterlist of which to reduce the length.
+ * @sg_cnt:     [in/out] Number of elements of the scatterlist.
+ * @adjust_len: [in]     New length of the scatterlist in bytes.
+ * @orig_sg:    [out]    Information needed to restore the original scatterlist.
+ *
+ * Return:
+ * True if @adjust_len was less than or equal to the length of @sg; false
+ * otherwise.
+ */
 static bool __scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
 	int *sg_cnt, int adjust_len, struct scst_orig_sg_data *orig_sg)
 {
@@ -3305,13 +3317,8 @@ static bool __scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
 
 	l = 0;
 	for_each_sg(sg, sgi, *sg_cnt, i) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
-		TRACE_DBG("i %d, sg_cnt %d, sg %p, page_link %lx, len %d", i,
-			*sg_cnt, sg, sgi->page_link, sgi->length);
-#else
-		TRACE_DBG("i %d, sg_cnt %d, sg %p, page_link %lx", i,
-			*sg_cnt, sg, 0UL);
-#endif
+		TRACE_DBG("sg[%d/%d]: addr %p, offset %d, len %d", i, *sg_cnt,
+			  sgi, sgi->offset, sgi->length);
 		l += sgi->length;
 		if (l >= adjust_len) {
 			int left = adjust_len - (l - sgi->length);
@@ -3339,9 +3346,11 @@ static bool __scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
 	return res;
 }
 
-/*
- * Makes cmd's SG shorter on adjust_len bytes. Reg_sg is true for cmd->sg
- * and false for cmd->write_sg.
+/**
+ * scst_adjust_sg - reduce the length of the scatterlist of a command
+ * @cmd:        [in/out] SCST command that owns the scatterlist.
+ * @reg_sg:     [in]     True selects cmd->sg; false selects cmd->write_sg.
+ * @adjust_len: [in]     New length of the scatterlist in bytes.
  */
 static void scst_adjust_sg(struct scst_cmd *cmd, bool reg_sg,
 	int adjust_len)
@@ -3385,58 +3394,65 @@ static void scst_adjust_sg(struct scst_cmd *cmd, bool reg_sg,
 	return;
 }
 
+/**
+ * __scst_adjust_sg_get_tail - reduce a scatterlist to its tail
+ * @cmd:        [in]     SCST command that owns the scatterlist.
+ * @sg:         [in/out] Scatterlist of which to reduce the length.
+ * @sg_cnt:     [in/out] Number of elements of the scatterlist.
+ * @res_sg:     [out]    Pointer to first scatterlist element of the tail.
+ * @res_sg_cnt: [out]    Number of scatterlist elements in the tail.
+ * @adjust_len: [in]     New length of the scatterlist in bytes.
+ * @orig_sg:    [out]    Information needed to restore the original scatterlist.
+ * @must_left:  [in]     How many bytes must remain in @res_sg to consider the
+ *                       operation successful.
+ *
+ * Return:
+ * 0 upon sucess; a negative value upon error.
+ */
 static int __scst_adjust_sg_get_tail(struct scst_cmd *cmd,
 	struct scatterlist *sg, int *sg_cnt,
 	struct scatterlist **res_sg, int *res_sg_cnt,
 	int adjust_len, struct scst_orig_sg_data *orig_sg, int must_left)
 {
-	int res = -ENOENT, i, j, l;
+	struct scatterlist *sgi;
+	int res = -ENOENT, i, l;
 
 	TRACE_ENTRY();
 
 	TRACE_DBG("cmd %p, sg_cnt %d, sg %p", cmd, *sg_cnt, sg);
 
 	l = 0;
-	for (i = 0, j = 0; i < *sg_cnt; i++, j++) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
-		TRACE_DBG("i %d, j %d, sg %p, page_link %lx, len %d", i, j,
-			sg, sg[j].page_link, sg->length);
-#else
-		TRACE_DBG("i %d, j %d, sg %p", i, j, sg);
-#endif
-		if (unlikely(sg_is_chain(&sg[j]))) {
-			sg = sg_chain_ptr(&sg[j]);
-			j = 0;
-		}
-		l += sg[j].length;
+	for_each_sg(sg, sgi, *sg_cnt, i) {
+		TRACE_DBG("i %d, sg %p, len %d", i, sgi, sgi->length);
+		l += sgi->length;
 		if (l >= adjust_len) {
-			int offs = adjust_len - (l - sg[j].length);
+			int offs = adjust_len - (l - sgi->length);
 
 			TRACE_DBG_FLAG(TRACE_SG_OP|TRACE_MEMORY|TRACE_DEBUG,
-				"cmd %p (tag %llu), sg %p, adjust_len %d, i %d, "
-				"j %d, sg[j].length %d, offs %d",
+				"cmd %p (tag %llu), sg %p, adjust_len %d, i %d, sg->length %d, offs %d",
 				cmd, (unsigned long long)cmd->tag,
-				sg, adjust_len, i, j, sg[j].length, offs);
+				sg, adjust_len, i, sgi->length, offs);
 
-			if (offs == sg[j].length) {
-				j++;
+			if (offs == sgi->length) {
+				sgi = sg_next(sgi);
+				i++;
 				offs = 0;
 			}
 
 			orig_sg->p_orig_sg_cnt = sg_cnt;
 			orig_sg->orig_sg_cnt = *sg_cnt;
-			orig_sg->orig_sg_entry = &sg[j];
-			orig_sg->orig_entry_offs = sg[j].offset;
-			orig_sg->orig_entry_len = sg[j].length;
+			orig_sg->orig_sg_entry = sgi;
+			orig_sg->orig_entry_offs = sgi->offset;
+			orig_sg->orig_entry_len = sgi->length;
 
-			sg[j].offset += offs;
-			sg[j].length -= offs;
-			*res_sg = &sg[j];
-			*res_sg_cnt = *sg_cnt - j;
+			sgi->offset += offs;
+			sgi->length -= offs;
+			*res_sg = sgi;
+			*res_sg_cnt = *sg_cnt - i;
 
-			TRACE_DBG("j %d, sg %p, off %d, len %d, cnt %d "
-				"(offs %d)", j, &sg[j], sg[j].offset,
-				sg[j].length, *res_sg_cnt, offs);
+			TRACE_DBG("i %d, sg %p, off %d, len %d, cnt %d (offs %d)",
+				i, sgi, sgi->offset, sgi->length, *res_sg_cnt,
+				offs);
 
 			res = 0;
 			break;
@@ -3448,15 +3464,17 @@ static int __scst_adjust_sg_get_tail(struct scst_cmd *cmd,
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	l = 0;
-	sg = *res_sg;
-	for (i = 0; i < *res_sg_cnt; i++)
-		l += sg[i].length;
+	for_each_sg(*res_sg, sgi, *res_sg_cnt, i)
+		l += sgi->length;
 
 	if (l != must_left) {
 		PRINT_ERROR("Incorrect length %d of adjusted sg (cmd %p, "
 			"expected %d)", l, cmd, must_left);
 		res = -EINVAL;
-		scst_check_restore_sg_buff(cmd);
+		(*res_sg)->offset = orig_sg->orig_entry_offs;
+		(*res_sg)->length = orig_sg->orig_entry_len;
+		*res_sg = NULL;
+		*res_sg_cnt = 0;
 		goto out;
 	}
 #endif
@@ -3466,18 +3484,24 @@ out:
 	return res;
 }
 
-/*
- * Returns in res_sg the tail of cmd's adjusted on adjust_len, i.e. tail
- * of it. In res_sg_cnt sg_cnt of res_sg returned. Cmd only used to store
- * cmd->sg restore information.
+/**
+ * scst_adjust_sg_get_tail - reduce a scatterlist of a command to its tail
+ * @cmd:            [in]  SCST command that owns the scatterlist. Information
+ *                        about how to restore the scatterlist will be stored
+ *                        in @cmd.
+ * @res_sg:         [out] Pointer to first scatterlist element of the tail.
+ * @res_sg_cnt:     [out] Number of scatterlist elements in the tail.
+ * @res_dif_sg:     [out] Pointer to first scatterlist element of the DIF tail.
+ * @res_dif_sg_cnt: [out] Number of scatterlist elements in the DIF tail.
+ * @adjust_len:     [in]  New length of the scatterlist in bytes.
+ * @must_left:      [in]  How many bytes must remain in @res_sg to consider the
+ *                        operation successful.
  *
- * Parameter must_left defines how many bytes must left in res_sg to consider
- * operation successful.
+ * Return:
+ * 0 upon success; a negative value upon error.
  *
- * Returns 0 on success or error code otherwise.
- *
- * NOTE! Before scst_restore_sg_buff() called cmd->sg is corrupted and
- * can NOT be used!
+ * NOTE! Until scst_restore_sg_buff() is called, @cmd->sg is corrupted and
+ * must NOT be used!
  */
 static int scst_adjust_sg_get_tail(struct scst_cmd *cmd,
 	struct scatterlist **res_sg, int *res_sg_cnt,
@@ -5742,7 +5766,18 @@ out:
 	return acn;
 }
 
-
+/**
+ * __scst_create_prepare_internal_cmd() - Create an internal SCSI command
+ * @cdb:        SCSI CDB.
+ * @cdb_len:    Length in bytes of @cdb.
+ * @queue_type: One of the SCST_CMD_QUEUE_* constants.
+ * @tgt_dev:    LUN to submit the command to.
+ * @gfp_mask:   GFP mask to use during execution of this command.
+ * @fantom:     If false, add the command to tgt_dev->sess->sess_cmd_list.
+ *              If true, do not add the command to that command list.
+ *
+ * Return: pointer to the newly allocated command or NULL.
+ */
 struct scst_cmd *__scst_create_prepare_internal_cmd(const uint8_t *cdb,
 	unsigned int cdb_len, enum scst_cmd_queue_type queue_type,
 	struct scst_tgt_dev *tgt_dev, gfp_t gfp_mask, bool fantom)
