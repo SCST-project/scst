@@ -3414,6 +3414,7 @@ static int __scst_adjust_sg_get_tail(struct scst_cmd *cmd,
 	struct scatterlist **res_sg, int *res_sg_cnt,
 	int adjust_len, struct scst_orig_sg_data *orig_sg, int must_left)
 {
+	struct scatterlist *sgi;
 	int res = -ENOENT, i, j, l;
 
 	TRACE_ENTRY();
@@ -3422,45 +3423,41 @@ static int __scst_adjust_sg_get_tail(struct scst_cmd *cmd,
 
 	l = 0;
 	for (i = 0, j = 0; i < *sg_cnt; i++, j++) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
-		TRACE_DBG("i %d, j %d, sg %p, page_link %lx, len %d", i, j,
-			sg, sg[j].page_link, sg->length);
-#else
-		TRACE_DBG("i %d, j %d, sg %p", i, j, sg);
-#endif
-		if (unlikely(sg_is_chain(&sg[j]))) {
-			sg = sg_chain_ptr(&sg[j]);
+		sgi = &sg[j];
+		TRACE_DBG("i %d, j %d, sg %p, len %d", i, j, sgi, sgi->length);
+		if (unlikely(sg_is_chain(sgi))) {
+			sgi = sg = sg_chain_ptr(sgi);
 			j = 0;
 		}
-		l += sg[j].length;
+		l += sgi->length;
 		if (l >= adjust_len) {
-			int offs = adjust_len - (l - sg[j].length);
+			int offs = adjust_len - (l - sgi->length);
 
 			TRACE_DBG_FLAG(TRACE_SG_OP|TRACE_MEMORY|TRACE_DEBUG,
-				"cmd %p (tag %llu), sg %p, adjust_len %d, i %d, "
-				"j %d, sg[j].length %d, offs %d",
+				"cmd %p (tag %llu), sg %p, adjust_len %d, i %d, j %d, sg->length %d, offs %d",
 				cmd, (unsigned long long)cmd->tag,
-				sg, adjust_len, i, j, sg[j].length, offs);
+				sg, adjust_len, i, j, sgi->length, offs);
 
-			if (offs == sg[j].length) {
+			if (offs == sgi->length) {
+				sgi = sg_next(sgi);
 				j++;
 				offs = 0;
 			}
 
 			orig_sg->p_orig_sg_cnt = sg_cnt;
 			orig_sg->orig_sg_cnt = *sg_cnt;
-			orig_sg->orig_sg_entry = &sg[j];
-			orig_sg->orig_entry_offs = sg[j].offset;
-			orig_sg->orig_entry_len = sg[j].length;
+			orig_sg->orig_sg_entry = sgi;
+			orig_sg->orig_entry_offs = sgi->offset;
+			orig_sg->orig_entry_len = sgi->length;
 
-			sg[j].offset += offs;
-			sg[j].length -= offs;
-			*res_sg = &sg[j];
+			sgi->offset += offs;
+			sgi->length -= offs;
+			*res_sg = sgi;
 			*res_sg_cnt = *sg_cnt - j;
 
-			TRACE_DBG("j %d, sg %p, off %d, len %d, cnt %d "
-				"(offs %d)", j, &sg[j], sg[j].offset,
-				sg[j].length, *res_sg_cnt, offs);
+			TRACE_DBG("j %d, sg %p, off %d, len %d, cnt %d (offs %d)",
+				j, sgi, sgi->offset, sgi->length, *res_sg_cnt,
+				offs);
 
 			res = 0;
 			break;
