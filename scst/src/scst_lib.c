@@ -3415,32 +3415,27 @@ static int __scst_adjust_sg_get_tail(struct scst_cmd *cmd,
 	int adjust_len, struct scst_orig_sg_data *orig_sg, int must_left)
 {
 	struct scatterlist *sgi;
-	int res = -ENOENT, i, j, l;
+	int res = -ENOENT, i, l;
 
 	TRACE_ENTRY();
 
 	TRACE_DBG("cmd %p, sg_cnt %d, sg %p", cmd, *sg_cnt, sg);
 
 	l = 0;
-	for (i = 0, j = 0; i < *sg_cnt; i++, j++) {
-		sgi = &sg[j];
-		TRACE_DBG("i %d, j %d, sg %p, len %d", i, j, sgi, sgi->length);
-		if (unlikely(sg_is_chain(sgi))) {
-			sgi = sg = sg_chain_ptr(sgi);
-			j = 0;
-		}
+	for_each_sg(sg, sgi, *sg_cnt, i) {
+		TRACE_DBG("i %d, sg %p, len %d", i, sgi, sgi->length);
 		l += sgi->length;
 		if (l >= adjust_len) {
 			int offs = adjust_len - (l - sgi->length);
 
 			TRACE_DBG_FLAG(TRACE_SG_OP|TRACE_MEMORY|TRACE_DEBUG,
-				"cmd %p (tag %llu), sg %p, adjust_len %d, i %d, j %d, sg->length %d, offs %d",
+				"cmd %p (tag %llu), sg %p, adjust_len %d, i %d, sg->length %d, offs %d",
 				cmd, (unsigned long long)cmd->tag,
-				sg, adjust_len, i, j, sgi->length, offs);
+				sg, adjust_len, i, sgi->length, offs);
 
 			if (offs == sgi->length) {
 				sgi = sg_next(sgi);
-				j++;
+				i++;
 				offs = 0;
 			}
 
@@ -3453,10 +3448,10 @@ static int __scst_adjust_sg_get_tail(struct scst_cmd *cmd,
 			sgi->offset += offs;
 			sgi->length -= offs;
 			*res_sg = sgi;
-			*res_sg_cnt = *sg_cnt - j;
+			*res_sg_cnt = *sg_cnt - i;
 
-			TRACE_DBG("j %d, sg %p, off %d, len %d, cnt %d (offs %d)",
-				j, sgi, sgi->offset, sgi->length, *res_sg_cnt,
+			TRACE_DBG("i %d, sg %p, off %d, len %d, cnt %d (offs %d)",
+				i, sgi, sgi->offset, sgi->length, *res_sg_cnt,
 				offs);
 
 			res = 0;
@@ -3469,15 +3464,17 @@ static int __scst_adjust_sg_get_tail(struct scst_cmd *cmd,
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	l = 0;
-	sg = *res_sg;
-	for (i = 0; i < *res_sg_cnt; i++)
-		l += sg[i].length;
+	for_each_sg(*res_sg, sgi, *res_sg_cnt, i)
+		l += sgi->length;
 
 	if (l != must_left) {
 		PRINT_ERROR("Incorrect length %d of adjusted sg (cmd %p, "
 			"expected %d)", l, cmd, must_left);
 		res = -EINVAL;
-		scst_check_restore_sg_buff(cmd);
+		(*res_sg)->offset = orig_sg->orig_entry_offs;
+		(*res_sg)->length = orig_sg->orig_entry_len;
+		*res_sg = NULL;
+		*res_sg_cnt = 0;
 		goto out;
 	}
 #endif
