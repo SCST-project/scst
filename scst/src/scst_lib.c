@@ -5766,7 +5766,18 @@ out:
 	return acn;
 }
 
-
+/**
+ * __scst_create_prepare_internal_cmd() - Create an internal SCSI command
+ * @cdb:        SCSI CDB.
+ * @cdb_len:    Length in bytes of @cdb.
+ * @queue_type: One of the SCST_CMD_QUEUE_* constants.
+ * @tgt_dev:    LUN to submit the command to.
+ * @gfp_mask:   GFP mask to use during execution of this command.
+ * @fantom:     If false, add the command to tgt_dev->sess->sess_cmd_list.
+ *              If true, do not add the command to that command list.
+ *
+ * Return: pointer to the newly allocated command or NULL.
+ */
 struct scst_cmd *__scst_create_prepare_internal_cmd(const uint8_t *cdb,
 	unsigned int cdb_len, enum scst_cmd_queue_type queue_type,
 	struct scst_tgt_dev *tgt_dev, gfp_t gfp_mask, bool fantom)
