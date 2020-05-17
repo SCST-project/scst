@@ -3294,6 +3294,18 @@ next:
 	return;
 }
 
+/**
+ * __scst_adjust_sg - reduce the length of a scatterlist
+ * @cmd:        [in]     SCST command that owns the scatterlist.
+ * @sg:         [in/out] Scatterlist of which to reduce the length.
+ * @sg_cnt:     [in/out] Number of elements of the scatterlist.
+ * @adjust_len: [in]     New length of the scatterlist in bytes.
+ * @orig_sg:    [out]    Information needed to restore the original scatterlist.
+ *
+ * Return:
+ * True if @adjust_len was less than or equal to the length of @sg; false
+ * otherwise.
+ */
 static bool __scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
 	int *sg_cnt, int adjust_len, struct scst_orig_sg_data *orig_sg)
 {
@@ -3334,9 +3346,11 @@ static bool __scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
 	return res;
 }
 
-/*
- * Makes cmd's SG shorter on adjust_len bytes. Reg_sg is true for cmd->sg
- * and false for cmd->write_sg.
+/**
+ * scst_adjust_sg - reduce the length of the scatterlist of a command
+ * @cmd:        [in/out] SCST command that owns the scatterlist.
+ * @reg_sg:     [in]     True selects cmd->sg; false selects cmd->write_sg.
+ * @adjust_len: [in]     New length of the scatterlist in bytes.
  */
 static void scst_adjust_sg(struct scst_cmd *cmd, bool reg_sg,
 	int adjust_len)
@@ -3380,6 +3394,21 @@ static void scst_adjust_sg(struct scst_cmd *cmd, bool reg_sg,
 	return;
 }
 
+/**
+ * __scst_adjust_sg_get_tail - reduce a scatterlist to its tail
+ * @cmd:        [in]     SCST command that owns the scatterlist.
+ * @sg:         [in/out] Scatterlist of which to reduce the length.
+ * @sg_cnt:     [in/out] Number of elements of the scatterlist.
+ * @res_sg:     [out]    Pointer to first scatterlist element of the tail.
+ * @res_sg_cnt: [out]    Number of scatterlist elements in the tail.
+ * @adjust_len: [in]     New length of the scatterlist in bytes.
+ * @orig_sg:    [out]    Information needed to restore the original scatterlist.
+ * @must_left:  [in]     How many bytes must remain in @res_sg to consider the
+ *                       operation successful.
+ *
+ * Return:
+ * 0 upon sucess; a negative value upon error.
+ */
 static int __scst_adjust_sg_get_tail(struct scst_cmd *cmd,
 	struct scatterlist *sg, int *sg_cnt,
 	struct scatterlist **res_sg, int *res_sg_cnt,
@@ -3461,18 +3490,24 @@ out:
 	return res;
 }
 
-/*
- * Returns in res_sg the tail of cmd's adjusted on adjust_len, i.e. tail
- * of it. In res_sg_cnt sg_cnt of res_sg returned. Cmd only used to store
- * cmd->sg restore information.
+/**
+ * scst_adjust_sg_get_tail - reduce a scatterlist of a command to its tail
+ * @cmd:            [in]  SCST command that owns the scatterlist. Information
+ *                        about how to restore the scatterlist will be stored
+ *                        in @cmd.
+ * @res_sg:         [out] Pointer to first scatterlist element of the tail.
+ * @res_sg_cnt:     [out] Number of scatterlist elements in the tail.
+ * @res_dif_sg:     [out] Pointer to first scatterlist element of the DIF tail.
+ * @res_dif_sg_cnt: [out] Number of scatterlist elements in the DIF tail.
+ * @adjust_len:     [in]  New length of the scatterlist in bytes.
+ * @must_left:      [in]  How many bytes must remain in @res_sg to consider the
+ *                        operation successful.
  *
- * Parameter must_left defines how many bytes must left in res_sg to consider
- * operation successful.
+ * Return:
+ * 0 upon success; a negative value upon error.
  *
- * Returns 0 on success or error code otherwise.
- *
- * NOTE! Before scst_restore_sg_buff() called cmd->sg is corrupted and
- * can NOT be used!
+ * NOTE! Until scst_restore_sg_buff() is called, @cmd->sg is corrupted and
+ * must NOT be used!
  */
 static int scst_adjust_sg_get_tail(struct scst_cmd *cmd,
 	struct scatterlist **res_sg, int *res_sg_cnt,
