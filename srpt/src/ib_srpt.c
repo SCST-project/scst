@@ -3007,6 +3007,11 @@ static int srpt_rdma_cm_req_recv(struct rdma_cm_id *cm_id,
 	struct srpt_device *sdev;
 	struct srp_login_req req;
 	const struct srp_login_req_rdma *req_rdma;
+	/*
+	 * See also commit c2f8fc4ec440 ("IB/SA: Rename ib_sa_path_rec to
+	 * sa_path_rec") # v4.12.
+	 */
+	typeof(cm_id->route.path_rec) path_rec = cm_id->route.path_rec;
 	char src_addr[40];
 
 	sdev = ib_get_client_data(cm_id->device, &srpt_client);
@@ -3031,7 +3036,7 @@ static int srpt_rdma_cm_req_recv(struct rdma_cm_id *cm_id,
 	inet_ntop(&cm_id->route.addr.src_addr, src_addr, sizeof(src_addr));
 
 	return srpt_cm_req_recv(sdev, NULL, cm_id, cm_id->port_num,
-				cm_id->route.path_rec->pkey, &req, src_addr);
+				path_rec ? path_rec->pkey : 0, &req, src_addr);
 }
 
 static void srpt_cm_rej_recv(struct srpt_rdma_ch *ch,
