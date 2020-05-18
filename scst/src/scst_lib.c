@@ -3407,7 +3407,7 @@ static void scst_adjust_sg(struct scst_cmd *cmd, bool reg_sg,
  *                       operation successful.
  *
  * Return:
- * 0 upon sucess; a negative value upon error.
+ * 0 upon success; a negative value upon error.
  */
 static int __scst_adjust_sg_get_tail(struct scst_cmd *cmd,
 	struct scatterlist *sg, int *sg_cnt,
