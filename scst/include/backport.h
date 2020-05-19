@@ -970,6 +970,15 @@ static inline void *kvzalloc(size_t size, gfp_t flags)
 {
 	return kvmalloc(size, flags | __GFP_ZERO);
 }
+
+/*
+ * See also commit 752ade68cbd8 ("treewide: use kv[mz]alloc* rather than
+ * opencoded variants") # v4.12.
+ */
+static inline void *kvmalloc_array(size_t n, size_t size, gfp_t flags)
+{
+	return kvmalloc(n * size, flags);
+}
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0) &&	\
