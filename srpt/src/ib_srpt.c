@@ -1304,7 +1304,6 @@ static int srpt_ch_qp_rtr(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 	if (ret)
 		goto out;
 
-	attr->qp_access_flags = 0;
 	attr->max_dest_rd_atomic = 4;
 
 	ret = ib_modify_qp(qp, attr, attr_mask);
@@ -1338,7 +1337,6 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 	if (ret)
 		goto out;
 
-	attr->qp_access_flags = 0;
 	attr->max_rd_atomic = 4;
 
 	ret = ib_modify_qp(qp, attr, attr_mask);
