@@ -2373,13 +2373,15 @@ retry:
 	if (ret) {
 		bool retry = sq_size > MIN_SRPT_SQ_SIZE;
 
-		pr_err("failed to create queue pair with sq_size = %d (%d)%s\n",
-		       sq_size, ret, retry ? " - retrying" : "");
 		if (retry) {
+			pr_debug("failed to create queue pair with sq_size = %d (%d) - retrying\n",
+				 sq_size, ret);
 			ib_destroy_cq(ch->cq);
 			sq_size = max(sq_size / 2, MIN_SRPT_SQ_SIZE);
 			goto retry;
 		} else {
+			pr_err("failed to create queue pair with sq_size = %d (%d)\n",
+			       sq_size, ret);
 			goto err_destroy_cq;
 		}
 	}
