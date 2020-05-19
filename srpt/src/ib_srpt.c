@@ -1972,8 +1972,10 @@ srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 			goto push;
 	}
 
-	if (!list_empty(&recv_ioctx->wait_list))
+	if (!list_empty(&recv_ioctx->wait_list)) {
+		WARN_ON_ONCE(!ch->processing_wait_list);
 		list_del_init(&recv_ioctx->wait_list);
+	}
 
 	switch (opcode) {
 	case SRP_CMD:
@@ -2006,8 +2008,10 @@ out:
 	return send_ioctx;
 
 push:
-	if (list_empty(&recv_ioctx->wait_list))
+	if (list_empty(&recv_ioctx->wait_list)) {
+		WARN_ON_ONCE(ch->processing_wait_list);
 		list_add_tail(&recv_ioctx->wait_list, &ch->cmd_wait_list);
+	}
 	goto out;
 }
 
@@ -2046,14 +2050,18 @@ static void srpt_process_wait_list(struct srpt_rdma_ch *ch)
 {
 	struct srpt_recv_ioctx *recv_ioctx, *tmp;
 
-	ch->processing_wait_list = true;
+	WARN_ON_ONCE(ch->state == CH_CONNECTING);
 
+	if (list_empty(&ch->cmd_wait_list))
+		return;
+
+	WARN_ON_ONCE(ch->processing_wait_list);
+	ch->processing_wait_list = true;
 	list_for_each_entry_safe(recv_ioctx, tmp, &ch->cmd_wait_list,
 				 wait_list) {
 		if (!srpt_handle_new_iu(ch, recv_ioctx, srpt_new_iu_context))
 			break;
 	}
-
 	ch->processing_wait_list = false;
 }
 
