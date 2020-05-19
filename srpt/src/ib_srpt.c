@@ -2331,10 +2331,8 @@ retry:
 	qp_init->cap.max_send_wr = sq_size;
 #if HAVE_DEV_ATTR_MAX_SEND_SGE
 	ch->max_send_sge = sdev->dev_attr.max_send_sge;
-	ch->max_recv_sge = sdev->dev_attr.max_recv_sge;
 #else
 	ch->max_send_sge = sdev->dev_attr.max_sge;
-	ch->max_recv_sge = ch->max_send_sge;
 #endif
 	/*
 	 * For max_sge values > 2 * max_sge_delta, subtract max_sge_delta. For
@@ -2346,12 +2344,11 @@ retry:
 		      max_t(int, 0,
 			    ch->max_send_sge - max_sge_delta));
 	qp_init->cap.max_send_sge = ch->max_send_sge;
-	qp_init->cap.max_recv_sge = ch->max_recv_sge;
+	qp_init->cap.max_recv_sge = 1;
 	if (sdev->use_srq) {
 		qp_init->srq = sdev->srq;
 	} else {
 		qp_init->cap.max_recv_wr = ch->rq_size;
-		qp_init->cap.max_recv_sge = ch->max_recv_sge;
 	}
 
 	if (ch->using_rdma_cm) {
