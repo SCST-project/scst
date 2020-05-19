@@ -382,7 +382,6 @@ enum rdma_ch_state {
  * @kref:	   kref for this channel.
  * @rq_size:       IB receive queue size.
  * @max_send_sge:  Maximum length of RDMA send scatter list.
- * @max_recv_sge:  Maximum length of RDMA receive scatter list.
  * @max_rsp_size:  Maximum size of an SRP response message in bytes.
  * @sq_wr_avail:   number of work requests available in the send queue.
  * @sport:         pointer to the information of the HCA port used by this
@@ -428,7 +427,6 @@ struct srpt_rdma_ch {
 	struct kref		kref;
 	int			rq_size;
 	u32			max_send_sge;
-	u32			max_recv_sge;
 	u32			max_rsp_size;
 	atomic_t		sq_wr_avail;
 	struct srpt_port	*sport;
