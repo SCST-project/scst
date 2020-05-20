@@ -42,11 +42,9 @@ DOC_DIR=doc
 SCSTADM_DIR=scstadmin
 QLA_INI_DIR=qla2x00t
 QLA_DIR=qla2x00t/qla2x00-target
-LSI_DIR=mpt
 USR_DIR=usr
 SRP_DIR=srpt
 SCST_LOCAL_DIR=scst_local
-MVSAS_DIR=mvsas_tgt
 FCST_DIR=fcst
 EMULEX_DIR=emulex
 
@@ -97,23 +95,11 @@ help:
 	@echo "		emulex_install     : Emulex target: install"
 	@echo "		emulex_uninstall   : Emulex target: uninstall"
 	@echo ""
-	@echo "		lsi               : make LSI MPT target"
-	@echo "		lsi_clean         : lsi target: clean "
-	@echo "		lsi_extraclean    : lsi target: clean + clean dependencies"
-	@echo "		lsi_install       : lsi target: install"
-	@echo "		lsi_uninstall     : lsi target: uninstall"
-	@echo ""
 	@echo "		srpt              : make SRP target"
 	@echo "		srpt_clean        : srp target: clean "
 	@echo "		srpt_extraclean   : srp target: clean + clean dependencies"
 	@echo "		srpt_install      : srp target: install"
 	@echo "		srpt_uninstall    : srp target: uninstall"
-	@echo ""
-	@echo "		mvsas             : make MVSAS target"
-	@echo "		mvsas_clean       : mvsas target: clean "
-	@echo "		mvsas_extraclean  : mvsas target: clean + clean dependencies"
-	@echo "		mvsas_install     : mvsas target: install"
-	@echo "		mvsas_uninstall   : mvsas target: uninstall"
 	@echo ""
 	@echo "		fcst              : make FCoE target"
 	@echo "		fcst_clean        : FCoE target: clean "
@@ -142,7 +128,6 @@ all:
 	cd $(SCST_DIR) && $(MAKE) $@
 #	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-#	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
@@ -153,7 +138,6 @@ install:
 	cd $(SCST_DIR) && $(MAKE) $@
 #	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-#	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 #	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
@@ -164,7 +148,6 @@ uninstall:
 	cd $(SCST_DIR) && $(MAKE) $@
 #	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-#	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
@@ -176,7 +159,6 @@ clean:
 	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-#	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
@@ -189,7 +171,6 @@ extraclean:
 	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-#	@if [ -d $(LSI_DIR) ]; then cd $(LSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
 	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
 	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
@@ -283,21 +264,6 @@ emulex_clean:
 emulex_extraclean:
 	cd $(EMULEX_DIR) && $(MAKE) extraclean
 
-lsi:
-	cd $(LSI_DIR) && $(MAKE) all
-
-lsi_install:
-	cd $(LSI_DIR) && $(MAKE) install
-
-lsi_uninstall:
-	cd $(LSI_DIR) && $(MAKE) uninstall
-
-lsi_clean:
-	cd $(LSI_DIR) && $(MAKE) clean
-
-lsi_extraclean:
-	cd $(LSI_DIR) && $(MAKE) extraclean
-
 srpt:
 	cd $(SRP_DIR) && $(MAKE) all
 
@@ -342,21 +308,6 @@ usr_clean:
 
 usr_extraclean:
 	cd $(USR_DIR) && $(MAKE) extraclean
-
-mvsas:
-	cd $(MVSAS_DIR) && $(MAKE) all
-
-mvsas_install:
-	cd $(MVSAS_DIR) && $(MAKE) install
-
-mvsas_uninstall:
-	cd $(MVSAS_DIR) && $(MAKE) uninstall
-
-mvsas_clean:
-	cd $(MVSAS_DIR) && $(MAKE) clean
-
-mvsas_extraclean:
-	cd $(MVSAS_DIR) && $(MAKE) extraclean
 
 fcst:
 	cd $(FCST_DIR) && $(MAKE) all
@@ -515,7 +466,6 @@ release-archive:
 
 .PHONY: all install uninstall clean extraclean tags help \
 	qla qla_install qla_uninstall qla_clean qla_extraclean \
-	lsi lsi_install lsi_uninstall lsi_clean lsi_extraclean \
 	iscsi iscsi_install iscsi_uninstall iscsi_clean iscsi_extraclean \
 	emulex emulex_install emulex_uninstall emulex_clean emulex_extraclean \
 	scst scst_install scst_uninstall scst_clean scst_extraclean \
@@ -524,7 +474,6 @@ release-archive:
 	srpt srpt_install srpt_uninstall srpt_clean srpt_extraclean \
 	usr usr_install usr_uninstall usr_clean usr_extraclean \
 	scst_local scst_local_install scst_local_uninstall scst_local_clean scst_local_extraclean \
-	mvsas mvsas_install mvsas_uninstall mvsas_clean mvsas_extraclean \
 	fcst fcst_install fcst_uninstall fcst_clean fcst_extraclean \
 	scst-rpm scst-dkms-rpm dpkg \
 	2perf 2release 2debug
