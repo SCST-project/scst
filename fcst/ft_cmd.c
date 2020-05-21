@@ -617,7 +617,7 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 		goto busy;
 	fcmd->scst_cmd = cmd;
 	scst_cmd_set_tgt_priv(cmd, fcmd);
-	cmd->state = FT_STATE_NEW;
+	fcmd->state = FT_STATE_NEW;
 
 	fcmd->seq = sp;
 #ifdef NEW_LIBFC_API
