@@ -65,7 +65,6 @@ static int cdrom_attach(struct scst_device *dev)
 	uint8_t *buffer = NULL;
 	int retries;
 	unsigned char sense_buffer[SCSI_SENSE_BUFFERSIZE];
-	enum dma_data_direction data_dir;
 
 	TRACE_ENTRY();
 
@@ -93,11 +92,10 @@ static int cdrom_attach(struct scst_device *dev)
 	while (1) {
 		memset(buffer, 0, buffer_size);
 		memset(sense_buffer, 0, sizeof(sense_buffer));
-		data_dir = SCST_DATA_READ;
 
 		TRACE_DBG("%s", "Doing READ_CAPACITY");
-		rc = scst_scsi_execute(dev->scsi_dev, cmd, data_dir, buffer,
-				       buffer_size, sense_buffer,
+		rc = scst_scsi_execute(dev->scsi_dev, cmd, DMA_FROM_DEVICE,
+				       buffer, buffer_size, sense_buffer,
 				       SCST_GENERIC_CDROM_REG_TIMEOUT, 3, 0);
 
 		TRACE_DBG("READ_CAPACITY done: %x", rc);
