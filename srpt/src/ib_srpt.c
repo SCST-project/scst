@@ -164,7 +164,7 @@ module_param_call(srpt_service_guid, NULL, srpt_get_u64_x, &srpt_service_guid,
 MODULE_PARM_DESC(srpt_service_guid,
 		 "Using this value for ioc_guid, id_ext, and cm_listen_id instead of using the node_guid of the first HCA.");
 
-static unsigned int max_sge_delta = 3;
+static unsigned int max_sge_delta = 0;
 module_param(max_sge_delta, uint, 0444);
 MODULE_PARM_DESC(max_sge_delta, "Number to subtract from max_sge.");
 
@@ -2340,6 +2340,28 @@ retry:
 #else
 	ch->max_send_sge = sdev->dev_attr.max_sge;
 #endif
+	if (max_sge_delta == 0) {
+		switch (sdev->device->ops.driver_id) {
+		case RDMA_DRIVER_MLX4:
+			/*
+			 * The smallest max_sge_delta value that works with
+			 * ConnectX-3 firmware version 2.42.5000.
+			 */
+			max_sge_delta = 2;
+			break;
+		case RDMA_DRIVER_MTHCA:
+			/*
+			 * From the OFED release notes: In mem-free devices, RC
+			 * QPs can be created with a maximum of (max_sge - 1)
+			 * entries only. See also
+			 * https://git.openfabrics.org/?p=compat-rdma/docs.git;a=blob;f=release_notes/mthca_release_notes.txt;h=40f3c4ea77a07fe5ded888b8417530471e89d87b;hb=1ebd1b1dd5b413be595a835bbcb644d2c8897f98.
+			 */
+			max_sge_delta = 1;
+			break;
+		default:
+			break;
+		}
+	}
 	/*
 	 * For max_sge values > 2 * max_sge_delta, subtract max_sge_delta. For
 	 * max_sge values < max_sge_delta, use max_sge. For intermediate
