@@ -120,6 +120,13 @@ function specialize_patch {
 	  -v "RHEL_RELEASE_CODE=$((releasevermajor * 256 + releaseverminor))"
       )
   fi
+  local kver3
+  set -- ${kver//./ }
+  if [ -n "$3" ]; then
+      kver3=$1.$2.$3
+  else
+      kver3=$1.$2
+  fi
   if [ "${enable_specialize}" = "true" ]; then
     if [ "${generating_upstream_patch}" = "true" ]; then
       scripts/filter-trace-entry-exit
@@ -128,7 +135,7 @@ function specialize_patch {
     fi |
     "$(dirname "$0")/specialize-patch" \
          "${specialize_patch_options[@]}" \
-         -v kernel_version="${kver/-*}" \
+         -v kernel_version="${kver3}" \
          -v SCST_IO_CONTEXT="${scst_io_context}" "${ao[@]}"
   else
     cat
