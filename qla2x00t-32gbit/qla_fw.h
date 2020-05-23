@@ -1624,13 +1624,6 @@ struct qla_flt_location {
 	__le16	checksum;
 };
 
-struct qla_flt_header {
-	uint16_t version;
-	uint16_t length;
-	uint16_t checksum;
-	uint16_t unused;
-};
-
 #define FLT_REG_FW		0x01
 #define FLT_REG_BOOT_CODE	0x07
 #define FLT_REG_VPD_0		0x14
@@ -1683,12 +1676,20 @@ struct qla_flt_header {
 #define FLT_REG_PEP_SEC_28XX		0xF1
 
 struct qla_flt_region {
-	uint16_t code;
+	__le16	code;
 	uint8_t attribute;
 	uint8_t reserved;
-	uint32_t size;
-	uint32_t start;
-	uint32_t end;
+	__le32 size;
+	__le32 start;
+	__le32 end;
+};
+
+struct qla_flt_header {
+	__le16	version;
+	__le16	length;
+	__le16	checksum;
+	__le16	unused;
+	struct qla_flt_region region[0];
 };
 
 #define FLT_REGION_SIZE		16
