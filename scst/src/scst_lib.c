@@ -8357,20 +8357,8 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 	rq->cmd_type = REQ_TYPE_BLOCK_PC;
 #endif
 
-	if (bw != NULL) {
+	if (bw)
 		atomic_set(&bw->bios_inflight, bios);
-#if (!defined(CONFIG_SUSE_KERNEL) &&				\
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)) ||	\
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
-		/*
-		 * See also patch "block: split out request-only flags into a
-		 * new namespace" (commit e806402130c9).
-		 */
-		rq->cmd_flags |= REQ_COPY_USER;
-#else
-		rq->rq_flags |= RQF_COPY_USER;
-#endif
-	}
 
 out:
 	return rq;
