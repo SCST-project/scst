@@ -438,7 +438,8 @@ static int sqa_qla2xxx_handle_cmd(scsi_qla_host_t *vha,
 		goto out;
 	}
 
-	scst_cmd_set_tag(cmd->scst_cmd, atio->u.isp24.exchange_addr);
+	scst_cmd_set_tag(cmd->scst_cmd,
+			 le32_to_cpu(atio->u.isp24.exchange_addr));
 	scst_cmd_set_tgt_priv(cmd->scst_cmd, cmd);
 
 	if (atio->u.isp24.fcp_cmnd.rddata && atio->u.isp24.fcp_cmnd.wrdata)

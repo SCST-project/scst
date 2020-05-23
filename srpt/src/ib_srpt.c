@@ -2341,6 +2341,8 @@ retry:
 	ch->max_send_sge = sdev->dev_attr.max_sge;
 #endif
 	if (max_sge_delta == 0) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
+		/* See also commit 0ede73bc012c ("IB/uverbs: Extend uverbs_ioctl header with driver_id") # v4.17. */
 		switch (sdev->device->ops.driver_id) {
 		case RDMA_DRIVER_MLX4:
 			/*
@@ -2361,6 +2363,13 @@ retry:
 		default:
 			break;
 		}
+#else
+		if (strncmp(dev_name(&sdev->device->dev), "mlx4_", 5) == 0)
+			max_sge_delta = 2;
+		else if (strncmp(dev_name(&sdev->device->dev), "mthca", 5) == 0)
+			max_sge_delta = 1;
+#endif
+		pr_debug("max_sge_delta = %d\n", max_sge_delta);
 	}
 	/*
 	 * For max_sge values > 2 * max_sge_delta, subtract max_sge_delta. For
