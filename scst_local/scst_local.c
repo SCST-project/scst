@@ -1175,14 +1175,23 @@ static int scst_local_change_queue_depth(struct scsi_device *sdev, int qdepth)
 
 static int scst_local_slave_alloc(struct scsi_device *sdev)
 {
+	struct request_queue *q = sdev->request_queue;
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0) &&	\
 	!defined(CONFIG_SUSE_KERNEL)
 #if !defined(RHEL_MAJOR) || RHEL_MAJOR -0 >= 6
-	queue_flag_set_unlocked(QUEUE_FLAG_BIDI, sdev->request_queue);
+	queue_flag_set_unlocked(QUEUE_FLAG_BIDI, q);
 #endif
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
-	blk_queue_flag_set(QUEUE_FLAG_BIDI, sdev->request_queue);
+	blk_queue_flag_set(QUEUE_FLAG_BIDI, q);
 #endif
+
+	/*
+	 * vdisk_blockio requires that data buffers have block_size alignment
+	 * and supports block sizes from 512 up to 4096. See also
+	 * https://github.com/sahlberg/libiscsi/issues/302.
+	 */
+	blk_queue_dma_alignment(q, 4095);
 
 	return 0;
 }
