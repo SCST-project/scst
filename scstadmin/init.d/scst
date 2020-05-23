@@ -171,7 +171,7 @@ unload_kmod() {
     m="$1"
     t="$2"
     i=0
-    while [ -e "/sys/module/$m/refcnt" ] && ! rmmod "$m" 2>/dev/null &&
+    while [ -e "/sys/module/$m/refcnt" ] && ! modprobe -r "$m" 2>/dev/null &&
           [ $i -lt "$t" ]
     do
         sleep 1
@@ -192,29 +192,15 @@ unload_scst() {
     # seconds.
     unload_kmod isert_scst 90 || echo "Unloading isert_scst failed"
 
-    reverse_list=""
+    reverse_list="scst_disk scst_raid scst_tape scst_user scst_changer \
+		  scst_cdrom scst_vdisk scst_modisk scst_processor \
+		  isert_scst iscsi_scst fcst ib_srpt qla2xxx_scst qla2x00tgt \
+		  scst_local scst"
     for m in $SCST_MODULES; do
         reverse_list="$m $reverse_list"
     done
     for m in $reverse_list; do
-        refcnt=$(cat "/sys/module/$m/refcnt" 2>/dev/null)
-        if [ -n "$refcnt" ] && [ "$refcnt" -gt 0 ]; then
-            # Apparently it can happen that the iscsi_scst refcnt is only
-            # decremented a short time after killproc finished. If that
-            # occurs, sleep for a short time.
-            sleep 1
-        fi
         unload_kmod "$m" 30 || return 1
-    done
-    # Loading qla2x00tgt causes qla2xxx_scst to be loaded but removing
-    # qla2x00tgt does not cause qla2xxx_scst to be unloaded. Hence unload it
-    # explicitly.
-    unload_kmod qla2xxx_scst
-    for m in $SCST_OPT_MODULES; do
-        reverse_list="$m $reverse_list"
-    done
-    for m in $reverse_list; do
-        rmmod "$m" >/dev/null 2>&1
     done
 
     # Clear the config in case unloading failed or SCST has been built into the
@@ -378,9 +364,9 @@ case "$1" in
 esac
 
 if [ $rc = 0 ]; then
-    log_success_msg
+    log_success_msg ""
 else
-    log_failure_msg
+    log_failure_msg ""
 fi
 
 exit $rc
