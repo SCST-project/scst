@@ -2341,8 +2341,11 @@ retry:
 	ch->max_send_sge = sdev->dev_attr.max_sge;
 #endif
 	if (max_sge_delta == 0) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
-		/* See also commit 0ede73bc012c ("IB/uverbs: Extend uverbs_ioctl header with driver_id") # v4.17. */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0)
+		/*
+		 * See also commit b9560a419bfd ("RDMA: Move driver_id into
+		 * struct ib_device_ops") # v5.3.
+		 */
 		switch (sdev->device->ops.driver_id) {
 		case RDMA_DRIVER_MLX4:
 			/*
