@@ -166,7 +166,7 @@ MODULE_PARM_DESC(srpt_service_guid,
 
 static unsigned int max_sge_delta = 0;
 module_param(max_sge_delta, uint, 0444);
-MODULE_PARM_DESC(max_sge_delta, "Number to subtract from max_sge.");
+MODULE_PARM_DESC(max_sge_delta, "Number to subtract from max_sge (obsolete).");
 
 /*
  * Note: changing any of the two constants below into SCST_CONTEXT_DIRECT is
@@ -2340,49 +2340,6 @@ retry:
 #else
 	ch->max_send_sge = sdev->dev_attr.max_sge;
 #endif
-	if (max_sge_delta == 0) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0)
-		/*
-		 * See also commit b9560a419bfd ("RDMA: Move driver_id into
-		 * struct ib_device_ops") # v5.3.
-		 */
-		switch (sdev->device->ops.driver_id) {
-		case RDMA_DRIVER_MLX4:
-			/*
-			 * The smallest max_sge_delta value that works with
-			 * ConnectX-3 firmware version 2.42.5000.
-			 */
-			max_sge_delta = 2;
-			break;
-		case RDMA_DRIVER_MTHCA:
-			/*
-			 * From the OFED release notes: In mem-free devices, RC
-			 * QPs can be created with a maximum of (max_sge - 1)
-			 * entries only. See also
-			 * https://git.openfabrics.org/?p=compat-rdma/docs.git;a=blob;f=release_notes/mthca_release_notes.txt;h=40f3c4ea77a07fe5ded888b8417530471e89d87b;hb=1ebd1b1dd5b413be595a835bbcb644d2c8897f98.
-			 */
-			max_sge_delta = 1;
-			break;
-		default:
-			break;
-		}
-#else
-		if (strncmp(dev_name(&sdev->device->dev), "mlx4_", 5) == 0)
-			max_sge_delta = 2;
-		else if (strncmp(dev_name(&sdev->device->dev), "mthca", 5) == 0)
-			max_sge_delta = 1;
-#endif
-		pr_debug("max_sge_delta = %d\n", max_sge_delta);
-	}
-	/*
-	 * For max_sge values > 2 * max_sge_delta, subtract max_sge_delta. For
-	 * max_sge values < max_sge_delta, use max_sge. For intermediate
-	 * max_sge values, use max_sge_delta.
-	 */
-	ch->max_send_sge -=
-		min_t(unsigned, max_sge_delta,
-		      max_t(int, 0,
-			    ch->max_send_sge - max_sge_delta));
 	qp_init->cap.max_send_sge = ch->max_send_sge;
 	qp_init->cap.max_recv_sge = 1;
 	if (sdev->use_srq) {
@@ -3278,7 +3235,8 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				 struct srpt_send_ioctx *ioctx,
 				 struct scst_cmd *cmd)
 {
-	struct ib_device *dev __maybe_unused;
+	struct srpt_device *sdev = ch->sport->sdev;
+	struct ib_device *dev __maybe_unused = sdev->device;
 	struct scatterlist *sg, *cur_sg;
 	int sg_cnt;
 	scst_data_direction dir;
@@ -3294,10 +3252,6 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	int i, j, k;
 	int max_sge, nsge;
 
-	BUG_ON(!ch);
-	BUG_ON(!ioctx);
-	BUG_ON(!cmd);
-	dev = ch->sport->sdev->device;
 	max_sge = ch->max_send_sge;
 	dir = scst_cmd_get_data_direction(cmd);
 	BUG_ON(dir == SCST_DATA_NONE);
@@ -3309,6 +3263,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	if (dir == SCST_DATA_WRITE) {
 		scst_cmd_get_write_fields(cmd, &sg, &sg_cnt);
 		WARN_ON(!sg);
+		max_sge = min(max_sge, ch->sport->sdev->dev_attr.max_sge_rd);
 	} else {
 		sg = scst_cmd_get_sg(cmd);
 		sg_cnt = scst_cmd_get_sg_cnt(cmd);
@@ -3316,7 +3271,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	}
 	ioctx->sg = sg;
 	ioctx->sg_cnt = sg_cnt;
-	count = ib_dma_map_sg(ch->sport->sdev->device, sg, sg_cnt,
+	count = ib_dma_map_sg(sdev->device, sg, sg_cnt,
 			      scst_to_tgt_dma_dir(dir));
 	if (unlikely(!count))
 		return -EBUSY;
@@ -3419,7 +3374,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 
 		while (rsize > 0 && tsize > 0) {
 			sge->addr = dma_addr;
-			sge->lkey = ch->sport->sdev->lkey;
+			sge->lkey = sdev->lkey;
 
 			if (rsize >= dma_len) {
 				sge->length =
