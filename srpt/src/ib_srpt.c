@@ -3278,7 +3278,8 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				 struct srpt_send_ioctx *ioctx,
 				 struct scst_cmd *cmd)
 {
-	struct ib_device *dev __maybe_unused;
+	struct srpt_device *sdev = ch->sport->sdev;
+	struct ib_device *dev __maybe_unused = sdev->device;
 	struct scatterlist *sg, *cur_sg;
 	int sg_cnt;
 	scst_data_direction dir;
@@ -3294,10 +3295,6 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	int i, j, k;
 	int max_sge, nsge;
 
-	BUG_ON(!ch);
-	BUG_ON(!ioctx);
-	BUG_ON(!cmd);
-	dev = ch->sport->sdev->device;
 	max_sge = ch->max_send_sge;
 	dir = scst_cmd_get_data_direction(cmd);
 	BUG_ON(dir == SCST_DATA_NONE);
@@ -3316,7 +3313,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	}
 	ioctx->sg = sg;
 	ioctx->sg_cnt = sg_cnt;
-	count = ib_dma_map_sg(ch->sport->sdev->device, sg, sg_cnt,
+	count = ib_dma_map_sg(sdev->device, sg, sg_cnt,
 			      scst_to_tgt_dma_dir(dir));
 	if (unlikely(!count))
 		return -EBUSY;
@@ -3419,7 +3416,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 
 		while (rsize > 0 && tsize > 0) {
 			sge->addr = dma_addr;
-			sge->lkey = ch->sport->sdev->lkey;
+			sge->lkey = sdev->lkey;
 
 			if (rsize >= dma_len) {
 				sge->length =
