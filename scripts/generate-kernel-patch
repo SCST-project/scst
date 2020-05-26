@@ -121,7 +121,7 @@ function specialize_patch {
       )
   fi
   local kver3
-  set -- ${kver//./ }
+  set -- ${kver//[.-]/ }
   if [ -n "$3" ]; then
       kver3=$1.$2.$3
   else
