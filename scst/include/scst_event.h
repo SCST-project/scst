@@ -23,8 +23,6 @@
 #define SCST_EVENT_PATH			"/dev/"
 #define SCST_EVENT_DEV			SCST_EVENT_PATH SCST_EVENT_NAME
 #define SCST_EVENT_VERSION_NAME		SCST_VERSION_NAME
-#define SCST_EVENT_VERSION		\
-	SCST_EVENT_VERSION_NAME "$Revision: 2454 $" SCST_CONST_VERSION
 
 #ifndef aligned_u64
 #define aligned_u64 uint64_t __attribute__((aligned(8)))
