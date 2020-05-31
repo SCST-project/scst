@@ -9,9 +9,10 @@
 #include <malloc.h>
 #include <inttypes.h>
 #include <sys/wait.h>
-#include <sys/poll.h>
+#include <poll.h>
 #include <sys/ioctl.h>
 #include <stdbool.h>
+#include <stdio.h>
 #include <pthread.h>
 #include <unistd.h>
 #include <syslog.h>
