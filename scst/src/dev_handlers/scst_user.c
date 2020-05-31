@@ -2311,7 +2311,7 @@ static int dev_user_reply_get_cmd(struct file *file,
 	int res = 0, rc;
 	struct scst_user_dev *dev;
 	struct scst_user_reply_cmd reply;
-	uint64_t ureply;
+	uintptr_t ureply;
 
 	TRACE_ENTRY();
 

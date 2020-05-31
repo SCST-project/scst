@@ -746,7 +746,11 @@ static int qla82xx_pci_mem_read_direct(struct qla_hw_data *ha,
 		*(u32 *)data = readl(addr);
 		break;
 	case 8:
+#ifdef CONFIG_64BIT
 		*(u64 *)data = readq(addr);
+#else
+		WARN_ON_ONCE(true);
+#endif
 		break;
 	default:
 		ret = -1;
@@ -817,7 +821,11 @@ qla82xx_pci_mem_write_direct(struct qla_hw_data *ha,
 		writel(*(u32 *)data, addr);
 		break;
 	case 8:
+#ifdef CONFIG_64BIT
 		writeq(*(u64 *)data, addr);
+#else
+		WARN_ON_ONCE(true);
+#endif
 		break;
 	default:
 		ret = -1;

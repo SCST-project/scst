@@ -30,7 +30,7 @@
 #include <signal.h>
 #include <sys/types.h>
 #include <sys/user.h>
-#include <sys/poll.h>
+#include <poll.h>
 #include <sys/ioctl.h>
 
 #include <pthread.h>

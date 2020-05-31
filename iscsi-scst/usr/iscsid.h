@@ -19,7 +19,7 @@
 
 #include <search.h>
 #include <sys/types.h>
-#include <sys/poll.h>
+#include <poll.h>
 #include <assert.h>
 #include <netdb.h>
 #include <syslog.h>
