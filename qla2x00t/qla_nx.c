@@ -559,8 +559,7 @@ qla82xx_idc_unlock(struct qla_hw_data *ha)
 }
 
 /*  PCI Windowing for DDR regions.  */
-static inline bool QLA82XX_ADDR_IN_RANGE(uintptr_t addr, uintptr_t low,
-					 uintptr_t high)
+static inline bool QLA82XX_ADDR_IN_RANGE(u64 addr, u64 low, u64 high)
 {
 	return addr <= high && addr >= low;
 }
