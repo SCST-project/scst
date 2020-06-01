@@ -188,7 +188,8 @@ static inline void *bsg_job_sense(struct bsg_job *job)
  * from Thunderbolt to core") # v4.15.
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
+	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 8)
 static inline void cpu_to_be32_array(__be32 *dst, const u32 *src, size_t len)
 {
 	int i;
