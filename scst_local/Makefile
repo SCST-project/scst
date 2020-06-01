@@ -7,6 +7,7 @@ SHELL=/bin/bash
 KMOD 		:= $(shell pwd)/kernel
 
 ifneq ($(PATCHLEVEL),)
+KBUILD_EXTRA_SYMBOLS=$(src)/../scst/src/Module.symvers
 ccflags-y	+= -I$(src)/../scst/include
 ccflags-y	+= $(call cc-option,-Wextra) -Wno-unused-parameter\
 	-Wno-missing-field-initializers
@@ -43,8 +44,7 @@ INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 SCST_DIR := $(shell echo "$$PWD")/../scst/src
 
 all:
-	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
-		KBUILD_EXTRA_SYMBOLS=$(SCST_DIR)/Module.symvers
+	$(MAKE) -C $(KDIR) M=$(shell pwd)
 
 install: all
 	KDIR=$(KDIR) ../scripts/sign-modules

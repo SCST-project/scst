@@ -59,6 +59,9 @@ QLA2XXX_SCST := qla2xxx_scst
 endif
 
 ifneq ($(PATCHLEVEL),)
+
+KBUILD_EXTRA_SYMBOLS = $(src)/../../scst/src/Module.symvers \
+			$(src)/../Module.symvers
 ccflags-y += -I$(src)/../../scst/include
 ccflags-y += -W -Wno-unused-parameter -Wno-missing-field-initializers
 #ccflags-y += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
@@ -84,8 +87,7 @@ INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 SCST_DIR := $(shell echo "$$PWD/../../scst/src")
 
 all: $(QLA2XXX_SCST)
-	$(MAKE) -C $(KDIR) M=$(shell pwd)			\
-		KBUILD_EXTRA_SYMBOLS="$(SCST_DIR)/Module.symvers $(QLA2XXX_DIR)/Module.symvers"
+	$(MAKE) -C $(KDIR) M=$(shell pwd)
 
 install: all
 ifneq ($(BUILD_2X_MODULE),)
@@ -106,8 +108,7 @@ endif
 ifneq ($(BUILD_2X_MODULE),)
 qla2xxx_scst:
 	$(MAKE) BUILD_2X_MODULE=$(BUILD_2X_MODULE) CONFIG_SCSI_QLA2XXX_TARGET=y \
-		M=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) all		\
-		KBUILD_EXTRA_SYMBOLS=$(QLA2XXX_DIR)/Module.symvers
+		M=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) all
 endif
 
 ########## END OUT-OF-TREE RULES ##########

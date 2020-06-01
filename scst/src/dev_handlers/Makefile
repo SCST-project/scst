@@ -30,7 +30,8 @@
 SHELL=/bin/bash
 
 ifneq ($(PATCHLEVEL),)
-ccflags-y += -I$(KBUILD_EXTMOD)/../include				\
+KBUILD_EXTRA_SYMBOLS=$(src)/../../Module.symvers
+ccflags-y += -I$(src)/../../include					\
 	$(call cc-option,-Wextra)					\
 	-Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare
 #ccflags-y += -DCONFIG_DEBUG_EXT_COPY_REMAP

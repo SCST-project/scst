@@ -1,3 +1,4 @@
+KBUILD_EXTRA_SYMBOLS=$(src)/../scst/src/Module.symvers
 ccflags-y += -I$(src)/../scst/include
 
 obj-$(CONFIG_FCST) += fcst.o

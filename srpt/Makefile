@@ -94,8 +94,7 @@ PRE_CFLAGS = $(OFED_CFLAGS)			\
 
 all: check $(CONFTEST_OUTPUTS)
 	$(MAKE) -C $(KDIR) M=$(shell pwd)/src PRE_CFLAGS="$(PRE_CFLAGS)"\
-		$(OFED_CONFIG) modules\
-		KBUILD_EXTRA_SYMBOLS="$(SCST_DIR)/Module.symvers $(OFED_MODULE_SYMVERS)"
+		$(OFED_CONFIG) modules
 
 install: all
 	@[ -z "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && \
