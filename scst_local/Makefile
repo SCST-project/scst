@@ -7,7 +7,7 @@ SHELL=/bin/bash
 KMOD 		:= $(shell pwd)/kernel
 
 ifneq ($(PATCHLEVEL),)
-ccflags-y	+= -I$(KBUILD_EXTMOD)/../scst/include
+ccflags-y	+= -I$(src)/../scst/include
 ccflags-y	+= $(call cc-option,-Wextra) -Wno-unused-parameter\
 	-Wno-missing-field-initializers
 

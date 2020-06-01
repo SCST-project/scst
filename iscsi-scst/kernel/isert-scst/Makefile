@@ -21,7 +21,7 @@
 #  Note 2! The CFLAGS definitions are now in the main makefile.
 
 LINUXINCLUDE := $(PRE_CFLAGS) $(LINUXINCLUDE)
-ccflags-y += -I$(src)/../../include -I$(KBUILD_EXTMOD)/../../../scst/include
+ccflags-y += -I$(src)/../../include -I$(src)/../../../scst/include
 ccflags-y += $(call cc-option,-Wextra) \
 	$(call cc-option,-Wno-old-style-declaration) \
 	-Wno-unused-parameter -Wno-missing-field-initializers

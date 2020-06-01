@@ -33,7 +33,7 @@ export CONFIG_FCST   := m
 MODULE_NAME = fcst
 
 ifneq ($(KERNELRELEASE),)
-include $(KBUILD_EXTMOD)/Makefile_in-tree
+include $(src)/Makefile_in-tree
 else
 ######### BEGIN OUT-OF-TREE RULES #########
 

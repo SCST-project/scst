@@ -1,6 +1,4 @@
-ifneq ($(and $(KBUILD_EXTMOD),$(if $(findstring $(abspath $(srctree)),$(abspath $(KBUILD_EXTMOD))),,true)),)
-ccflags-y += -I$(KBUILD_EXTMOD)/../scst/include
-endif
+ccflags-y += -I$(src)/../scst/include
 
 obj-$(CONFIG_FCST) += fcst.o
 
