@@ -1407,8 +1407,7 @@ static inline void sg_unmark_end(struct scatterlist *sg)
  * See also commit 3ee237dddcd8 ("sched/prio: Add 3 macros of MAX_NICE,
  * MIN_NICE and NICE_WIDTH in prio.h") # v3.15.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) && !defined(MIN_NICE)
 #define MIN_NICE -20
 #endif
 
