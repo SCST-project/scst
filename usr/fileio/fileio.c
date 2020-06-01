@@ -28,6 +28,7 @@
 #include <stdbool.h>
 #include <inttypes.h>
 #include <signal.h>
+#include <unistd.h>
 #include <sys/types.h>
 #include <sys/user.h>
 #include <poll.h>
@@ -199,8 +200,13 @@ out:
 
 static void *align_alloc(size_t size)
 {
+	static uint32_t page_size;
+
+	if (page_size == 0)
+		page_size = sysconf(_SC_PAGESIZE);
+
 	TRACE_MEM("Request to alloc %zdKB", size / 1024);
-	return memalign(PAGE_SIZE, size);
+	return memalign(page_size, size);
 }
 
 static void sigalrm_handler(int signo)
