@@ -188,7 +188,8 @@ static inline void *bsg_job_sense(struct bsg_job *job)
  * from Thunderbolt to core") # v4.15.
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
+	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 8)
 static inline void cpu_to_be32_array(__be32 *dst, const u32 *src, size_t len)
 {
 	int i;
@@ -1407,8 +1408,7 @@ static inline void sg_unmark_end(struct scatterlist *sg)
  * See also commit 3ee237dddcd8 ("sched/prio: Add 3 macros of MAX_NICE,
  * MIN_NICE and NICE_WIDTH in prio.h") # v3.15.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) && !defined(MIN_NICE)
 #define MIN_NICE -20
 #endif
 
@@ -1750,14 +1750,12 @@ enum {
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+	!defined(FC_PORTSPEED_64GBIT)
 /*
  * See also commit cc019a5a3b58 ("scsi: scsi_transport_fc: fix typos on 64/128
  * GBit define names") # v4.16.
  */
-#ifndef FC_PORTSPEED_64GBIT
 #define FC_PORTSPEED_64GBIT 0x1000
-#endif
 #endif
 
 #ifndef FC_PORT_ROLE_UNKNOWN

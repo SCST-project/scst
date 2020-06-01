@@ -1,6 +1,9 @@
 LINUXINCLUDE := $(PRE_CFLAGS) $(LINUXINCLUDE)
 CPPFLAGS     := $(PRE_CFLAGS) $(CPPFLAGS)
-ccflags-y    += -I$(KBUILD_EXTMOD)/../../scst/include
+KBUILD_EXTRA_SYMBOLS=$(src)/../../scst/src/Module.symvers \
+		$(shell for d in /usr/src/ofa_kernel/default/Module.symvers; do\
+			[ -e $$d ] || continue; echo $$d; break; done)
+ccflags-y    += -I$(src)/../../scst/include
 
 #ccflags-y += -Wextra -Wno-unused-parameter
 

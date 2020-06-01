@@ -53,13 +53,16 @@ endif
 ifeq ($(BUILD_2X_MODULE),)
 QLA2XXX_INC_DIR := $(KDIR)/drivers/scsi/qla2xxx
 else
-QLA2XXX_INC_DIR := $(KBUILD_EXTMOD)/..
+QLA2XXX_INC_DIR := $(src)/..
 QLA2XXX_DIR := $(shell pwd)/..
 QLA2XXX_SCST := qla2xxx_scst
 endif
 
 ifneq ($(PATCHLEVEL),)
-ccflags-y += -I$(KBUILD_EXTMOD)/../../scst/include
+
+KBUILD_EXTRA_SYMBOLS = $(src)/../../scst/src/Module.symvers \
+			$(src)/../Module.symvers
+ccflags-y += -I$(src)/../../scst/include
 ccflags-y += -W -Wno-unused-parameter -Wno-missing-field-initializers
 #ccflags-y += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
 #ccflags-y += -DCONFIG_QLA_TGT_DEBUG_SRR
@@ -83,14 +86,8 @@ INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 SCST_DIR := $(shell echo "$$PWD/../../scst/src")
 
-# The file Modules.symvers has been renamed in the 2.6.18 kernel to
-# Module.symvers. Find out which name to use by looking in $(KDIR).
-MODULE_SYMVERS:=$(shell if [ -e "$(KDIR)/Modules.symvers" ]; then \
-		       echo Modules.symvers; else echo Module.symvers; fi)
-
 all: $(QLA2XXX_SCST)
-	$(MAKE) -C $(KDIR) M=$(shell pwd)			\
-		KBUILD_EXTRA_SYMBOLS="$(SCST_DIR)/$(MODULE_SYMVERS) $(QLA2XXX_DIR)/$(MODULE_SYMVERS)"
+	$(MAKE) -C $(KDIR) M=$(shell pwd)
 
 install: all
 ifneq ($(BUILD_2X_MODULE),)
@@ -111,8 +108,7 @@ endif
 ifneq ($(BUILD_2X_MODULE),)
 qla2xxx_scst:
 	$(MAKE) BUILD_2X_MODULE=$(BUILD_2X_MODULE) CONFIG_SCSI_QLA2XXX_TARGET=y \
-		M=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) all		\
-		KBUILD_EXTRA_SYMBOLS=$(QLA2XXX_DIR)/$(MODULE_SYMVERS)
+		M=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) all
 endif
 
 ########## END OUT-OF-TREE RULES ##########
@@ -120,7 +116,7 @@ endif
 
 clean:
 	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend *~ \
-		$(MODULE_SYMVERS) Module.markers modules.order
+		Module.symvers Module.markers modules.order
 	rm -rf .tmp_versions
 
 extraclean: clean

@@ -33,11 +33,6 @@ INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 SRC_FILES=$(wildcard */*.[ch])
 
-# The file Modules.symvers has been renamed in the 2.6.18 kernel to
-# Module.symvers. Find out which name to use by looking in $(KDIR).
-MODULE_SYMVERS:=$(shell if [ -e "$(KDIR)/Modules.symvers" ]; then \
-		       echo Modules.symvers; else echo Module.symvers; fi)
-
 # Name of the OFED kernel package.
 OFED_KERNEL_IB_RPM:=$(shell for r in mlnx-ofa_kernel compat-rdma kernel-ib; do rpm -q $$r 2>/dev/null | grep -q "^$$r" && echo "$$r" && break; done)
 OFED_KERNEL_IB_DEB:=$(shell for p in mlnx-ofed-kernel-dkms mlnx-ofed-kernel-modules; do dpkg-query -s "$$p" >/dev/null 2>&1 && echo "$$p" && break; done)
@@ -78,7 +73,7 @@ OFED_CFLAGS:=$(BACKPORT_INCLUDES) -I$(OFED_KERNEL_DIR)/include
 endif
 endif
 # Any OFED version
-OFED_MODULE_SYMVERS:=$(OFED_KERNEL_DIR)/$(MODULE_SYMVERS)
+OFED_MODULE_SYMVERS:=$(OFED_KERNEL_DIR)/Module.symvers
 endif
 
 # Use make instead of $(MAKE) to get rid of command-line option -i
@@ -99,8 +94,7 @@ PRE_CFLAGS = $(OFED_CFLAGS)			\
 
 all: check $(CONFTEST_OUTPUTS)
 	$(MAKE) -C $(KDIR) M=$(shell pwd)/src PRE_CFLAGS="$(PRE_CFLAGS)"\
-		$(OFED_CONFIG) modules\
-		KBUILD_EXTRA_SYMBOLS="$(SCST_DIR)/$(MODULE_SYMVERS) $(OFED_MODULE_SYMVERS)"
+		$(OFED_CONFIG) modules
 
 install: all
 	@[ -z "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && \
@@ -141,7 +135,7 @@ clean:
 	  [ -d "$$d" ] && $(MAKE) -C $(KDIR) M=$(shell pwd)/$$d clean; \
 	  rm -f $$d/result*.txt;					     \
 	done
-	rm -f src/$(MODULE_SYMVERS) src/Module.markers src/modules.order
+	rm -f src/Module.symvers src/Module.markers src/modules.order
 
 extraclean: clean
 	rm -f *.orig *.rej

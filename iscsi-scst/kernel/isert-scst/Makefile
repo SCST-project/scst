@@ -21,7 +21,10 @@
 #  Note 2! The CFLAGS definitions are now in the main makefile.
 
 LINUXINCLUDE := $(PRE_CFLAGS) $(LINUXINCLUDE)
-ccflags-y += -I$(src)/../../include -I$(KBUILD_EXTMOD)/../../../scst/include
+KBUILD_EXTRA_SYMBOLS=$(src)/../../kernel/Module.symvers			       \
+		$(shell for d in /usr/src/ofa_kernel/default/Module.symvers; do\
+			[ -e $$d ] || continue; echo $$d; break; done)
+ccflags-y += -I$(src)/../../include -I$(src)/../../../scst/include
 ccflags-y += $(call cc-option,-Wextra) \
 	$(call cc-option,-Wno-old-style-declaration) \
 	-Wno-unused-parameter -Wno-missing-field-initializers

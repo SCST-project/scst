@@ -38,7 +38,7 @@ DEV_HANDLERS_DIR = dev_handlers
 ifneq ($(PATCHLEVEL),)
 # See also Documentation/core-api/symbol-namespaces.rst for more information
 # about DEFAULT_SYMBOL_NAMESPACE.
-ccflags-y += -I$(KBUILD_EXTMOD)/../include $(call cc-option,-Wextra) \
+ccflags-y += -I$(src)/../include $(call cc-option,-Wextra) \
 	-Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare\
 	-DDEFAULT_SYMBOL_NAMESPACE=SCST\
 	$(shell [ -n "${CONFIG_SCST_NO_DLM}" ] && echo -DCONFIG_SCST_NO_DLM)
@@ -115,16 +115,10 @@ $(SCST_INTF_VER_FILE): $(SCST_INC_DIR)/scst.h $(SCST_INC_DIR)/scst_const.h $(SCS
 
 all: $(SCST_INTF_VER_FILE)
 	$(MAKE) -C certs KDIR=$(KDIR)
-	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_DEV=m			\
-		KBUILD_EXTRA_SYMBOLS=$(SCST_DIR)/$(MODULE_SYMVERS)
+	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_DEV=m
 
 scst:
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_DEV=n
-
-# The file Modules.symvers has been renamed in the 2.6.18 kernel to
-# Module.symvers. Find out which name to use by looking in $(KDIR).
-MODULE_SYMVERS:=$(shell if [ -e $(KDIR)/Modules.symvers ]; then \
-		       echo Modules.symvers; else echo Module.symvers; fi)
 
 install: all
 	@if [ -z "$(DESTDIR)" ] && \
@@ -146,8 +140,8 @@ install: all
 	for h in $${header_files}; do					\
 	    install -m 644 ../include/$$h $(INSTALL_DIR_H);		\
 	done
-	rm -f $(INSTALL_DIR_H)/$(MODULE_SYMVERS)
-	install -m 644 $(MODULE_SYMVERS) $(INSTALL_DIR_H)
+	rm -f $(INSTALL_DIR_H)/Module.symvers
+	install -m 644 Module.symvers $(INSTALL_DIR_H)
 	mkdir -p $(DESTDIR)/var/lib/scst/pr
 	mkdir -p $(DESTDIR)/var/lib/scst/dif_tags
 	mkdir -p $(DESTDIR)/var/lib/scst/vdev_mode_pages
