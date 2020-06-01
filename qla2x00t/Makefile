@@ -7,7 +7,7 @@ obj-$(CONFIG_SCSI_QLA_FC) += qla2xxx.o
 
 clean:
 	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend *~ \
-		$(MODULE_SYMVERS) Module.markers modules.order
+		Module.symvers Module.markers modules.order
 	rm -rf .tmp_versions
 
 extraclean: clean

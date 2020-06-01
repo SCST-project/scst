@@ -42,14 +42,9 @@ INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 SCST_DIR := $(shell echo "$$PWD")/../scst/src
 
-# The file Modules.symvers has been renamed in the 2.6.18 kernel to
-# Module.symvers. Find out which name to use by looking in $(KDIR).
-MODULE_SYMVERS:=$(shell if [ -e "$(KDIR)/Modules.symvers" ]; then \
-		       echo Modules.symvers; else echo Module.symvers; fi)
-
 all:
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
-		KBUILD_EXTRA_SYMBOLS=$(SCST_DIR)/$(MODULE_SYMVERS)
+		KBUILD_EXTRA_SYMBOLS=$(SCST_DIR)/Module.symvers
 
 install: all
 	KDIR=$(KDIR) ../scripts/sign-modules
@@ -66,7 +61,7 @@ endif
 
 clean:
 	@$(MAKE) -C $(KDIR) M=$(shell pwd) clean
-	@$(RM) tags $(MODULE_SYMVERS) Module.markers modules.order
+	@$(RM) tags Module.symvers Module.markers modules.order
 
 extraclean: clean
 	rm -f *.orig *.rej

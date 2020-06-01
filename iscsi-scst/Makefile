@@ -44,14 +44,9 @@ endif
 INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 INFINIBAND_ENABLED = $(shell syms=$$(dirname "$(KDIR)")/modules.symbols; if [ -e "$$syms" ] && grep -wq 'ib_register_client' "$$syms" || grep -q "^CONFIG_INFINIBAND=[my]$$" "$(KDIR)/.config"; then echo true; else echo false; fi)
 
-# The file Modules.symvers has been renamed in the 2.6.18 kernel to
-# Module.symvers. Find out which name to use by looking in $(KDIR).
-MODULE_SYMVERS:=$(shell if [ -e "$(KDIR)/Modules.symvers" ]; then \
-		       echo Modules.symvers; else echo Module.symvers; fi)
-
 all: progs mods
 
-ISER_SYMVERS:=$(KMOD)/$(MODULE_SYMVERS)
+ISER_SYMVERS:=$(KMOD)/Module.symvers
 OFED_CFLAGS:=
 
 OFED_FLAVOR=$(shell if [ -e /usr/bin/ofed_info ]; then /usr/bin/ofed_info 2>/dev/null | head -n1 | sed -n 's/^\(MLNX_OFED\|OFED-internal\).*/MOFED/p;s/^OFED-.*/OFED/p'; else echo in-tree; fi)
@@ -84,7 +79,7 @@ ifeq ($(OFED_FLAVOR),MOFED)
 			-include $(OFED_DIR)/include/linux/compat-2.6.h \
 			-DMOFED_MAJOR=$(shell echo $(OFED_VERS) | cut -f1 -d.)\
 			-DMOFED_MINOR=$(shell echo $(OFED_VERS) | cut -f2 -d.)
-	OFED_MODULE_SYMVERS:=$(OFED_DIR)/$(MODULE_SYMVERS)
+	OFED_MODULE_SYMVERS:=$(OFED_DIR)/Module.symvers
 	ISER_SYMVERS:=$(ISER_SYMVERS) $(OFED_MODULE_SYMVERS)
 	OFED_CONFIG:= CONFIG_DTRACE=
 else
@@ -99,12 +94,12 @@ else
 	# BACKPORT_INCLUDES.
 	include /usr/src/ofa_kernel/config.mk
 	OFED_CFLAGS:=$(shell echo $(BACKPORT_INCLUDES) -I/usr/src/ofa_kernel/include)
-	ISER_SYMVERS:=$(ISER_SYMVERS) /usr/src/ofa_kernel/$(MODULE_SYMVERS)
+	ISER_SYMVERS:=$(ISER_SYMVERS) /usr/src/ofa_kernel/Module.symvers
 	endif
 
 	ifeq ($(OFED_COMPAT_RDMA_DEVEL_RPM_INSTALLED),true)
 	OFED_CFLAGS:=-I/usr/src/compat-rdma/include -include /usr/src/compat-rdma/include/linux/compat-2.6.h
-	ISER_SYMVERS:=$(ISER_SYMVERS) /usr/src/compat-rdma/$(MODULE_SYMVERS)
+	ISER_SYMVERS:=$(ISER_SYMVERS) /usr/src/compat-rdma/Module.symvers
 	endif
 endif
 
@@ -127,7 +122,7 @@ ISER_CFLAGS = $(OFED_CFLAGS) -DOFED_FLAVOR=$(OFED_FLAVOR) $(PRE_CFLAGS)
 
 mods: include/iscsi_scst_itf_ver.h $(CONFTEST_OUTPUTS)
 	$(MAKE) -C $(KDIR) M=$(KMOD) PRE_CFLAGS="$(PRE_CFLAGS)" modules		\
-		KBUILD_EXTRA_SYMBOLS=$(SCST_DIR)/$(MODULE_SYMVERS)
+		KBUILD_EXTRA_SYMBOLS=$(SCST_DIR)/Module.symvers
 	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
 	if $(INFINIBAND_ENABLED); then					       \
 	  echo "  Building against $(OFED_FLAVOR) InfiniBand kernel headers."; \
@@ -177,12 +172,12 @@ clean:
 	$(MAKE) -C usr $@
 	$(MAKE) -C $(KDIR) M=$(KMOD) $@
 	$(MAKE) -C $(KDIR) M=$(ISERTMOD) $@
-	rm -f kernel/$(MODULE_SYMVERS) \
+	rm -f kernel/Module.symvers \
 		kernel/Module.markers kernel/modules.order \
-		kernel/isert-scst/$(MODULE_SYMVERS) \
+		kernel/isert-scst/Module.symvers \
 		kernel/isert-scst/Module.markers kernel/isert-scst/modules.order \
 		include/iscsi_scst_itf_ver.h
-	rm -rf conftest/*/*.ko conftest/*/*.mod.c conftest/*/$(MODULE_SYMVERS) conftest/*/*.o \
+	rm -rf conftest/*/*.ko conftest/*/*.mod.c conftest/*/Module.symvers conftest/*/*.o \
 		conftest/*/*.o.cmd conftest/*/*.ko.cmd conftest/*/.*.o.cmd conftest/*/.*.ko.cmd \
 		conftest/*/*.order conftest/*/.*.o.d conftest/*/.tmp_versions/ \
 		conftest/*/result*.txt
