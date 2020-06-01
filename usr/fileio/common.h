@@ -61,7 +61,7 @@ struct vdisk_dev {
 	uint32_t block_size;
 	uint64_t nblocks;
 	int block_shift;
-	loff_t file_size;	/* in bytes */
+	int64_t file_size;	/* in bytes */
 	void *(*alloc_fn)(size_t size);
 
 	pthread_mutex_t dev_mutex;
