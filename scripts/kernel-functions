@@ -127,6 +127,31 @@ function extract_kernel_tree {
 
 # Patch a kernel tree where $1 is the kernel version.
 function patch_kernel {
+    case "$k" in
+	*^*)
+            # RHEL / CentOS.
+            ;;
+	2.*|3.*)
+            # Tell the kernel that we are using gcc 4.6 since older kernel
+            # versions do not support recent gcc versions.
+            KCFLAGS="-U__GNUC__ -U__GNUC_MINOR__ -D__GNUC__=4 -D__GNUC_MINOR__=6"
+	    patch -p1 <<'EOF'
+diff --git a/include/linux/compiler-gcc.h b/include/linux/compiler-gcc.h
+index 02ae99e8e6d3..47e12c19c965 100644
+--- a/include/linux/compiler-gcc.h
++++ b/include/linux/compiler-gcc.h
+@@ -103,7 +103,7 @@
+ #define __gcc_header(x) #x
+ #define _gcc_header(x) __gcc_header(linux/compiler-gcc##x.h)
+ #define gcc_header(x) _gcc_header(x)
+-#include gcc_header(__GNUC__)
++#include "linux/compiler-gcc4.h"
+ 
+ #if !defined(__noclone)
+ #define __noclone	/* not needed */
+EOF
+    esac
+
     if [ "$1" = "2.6.29" ] || [ "$1" = "2.6.29.1" ] || [ "$1" = "2.6.29.2" ] ||
 	   [ "$1" = "2.6.29.3" ]; then
       patch -f -s -p1 <<'EOF'
