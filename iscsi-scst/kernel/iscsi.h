@@ -39,6 +39,8 @@
 #define iscsi_sense_unexpected_unsolicited_data	ABORTED_COMMAND, 0x0C, 0x0C
 #define iscsi_sense_incorrect_amount_of_data	ABORTED_COMMAND, 0x0C, 0x0D
 
+struct net;
+
 struct iscsi_sess_params {
 	int initial_r2t;
 	int immediate_data;
@@ -666,6 +668,7 @@ static inline void iscsi_cmnd_set_length(struct iscsi_pdu *pdu)
 }
 
 extern struct scst_tgt_template iscsi_template;
+extern struct net *iscsi_net_ns;
 
 /*
  * Skip this command if result is true. Must be called under
