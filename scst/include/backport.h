@@ -792,6 +792,23 @@ enum umh_wait {
 };
 #endif
 
+/* <linux/kobject_ns.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0)
+/*
+ * See also commit a685e08987d1 ("Delay struct net freeing while there's a
+ * sysfs instance refering to it") # v3.0.
+ */
+static inline void *kobj_ns_grab_current(enum kobj_ns_type type)
+{
+	return &init_net;
+}
+
+static inline void kobj_ns_drop(enum kobj_ns_type type, void *ns)
+{
+}
+#endif
+
 /* <linux/kref.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0) &&		      \

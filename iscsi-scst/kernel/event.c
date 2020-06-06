@@ -25,6 +25,9 @@
 #include "iscsi_trace_flag.h"
 #include "iscsi.h"
 
+struct net *iscsi_net_ns;
+EXPORT_SYMBOL(iscsi_net_ns);
+
 /* See also commit 2d4bc93368f5 ("netlink: extended ACK reporting") */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
 struct netlink_ext_ack;
@@ -191,6 +194,8 @@ out_unlock:
 
 int __init event_init(void)
 {
+	iscsi_net_ns = kobj_ns_grab_current(KOBJ_NS_TYPE_NET);
+
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22))
 	nl = netlink_kernel_create(NETLINK_ISCSI_SCST, 1, event_recv,
 		THIS_MODULE);
@@ -198,7 +203,7 @@ int __init event_init(void)
 	nl = netlink_kernel_create(NETLINK_ISCSI_SCST, 1, event_recv, NULL,
 				   THIS_MODULE);
 #elif (LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0))
-	nl = netlink_kernel_create(&init_net, NETLINK_ISCSI_SCST, 1,
+	nl = netlink_kernel_create(iscsi_net_ns, NETLINK_ISCSI_SCST, 1,
 				   event_recv_skb, NULL, THIS_MODULE);
 #else
 	{
@@ -207,18 +212,24 @@ int __init event_init(void)
 			.groups = 1,
 		};
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 7, 0))
-		nl = netlink_kernel_create(&init_net, NETLINK_ISCSI_SCST,
+		nl = netlink_kernel_create(iscsi_net_ns, NETLINK_ISCSI_SCST,
 				   THIS_MODULE, &cfg);
 #else
-		nl = netlink_kernel_create(&init_net, NETLINK_ISCSI_SCST, &cfg);
+		nl = netlink_kernel_create(iscsi_net_ns, NETLINK_ISCSI_SCST,
+					   &cfg);
 #endif
 	}
 #endif
-	if (!nl) {
-		PRINT_ERROR("%s", "netlink_kernel_create() failed");
-		return -ENOMEM;
-	} else
-		return 0;
+	if (!nl)
+		goto drop_ns;
+
+	return 0;
+
+drop_ns:
+	PRINT_ERROR("%s", "netlink_kernel_create() failed");
+	kobj_ns_drop(KOBJ_NS_TYPE_NET, iscsi_net_ns);
+	iscsi_net_ns = NULL;
+	return -ENOMEM;
 }
 
 void event_exit(void)
@@ -229,4 +240,6 @@ void event_exit(void)
 #else
 	netlink_kernel_release(nl);
 #endif
+	kobj_ns_drop(KOBJ_NS_TYPE_NET, iscsi_net_ns);
+	iscsi_net_ns = NULL;
 }

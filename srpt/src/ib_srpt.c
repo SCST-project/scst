@@ -179,6 +179,7 @@ static const enum scst_exec_context srpt_send_context = SCST_CONTEXT_DIRECT;
 
 static struct ib_client srpt_client;
 static struct scst_tgt_template srpt_template;
+static struct net *srpt_net_ns;
 static struct rdma_cm_id *rdma_cm_id;
 
 static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
@@ -4679,6 +4680,8 @@ static int __init srpt_init_module(void)
 		goto out_unregister_target;
 	}
 
+	srpt_net_ns = kobj_ns_grab_current(KOBJ_NS_TYPE_NET);
+
 	if (rdma_cm_port) {
 		struct sockaddr_in addr;
 
@@ -4690,38 +4693,48 @@ static int __init srpt_init_module(void)
 		rdma_cm_id = rdma_create_id(srpt_rdma_cm_handler, NULL,
 					    RDMA_PS_TCP, IB_QPT_RC);
 #else
-		rdma_cm_id = rdma_create_id(&init_net, srpt_rdma_cm_handler,
+		rdma_cm_id = rdma_create_id(srpt_net_ns, srpt_rdma_cm_handler,
 					    NULL, RDMA_PS_TCP, IB_QPT_RC);
 #endif
 		if (IS_ERR(rdma_cm_id)) {
+			ret = PTR_ERR(rdma_cm_id);
 			rdma_cm_id = NULL;
 			pr_err("RDMA/CM ID creation failed\n");
-			goto out_unregister_client;
+			goto drop_ns;
 		}
 
 		/* We will listen on any RDMA device. */
 		memset(&addr, 0, sizeof(addr));
 		addr.sin_family = AF_INET;
 		addr.sin_port = cpu_to_be16(rdma_cm_port);
-		if (rdma_bind_addr(rdma_cm_id, (void *)&addr)) {
+		ret = rdma_bind_addr(rdma_cm_id, (void *)&addr);
+		if (ret) {
 			pr_err("Binding RDMA/CM ID to port %u failed\n",
 			       rdma_cm_port);
-			goto out_unregister_client;
+			goto destroy_id;
 		}
 
-		if (rdma_listen(rdma_cm_id, 128)) {
+		ret = rdma_listen(rdma_cm_id, 128);
+		if (ret) {
 			pr_err("rdma_listen() failed\n");
-			goto out_unregister_client;
+			goto destroy_id;
 		}
 	}
 
-
 	return 0;
 
-out_unregister_client:
+destroy_id:
+	if (rdma_cm_id)
+		rdma_destroy_id(rdma_cm_id);
+
+drop_ns:
+	kobj_ns_drop(KOBJ_NS_TYPE_NET, srpt_net_ns);
+	srpt_net_ns = NULL;
 	ib_unregister_client(&srpt_client);
+
 out_unregister_target:
 	scst_unregister_target_template(&srpt_template);
+
 out:
 	return ret;
 }
@@ -4732,7 +4745,12 @@ static void __exit srpt_cleanup_module(void)
 
 	if (rdma_cm_id)
 		rdma_destroy_id(rdma_cm_id);
+
+	kobj_ns_drop(KOBJ_NS_TYPE_NET, srpt_net_ns);
+	srpt_net_ns = NULL;
+
 	ib_unregister_client(&srpt_client);
+
 	scst_unregister_target_template(&srpt_template);
 }
 

@@ -1812,7 +1812,7 @@ struct isert_portal *isert_portal_create(void)
 	cm_id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP,
 			       IB_QPT_RC);
 #else
-	cm_id = rdma_create_id(&init_net, isert_cm_evt_handler, portal,
+	cm_id = rdma_create_id(iscsi_net_ns, isert_cm_evt_handler, portal,
 			       RDMA_PS_TCP, IB_QPT_RC);
 #endif
 	if (IS_ERR(cm_id)) {
