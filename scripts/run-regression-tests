@@ -696,15 +696,6 @@ do
   fi
   patch_and_configure_kernel "$k" || continue
   case "$k" in
-      *^*)
-	  # CentOS.
-	  ;;
-      2.*|3.*)
-	  # Tell the kernel that we are using gcc 4.6 since older kernel
-	  # versions do not suppor recent gcc versions.
-	  KCFLAGS="-U__GNUC__ -U__GNUC_MINOR__ -D__GNUC__=4 -D__GNUC_MINOR__=6"
-  esac
-  case "$k" in
       3.10.0-*)
 	  # Make the CentOS 7.x build less noisy.
 	  KCFLAGS+=" -Wno-deprecated-declarations";
