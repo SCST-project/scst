@@ -12,8 +12,6 @@ ccflags-y	+= -I$(src)/../scst/include
 ccflags-y	+= $(call cc-option,-Wextra) -Wno-unused-parameter\
 	-Wno-missing-field-initializers
 
-#ccflags-y += -DCONFIG_SCST_LOCAL_DIRECT_PROCESSING
-
 obj-m	:= scst_local.o
 else
 ######### BEGIN OUT-OF-TREE RULES #########
