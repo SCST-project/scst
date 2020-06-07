@@ -1045,29 +1045,7 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *scmd,
 	scst_cmd_set_tgt_priv(scst_cmd, scmd);
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
-#ifdef CONFIG_SCST_LOCAL_DIRECT_PROCESSING
-	/*
-	 * NOTE! At the moment in scst_estimate_context*() returning
-	 * DIRECT contexts disabled, so this option doesn't have any
-	 * real effect.
-	 */
-#ifdef CONFIG_SMP
-	if (spin_is_locked(scmd->device->host->host_lock))
-		scst_cmd_init_done(scst_cmd, SCST_CONTEXT_THREAD);
-	else
-#endif
-		scst_cmd_init_done(scst_cmd, scst_estimate_context());
-#else
 	scst_cmd_init_done(scst_cmd, SCST_CONTEXT_THREAD);
-#endif
-#else
-	/*
-	 * We called with IRQs disabled, so have no choice,
-	 * except to pass to the thread context.
-	 */
-	scst_cmd_init_done(scst_cmd, SCST_CONTEXT_THREAD);
-#endif
 
 	TRACE_EXIT();
 	return 0;
