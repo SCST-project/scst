@@ -886,10 +886,13 @@ static void dev_user_flush_dcache(struct scst_user_cmd *ucmd)
 
 		page = buf_ucmd->data_pages[i];
 #ifdef ARCH_HAS_FLUSH_ANON_PAGE
-		struct vm_area_struct *vma = find_vma(current->mm, start);
+		{
+			struct vm_area_struct *vma;
 
-		if (vma != NULL)
-			flush_anon_page(vma, page, start);
+			vma = find_vma(current->mm, start);
+			if (vma != NULL)
+				flush_anon_page(vma, page, start);
+		}
 #endif
 		flush_dcache_page(page);
 		start += PAGE_SIZE;

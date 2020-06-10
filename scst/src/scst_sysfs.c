@@ -7267,12 +7267,12 @@ static ssize_t scst_poll_us_show(struct kobject *kobj,
 				  struct kobj_attribute *attr, char *buf)
 {
 	int count;
-	unsigned long t = scst_poll_ns;
+	u64 t = scst_poll_ns;
 
 	TRACE_ENTRY();
 
 	do_div(t, 1000);
-	count = sprintf(buf, "%ld\n%s\n", t,
+	count = sprintf(buf, "%lld\n%s\n", t,
 		(scst_poll_ns == SCST_DEF_POLL_NS)
 			? "" : SCST_SYSFS_KEY_MARK);
 
