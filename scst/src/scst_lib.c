@@ -3635,9 +3635,10 @@ void scst_limit_sg_write_len(struct scst_cmd *cmd)
 	return;
 }
 
-static int scst_full_len_to_data_len(int full_len, int block_shift)
+static int scst_full_len_to_data_len(u32 full_len, u32 block_shift)
 {
-	int rem, res;
+	u64 res;
+	u32 rem;
 
 	res = full_len << block_shift;
 	rem = do_div(res, (1 << block_shift) + (1 << SCST_DIF_TAG_SHIFT));
@@ -3645,7 +3646,7 @@ static int scst_full_len_to_data_len(int full_len, int block_shift)
 		TRACE(TRACE_MINOR, "Reminder %d for full len! (full len%d)",
 			rem, full_len);
 
-	TRACE_DBG("data len %d (full %d)", res, full_len);
+	TRACE_DBG("data len %lld (full %d)", res, full_len);
 
 	return res;
 }
@@ -3658,7 +3659,8 @@ static int scst_full_len_to_data_len(int full_len, int block_shift)
  */
 int scst_cmd_get_expected_transfer_len_data(struct scst_cmd *cmd)
 {
-	int rem, res;
+	u64 res;
+	u32 rem;
 
 	if (!cmd->tgt_dif_data_expected)
 		return cmd->expected_transfer_len_full;
@@ -3671,7 +3673,7 @@ int scst_cmd_get_expected_transfer_len_data(struct scst_cmd *cmd)
 			cmd, scst_get_opcode_name(cmd),
 			cmd->expected_transfer_len_full);
 
-	TRACE_DBG("Expected transfer len data %d (cmd %p)", res, cmd);
+	TRACE_DBG("Expected transfer len data %lld (cmd %p)", res, cmd);
 
 	return res;
 }
@@ -3683,7 +3685,8 @@ int scst_cmd_get_expected_transfer_len_data(struct scst_cmd *cmd)
  */
 int scst_cmd_get_expected_transfer_len_dif(struct scst_cmd *cmd)
 {
-	int rem, res;
+	u64 res;
+	u32 rem;
 
 	if (!cmd->tgt_dif_data_expected)
 		return 0;
@@ -3695,7 +3698,7 @@ int scst_cmd_get_expected_transfer_len_dif(struct scst_cmd *cmd)
 			"(cmd %p, op %s, expected len full %d)", rem, cmd,
 			scst_get_opcode_name(cmd), cmd->expected_transfer_len_full);
 
-	TRACE_DBG("Expected transfer len DIF %d (cmd %p)", res, cmd);
+	TRACE_DBG("Expected transfer len DIF %lld (cmd %p)", res, cmd);
 
 	return res;
 }
@@ -15902,14 +15905,14 @@ static void __scst_update_latency_stats(struct scst_cmd *cmd,
 					struct scst_lat_stat_entry *stat,
 					const ktime_t now, uint64_t nowc)
 {
-	int64_t delta;
+	uint64_t delta;
 #ifdef SCST_MEASURE_CLOCK_CYCLES
 	int64_t deltac;
 #endif
 
 	if (stat && ktime_to_ns(cmd->last_state_update) != 0) {
 		delta = ktime_to_ns(ktime_sub(now, cmd->last_state_update));
-		if (delta < 0 || delta > NSEC_PER_SEC) {
+		if (delta > NSEC_PER_SEC) {
 			printk_once(KERN_INFO "%d: ignoring large time delta %lld\n",
 				    cmd->state, delta);
 			delta = 0;
