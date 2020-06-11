@@ -38,7 +38,7 @@ struct isns_hdr {
 struct isns_tlv {
 	uint32_t tag;
 	uint32_t length;
-	uint32_t value[0];
+	uint32_t value[];
 } __attribute__ ((packed));
 
 /* Commands and responses (4.1.3) */
