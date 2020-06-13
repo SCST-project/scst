@@ -124,58 +124,12 @@ help:
 	@echo "	Note:"
 	@echo "		- install and uninstall may need root privileges"
 
-all:
-	cd $(SCST_DIR) && $(MAKE) $@
-#	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-#	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
-	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
-	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
-	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
-	@if [ -d $(EMULEX_DIR) ]; then cd $(EMULEX_DIR) && $(MAKE) $@; fi
-
-install:
-	cd $(SCST_DIR) && $(MAKE) $@
-#	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-#	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
-	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
-	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
-	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
-	@if [ -d $(EMULEX_DIR) ]; then cd $(EMULEX_DIR) && $(MAKE) $@; fi
-
-uninstall:
-	cd $(SCST_DIR) && $(MAKE) $@
-#	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
-	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
-	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
-	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
-	@if [ -d $(EMULEX_DIR) ]; then cd $(EMULEX_DIR) && $(MAKE) $@; fi
-
-clean:
-	cd $(SCST_DIR) && $(MAKE) $@
-	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
-	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
-	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
-	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
-	@if [ -d $(EMULEX_DIR) ]; then cd $(EMULEX_DIR) && $(MAKE) $@; fi
-
-extraclean:
-	-rm -f TAGS tags cscope.out
-	cd $(SCST_DIR) && $(MAKE) $@
-	@if [ -d $(DOC_DIR) ]; then cd $(DOC_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_INI_DIR) ]; then cd $(QLA_INI_DIR) && $(MAKE) $@; fi
-	@if [ -d $(QLA_DIR) ]; then cd $(QLA_DIR) && $(MAKE) $@; fi
-	@if [ -d $(SRP_DIR) ]; then cd $(SRP_DIR) && $(MAKE) $@; fi
-	@if [ -d $(ISCSI_DIR) ]; then cd $(ISCSI_DIR) && $(MAKE) $@; fi
-	@if [ -d $(USR_DIR) ]; then cd $(USR_DIR) && $(MAKE) $@; fi
-	@if [ -d $(SCST_LOCAL_DIR) ]; then cd $(SCST_LOCAL_DIR) && $(MAKE) $@; fi
-	@if [ -d $(EMULEX_DIR) ]; then cd $(EMULEX_DIR) && $(MAKE) $@; fi
+all install uninstall clean extraclean:
+	-if [ $@ = extraclean ]; then rm -f TAGS tags cscope.out; fi
+	-for d in $(SCST_DIR) $(ISCSI_DIR) $(QLA_DIR) $(SRP_DIR)	    \
+		$(SCST_LOCAL_DIR) $(FCST_DIR) $(USR_DIR) $(SCSTADM_DIR); do \
+		$(MAKE) -j$$(nproc) -C "$$d" $@ || break;		    \
+	done
 
 tags:
 	find . -type f -name "*.[ch]" | ctags --c-kinds=+p --fields=+iaS --extra=+q -e -L-
