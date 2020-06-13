@@ -2465,7 +2465,6 @@ ql_dbg(uint level, scsi_qla_host_t *vha, uint id, const char *fmt, ...)
 {
 	va_list va;
 	struct va_format vaf;
-	char pbuf[64];
 
 	va_start(va, fmt);
 
@@ -2473,6 +2472,8 @@ ql_dbg(uint level, scsi_qla_host_t *vha, uint id, const char *fmt, ...)
 	vaf.va = &va;
 
 	if (!ql_mask_match(level)) {
+		char pbuf[64];
+
 		if (vha != NULL) {
 			const struct pci_dev *pdev = vha->hw->pdev;
 			/* <module-name> <msg-id>:<host> Message */

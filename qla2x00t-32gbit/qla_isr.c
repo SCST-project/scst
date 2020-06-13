@@ -99,7 +99,6 @@ qla24xx_process_abts(struct scsi_qla_host *vha, void *pkt)
 	}
 
 	/* terminate exchange */
-	memset(rsp_els, 0, sizeof(*rsp_els));
 	rsp_els->entry_type = ELS_IOCB_TYPE;
 	rsp_els->entry_count = 1;
 	rsp_els->nport_handle = cpu_to_le16(~0);
