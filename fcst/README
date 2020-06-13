@@ -19,57 +19,19 @@ Building and Installing
 FCST is a kernel module that depends on libfc and SCST to provide FC target
 support.
 
-To build for linux-2.6.34, do:
+1.  Build and install scst, fcst and scstadmin following the instructions
+    in the top-level INSTALL.md file.
 
-1. Get the kernel source:
+2.  Install the FCoE admin tools:
 
-	KERNEL=linux-2.6.34
+	apt-get install fcoe-utils lldpad ||
+	dnf install fcoe-utils lldpad ||
+	zypper install fcoe-utils open-lldp
 
-	cd /usr/src/kernels
-	URL_DIR=http://www.kernel.org/pub/linux/kernel/v2.6
-	TARFILE=$KERNEL.tar.bz2
-	wget -o $TARFILE $URL_DIR/$TARFILE
-	tar xfj $TARFILE
-	cd $KERNEL
+3.  Bring up SCST and configure the devices.
 
-2. Apply patches needed for libfc target hooks and point-to-point fixes:
+4.  Bring up an FCoE initiator (we'll enable target mode on it later):
 
-	KDIR=/usr/src/kernels/$KERNEL
-	PDIR=/usr/src/scst/trunk/fcst/linux-patches	# use your dir here
-
-	cd $PDIR
-	for patch in `grep -v '^#' series-2.6.34`
-	do
-		(cd $KDIR; patch -p1) < $patch
-	done
-
-3.  Apply SCST patches to the kernel
-	See trunk/scst/README
-	The readahead patches are not needed in 2.6.33 or later.
-
-4.  Configure, make, and install your kernel
-
-5.  Install SCST
-	See trunk/scst/README. Make sure you are building sysfs SCST build,
-	because FCST supports only it.  You need to do
-
-		cd trunk/scst
-		make
-		make install
-
-6.  Make FCST
-	In the directory containing this README, just do
-		make
-		make install
-
-7.  Install the FCoE admin tools, including dcbd and fcoeadm.
-	Some distros may have these.
-	You should be able to use the source at
-	http://www.open-fcoe.org/openfc/downloads/2.6.34/open-fcoe-2.6.34.tar.gz
-
-8.  Bring up SCST and configure the devices.
-
-9.  Bring up an FCoE initiator (we'll enable target mode on it later):
 	modprobe fcoe
 	fcoeadm -c eth3
 
@@ -77,7 +39,7 @@ To build for linux-2.6.34, do:
     over a full-duplex loss-less link (enable pause on both sides).
     Alternatively, the other end can be an FCoE switch.
 
-10. Use fcc (part of the open-fcoe contrib tools in step 7) to see the
+5.  Use fcc (part of the open-fcoe contrib tools in step 7) to see the
     initiator setup.  To get the FCoE port name for eth3
 
 	# fcc
@@ -92,11 +54,11 @@ To build for linux-2.6.34, do:
     In the above example, there's one local host on eth3, and it's in
     a point-to-point connection with the remote initiator with Port_id 010101.
 
-11.  Load fcst
+6.  Load fcst
 
 	modprobe fcst
 
-12.  Add any disks (configured in step 8) you want to export
+7.  Add any disks (configured in step 8) you want to export
      Note that you must have a LUN 0.
 
 	LPORT=20:00:00:1b:21:06:58:21		# the local Port_Name
@@ -105,10 +67,10 @@ To build for linux-2.6.34, do:
 	echo add disk-name 0 > luns/mgmt
 	echo add disk-name 1 > luns/mgmt
 
-13.  Enable the initiator:
+8.  Enable the initiator:
 
 	echo 1 > $LPORT/enabled
 
-14.  As a temporary workaround, you may need to reset the interface
-     on the initiator side so it sees the SCST device as a target and
-     discovers LUNs.  You can avoid this by bringing up the initiator last.
+9.  As a temporary workaround, you may need to reset the interface
+    on the initiator side so it sees the SCST device as a target and
+    discovers LUNs.  You can avoid this by bringing up the initiator last.
