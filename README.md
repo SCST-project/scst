@@ -12,6 +12,9 @@ project includes:
 4. User space programs in the usr/ subdirectory, e.g. fileio_tgt.
 5. Various documentation in the doc/ subdirectory.
 
+Instructions for building and installing SCST are available in the INSTALL.md
+file.
+
 ## QLogic target driver
 
 Two QLogic target drivers are included in the SCST project. The driver in
