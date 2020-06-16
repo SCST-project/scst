@@ -29,7 +29,7 @@ or not your Linux distribution supports a package manager:
         sudo rpm -U $PWD/{,scstadmin/}rpmbuilddir/RPMS/*/*.rpm
     elif dpkg-query -s libc-bin >/dev/null 2>&1; then
         sudo apt install build-essential debhelper devscripts gcc make lintian quilt
-        sudo apt install linux-headers-$(uname -r) || sudo apt install pve-headers-$(uname -r) 
+        sudo apt install linux-headers-$(uname -r) || sudo apt install pve-headers-$(uname -r)
         make dpkg
         sudo dpkg -i $PWD/dpkg/{scst,iscsi-scst,scstadmin}_*.deb
     else
