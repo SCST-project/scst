@@ -1505,11 +1505,8 @@ static void cmnd_prepare_get_rejected_immed_data(struct iscsi_cmnd *cmnd)
 		e = min_t(u32, s, PAGE_SIZE);
 		conn->read_iov[i].iov_len = e;
 	}
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	iov_iter_kvec(&conn->read_msg.msg_iter, READ, conn->read_iov, i, size);
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
-	iov_iter_kvec(&conn->read_msg.msg_iter, READ | ITER_KVEC,
-		      conn->read_iov, i, size);
 #else
 	conn->read_msg.msg_iov = conn->read_iov;
 	conn->read_msg.msg_iovlen = i;
@@ -1659,12 +1656,9 @@ static int cmnd_prepare_recv_pdu(struct iscsi_conn *conn,
 	}
 
 	i++;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	iov_iter_kvec(&conn->read_msg.msg_iter, READ, conn->read_iov, i,
 		      read_size);
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
-	iov_iter_kvec(&conn->read_msg.msg_iter, READ | ITER_KVEC,
-		      conn->read_iov, i, read_size);
 #else
 	conn->read_msg.msg_iov = conn->read_iov;
 	conn->read_msg.msg_iovlen = i;
@@ -1855,12 +1849,9 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 			sBUG_ON(size != 0);
 		}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 		iov_iter_kvec(&conn->read_msg.msg_iter, READ, conn->read_iov,
 			      i, cmnd->pdu.datasize);
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
-		iov_iter_kvec(&conn->read_msg.msg_iter, READ | ITER_KVEC,
-			      conn->read_iov, i, cmnd->pdu.datasize);
 #else
 		conn->read_msg.msg_iov = conn->read_iov;
 		conn->read_msg.msg_iovlen = i;
