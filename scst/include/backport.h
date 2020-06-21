@@ -229,6 +229,14 @@ static inline void cpu_to_be32_array(__be32 *dst, const u32 *src, size_t len)
 
 #endif
 
+/*
+ * See also commit e0fdb0e050ea ("percpu: add __percpu for sparse.")
+ * # v2.6.34.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 34) && !defined(__percpu)
+#define __percpu
+#endif
+
 /* <linux/cpumask.h> */
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_CPUMASK_H)
@@ -794,7 +802,7 @@ enum umh_wait {
 
 /* <linux/kobject_ns.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0)
 /*
  * See also commit a685e08987d1 ("Delay struct net freeing while there's a
  * sysfs instance refering to it") # v3.0.
@@ -1102,10 +1110,89 @@ static inline int pcie_capability_read_dword(struct pci_dev *dev, int pos,
 
 /* <linux/percpu-refcount.h> */
 
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7 ||	\
+	LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
 #include <linux/percpu-refcount.h>
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
-#include <linux/percpu-refcount.h>
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 3, 0)
+/*
+ * See also commit 09ed79d6d75f ("percpu_ref: introduce PERCPU_REF_ALLOW_REINIT
+ * flag") # v5.3.
+ */
+#define PERCPU_REF_ALLOW_REINIT 0
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+#define PERCPU_COUNT_BIAS (1U << 31)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
+typedef unsigned percpu_count_t;
+#else
+typedef unsigned long percpu_count_t;
+#endif
+
+#if !(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7) &&		\
+	LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
+	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 7)
+/*
+ * See also commit 18c9a6bbe064 ("percpu-refcount: Introduce
+ * percpu_ref_resurrect()") # v4.20.
+ */
+static inline void percpu_ref_resurrect(struct percpu_ref *ref)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)
+	percpu_ref_reinit(ref);
+#else
+	unsigned __percpu *pcpu_count = (unsigned __percpu *)
+		((uintptr_t)ref->pcpu_count & ~PCPU_REF_DEAD);
+	int cpu;
+
+	BUG_ON(!pcpu_count);
+	//WARN_ON(!percpu_ref_is_zero(ref));
+
+	atomic_set(&ref->count, 1 + PERCPU_COUNT_BIAS);
+
+	/*
+	 * Restore per-cpu operation. The barrier guarantees that the zeroing
+	 * is visible to all percpu accesses which can see the following
+	 * PCPU_REF_DEAD clearing.
+	 */
+	for_each_possible_cpu(cpu)
+		*per_cpu_ptr(pcpu_count, cpu) = 0;
+
+	ref->pcpu_count = (unsigned __percpu *)
+		((uintptr_t)ref->pcpu_count & ~PCPU_REF_DEAD);
+	smp_mb();
+#endif
+}
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
+/*
+ * See also commit 4c907baf36d8 ("percpu_ref: implement percpu_ref_is_dying()")
+ * # v4.0.
+ */
+static inline bool percpu_ref_is_dying(struct percpu_ref *ref)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+	return (uintptr_t)ref->pcpu_count & PCPU_REF_DEAD;
+#else
+	return ref->pcpu_count_ptr & PCPU_REF_DEAD;
+#endif
+}
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
+static inline bool percpu_ref_is_dying(struct percpu_ref *ref)
+{
+	return ref->percpu_count_ptr & __PERCPU_REF_DEAD;
+}
+#endif
+
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0) */
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
 /*
  * See also commit 2aad2a86f668 ("percpu_ref: add PERCPU_REF_INIT_* flags")
@@ -1120,7 +1207,28 @@ static inline int __must_check percpu_ref_init_backport(struct percpu_ref *ref,
 	return percpu_ref_init(ref, release);
 }
 #define percpu_ref_init percpu_ref_init_backport
+
+/*
+ * See also commit 9e804d1f58da ("percpu_ref: rename things to prepare for
+ * decoupling percpu/atomic mode switch") # v3.18.
+ */
+static inline bool __ref_is_percpu(struct percpu_ref *ref,
+				   percpu_count_t __percpu **percpu_countp)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+	uintptr_t pcpu_ptr = (uintptr_t)ACCESS_ONCE(ref->pcpu_count);
+
+	if (unlikely(pcpu_ptr & PCPU_REF_DEAD))
+		return false;
+
+	*percpu_countp = (percpu_count_t __percpu *)pcpu_ptr;
+	return true;
+#else
+	return __pcpu_ref_alive(ref, percpu_countp);
 #endif
+}
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0) */
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
 /*
  * See also commit 2d7227828e14 ("percpu-refcount: implement percpu_ref_reinit()
@@ -1137,14 +1245,38 @@ static inline bool percpu_ref_is_zero(struct percpu_ref *ref)
 static inline void percpu_ref_exit(struct percpu_ref *ref)
 {
 }
-#endif
-#else
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0) */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0)
+static inline bool percpu_ref_tryget_live(struct percpu_ref *ref)
+{
+	percpu_count_t __percpu *percpu_count;
+	bool ret = false;
+
+	rcu_read_lock();
+
+	if (__ref_is_percpu(ref, &percpu_count)) {
+		this_cpu_inc(*percpu_count);
+		ret = true;
+	} else if (!percpu_ref_is_dying(ref)) {
+		ret = atomic_long_inc_not_zero(&ref->count);
+	}
+
+	rcu_read_unlock();
+
+	return ret;
+}
+#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0) */
+
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
+
 struct percpu_ref;
 typedef void (percpu_ref_func_t)(struct percpu_ref *);
 
 struct percpu_ref {
 	atomic_t		count;
 	percpu_ref_func_t	*release;
+	bool			dead;
 };
 
 static inline int __must_check percpu_ref_init(struct percpu_ref *ref,
@@ -1154,6 +1286,7 @@ static inline int __must_check percpu_ref_init(struct percpu_ref *ref,
 	WARN_ON_ONCE(flags != 0);
 	atomic_set(&ref->count, 1);
 	ref->release = release;
+	ref->dead = false;
 	return 0;
 }
 
@@ -1166,6 +1299,18 @@ static inline void percpu_ref_get(struct percpu_ref *ref)
 	atomic_inc(&ref->count);
 }
 
+static inline bool percpu_ref_tryget_live(struct percpu_ref *ref)
+{
+	bool ret = false;
+
+	rcu_read_lock();
+	if (!ref->dead)
+		ret = atomic_inc_not_zero(&ref->count);
+	rcu_read_unlock();
+
+	return ret;
+}
+
 static inline void percpu_ref_put(struct percpu_ref *ref)
 {
 	if (unlikely(atomic_dec_and_test(&ref->count)))
@@ -1174,7 +1319,28 @@ static inline void percpu_ref_put(struct percpu_ref *ref)
 
 static inline void percpu_ref_kill(struct percpu_ref *ref)
 {
+	WARN_ON_ONCE(ref->dead);
+	ref->dead = true;
 	percpu_ref_put(ref);
+}
+
+static inline void percpu_ref_resurrect(struct percpu_ref *ref)
+{
+	WARN_ON_ONCE(!ref->dead);
+	ref->dead = false;
+	percpu_ref_get(ref);
+}
+
+static inline bool __ref_is_percpu(struct percpu_ref *ref,
+				   unsigned __percpu **percpu_countp)
+{
+	*percpu_countp = NULL;
+	return !ref->dead;
+}
+
+static inline bool percpu_ref_is_dying(struct percpu_ref *ref)
+{
+	return ref->dead;
 }
 
 static inline bool percpu_ref_is_zero(struct percpu_ref *ref)
@@ -1182,6 +1348,21 @@ static inline bool percpu_ref_is_zero(struct percpu_ref *ref)
 	return !atomic_read(&ref->count);
 }
 #endif
+
+/* Only use this function for debugging purposes. Not upstream. */
+static inline unsigned long percpu_ref_read(struct percpu_ref *ref)
+{
+	percpu_count_t __percpu *percpu_count;
+
+	/* Do not try to read the counter if it is in per-cpu mode. */
+	if (__ref_is_percpu(ref, &percpu_count))
+		return 0;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
+	return atomic_read(&ref->count) - !percpu_ref_is_dying(ref);
+#else
+	return atomic_long_read(&ref->count) - !percpu_ref_is_dying(ref);
+#endif
+}
 
 /* <linux/preempt.h> */
 
