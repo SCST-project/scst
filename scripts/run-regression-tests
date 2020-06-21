@@ -677,17 +677,7 @@ do
   generate_kernel_patch "$k" "${generate_kernel_patch_options}" || continue
   (
       cd "${outputdir}" &&
-	  download_and_extract_kernel_tree "$k" &&
-	  k="${k/^*}" &&
-	  cd "linux-$k/include/linux" &&
-	  if [ ! -e compiler-gcc6.h ]; then
-	      for f in compiler-gcc5.h compiler-gcc4.h; do
-		  if [ -e "$f" ]; then
-		      cp "$f" compiler-gcc6.h
-		      break
-		  fi
-	      done
-	  fi
+	  download_and_extract_kernel_tree "$k"
   ) ||
       continue
   k="${k/^*}"
