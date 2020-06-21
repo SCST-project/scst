@@ -40,6 +40,9 @@
 #include <linux/vmalloc.h>
 #include <linux/workqueue.h>
 #include <linux/writeback.h>	/* sync_page_range() */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24)
+#include <net/net_namespace.h>  /* init_net */
+#endif
 #include <rdma/ib_verbs.h>
 #include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
 struct scsi_target;
@@ -802,13 +805,26 @@ enum umh_wait {
 
 /* <linux/kobject_ns.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
 /*
- * See also commit a685e08987d1 ("Delay struct net freeing while there's a
- * sysfs instance refering to it") # v3.0.
+ * See also commit 8488a38f4d2f ("kobject: Break the kobject namespace defs
+ * into their own header") # v2.6.36.
+ */
+enum kobj_ns_type {
+	KOBJ_NS_TYPE_NET = 1,
+};
+#endif
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24) &&	\
+	LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0)
+/*
+ * See also commit 5f256becd868 ("[NET]: Basic network namespace
+ * infrastructure.") # v2.6.24. a685e08987d1 ("Delay struct net freeing while
+ * there's a sysfs instance refering to it") # v3.0.
  */
 static inline void *kobj_ns_grab_current(enum kobj_ns_type type)
 {
+	WARN_ON_ONCE(type != KOBJ_NS_TYPE_NET);
 	return &init_net;
 }
 
