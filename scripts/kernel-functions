@@ -140,7 +140,7 @@ function patch_kernel {
 	    if kernel_version_le 2.6.29 $1 && kernel_version_lt $1 4.2; then
 		# Tell the kernel that we are using gcc 4.6 since older kernel
 		# versions do not support recent gcc versions.
-		patch -f -s -p1 <<'EOF'
+		patch -f -s -p1 <<'EOF' ||
 diff --git a/include/linux/compiler-gcc.h b/include/linux/compiler-gcc.h
 index 02ae99e8e6d3..47e12c19c965 100644
 --- a/include/linux/compiler-gcc.h
@@ -154,6 +154,18 @@ index 02ae99e8e6d3..47e12c19c965 100644
  
  #if !defined(__noclone)
  #define __noclone	/* not needed */
+EOF
+		patch -f -s -p1 <<'EOF'
+diff --git a/include/linux/compiler-gcc.h b/include/linux/compiler-gcc.h
+index a3ed7cb8ca34..c5a6b8b52db4 100644
+--- a/include/linux/compiler-gcc.h
++++ b/include/linux/compiler-gcc.h
+@@ -83,4 +83,4 @@
+ #define __gcc_header(x) #x
+ #define _gcc_header(x) __gcc_header(linux/compiler-gcc##x.h)
+ #define gcc_header(x) _gcc_header(x)
+-#include gcc_header(__GNUC__)
++#include "linux/compiler-gcc4.h"
 EOF
 		patch -f -s -p1 <<'EOF' ||
 diff --git a/include/linux/compiler-gcc4.h b/include/linux/compiler-gcc4.h
@@ -671,6 +683,61 @@ index bbb1d2259ecf..a5efb21d5228 100644
  
  static void percpu_init(void)
  {
+EOF
+    fi
+
+    # See also commit e33a814e772c ("scripts/dtc: Remove redundant YYLOC global
+    # declaration") # v5.6~10^2.
+    if kernel_version_lt $1 5.6; then
+	patch -p1 -f -s <<'EOF'
+From e33a814e772cdc36436c8c188d8c42d019fda639 Mon Sep 17 00:00:00 2001
+From: Dirk Mueller <dmueller@suse.com>
+Date: Tue, 14 Jan 2020 18:53:41 +0100
+Subject: [PATCH] scripts/dtc: Remove redundant YYLOC global declaration
+
+gcc 10 will default to -fno-common, which causes this error at link
+time:
+
+  (.text+0x0): multiple definition of `yylloc'; dtc-lexer.lex.o (symbol from plugin):(.text+0x0): first defined here
+
+This is because both dtc-lexer as well as dtc-parser define the same
+global symbol yyloc. Before with -fcommon those were merged into one
+defintion. The proper solution would be to to mark this as "extern",
+however that leads to:
+
+  dtc-lexer.l:26:16: error: redundant redeclaration of 'yylloc' [-Werror=redundant-decls]
+   26 | extern YYLTYPE yylloc;
+      |                ^~~~~~
+In file included from dtc-lexer.l:24:
+dtc-parser.tab.h:127:16: note: previous declaration of 'yylloc' was here
+  127 | extern YYLTYPE yylloc;
+      |                ^~~~~~
+cc1: all warnings being treated as errors
+
+which means the declaration is completely redundant and can just be
+dropped.
+
+Signed-off-by: Dirk Mueller <dmueller@suse.com>
+Signed-off-by: David Gibson <david@gibson.dropbear.id.au>
+[robh: cherry-pick from upstream]
+Cc: stable@vger.kernel.org
+Signed-off-by: Rob Herring <robh@kernel.org>
+---
+ scripts/dtc/dtc-lexer.l | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/scripts/dtc/dtc-lexer.l b/scripts/dtc/dtc-lexer.l
+index 5c6c3fd557d7..b3b7270300de 100644
+--- a/scripts/dtc/dtc-lexer.l
++++ b/scripts/dtc/dtc-lexer.l
+@@ -23,7 +23,6 @@ LINECOMMENT	"//".*\n
+ #include "srcpos.h"
+ #include "dtc-parser.tab.h"
+ 
+-YYLTYPE yylloc;
+ extern bool treesource_error;
+ 
+ /* CAUTION: this will stop working if we ever use yyless() or yyunput() */
 EOF
     fi
 
