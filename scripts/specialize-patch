@@ -93,7 +93,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
   gsub("defined\\(IB_CLIENT_REMOVE_TAKES_TWO_ARGS\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0) || " \
        "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
-  
+
   gsub("defined\\(IB_QUERY_GID_HAS_ATTR_ARG\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0) || " \
        "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
@@ -113,11 +113,11 @@ function evaluate(stmnt, pattern, arg, op, result) {
   gsub("HAVE_RDMA_DESTROY_AH_WITH_FLAGS",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0) || " \
        "RHEL_RELEASE_CODE -0 >= 8 * 256 + 1)", stmnt)
-  
+
   gsub("HAVE_RDMA_DESTROY_AH",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0) || " \
        "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
-  
+
   gsub("HAVE_RDMA_QUERY_GID",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) || " \
        "RHEL_RELEASE_CODE -0 >= 8 * 256 + 1)", stmnt)
@@ -167,7 +167,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
   {
     sub(pattern, op[1] * 65536 + op[2] * 256 + op[3], stmnt)
   }
-  
+
   gsub("defined\\(INSIDE_KERNEL_TREE\\)", "1", stmnt)
 
   gsub("defined\\(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19\\)", "0", stmnt)
@@ -175,7 +175,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
   gsub("defined\\(CONFIG_SUSE_KERNEL\\)", "0", stmnt)
 
   gsub("defined\\(CONFIG_SCST_STRICT_SERIALIZING\\)", "0", stmnt)
-  
+
   if (RHEL_MAJOR == "")
   {
     gsub("defined\\(RHEL_MAJOR\\)", "0", stmnt)
@@ -265,19 +265,19 @@ function evaluate(stmnt, pattern, arg, op, result) {
     {
       sub(pattern, op[1] == 0, stmnt)
     }
-    
+
     pattern = "![[:blank:]]*\\([[:blank:]]*(-*[0-9]+)[[:blank:]]*\\)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, op[1] == 0, stmnt)
     }
-    
+
     pattern = "\\([[:blank:]]*(-*[0-9]+)[[:blank:]]*\\)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, op[1], stmnt)
     }
-    
+
     pattern="(-*[0-9]+)[[:blank:]]*(\\*|/)[[:blank:]]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
@@ -286,7 +286,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
       else if (op[2] == "/" && op[3] != 0) result = op[1] / op[3]
       sub(pattern, result, stmnt)
     }
-  
+
     pattern="(-*[0-9]+)[[:blank:]]*(\\+|-)[[:blank:]]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
@@ -304,7 +304,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
       else if (op[2] == ">>") result = int(op[1] / (2**op[3]))
       sub(pattern, result, stmnt)
     }
-  
+
     pattern="(-*[0-9]+)[[:blank:]]*(<|<=|>|>=|==|!=)[[:blank:]]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
@@ -317,7 +317,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
       else if (op[2] == "!=") result = op[1] != op[3]
       sub(pattern, result, stmnt)
     }
-  
+
     pattern="(-*[0-9]+)[[:blank:]]*&&[[:blank:]]*\\([[:blank:]]*(-*[0-9]+)[[:blank:]]*\\)"
     while (match(stmnt, pattern, op) != 0)
     {
@@ -329,43 +329,43 @@ function evaluate(stmnt, pattern, arg, op, result) {
     {
       sub(pattern, (op[1] != 0) && (op[2] != 0), stmnt)
     }
-  
+
     pattern="^+#(if|elif)[[:blank:]]*([01])[[:blank:]]*&&[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))$"
     while (match(stmnt, pattern, op) != 0)
     {
       stmnt = "+#" op[1] " " (op[2] != 0 ? op[3] : op[2])
     }
-  
+
     pattern="^+#(if|elif)[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))&&[[:blank:]]*([01])[[:blank:]]*$"
     while (match(stmnt, pattern, op) != 0)
     {
       stmnt = "+#" op[1] " " (op[3] != 0 ? op[2] : op[3])
     }
-  
+
     pattern="^+#(if|elif)[[:blank:]]*(!*[[:blank:]]*[A-Za-z0-9_]*)[[:blank:]]*&&[[:blank:]]*([01])[[:blank:]]*$"
     while (match(stmnt, pattern, op) != 0)
     {
       stmnt = "+#" op[1] " " (op[3] != 0 ? op[2] : op[3])
     }
-  
+
     pattern="(-*[0-9]+)[[:blank:]]*\\|\\|[[:blank:]]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, (op[1] != 0) || (op[2] != 0), stmnt)
     }
-  
+
     pattern="^+#(if|elif)[[:blank:]]*([01])[[:blank:]]*\\|\\|[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))$"
     while (match(stmnt, pattern, op) != 0)
     {
       stmnt = "+#" op[1] " " (op[2] == 0 ? op[3] : op[2])
     }
-  
+
     pattern="\\(([01])[[:blank:]]*\\|\\|[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))\\)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, op[1] == 0 ? op[2] : op[1], stmnt)
     }
-  
+
     pattern="\\([[:blank:]]*(-*[0-9]+)[[:blank:]]*\\)"
     while (match(stmnt, pattern, op) != 0)
     {
