@@ -99,8 +99,20 @@ else
 	endif
 endif
 
-# Use make instead of $(MAKE) to get rid of command-line option -i
-run_conftest = $(shell if [ "0$(V)" -gt 0 ]; then output=/dev/stdout; else output=/dev/null; fi; if MAKEFLAGS= make -C $(KDIR) V=$(V) M="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" $(OFED_CONFIG) KBUILD_EXTRA_SYMBOLS="$(OFED_MODULE_SYMVERS)" 1>&2 2>$${output}; then echo "$(strip $2)"; else echo "$(strip $3)"; fi)
+# Use make instead of $(MAKE) to get rid of command-line option -i. Enable
+# -Wno-deprecated-declarations for the RHEL 7.x kernels.
+run_conftest = $(shell							\
+  export KCFLAGS="-Wno-deprecated-declarations";			\
+  if [ "0$(V)" -gt 0 ]; then						\
+    output=/dev/stdout;							\
+  else									\
+    output=conftest/$1/build-output-$(KVER).txt;			\
+  fi;									\
+  if MAKEFLAGS= make -C $(KDIR) V=$(V) M="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" $(OFED_CONFIG) KBUILD_EXTRA_SYMBOLS="$(OFED_MODULE_SYMVERS)" 1>&2 2>$${output}; then						\
+    echo "$(strip $2)";							\
+  else									\
+    echo "$(strip $3)";							\
+  fi)
 run_conftest_bool = $(call run_conftest,$1,-D$(strip $2)=1,-D$(strip $2)=0)
 
 CONFTESTS = $(shell ls -d conftest/*)
@@ -164,18 +176,14 @@ uninstall:
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
 clean:
+	rm -rf include/iscsi_scst_itf_ver.h
+	rm -rf conftest/*/{build-output,result}*.txt
+	for d in conftest/* kernel kernel/isert-scst; do		\
+	  [ -d "$$d" ] && $(MAKE) -C $(KDIR) M=$(shell pwd)/$$d $@ &	\
+	  rm -f $$d/result*.txt;					\
+	done;								\
+	wait
 	$(MAKE) -C usr $@
-	$(MAKE) -C $(KDIR) M=$(KMOD) $@
-	$(MAKE) -C $(KDIR) M=$(ISERTMOD) $@
-	rm -f kernel/Module.symvers \
-		kernel/Module.markers kernel/modules.order \
-		kernel/isert-scst/Module.symvers \
-		kernel/isert-scst/Module.markers kernel/isert-scst/modules.order \
-		include/iscsi_scst_itf_ver.h
-	rm -rf conftest/*/*.ko conftest/*/*.mod.c conftest/*/Module.symvers conftest/*/*.o \
-		conftest/*/*.o.cmd conftest/*/*.ko.cmd conftest/*/.*.o.cmd conftest/*/.*.ko.cmd \
-		conftest/*/*.order conftest/*/.*.o.d conftest/*/.tmp_versions/ \
-		conftest/*/result*.txt
 
 extraclean: clean
 	rm -f kernel/*.orig kernel/*.rej \
