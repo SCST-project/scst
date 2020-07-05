@@ -143,11 +143,12 @@ check:
 
 clean:
 	rm -rf conftest/pre_cflags conftest/kcflags
-	for d in conftest/* src; do					     \
-	  [ -d "$$d" ] && $(MAKE) -C $(KDIR) M=$(shell pwd)/$$d clean; \
-	  rm -f $$d/result*.txt;					     \
-	done
-	rm -f src/Module.symvers src/Module.markers src/modules.order
+	rm -rf conftest/*/{build-output,result}*.txt
+	for d in conftest/* src; do					\
+	  [ -d "$$d" ] && $(MAKE) -C $(KDIR) M=$(shell pwd)/$$d $@ &	\
+	  rm -f $$d/result*.txt;					\
+	done;								\
+	wait
 
 extraclean: clean
 	rm -f *.orig *.rej

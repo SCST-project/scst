@@ -42,6 +42,7 @@ uninstall:
 	cd $(SCST_DIR) && $(MAKE) $@
 
 clean:
+	rm -f include/build_mode.h
 	cd $(SCST_DIR) && $(MAKE) $@
 
 extraclean:

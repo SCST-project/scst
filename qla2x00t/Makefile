@@ -75,8 +75,7 @@ uninstall:
 endif
 
 clean:
-	@$(MAKE) -C $(KDIR) M=$(shell pwd) clean
-	@$(RM) tags Modules.symvers module.symvers Module.markers modules.order
+	$(MAKE) -C $(KDIR) M=$(shell pwd) $@
 
 extraclean: clean
 	rm -f *.orig *.rej

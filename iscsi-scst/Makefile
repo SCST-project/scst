@@ -176,18 +176,14 @@ uninstall:
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
 clean:
+	rm -rf include/iscsi_scst_itf_ver.h
+	rm -rf conftest/*/{build-output,result}*.txt
+	for d in conftest/* kernel kernel/isert-scst; do		\
+	  [ -d "$$d" ] && $(MAKE) -C $(KDIR) M=$(shell pwd)/$$d $@ &	\
+	  rm -f $$d/result*.txt;					\
+	done;								\
+	wait
 	$(MAKE) -C usr $@
-	$(MAKE) -C $(KDIR) M=$(KMOD) $@
-	$(MAKE) -C $(KDIR) M=$(ISERTMOD) $@
-	rm -f kernel/Module.symvers \
-		kernel/Module.markers kernel/modules.order \
-		kernel/isert-scst/Module.symvers \
-		kernel/isert-scst/Module.markers kernel/isert-scst/modules.order \
-		include/iscsi_scst_itf_ver.h
-	rm -rf conftest/*/*.ko conftest/*/*.mod.c conftest/*/Module.symvers conftest/*/*.o \
-		conftest/*/*.o.cmd conftest/*/*.ko.cmd conftest/*/.*.o.cmd conftest/*/.*.ko.cmd \
-		conftest/*/*.order conftest/*/.*.o.d conftest/*/.tmp_versions/ \
-		conftest/*/result*.txt
 
 extraclean: clean
 	rm -f kernel/*.orig kernel/*.rej \

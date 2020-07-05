@@ -81,9 +81,7 @@ uninstall:
 endif
 
 clean:
-	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers \
-		Module.symvers Module.markers modules.order
-	rm -rf .tmp_versions
+	$(MAKE) -C $(KDIR) M=$(shell pwd) $@
 
 extraclean: clean
 	rm -f *.orig *.rej

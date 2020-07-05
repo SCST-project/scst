@@ -179,10 +179,9 @@ INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 INSTALL_DIR_H := $(DESTDIR)$(PREFIX)/include/scst
 
 clean:
-	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend Modules.symvers \
-		Module.symvers Module.markers modules.order
-	rm -rf .tmp_versions
-	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
+	rm -f $(SCST_INTF_VER_FILE)
+	$(MAKE) -C $(KDIR) M=$(shell pwd) $@
+	$(MAKE) -C $(DEV_HANDLERS_DIR) $@
 
 extraclean: clean
 	rm -f $(SCST_INTF_VER_FILE)

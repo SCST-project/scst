@@ -116,9 +116,10 @@ endif
 endif
 
 clean:
-	rm -f *.o *.ko .*.cmd *.mod.c .*.d .depend *~ \
-		Module.symvers Module.markers modules.order
-	rm -rf .tmp_versions
+ifneq ($(BUILD_2X_MODULE),)
+	$(MAKE) -C $(QLA2XXX_DIR) $@
+endif
+	$(MAKE) -C $(KDIR) M=$(shell pwd) $@
 
 extraclean: clean
 	rm -f *.orig *.rej
