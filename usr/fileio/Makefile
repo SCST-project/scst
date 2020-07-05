@@ -38,7 +38,7 @@ CFLAGS += -O2 -Wall -Wextra -Wno-unused-parameter -Wstrict-prototypes \
 PROGS = fileio_tgt
 LIBS = -lpthread
 
-CFLAGS += -W -Wno-unused-parameter
+CFLAGS += -Wextra -Wno-unused-parameter
 CFLAGS += $(LOCAL_CFLAGS)
 #CFLAGS += -DDEBUG_NOMEM
 #CFLAGS += -DDEBUG_SENSE
