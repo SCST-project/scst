@@ -805,10 +805,10 @@ enum umh_wait {
 
 /* <linux/kobject_ns.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)
 /*
- * See also commit 8488a38f4d2f ("kobject: Break the kobject namespace defs
- * into their own header") # v2.6.36.
+ * See also commit 608b4b9548de ("netns: Teach network device kobjects which
+ * namespace they are in.") # v2.6.35.
  */
 enum kobj_ns_type {
 	KOBJ_NS_TYPE_NET = 1,
