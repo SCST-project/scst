@@ -6,16 +6,6 @@ SHELL=/bin/bash
 
 KMOD 		:= $(shell pwd)/kernel
 
-ifneq ($(PATCHLEVEL),)
-KBUILD_EXTRA_SYMBOLS=$(src)/../scst/src/Module.symvers
-ccflags-y	+= -I$(src)/../scst/include
-ccflags-y	+= $(call cc-option,-Wextra) -Wno-unused-parameter\
-	-Wno-missing-field-initializers
-
-obj-m	:= scst_local.o
-else
-######### BEGIN OUT-OF-TREE RULES #########
-
 ifndef PREFIX
         PREFIX=/usr/local
 endif
@@ -53,9 +43,6 @@ install: all
 uninstall:
 	rm -f $(INSTALL_DIR)/scst_local.ko
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
-
-########## END OUT-OF-TREE RULES ##########
-endif
 
 clean:
 	$(MAKE) -C $(KDIR) M=$(shell pwd) $@

@@ -35,51 +35,6 @@ SHELL=/bin/bash
 
 DEV_HANDLERS_DIR = dev_handlers
 
-ifneq ($(PATCHLEVEL),)
-# See also Documentation/core-api/symbol-namespaces.rst for more information
-# about DEFAULT_SYMBOL_NAMESPACE.
-ccflags-y += -I$(src)/../include $(call cc-option,-Wextra) \
-	-Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare\
-	-DDEFAULT_SYMBOL_NAMESPACE=SCST\
-	$(shell [ -n "${CONFIG_SCST_NO_DLM}" ] && echo -DCONFIG_SCST_NO_DLM)
-
-#ccflags-y += -DCONFIG_SCST_STRICT_SERIALIZING
-#ccflags-y += -DCONFIG_SCST_USE_EXPECTED_VALUES
-#ccflags-y += -DCONFIG_SCST_TEST_IO_IN_SIRQ
-#ccflags-y += -DCONFIG_SCST_ABORT_CONSIDER_FINISHED_TASKS_AS_NOT_EXISTING
-#ccflags-y += -DCONFIG_SCST_DEBUG_RETRY
-#ccflags-y += -DCONFIG_SCST_DEBUG_OOM
-#ccflags-y += -DCONFIG_SCST_DEBUG_SN
-#ccflags-y += -DCONFIG_SCST_DEBUG_SYSFS_EAGAIN
-
-# If defined, makes SCST zero allocated data buffers.
-# Undefining it considerably improves performance and eases CPU load,
-# but could create a security hole (information leakage), so
-# enable it if you have strict security requirements.
-#ccflags-y += -DSCST_STRICT_SECURITY
-
-obj-m := scst.o
-
-scst-y        += scst_copy_mgr.o
-scst-y        += scst_debug.o
-scst-y        += scst_dlm.o
-scst-y        += scst_event.o
-scst-y        += scst_lib.o
-scst-y        += scst_local_cmd.o
-scst-y        += scst_main.o
-scst-y        += scst_mem.o
-scst-y        += scst_no_dlm.o
-scst-y        += scst_pres.o
-scst-y        += scst_sysfs.o
-scst-y        += scst_targ.o
-scst-y        += scst_tg.o
-obj-$(CONFIG_SCST)   += scst.o dev_handlers/
-
-obj-$(BUILD_DEV) += $(DEV_HANDLERS_DIR)/
-
-else
-######### BEGIN OUT-OF-TREE RULES #########
-
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
     KVER := $(shell uname -r)
@@ -115,10 +70,11 @@ $(SCST_INTF_VER_FILE): $(SCST_INC_DIR)/scst.h $(SCST_INC_DIR)/scst_const.h $(SCS
 
 all: $(SCST_INTF_VER_FILE)
 	$(MAKE) -C certs KDIR=$(KDIR)
-	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_DEV=m
+	$(MAKE) -C $(KDIR) M=$(shell pwd)
+	$(MAKE) -C $(KDIR) M=$(shell pwd)/dev_handlers
 
 scst:
-	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_DEV=n
+	$(MAKE) -C $(KDIR) M=$(shell pwd)
 
 install: all
 	@if [ -z "$(DESTDIR)" ] && \
@@ -171,9 +127,6 @@ uninstall:
 	-rmdir $(INSTALL_DIR) 2>/dev/null
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 	rm -rf $(INSTALL_DIR_H)
-
-########## END OUT-OF-TREE RULES ##########
-endif
 
 INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 INSTALL_DIR_H := $(DESTDIR)$(PREFIX)/include/scst

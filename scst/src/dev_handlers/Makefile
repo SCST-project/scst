@@ -29,19 +29,6 @@
 
 SHELL=/bin/bash
 
-ifneq ($(PATCHLEVEL),)
-KBUILD_EXTRA_SYMBOLS=$(src)/../../Module.symvers
-ccflags-y += -I$(src)/../../include					\
-	$(call cc-option,-Wextra)					\
-	-Wno-unused-parameter -Wno-missing-field-initializers -Wno-sign-compare
-#ccflags-y += -DCONFIG_DEBUG_EXT_COPY_REMAP
-
-obj-m := scst_cdrom.o scst_changer.o scst_disk.o scst_modisk.o scst_tape.o \
-	scst_vdisk.o scst_raid.o scst_processor.o scst_user.o
-
-else
-######### BEGIN OUT-OF-TREE RULES #########
-
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
     KVER := $(shell uname -r)
@@ -76,9 +63,6 @@ install: all
 
 uninstall:
 	rm -f $(INSTALL_DIR)/dev_handlers/scst_*.ko
-
-########## END OUT-OF-TREE RULES ##########
-endif
 
 clean:
 	$(MAKE) -C $(KDIR) M=$(shell pwd) $@

@@ -44,23 +44,6 @@ endif
 
 INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
-ifneq ($(PATCHLEVEL),)
-ccflags-y += $(call cc-option,-Wextra) -Wno-unused-parameter	\
-	-Wno-missing-field-initializers				\
-	-I$(src)/../scst/include -I$(src)/include		\
-	-DDEFAULT_SYMBOL_NAMESPACE=QLA32GB
-
-ifneq ($(CONFIG_SCSI_QLA2XXX_TARGET),)
-ccflags-y += -DCONFIG_SCSI_QLA2XXX_TARGET=$(CONFIG_SCSI_QLA2XXX_TARGET)
-endif
-
-obj-m := qla2xxx_scst.o
-qla2xxx_scst-objs := \
-		qla_os.o qla_init.o qla_mbx.o qla_iocb.o qla_isr.o qla_gs.o \
-		qla_dbg.o qla_sup.o qla_attr.o qla_mid.o qla_dfs.o qla_bsg.o \
-		qla_nx.o qla_mr.o qla_nx2.o qla_target.o qla_tmpl.o qla_nvme.o
-else
-
 all:
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
 		$(CONFIG_SCSI_QLA2XXX_TARGET)=CONFIG_SCSI_QLA2XXX_TARGET
@@ -76,7 +59,6 @@ uninstall:
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
 
 ########## END OUT-OF-TREE RULES ##########
-endif
 
 clean:
 	$(MAKE) -C $(KDIR) M=$(shell pwd) $@

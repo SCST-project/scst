@@ -1,0 +1,13 @@
+KBUILD_EXTRA_SYMBOLS = $(src)/../../scst/src/Module.symvers \
+			$(src)/../Module.symvers
+ccflags-y += -I$(src)/../../scst/include -I$(src)/..
+ccflags-y += -Wextra -Wno-unused-parameter -Wno-missing-field-initializers
+#ccflags-y += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
+#ccflags-y += -DCONFIG_QLA_TGT_DEBUG_SRR
+
+ifneq ($(BUILD_2X_MODULE),)
+ccflags-y += -DCONFIG_SCSI_QLA2XXX_TARGET=y
+endif
+
+obj-m := qla2x00tgt.o
+qla2x00tgt-objs := qla2x00t.o

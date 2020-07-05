@@ -1,0 +1,6 @@
+KBUILD_EXTRA_SYMBOLS=$(src)/../scst/src/Module.symvers
+ccflags-y	+= -I$(src)/../scst/include
+ccflags-y	+= $(call cc-option,-Wextra) -Wno-unused-parameter\
+	-Wno-missing-field-initializers
+
+obj-m	:= scst_local.o

@@ -32,11 +32,6 @@ export CONFIG_FCST   := m
 
 MODULE_NAME = fcst
 
-ifneq ($(KERNELRELEASE),)
-include $(src)/Makefile_in-tree
-else
-######### BEGIN OUT-OF-TREE RULES #########
-
 ifndef PREFIX
         PREFIX=/usr/local
 endif
@@ -78,9 +73,6 @@ ins:
 uninstall:
 	rm -f $(INSTALL_DIR)/$(MODULE_NAME).ko
 	-/sbin/depmod -b $(INSTALL_MOD_PATH)/ -a $(KVER)
-
-########## END OUT-OF-TREE RULES ##########
-endif
 
 clean:
 	$(MAKE) -C $(KDIR) M=$(shell pwd) $@

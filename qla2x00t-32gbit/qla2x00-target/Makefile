@@ -51,33 +51,10 @@ ifeq ($(INSTALL_MOD_PATH),)
   export INSTALL_MOD_PATH := $(DESTDIR)
 endif
 
-ifeq ($(BUILD_2X_MODULE),)
-QLA2XXX_INC_DIR := $(KDIR)/drivers/scsi/qla2xxx
-else
-QLA2XXX_INC_DIR := $(src)/..
+ifneq ($(BUILD_2X_MODULE),)
 QLA2XXX_DIR := $(shell pwd)/..
 QLA2XXX_SCST := qla2xxx_scst
 endif
-
-ifneq ($(PATCHLEVEL),)
-
-KBUILD_EXTRA_SYMBOLS = $(src)/../../scst/src/Module.symvers \
-			$(src)/../Module.symvers
-ccflags-y += -I$(src)/../../scst/include
-ccflags-y += -W -Wno-unused-parameter -Wno-missing-field-initializers
-#ccflags-y += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
-#ccflags-y += -DCONFIG_QLA_TGT_DEBUG_SRR
-
-ifneq ($(BUILD_2X_MODULE),)
-ccflags-y += -DCONFIG_SCSI_QLA2XXX_TARGET=y
-endif
-
-ccflags-y += -I$(QLA2XXX_INC_DIR)
-
-obj-m := qla2x00tgt.o
-qla2x00tgt-objs := qla_tgt.o scst_qla2xxx.o
-else
-######### BEGIN OUT-OF-TREE RULES #########
 
 ifndef PREFIX
         PREFIX=/usr/local
@@ -110,9 +87,6 @@ ifneq ($(BUILD_2X_MODULE),)
 qla2xxx_scst:
 	$(MAKE) BUILD_2X_MODULE=$(BUILD_2X_MODULE) CONFIG_SCSI_QLA2XXX_TARGET=y \
 		M=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) all
-endif
-
-########## END OUT-OF-TREE RULES ##########
 endif
 
 clean:
