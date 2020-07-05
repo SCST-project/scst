@@ -192,7 +192,7 @@ static inline void *bsg_job_sense(struct bsg_job *job)
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0) && \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
-	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 8)
+	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 5)
 static inline void cpu_to_be32_array(__be32 *dst, const u32 *src, size_t len)
 {
 	int i;
@@ -1143,25 +1143,33 @@ static inline int pcie_capability_read_dword(struct pci_dev *dev, int pos,
 #define PERCPU_COUNT_BIAS (1U << 31)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
 typedef unsigned percpu_count_t;
+#define READ_REF_COUNT(ref) atomic_read(&(ref)->count)
 #else
 typedef unsigned long percpu_count_t;
+#define READ_REF_COUNT(ref) atomic_long_read(&(ref)->count)
 #endif
 
-#if !(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7) &&		\
+/*
+ * For kernel versions that have <linux/percpu-refcount.h>, backport the
+ * functionality that is missing from that header file.
+ */
+#if (defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7) ||	\
 	LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
-	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 7)
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8)
+
 /*
  * See also commit 18c9a6bbe064 ("percpu-refcount: Introduce
  * percpu_ref_resurrect()") # v4.20.
  */
 static inline void percpu_ref_resurrect(struct percpu_ref *ref)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0) ||	\
+	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7)
 	percpu_ref_reinit(ref);
 #else
 	unsigned __percpu *pcpu_count = (unsigned __percpu *)
@@ -1187,6 +1195,7 @@ static inline void percpu_ref_resurrect(struct percpu_ref *ref)
 #endif
 }
 
+#if !(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
 /*
  * See also commit 4c907baf36d8 ("percpu_ref: implement percpu_ref_is_dying()")
@@ -1206,10 +1215,12 @@ static inline bool percpu_ref_is_dying(struct percpu_ref *ref)
 	return ref->percpu_count_ptr & __PERCPU_REF_DEAD;
 }
 #endif
+#endif /* !(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7) */
 
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0) */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0) &&	\
+	!(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7)
 /*
  * See also commit 2aad2a86f668 ("percpu_ref: add PERCPU_REF_INIT_* flags")
  * # v3.18.
@@ -1245,7 +1256,8 @@ static inline bool __ref_is_percpu(struct percpu_ref *ref,
 }
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0) */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0) &&	\
+	!(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7)
 /*
  * See also commit 2d7227828e14 ("percpu-refcount: implement percpu_ref_reinit()
  * and percpu_ref_is_zero()") # v3.17.
@@ -1263,7 +1275,8 @@ static inline void percpu_ref_exit(struct percpu_ref *ref)
 }
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0) */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0) &&	\
+	!(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7)
 static inline bool percpu_ref_tryget_live(struct percpu_ref *ref)
 {
 	percpu_count_t __percpu *percpu_count;
@@ -1284,7 +1297,9 @@ static inline bool percpu_ref_tryget_live(struct percpu_ref *ref)
 }
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0) */
 
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
+	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 5)
 
 struct percpu_ref;
 typedef void (percpu_ref_func_t)(struct percpu_ref *);
@@ -1373,11 +1388,7 @@ static inline unsigned long percpu_ref_read(struct percpu_ref *ref)
 	/* Do not try to read the counter if it is in per-cpu mode. */
 	if (__ref_is_percpu(ref, &percpu_count))
 		return 0;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
-	return atomic_read(&ref->count) - !percpu_ref_is_dying(ref);
-#else
-	return atomic_long_read(&ref->count) - !percpu_ref_is_dying(ref);
-#endif
+	return READ_REF_COUNT(ref) - !percpu_ref_is_dying(ref);
 }
 
 /* <linux/preempt.h> */
