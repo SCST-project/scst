@@ -3299,7 +3299,7 @@ next:
 			uint8_t *address;
 			bool err = false;
 
-			length = scst_get_buf_full(cmd, &address);
+			length = scst_get_buf_full(cmd, &address, true);
 			if (length < 0) {
 				PRINT_ERROR("%s", "Unable to get "
 					"MODE_SENSE buffer");
