@@ -2352,7 +2352,7 @@ static void scst_cm_init_inq_finish(struct scst_cmd *cmd)
 		goto out;
 	}
 
-	length = scst_get_buf_full(cmd, &buf);
+	length = scst_get_buf_full(cmd, &buf, false);
 	TRACE_DBG("length %d", length);
 	if (unlikely(length <= 0)) {
 		if (length < 0)

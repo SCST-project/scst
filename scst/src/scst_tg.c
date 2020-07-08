@@ -1695,7 +1695,7 @@ int scst_tg_set_group_info(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	len = scst_get_buf_full(cmd, &buf);
+	len = scst_get_buf_full(cmd, &buf, false);
 	if (len < 0) {
 		PRINT_ERROR("scst_get_buf_full() failed: %d", len);
 		res = len;
