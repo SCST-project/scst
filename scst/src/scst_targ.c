@@ -4525,6 +4525,7 @@ static int scst_pre_xmit_response1(struct scst_cmd *cmd)
 		 * latency, so we should decrement them after cmd completed.
 		 */
 		smp_mb__before_atomic_dec();
+		WARN_ON_ONCE(!cmd->owns_refcnt);
 		cmd->owns_refcnt = false;
 		atomic_dec(&cmd->tgt_dev->tgt_dev_cmd_count);
 		percpu_ref_put(&cmd->dev->refcnt);
@@ -5029,7 +5030,6 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 		tgt_dev = scst_lookup_tgt_dev(cmd->sess, cmd->lun);
 		if (tgt_dev)
 			atomic_inc(&tgt_dev->tgt_dev_cmd_count);
-		rcu_read_unlock();
 
 		if (tgt_dev) {
 			struct scst_device *dev = tgt_dev->dev;
@@ -5042,6 +5042,8 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 				cmd->cur_order_data = tgt_dev->curr_order_data;
 				cmd->dev = dev;
 				cmd->devt = dev->handler;
+				cmd->owns_refcnt = true;
+				percpu_ref_get(&dev->refcnt);
 
 				res = 0;
 			} else {
@@ -5052,6 +5054,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 				atomic_dec(&tgt_dev->tgt_dev_cmd_count);
 			}
 		}
+		rcu_read_unlock();
 		if (unlikely(res != 0)) {
 			if (!nul_dev) {
 				TRACE(TRACE_MINOR,
@@ -5191,8 +5194,6 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 			failure = true;
 		}
 
-		cmd->owns_refcnt = true;
-		percpu_ref_get(&dev->refcnt);
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 		atomic_inc(&dev->dev_cmd_count);
 		cnt = atomic_read(&dev->dev_cmd_count);
