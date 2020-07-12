@@ -1321,8 +1321,6 @@ next:
 	if (res)
 		goto out;
 
-	percpu_ref_get(&dev->refcnt);
-
 out:
 	TRACE_EXIT();
 	return res;
@@ -1347,7 +1345,6 @@ static void vdisk_detach(struct scst_device *dev)
 	/* virt_dev will be freed by the caller */
 	dev->dh_priv = NULL;
 	virt_dev->dev = NULL;
-	percpu_ref_put(&dev->refcnt);
 
 	TRACE_EXIT();
 	return;

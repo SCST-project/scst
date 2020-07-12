@@ -2819,8 +2819,6 @@ struct scst_device {
 	/* Triggered when refcnt drops to zero. */
 	struct completion *remove_completion;
 
-	struct work_struct free_work;
-
 	/*
 	 * Maximum count of uncompleted commands that an initiator could
 	 * queue on this device. Then it will start getting TASK QUEUE FULL

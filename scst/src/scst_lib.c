@@ -4213,11 +4213,8 @@ static int scst_dif_none_type1(struct scst_cmd *cmd);
 #endif
 
 /* Called from thread context and hence may sleep. */
-static void scst_free_device(struct work_struct *work)
+void scst_free_device(struct scst_device *dev)
 {
-	struct scst_device *dev = container_of(work, typeof(*dev),
-					       free_work);
-
 	EXTRACHECKS_BUG_ON(dev->dev_scsi_atomic_cmd_active != 0);
 	EXTRACHECKS_BUG_ON(!list_empty(&dev->dev_exec_cmd_list));
 
@@ -4252,7 +4249,6 @@ static void scst_release_device(struct percpu_ref *ref)
 
 	if (c)
 		complete(c);
-	schedule_work(&dev->free_work);
 }
 
 int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev)
@@ -4273,7 +4269,6 @@ int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev)
 	memset(dev, 0, sizeof(*dev));
 
 	dev->handler = &scst_null_devtype;
-	INIT_WORK(&dev->free_work, scst_free_device);
 	res = percpu_ref_init(&dev->refcnt, scst_release_device, 0, GFP_KERNEL);
 	if (res < 0)
 		goto free_dev;
