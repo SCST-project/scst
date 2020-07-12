@@ -4181,14 +4181,16 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 		rcu_read_unlock();
 
 		if (tgt_dev) {
+			struct scst_device *dev = tgt_dev->dev;
+
 			TRACE_DBG("tgt_dev %p found", tgt_dev);
 
-			if (likely(tgt_dev->dev->handler != &scst_null_devtype)) {
+			if (likely(dev->handler != &scst_null_devtype)) {
 				cmd->cmd_threads = tgt_dev->active_cmd_threads;
 				cmd->tgt_dev = tgt_dev;
 				cmd->cur_order_data = tgt_dev->curr_order_data;
-				cmd->dev = tgt_dev->dev;
-				cmd->devt = tgt_dev->dev->handler;
+				cmd->dev = dev;
+				cmd->devt = dev->handler;
 
 				res = 0;
 			} else {
