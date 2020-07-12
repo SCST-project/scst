@@ -192,10 +192,9 @@ unload_scst() {
     # seconds.
     unload_kmod isert_scst 90 || echo "Unloading isert_scst failed"
 
-    for m in scst_disk scst_raid scst_tape scst_user scst_changer \
-	     scst_cdrom scst_vdisk scst_modisk scst_processor \
-	     isert_scst iscsi_scst fcst ib_srpt qla2xxx_scst qla2x00tgt \
-	     scst_local scst; do
+    for m in isert_scst iscsi_scst fcst ib_srpt qla2xxx_scst qla2x00tgt \
+	     scst_local scst_disk scst_raid scst_tape scst_user scst_changer \
+	     scst_cdrom scst_vdisk scst_modisk scst_processor scst; do
 	unload_kmod "$m" 30
     done
     reverse_list=""
