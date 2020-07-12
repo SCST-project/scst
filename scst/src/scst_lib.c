@@ -4213,11 +4213,8 @@ static int scst_dif_none_type1(struct scst_cmd *cmd);
 #endif
 
 /* Called from thread context and hence may sleep. */
-static void scst_free_device(struct work_struct *work)
+void scst_free_device(struct scst_device *dev)
 {
-	struct scst_device *dev = container_of(work, typeof(*dev),
-					       free_work);
-
 	EXTRACHECKS_BUG_ON(dev->dev_scsi_atomic_cmd_active != 0);
 	EXTRACHECKS_BUG_ON(!list_empty(&dev->dev_exec_cmd_list));
 
@@ -4252,7 +4249,6 @@ static void scst_release_device(struct percpu_ref *ref)
 
 	if (c)
 		complete(c);
-	schedule_work(&dev->free_work);
 }
 
 int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev)
@@ -4273,7 +4269,6 @@ int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev)
 	memset(dev, 0, sizeof(*dev));
 
 	dev->handler = &scst_null_devtype;
-	INIT_WORK(&dev->free_work, scst_free_device);
 	res = percpu_ref_init(&dev->refcnt, scst_release_device, 0, GFP_KERNEL);
 	if (res < 0)
 		goto free_dev;
@@ -5953,7 +5948,7 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 
 	sBUG_ON(orig_cmd == NULL);
 
-	len = scst_get_buf_full(req_cmd, &buf);
+	len = scst_get_buf_full(req_cmd, &buf, false);
 
 	if (scsi_status_is_good(req_cmd->status) && (len > 0) &&
 	    scst_sense_valid(buf)) {
@@ -9113,12 +9108,13 @@ EXPORT_SYMBOL_GPL(scst_copy_sg);
  * scst_get_buf_full - return linear buffer for command
  * @cmd:	scst command
  * @buf:	pointer on the resulting pointer
+ * @always_copy: copy the data buffer even for commands that read data
  *
  * If the command's buffer >single page, it vmalloc() the needed area
  * and copies the buffer there. Returns length of the buffer or negative
  * error code otherwise.
  */
-int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf)
+int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf, bool always_copy)
 {
 	int res = 0;
 
@@ -9153,7 +9149,8 @@ int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf)
 		}
 		cmd->sg_buff_vmallocated = 1;
 
-		if (scst_cmd_get_data_direction(cmd) == SCST_DATA_WRITE) {
+		if (scst_cmd_get_data_direction(cmd) == SCST_DATA_WRITE ||
+		    always_copy) {
 			uint8_t *buf_ptr;
 
 			buf_ptr = *buf;
@@ -9191,7 +9188,7 @@ int scst_get_buf_full_sense(struct scst_cmd *cmd, uint8_t **buf)
 
 	TRACE_ENTRY();
 
-	res = scst_get_buf_full(cmd, buf);
+	res = scst_get_buf_full(cmd, buf, false);
 	if (unlikely(res < 0)) {
 		PRINT_ERROR("scst_get_buf_full() failed: %d", res);
 		if (res == -ENOMEM)
@@ -12573,7 +12570,7 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 			int buffer_size, sector_size, sh;
 			uint8_t *buffer;
 
-			buffer_size = scst_get_buf_full(cmd, &buffer);
+			buffer_size = scst_get_buf_full(cmd, &buffer, false);
 			sect_sz_off = opcode == READ_CAPACITY ? 4 : 8;
 			if (buffer_size < sect_sz_off + 4) {
 				scst_put_buf_full(cmd, buffer);
@@ -12619,7 +12616,7 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	switch (opcode) {
 	case MODE_SENSE:
 	case MODE_SELECT:
-		buffer_size = scst_get_buf_full(cmd, &buffer);
+		buffer_size = scst_get_buf_full(cmd, &buffer, false);
 		if (unlikely(buffer_size <= 0)) {
 			if (buffer_size < 0) {
 				PRINT_ERROR("%s: Unable to get the buffer (%d)",

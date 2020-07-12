@@ -2819,8 +2819,6 @@ struct scst_device {
 	/* Triggered when refcnt drops to zero. */
 	struct completion *remove_completion;
 
-	struct work_struct free_work;
-
 	/*
 	 * Maximum count of uncompleted commands that an initiator could
 	 * queue on this device. Then it will start getting TASK QUEUE FULL
@@ -5106,7 +5104,7 @@ static inline int scst_get_out_buf_count(struct scst_cmd *cmd)
 	return (cmd->out_sg_cnt == 0) ? 1 : cmd->out_sg_cnt;
 }
 
-int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf);
+int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf, bool always_copy);
 int scst_get_buf_full_sense(struct scst_cmd *cmd, uint8_t **buf);
 void scst_put_buf_full(struct scst_cmd *cmd, uint8_t *buf);
 

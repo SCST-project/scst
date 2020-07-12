@@ -1130,6 +1130,8 @@ out_del_unlocked:
 out_free_dev:
 	percpu_ref_kill(&dev->refcnt);
 
+	scst_free_device(dev);
+
 out_unlock:
 	mutex_unlock(&scst_mutex);
 	goto out;
@@ -1173,8 +1175,6 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 
 	scst_dg_dev_remove_by_dev(dev);
 
-	scst_assign_dev_handler(dev, &scst_null_devtype);
-
 	list_for_each_entry_safe(acg_dev, aa, &dev->dev_acg_dev_list,
 				 dev_acg_dev_list_entry) {
 		scst_acg_del_lun(acg_dev->acg, acg_dev->lun, true);
@@ -1184,8 +1184,6 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 
 	mutex_unlock(&scst_mutex);
 
-	scst_dev_sysfs_del(dev);
-
 	PRINT_INFO("Detached from scsi%d, channel %d, id %d, lun %lld, type %d",
 		   scsidp->host->host_no, scsidp->channel, scsidp->id,
 		   (u64)scsidp->lun, scsidp->type);
@@ -1194,6 +1192,14 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	percpu_ref_put(&dev->refcnt);
 
 	wait_for_completion(&c);
+
+	mutex_lock(&scst_mutex);
+	scst_assign_dev_handler(dev, &scst_null_devtype);
+	mutex_unlock(&scst_mutex);
+
+	scst_dev_sysfs_del(dev);
+
+	scst_free_device(dev);
 
 out:
 	TRACE_EXIT();
@@ -1399,6 +1405,7 @@ out_free_dev:
 	if (sysfs_del)
 		scst_dev_sysfs_del(dev);
 	percpu_ref_kill(&dev->refcnt);
+	scst_free_device(dev);
 	goto out;
 
 out_unlock:
@@ -1444,8 +1451,6 @@ void scst_unregister_virtual_device(int id,
 
 	scst_dg_dev_remove_by_dev(dev);
 
-	scst_assign_dev_handler(dev, &scst_null_devtype);
-
 	list_for_each_entry_safe(acg_dev, aa, &dev->dev_acg_dev_list,
 				 dev_acg_dev_list_entry) {
 		scst_acg_del_lun(acg_dev->acg, acg_dev->lun, true);
@@ -1454,8 +1459,6 @@ void scst_unregister_virtual_device(int id,
 	dev->remove_completion = &c;
 
 	mutex_unlock(&scst_mutex);
-
-	scst_dev_sysfs_del(dev);
 
 	PRINT_INFO("Detached from virtual device %s (id %d)",
 		dev->virt_name, dev->virt_id);
@@ -1467,6 +1470,14 @@ void scst_unregister_virtual_device(int id,
 	percpu_ref_put(&dev->refcnt);
 
 	wait_for_completion(&c);
+
+	mutex_lock(&scst_mutex);
+	scst_assign_dev_handler(dev, &scst_null_devtype);
+	mutex_unlock(&scst_mutex);
+
+	scst_dev_sysfs_del(dev);
+
+	scst_free_device(dev);
 
 out:
 	TRACE_EXIT();
@@ -1922,7 +1933,13 @@ out_err:
 	goto out;
 }
 
-/* The activity supposed to be suspended and scst_mutex held */
+/*
+ * The caller must hold scst_mutex. No commands must be in progress for @dev.
+ * There are two ways to achieve this: either make sure no device handler is
+ * assigned before this function is called or remove all associated LUNs and
+ * wait until the commands associated with these LUNs have finished before this
+ * function is called.
+ */
 int scst_assign_dev_handler(struct scst_device *dev,
 	struct scst_dev_type *handler)
 {
@@ -1931,6 +1948,8 @@ int scst_assign_dev_handler(struct scst_device *dev,
 	LIST_HEAD(attached_tgt_devs);
 
 	TRACE_ENTRY();
+
+	lockdep_assert_held(&scst_mutex);
 
 	sBUG_ON(handler == NULL);
 
