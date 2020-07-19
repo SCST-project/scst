@@ -3061,7 +3061,7 @@ static void srpt_check_timeout(struct srpt_rdma_ch *ch)
 	struct ib_qp_attr attr;
 	struct ib_qp_init_attr iattr;
 	uint64_t T_tr_ns, max_compl_time_ms;
-	uint32_t T_tr_ms;
+	uint64_t T_tr_ms;
 
 	if (ib_query_qp(ch->qp, &attr, IB_QP_TIMEOUT, &iattr) < 0) {
 		pr_err("Querying QP attributes failed\n");
@@ -3080,7 +3080,7 @@ static void srpt_check_timeout(struct srpt_rdma_ch *ch)
 		do_div(max_compl_time_ms, 1000000);
 		T_tr_ms = T_tr_ns;
 		do_div(T_tr_ms, 1000000);
-		pr_debug("%s-%d: QP local ack timeout = %d or T_tr = %u ms; retry_cnt = %d; max compl. time = %d ms\n",
+		pr_debug("%s-%d: QP local ack timeout = %d or T_tr = %llu ms; retry_cnt = %d; max compl. time = %d ms\n",
 			  ch->sess_name, ch->qp->qp_num, attr.timeout, T_tr_ms,
 			  attr.retry_cnt, (unsigned int)max_compl_time_ms);
 
