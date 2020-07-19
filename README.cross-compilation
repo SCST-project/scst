@@ -1,0 +1,24 @@
+Cross-compilation is the process of compiling code for one architecture (often
+called the target) on a different system, usually called the host.
+Cross-compilation of SCST is possible as follows:
+1. Download the Linux kernel source code and also the SCST source code.
+2. Install the appropriate cross-compiler, e.g. as follows:
+
+     zypper install cross-arm-gcc9
+
+3. Store the cross-compilation prefix and architecture names in the
+   CROSS_COMPILE and ARCH environment variables, e.g. as follows:
+
+     export CROSS_COMPILE=/usr/bin/arm-suse-linux-gnueabi-
+     export ARCH=arm
+
+4. Build the Linux kernel.
+
+     cd $HOME/software/linux-kernel
+     make
+
+5. Cross-compile SCST using any of the supported build methods. An example:
+
+     export KDIR=$HOME/software/linux-kernel
+     cd scst.git
+     make rpm

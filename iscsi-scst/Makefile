@@ -34,7 +34,9 @@ ifeq ($(KVER),)
     endif
   endif
 else
-  KDIR := /lib/modules/$(KVER)/build
+  ifeq ($(KDIR),)
+    KDIR := /lib/modules/$(KVER)/build
+  endif
 endif
 
 ifeq ($(INSTALL_MOD_PATH),)
