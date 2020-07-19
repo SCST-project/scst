@@ -5,6 +5,4 @@ KBUILD_EXTRA_SYMBOLS=$(src)/../../scst/src/Module.symvers \
 			[ -e $$d ] || continue; echo $$d; break; done)
 ccflags-y    += -I$(src)/../../scst/include
 
-#ccflags-y += -Wextra -Wno-unused-parameter
-
 obj-m		+= ib_srpt.o

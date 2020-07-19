@@ -9,7 +9,7 @@
 	make -sC "%{kdir}" kernelversion | grep -v ^make)}}
     %{!?kdir:
 	%define kversion %{expand:%%(uname -r)}}}
-%{echo:kversion=%{kversion}
+%{echo:kdir=%{kdir} kversion=%{kversion}
 }
 # kernel_rpm: Name of the kernel RPM if the kernel is available as an RPM.
 # krpmver: Version of the kernel RPM. Not necessarily identical to kversion.
@@ -115,8 +115,9 @@ Authors:
 %setup -q -n %{kmod_name}-%{version}
 
 %build
-export KVER=%{kversion} PREFIX=%{_prefix}
-%{?kdir:%{expand:%%(export KDIR=%{kdir})}}
+%{?kdir:export KDIR=%{kdir}}
+%{!?kdir:%{?kversion:export KVER=%{kversion}}}
+export PREFIX=%{_prefix}
 export BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y
 make 2release
 for d in scst fcst iscsi-scst qla2x00t/qla2x00-target scst_local srpt; do
@@ -124,8 +125,9 @@ for d in scst fcst iscsi-scst qla2x00t/qla2x00-target scst_local srpt; do
 done
 
 %install
-export KVER=%{kversion} PREFIX=%{_prefix} MANDIR=%{_mandir} DEPMOD=true
-%{?kdir:%{expand:%%(export KDIR=%{kdir})}}
+%{?kdir:export KDIR=%{kdir}}
+%{!?kdir:%{?kversion:export KVER=%{kversion}}}
+export PREFIX=%{_prefix} MANDIR=%{_mandir} DEPMOD=true
 export BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y
 for d in scst; do
     DESTDIR=%{buildroot} %{make} -C $d install

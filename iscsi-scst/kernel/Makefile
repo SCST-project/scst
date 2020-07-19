@@ -23,9 +23,6 @@
 KBUILD_EXTRA_SYMBOLS = $(src)/../../scst/src/Module.symvers
 
 ccflags-y += -I$(src)/../include -I$(src)/../../scst/include
-ccflags-y += $(call cc-option,-Wextra) \
-	$(call cc-option,-Wno-old-style-declaration) \
-	-Wno-unused-parameter -Wno-missing-field-initializers
 ccflags-y += $(PRE_CFLAGS)
 #ccflags-y += -DCONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES
 

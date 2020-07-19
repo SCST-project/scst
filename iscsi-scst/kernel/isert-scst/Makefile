@@ -21,13 +21,11 @@
 #  Note 2! The CFLAGS definitions are now in the main makefile.
 
 LINUXINCLUDE := $(PRE_CFLAGS) $(LINUXINCLUDE)
-KBUILD_EXTRA_SYMBOLS=$(src)/../../kernel/Module.symvers			       \
+KBUILD_EXTRA_SYMBOLS = $(src)/../../../scst/src/Module.symvers		       \
+		$(src)/../../kernel/Module.symvers			       \
 		$(shell for d in /usr/src/ofa_kernel/default/Module.symvers; do\
 			[ -e $$d ] || continue; echo $$d; break; done)
 ccflags-y += -I$(src)/../../include -I$(src)/../../../scst/include
-ccflags-y += $(call cc-option,-Wextra) \
-	$(call cc-option,-Wno-old-style-declaration) \
-	-Wno-unused-parameter -Wno-missing-field-initializers
 
 obj-m		+= isert-scst.o
 isert-scst-objs	:= isert.o isert_login.o \
