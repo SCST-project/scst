@@ -202,12 +202,6 @@ conftest/gid_change/result-$(KVER).txt:					\
 	conftest/gid_change/Makefile
 	echo "$(call run_conftest,gid_change,-DHAVE_IB_EVENT_GID_CHANGE)" >"$@"
 
-conftest/ib_client_add_one/result-$(KVER).txt:				\
-	conftest/ib_client_add_one/ib_client_add_one.c			\
-	conftest/ib_client_add_one/Makefile
-	echo "$(call run_conftest,ib_client_add_one,			\
-		-DIB_CLIENT_ADD_ONE_RETURNS_INT)" >"$@"
-
 conftest/ib_client_remove/result-$(KVER).txt:				\
 	conftest/ib_client_remove/ib_client_remove.c			\
 	conftest/ib_client_remove/Makefile
@@ -280,12 +274,6 @@ conftest/rdma_query_gid/result-$(KVER).txt:				\
 	conftest/rdma_query_gid/rdma_query_gid.c			\
 	conftest/rdma_query_gid/Makefile
 	echo "$(call run_conftest_bool,rdma_query_gid,HAVE_RDMA_QUERY_GID)" >"$@"
-
-conftest/rdma_reject/result-$(KVER).txt:				\
-	conftest/rdma_reject/rdma_reject.c				\
-	conftest/rdma_reject/Makefile
-	echo "$(call run_conftest,rdma_reject,				\
-		-DRDMA_REJECT_HAS_FOUR_ARGS)" >"$@"
 
 conftest/register_mad_agent/result-$(KVER).txt:				\
 	conftest/register_mad_agent/register_mad_agent.c		\
