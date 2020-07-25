@@ -890,7 +890,7 @@ qla27xx_copy_fpin_pkt(struct scsi_qla_host *vha, void **pkt,
 	struct purex_item *item;
 	void *fpin_pkt = NULL;
 
-	total_bytes = le16_to_cpu(purex->frame_size & 0x0FFF)
+	total_bytes = (le16_to_cpu(purex->frame_size) & 0x0FFF)
 	    - PURX_ELS_HEADER_SIZE;
 	pending_bytes = total_bytes;
 	entry_count = entry_count_remaining = purex->entry_count;
