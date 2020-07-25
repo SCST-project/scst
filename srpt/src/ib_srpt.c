@@ -2946,7 +2946,11 @@ reject:
 				   SRP_BUF_FORMAT_INDIRECT);
 
 	if (rdma_cm_id)
-		rdma_reject(rdma_cm_id, rej, sizeof(*rej));
+		rdma_reject(rdma_cm_id, rej, sizeof(*rej)
+#if RDMA_REJECT_HAS_FOUR_ARGS
+			    , IB_CM_REJ_CONSUMER_DEFINED
+#endif
+			    );
 	else
 		ib_send_cm_rej(ib_cm_id, IB_CM_REJ_CONSUMER_DEFINED, NULL, 0,
 			       rej, sizeof(*rej));
@@ -4369,7 +4373,7 @@ static void srpt_init_sport(struct srpt_port *sport, struct ib_device *ib_dev)
 /*
  * srpt_add_one() - Infiniband device addition callback function.
  */
-static void srpt_add_one(struct ib_device *device)
+static int srpt_add_one(struct ib_device *device)
 {
 	struct ib_cm_id *cm_id;
 	struct srpt_device *sdev;
@@ -4380,8 +4384,10 @@ static void srpt_add_one(struct ib_device *device)
 	pr_debug("device = %p\n", device);
 
 	sdev = kzalloc(sizeof(*sdev), GFP_KERNEL);
-	if (!sdev)
+	if (!sdev) {
+		ret = -ENOMEM;
 		goto err;
+	}
 
 	sdev->device = device;
 
@@ -4397,13 +4403,15 @@ static void srpt_add_one(struct ib_device *device)
 
 	sdev->pd = ib_alloc_pd(device, 0);
 	if (IS_ERR(sdev->pd)) {
-		pr_err("ib_alloc_pd() failed: %ld\n", PTR_ERR(sdev->pd));
+		ret = PTR_ERR(sdev->pd);
+		pr_err("ib_alloc_pd() failed: %d\n", ret);
 		goto free_dev;
 	}
 
 #ifndef IB_PD_HAS_LOCAL_DMA_LKEY
 	sdev->mr = ib_get_dma_mr(sdev->pd, IB_ACCESS_LOCAL_WRITE);
 	if (IS_ERR(sdev->mr)) {
+		ret = PTR_ERR(sdev->mr);
 		pr_err("ib_get_dma_mr() failed: %ld\n", PTR_ERR(sdev->mr));
 		goto err_pd;
 	}
@@ -4441,8 +4449,10 @@ static void srpt_add_one(struct ib_device *device)
 
 		sdev->req_buf_cache = kmem_cache_create("srpt-srq-req-buf",
 						srp_max_req_size, 0, 0, NULL);
-		if (!sdev->req_buf_cache)
+		if (!sdev->req_buf_cache) {
+			ret = -ENOMEM;
 			goto free_srq;
+		}
 
 		sdev->ioctx_ring = (struct srpt_recv_ioctx **)
 			srpt_alloc_ioctx_ring(sdev, sdev->srq_size,
@@ -4450,6 +4460,7 @@ static void srpt_add_one(struct ib_device *device)
 					      sdev->req_buf_cache,
 					      0, DMA_FROM_DEVICE);
 		if (!sdev->ioctx_ring) {
+			ret = -ENOMEM;
 			pr_err("srpt_alloc_ioctx_ring() failed\n");
 			goto free_cache;
 		}
@@ -4478,7 +4489,8 @@ static void srpt_add_one(struct ib_device *device)
 #else
 		INIT_WORK(&sport->work, srpt_refresh_port_work);
 #endif
-		if (srpt_refresh_port(sport)) {
+		ret = srpt_refresh_port(sport);
+		if (ret) {
 			pr_err("MAD registration failed for %s-%d.\n",
 			       dev_name(&sdev->device->dev), i);
 			goto err_ring;
@@ -4491,7 +4503,8 @@ static void srpt_add_one(struct ib_device *device)
 
 	cm_id = ib_create_cm_id(device, srpt_cm_handler, sdev);
 	if (IS_ERR(cm_id)) {
-		pr_err("ib_create_cm_id() failed: %ld\n", PTR_ERR(cm_id));
+		ret = PTR_ERR(cm_id);
+		pr_err("ib_create_cm_id() failed: %d\n", ret);
 		goto err_ring;
 	}
 	sdev->cm_id = cm_id;
@@ -4521,10 +4534,11 @@ static void srpt_add_one(struct ib_device *device)
 			      srpt_event_handler);
 	ib_register_event_handler(&sdev->event_handler);
 	atomic_inc(&srpt_device_count);
+	ret = 0;
 out:
 	ib_set_client_data(device, &srpt_client, sdev);
 
-	return;
+	return ret;
 
 err_cm:
 	ib_destroy_cm_id(sdev->cm_id);
@@ -4551,6 +4565,13 @@ err:
 	pr_info("%s(%s) failed.\n", __func__, device->name);
 	goto out;
 }
+
+#if !IB_CLIENT_ADD_ONE_RETURNS_INT
+static void srpt_add_one_void(struct ib_device *device)
+{
+	srpt_add_one(device);
+}
+#endif
 
 /*
  * srpt_remove_one() - InfiniBand device removal callback function.
@@ -4624,7 +4645,11 @@ static void srpt_remove_one(struct ib_device *device, void *client_data)
 
 static struct ib_client srpt_client = {
 	.name = DRV_NAME,
+#if IB_CLIENT_ADD_ONE_RETURNS_INT
 	.add = srpt_add_one,
+#else
+	.add = srpt_add_one_void,
+#endif
 	.remove = srpt_remove_one
 };
 
