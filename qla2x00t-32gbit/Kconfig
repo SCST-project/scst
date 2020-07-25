@@ -6,7 +6,7 @@ config SCSI_QLA_FC
 	depends on NVME_FC || !NVME_FC
 	select FW_LOADER
 	select BTREE
-	---help---
+	help
 	This qla2xxx driver supports all QLogic Fibre Channel
 	PCI and PCIe host adapters.
 

@@ -2032,6 +2032,16 @@ enum {
 #define wwn_to_u64(wwn) get_unaligned_be64(wwn)
 #endif
 
+/* <uapi/scsi/fc/fc_els.h> */
+
+/*
+ * See also commit 62e9dd177732 ("scsi: qla2xxx: Change in PUREX to handle FPIN
+ * ELS requests").
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
+#define ELS_RDP 0x18
+#endif
+
 /* <target/target_core_base.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
