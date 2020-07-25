@@ -1262,10 +1262,17 @@ static int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff,
 		ucmd->num_data_pages, (int)(ubuff & ~PAGE_MASK),
 		(ucmd->cmd != NULL) ? ucmd->cmd->bufflen : -1);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
 	down_read(&tsk->mm->mmap_sem);
 	rc = get_user_pages(ubuff, ucmd->num_data_pages, FOLL_WRITE,
 			    ucmd->data_pages, NULL);
 	up_read(&tsk->mm->mmap_sem);
+#else
+	mmap_read_lock(tsk->mm);
+	rc = get_user_pages(ubuff, ucmd->num_data_pages, FOLL_WRITE,
+			    ucmd->data_pages, NULL);
+	mmap_read_unlock(tsk->mm);
+#endif
 
 	/* get_user_pages() flushes dcache */
 

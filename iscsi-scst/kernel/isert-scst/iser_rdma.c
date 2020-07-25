@@ -41,6 +41,7 @@
 #ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
 #endif
+#include <rdma/ib_cm.h>
 
 #include "isert_dbg.h"
 #include "iser.h"
@@ -1571,7 +1572,11 @@ fail_conn_create:
 	isert_deref_device(isert_dev);
 	mutex_unlock(&dev_list_mutex);
 fail_dev_create:
-	rdma_reject(cm_id, NULL, 0);
+	rdma_reject(cm_id, NULL, 0
+#if RDMA_REJECT_HAS_FOUR_ARGS
+		    , IB_CM_REJ_CONSUMER_DEFINED
+#endif
+		    );
 	module_put(THIS_MODULE);
 	goto out;
 }

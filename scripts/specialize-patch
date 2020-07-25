@@ -90,6 +90,9 @@ function evaluate(stmnt, pattern, arg, op, result) {
        "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) \\&\\& " \
        "RHEL_RELEASE_CODE -0 < 7 * 256 + 5)", stmnt)
 
+  gsub("IB_CLIENT_ADD_ONE_RETURNS_INT",
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0))", stmnt)
+
   gsub("defined\\(IB_CLIENT_REMOVE_TAKES_TWO_ARGS\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0) || " \
        "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
@@ -155,6 +158,9 @@ function evaluate(stmnt, pattern, arg, op, result) {
   gsub("HAVE_IB_SG_DMA_LEN",
        "(LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0) \\&\\& " \
        "RHEL_RELEASE_CODE -0 < 8 * 256 + 2)", stmnt)
+
+  gsub("RDMA_REJECT_HAS_FOUR_ARGS",
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0))", stmnt)
 
   gsub("defined(ENABLE_NPIV)", 0, stmnt)
 
@@ -411,6 +417,7 @@ function handle_if(evaluated)
       || $0 ~ "HAVE_RDMA_QUERY_GID"					\
       || $0 ~ "HAVE_SRP_DATA_DESC_IMM"					\
       || $0 ~ "HAVE_STRUCT_SRP_LOGIN_REQ_RDMA"				\
+      || $0 ~ "IB_CLIENT_ADD_ONE_RETURNS_INT"                           \
       || $0 ~ "IB_CLIENT_REMOVE_TAKES_TWO_ARGS"				\
       || $0 ~ "IB_CM_LISTEN_TAKES_FOURTH_ARG"				\
       || $0 ~ "IB_CREATE_CQ_HAS_INIT_ATTR"				\
@@ -421,6 +428,7 @@ function handle_if(evaluated)
       || $0 ~ "MOFED_MAJOR"						\
       || $0 ~ "MOFED_MINOR"						\
       || $0 ~ "RDMA_CREATE_ID_TAKES_NET_ARG"				\
+      || $0 ~ "RDMA_REJECT_HAS_FOUR_ARGS"                               \
       || $0 ~ "REGISTER_MAD_AGENT_HAS_FLAGS_ARG"			\
       || $0 ~ "RHEL_MAJOR"						\
       || $0 ~ "RHEL_MINOR"						\

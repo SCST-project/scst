@@ -290,6 +290,12 @@ conftest/rdma_create_id_net/result-$(KVER).txt:				\
 	echo "$(call run_conftest_bool,rdma_create_id_net,		\
 		RDMA_CREATE_ID_TAKES_NET_ARG)" >"$@"
 
+conftest/rdma_reject/result-$(KVER).txt:				\
+	conftest/rdma_reject/rdma_reject.c				\
+	conftest/rdma_reject/Makefile
+	echo "$(call run_conftest_bool,rdma_reject,			\
+		RDMA_REJECT_HAS_FOUR_ARGS)" >"$@"
+
 conftest/register_mad_agent/result-$(KVER).txt:				\
 	conftest/register_mad_agent/register_mad_agent.c		\
 	conftest/register_mad_agent/Makefile
