@@ -6378,8 +6378,7 @@ dealloc:
 		    rsp_els, rsp_els_dma);
 }
 
-static void
-qla24xx_free_purex_item(struct purex_item *item)
+void qla24xx_free_purex_item(struct purex_item *item)
 {
 	if (item == &item->vha->default_item)
 		memset(&item->vha->default_item, 0, sizeof(struct purex_item));
