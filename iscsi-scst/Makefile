@@ -194,123 +194,123 @@ extraclean: clean
 
 conftest/bad_wr_mod/result-$(KVER).txt:					\
 	conftest/bad_wr_mod/bad_wr_mod.c				\
-	conftest/bad_wr_mod/Makefile
+	conftest/bad_wr_mod/Kbuild
 	echo "$(call run_conftest,bad_wr_mod,				\
 		-DBAD_WR_MODIFIER=const,-DBAD_WR_MODIFIER=)" >"$@"
 
 conftest/cm_event_mod/result-$(KVER).txt:				\
 	conftest/cm_event_mod/cm_event_mod.c				\
-	conftest/cm_event_mod/Makefile
+	conftest/cm_event_mod/Kbuild
 	echo "$(call run_conftest,cm_event_mod,				\
 		-DCM_HANDLER_EVENT_MODIFIER=const,-DCM_HANDLER_EVENT_MODIFIER=)" >"$@"
 
 conftest/cm_listen/result-$(KVER).txt:					\
 	conftest/cm_listen/cm_listen.c					\
-	conftest/cm_listen/Makefile
+	conftest/cm_listen/Kbuild
 	echo "$(call run_conftest,cm_listen,				\
 		-DIB_CM_LISTEN_TAKES_FOURTH_ARG)" >"$@"
 
 conftest/create_cq/result-$(KVER).txt:					\
 	conftest/create_cq/create_cq.c					\
-	conftest/create_cq/Makefile
+	conftest/create_cq/Kbuild
 	echo "$(call run_conftest,create_cq,				\
 		-DIB_CREATE_CQ_HAS_INIT_ATTR)" >"$@"
 
 conftest/create_send_mad_ah/result-$(KVER).txt:				\
 	conftest/create_send_mad_ah/create_send_mad_ah.c		\
-	conftest/create_send_mad_ah/Makefile
+	conftest/create_send_mad_ah/Kbuild
 	echo "$(call run_conftest,create_send_mad_ah,			\
 		-DCREATE_SEND_MAD_HAS_AH_ARG)" >"$@"
 
 conftest/create_send_mad_base/result-$(KVER).txt:			\
 	conftest/create_send_mad_base/create_send_mad_base.c		\
-	conftest/create_send_mad_base/Makefile
+	conftest/create_send_mad_base/Kbuild
 	echo "$(call run_conftest,create_send_mad_base,			\
 		-DCREATE_SEND_MAD_HAS_BASE_ARG)" >"$@"
 
 conftest/gid_change/result-$(KVER).txt:					\
 	conftest/gid_change/gid_change.c				\
-	conftest/gid_change/Makefile
+	conftest/gid_change/Kbuild
 	echo "$(call run_conftest,gid_change,-DHAVE_IB_EVENT_GID_CHANGE)" >"$@"
 
 conftest/ib_client_remove/result-$(KVER).txt:				\
 	conftest/ib_client_remove/ib_client_remove.c			\
-	conftest/ib_client_remove/Makefile
+	conftest/ib_client_remove/Kbuild
 	echo "$(call run_conftest,ib_client_remove,			\
 		-DIB_CLIENT_REMOVE_TAKES_TWO_ARGS)" >"$@"
 
 conftest/ib_dma_map_ops/result-$(KVER).txt:				\
 	conftest/ib_dma_map_ops/ib_dma_map_ops.c			\
-	conftest/ib_dma_map_ops/Makefile
+	conftest/ib_dma_map_ops/Kbuild
 	echo "$(call run_conftest,ib_dma_map_ops,-DHAVE_IB_DMA_MAP_OPS)" >"$@"
 
 conftest/ib_set_cpi_resp_time/result-$(KVER).txt:			\
 	conftest/ib_set_cpi_resp_time/ib_set_cpi_resp_time.c		\
-	conftest/ib_set_cpi_resp_time/Makefile
+	conftest/ib_set_cpi_resp_time/Kbuild
 	echo "$(call run_conftest,ib_set_cpi_resp_time,			\
 		-DHAVE_IB_SET_CPI_RESP_TIME)" >"$@"
 
 conftest/mad_handler_takes_send_buf/result-$(KVER).txt:			\
 	conftest/mad_handler_takes_send_buf/mad_handler_takes_send_buf.c\
-	conftest/mad_handler_takes_send_buf/Makefile
+	conftest/mad_handler_takes_send_buf/Kbuild
 	echo "$(call run_conftest,mad_handler_takes_send_buf,		\
 		-DMAD_HANDLER_TAKES_SEND_BUF)" >"$@"
 
 conftest/pd_has_local_dma_lkey/result-$(KVER).txt:			\
 	conftest/pd_has_local_dma_lkey/pd_has_local_dma_lkey.c		\
-	conftest/pd_has_local_dma_lkey/Makefile
+	conftest/pd_has_local_dma_lkey/Kbuild
 	echo "$(call run_conftest,pd_has_local_dma_lkey,		\
 		-DIB_PD_HAS_LOCAL_DMA_LKEY)" >"$@"
 
 conftest/query_device/result-$(KVER).txt:				\
 	conftest/query_device/query_device.c				\
-	conftest/query_device/Makefile
+	conftest/query_device/Kbuild
 	echo "$(call run_conftest,query_device,-DHAVE_IB_QUERY_DEVICE)" >"$@"
 
 conftest/query_device_attr_arg/result-$(KVER).txt:			\
 	conftest/query_device_attr_arg/query_device_attr_arg.c		\
-	conftest/query_device_attr_arg/Makefile
+	conftest/query_device_attr_arg/Kbuild
 	echo "$(call run_conftest,query_device_attr_arg,		\
 		-DIB_QUERY_DEVICE_HAS_ATTR_ARG)" >"$@"
 
 conftest/dev_attr_max_recv_sge/result-$(KVER).txt:			\
 	conftest/dev_attr_max_recv_sge/dev_attr_max_recv_sge.c	\
-	conftest/dev_attr_max_recv_sge/Makefile
+	conftest/dev_attr_max_recv_sge/Kbuild
 	echo "$(call run_conftest,dev_attr_max_recv_sge,		\
 		-DHAVE_DEV_ATTR_MAX_RECV_SGE)" >"$@"
 
 conftest/query_gid/result-$(KVER).txt:					\
 	conftest/query_gid/query_gid.c					\
-	conftest/query_gid/Makefile
+	conftest/query_gid/Kbuild
 	echo "$(call run_conftest,query_gid,-DIB_QUERY_GID_HAS_ATTR_ARG)" >"$@"
 
 conftest/rdma_create_id_net/result-$(KVER).txt:				\
 	conftest/rdma_create_id_net/rdma_create_id_net.c		\
-	conftest/rdma_create_id_net/Makefile
+	conftest/rdma_create_id_net/Kbuild
 	echo "$(call run_conftest_bool,rdma_create_id_net,		\
 		RDMA_CREATE_ID_TAKES_NET_ARG)" >"$@"
 
 conftest/rdma_reject/result-$(KVER).txt:				\
 	conftest/rdma_reject/rdma_reject.c				\
-	conftest/rdma_reject/Makefile
+	conftest/rdma_reject/Kbuild
 	echo "$(call run_conftest_bool,rdma_reject,			\
 		RDMA_REJECT_HAS_FOUR_ARGS)" >"$@"
 
 conftest/register_mad_agent/result-$(KVER).txt:				\
 	conftest/register_mad_agent/register_mad_agent.c		\
-	conftest/register_mad_agent/Makefile
+	conftest/register_mad_agent/Kbuild
 	echo "$(call run_conftest,register_mad_agent,			\
 		-DREGISTER_MAD_AGENT_HAS_FLAGS_ARG)" >"$@"
 
 conftest/sock_recvmsg/result-$(KVER).txt:				\
 	conftest/sock_recvmsg/sock_recvmsg.c				\
-	conftest/sock_recvmsg/Makefile
+	conftest/sock_recvmsg/Kbuild
 	echo "$(call run_conftest_bool,sock_recvmsg,			\
 		SOCK_RECVMSG_HAS_FOUR_ARGS)" >"$@"
 
 conftest/use_pre_440_wr_structure/result-$(KVER).txt:			\
 	conftest/use_pre_440_wr_structure/use_pre_440_wr_structure.c	\
-	conftest/use_pre_440_wr_structure/Makefile
+	conftest/use_pre_440_wr_structure/Kbuild
 	echo "$(call run_conftest,use_pre_440_wr_structure,		\
 		-DUSE_PRE_440_WR_STRUCTURE)" >"$@"
 
