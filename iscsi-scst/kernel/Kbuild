@@ -14,7 +14,9 @@
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 #  GNU General Public License for more details.
 
-KBUILD_EXTRA_SYMBOLS = $(src)/../../scst/src/Module.symvers
+KBUILD_EXTRA_SYMBOLS = $(src)/../../scst/src/Module.symvers		       \
+		$(shell for d in /usr/src/ofa_kernel/default/Module.symvers; do\
+			[ -e $$d ] || continue; echo $$d; break; done)
 
 ccflags-y += -I$(src)/../include -I$(src)/../../scst/include
 ccflags-y += $(CONFTEST_CFLAGS)
