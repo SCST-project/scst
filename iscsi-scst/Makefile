@@ -110,7 +110,7 @@ run_conftest = $(shell							\
   else									\
     output=conftest/$1/build-output-$(KVER).txt;			\
   fi;									\
-  if MAKEFLAGS= make -C $(KDIR) V=$(V) M="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" $(OFED_CONFIG) KBUILD_EXTRA_SYMBOLS="$(OFED_MODULE_SYMVERS)" 1>&2 2>$${output}; then						\
+  if MAKEFLAGS= make -C $(KDIR) V=$(V) M="$(shell pwd)/conftest/$1" CONFTEST_CFLAGS="-Werror $(OFED_CFLAGS)" $(OFED_CONFIG) KBUILD_EXTRA_SYMBOLS="$(OFED_MODULE_SYMVERS)" 1>&2 2>$${output}; then					\
     echo "$(strip $2)";							\
   else									\
     echo "$(strip $3)";							\
@@ -123,19 +123,18 @@ CONFTEST_OUTPUTS = $(shell			\
 		echo $$t/result-$(KVER).txt;	\
 	done)
 
-PRE_CFLAGS = $(shell					\
-	for t in $(CONFTESTS); do			\
-		cat $$t/result-$(KVER).txt 2>/dev/null;	\
+CONFTEST_CFLAGS = $(OFED_CFLAGS)			\
+	-DOFED_FLAVOR=$(OFED_FLAVOR)			\
+	$(shell for t in $(CONFTESTS); do 		\
+		cat $$t/result-$(KVER).txt 2>/dev/null; \
 	done)
 
-ISER_CFLAGS = $(OFED_CFLAGS) -DOFED_FLAVOR=$(OFED_FLAVOR) $(PRE_CFLAGS)
-
 mods: include/iscsi_scst_itf_ver.h $(CONFTEST_OUTPUTS)
-	$(MAKE) -C $(KDIR) M=$(KMOD) PRE_CFLAGS="$(PRE_CFLAGS)" modules
+	$(MAKE) -C $(KDIR) M=$(KMOD) CONFTEST_CFLAGS="$(CONFTEST_CFLAGS)" modules
 	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
 	if $(INFINIBAND_ENABLED); then					       \
 	  echo "  Building against $(OFED_FLAVOR) RDMA kernel headers.";       \
-	  $(MAKE) -C $(KDIR) M=$(ISERTMOD) PRE_CFLAGS="$(ISER_CFLAGS)"         \
+	  $(MAKE) -C $(KDIR) M=$(ISERTMOD) CONFTEST_CFLAGS="$(CONFTEST_CFLAGS)"\
 	  $(OFED_CONFIG) modules;					       \
 	fi
 

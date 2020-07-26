@@ -14,11 +14,13 @@
 #  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
 #  GNU General Public License for more details.
 
-LINUXINCLUDE := $(PRE_CFLAGS) $(LINUXINCLUDE)
+LINUXINCLUDE := $(CONFTEST_CFLAGS) $(LINUXINCLUDE)
 KBUILD_EXTRA_SYMBOLS=$(src)/../../kernel/Module.symvers			       \
 		$(shell for d in /usr/src/ofa_kernel/default/Module.symvers; do\
 			[ -e $$d ] || continue; echo $$d; break; done)
-ccflags-y += -I$(src)/../../include -I$(src)/../../../scst/include
+
+ccflags-y	+= -I$(src)/../../../scst/include
+ccflags-y	+= -I$(src)/../../include
 
 obj-m		+= isert-scst.o
 isert-scst-objs	:= isert.o isert_login.o \

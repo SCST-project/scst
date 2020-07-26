@@ -87,7 +87,7 @@ run_conftest = $(shell							\
   else									\
     output=conftest/$1/build-output-$(KVER).txt;			\
   fi;									\
-  if MAKEFLAGS= make -C $(KDIR) V=$(V) M="$(shell pwd)/conftest/$1" PRE_CFLAGS="-Werror $(OFED_CFLAGS)" $(OFED_CONFIG) KBUILD_EXTRA_SYMBOLS="$(OFED_MODULE_SYMVERS)" 1>&2 2>$${output}; then						\
+  if MAKEFLAGS= make -C $(KDIR) V=$(V) M="$(shell pwd)/conftest/$1" CONFTEST_CFLAGS="-Werror $(OFED_CFLAGS)" $(OFED_CONFIG) KBUILD_EXTRA_SYMBOLS="$(OFED_MODULE_SYMVERS)" 1>&2 2>$${output}; then					\
     echo "$(strip $2)";							\
   else									\
     echo "$(strip $3)";							\
@@ -100,14 +100,14 @@ CONFTEST_OUTPUTS = $(shell			\
 		echo $$t/result-$(KVER).txt;	\
 	done)
 
-PRE_CFLAGS = $(OFED_CFLAGS)			\
-	-DOFED_FLAVOR=$(OFED_FLAVOR)		\
-	$(shell for t in $(CONFTESTS); do 	\
+CONFTEST_CFLAGS = $(OFED_CFLAGS)			\
+	-DOFED_FLAVOR=$(OFED_FLAVOR)			\
+	$(shell for t in $(CONFTESTS); do 		\
 		cat $$t/result-$(KVER).txt 2>/dev/null; \
 	done)
 
 all: check $(CONFTEST_OUTPUTS)
-	$(MAKE) -C $(KDIR) M=$(shell pwd)/src PRE_CFLAGS="$(PRE_CFLAGS)"\
+	$(MAKE) -C $(KDIR) M=$(shell pwd)/src CONFTEST_CFLAGS="$(CONFTEST_CFLAGS)"\
 		$(OFED_CONFIG) modules
 
 install: all
@@ -115,7 +115,7 @@ install: all
 	  find /lib/modules/$(KVER) -name ib_srpt.ko -exec rm {} \; ; \
 	  true
 	(cd src && KDIR=$(KDIR) ../../scripts/sign-modules)
-	$(MAKE) -C $(KDIR) M=$(shell pwd)/src PRE_CFLAGS="$(PRE_CFLAGS)" \
+	$(MAKE) -C $(KDIR) M=$(shell pwd)/src CONFTEST_CFLAGS="$(CONFTEST_CFLAGS)" \
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		 \
 	  CONFIG_MODULE_SIG_ALL= modules_install
 
