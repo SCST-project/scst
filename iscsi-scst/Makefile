@@ -134,7 +134,7 @@ mods: include/iscsi_scst_itf_ver.h $(CONFTEST_OUTPUTS)
 	$(MAKE) -C $(KDIR) M=$(KMOD) PRE_CFLAGS="$(PRE_CFLAGS)" modules
 	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
 	if $(INFINIBAND_ENABLED); then					       \
-	  echo "  Building against $(OFED_FLAVOR) InfiniBand kernel headers."; \
+	  echo "  Building against $(OFED_FLAVOR) RDMA kernel headers.";       \
 	  $(MAKE) -C $(KDIR) M=$(ISERTMOD) PRE_CFLAGS="$(ISER_CFLAGS)"         \
 	  $(OFED_CONFIG) modules;					       \
 	fi

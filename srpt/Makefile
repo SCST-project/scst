@@ -139,7 +139,7 @@ check:
 	         "installed.";                                              \
 	    false;                                                          \
 	  else                                                              \
-	    echo "  Building against in-tree InfiniBand kernel headers.";   \
+	    echo "  Building against in-tree RDMA kernel headers.";	    \
 	  fi;                                                               \
 	fi
 
