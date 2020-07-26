@@ -2032,7 +2032,23 @@ enum {
 #define wwn_to_u64(wwn) get_unaligned_be64(wwn)
 #endif
 
+/*
+ * See also commit c39e0af64bce ("scsi: scsi_transport_fc: Add FPIN fc event
+ * codes") # v5.2
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+static inline void
+fc_host_fpin_rcv(struct Scsi_Host *shost, u32 fpin_len, char *fpin_buf)
+{
+}
+#endif
+
 /* <uapi/scsi/fc/fc_els.h> */
+
+/* See also commit a7dff3ad4787 ("scsi: fc: add FPIN ELS definition") # v5.2 */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+#define ELS_FPIN 0x16
+#endif
 
 /*
  * See also commit 62e9dd177732 ("scsi: qla2xxx: Change in PUREX to handle FPIN
