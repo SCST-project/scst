@@ -9,3 +9,5 @@ static int __init modinit(void)
 }
 
 module_init(modinit);
+
+MODULE_LICENSE("GPL");
