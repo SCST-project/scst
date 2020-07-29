@@ -2036,7 +2036,9 @@ enum {
  * See also commit c39e0af64bce ("scsi: scsi_transport_fc: Add FPIN fc event
  * codes") # v5.2
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
+	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 2)
 static inline void
 fc_host_fpin_rcv(struct Scsi_Host *shost, u32 fpin_len, char *fpin_buf)
 {
