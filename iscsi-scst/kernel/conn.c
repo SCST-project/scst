@@ -138,6 +138,7 @@ static ssize_t iscsi_get_target_ip(struct iscsi_conn *conn,
 			"%pI4", &inet_sk(sk)->inet_saddr);
 #endif
 		break;
+#ifdef CONFIG_IPV6
 	case AF_INET6:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
 		pos = scnprintf(buf, size,
@@ -151,6 +152,7 @@ static ssize_t iscsi_get_target_ip(struct iscsi_conn *conn,
 #endif
 #endif
 		break;
+#endif
 	default:
 		pos = scnprintf(buf, size, "Unknown family %d",
 			sk->sk_family);

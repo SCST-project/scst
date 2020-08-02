@@ -1302,7 +1302,10 @@ static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
 	isert_conn->max_sge = isert_dev->device_attr.max_recv_sge - 3;
 #endif
 
-	WARN_ON(isert_conn->max_sge < 1);
+	if (WARN_ON(isert_conn->max_sge < 1)) {
+		err = -ENODEV;
+		goto fail_login_req_pdu;
+	}
 
 	INIT_LIST_HEAD(&isert_conn->rx_buf_list);
 	INIT_LIST_HEAD(&isert_conn->tx_free_list);

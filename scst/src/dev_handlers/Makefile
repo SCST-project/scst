@@ -51,17 +51,20 @@ endif
 INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 all:
-	$(MAKE) -C $(KDIR) M=$(shell pwd)
+	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
+	  $(shell [ -n "$(CC)" ] && echo CC="$(CC)")
 
 %.lst: %.c
-	$(MAKE) -C $(KDIR) M=$(shell pwd) $@
+	$(MAKE) -C $(KDIR) M=$(shell pwd) $@				\
+	  $(shell [ -n "$(CC)" ] && echo CC="$(CC)")
 
 install: all
 	mkdir -p $(DESTDIR)/var/lib/scst/vdev_mode_pages
 	KDIR=$(KDIR) ../../../scripts/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
-		$$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
-		CONFIG_MODULE_SIG_ALL= modules_install
+	  $(shell [ -n "$(CC)" ] && echo CC="$(CC)")			\
+	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
+	  CONFIG_MODULE_SIG_ALL= modules_install
 
 uninstall:
 	rm -f $(INSTALL_DIR)/dev_handlers/scst_*.ko
