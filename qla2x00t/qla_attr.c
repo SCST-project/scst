@@ -1754,7 +1754,7 @@ qla2x00_fw_state_show(struct device *dev, struct device_attribute *attr,
 {
 	scsi_qla_host_t *vha = shost_priv(class_to_shost(dev));
 	int rval = QLA_FUNCTION_FAILED;
-	uint16_t state[5];
+	uint16_t state[6];
 
 	if (qla2x00_reset_active(vha))
 		ql_log(ql_log_warn, vha, 0x707c,

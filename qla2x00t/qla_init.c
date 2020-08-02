@@ -1922,7 +1922,7 @@ qla2x00_fw_ready(scsi_qla_host_t *vha)
 	unsigned long	wtime, mtime, cs84xx_time;
 	uint16_t	min_wait;	/* Minimum wait time if loop is down */
 	uint16_t	wait_time;	/* Wait time if loop is coming ready */
-	uint16_t	state[5];
+	uint16_t	state[6];
 	struct qla_hw_data *ha = vha->hw;
 
 	if (!qla_firmware_active(vha)) {
