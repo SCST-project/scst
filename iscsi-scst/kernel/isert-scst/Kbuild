@@ -15,9 +15,13 @@
 #  GNU General Public License for more details.
 
 LINUXINCLUDE := $(ISER_CFLAGS) $(LINUXINCLUDE)
-KBUILD_EXTRA_SYMBOLS=$(src)/../../kernel/Module.symvers			       \
-		$(shell for d in /usr/src/ofa_kernel/default/Module.symvers; do\
-			[ -e $$d ] || continue; echo $$d; break; done)
+ifdef CONFIG_CC_IS_CLANG
+KBUILD_EXTRA_SYMBOLS+=$(src)/../../../scst/src/Module.symvers
+endif
+KBUILD_EXTRA_SYMBOLS+=							\
+	$(src)/../../kernel/Module.symvers				\
+	$(shell for d in /usr/src/ofa_kernel/default/Module.symvers; do	\
+		[ -e $$d ] || continue; echo $$d; break; done)
 
 ccflags-y	+= -I$(src)/../../../scst/include
 ccflags-y	+= -I$(src)/../../include
