@@ -843,7 +843,9 @@ static inline bool list_entry_in_list(const struct list_head *entry)
  * See also commit 108c14858b9e ("locking/lockdep: Add support for dynamic
  * keys").
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
+	 (RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 2))
 static inline void lockdep_register_key(struct lock_class_key *key)
 {
 }
