@@ -2048,7 +2048,9 @@ fc_host_fpin_rcv(struct Scsi_Host *shost, u32 fpin_len, char *fpin_buf)
 /* <uapi/scsi/fc/fc_els.h> */
 
 /* See also commit a7dff3ad4787 ("scsi: fc: add FPIN ELS definition") # v5.2 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
+	 (RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 2))
 #define ELS_FPIN 0x16
 #endif
 
