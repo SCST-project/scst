@@ -177,8 +177,8 @@ struct fxdisc_entry_fx00 {
 	uint8_t flags;
 	uint8_t reserved_1;
 
-	struct dsd64 dseg_rq;
-	struct dsd64 dseg_rsp;
+	struct dsd64 dseg_rq[1];
+	struct dsd64 dseg_rsp[1];
 
 	__le32 dataword;
 	__le32 adapid;
