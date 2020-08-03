@@ -459,8 +459,9 @@ if [ "${include_fcst}" = true ]; then
       done
   fi
 
-  add_file "fcst/Kbuild" \
-           "drivers/scst/fcst/Makefile"
+  for f in fcst/Kbuild fcst/Makefile_in-tree; do
+    [ -e "$f" ] && add_file "$f" "drivers/scst/fcst/Makefile"
+  done
 
   add_file "fcst/Kconfig" "drivers/scst/fcst/Kconfig"
 
