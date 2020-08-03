@@ -3640,7 +3640,7 @@ static int scst_full_len_to_data_len(u32 full_len, u32 block_shift)
 	u64 res;
 	u32 rem;
 
-	res = full_len << block_shift;
+	res = (u64)full_len << block_shift;
 	rem = do_div(res, (1 << block_shift) + (1 << SCST_DIF_TAG_SHIFT));
 	if (unlikely(rem != 0))
 		TRACE(TRACE_MINOR, "Reminder %d for full len! (full len%d)",
@@ -3665,7 +3665,7 @@ int scst_cmd_get_expected_transfer_len_data(struct scst_cmd *cmd)
 	if (!cmd->tgt_dif_data_expected)
 		return cmd->expected_transfer_len_full;
 
-	res = cmd->expected_transfer_len_full << cmd->dev->block_shift;
+	res = (u64)cmd->expected_transfer_len_full << cmd->dev->block_shift;
 	rem = do_div(res, cmd->dev->block_size + (1 << SCST_DIF_TAG_SHIFT));
 	if (unlikely(rem != 0))
 		TRACE(TRACE_MINOR, "Reminder %d for expected transfer len "
@@ -3691,7 +3691,7 @@ int scst_cmd_get_expected_transfer_len_dif(struct scst_cmd *cmd)
 	if (!cmd->tgt_dif_data_expected)
 		return 0;
 
-	res = cmd->expected_transfer_len_full << SCST_DIF_TAG_SHIFT;
+	res = (u64)cmd->expected_transfer_len_full << SCST_DIF_TAG_SHIFT;
 	rem = do_div(res, cmd->dev->block_size + (1 << SCST_DIF_TAG_SHIFT));
 	if (unlikely(rem != 0))
 		TRACE(TRACE_MINOR, "Reminder %d for expected transfer len dif! "
