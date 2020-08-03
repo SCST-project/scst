@@ -38,12 +38,17 @@
 # CentOSPlus
 %define kernel_devel_rpm kernel-plus-devel
 %else
+%if %([ %{kernel_rpm} = kernel-ml-core ]; echo $((1-$?)))
+# RHEL/CentOS elrepo mainline
+%define kernel_devel_rpm kernel-ml-devel
+%else
 %if %([ %{kernel_rpm} = kernel-core ]; echo $((1-$?)))
 # Fedora
 %define kernel_devel_rpm kernel-devel
 %else
 # Other Linux distros
 %define kernel_devel_rpm %{kernel_rpm}-devel
+%endif
 %endif
 %endif
 %{echo:kernel_devel_rpm=%{kernel_devel_rpm}
