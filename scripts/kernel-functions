@@ -2,6 +2,9 @@
 # Shell functions for parsing the Linux kernel version and for downloading
 # from kernel.org.
 
+# shellcheck source=./rhel-rpm-functions
+source "$(dirname "$0")/../scripts/rhel-rpm-functions" || return $?
+
 kernel_mirror="http://cdn.kernel.org/pub/linux/kernel"
 kernel_downloads="$HOME/software/downloads"
 kernel_tree="$HOME/software/linux-kernel"
@@ -124,8 +127,92 @@ function extract_kernel_tree {
 
 # Patch a kernel tree where $1 is the kernel version.
 function patch_kernel {
-    if [ "$1" = "2.6.29" ] || [ "$1" = "2.6.29.1" ] || [ "$1" = "2.6.29.2" ] || [ "$1" = "2.6.29.3" ]
-    then
+    case "$1" in
+	*^*)
+            # RHEL / CentOS.
+            ;;
+	*)
+	    # See also commit f153b82121b0 ("Sanitize gcc version header
+	    # includes") # v2.6.29. See also commit 71458cfc782e ("kernel: add
+	    # support for gcc 5") # v3.18. See also commit cb984d101b30
+	    # ("compiler-gcc: integrate the various compiler-gcc[345].h
+	    # files") # v4.2.
+	    if kernel_version_le 2.6.29 $1 && kernel_version_lt $1 4.2; then
+		# Tell the kernel that we are using gcc 4.6 since older kernel
+		# versions do not support recent gcc versions.
+		patch -f -s -p1 <<'EOF' ||
+diff --git a/include/linux/compiler-gcc.h b/include/linux/compiler-gcc.h
+index 02ae99e8e6d3..47e12c19c965 100644
+--- a/include/linux/compiler-gcc.h
++++ b/include/linux/compiler-gcc.h
+@@ -103,7 +103,7 @@
+ #define __gcc_header(x) #x
+ #define _gcc_header(x) __gcc_header(linux/compiler-gcc##x.h)
+ #define gcc_header(x) _gcc_header(x)
+-#include gcc_header(__GNUC__)
++#include "linux/compiler-gcc4.h"
+ 
+ #if !defined(__noclone)
+ #define __noclone	/* not needed */
+EOF
+		patch -f -s -p1 <<'EOF'
+diff --git a/include/linux/compiler-gcc.h b/include/linux/compiler-gcc.h
+index a3ed7cb8ca34..c5a6b8b52db4 100644
+--- a/include/linux/compiler-gcc.h
++++ b/include/linux/compiler-gcc.h
+@@ -83,4 +83,4 @@
+ #define __gcc_header(x) #x
+ #define _gcc_header(x) __gcc_header(linux/compiler-gcc##x.h)
+ #define gcc_header(x) _gcc_header(x)
+-#include gcc_header(__GNUC__)
++#include "linux/compiler-gcc4.h"
+EOF
+		patch -f -s -p1 <<'EOF' ||
+diff --git a/include/linux/compiler-gcc4.h b/include/linux/compiler-gcc4.h
+index 769e19864632..2ec6c7a11502 100644
+--- a/include/linux/compiler-gcc4.h
++++ b/include/linux/compiler-gcc4.h
+@@ -2,13 +2,6 @@
+ #error "Please don't include <linux/compiler-gcc4.h> directly, include <linux/compiler.h> instead."
+ #endif
+ 
+-/* GCC 4.1.[01] miscompiles __weak */
+-#ifdef __KERNEL__
+-# if GCC_VERSION >= 40100 &&  GCC_VERSION <= 40101
+-#  error Your version of gcc miscompiles the __weak directive
+-# endif
+-#endif
+-
+ #define __used			__attribute__((__used__))
+ #define __must_check 		__attribute__((warn_unused_result))
+ #define __compiler_offsetof(a,b) __builtin_offsetof(a,b)
+EOF
+		patch -f -s -p1 <<'EOF'
+diff --git a/include/linux/compiler-gcc4.h b/include/linux/compiler-gcc4.h
+index 412bc6c2b023..901ca31be7f8 100644
+--- a/include/linux/compiler-gcc4.h
++++ b/include/linux/compiler-gcc4.h
+@@ -2,13 +2,6 @@
+ #error "Please don't include <linux/compiler-gcc4.h> directly, include <linux/compiler.h> instead."
+ #endif
+ 
+-/* GCC 4.1.[01] miscompiles __weak */
+-#ifdef __KERNEL__
+-# if __GNUC_MINOR__ == 1 && __GNUC_PATCHLEVEL__ <= 1
+-#  error Your version of gcc miscompiles the __weak directive
+-# endif
+-#endif
+-
+ #define __used			__attribute__((__used__))
+ #define __must_check 		__attribute__((warn_unused_result))
+ #define __compiler_offsetof(a,b) __builtin_offsetof(a,b)
+EOF
+	    fi
+	    ;;
+    esac
+
+    if [ "$1" = "2.6.29" ] || [ "$1" = "2.6.29.1" ] || [ "$1" = "2.6.29.2" ] ||
+	   [ "$1" = "2.6.29.3" ]; then
       patch -f -s -p1 <<'EOF'
 Make sure that branch profiling does not trigger sparse warnings.
 See also http://bugzilla.kernel.org/show_bug.cgi?id=12925
@@ -145,8 +232,8 @@ See also http://lkml.org/lkml/2009/4/5/120
  #define likely_notrace(x)	__builtin_expect(!!(x), 1)
 EOF
     fi
-    if [ "${1#2.6.31}" != "$1" ]
-    then
+
+    if [ "${1#2.6.31}" != "$1" ]; then
       patch -f -s -p1 <<'EOF'
 Checking a 2.6.31.1 kernel configured with allyesconfig/allmodconfig
 with sparse (make C=2) triggers a sparse warning on code that uses the
@@ -200,6 +287,7 @@ Get rid of sparse errors on sk_buff.protocol.
  #if defined(CONFIG_NF_CONNTRACK) || defined(CONFIG_NF_CONNTRACK_MODULE)
 EOF
     fi
+
     if [ "${1#3.13}" != "$1" ]; then
       if [ "$1" = "3.13" ] || [ "${1#3.13.}" -lt 6 ]; then
         patch -f -s -p1 <<'EOF'
@@ -241,6 +329,7 @@ index 3f2793d..96e45ea 100644
 EOF
       fi
     fi
+
     if [ "${1#4.15}" != "$1" ]; then
         patch -f -s -p1 <<'EOF'
 From ad343a98e74e85aa91d844310e797f96fee6983b Mon Sep 17 00:00:00 2001
@@ -331,9 +420,9 @@ index d6d65537b0d9..6aad8308a0ac 100644
  }
 EOF
     fi
-    case "$1" in
-	2.6.3[6-9]*|3.[0-9]|3.[0-9].*|3.1[01345]|3.1[01345].*|3.1[789]|3.1[789].*|4.[023567]|4.[023567].*)
-	    patch -p1 <<'EOF'
+
+    if kernel_version_le 2.6.36 $1 && kernel_version_lt $1 4.8; then
+	patch -f -s -p1 <<'EOF'
 From c6a385539175ebc603da53aafb7753d39089f32e Mon Sep 17 00:00:00 2001
 From: Borislav Petkov <bp@suse.de>
 Date: Mon, 14 Nov 2016 19:41:31 +0100
@@ -395,9 +484,36 @@ index 0ed6ce300543..c324b43712f0 100644
  KBUILD_CFLAGS_MODULE  := -DMODULE
  KBUILD_LDFLAGS_MODULE := -T $(srctree)/scripts/module-common.lds
 EOF
-	    ;;
-	2.6.3[1-5]*)
-	    patch -p1 <<'EOF'
+    else
+	case "$1" in
+	    # CentOS 6.x.
+	    2.6.32-*)
+		patch -f -s -p1 <<'EOF'
+--- linux-2.6.32-754.29.1.el6/Makefile.orig	2020-05-13 14:09:18.448503420 -0700
++++ linux-2.6.32-754.29.1.el6/Makefile	2020-05-13 14:11:24.265441790 -0700
+@@ -355,7 +355,8 @@
+ 
+ KBUILD_CPPFLAGS := -D__KERNEL__
+ 
+-KBUILD_CFLAGS   := -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
++KBUILD_CFLAGS   := $(call cc-option,-fno-PIE) \
++		   -Wall -Wundef -Wstrict-prototypes -Wno-trigraphs \
+ 		   -fno-strict-aliasing -fno-common \
+ 		   -Werror-implicit-function-declaration \
+ 		   -Wno-format-security \
+@@ -380,7 +381,7 @@
+ endif ##($(KBUILD_EXTMOD),)
+ endif #(,$(filter $(ARCH), i386 x86_64))
+ 
+-KBUILD_AFLAGS   := -D__ASSEMBLY__
++KBUILD_AFLAGS   := -D__ASSEMBLY__ $(call cc-option,-fno-PIE)
+ 
+ # Read KERNELRELEASE from include/config/kernel.release (if it exists)
+ KERNELRELEASE = $(shell cat include/config/kernel.release 2> /dev/null)
+EOF
+		;;
+	    2.6.3[1-5]*)
+		patch -f -s -p1 <<'EOF'
 diff --git a/Makefile b/Makefile
 index 141da26fda4b..343ec388ae2e 100644
 --- a/Makefile
@@ -420,7 +536,210 @@ index 141da26fda4b..343ec388ae2e 100644
  KERNELRELEASE = $(shell cat include/config/kernel.release 2> /dev/null)
 EOF
 	    ;;
+	 esac
+    fi
+
+    case "$1" in
+	4.18.0-*) # CentOS 8.x
+	    patch -f -s -p1 <<'EOF'
+From a6e60d84989fa0e91db7f236eda40453b0e44afa Mon Sep 17 00:00:00 2001
+From: Miguel Ojeda <miguel.ojeda.sandonis@gmail.com>
+Date: Sat, 19 Jan 2019 20:59:34 +0100
+Subject: [PATCH] include/linux/module.h: copy __init/__exit attrs to
+ init/cleanup_module
+
+The upcoming GCC 9 release extends the -Wmissing-attributes warnings
+(enabled by -Wall) to C and aliases: it warns when particular function
+attributes are missing in the aliases but not in their target.
+
+In particular, it triggers for all the init/cleanup_module
+aliases in the kernel (defined by the module_init/exit macros),
+ending up being very noisy.
+
+These aliases point to the __init/__exit functions of a module,
+which are defined as __cold (among other attributes). However,
+the aliases themselves do not have the __cold attribute.
+
+Since the compiler behaves differently when compiling a __cold
+function as well as when compiling paths leading to calls
+to __cold functions, the warning is trying to point out
+the possibly-forgotten attribute in the alias.
+
+In order to keep the warning enabled, we decided to silence
+this case. Ideally, we would mark the aliases directly
+as __init/__exit. However, there are currently around 132 modules
+in the kernel which are missing __init/__exit in their init/cleanup
+functions (either because they are missing, or for other reasons,
+e.g. the functions being called from somewhere else); and
+a section mismatch is a hard error.
+
+A conservative alternative was to mark the aliases as __cold only.
+However, since we would like to eventually enforce __init/__exit
+to be always marked,  we chose to use the new __copy function
+attribute (introduced by GCC 9 as well to deal with this).
+With it, we copy the attributes used by the target functions
+into the aliases. This way, functions that were not marked
+as __init/__exit won't have their aliases marked either,
+and therefore there won't be a section mismatch.
+
+Note that the warning would go away marking either the extern
+declaration, the definition, or both. However, we only mark
+the definition of the alias, since we do not want callers
+(which only see the declaration) to be compiled as if the function
+was __cold (and therefore the paths leading to those calls
+would be assumed to be unlikely).
+
+Link: https://lore.kernel.org/lkml/20190123173707.GA16603@gmail.com/
+Link: https://lore.kernel.org/lkml/20190206175627.GA20399@gmail.com/
+Suggested-by: Martin Sebor <msebor@gcc.gnu.org>
+Acked-by: Jessica Yu <jeyu@kernel.org>
+Signed-off-by: Miguel Ojeda <miguel.ojeda.sandonis@gmail.com>
+---
+ include/linux/module.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/include/linux/module.h b/include/linux/module.h
+index 8fa38d3e7538..f5bc4c046461 100644
+--- a/include/linux/module.h
++++ b/include/linux/module.h
+@@ -129,13 +129,13 @@ extern void cleanup_module(void);
+ #define module_init(initfn)					\
+ 	static inline initcall_t __maybe_unused __inittest(void)		\
+ 	{ return initfn; }					\
+-	int init_module(void) __attribute__((alias(#initfn)));
++	int init_module(void) __attribute__((__copy__(initfn))) __attribute__((alias(#initfn)));
+ 
+ /* This is only required if you want to be unloadable. */
+ #define module_exit(exitfn)					\
+ 	static inline exitcall_t __maybe_unused __exittest(void)		\
+ 	{ return exitfn; }					\
+-	void cleanup_module(void) __attribute__((alias(#exitfn)));
++	void cleanup_module(void) __attribute__((__copy__(exitfn))) __attribute__((alias(#exitfn)));
+ 
+ #endif
+ 
+EOF
+	;;
+	2.*|3.*)
+	    patch -f -s -p1 <<'EOF'
+--- linux-3.10.0-1127.el7/include/linux/init.h.orig	2020-05-09 20:55:48.638956513 -0700
++++ linux-3.10.0-1127.el7/include/linux/init.h	2020-05-09 20:56:46.947612445 -0700
+@@ -309,13 +309,15 @@
+ #define module_init(initfn)					\
+ 	static inline initcall_t __inittest(void)		\
+ 	{ return initfn; }					\
+-	int init_module(void) __attribute__((alias(#initfn)));
++	int init_module(void) __attribute__((__copy__(initfn)))	\
++	__attribute__((alias(#initfn)));
+ 
+ /* This is only required if you want to be unloadable. */
+ #define module_exit(exitfn)					\
+ 	static inline exitcall_t __exittest(void)		\
+ 	{ return exitfn; }					\
+-	void cleanup_module(void) __attribute__((alias(#exitfn)));
++	void cleanup_module(void) __attribute__((__copy__(exitfn)))\
++	__attribute__((alias(#exitfn)));
+ 
+ #define __setup_param(str, unique_id, fn)	/* nothing */
+ #define __setup(str, func) 			/* nothing */
+EOF
+	    ;;
     esac
+
+    if kernel_version_le 3.2 $1 && kernel_version_lt $1 3.18; then
+	patch -f -s -p1 <<'EOF'
+From eeeda4cd06e828b331b15741a204ff9f5874d28d Mon Sep 17 00:00:00 2001
+From: Ben Hutchings <ben@decadent.org.uk>
+Date: Wed, 24 Sep 2014 13:30:12 +0100
+Subject: [PATCH] x86/relocs: Make per_cpu_load_addr static
+
+per_cpu_load_addr is only used for 64-bit relocations, but is
+declared in both configurations of relocs.c - with different
+types.  This has undefined behaviour in general.  GNU ld is
+documented to use the larger size in this case, but other tools
+may differ and some warn about this.
+
+References: https://bugs.debian.org/748577
+Reported-by: Michael Tautschnig <mt@debian.org>
+Signed-off-by: Ben Hutchings <ben@decadent.org.uk>
+Cc: 748577@bugs.debian.org
+Cc: Linus Torvalds <torvalds@linux-foundation.org>
+Link: http://lkml.kernel.org/r/1411561812.3659.23.camel@decadent.org.uk
+Signed-off-by: Ingo Molnar <mingo@kernel.org>
+---
+ arch/x86/tools/relocs.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/x86/tools/relocs.c b/arch/x86/tools/relocs.c
+index bbb1d2259ecf..a5efb21d5228 100644
+--- a/arch/x86/tools/relocs.c
++++ b/arch/x86/tools/relocs.c
+@@ -695,7 +695,7 @@ static void walk_relocs(int (*process)(struct section *sec, Elf_Rel *rel,
+  *
+  */
+ static int per_cpu_shndx	= -1;
+-Elf_Addr per_cpu_load_addr;
++static Elf_Addr per_cpu_load_addr;
+ 
+ static void percpu_init(void)
+ {
+EOF
+    fi
+
+    # See also commit e33a814e772c ("scripts/dtc: Remove redundant YYLOC global
+    # declaration") # v5.6~10^2.
+    if kernel_version_lt $1 5.6; then
+	patch -p1 -f -s <<'EOF'
+From e33a814e772cdc36436c8c188d8c42d019fda639 Mon Sep 17 00:00:00 2001
+From: Dirk Mueller <dmueller@suse.com>
+Date: Tue, 14 Jan 2020 18:53:41 +0100
+Subject: [PATCH] scripts/dtc: Remove redundant YYLOC global declaration
+
+gcc 10 will default to -fno-common, which causes this error at link
+time:
+
+  (.text+0x0): multiple definition of `yylloc'; dtc-lexer.lex.o (symbol from plugin):(.text+0x0): first defined here
+
+This is because both dtc-lexer as well as dtc-parser define the same
+global symbol yyloc. Before with -fcommon those were merged into one
+defintion. The proper solution would be to to mark this as "extern",
+however that leads to:
+
+  dtc-lexer.l:26:16: error: redundant redeclaration of 'yylloc' [-Werror=redundant-decls]
+   26 | extern YYLTYPE yylloc;
+      |                ^~~~~~
+In file included from dtc-lexer.l:24:
+dtc-parser.tab.h:127:16: note: previous declaration of 'yylloc' was here
+  127 | extern YYLTYPE yylloc;
+      |                ^~~~~~
+cc1: all warnings being treated as errors
+
+which means the declaration is completely redundant and can just be
+dropped.
+
+Signed-off-by: Dirk Mueller <dmueller@suse.com>
+Signed-off-by: David Gibson <david@gibson.dropbear.id.au>
+[robh: cherry-pick from upstream]
+Cc: stable@vger.kernel.org
+Signed-off-by: Rob Herring <robh@kernel.org>
+---
+ scripts/dtc/dtc-lexer.l | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/scripts/dtc/dtc-lexer.l b/scripts/dtc/dtc-lexer.l
+index 5c6c3fd557d7..b3b7270300de 100644
+--- a/scripts/dtc/dtc-lexer.l
++++ b/scripts/dtc/dtc-lexer.l
+@@ -23,7 +23,6 @@ LINECOMMENT	"//".*\n
+ #include "srcpos.h"
+ #include "dtc-parser.tab.h"
+ 
+-YYLTYPE yylloc;
+ extern bool treesource_error;
+ 
+ /* CAUTION: this will stop working if we ever use yyless() or yyunput() */
+EOF
+    fi
 
     # Use sed to patch the ____ilog2_NaN() prototype.
     sed -i 's/__attribute__((const, noreturn))/__attribute__((noreturn))/' \
@@ -435,10 +754,37 @@ EOF
     done
 }
 
+function download_and_extract_distro_rpm {
+    [ -n "$1" ] || return $?
+    set -- ${1//^/ }
+    local kver=$1
+    local distro=$2
+    local release=$3
+    (
+	cd "${kernel_downloads}" || exit $?
+	read -a urls -r <<<"$(get_srpm_urls "$distro" "$release" x86_64 |
+			      tr '\n' ' ')"
+	for url in "${urls[@]}"; do
+	    wget -q -nc "${url}/kernel-${kver}.src.rpm" && break
+	done
+    )
+    local tmpdir=kernel-tree-tmp-$$
+    rm -rf "linux-$1" "${tmpdir}"
+    mkdir "${tmpdir}" || return $?
+    (
+	cd "${tmpdir}" &&
+	    rpm2cpio "${kernel_downloads}/kernel-${kver}.src.rpm" |
+		cpio -i --make-directories --quiet &&
+	    tar xaf "linux-${kver}.tar."* &&
+	    mv "linux-${kver}" ".." &&
+	    cd "../linux-${kver}"
+    ) || return $?
+    rm -rf "${tmpdir}"
+}
+
 function download_and_extract_kernel_tree {
     if [ -e "${kernel_tree}" ]; then
-	rm -rf "linux-$1"
-	mkdir "linux-$1"
+	{ [ "${1/^}" = "$1" ] &&
 	(
 	    cd "${kernel_tree}" &&
 		{
@@ -450,12 +796,17 @@ function download_and_extract_kernel_tree {
 			    git fetch stable
 			}
 		} &&
+		{ git tag -l "v$1" | grep -q '^v'; } &&
 		git archive "v$1"
-	) | tar -C "linux-$1" -xf-
+	) | {
+	    rm -rf "linux-$1" &&
+		mkdir "linux-$1" &&
+		tar -C "linux-$1" -xf- 2>/dev/null
+	}; } || download_and_extract_distro_rpm "$1"
     else
 	download_kernel "$1" && extract_kernel_tree "$1"
     fi &&
-	(cd "linux-$1" && patch_kernel "$1")
+	(cd "linux-${1/^*}" && patch_kernel "${1/^*}")
 }
 
 # For shellcheck

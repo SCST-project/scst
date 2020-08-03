@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 
 list_source_files() {
   local d r
@@ -39,7 +39,17 @@ list_source_files() {
       hg manifest
     fi
   else
-    ( cd "$d" && find . -type f -o -type l | sed 's|^\./||' )
+    (
+      cd "$d" &&
+      find . -type f -o -type l | \
+      sed -e 's|^\./||' \
+	  -e '\|\.k\{0,1\}o\(\.\(cm\)\{0,1\}d\)\{0,1\}$|d' \
+	  -e '\|\.mod\(\.c\)\{0,1\}$|d' \
+	  -e '\|/conftest/.*/result-.*\.txt$|d' \
+	  -e '\|/modules\.order$|d' \
+	  -e '\,/Module\.\(symver\|marker\)s$,d' \
+	  -e '\,/\.tmp_versions\(/\|$\),d'
+    )
   fi
 }
 

@@ -66,90 +66,101 @@ function evaluate(stmnt, pattern, arg, op, result) {
 
   gsub("defined\\(REGISTER_MAD_AGENT_HAS_FLAGS_ARG\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 6 * 256 + 10)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 6 * 256 + 9)", stmnt)
 
   gsub("SOCK_RECVMSG_HAS_FOUR_ARGS",
        "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0))", stmnt)
 
   gsub("defined\\(USE_PRE_440_WR_STRUCTURE\\)",
-       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))", stmnt)
+       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) \\&\\& " \
+       "RHEL_RELEASE_CODE -0 < 7 * 256 + 5)", stmnt)
 
   gsub("defined\\(IB_CREATE_CQ_HAS_INIT_ATTR\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 6)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
+
+  gsub("defined\\(CREATE_SEND_MAD_HAS_AH_ARG\\)",
+       "(LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 16))", stmnt)
 
   gsub("defined\\(CREATE_SEND_MAD_HAS_BASE_ARG\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 6)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
 
   gsub("defined\\(IB_CM_LISTEN_TAKES_FOURTH_ARG\\)",
-       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0))", stmnt)
+       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) \\&\\& " \
+       "RHEL_RELEASE_CODE -0 < 7 * 256 + 5)", stmnt)
+
+  gsub("IB_CLIENT_ADD_ONE_RETURNS_INT",
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0))", stmnt)
 
   gsub("defined\\(IB_CLIENT_REMOVE_TAKES_TWO_ARGS\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 6)", stmnt)
-  
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
+
   gsub("defined\\(IB_QUERY_GID_HAS_ATTR_ARG\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 6)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
 
   gsub("RDMA_CREATE_ID_TAKES_NET_ARG",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 6)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
 
   gsub("defined\\(HAVE_DEV_ATTR_MAX_RECV_SGE\\)",
-       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))", stmnt)
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) || " \
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 7)", stmnt)
 
   gsub("HAVE_DEV_ATTR_MAX_SEND_SGE",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 8 * 256 + 0)", stmnt)
-
-  gsub("defined\\(HAVE_DEV_ATTR_MAX_RECV_SGE\\)",
-       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 8 * 256 + 0)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 7)", stmnt)
 
   gsub("HAVE_RDMA_DESTROY_AH_WITH_FLAGS",
-       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0))", stmnt)
-  
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0) || " \
+       "RHEL_RELEASE_CODE -0 >= 8 * 256 + 1)", stmnt)
+
   gsub("HAVE_RDMA_DESTROY_AH",
-       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0))", stmnt)
-  
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0) || " \
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
+
   gsub("HAVE_RDMA_QUERY_GID",
-       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0))", stmnt)
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) || " \
+       "RHEL_RELEASE_CODE -0 >= 8 * 256 + 1)", stmnt)
 
   gsub("HAVE_SRP_DATA_DESC_IMM",
-       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0))", stmnt)
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0) || " \
+       "RHEL_RELEASE_CODE -0 >= 8 * 256 + 1)", stmnt)
 
   gsub("HAVE_STRUCT_SRP_LOGIN_REQ_RDMA",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 16, 0))", stmnt)
 
-  gsub("defined\\(USE_PRE_440_WR_STRUCTURE\\)",
-       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0))", stmnt)
-
   gsub("defined\\(HAVE_IB_EVENT_GID_CHANGE\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 6 * 256 + 10)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 6 * 256 + 9)", stmnt)
 
   gsub("defined\\(HAVE_IB_QUERY_DEVICE\\)",
-       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0))", stmnt)
+       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0) \\&\\& " \
+       "RHEL_RELEASE_CODE -0 < 7 * 256 + 5)", stmnt)
 
   gsub("defined\\(MAD_HANDLER_TAKES_SEND_BUF\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 5, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 6)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
 
   gsub("defined\\(HAVE_IB_SET_CPI_RESP_TIME\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 7, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 6)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
 
   gsub("defined\\(IB_PD_HAS_LOCAL_DMA_LKEY\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0) || " \
-       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 6)", stmnt)
+       "RHEL_RELEASE_CODE -0 >= 7 * 256 + 5)", stmnt)
 
   gsub("defined\\(HAVE_IB_DMA_MAP_OPS\\)",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(0, 0, 0))", stmnt)
 
   gsub("HAVE_IB_SG_DMA_LEN",
-       "(LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0))", stmnt)
+       "(LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0) \\&\\& " \
+       "RHEL_RELEASE_CODE -0 < 8 * 256 + 2)", stmnt)
+
+  gsub("RDMA_REJECT_HAS_FOUR_ARGS",
+       "(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0))", stmnt)
 
   gsub("defined(ENABLE_NPIV)", 0, stmnt)
 
@@ -162,7 +173,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
   {
     sub(pattern, op[1] * 65536 + op[2] * 256 + op[3], stmnt)
   }
-  
+
   gsub("defined\\(INSIDE_KERNEL_TREE\\)", "1", stmnt)
 
   gsub("defined\\(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19\\)", "0", stmnt)
@@ -170,7 +181,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
   gsub("defined\\(CONFIG_SUSE_KERNEL\\)", "0", stmnt)
 
   gsub("defined\\(CONFIG_SCST_STRICT_SERIALIZING\\)", "0", stmnt)
-  
+
   if (RHEL_MAJOR == "")
   {
     gsub("defined\\(RHEL_MAJOR\\)", "0", stmnt)
@@ -268,13 +279,19 @@ function evaluate(stmnt, pattern, arg, op, result) {
     {
       sub(pattern, op[1] == 0, stmnt)
     }
-    
+
     pattern = "![[:blank:]]*\\([[:blank:]]*(-*[0-9]+)[[:blank:]]*\\)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, op[1] == 0, stmnt)
     }
-    
+
+    pattern = "\\([[:blank:]]*(-*[0-9]+)[[:blank:]]*\\)"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      sub(pattern, op[1], stmnt)
+    }
+
     pattern="(-*[0-9]+)[[:blank:]]*(\\*|/)[[:blank:]]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
@@ -283,7 +300,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
       else if (op[2] == "/" && op[3] != 0) result = op[1] / op[3]
       sub(pattern, result, stmnt)
     }
-  
+
     pattern="(-*[0-9]+)[[:blank:]]*(\\+|-)[[:blank:]]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
@@ -301,7 +318,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
       else if (op[2] == ">>") result = int(op[1] / (2**op[3]))
       sub(pattern, result, stmnt)
     }
-  
+
     pattern="(-*[0-9]+)[[:blank:]]*(<|<=|>|>=|==|!=)[[:blank:]]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
@@ -314,7 +331,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
       else if (op[2] == "!=") result = op[1] != op[3]
       sub(pattern, result, stmnt)
     }
-  
+
     pattern="(-*[0-9]+)[[:blank:]]*&&[[:blank:]]*\\([[:blank:]]*(-*[0-9]+)[[:blank:]]*\\)"
     while (match(stmnt, pattern, op) != 0)
     {
@@ -326,43 +343,43 @@ function evaluate(stmnt, pattern, arg, op, result) {
     {
       sub(pattern, (op[1] != 0) && (op[2] != 0), stmnt)
     }
-  
+
     pattern="^+#(if|elif)[[:blank:]]*([01])[[:blank:]]*&&[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))$"
     while (match(stmnt, pattern, op) != 0)
     {
       stmnt = "+#" op[1] " " (op[2] != 0 ? op[3] : op[2])
     }
-  
+
     pattern="^+#(if|elif)[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))&&[[:blank:]]*([01])[[:blank:]]*$"
     while (match(stmnt, pattern, op) != 0)
     {
       stmnt = "+#" op[1] " " (op[3] != 0 ? op[2] : op[3])
     }
-  
+
     pattern="^+#(if|elif)[[:blank:]]*(!*[[:blank:]]*[A-Za-z0-9_]*)[[:blank:]]*&&[[:blank:]]*([01])[[:blank:]]*$"
     while (match(stmnt, pattern, op) != 0)
     {
       stmnt = "+#" op[1] " " (op[3] != 0 ? op[2] : op[3])
     }
-  
+
     pattern="(-*[0-9]+)[[:blank:]]*\\|\\|[[:blank:]]*(-*[0-9]+)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, (op[1] != 0) || (op[2] != 0), stmnt)
     }
-  
+
     pattern="^+#(if|elif)[[:blank:]]*([01])[[:blank:]]*\\|\\|[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))$"
     while (match(stmnt, pattern, op) != 0)
     {
       stmnt = "+#" op[1] " " (op[2] == 0 ? op[3] : op[2])
     }
-  
+
     pattern="\\(([01])[[:blank:]]*\\|\\|[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))\\)"
     while (match(stmnt, pattern, op) != 0)
     {
       sub(pattern, op[1] == 0 ? op[2] : op[1], stmnt)
     }
-  
+
     pattern="\\([[:blank:]]*(-*[0-9]+)[[:blank:]]*\\)"
     while (match(stmnt, pattern, op) != 0)
     {
@@ -393,6 +410,7 @@ function handle_if(evaluated)
   if ($0 ~ "LINUX_VERSION_CODE"						\
       || $0 ~ "CONFIG_SCST_PROC"					\
       || $0 ~ "CONFIG_SCST_STRICT_SERIALIZING"				\
+      || $0 ~ "CREATE_SEND_MAD_HAS_AH_ARG"				\
       || $0 ~ "CREATE_SEND_MAD_HAS_BASE_ARG"				\
       || $0 ~ "ENABLE_NPIV"						\
       || $0 ~ "FC_VPORT_CREATE_DEFINED"					\
@@ -407,6 +425,7 @@ function handle_if(evaluated)
       || $0 ~ "HAVE_RDMA_QUERY_GID"					\
       || $0 ~ "HAVE_SRP_DATA_DESC_IMM"					\
       || $0 ~ "HAVE_STRUCT_SRP_LOGIN_REQ_RDMA"				\
+      || $0 ~ "IB_CLIENT_ADD_ONE_RETURNS_INT"                           \
       || $0 ~ "IB_CLIENT_REMOVE_TAKES_TWO_ARGS"				\
       || $0 ~ "IB_CM_LISTEN_TAKES_FOURTH_ARG"				\
       || $0 ~ "IB_CREATE_CQ_HAS_INIT_ATTR"				\
@@ -417,6 +436,7 @@ function handle_if(evaluated)
       || $0 ~ "MOFED_MAJOR"						\
       || $0 ~ "MOFED_MINOR"						\
       || $0 ~ "RDMA_CREATE_ID_TAKES_NET_ARG"				\
+      || $0 ~ "RDMA_REJECT_HAS_FOUR_ARGS"                               \
       || $0 ~ "REGISTER_MAD_AGENT_HAS_FLAGS_ARG"			\
       || $0 ~ "RHEL_MAJOR"						\
       || $0 ~ "RHEL_MINOR"						\
@@ -614,10 +634,13 @@ function dump_lines() {
     if (h[0] != "")
       printf "@@ -%d,%d +%d,%d @@%s\n",h[1],h[2]-lines_less_deleted,h[3],h[4]-lines_less_added,h[5]
     for (i = 0; i < lines; i++) {
-      gsub("BAD_WR_MODIFIER",
-           LINUX_VERSION_CODE < version_code("4.19.0") ? "" : "const", line[i])
-      gsub("CM_HANDLER_EVENT_MODIFIER",
-           LINUX_VERSION_CODE < version_code("4.19.0") ? "" : "const", line[i])
+      modifier = (LINUX_VERSION_CODE < version_code("4.19.0") &&
+                  (RHEL_MAJOR == "" ||
+                   RHEL_MAJOR * 256 + RHEL_MINOR < 7 * 256 + 7 ||
+                   RHEL_MAJOR * 256 + RHEL_MINOR == 8 * 256 + 0) ?
+                  "" : "const");
+      gsub("BAD_WR_MODIFIER", modifier, line[i])
+      gsub("CM_HANDLER_EVENT_MODIFIER", modifier, line[i])
       print line[i]
     }
   }
