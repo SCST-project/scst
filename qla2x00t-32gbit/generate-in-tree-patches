@@ -26,6 +26,19 @@ for g in Kconfig *.[ch]; do
   fi
 done
 
+for g in include/trace/events/qla.h; do
+  f1="qla2xxx-orig/${kernel_version}/$g"
+  f2="$g"
+  f3="in-tree-patches/${kernel_version}/${g#include/trace/events/}.patch"
+  if [ "$f1" -nt "$f3" -o "$f2" -nt "$f3" ]; then
+    if [ -e "$f1" ]; then
+      diff -up "$f1" "$f2" > "$f3"
+    else
+      diff -up /dev/null "$f2" > "$f3"
+    fi
+  fi
+done
+
 for g in Makefile; do
   f1="qla2xxx-orig/${kernel_version}/$g"
   f2="${g}_in-tree"
