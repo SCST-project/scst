@@ -2,14 +2,16 @@
 
 kernel_version="$1"
 
-if [ "$1" = "" ]; then
+if [ "$kernel_version" = "" ]; then
   echo "Error: missing kernel version argument."
   exit 1
 fi
 
-if [ ! -e qla2xxx-orig/$1 ]; then
-  "$(dirname "$0")/extract-qla2xxx-orig" "$1"
+if [ ! -e qla2xxx-orig/${kernel_version/^*} ]; then
+  "$(dirname "$0")/extract-qla2xxx-orig" "$kernel_version" || exit $?
 fi
+
+kernel_version=${kernel_version/^*}
 
 mkdir -p in-tree-patches/"${kernel_version}"
 
