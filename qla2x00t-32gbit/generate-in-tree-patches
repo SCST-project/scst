@@ -8,7 +8,7 @@ if [ "$1" = "" ]; then
 fi
 
 if [ ! -e qla2xxx-orig/$1 ]; then
-  ./extract-qla2xxx-orig "$1"
+  "$(dirname "$0")/extract-qla2xxx-orig" "$1"
 fi
 
 mkdir -p in-tree-patches/"${kernel_version}"
