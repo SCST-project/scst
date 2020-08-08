@@ -8549,7 +8549,8 @@ static void scsi_end_async(struct request *req, blk_status_t error)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
 	lockdep_assert_held(req->q->queue_lock);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8)
 	if (!req->q->mq_ops)
 		lockdep_assert_held(req->q->queue_lock);
 #endif
