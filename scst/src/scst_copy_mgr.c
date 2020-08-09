@@ -578,7 +578,7 @@ static void scst_cm_advance_seg_descr(struct scst_cmd *ec_cmd)
 static void scst_cm_prepare_final_sense(struct scst_cmd *ec_cmd)
 {
 	struct scst_cm_ec_cmd_priv *priv = ec_cmd->cmd_data_descriptors;
-	uint8_t *fsense = NULL;
+	uint8_t add_sense_len, *fsense = NULL;
 	int d_sense = scst_get_cmd_dev_d_sense(ec_cmd);
 	bool copy_sense = false;
 	int sense_to_copy = ec_cmd->sense_valid_len;
@@ -665,7 +665,7 @@ static void scst_cm_prepare_final_sense(struct scst_cmd *ec_cmd)
 		/* Descriptor format */
 		fsense[0] = 0x72;
 		fsense[1] = COPY_ABORTED;
-		fsense[7] = 12; /* additional Sense Length */
+		add_sense_len = 12;
 
 		fsense[8] = 1; /* Command specific descriptor */
 		fsense[9] = 0xA;
@@ -676,7 +676,7 @@ static void scst_cm_prepare_final_sense(struct scst_cmd *ec_cmd)
 		/* Fixed format */
 		fsense[0] = 0x70;
 		fsense[2] = COPY_ABORTED;
-		fsense[7] = 0x0a; /* additional Sense Length */
+		add_sense_len = 0x0a;
 
 		put_unaligned_be16(priv->cm_cur_seg_descr, &fsense[10]);
 
@@ -691,14 +691,16 @@ static void scst_cm_prepare_final_sense(struct scst_cmd *ec_cmd)
 
 		if (copy_sense) {
 			TRACE_DBG("Copying %db of old sense", sense_to_copy);
-			fsense[7] += 1 + sense_to_copy;
+			add_sense_len += 1 + sense_to_copy;
 			fsense[17] = ec_cmd->status;
 			memcpy(&fsense[18], ec_cmd->sense, sense_to_copy);
 		}
 
-		sense_len = fsense[7] + 8;
+		sense_len = add_sense_len + 8;
 		TRACE_DBG("New sense len %d", sense_len);
 	}
+
+	fsense[7] = add_sense_len; /* additional Sense Length */
 
 	ec_cmd->status = SAM_STAT_CHECK_CONDITION;
 	if (ec_cmd->sense != NULL) {
