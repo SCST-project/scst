@@ -200,10 +200,12 @@ out:
 
 static void *align_alloc(size_t size)
 {
-	static uint32_t page_size;
+	static long page_size;
 
-	if (page_size == 0)
+	if (page_size == 0) {
 		page_size = sysconf(_SC_PAGESIZE);
+		assert(page_size > 0);
+	}
 
 	TRACE_MEM("Request to alloc %zdKB", size / 1024);
 	return memalign(page_size, size);
