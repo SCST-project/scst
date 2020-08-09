@@ -84,7 +84,7 @@ static inline void scst_assert_pr_mutex_held(struct scst_device *dev)
 }
 #endif
 
-int scst_tid_size(const uint8_t *tid)
+uint32_t scst_tid_size(const uint8_t *tid)
 {
 	sBUG_ON(tid == NULL);
 
@@ -94,16 +94,18 @@ int scst_tid_size(const uint8_t *tid)
 		return TID_COMMON_SIZE;
 }
 
-/* Secures tid by setting 0 in the last byte of NULL-terminated tid's */
-static inline void tid_secure(uint8_t *tid)
+/* Secures transport ID by setting 0 in the last byte of ASCII transport IDs */
+static bool tid_secure(uint8_t *tid, unsigned int buf_size)
 {
 	if ((tid[0] & 0x0f) == SCSI_TRANSPORTID_PROTOCOLID_ISCSI) {
-		int size = scst_tid_size(tid);
+		const uint32_t size = scst_tid_size(tid);
 
+		if (size > buf_size)
+			return false;
 		tid[size - 1] = '\0';
 	}
 
-	return;
+	return true;
 }
 
 /* Returns false if tid's are not equal, true otherwise */
@@ -122,8 +124,8 @@ bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b)
 	if ((tid_a[0] & 0x0f) == SCSI_TRANSPORTID_PROTOCOLID_ISCSI) {
 		const uint8_t tid_a_fmt = tid_a[0] & 0xc0;
 		const uint8_t tid_b_fmt = tid_b[0] & 0xc0;
-		int tid_a_len, tid_a_max = scst_tid_size(tid_a) - 4;
-		int tid_b_len, tid_b_max = scst_tid_size(tid_b) - 4;
+		uint32_t tid_a_len, tid_a_max = scst_tid_size(tid_a) - 4;
+		uint32_t tid_b_len, tid_b_max = scst_tid_size(tid_b) - 4;
 		int i;
 
 		tid_a += 4;
@@ -140,7 +142,6 @@ bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b)
 				tid_a_len = p - tid_a;
 
 				sBUG_ON(tid_a_len > tid_a_max);
-				sBUG_ON(tid_a_len < 0);
 			} else
 				tid_a_len = strnlen(tid_a, tid_a_max);
 		} else
@@ -157,7 +158,6 @@ bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b)
 				tid_b_len = p - tid_b;
 
 				sBUG_ON(tid_b_len > tid_b_max);
-				sBUG_ON(tid_b_len < 0);
 			} else
 				tid_b_len = strnlen(tid_b, tid_b_max);
 		} else
@@ -953,7 +953,7 @@ void scst_pr_sync_device_file(struct scst_device *dev)
 	list_for_each_entry(reg, &dev->dev_registrants_list,
 			    dev_registrants_list_entry) {
 		uint8_t is_holder = 0;
-		int size;
+		uint32_t size;
 
 		is_holder = (dev->pr_holder == reg);
 
@@ -1291,7 +1291,6 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd,
 	__be64 action_key;
 	struct scst_device *dev = cmd->dev;
 	struct scst_dev_registrant *reg;
-	uint8_t *transport_id;
 
 	scst_assert_pr_mutex_held(cmd->dev);
 
@@ -1309,24 +1308,24 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd,
 
 	offset = 0;
 	while (offset < ext_size) {
-		transport_id = &buffer[28 + offset];
+		uint8_t *const transport_id = &buffer[28 + offset];
+		const uint32_t tid_size = scst_tid_size(transport_id);
 
-		if ((offset + scst_tid_size(transport_id)) > ext_size) {
+		if (offset + tid_size > ext_size) {
 			TRACE_PR("Invalid transport_id size %d (max %d)",
-				scst_tid_size(transport_id), ext_size - offset);
+				tid_size, ext_size - offset);
 			scst_set_invalid_field_in_parm_list(cmd, 24, 0);
 			res = -EINVAL;
 			goto out;
 		}
-		tid_secure(transport_id);
-		offset += scst_tid_size(transport_id);
+		WARN_ON_ONCE(!tid_secure(transport_id, tid_size));
+		offset += tid_size;
 	}
 
 	offset = 0;
 	while (offset < ext_size) {
+		uint8_t *transport_id = &buffer[28 + offset];
 		struct scst_tgt_dev *t;
-
-		transport_id = &buffer[28 + offset];
 
 		TRACE_PR("rel_tgt_id %d, transport_id %s", rel_tgt_id,
 			debug_transport_id_to_initiator_name(transport_id));
@@ -1908,7 +1907,13 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
 		goto out;
 	}
 
-	tid_secure(transport_id_move);
+	if (!tid_secure(transport_id_move, buffer_size - 24)) {
+		TRACE_PR("Transport ID length %d exceeds buffer size %d",
+			 scst_tid_size(transport_id_move), buffer_size - 24);
+		scst_set_cmd_error(cmd,
+			SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
+		goto out;
+	}
 
 	if (dev->pr_type == TYPE_WRITE_EXCLUSIVE_ALL_REG ||
 	    dev->pr_type == TYPE_EXCLUSIVE_ACCESS_ALL_REG) {
@@ -2732,11 +2737,8 @@ void scst_pr_read_full_status(struct scst_cmd *cmd, uint8_t *buffer,
 
 	list_for_each_entry(reg, &dev->dev_registrants_list,
 				dev_registrants_list_entry) {
-		int ts;
-		int rec_len;
-
-		ts = scst_tid_size(reg->transport_id);
-		rec_len = 24 + ts;
+		const uint32_t ts = scst_tid_size(reg->transport_id);
+		const uint32_t rec_len = 24 + ts;
 
 		if (size_max - size > rec_len) {
 			memset(&buffer[offset], 0, rec_len);

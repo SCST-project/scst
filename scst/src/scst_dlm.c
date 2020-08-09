@@ -426,9 +426,9 @@ static void scst_copy_to_dlm(struct scst_device *dev, dlm_lockspace_t *ls)
 	struct pr_lvb *lvb = (void *)pr_dlm->lvb;
 	struct pr_reg_lvb *reg_lvb;
 	struct scst_dev_registrant *reg;
-	int i, tid_size;
+	int i;
 	char reg_name[32];
-	uint32_t nr_registrants;
+	uint32_t nr_registrants, tid_size;
 
 	lockdep_assert_held(&pr_dlm->ls_mutex);
 

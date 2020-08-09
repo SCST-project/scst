@@ -130,7 +130,7 @@ void scst_pr_report_caps(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 void scst_pr_read_full_status(struct scst_cmd *cmd, uint8_t *buffer,
 	int buffer_size);
 
-int scst_tid_size(const uint8_t *tid);
+uint32_t scst_tid_size(const uint8_t *tid);
 bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b);
 
 struct scst_dev_registrant *scst_pr_find_reg(struct scst_device *dev,
