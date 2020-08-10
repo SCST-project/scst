@@ -6441,6 +6441,86 @@ static enum compl_status_e nullio_exec_verify(struct vdisk_cmd_params *p)
 	return CMD_SUCCEEDED;
 }
 
+static void blockio_on_alua_state_change_start(struct scst_device *dev,
+	enum scst_tg_state old_state, enum scst_tg_state new_state)
+{
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	const bool close = virt_dev->dev_active &&
+		new_state != SCST_TG_STATE_OPTIMIZED &&
+		new_state != SCST_TG_STATE_NONOPTIMIZED;
+
+	TRACE_ENTRY();
+
+	/* No other fd activity may happen concurrently with this function. */
+	lockdep_assert_alua_lock_held();
+
+	if (!virt_dev->bind_alua_state)
+		return;
+
+	PRINT_INFO("dev %s: ALUA state change from %s to %s started,%s closing FD",
+		   dev->virt_name, scst_alua_state_name(old_state),
+		   scst_alua_state_name(new_state), close ? "" : " not");
+
+	if (!close)
+		return;
+
+	virt_dev->dev_active = 0;
+
+	vdisk_close_fd(virt_dev);
+
+	TRACE_EXIT();
+	return;
+}
+
+static void blockio_on_alua_state_change_finish(struct scst_device *dev,
+	enum scst_tg_state old_state, enum scst_tg_state new_state)
+{
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	const bool open = !virt_dev->dev_active &&
+		(new_state == SCST_TG_STATE_OPTIMIZED ||
+		 new_state == SCST_TG_STATE_NONOPTIMIZED);
+	int rc = 0;
+
+	TRACE_ENTRY();
+
+	/* No other fd activity may happen concurrently with this function. */
+	lockdep_assert_alua_lock_held();
+
+	if (!virt_dev->bind_alua_state)
+		return;
+
+	PRINT_INFO("dev %s: ALUA state change from %s to %s finished,%s reopening FD",
+		   dev->virt_name, scst_alua_state_name(old_state),
+		   scst_alua_state_name(new_state), open ? "" : " not");
+
+	if (!open)
+		return;
+
+	virt_dev->dev_active = 1;
+
+	/*
+	 * only reopen fd if tgt_dev_cnt is not zero, otherwise we will
+	 * leak reference.
+	 */
+	if (virt_dev->tgt_dev_cnt)
+		rc = vdisk_open_fd(virt_dev, dev->dev_rd_only);
+
+	if (rc == 0) {
+		if (virt_dev->reexam_pending) {
+			rc = vdisk_reexamine(virt_dev);
+			WARN_ON(rc != 0);
+			virt_dev->reexam_pending = 0;
+		}
+	} else {
+		PRINT_ERROR("dev %s: opening after ALUA state change to %s failed",
+			    dev->virt_name,
+			    scst_alua_state_name(new_state));
+	}
+
+	TRACE_EXIT();
+	return;
+}
+
 static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
 	struct scst_tgt_dev *tgt_dev)
 {
@@ -9316,7 +9396,10 @@ static int vdev_sysfs_process_active_store(
 	res = mutex_lock_interruptible(&scst_mutex);
 	if (res)
 		goto resume;
-	/* To do: verify whether this call is still necessary. */
+	/*
+	 * This is used to serialize against the *_on_alua_state_change_*()
+	 * calls in scst_tg.c
+	 */
 	scst_alua_lock();
 
 	/*
@@ -9798,6 +9881,8 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.detach_tgt =		vdisk_detach_tgt,
 	.parse =		non_fileio_parse,
 	.exec =			blockio_exec,
+	.on_alua_state_change_start = blockio_on_alua_state_change_start,
+	.on_alua_state_change_finish = blockio_on_alua_state_change_finish,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
 	.get_supported_opcodes = vdisk_get_supported_opcodes,
 	.devt_priv =		(void *)blockio_ops,
