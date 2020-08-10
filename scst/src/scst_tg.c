@@ -964,6 +964,41 @@ out_fail:
 }
 
 /*
+ * __scst_tgt_set_state - Update the ALUA filter of a LUN and invoke callbacks
+ * @tg: ALUA target group of which the state is changing.
+ * @tgt_dev: LUN to be updated.
+ * @state: new ALUA state.
+ * @invoke_callbacks: Whether or not to invoke the on_alua_state_changed_*
+ *	callback functions.
+ */
+static void __scst_tgt_set_state(struct scst_target_group *tg,
+	struct scst_tgt_dev *tgt_dev, enum scst_tg_state state,
+	bool invoke_callbacks)
+{
+	bool gen_ua = state != SCST_TG_STATE_TRANSITIONING;
+	struct scst_tgt *tgt = tgt_dev->sess->tgt;
+	enum scst_tg_state old_state = tg->state;
+	struct scst_device *dev = tgt_dev->dev;
+	struct scst_dev_group *dg = tg->dg;
+
+	if (invoke_callbacks && dev->handler->on_alua_state_change_start)
+		dev->handler->on_alua_state_change_start(dev, old_state,
+							 state);
+	/*
+	 * If the ALUA state transition is caused by an STPG command and if
+	 * the STPG command has been received through the target port of which
+	 * the state is being modified, do not generate a unit attention.
+	 */
+	if (dg->stpg_rel_tgt_id == tgt->rel_tgt_id &&
+	    tid_equal(dg->stpg_transport_id, tgt_dev->sess->transport_id))
+		gen_ua = false;
+	scst_tg_change_tgt_dev_state(tgt_dev, state, gen_ua);
+	if (invoke_callbacks && dev->handler->on_alua_state_change_finish)
+		dev->handler->on_alua_state_change_finish(dev, old_state,
+							  state);
+}
+
+/*
  * Update the ALUA filter of those LUNs (tgt_dev) whose target port is a member
  * of target group @tg and that export a device that is a member of the device
  * group @tg->dg.
@@ -976,6 +1011,7 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_tg_tgt *tg_tgt;
 	struct scst_tgt *tgt;
+	bool invoke_callbacks;
 
 	sBUG_ON(state >= ARRAY_SIZE(scst_alua_filter));
 	lockdep_assert_held(&scst_dg_mutex);
@@ -983,27 +1019,24 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 	if (tg->state == state)
 		return;
 
-	tg->state = state;
-
 	list_for_each_entry(dg_dev, &tg->dg->dev_list, entry) {
+		invoke_callbacks = true;
 		dev = dg_dev->dev;
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
 			tgt = tgt_dev->sess->tgt;
 			list_for_each_entry(tg_tgt, &tg->tgt_list, entry) {
 				if (tg_tgt->tgt == tgt) {
-					bool gen_ua = (state != SCST_TG_STATE_TRANSITIONING);
-
-					if ((tg->dg->stpg_rel_tgt_id == tgt_dev->sess->tgt->rel_tgt_id) &&
-					    tid_equal(tg->dg->stpg_transport_id, tgt_dev->sess->transport_id))
-						gen_ua = false;
-					scst_tg_change_tgt_dev_state(tgt_dev,
-						state, gen_ua);
+					__scst_tgt_set_state(tg, tgt_dev, state,
+							     invoke_callbacks);
+					invoke_callbacks = false;
 					break;
 				}
 			}
 		}
 	}
+
+	tg->state = state;
 
 	scst_check_alua_invariant();
 
