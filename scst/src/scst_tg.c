@@ -964,6 +964,30 @@ out_fail:
 }
 
 /*
+ * __scst_tgt_set_state - Update the ALUA filter of a LUN
+ * @tg: ALUA target group of which the state is changing.
+ * @tgt_dev: LUN to be updated.
+ * @state: new ALUA state.
+ */
+static void __scst_tgt_set_state(struct scst_target_group *tg,
+	struct scst_tgt_dev *tgt_dev, enum scst_tg_state state)
+{
+	bool gen_ua = state != SCST_TG_STATE_TRANSITIONING;
+	struct scst_tgt *tgt = tgt_dev->sess->tgt;
+	struct scst_dev_group *dg = tg->dg;
+
+	/*
+	 * If the ALUA state transition is caused by an STPG command and if
+	 * the STPG command has been received through the target port of which
+	 * the state is being modified, do not generate a unit attention.
+	 */
+	if (dg->stpg_rel_tgt_id == tgt->rel_tgt_id &&
+	    tid_equal(dg->stpg_transport_id, tgt_dev->sess->transport_id))
+		gen_ua = false;
+	scst_tg_change_tgt_dev_state(tgt_dev, state, gen_ua);
+}
+
+/*
  * Update the ALUA filter of those LUNs (tgt_dev) whose target port is a member
  * of target group @tg and that export a device that is a member of the device
  * group @tg->dg.
@@ -992,13 +1016,8 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 			tgt = tgt_dev->sess->tgt;
 			list_for_each_entry(tg_tgt, &tg->tgt_list, entry) {
 				if (tg_tgt->tgt == tgt) {
-					bool gen_ua = (state != SCST_TG_STATE_TRANSITIONING);
-
-					if ((tg->dg->stpg_rel_tgt_id == tgt_dev->sess->tgt->rel_tgt_id) &&
-					    tid_equal(tg->dg->stpg_transport_id, tgt_dev->sess->transport_id))
-						gen_ua = false;
-					scst_tg_change_tgt_dev_state(tgt_dev,
-						state, gen_ua);
+					__scst_tgt_set_state(tg, tgt_dev,
+							     state);
 					break;
 				}
 			}
