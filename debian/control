@@ -21,6 +21,7 @@ Package: scst-dkms
 Architecture: all
 Depends: ${misc:Depends}, dkms
 Conflicts: scst
+Provides: scst
 Description: Generic SCSI target framework
  SCST is a SCSI target framework that allows local block device data to be
  accessed over a storage network via the iSCSI, FC, SRP or FCoE protocol.
