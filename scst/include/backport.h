@@ -524,7 +524,12 @@ kernel_write_backport(struct file *file, const void *buf, size_t count,
 		      loff_t *pos)
 {
 #ifndef CONFIG_SUSE_KERNEL
-	return kernel_write(file, buf, count, *pos);
+	int res = kernel_write(file, buf, count, *pos);
+
+	if (res > 0)
+		*pos += res;
+
+	return res;
 #else
 	return kernel_write(file, buf, count, pos);
 #endif
