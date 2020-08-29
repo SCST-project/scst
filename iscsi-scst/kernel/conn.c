@@ -791,7 +791,7 @@ static int conn_setup_sock(struct iscsi_conn *conn)
 	oldfs = get_fs();
 	set_fs(KERNEL_DS);
 	conn->sock->ops->setsockopt(conn->sock, SOL_TCP, TCP_NODELAY,
-		(void __force __user *)&opt, sizeof(opt));
+				    KERNEL_SOCKPTR(&opt), sizeof(opt));
 	set_fs(oldfs);
 
 out:

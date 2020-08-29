@@ -1727,6 +1727,16 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 			sizeof_field(struct __struct, __field), NULL)
 #endif
 
+/* <linux/sockptr.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
+/* See also commit ba423fdaa589 ("net: add a new sockptr_t type") # v5.9 */
+static inline void __user *KERNEL_SOCKPTR(void *p)
+{
+	return (void __force __user *)p;
+}
+#endif
+
 /* <linux/stddef.h> */
 
 #ifndef sizeof_field
