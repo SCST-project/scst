@@ -2823,7 +2823,7 @@ static bool scst_cm_check_access_acg(const char *initiator_name,
 			if (default_acg)
 				goto found;
 			list_for_each_entry(acn, &acg->acn_list, acn_list_entry) {
-				if (strcmp(acn->name, initiator_name) == 0)
+				if (wildcmp(acn->name, initiator_name))
 					goto found;
 			}
 		}

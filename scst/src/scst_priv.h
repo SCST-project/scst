@@ -379,6 +379,8 @@ int scst_del_free_acg(struct scst_acg *acg, bool close_sessions);
 void scst_get_acg(struct scst_acg *acg);
 void scst_put_acg(struct scst_acg *acg);
 
+bool wildcmp(const char *wild, const char *string);
+
 struct scst_acg *scst_tgt_find_acg(struct scst_tgt *tgt, const char *name);
 struct scst_acg *scst_find_acg(const struct scst_session *sess);
 
