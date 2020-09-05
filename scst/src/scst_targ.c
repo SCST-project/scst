@@ -7132,7 +7132,7 @@ static bool __wildcmp(const char *wild, const char *string, int recursion_level)
  *
  * Also see comment for __wildcmp().
  */
-static bool wildcmp(const char *wild, const char *string)
+bool wildcmp(const char *wild, const char *string)
 {
 	return __wildcmp(wild, string, 0);
 }
