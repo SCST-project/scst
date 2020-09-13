@@ -243,14 +243,27 @@ EOS
 
 Collecting current configuration: done.
 
-	Driver       Target          
-	-----------------------------
+	Driver       Target
+
 	copy_manager copy_manager_tgt
-	scst_local   local           
+	scst_local   local
 
 All done.
 EOS
-    ok(run("$scstadmin -list_target"), $result);
+    my ($output, $include);
+    foreach my $line (split '\n', run("$scstadmin -list_target")) {
+	if ($line =~ '^\t-') {
+	    $line = "";
+	} elsif ($line =~ '^\tib_srpt') {
+	    undef $include;
+	} elsif ($line =~ '^\t[^[:blank:]]' || $line =~ '^$' ||
+		 $line =~ '^[^\t]') {
+	    $include = 1;
+	}
+	$line =~ s/\s+$//;
+	$output .= $line . "\n" if $include;
+    }
+    ok($output, $result);
 
     $result = <<'EOS';
 
@@ -296,7 +309,18 @@ Assigned Initiators:
 
 All done.
 EOS
-    ok(run("$scstadmin -list_group"), $result);
+    undef $output;
+    $include = 1;
+    foreach my $line (split '\n', run("$scstadmin -list_group")) {
+	if ($line =~ '^Driver: ib_srpt') {
+	    undef $include;
+	} elsif ($line =~ '^Driver:' || $line =~ '^[AC]') {
+	    $include = 1;
+	}
+	$line =~ s/\s+$//;
+	$output .= $line . "\n" if $include;
+    }
+    ok($output, $result);
 
     $result = <<'EOS';
 
@@ -579,22 +603,22 @@ Driver/Target: copy_manager/copy_manager_tgt
 	Session: copy_manager_sess
 
 	Attribute                     Value                 Writable      KEY
-	---------------------------------------------------------------------
-	active_commands               0                     Yes           No 
-	bidi_cmd_count                0                     Yes           No 
-	bidi_io_count_kb              0                     Yes           No 
-	bidi_unaligned_cmd_count      0                     Yes           No 
-	commands                      0                     Yes           No 
-	dif_checks_failed             	app	ref	guard        Yes           No 
-	initiator_name                copy_manager_sess     Yes           No 
-	none_cmd_count                0                     Yes           No 
-	read_cmd_count                11                    Yes           No 
-	read_io_count_kb              44                    Yes           No 
-	read_unaligned_cmd_count      0                     Yes           No 
-	unknown_cmd_count             0                     Yes           No 
-	write_cmd_count               0                     Yes           No 
-	write_io_count_kb             0                     Yes           No 
-	write_unaligned_cmd_count     0                     Yes           No 
+
+	active_commands               0                     Yes           No
+	bidi_cmd_count                0                     Yes           No
+	bidi_io_count_kb              0                     Yes           No
+	bidi_unaligned_cmd_count      0                     Yes           No
+	commands                      0                     Yes           No
+	dif_checks_failed             	app	ref	guard        Yes           No
+	initiator_name                copy_manager_sess     Yes           No
+	none_cmd_count                0                     Yes           No
+	read_cmd_count                11                    Yes           No
+	read_io_count_kb              44                    Yes           No
+	read_unaligned_cmd_count      0                     Yes           No
+	unknown_cmd_count             0                     Yes           No
+	write_cmd_count               0                     Yes           No
+	write_io_count_kb             0                     Yes           No
+	write_unaligned_cmd_count     0                     Yes           No
 
 Driver/Target: scst_local/local
 
@@ -603,7 +627,20 @@ Driver/Target: scst_local/local
 
 All done.
 EOS
-    ok(run("$scstadmin -list_sessions"), $result);
+    undef $output;
+    $include = 1;
+    foreach my $line (split '\n', run("$scstadmin -list_sessions")) {
+	if ($line =~ '^\t-') {
+	    $line = "";
+	} elsif ($line =~ '^Driver/Target: ib_srpt') {
+	    undef $include;
+	} elsif ($line =~ '^Driver/Target:' || $line =~ '^[AC]') {
+	    $include = 1;
+	}
+	$line =~ s/\s+$//;
+	$output .= $line . "\n" if $include;
+    }
+    ok($output, $result);
 }
 
 my $_DEBUG_ = 0;
