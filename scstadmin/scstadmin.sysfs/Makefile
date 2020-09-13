@@ -26,6 +26,7 @@ perl-module:
 	$(MAKE) -C scst-$(MODULE_VERSION)
 
 test:
+	export PERL_TEST_DIFF=diff
 	$(MAKE) -C scst-$(MODULE_VERSION) test #TEST_VERBOSE=1
 
 clean:
