@@ -21,28 +21,15 @@ use constant {
 TRUE             => 1,
 FALSE            => 0,
 
-SCST_ROOT_OLD    => '/sys/kernel/scst_tgt',
-SCST_ROOT_NEW    => '/sys/devices/scst',
+SCST_ROOT        => '/sys/kernel/scst_tgt',
 
 # Root-level
 SCST_SGV         => 'sgv',
-# Root level, old sysfs interface
 SCST_HANDLERS    => 'handlers',
 SCST_DEVICES     => 'devices',
 SCST_TARGETS     => 'targets',
 SCST_DEV_GROUPS  => 'device_groups',
 SCST_QUEUE_RES   => 'last_sysfs_mgmt_res',
-# Root level, new sysfs interface
-IN_SCST_HANDLERS => 'device_driver',
-IN_SCST_DEVICES  => 'device',
-IN_SCST_TARGETS  => 'target_driver',
-IN_SCST_DEV_GROUPS => 'device_groups',
-SCST_ADD_TGT        => 'add_target',
-SCST_ADD_TGT_PARAMS => 'add_target_parameters',
-SCST_TGTT_ATTR      => 'driver_attributes',
-SCST_TGT_ATTR       => 'target_attributes',
-SCST_ADD_DEV_PARAMS => 'add_device_parameters',
-SCST_PARAM_ATTR     => 'parameters',
 
 # Device group specific
 SCST_DG_DEVICES  => 'devices',
@@ -301,82 +288,36 @@ my $_SCST_MIN_MAJOR_   = 2;
 my $_SCST_MIN_MINOR_   = 0;
 my $_SCST_MIN_RELEASE_ = 0;
 
-my $_new_sysfs_interface;
-sub new_sysfs_interface {
-	if (!defined($_new_sysfs_interface)) {
-		$_new_sysfs_interface = !(-d SCST_ROOT_OLD) ? TRUE : FALSE;
-	}
-	return $_new_sysfs_interface;
-}
-
-my $_scst_root_dir;
 sub SCST_ROOT_DIR {
-	if (!defined($_scst_root_dir)) {
-		$_scst_root_dir = (-d SCST_ROOT_OLD ? SCST_ROOT_OLD :
-				   SCST_ROOT_NEW);
-	}
-	return $_scst_root_dir;
+	return SCST_ROOT;
 }
 
-my $_scst_sgv_dir;
 sub SCST_SGV_DIR {
-	if (!defined($_scst_sgv_dir)) {
-		$_scst_sgv_dir = SCST_ROOT_DIR() . '/sgv';
-	}
-	return $_scst_sgv_dir;
+	return SCST_ROOT . '/sgv';
 }
 
-my $_scst_queue_res_path = "";
 sub SCST_QUEUE_RES_PATH {
-	if ($_scst_queue_res_path eq "") {
-		$_scst_queue_res_path = (-d SCST_ROOT_OLD ?
-					 SCST_ROOT_OLD . '/' . SCST_QUEUE_RES :
-					 undef);
-	}
-	return $_scst_queue_res_path;
+	return SCST_ROOT . '/' . SCST_QUEUE_RES;
 }
 
 # Device handlers.
-my $_scst_handlers_dir;
 sub SCST_HANDLERS_DIR {
-	if (!defined($_scst_handlers_dir)) {
-		$_scst_handlers_dir = (-d SCST_ROOT_OLD ?
-				       SCST_ROOT_OLD . '/' . SCST_HANDLERS :
-				       '/sys/bus/scst_tgt_dev/drivers');
-	}
-	return $_scst_handlers_dir;
+	return SCST_ROOT . '/' . SCST_HANDLERS;
 }
 
 # Device instances.
-my $_scst_devices_dir;
 sub SCST_DEVICES_DIR {
-	if (!defined($_scst_devices_dir)) {
-		$_scst_devices_dir = (-d SCST_ROOT_OLD ?
-				      SCST_ROOT_OLD . '/' . SCST_DEVICES :
-				      '/sys/bus/scst_tgt_dev/devices');
-	}
-	return $_scst_devices_dir;
+	return SCST_ROOT . '/' . SCST_DEVICES;
 }
 
 # Target drivers.
-my $_scst_targets_dir;
 sub SCST_TARGETS_DIR {
-	if (!defined($_scst_targets_dir)) {
-		$_scst_targets_dir = (-d SCST_ROOT_OLD ?
-				      SCST_ROOT_OLD . '/' . SCST_TARGETS :
-				      '/sys/bus/scst_target/drivers');
-	}
-	return $_scst_targets_dir;
+	return SCST_ROOT . '/' . SCST_TARGETS;
 }
 
 # ALUA Device groups.
-my $_scst_dev_group_dir;
 sub SCST_DEV_GROUP_DIR {
-	if (!defined($_scst_dev_group_dir)) {
-		$_scst_dev_group_dir = make_path(SCST_ROOT_DIR(),
-						 SCST_DEV_GROUPS);
-	}
-	return $_scst_dev_group_dir;
+	return SCST_ROOT . '/' . SCST_DEV_GROUPS;
 }
 
 sub new {
@@ -463,8 +404,7 @@ sub scstAttributes {
 				chomp $value;
 
 				my $is_key = <$io>;
-				$is_key = new_sysfs_interface() && !$is_static ||
-				    $is_key && $is_key =~ /\[key\]/;
+				$is_key = $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -537,7 +477,7 @@ sub setScstAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!defined($attribute) || !defined($value));
+	return TRUE if (!length($attribute) || !length($value));
 
 	my $bytes = - ENOENT;
 	my $path = make_path(SCST_ROOT_DIR(), $attribute);
@@ -583,7 +523,7 @@ sub targets {
 	my $self = shift;
 	my $driver = shift;
 
-	return (undef, "Too few arguments") if (!defined($driver));
+	return (undef, "Too few arguments") if (!length($driver));
 
 	my $tHandle = new IO::Handle;
 	my $_path = make_path(SCST_TARGETS_DIR(), $driver);
@@ -618,7 +558,7 @@ sub groups {
 	my $driver = shift;
 	my $target = shift;
 
-	return (undef, "Too few arguments") if (!defined($driver) || !defined($target));
+	return (undef, "Too few arguments") if (!length($driver) || !length($target));
 
 	my $gHandle = new IO::Handle;
 	my $_path = make_path(SCST_TARGETS_DIR(), $driver, $target,
@@ -659,8 +599,8 @@ sub initiators {
 	my @initiators;
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!defined($driver) || !defined($target) ||
-			 !defined($group));
+	return (undef, "Too few arguments")
+	    if (!length($driver) || !length($target) || !length($group));
 
 	my $iHandle = new IO::Handle;
 	my $_path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
@@ -697,11 +637,11 @@ sub luns {
 	my $group = shift;
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!defined($driver) || !defined($target));
+	return (undef, "Too few arguments") if (!length($driver) || !length($target));
 
 	my $_path;
 
-	if (defined($group)) {
+	if (length($group)) {
 		$_path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				   SCST_GROUPS, $group, SCST_LUNS);
 	} else {
@@ -712,7 +652,7 @@ sub luns {
 	my $lHandle = new IO::Handle;
 
 	if (!(opendir $lHandle, $_path)) {
-		if (defined($group) && $self->groupExists($driver, $target, $group) != TRUE) {
+		if (length($group) && $self->groupExists($driver, $target, $group) != TRUE) {
 			$errorString = "initiators(): Group '$group' does not exist";
 		} elsif ($self->driverExists($driver) != TRUE) {
 			$errorString = "luns(): Driver '$driver' is not available";
@@ -790,8 +730,7 @@ sub aluaAttributes {
 
 			my $second_line = <$io>;
 			$second_line = "" if (!defined($second_line));
-			if (new_sysfs_interface() && !$is_static
-			    || ($second_line =~ /\[key\]/)) {
+			if ($second_line =~ /\[key\]/) {
 				my $key = 0;
 				if ($attribute =~ /^([^\d]+)(\d+)$/) {
 					$attribute = $1;
@@ -841,7 +780,7 @@ sub deviceGroupDevices {
 	my @devices;
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!defined($group));
+	return (undef, "Too few arguments") if (!length($group));
 
 	my $dHandle = new IO::Handle;
 	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_DEVICES);
@@ -873,7 +812,7 @@ sub targetGroups {
 	my @tgroups;
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!defined($group));
+	return (undef, "Too few arguments") if (!length($group));
 
 	my $dHandle = new IO::Handle;
 	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS);
@@ -906,7 +845,7 @@ sub targetGroupTargets {
 	my @targets;
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!defined($group) || !defined($tgroup));
+	return (undef, "Too few arguments") if (!length($group) || !length($tgroup));
 
 	my $dHandle = new IO::Handle;
 	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, $tgroup);
@@ -942,7 +881,7 @@ sub driverExists {
 	my $dHandle = new IO::Handle;
 	my $result;
 
-	$result = defined($driver) &&
+	$result = length($driver) &&
 	    opendir($dHandle, make_path(SCST_TARGETS_DIR(), $driver));
 	close $dHandle if ($result);
 
@@ -956,47 +895,35 @@ sub driverDynamicAttributes {
 	my $available;
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!defined($driver));
+	return (undef, "Too few arguments") if (!length($driver));
 
-	if (new_sysfs_interface()) {
-		my $io = new IO::File make_path(SCST_TARGETS_DIR(), $driver,
-						SCST_TGTT_ATTR), O_RDONLY;
-		if ($io) {
-			while (my $attribute = <$io>) {
-				chomp($attribute);
-				$attributes{$attribute} = '';
-			}
-			close $io;
+	my $io = new IO::File make_path(SCST_TARGETS_DIR(), $driver,
+					SCST_MGMT_IO), O_RDONLY;
+
+	if (!$io) {
+		if ($self->driverExists($driver) != TRUE) {
+			$errorString = "driverDynamicAttributes(): Driver '$driver' ".
+			    "is not available";
+		} else {
+			$errorString = "driverDynamicAttributes(): Unable to open mgmt ".
+			    "interface for driver '$driver': $!";
 		}
-	} else {
-		my $io = new IO::File make_path(SCST_TARGETS_DIR(), $driver,
-						SCST_MGMT_IO), O_RDONLY;
+		return (undef, $errorString);
+	}
 
-		if (!$io) {
-			if ($self->driverExists($driver) != TRUE) {
-				$errorString = "driverDynamicAttributes(): Driver '$driver' ".
-				    "is not available";
-			} else {
-				$errorString = "driverDynamicAttributes(): Unable to open mgmt ".
-				    "interface for driver '$driver': $!";
-			}
-			return (undef, $errorString);
+	while (my $in = <$io>) {
+		if ($in =~ /^The following target driver attributes available\:/) {
+			(undef, $available) = split(/\:/, $in, 2);
+			$available =~ s/\.$//;
 		}
+	}
+	close $io;
 
-		while (my $in = <$io>) {
-			if ($in =~ /^The following target driver attributes available\:/) {
-				(undef, $available) = split(/\:/, $in, 2);
-				$available =~ s/\.$//;
-			}
-		}
-		close $io;
-
-		if ($available) {
-			foreach my $attribute (split(/\,/, $available)) {
-				$attribute =~ s/^\s+//;
-				$attribute =~ s/\s+$//;
-				$attributes{$attribute} = '';
-			}
+	if ($available) {
+		foreach my $attribute (split(/\,/, $available)) {
+			$attribute =~ s/^\s+//;
+			$attribute =~ s/\s+$//;
+			$attributes{$attribute} = '';
 		}
 	}
 
@@ -1007,6 +934,8 @@ sub checkDriverDynamicAttributes {
 	my $self = shift;
 	my $driver = shift;
 	my $check = shift;
+
+	return TRUE if (!length($driver));
 
 	my ($available, $errorString) = $self->driverDynamicAttributes($driver);
 
@@ -1042,15 +971,10 @@ sub addDriverDynamicAttribute {
 	my $value = shift;
 
 	return SCST_C_DRV_ADDATTR_FAIL
-	    if (!defined($driver) || !defined($attribute) || !defined($value));
+	    if (!length($driver) || !defined($attribute) || !defined($value));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver) . " ";
-	} else {
-		$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
 	$cmd .= "add_attribute $attribute $value";
 
 	my $bytes = - ENOENT;
@@ -1085,15 +1009,10 @@ sub removeDriverDynamicAttribute {
 	my $value = shift;
 
 	return SCST_C_DRV_REMATTR_FAIL
-	    if (!defined($driver) || !defined($attribute) || !defined($value));
+	    if (!length($driver) || !defined($attribute) || !defined($value));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver) . " ";
-	} else {
-		$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
 	$cmd .= "del_attribute $attribute $value";
 
 	my $bytes = - ENOENT;
@@ -1126,7 +1045,7 @@ sub targetExists {
 	my $driver = shift;
 	my $target = shift;
 
-	return defined($driver) && defined($target) &&
+	return length($driver) && length($target) &&
 	    $target ne '.' && $target ne '..' && $target ne 'module' &&
 	    (-d make_path(SCST_TARGETS_DIR(), $driver, $target)) ? TRUE : FALSE;
 }
@@ -1134,21 +1053,8 @@ sub targetExists {
 sub driverIsVirtualCapable {
 	my $self = shift;
 	my $driver = shift;
-
-	if (new_sysfs_interface()) {
-		my $path = make_path(SCST_TARGETS_DIR(), $driver, SCST_ADD_TGT);
-		my $io = new IO::File $path, O_RDONLY;
-		if ($io) {
-			my $line = <$io>;
-			close $io;
-			chomp($line);
-			return $line eq '1';
-		}
-		return FALSE;
-	} else {
-		my $path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
-		return (-w $path) ? TRUE : FALSE;
-	}
+	my $path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
+	return (-w $path) ? TRUE : FALSE;
 }
 
 sub targetType {
@@ -1157,7 +1063,7 @@ sub targetType {
 	my $target = shift;
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!defined($driver) || !defined($target));
+	return (undef, "Too few arguments") if (!length($driver) || !length($target));
 
 	if ($self->driverIsVirtualCapable($driver)) {
 		my $attribs;
@@ -1195,12 +1101,7 @@ sub addVirtualTarget {
 	$o_string =~ s/\s$//;
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver) . " ";
-	} else {
-		$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
 	$cmd .= "add_target $target $o_string";
 
 	my $bytes = - ENOENT;
@@ -1239,47 +1140,35 @@ sub targetDynamicAttributes {
 	my $available;
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!defined($driver));
+	return (undef, "Too few arguments") if (!length($driver));
 
-	if (new_sysfs_interface()) {
-		my $io = new IO::File make_path(SCST_TARGETS_DIR(), $driver,
-						SCST_TGT_ATTR), O_RDONLY;
-		if ($io) {
-			while (my $attribute = <$io>) {
-				chomp($attribute);
-				$attributes{$attribute} = '';
-			}
-			close $io;
+	my $io = new IO::File make_path(SCST_TARGETS_DIR(), $driver,
+					SCST_MGMT_IO), O_RDONLY;
+
+	if (!$io) {
+		if ($self->driverExists($driver) != TRUE) {
+			$errorString = "targetDynamicAttributes(): Driver '$driver' ".
+			    "is not available";
+		} else {
+			$errorString = "targetDynamicAttributes(): Unable to open mgmt ".
+			    "interface for driver '$driver': $!";
 		}
-	} else {
-		my $io = new IO::File make_path(SCST_TARGETS_DIR(), $driver,
-						SCST_MGMT_IO), O_RDONLY;
+		return (undef, $errorString);
+	}
 
-		if (!$io) {
-			if ($self->driverExists($driver) != TRUE) {
-				$errorString = "targetDynamicAttributes(): Driver '$driver' ".
-				    "is not available";
-			} else {
-				$errorString = "targetDynamicAttributes(): Unable to open mgmt ".
-				    "interface for driver '$driver': $!";
-			}
-			return (undef, $errorString);
+	while (my $in = <$io>) {
+		if ($in =~ /^The following target attributes available\:/) {
+			(undef, $available) = split(/\:/, $in, 2);
+			$available =~ s/\.$//;
 		}
+	}
+	close $io;
 
-		while (my $in = <$io>) {
-			if ($in =~ /^The following target attributes available\:/) {
-				(undef, $available) = split(/\:/, $in, 2);
-				$available =~ s/\.$//;
-			}
-		}
-		close $io;
-
-		if ($available) {
-			foreach my $attribute (split(/\,/, $available)) {
-				$attribute =~ s/^\s+//;
-				$attribute =~ s/\s+$//;
-				$attributes{$attribute} = '';
-			}
+	if ($available) {
+		foreach my $attribute (split(/\,/, $available)) {
+			$attribute =~ s/^\s+//;
+			$attribute =~ s/\s+$//;
+			$attributes{$attribute} = '';
 		}
 	}
 
@@ -1326,16 +1215,11 @@ sub addTargetDynamicAttribute {
 	my $value = shift;
 
 	return SCST_C_TGT_ADDATTR_FAIL
-	    if (!defined($driver) || !defined($target) ||
+	    if (!length($driver) || !defined($target) ||
 		!defined($attribute) || !defined($value));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver) . " ";
-	} else {
-		$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
 	$cmd .= "add_target_attribute $target $attribute $value";
 
 	my $bytes = - ENOENT;
@@ -1379,12 +1263,7 @@ sub removeTargetDynamicAttribute {
 		!defined($attribute) || !defined($value));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver) . " ";
-	} else {
-		$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
 	$cmd .= "del_target_attribute $target $attribute $value";
 
 	my $bytes = - ENOENT;
@@ -1456,12 +1335,7 @@ sub removeVirtualTarget {
 	}
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver) . " ";
-	} else {
-		$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
 	$cmd .= "del_target $target";
 
 	my $bytes = - ENOENT;
@@ -1583,18 +1457,12 @@ sub addGroup {
 	my $target = shift;
 	my $group = shift;
 
-	return SCST_C_GRP_ADD_FAIL if (!defined($driver) || !defined($target) ||
-				       !defined($group));
+	return SCST_C_GRP_ADD_FAIL if (!length($driver) || !length($target) ||
+				       !length($group));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver, $target,
-					 SCST_GROUPS) . " ";
-	} else {
-		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-				  SCST_GROUPS, SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
+			  SCST_MGMT_IO);
 	$cmd .= "create $group";
 
 	my $bytes = - ENOENT;
@@ -1630,18 +1498,12 @@ sub removeGroup {
 	my $target = shift;
 	my $group = shift;
 
-	return SCST_C_GRP_REM_FAIL if (!defined($driver) || !defined($target) ||
-				       !defined($group));
+	return SCST_C_GRP_REM_FAIL if (!length($driver) || !length($target) ||
+				       !length($group));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver, $target,
-					 SCST_GROUPS) . " ";
-	} else {
-		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-				  SCST_GROUPS, SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
+			  SCST_MGMT_IO);
 	$cmd .= "del $group";
 
 	my $bytes = - ENOENT;
@@ -1678,12 +1540,7 @@ sub addDeviceGroup {
 	return SCST_C_DEV_GRP_ADD_FAIL if (!defined($group));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_DEV_GROUPS) . " ";
-	} else {
-		$path = make_path(SCST_DEV_GROUP_DIR(), SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_DEV_GROUP_DIR(), SCST_MGMT_IO);
 	$cmd .= "create $group";
 
 	my $bytes = - ENOENT;
@@ -1710,12 +1567,7 @@ sub removeDeviceGroup {
 	return SCST_C_DEV_GRP_REM_FAIL if (!defined($group));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_DEV_GROUPS) . " ";
-	} else {
-		$path = make_path(SCST_DEV_GROUP_DIR(), SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_DEV_GROUP_DIR(), SCST_MGMT_IO);
 	$cmd .= "del $group";
 
 	my $bytes = - ENOENT;
@@ -1744,16 +1596,11 @@ sub addDeviceGroupDevice {
 	my $dgroups;
 	my $errorString;
 
-	return SCST_C_DGRP_ADD_DEV_FAIL if (!defined($group) || !defined($device));
+	return SCST_C_DGRP_ADD_DEV_FAIL if (!length($group) || !length($device));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_DEV_GROUPS, $group,
-					 SCST_DG_DEVICES) . " ";
-	} else {
-		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_DEVICES, SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_DEVICES,
+			  SCST_MGMT_IO);
 	$cmd .= "add $device";
 
 	my $bytes = - ENOENT;
@@ -1799,17 +1646,11 @@ sub addTargetGroup {
 	my $group = shift;
 	my $tgroup = shift;
 
-	return SCST_C_DGRP_ADD_GRP_FAIL if (!defined($group) ||
-					    !defined($tgroup));
+	return SCST_C_DGRP_ADD_GRP_FAIL if (!length($group) || !length($tgroup));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_DEV_GROUPS, $group,
-					 SCST_DG_TGROUPS) . " ";
-	} else {
-		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
+			  SCST_MGMT_IO);
 	$cmd .= "add $tgroup";
 
 	my $bytes = - ENONENT;
@@ -1839,19 +1680,12 @@ sub addTargetGroupTarget {
 	my $tgroup = shift;
 	my $tgt = shift;
 
-	return SCST_C_TGRP_ADD_TGT_FAIL if (!defined($group) ||
-					    !defined($tgroup) ||
-					    !defined($tgt));
+	return SCST_C_TGRP_ADD_TGT_FAIL
+	    if (!length($group) || !length($tgroup) || !length($tgt));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_DEV_GROUPS, $group,
-					 SCST_DG_TGROUPS, $tgroup) . " ";
-	} else {
-		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
-				  $tgroup, SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
+			  $tgroup, SCST_MGMT_IO);
 	$cmd .= "add $tgt";
 
 	my $bytes = - ENOENT;
@@ -1883,16 +1717,11 @@ sub removeDeviceGroupDevice {
 	my $group = shift;
 	my $device = shift;
 
-	return SCST_C_DGRP_REM_DEV_FAIL if (!defined($group) || !defined($device));
+	return SCST_C_DGRP_REM_DEV_FAIL if (!length($group) || !length($device));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_DEV_GROUPS, $group,
-					 SCST_DG_DEVICES) . " ";
-	} else {
-		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_DEVICES, SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_DEVICES,
+			  SCST_MGMT_IO);
 	$cmd .= "del $device";
 
 	my $bytes = - ENOENT;
@@ -1927,16 +1756,11 @@ sub removeTargetGroup {
 	my $group = shift;
 	my $tgroup = shift;
 
-	return SCST_C_DGRP_REM_GRP_FAIL if (!defined($group) || !defined($tgroup));
+	return SCST_C_DGRP_REM_GRP_FAIL if (!length($group) || !length($tgroup));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_DEV_GROUPS, $group,
-					 SCST_DG_TGROUPS) . " ";
-	} else {
-		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
+			  SCST_MGMT_IO);
 	$cmd .= "del $tgroup";
 
 	my $bytes = - ENOENT;
@@ -1968,17 +1792,11 @@ sub removeTargetGroupTarget {
 	my $tgroup = shift;
 	my $tgt = shift;
 
-	return SCST_C_TGRP_REM_TGT_FAIL if (!defined($group) || !defined($tgroup) || !defined($tgt));
+	return SCST_C_TGRP_REM_TGT_FAIL if (!length($group) || !length($tgroup) || !length($tgt));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_DEV_GROUPS, $group,
-					 SCST_DG_TGROUPS, $tgroup) . " ";
-	} else {
-		$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
-				  $tgroup, SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
+			  $tgroup, SCST_MGMT_IO);
 	$cmd .= "del $tgt";
 
 	my $bytes = - ENOENT;
@@ -2016,20 +1834,12 @@ sub addInitiator {
 	my $initiator = shift;
 
 	return SCST_C_GRP_ADD_INI_FAIL
-	    if (!defined($driver) || !defined($target) ||
-		!defined($group) || !defined($initiator));
+	    if (!length($driver) || !length($target) ||
+		!length($group) || !length($initiator));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver, $target,
-					 SCST_GROUPS, $group, SCST_INITIATORS) .
-					     " ";
-	} else {
-		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-				  SCST_GROUPS, $group, SCST_INITIATORS,
-				  SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
+			  $group, SCST_INITIATORS, SCST_MGMT_IO);
 	$cmd .= "add $initiator";
 
 	my $bytes = - ENOENT;
@@ -2044,9 +1854,9 @@ sub addInitiator {
 		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
-	return SCST_C_GRP_REM_INI_FAIL if (!defined($driver) ||
-					   !defined($target) ||
-					   !defined($initiator));
+	return SCST_C_GRP_REM_INI_FAIL if (!length($driver) ||
+					   !length($target) ||
+					   !length($initiator));
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
@@ -2074,19 +1884,11 @@ sub removeInitiator {
 	my $group = shift;
 	my $initiator = shift;
 
-	return SCST_C_GRP_REM_INI_FAIL if (!defined($driver) || !defined($target) || !defined($group) || !defined($initiator));
+	return SCST_C_GRP_REM_INI_FAIL if (!length($driver) || !length($target) || !length($group) || !length($initiator));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver, $target,
-					 SCST_GROUPS, $group, SCST_INITIATORS) .
-					     " ";
-	} else {
-		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-				  SCST_GROUPS, $group, SCST_INITIATORS,
-				  SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
+			  $group, SCST_INITIATORS, SCST_MGMT_IO);
 	$cmd .= "del $initiator";
 
 	my $bytes = - ENOENT;
@@ -2129,16 +1931,8 @@ sub moveInitiator {
 	my $initiator = shift;
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver, $target,
-					 SCST_GROUPS, $from, SCST_INITIATORS) .
-					     " ";
-	} else {
-		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-				  SCST_GROUPS, $from, SCST_INITIATORS,
-				  SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
+			  $from, SCST_INITIATORS, SCST_MGMT_IO);
 	$cmd .= "move $initiator $to";
 
 	my $bytes = - ENOENT;
@@ -2187,16 +1981,8 @@ sub clearInitiators {
 	my $group = shift;
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver, $target,
-					 SCST_GROUPS, $group, SCST_INITIATORS) .
-					     " ";
-	} else {
-		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-				  SCST_GROUPS, $group, SCST_INITIATORS,
-				  SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
+			  $group, SCST_INITIATORS, SCST_MGMT_IO);
 	$cmd .= "clear";
 
 	my $bytes = - ENOENT;
@@ -2235,12 +2021,12 @@ sub addLun {
 	my $attributes = shift;
 	my $group = shift;
 
-	my $err = defined($group) ? SCST_C_GRP_ADD_LUN_FAIL :
+	my $err = length($group) ? SCST_C_GRP_ADD_LUN_FAIL :
 	    SCST_C_TGT_ADD_LUN_FAIL;
 
-	return $err if (!defined($driver) || !defined($target) ||
-			!defined($device) || !defined($lun) ||
-			!defined($attributes));
+	return $err if (!length($driver) || !length($target) ||
+			!length($device) || !length($lun) ||
+			!length($attributes));
 
 	my $o_string = "";
 	foreach my $attribute (keys %{$attributes}) {
@@ -2251,25 +2037,12 @@ sub addLun {
 	$o_string =~ s/\s$//;
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		if (defined($group)) {
-			$cmd = "in " .
-			    make_path(IN_SCST_TARGETS, $driver, $target,
-				      SCST_GROUPS, $group, SCST_LUNS) . " ";
-		} else {
-			$cmd = "in " . make_path(IN_SCST_TARGETS, $driver,
-						 $target, SCST_LUNS) . " ";
-		}
+	if (length($group)) {
+		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
+				  SCST_GROUPS, $group, SCST_LUNS, SCST_MGMT_IO);
 	} else {
-		if (defined($group)) {
-			$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-					  SCST_GROUPS, $group, SCST_LUNS,
-					  SCST_MGMT_IO);
-		} else {
-			$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-					  SCST_LUNS, SCST_MGMT_IO);
-		}
+		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
+				  SCST_LUNS, SCST_MGMT_IO);
 	}
 
 	$cmd .= "add $device $lun $o_string";
@@ -2286,14 +2059,14 @@ sub addLun {
 		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
-	if (defined($group)) {
+	if (length($group)) {
 		my $rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
 	}
 
 	my $rc = $self->lunExists($driver, $target, $lun, $group);
-	return (defined($group) ? SCST_C_GRP_LUN_EXISTS :
+	return (length($group) ? SCST_C_GRP_LUN_EXISTS :
 		SCST_C_TGT_LUN_EXISTS) if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
@@ -2323,32 +2096,20 @@ sub removeLun {
 	my $lun = shift;
 	my $group = shift;
 
-	my $err = defined($group) ? SCST_C_GRP_REM_LUN_FAIL :
+	my $err = length($group) ? SCST_C_GRP_REM_LUN_FAIL :
 	    SCST_C_TGT_ADD_LUN_FAIL;
 
-	return $err if (!defined($driver) || !defined($target) ||
-			!defined($lun));
+	return $err if (!length($driver) || !length($target) ||
+			!length($lun));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		if (defined($group)) {
-			$cmd = "in " . make_path(IN_SCST_TARGETS, $driver,
-						 $target, SCST_GROUPS, $group,
-						 SCST_LUNS) . " ";
-		} else {
-			$cmd = "in " . make_path(IN_SCST_TARGETS, $driver,
-						 $target, SCST_LUNS) . " ";
-		}
+	if (length($group)) {
+		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
+				  SCST_GROUPS, $group, SCST_LUNS,
+				  SCST_MGMT_IO);
 	} else {
-		if (defined($group)) {
-			$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-					  SCST_GROUPS, $group, SCST_LUNS,
-					  SCST_MGMT_IO);
-		} else {
-			$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-					  SCST_LUNS, SCST_MGMT_IO);
-		}
+		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
+				  SCST_LUNS, SCST_MGMT_IO);
 	}
 	$cmd .= "del $lun";
 
@@ -2372,14 +2133,14 @@ sub removeLun {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	if (defined($group)) {
+	if (length($group)) {
 		$rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
 	}
 
 	$rc = $self->lunExists($driver, $target, $lun, $group);
-	return (defined($group) ? SCST_C_GRP_NO_LUN : SCST_C_TGT_NO_LUN)
+	return (length($group) ? SCST_C_GRP_NO_LUN : SCST_C_TGT_NO_LUN)
 	    if (!$rc);
 	return $rc if ($rc > 1);
 
@@ -2397,7 +2158,7 @@ sub replaceLun {
 
 	my $err;
 
-	return TRUE if (!defined($lun));
+	return TRUE if (!length($lun));
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
@@ -2407,7 +2168,7 @@ sub replaceLun {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	if (defined($group)) {
+	if (length($group)) {
 		$rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
@@ -2442,26 +2203,8 @@ sub replaceLun {
 	$o_string =~ s/\s$//;
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		if (defined($group)) {
-			$cmd = "in " . make_path(IN_SCST_TARGETS, $driver,
-						 $target, SCST_GROUPS,
-						 $group, SCST_LUNS) . " ";
-		} else {
-			$cmd = "in " . make_path(IN_SCST_TARGETS, $driver,
-						 $target, SCST_LUNS) . " ";
-		}
-	} else {
-		if (defined($group)) {
-			$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-					  SCST_GROUPS, $group, SCST_LUNS,
-					  SCST_MGMT_IO);
-		} else {
-			$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-					  SCST_LUNS, SCST_MGMT_IO);
-		}
-	}
+	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_LUNS,
+			  SCST_MGMT_IO);
 	$cmd .= "replace $device $lun $o_string";
 
 	my $bytes = - ENOENT;
@@ -2485,31 +2228,19 @@ sub clearLuns {
 	my $target = shift;
 	my $group = shift;
 
-	my $err = defined($group) ? SCST_C_GRP_CLR_LUN_FAIL :
+	my $err = length($group) ? SCST_C_GRP_CLR_LUN_FAIL :
 	    SCST_C_TGT_CLR_LUN_FAIL;
 
-	return $err if (!defined($driver) || !defined($target));
+	return $err if (!length($driver) || !length($target));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		if (defined($group)) {
-			$cmd = "in " .
-			    make_path(IN_SCST_TARGETS, $driver, $target,
-				      SCST_GROUPS, $group, SCST_LUNS) . " ";
-		} else {
-			$cmd = "in " . make_path(IN_SCST_TARGETS, $driver,
-						 $target, SCST_LUNS) . " ";
-		}
+	if (length($group)) {
+		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
+				  SCST_GROUPS, $group, SCST_LUNS,
+				  SCST_MGMT_IO);
 	} else {
-		if (defined($group)) {
-			$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-					  SCST_GROUPS, $group, SCST_LUNS,
-					  SCST_MGMT_IO);
-		} else {
-			$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-					  SCST_LUNS, SCST_MGMT_IO);
-		}
+		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
+				  SCST_LUNS, SCST_MGMT_IO);
 	}
 	$cmd .= "clear";
 
@@ -2533,7 +2264,7 @@ sub clearLuns {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	if (defined($group)) {
+	if (length($group)) {
 		$rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
@@ -2546,8 +2277,10 @@ sub deviceHandler {
 	my $self = shift;
 	my $device = shift;
 
+	return undef if (!length($device));
+
 	my $handler = readlink(make_path(SCST_DEVICES_DIR(), $device,
-				new_sysfs_interface() ? 'driver' : 'handler'));
+					 'handler'));
 	$handler =~ s/.*\///;
 	return $handler;
 }
@@ -2558,8 +2291,8 @@ sub devices {
 	my @devices;
 
 	my $dHandle = new IO::Handle;
-	my $_path = new_sysfs_interface() || !defined($handler) ?
-	    SCST_DEVICES_DIR() : make_path(SCST_HANDLERS_DIR(), $handler);
+	my $_path = !length($handler) ? SCST_DEVICES_DIR() :
+	    make_path(SCST_HANDLERS_DIR(), $handler);
 	if (!(opendir $dHandle, $_path)) {
 		return (undef, "devices(): Unable to read directory '$_path': $!");
 	}
@@ -2567,9 +2300,8 @@ sub devices {
 	foreach my $device (readdir($dHandle)) {
 		next if ($device eq '.' || $device eq '..');
 
-		my $isdev = (new_sysfs_interface() ||
-			     -d make_path(SCST_DEVICES_DIR(), $device));
-		if ($isdev && (!defined($handler) ||
+		my $isdev = (-d make_path(SCST_DEVICES_DIR(), $device));
+		if ($isdev && (!length($handler) ||
 			       $handler eq $self->deviceHandler($device))) {
 			push @devices, $device;
 		}
@@ -2584,11 +2316,11 @@ sub deviceOpen {
 	my $self = shift;
 	my $device = shift;
 
-	return FALSE if (!defined($device));
+	return FALSE if (!length($device));
 
 	my ($devices, $errorString) = $self->devices();
 
-	return SCST_C_FATAL_ERROR if (!defined($devices));
+	return SCST_C_FATAL_ERROR if (!length($devices));
 
 	foreach my $_device (@{$devices}) {
 		return TRUE if ($device eq $_device);
@@ -2699,9 +2431,7 @@ sub deviceAttributes {
 				$value = "" if (!defined($value));
 				chomp $value;
 
-				$is_key = new_sysfs_interface() &&
-				    (!$is_static || defined($$dca{$attribute}))
-				    || $is_key && $is_key =~ /\[key\]/;
+				$is_key = $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -2785,8 +2515,7 @@ sub driverAttributes {
 				chomp $value;
 
 				my $is_key = <$io>;
-				$is_key = new_sysfs_interface() && !$is_static ||
-				    $is_key && $is_key =~ /\[key\]/;
+				$is_key = $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -2843,7 +2572,7 @@ sub setDriverAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!defined($attribute) || !defined($value));
+	return TRUE if (!length($attribute) || !length($value));
 
 	my $path = make_path(SCST_TARGETS_DIR(), $driver, $attribute);
 
@@ -2874,7 +2603,7 @@ sub targetAttributes {
 	my %attributes = ( );
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!defined($driver) || !defined($target));
+	return (undef, "Too few arguments") if (!length($driver) || !length($target));
 
 	my $pHandle = new IO::Handle;
 	my $_path = make_path(SCST_TARGETS_DIR(), $driver, $target);
@@ -2943,8 +2672,7 @@ sub targetAttributes {
 
 				my $is_key = <$io>;
 				close $io;
-				$is_key = new_sysfs_interface() && !$is_static ||
-				    $is_key && $is_key =~ /\[key\]/;
+				$is_key = $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -2979,21 +2707,12 @@ sub setTargetAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!defined($attribute) || !defined($value));
+	return TRUE if (!length($driver) || !length($target) ||
+			!length($attribute) || !length($value));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface() &&
-	    ($attribute eq 'enabled' || $attribute eq 'cpu_mask')) {
-		$path = make_path(SCST_ROOT_DIR, SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver, $target) .
-		    " " . ($attribute eq 'enabled' ?
-			   ($value eq '1' ? 'enable' : 'disable') :
-			   "set_$attribute $value");
-	} else {
-		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-				  $attribute);
-		$cmd = $value;
-	}
+	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, $attribute);
+	$cmd = $value;
 
 	my $bytes = - ENOENT;
 	my $io = new IO::File $path, O_WRONLY;
@@ -3078,8 +2797,7 @@ sub groupAttributes {
 
 				my $is_key = <$io>;
 				close $io;
-				$is_key = new_sysfs_interface() && !$is_static ||
-				    $is_key && $is_key =~ /\[key\]/;
+				$is_key = $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -3115,18 +2833,11 @@ sub setGroupAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!defined($attribute) || !defined($value));
+	return TRUE if (!length($attribute) || !length($value));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface() && $attribute eq 'cpu_mask') {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_TARGETS, $driver, $target,
-					 SCST_GROUPS, $group) .
-					     " set_$attribute ";
-	} else {
-		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-				  SCST_GROUPS, $group, $attribute);
-	}
+	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
+			  $group, $attribute);
 	$cmd .= $value;
 
 	my $bytes = - ENOENT;
@@ -3168,7 +2879,7 @@ sub lunAttributes {
 
 	my ($_path, $luncrattr);
 
-	if (defined($group)) {
+	if (length($group)) {
 		$_path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				   SCST_GROUPS, $group, SCST_LUNS, $lun);
 		($luncrattr, $errorString) =
@@ -3185,7 +2896,7 @@ sub lunAttributes {
 			$errorString = "lunAttributes(): Driver '$driver' is not available";
 		} elsif ($self->targetExists($driver, $target) != TRUE) {
 			$errorString = "lunAttributes(): Target '$target' is not available";
-		} elsif (defined($group) && $self->groupExists($driver, $target, $group) != TRUE) {
+		} elsif (length($group) && $self->groupExists($driver, $target, $group) != TRUE) {
 			$errorString = "lunAttributes(): Group '$group' does not exist";
 		} elsif ($self->lunExists($driver, $target, $lun, $group) != TRUE) {
 			$errorString = "lunAttributes(): LUN '$lun' does not exist";
@@ -3234,10 +2945,7 @@ sub lunAttributes {
 
 				my $is_key = <$io>;
 				close $io;
-				$is_key = new_sysfs_interface() &&
-				    (!$is_static ||
-				     defined($$luncrattr{$attribute})) ||
-				    $is_key && $is_key =~ /\[key\]/;
+				$is_key = $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -3275,12 +2983,12 @@ sub setLunAttribute {
 	my $group = shift;
 
 	return SCST_C_LUN_SETATTR_FAIL
-	    if (!defined($driver) || !defined($target) || !defined($lun) ||
-		!defined($attribute) || !defined($value));
+	    if (!length($driver) || !length($target) || !length($lun) ||
+		!length($attribute) || !length($value));
 
 	my $path;
 
-	if (defined($group)) {
+	if (length($group)) {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				  SCST_GROUPS, $group, SCST_LUNS, $lun,
 				  $attribute);
@@ -3309,14 +3017,14 @@ sub setLunAttribute {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	if (defined($group)) {
+	if (length($group)) {
 		$rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
 	}
 
 	$rc = $self->lunExists($driver, $target, $lun, $group);
-	return (defined($group) ? SCST_C_GRP_NO_LUN : SCST_C_TGT_NO_LUN)
+	return (length($group) ? SCST_C_GRP_NO_LUN : SCST_C_TGT_NO_LUN)
 	    if (!$rc);
 	return $rc if ($rc > 1);
 
@@ -3389,8 +3097,7 @@ sub initiatorAttributes {
 
 				my $is_key = <$io>;
 				close $io;
-				$is_key = new_sysfs_interface() && !$is_static ||
-				    $is_key && $is_key =~ /\[key\]/;
+				$is_key = $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -3427,7 +3134,7 @@ sub setInitiatorAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!defined($attribute) || !defined($value));
+	return TRUE if (!length($attribute) || !length($value));
 
 	my $path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
 			     $group, SCST_LUNS, $initiator, $attribute);
@@ -3512,8 +3219,7 @@ sub deviceGroupAttributes {
 
 				my $is_key = <$io>;
 				close $io;
-				$is_key = new_sysfs_interface() && !$is_static ||
-				    $is_key && $is_key =~ /\[key\]/;
+				$is_key = $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -3593,8 +3299,7 @@ sub targetGroupAttributes {
 
 				my $is_key = <$io>;
 				close $io;
-				$is_key = new_sysfs_interface() && !$is_static ||
-				    $is_key && $is_key =~ /\[key\]/;
+				$is_key = $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -3683,8 +3388,7 @@ sub targetGroupTargetAttributes {
 
 				my $is_key = <$io>;
 				close $io;
-				$is_key = new_sysfs_interface() && !$is_static ||
-				    $is_key && $is_key =~ /\[key\]/;
+				$is_key = $is_key && $is_key =~ /\[key\]/;
 
 				my $key = 0;
 				if ($is_key) {
@@ -3717,7 +3421,7 @@ sub setAluaAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!defined($attribute) || !defined($value));
+	return TRUE if (!length($attribute) || !length($value));
 
 	my $bytes = - ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $attribute);
@@ -3742,7 +3446,7 @@ sub setDeviceGroupAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!defined($attribute) || !defined($value));
+	return TRUE if (!length($attribute) || !length($value));
 
 	my $bytes = - ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $group, $attribute);
@@ -3772,8 +3476,8 @@ sub setTargetGroupAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!defined($group) || !defined($tgroup) ||
-			!defined($attribute) || !defined($value));
+	return TRUE if (!length($group) || !length($tgroup) ||
+			!length($attribute) || !length($value));
 
 	my $bytes = - ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, $tgroup, $attribute);
@@ -3808,9 +3512,9 @@ sub setTargetGroupTargetAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!defined($group) || !defined($tgroup) ||
-			!defined($tgt) || !defined($attribute) ||
-			!defined($value));
+	return TRUE if (!length($group) || !length($tgroup) ||
+			!length($tgt) || !length($attribute) ||
+			!length($value));
 
 	my $bytes = - ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
@@ -3871,7 +3575,7 @@ sub handlerExists {
 	my $self = shift;
 	my $handler = shift;
 
-	return FALSE if (!defined($handler));
+	return FALSE if (!length($handler));
 
 	my ($handlers, $errorString) = $self->handlers();
 
@@ -3890,7 +3594,7 @@ sub setHandlerAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!defined($attribute) || !defined($value));
+	return TRUE if (!length($attribute) || !length($value));
 
 	my $bytes = - ENOENT;
 	my $path = make_path(SCST_HANDLERS_DIR(), $handler, $attribute);
@@ -3962,8 +3666,7 @@ sub handlerAttributes {
 		chomp $value;
 
 		my $is_key = <$io>;
-		$is_key = new_sysfs_interface() && !$is_static ||
-		    $is_key && $is_key =~ /\[key\]/;
+		$is_key = $is_key && $is_key =~ /\[key\]/;
 
 		my $key = 0;
 		if ($is_key) {
@@ -4121,44 +3824,35 @@ sub deviceCreateAttributes {
 	my %attributes = ( );
 	my $errorString;
 
-	if (new_sysfs_interface()) {
-		my $io = new IO::File make_path(SCST_HANDLERS_DIR(), $handler,
-						SCST_ADD_DEV_PARAMS), O_RDONLY;
+	return (undef, "missing handler argument") if (!length($handler));
 
-		while (my $attribute = <$io>) {
-			chomp($attribute);
+	my $io = new IO::File make_path(SCST_HANDLERS_DIR(), $handler,
+					SCST_MGMT_IO), O_RDONLY;
+
+	if (!$io) {
+		if ($self->handlerExists($handler) != TRUE) {
+			$errorString = "deviceCreateAttributes(): Handler '$handler' ".
+			    "is not available";
+		} else {
+			$errorString = "deviceCreateAttributes(): Unable to open mgmt ".
+			    "interface for handler '$handler': $!";
+		}
+		return (undef, $errorString);
+	}
+
+	while (my $in = <$io>) {
+		if ($in =~ /^The following parameters available\:/) {
+			(undef, $available) = split(/\:/, $in, 2);
+			$available =~ s/\.$//;
+		}
+	}
+	close $io;
+
+	if ($available) {
+		foreach my $attribute (split(/\,/, $available)) {
+			$attribute =~ s/^\s+//;
+			$attribute =~ s/\s+$//;
 			$attributes{$attribute} = '';
-		}
-		close $io;
-	} else {
-		my $io = new IO::File make_path(SCST_HANDLERS_DIR(), $handler,
-						SCST_MGMT_IO), O_RDONLY;
-
-		if (!$io) {
-			if ($self->handlerExists($handler) != TRUE) {
-				$errorString = "deviceCreateAttributes(): Handler '$handler' ".
-				    "is not available";
-			} else {
-				$errorString = "deviceCreateAttributes(): Unable to open mgmt ".
-				    "interface for handler '$handler': $!";
-			}
-			return (undef, $errorString);
-		}
-
-		while (my $in = <$io>) {
-			if ($in =~ /^The following parameters available\:/) {
-				(undef, $available) = split(/\:/, $in, 2);
-				$available =~ s/\.$//;
-			}
-		}
-		close $io;
-
-		if ($available) {
-			foreach my $attribute (split(/\,/, $available)) {
-				$attribute =~ s/^\s+//;
-				$attribute =~ s/\s+$//;
-				$attributes{$attribute} = '';
-			}
 		}
 	}
 
@@ -4171,9 +3865,8 @@ sub openDevice {
 	my $device = shift;
 	my $attributes = shift;
 
-	return SCST_C_DEV_OPEN_FAIL if (!defined($handler) ||
-					!defined($device) ||
-					!defined($attributes));
+	return SCST_C_DEV_OPEN_FAIL
+	    if (!length($handler) || !length($device) || !length($attributes));
 
 	my $o_string = "";
 	foreach my $attribute (keys %{$attributes}) {
@@ -4184,12 +3877,7 @@ sub openDevice {
 	$o_string =~ s/\s$//;
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_HANDLERS, $handler) . " ";
-	} else {
-		$path = make_path(SCST_HANDLERS_DIR(), $handler, SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_HANDLERS_DIR(), $handler, SCST_MGMT_IO);
 	$cmd .= "add_device $device $o_string";
 
 	my $bytes = - ENOENT;
@@ -4228,16 +3916,10 @@ sub closeDevice {
 	my $handler = shift;
 	my $device = shift;
 
-	return SCST_C_DEV_CLOSE_FAIL if (!defined($handler) ||
-					 !defined($device));
+	return SCST_C_DEV_CLOSE_FAIL if (!length($handler) || !length($device));
 
 	my ($path, $cmd);
-	if (new_sysfs_interface()) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_HANDLERS, $handler) . " ";
-	} else {
-		$path = make_path(SCST_HANDLERS_DIR(), $handler, SCST_MGMT_IO);
-	}
+	$path = make_path(SCST_HANDLERS_DIR(), $handler, SCST_MGMT_IO);
 	$cmd .= "del_device $device";
 
 	my $bytes = - ENOENT;
@@ -4272,15 +3954,7 @@ sub setDeviceAttribute {
 	my $value = shift;
 
 	my ($path, $cmd);
-	if (new_sysfs_interface() &&
-	    ($attribute eq 'filename' ||
-	     $attribute eq 'threads_num' ||
-	     $attribute eq 'threads_pool_type')) {
-		$path = make_path(SCST_ROOT_DIR(), SCST_MGMT_IO);
-		$cmd = "in " . make_path(IN_SCST_DEVICES, $device) . " set_$attribute ";
-	} else {
-		$path = make_path(SCST_DEVICES_DIR(), $device, $attribute);
-	}
+	$path = make_path(SCST_DEVICES_DIR(), $device, $attribute);
 	$cmd .= $value;
 
 	my $bytes = - ENOENT;
@@ -4341,43 +4015,33 @@ sub targetCreateAttributes {
 	my %attributes = ( );
 	my $errorString;
 
-	if (new_sysfs_interface()) {
-		my $io = new IO::File make_path(SCST_TARGETS_DIR(), $driver,
-						SCST_ADD_TGT_PARAMS), O_RDONLY;
-		while (my $attribute = <$io>) {
-			chomp($attribute);
+	my $io = new IO::File make_path(SCST_TARGETS_DIR(), $driver,
+					SCST_MGMT_IO), O_RDONLY;
+
+	if (!$io) {
+		if ($self->driverExists($driver) != TRUE) {
+			$errorString = "targetCreateAttributes(): Driver '$driver' ".
+			    "is not available";
+		} else {
+			$errorString = "targetCreateAttributes(): Unable to open driver mgmt ".
+			    "interface for driver '$driver': $!";
+		}
+		return (undef, $errorString);
+	}
+
+	while (my $in = <$io>) {
+		if ($in =~ /^The following parameters available\:/) {
+			(undef, $available) = split(/\:/, $in, 2);
+			$available =~ s/\.$//;
+		}
+	}
+	close $io;
+
+	if ($available) {
+		foreach my $attribute (split(/\,/, $available)) {
+			$attribute =~ s/^\s+//;
+			$attribute =~ s/\s+$//;
 			$attributes{$attribute} = '';
-		}
-		close $io;
-	} else {
-		my $io = new IO::File make_path(SCST_TARGETS_DIR(), $driver,
-						SCST_MGMT_IO), O_RDONLY;
-
-		if (!$io) {
-			if ($self->driverExists($driver) != TRUE) {
-				$errorString = "targetCreateAttributes(): Driver '$driver' ".
-				    "is not available";
-			} else {
-				$errorString = "targetCreateAttributes(): Unable to open driver mgmt ".
-				    "interface for driver '$driver': $!";
-			}
-			return (undef, $errorString);
-		}
-
-		while (my $in = <$io>) {
-			if ($in =~ /^The following parameters available\:/) {
-				(undef, $available) = split(/\:/, $in, 2);
-				$available =~ s/\.$//;
-			}
-		}
-		close $io;
-
-		if ($available) {
-			foreach my $attribute (split(/\,/, $available)) {
-				$attribute =~ s/^\s+//;
-				$attribute =~ s/\s+$//;
-				$attributes{$attribute} = '';
-			}
 		}
 	}
 
@@ -4535,70 +4199,47 @@ sub lunCreateAttributes {
 
 	my $_path;
 
-	if (new_sysfs_interface()) {
-		if (defined($group)) {
-			if ($self->groupExists($driver, $target, $group) != TRUE) {
-				return ("lunCreateAttributes(): Group '$group' ".
-				    "does not exist");
-			}
-
-			$_path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-					   SCST_GROUPS, $group, SCST_LUNS,
-					   SCST_PARAM_ATTR);
-		} else {
-			$_path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-					   SCST_LUNS, SCST_PARAM_ATTR);
-		}
-
-		my $io = new IO::File $_path, O_RDONLY;
-		while (my $attribute = <$io>) {
-			chomp($attribute);
-			$attributes{$attribute} = '';
-		}
-		close $io;
+	if (length($group)) {
+		$_path = make_path(SCST_TARGETS_DIR(), $driver, $target,
+				   SCST_GROUPS, $group, SCST_LUNS,
+				   SCST_MGMT_IO);
 	} else {
-		if (defined($group)) {
-			$_path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-					   SCST_GROUPS, $group, SCST_LUNS,
-					   SCST_MGMT_IO);
+		$_path = make_path(SCST_TARGETS_DIR(), $driver, $target,
+				   SCST_LUNS, SCST_MGMT_IO);
+	}
+
+	my $io = new IO::File $_path, O_RDONLY;
+
+	if (!$io) {
+		if ($self->driverExists($driver) != TRUE) {
+			$errorString = "lunCreateAttributes(): Driver '$driver' ".
+			    "is not available";
+		} elsif ($self->targetExists($driver, $target) != TRUE) {
+			$errorString = "lunCreateAttributes(): Target '$target' ".
+			    "is not available";
+		} elsif (length($group) && $self->groupExists($driver, $target, $group) != TRUE) {
+			$errorString = "lunCreateAttributes(): Group '$group' ".
+			    "does not exist";
 		} else {
-			$_path = make_path(SCST_TARGETS_DIR(), $driver, $target,
-					   SCST_LUNS, SCST_MGMT_IO);
+			$errorString = "lunCreateAttributes(): Unable to open luns mgmt ".
+			    "interface for group '$group': $!";
 		}
+		return (undef, $errorString);
+	}
 
-		my $io = new IO::File $_path, O_RDONLY;
-
-		if (!$io) {
-			if ($self->driverExists($driver) != TRUE) {
-				$errorString = "lunCreateAttributes(): Driver '$driver' ".
-				    "is not available";
-			} elsif ($self->targetExists($driver, $target) != TRUE) {
-				$errorString = "lunCreateAttributes(): Target '$target' ".
-				    "is not available";
-			} elsif (defined($group) && $self->groupExists($driver, $target, $group) != TRUE) {
-				$errorString = "lunCreateAttributes(): Group '$group' ".
-				    "does not exist";
-			} else {
-				$errorString = "lunCreateAttributes(): Unable to open luns mgmt ".
-				    "interface for group '$group': $!";
-			}
-			return (undef, $errorString);
+	while (my $in = <$io>) {
+		if ($in =~ /^The following parameters available\:/) {
+			(undef, $available) = split(/\:/, $in, 2);
+			$available =~ s/\.$//;
 		}
+	}
+	close $io;
 
-		while (my $in = <$io>) {
-			if ($in =~ /^The following parameters available\:/) {
-				(undef, $available) = split(/\:/, $in, 2);
-				$available =~ s/\.$//;
-			}
-		}
-		close $io;
-
-		if ($available) {
-			foreach my $attribute (split(/\,/, $available)) {
-				$attribute =~ s/^\s+//;
-				$attribute =~ s/\s+$//;
-				$attributes{$attribute} = '';
-			}
+	if ($available) {
+		foreach my $attribute (split(/\,/, $available)) {
+			$attribute =~ s/^\s+//;
+			$attribute =~ s/\s+$//;
+			$attributes{$attribute} = '';
 		}
 	}
 	return (\%attributes, undef);
@@ -4655,45 +4296,41 @@ sub initiatorCreateAttributes {
 	my %attributes = ( );
 	my $errorString;
 
-	if (new_sysfs_interface()) {
-		# Do nothing - there are no initiator attributes (yet).
-	} else {
-		my $io = new IO::File make_path(SCST_TARGETS_DIR(), $driver,
-						$target, SCST_GROUPS, $group,
-						SCST_INITIATORS, SCST_MGMT_IO),
-				O_RDONLY;
+	my $io = new IO::File make_path(SCST_TARGETS_DIR(), $driver,
+					$target, SCST_GROUPS, $group,
+					SCST_INITIATORS, SCST_MGMT_IO),
+	    O_RDONLY;
 
-		if (!$io) {
-			if ($self->driverExists($driver) != TRUE) {
-				$errorString = "initiatorCreateAttributes(): Driver '$driver' ".
-				    "is not available";
-			} elsif ($self->targetExists($driver, $target) != TRUE) {
-				$errorString = "initiatorCreateAttributes(): Target '$target' ".
-				    "is not available";
-			} elsif ($self->groupExists($driver, $target, $group) != TRUE) {
-				$errorString = "initiatorCreateAttributes(): Group '$group' ".
-				    "does not exist";
-			} else {
-				$errorString = "initiatorCreateAttributes(): Unable to open initiators mgmt ".
-				    "interface for group '$group': $!";
-			}
-			return (undef, $errorString);
+	if (!$io) {
+		if ($self->driverExists($driver) != TRUE) {
+			$errorString = "initiatorCreateAttributes(): Driver '$driver' ".
+			    "is not available";
+		} elsif ($self->targetExists($driver, $target) != TRUE) {
+			$errorString = "initiatorCreateAttributes(): Target '$target' ".
+			    "is not available";
+		} elsif ($self->groupExists($driver, $target, $group) != TRUE) {
+			$errorString = "initiatorCreateAttributes(): Group '$group' ".
+			    "does not exist";
+		} else {
+			$errorString = "initiatorCreateAttributes(): Unable to open initiators mgmt ".
+			    "interface for group '$group': $!";
 		}
+		return (undef, $errorString);
+	}
 
-		while (my $in = <$io>) {
-			if ($in =~ /^The following parameters available\:/) {
-				(undef, $available) = split(/\:/, $in, 2);
-				$available =~ s/\.$//;
-			}
+	while (my $in = <$io>) {
+		if ($in =~ /^The following parameters available\:/) {
+			(undef, $available) = split(/\:/, $in, 2);
+			$available =~ s/\.$//;
 		}
-		close $io;
+	}
+	close $io;
 
-		if ($available) {
-			foreach my $attribute (split(/\,/, $available)) {
-				$attribute =~ s/^\s+//;
-				$attribute =~ s/\s+$//;
-				$attributes{$attribute} = '';
-			}
+	if ($available) {
+		foreach my $attribute (split(/\,/, $available)) {
+			$attribute =~ s/^\s+//;
+			$attribute =~ s/\s+$//;
+			$attributes{$attribute} = '';
 		}
 	}
 
@@ -4707,7 +4344,7 @@ sub sessions {
 	my %_sessions;
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!defined($driver) || !defined($target));
+	return (undef, "Too few arguments") if (!length($driver) || !length($target));
 
 	my $sHandle = new IO::Handle;
 	my $_path = make_path(SCST_TARGETS_DIR(), $driver, $target,

@@ -1497,7 +1497,8 @@ sub serializeKeyAttr {
 	    foreach my $key (keys %{$$attributes{$attribute}->{'keys'}}) {
 		my $value =
 		    $$attributes{$attribute}->{'keys'}->{$key}->{'value'};
-		push (@values, $value) if ($value);
+		# $value = undef means that the attribute is write-only.
+		push (@values, $value) if (defined($value));
 	    }
 	    foreach my $value (sort @values) {
 		$result .= "$prefix$attribute " . escapeMeta($value) . "\n";
@@ -1532,7 +1533,8 @@ sub serializeNkAttr {
 	    && $attribute ne 'enabled'
 	    && $attribute ne 'hw_target') {
 	    my $value = $$attributes{$attribute}->{'value'};
-	    if ($value) {
+	    # $value = undef means that the attribute is write-only.
+	    if (defined($value)) {
 		$result .= "$prefix$attribute " . escapeMeta($value) . "\n";
 	    }
 	}
@@ -3140,7 +3142,7 @@ sub listDevices {
 	my $device = shift;
 	my $nonkey = shift;
 
-	return listDevice($device, $nonkey) if ($device);
+	return listDevice($device, $nonkey) if (length($device));
 	return listHandler();
 }
 
@@ -3164,7 +3166,7 @@ sub listDeviceGroups {
 	my $group = shift;
 	my $showall = shift;
 
-	return listDeviceGroup($group) if ($group);
+	return listDeviceGroup($group) if (length($group));
 
 	my ($groups, $errorString) = $SCST->deviceGroups();
 
@@ -3243,8 +3245,8 @@ sub listTargetGroups {
 	my $tgroup = shift;
 	my $indent = shift;
 
-	return listDeviceGroups(undef, TRUE) if ($group eq '');
-	return listTargetGroup($group, $tgroup) if ($tgroup);
+	return listDeviceGroups(undef, TRUE) if (!length($group));
+	return listTargetGroup($group, $tgroup) if (length($tgroup));
 
 	my ($tgroups, $errorString) = $SCST->targetGroups($group);
 
@@ -3332,7 +3334,7 @@ sub listDeviceGroupDevices {
 sub listDrivers {
 	my $driver = shift;
 
-	return listTargets($driver, undef) if ($driver);
+	return listTargets($driver, undef) if (length($driver));
 
 	my ($drivers, $errorString) = $SCST->drivers();
 
@@ -3360,9 +3362,10 @@ sub listTargets {
 	my $target = shift;
 	my %toprint;
 
-	return listGroups($driver, $target, undef) if ($target and $driver);
+	return listGroups($driver, $target, undef)
+	    if (length($target) and length($driver));
 
-	my $got_driver = defined($driver);
+	my $got_driver = !!length($driver);
 
 	my ($drivers, $errorString) = $SCST->drivers();
 
@@ -3469,7 +3472,7 @@ sub listGroup {
 	my $errorString;
 
 	($luns, $errorString) = $SCST->luns($driver, $target, $group) if (!$luns);
-	if (!defined($initiators) && defined($group)) {
+	if (!length($initiators) && length($group)) {
 		($initiators, $errorString) = $SCST->initiators($driver, $target, $group);
 		return TRUE if issueWarning($errorString);
 	}
@@ -3504,7 +3507,7 @@ sub listGroup {
 			print "\t(none)\n";
 		}
 
-		if (defined($group)) {
+		if (length($group)) {
 			print "\nAssigned Initiators:\n\n";
 
 			if ($#{$initiators} > -1) {
@@ -3523,7 +3526,7 @@ sub listGroup {
 			}
 		}
 	} else {
-		if (defined($group)) {
+		if (length($group)) {
 			print "Group '$group' has no associated LUNs or initiators.\n";
 		} else {
 			print "Driver/target '$driver/$target' has no associated LUNs.\n";
@@ -3539,7 +3542,7 @@ sub listGroups {
 	my $group = shift;
 	my $found = FALSE;
 
-	if ($group and $driver and $target) {
+	if (length($group) and length($driver) and length($target)) {
 		return listGroup($driver, $target, $group);
 	}
 
@@ -3948,7 +3951,7 @@ sub listLunAttributes {
 	return TRUE if issueWarning($errorString);
 
 	if (!scalar(keys %{$attributes})) {
-		if ($group) {
+		if (length($group)) {
 			print "No such driver/target/group/lun '$driver/$target/$group/$lun' found.\n";
 		} else {
 			print "No such driver/target/lun '$driver/$target/$lun' found.\n";
@@ -5160,7 +5163,7 @@ sub addLun {
 		return FALSE;
 	}
 
-	if (defined($group)) {
+	if (length($group)) {
 		print "\t-> Adding device '$device' at LUN $lun to driver/target/group ".
 		  "'$driver/$target/$group': ";
 	} else {
@@ -5351,7 +5354,7 @@ sub issueLip {
 	my $warn = shift;
 	my $errorString;
 
-	if (defined($driver) && defined($target)) {
+	if (length($driver) && length($target)) {
 		return _issueLip($driver, $target, $warn);
 	} else {
 		my $drivers;
