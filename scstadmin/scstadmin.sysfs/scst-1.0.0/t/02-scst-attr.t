@@ -30,7 +30,7 @@ ok($SCST->setScstAttribute('no-such-attribute', '1'),
    $SCST->SCST_C_BAD_ATTRIBUTES);
 
 ok($SCST->setScstAttribute('last_sysfs_mgmt_res', '1'),
-   $SCST->SCST_C_ATTRIBUTE_STATIC);
+   $SCST->SCST_C_SETATTR_FAIL);
 
 my $threads = getScstThreadCount($SCST);
 ok(ref(\$threads), "SCALAR");
