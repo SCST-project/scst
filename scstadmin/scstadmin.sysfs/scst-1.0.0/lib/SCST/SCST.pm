@@ -353,6 +353,15 @@ sub new {
 	return $self;
 }
 
+# Returns 1 if and only if the owner of a file is not allowed to write to a
+# file.
+sub readOnly {
+	my ($path) = @_;
+	my $mode = (stat($path))[2];
+
+	return ($mode & S_IWUSR) != 0;
+}
+
 sub scstVersion {
 	my $self = shift;
 
@@ -466,10 +475,12 @@ sub my_strerror {
 }
 
 sub setAttrFailed {
-	my ($path, $bytes, $no_such_attr, $is_static) = @_;
+	my ($path, $bytes, $no_such_attr, $is_static, $failed) = @_;
 
 	print STDERR "(" . my_strerror(-$bytes) . ") ";
-	return (-f $path) && (-r $path) ? $is_static : $no_such_attr;
+	return $no_such_attr if !(-f $path);
+	return $is_static if readOnly($path);
+	return $failed;
 }
 
 sub setScstAttribute {
@@ -492,7 +503,7 @@ sub setScstAttribute {
 		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 	return setAttrFailed($path, $bytes, SCST_C_BAD_ATTRIBUTES,
-			     SCST_C_ATTRIBUTE_STATIC);
+			     SCST_C_ATTRIBUTE_STATIC, SCST_C_SETATTR_FAIL);
 }
 
 sub drivers {
@@ -2593,7 +2604,8 @@ sub setDriverAttribute {
 	return $rc if ($rc > 1);
 
 	return setAttrFailed($path, $bytes, SCST_C_DRV_BAD_ATTRIBUTES,
-			     SCST_C_DRV_ATTRIBUTE_STATIC);
+			     SCST_C_DRV_ATTRIBUTE_STATIC,
+			     SCST_C_DRV_SETATTR_FAIL);
 }
 
 sub targetAttributes {
@@ -2735,7 +2747,8 @@ sub setTargetAttribute {
 	return $rc if ($rc > 1);
 
 	return setAttrFailed($path, $bytes, SCST_C_TGT_BAD_ATTRIBUTES,
-			     SCST_C_TGT_ATTRIBUTE_STATIC);
+			     SCST_C_TGT_ATTRIBUTE_STATIC,
+			     SCST_C_TGT_SETATTR_FAIL);
 }
 
 sub groupAttributes {
@@ -2865,7 +2878,8 @@ sub setGroupAttribute {
 	return $rc if ($rc > 1);
 
 	return setAttrFailed($path, $bytes, SCST_C_GRP_BAD_ATTRIBUTES,
-			     SCST_C_GRP_ATTRIBUTE_STATIC);
+			     SCST_C_GRP_ATTRIBUTE_STATIC,
+			     SCST_C_GRP_SETATTR_FAIL);
 }
 
 sub lunAttributes {
@@ -3437,7 +3451,8 @@ sub setAluaAttribute {
 	}
 
 	return setAttrFailed($path, $bytes, SCST_C_ALUA_BAD_ATTRIBUTES,
-			     SCST_C_ALUA_ATTRIBUTE_STATIC);
+			     SCST_C_ALUA_ATTRIBUTE_STATIC,
+			     SCST_C_ALUA_SETATTR_FAIL);
 }
 
 sub setDeviceGroupAttribute {
@@ -3466,7 +3481,8 @@ sub setDeviceGroupAttribute {
 	return $rc if ($rc > 1);
 
 	return setAttrFailed($path, $bytes, SCST_C_DGRP_BAD_ATTRIBUTES,
-				     SCST_C_DGRP_ATTRIBUTE_STATIC);
+			     SCST_C_DGRP_ATTRIBUTE_STATIC,
+			     SCST_C_DGRP_SETATTR_FAIL);
 }
 
 sub setTargetGroupAttribute {
@@ -3501,7 +3517,8 @@ sub setTargetGroupAttribute {
 	return $rc if ($rc > 1);
 
 	return setAttrFailed($path, $bytes, SCST_C_TGRP_BAD_ATTRIBUTES,
-			     SCST_C_TGRP_ATTRIBUTE_STATIC);
+			     SCST_C_TGRP_ATTRIBUTE_STATIC,
+			     SCST_C_TGRP_SETATTR_FAIL);
 }
 
 sub setTargetGroupTargetAttribute {
@@ -3543,7 +3560,8 @@ sub setTargetGroupTargetAttribute {
 	return $rc if ($rc > 1);
 
 	return setAttrFailed($path, $bytes, SCST_C_TGRP_TGT_BAD_ATTR,
-			     SCST_C_TGRP_TGT_ATTR_STATIC);
+			     SCST_C_TGRP_TGT_ATTR_STATIC,
+			     SCST_C_TGRP_TGT_SETATTR_FAIL);
 }
 
 sub handlers {
@@ -3614,7 +3632,8 @@ sub setHandlerAttribute {
 	return $rc if ($rc > 1);
 
 	return setAttrFailed($path, $bytes, SCST_C_HND_BAD_ATTRIBUTES,
-			     SCST_C_HND_ATTRIBUTE_STATIC);
+			     SCST_C_HND_ATTRIBUTE_STATIC,
+			     SCST_C_HND_SETATTR_FAIL);
 }
 
 sub handlerAttributes {
@@ -3974,7 +3993,8 @@ sub setDeviceAttribute {
 	return $rc if ($rc > 1);
 
 	return setAttrFailed($path, $bytes, SCST_C_DEV_BAD_ATTRIBUTES,
-			     SCST_C_DEV_ATTRIBUTE_STATIC);
+			     SCST_C_DEV_ATTRIBUTE_STATIC,
+			     SCST_C_DEV_SETATTR_FAIL);
 }
 
 sub checkTargetCreateAttributes {
