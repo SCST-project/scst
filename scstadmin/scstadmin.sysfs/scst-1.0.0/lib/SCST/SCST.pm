@@ -494,7 +494,11 @@ sub setScstAttribute {
 
 	return TRUE if (!length($attribute) || !defined($value));
 
-	my $bytes = -ENOENT;
+	# There is a space between the unary minus sign and ENOENT because
+	# without that space older Perl versions report the following warning:
+	# Ambiguous use of -ENOENT resolved as -&ENOENT() at
+	# /usr/share/perl5/vendor_perl/SCST/SCST.pm line 497.
+	my $bytes = - ENOENT;
 	my $path = make_path(SCST_ROOT_DIR(), $attribute);
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
