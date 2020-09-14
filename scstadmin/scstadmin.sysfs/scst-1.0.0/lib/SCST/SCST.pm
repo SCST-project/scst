@@ -359,7 +359,11 @@ sub readOnly {
 	my ($path) = @_;
 	my $mode = (stat($path))[2];
 
-	return ($mode & S_IWUSR) != 0;
+	if (!defined($mode)) {
+		cluck("invalid path $path");
+		return undef;
+	}
+	return ($mode & S_IWUSR) == 0;
 }
 
 sub scstVersion {
