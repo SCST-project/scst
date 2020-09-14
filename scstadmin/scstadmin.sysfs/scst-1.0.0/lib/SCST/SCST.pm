@@ -492,7 +492,7 @@ sub setScstAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!length($attribute) || !length($value));
+	return TRUE if (!length($attribute) || !defined($value));
 
 	my $bytes = -ENOENT;
 	my $path = make_path(SCST_ROOT_DIR(), $attribute);
@@ -501,6 +501,7 @@ sub setScstAttribute {
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $attribute = $value\n";
 		} else {
+			$value .= "\n";
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
@@ -2587,7 +2588,7 @@ sub setDriverAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!length($attribute) || !length($value));
+	return TRUE if (!length($attribute) || !defined($value));
 
 	my $path = make_path(SCST_TARGETS_DIR(), $driver, $attribute);
 
@@ -2597,6 +2598,7 @@ sub setDriverAttribute {
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $attribute = $value\n";
 		} else {
+			$value .= "\n";
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
@@ -2724,7 +2726,7 @@ sub setTargetAttribute {
 	my $value = shift;
 
 	return TRUE if (!length($driver) || !length($target) ||
-			!length($attribute) || !length($value));
+			!length($attribute) || !defined($value));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, $attribute);
@@ -2850,7 +2852,7 @@ sub setGroupAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!length($attribute) || !length($value));
+	return TRUE if (!length($attribute) || !defined($value));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
@@ -2863,6 +2865,7 @@ sub setGroupAttribute {
 		if ($self->{'debug'}) {
 			print "DBG($$): $cmd > $path\n";
 		} else {
+			$value .= "\n";
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
@@ -3002,7 +3005,7 @@ sub setLunAttribute {
 
 	return SCST_C_LUN_SETATTR_FAIL
 	    if (!length($driver) || !length($target) || !length($lun) ||
-		!length($attribute) || !length($value));
+		!length($attribute) || !defined($value));
 
 	my $path;
 
@@ -3021,6 +3024,7 @@ sub setLunAttribute {
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $attribute = $value\n";
 		} else {
+			$value .= "\n";
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
@@ -3152,7 +3156,7 @@ sub setInitiatorAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!length($attribute) || !length($value));
+	return TRUE if (!length($attribute) || !defined($value));
 
 	my $path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
 			     $group, SCST_LUNS, $initiator, $attribute);
@@ -3163,6 +3167,7 @@ sub setInitiatorAttribute {
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $attribute = $value\n";
 		} else {
+			$value .= "\n";
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
@@ -3439,7 +3444,7 @@ sub setAluaAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!length($attribute) || !length($value));
+	return TRUE if (!length($attribute) || !defined($value));
 
 	my $bytes = - ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $attribute);
@@ -3448,6 +3453,7 @@ sub setAluaAttribute {
 		if ($self->{'debug'}) {
 			print "DBG($$): $value > $path\n";
 		} else {
+			$value .= "\n";
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
@@ -3465,7 +3471,7 @@ sub setDeviceGroupAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!length($attribute) || !length($value));
+	return TRUE if (!length($attribute) || !defined($value));
 
 	my $bytes = - ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $group, $attribute);
@@ -3474,6 +3480,7 @@ sub setDeviceGroupAttribute {
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $attribute = $value\n";
 		} else {
+			$value .= "\n";
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
@@ -3497,7 +3504,7 @@ sub setTargetGroupAttribute {
 	my $value = shift;
 
 	return TRUE if (!length($group) || !length($tgroup) ||
-			!length($attribute) || !length($value));
+			!length($attribute) || !defined($value));
 
 	my $bytes = - ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, $tgroup, $attribute);
@@ -3506,6 +3513,7 @@ sub setTargetGroupAttribute {
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $attribute = $value\n";
 		} else {
+			$value .= "\n";
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
@@ -3535,7 +3543,7 @@ sub setTargetGroupTargetAttribute {
 
 	return TRUE if (!length($group) || !length($tgroup) ||
 			!length($tgt) || !length($attribute) ||
-			!length($value));
+			!defined($value));
 
 	my $bytes = - ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
@@ -3545,6 +3553,7 @@ sub setTargetGroupTargetAttribute {
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $attribute = $value\n";
 		} else {
+			$value .= "\n";
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
@@ -3616,7 +3625,7 @@ sub setHandlerAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!length($attribute) || !length($value));
+	return TRUE if (!length($attribute) || !defined($value));
 
 	my $bytes = - ENOENT;
 	my $path = make_path(SCST_HANDLERS_DIR(), $handler, $attribute);
@@ -3625,6 +3634,7 @@ sub setHandlerAttribute {
 		if ($self->{'debug'}) {
 			print "DBG($$): $path -> $attribute = $value\n";
 		} else {
+			$value .= "\n";
 			$bytes = _syswrite($io, $value, length($value));
 		}
 		close $io;
@@ -4622,6 +4632,7 @@ sub make_path {
 		if ($path && rindex($path, '/') != length($path) - 1) {
 			$path .= '/';
 		}
+		cluck("make_path: invalid argument") if !length($element);
 		$path .= $element;
 	}
 
