@@ -490,7 +490,7 @@ sub setScstAttribute {
 
 	return TRUE if (!length($attribute) || !length($value));
 
-	my $bytes = - ENOENT;
+	my $bytes = -ENOENT;
 	my $path = make_path(SCST_ROOT_DIR(), $attribute);
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
