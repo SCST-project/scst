@@ -578,7 +578,7 @@ void scst_unregister_target(struct scst_tgt *tgt)
 			PRINT_INFO("Still waiting for session %s/%s; state %ld; refcnt %#lx",
 				   tgt->tgt_name, sess->sess_name,
 				   sess->shut_phase,
-				   atomic_long_read(&sess->refcnt.count));
+				   percpu_ref_read(&sess->refcnt));
 		}
 		mutex_unlock(&scst_mutex);
 	}

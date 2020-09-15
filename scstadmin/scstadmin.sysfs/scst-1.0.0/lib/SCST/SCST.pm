@@ -466,6 +466,15 @@ sub scstAttributes {
 	return (\%attributes, undef);
 }
 
+# Older Perl versions complain if the argument of length() is undefined. Hence
+# this function that checks whether its arguments are defined and not empty.
+sub valid {
+	for my $arg (@_) {
+		return FALSE if (!defined($arg) || $arg eq "");
+	}
+	return TRUE;
+}
+
 # Convert e.g. EINVAL into "EINVAL".
 sub my_strerror {
 	my ($errorcode) = @_;
@@ -492,7 +501,7 @@ sub setScstAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!length($attribute) || !defined($value));
+	return TRUE if (!valid($attribute) || !defined($value));
 
 	# There is a space between the unary minus sign and ENOENT because
 	# without that space older Perl versions report the following warning:
@@ -543,7 +552,7 @@ sub targets {
 	my $self = shift;
 	my $driver = shift;
 
-	return (undef, "Too few arguments") if (!length($driver));
+	return (undef, "Too few arguments") if (!valid($driver));
 
 	my $tHandle = new IO::Handle;
 	my $_path = make_path(SCST_TARGETS_DIR(), $driver);
@@ -578,7 +587,7 @@ sub groups {
 	my $driver = shift;
 	my $target = shift;
 
-	return (undef, "Too few arguments") if (!length($driver) || !length($target));
+	return (undef, "Too few arguments") if (!valid($driver, $target));
 
 	my $gHandle = new IO::Handle;
 	my $_path = make_path(SCST_TARGETS_DIR(), $driver, $target,
@@ -620,7 +629,7 @@ sub initiators {
 	my $errorString;
 
 	return (undef, "Too few arguments")
-	    if (!length($driver) || !length($target) || !length($group));
+	    if (!valid($driver, $target, $group));
 
 	my $iHandle = new IO::Handle;
 	my $_path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
@@ -657,11 +666,11 @@ sub luns {
 	my $group = shift;
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!length($driver) || !length($target));
+	return (undef, "Too few arguments") if (!valid($driver, $target));
 
 	my $_path;
 
-	if (length($group)) {
+	if (valid($group)) {
 		$_path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				   SCST_GROUPS, $group, SCST_LUNS);
 	} else {
@@ -672,7 +681,8 @@ sub luns {
 	my $lHandle = new IO::Handle;
 
 	if (!(opendir $lHandle, $_path)) {
-		if (length($group) && $self->groupExists($driver, $target, $group) != TRUE) {
+		if (valid($group) &&
+		    $self->groupExists($driver, $target, $group) != TRUE) {
 			$errorString = "initiators(): Group '$group' does not exist";
 		} elsif ($self->driverExists($driver) != TRUE) {
 			$errorString = "luns(): Driver '$driver' is not available";
@@ -800,7 +810,7 @@ sub deviceGroupDevices {
 	my @devices;
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!length($group));
+	return (undef, "Too few arguments") if (!valid($group));
 
 	my $dHandle = new IO::Handle;
 	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_DEVICES);
@@ -832,7 +842,7 @@ sub targetGroups {
 	my @tgroups;
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!length($group));
+	return (undef, "Too few arguments") if (!valid($group));
 
 	my $dHandle = new IO::Handle;
 	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS);
@@ -865,7 +875,7 @@ sub targetGroupTargets {
 	my @targets;
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!length($group) || !length($tgroup));
+	return (undef, "Too few arguments") if (!valid($group, $tgroup));
 
 	my $dHandle = new IO::Handle;
 	my $_path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, $tgroup);
@@ -901,7 +911,7 @@ sub driverExists {
 	my $dHandle = new IO::Handle;
 	my $result;
 
-	$result = length($driver) &&
+	$result = valid($driver) &&
 	    opendir($dHandle, make_path(SCST_TARGETS_DIR(), $driver));
 	close $dHandle if ($result);
 
@@ -915,7 +925,7 @@ sub driverDynamicAttributes {
 	my $available;
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!length($driver));
+	return (undef, "Too few arguments") if (!valid($driver));
 
 	my $io = new IO::File make_path(SCST_TARGETS_DIR(), $driver,
 					SCST_MGMT_IO), O_RDONLY;
@@ -955,7 +965,7 @@ sub checkDriverDynamicAttributes {
 	my $driver = shift;
 	my $check = shift;
 
-	return TRUE if (!length($driver));
+	return TRUE if (!valid($driver));
 
 	my ($available, $errorString) = $self->driverDynamicAttributes($driver);
 
@@ -990,8 +1000,8 @@ sub addDriverDynamicAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return SCST_C_DRV_ADDATTR_FAIL
-	    if (!length($driver) || !defined($attribute) || !defined($value));
+	return SCST_C_DRV_ADDATTR_FAIL if (!valid($driver, $attribute) ||
+					   !defined($value));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
@@ -1028,8 +1038,8 @@ sub removeDriverDynamicAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return SCST_C_DRV_REMATTR_FAIL
-	    if (!length($driver) || !defined($attribute) || !defined($value));
+	return SCST_C_DRV_REMATTR_FAIL if (!valid($driver, $attribute) ||
+					   !defined($value));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
@@ -1065,7 +1075,7 @@ sub targetExists {
 	my $driver = shift;
 	my $target = shift;
 
-	return length($driver) && length($target) &&
+	return valid($driver, $target) &&
 	    $target ne '.' && $target ne '..' && $target ne 'module' &&
 	    (-d make_path(SCST_TARGETS_DIR(), $driver, $target)) ? TRUE : FALSE;
 }
@@ -1083,7 +1093,7 @@ sub targetType {
 	my $target = shift;
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!length($driver) || !length($target));
+	return (undef, "Too few arguments") if (!valid($driver, $target));
 
 	if ($self->driverIsVirtualCapable($driver)) {
 		my $attribs;
@@ -1160,7 +1170,7 @@ sub targetDynamicAttributes {
 	my $available;
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!length($driver));
+	return (undef, "Too few arguments") if (!valid($driver));
 
 	my $io = new IO::File make_path(SCST_TARGETS_DIR(), $driver,
 					SCST_MGMT_IO), O_RDONLY;
@@ -1235,8 +1245,7 @@ sub addTargetDynamicAttribute {
 	my $value = shift;
 
 	return SCST_C_TGT_ADDATTR_FAIL
-	    if (!length($driver) || !defined($target) ||
-		!defined($attribute) || !defined($value));
+	    if (!valid($driver, $target, $attribute) || !defined($value));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
@@ -1279,8 +1288,7 @@ sub removeTargetDynamicAttribute {
 	my $value = shift;
 
 	return SCST_C_TGT_REMATTR_FAIL
-	    if (!defined($driver) || !defined($target) ||
-		!defined($attribute) || !defined($value));
+	    if (!valid($driver, $target, $attribute) || !defined($value));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_TARGETS_DIR(), $driver, SCST_MGMT_IO);
@@ -1389,7 +1397,7 @@ sub groupExists {
 	my $target = shift;
 	my $group = shift;
 
-	return FALSE if (!defined($driver) || !defined($target) || !defined($group));
+	return FALSE if (!valid($driver, $target, $group));
 
 	my ($groups, $errorString) = $self->groups($driver, $target);
 
@@ -1415,8 +1423,7 @@ sub initiatorExists {
 	my $group = shift;
 	my $initiator = shift;
 
-	return FALSE if (!defined($driver) || !defined($target) ||
-			 !defined($group) || !defined($initiator));
+	return FALSE if (!valid($driver, $target, $group, $initiator));
 
 	my ($initiators, $errorString) = $self->initiators($driver, $target, $group);
 
@@ -1442,8 +1449,7 @@ sub lunExists {
 	my $lun = shift;
 	my $group = shift;
 
-	return FALSE if (!defined($driver) || !defined($target) ||
-			 !defined($lun));
+	return FALSE if (!valid($driver, $target, $lun));
 
 	my ($luns, $errorString) = $self->luns($driver, $target, $group);
 
@@ -1477,8 +1483,7 @@ sub addGroup {
 	my $target = shift;
 	my $group = shift;
 
-	return SCST_C_GRP_ADD_FAIL if (!length($driver) || !length($target) ||
-				       !length($group));
+	return SCST_C_GRP_ADD_FAIL if (!valid($driver, $target, $group));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
@@ -1518,8 +1523,7 @@ sub removeGroup {
 	my $target = shift;
 	my $group = shift;
 
-	return SCST_C_GRP_REM_FAIL if (!length($driver) || !length($target) ||
-				       !length($group));
+	return SCST_C_GRP_REM_FAIL if (!valid($driver, $target, $group));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
@@ -1557,7 +1561,7 @@ sub addDeviceGroup {
 	my $self = shift;
 	my $group = shift;
 
-	return SCST_C_DEV_GRP_ADD_FAIL if (!defined($group));
+	return SCST_C_DEV_GRP_ADD_FAIL if (!valid($group));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_DEV_GROUP_DIR(), SCST_MGMT_IO);
@@ -1584,7 +1588,7 @@ sub removeDeviceGroup {
 	my $self = shift;
 	my $group = shift;
 
-	return SCST_C_DEV_GRP_REM_FAIL if (!defined($group));
+	return SCST_C_DEV_GRP_REM_FAIL if (!valid($group));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_DEV_GROUP_DIR(), SCST_MGMT_IO);
@@ -1616,7 +1620,7 @@ sub addDeviceGroupDevice {
 	my $dgroups;
 	my $errorString;
 
-	return SCST_C_DGRP_ADD_DEV_FAIL if (!length($group) || !length($device));
+	return SCST_C_DGRP_ADD_DEV_FAIL if (!valid($group, $device));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_DEVICES,
@@ -1666,7 +1670,7 @@ sub addTargetGroup {
 	my $group = shift;
 	my $tgroup = shift;
 
-	return SCST_C_DGRP_ADD_GRP_FAIL if (!length($group) || !length($tgroup));
+	return SCST_C_DGRP_ADD_GRP_FAIL if (!valid($group, $tgroup));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
@@ -1701,7 +1705,7 @@ sub addTargetGroupTarget {
 	my $tgt = shift;
 
 	return SCST_C_TGRP_ADD_TGT_FAIL
-	    if (!length($group) || !length($tgroup) || !length($tgt));
+	    if (!valid($group, $tgroup, $tgt));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
@@ -1737,7 +1741,7 @@ sub removeDeviceGroupDevice {
 	my $group = shift;
 	my $device = shift;
 
-	return SCST_C_DGRP_REM_DEV_FAIL if (!length($group) || !length($device));
+	return SCST_C_DGRP_REM_DEV_FAIL if (!valid($group, $device));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_DEVICES,
@@ -1776,7 +1780,7 @@ sub removeTargetGroup {
 	my $group = shift;
 	my $tgroup = shift;
 
-	return SCST_C_DGRP_REM_GRP_FAIL if (!length($group) || !length($tgroup));
+	return SCST_C_DGRP_REM_GRP_FAIL if (!valid($group, $tgroup));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
@@ -1812,7 +1816,7 @@ sub removeTargetGroupTarget {
 	my $tgroup = shift;
 	my $tgt = shift;
 
-	return SCST_C_TGRP_REM_TGT_FAIL if (!length($group) || !length($tgroup) || !length($tgt));
+	return SCST_C_TGRP_REM_TGT_FAIL if (!valid($group, $tgroup, $tgt));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS,
@@ -1854,8 +1858,7 @@ sub addInitiator {
 	my $initiator = shift;
 
 	return SCST_C_GRP_ADD_INI_FAIL
-	    if (!length($driver) || !length($target) ||
-		!length($group) || !length($initiator));
+	    if (!valid($driver, $target, $group, $initiator));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
@@ -1874,9 +1877,8 @@ sub addInitiator {
 		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
-	return SCST_C_GRP_REM_INI_FAIL if (!length($driver) ||
-					   !length($target) ||
-					   !length($initiator));
+	return SCST_C_GRP_REM_INI_FAIL
+	    if (!valid($driver, $target, $initiator));
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
@@ -1904,7 +1906,8 @@ sub removeInitiator {
 	my $group = shift;
 	my $initiator = shift;
 
-	return SCST_C_GRP_REM_INI_FAIL if (!length($driver) || !length($target) || !length($group) || !length($initiator));
+	return SCST_C_GRP_REM_INI_FAIL
+	    if (!valid($driver, $target, $group, $initiator));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
@@ -2041,12 +2044,10 @@ sub addLun {
 	my $attributes = shift;
 	my $group = shift;
 
-	my $err = length($group) ? SCST_C_GRP_ADD_LUN_FAIL :
+	my $err = valid($group) ? SCST_C_GRP_ADD_LUN_FAIL :
 	    SCST_C_TGT_ADD_LUN_FAIL;
 
-	return $err if (!length($driver) || !length($target) ||
-			!length($device) || !length($lun) ||
-			!length($attributes));
+	return $err if (!valid($driver, $target, $device, $lun, $attributes));
 
 	my $o_string = "";
 	foreach my $attribute (keys %{$attributes}) {
@@ -2057,7 +2058,7 @@ sub addLun {
 	$o_string =~ s/\s$//;
 
 	my ($path, $cmd);
-	if (length($group)) {
+	if (valid($group)) {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				  SCST_GROUPS, $group, SCST_LUNS, SCST_MGMT_IO);
 	} else {
@@ -2079,14 +2080,14 @@ sub addLun {
 		return FALSE if ($self->{'debug'} || $bytes > 0);
 	}
 
-	if (length($group)) {
+	if (valid($group)) {
 		my $rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
 	}
 
 	my $rc = $self->lunExists($driver, $target, $lun, $group);
-	return (length($group) ? SCST_C_GRP_LUN_EXISTS :
+	return (valid($group) ? SCST_C_GRP_LUN_EXISTS :
 		SCST_C_TGT_LUN_EXISTS) if ($rc == TRUE);
 	return $rc if ($rc > 1);
 
@@ -2116,14 +2117,13 @@ sub removeLun {
 	my $lun = shift;
 	my $group = shift;
 
-	my $err = length($group) ? SCST_C_GRP_REM_LUN_FAIL :
+	my $err = valid($group) ? SCST_C_GRP_REM_LUN_FAIL :
 	    SCST_C_TGT_ADD_LUN_FAIL;
 
-	return $err if (!length($driver) || !length($target) ||
-			!length($lun));
+	return $err if (!valid($driver, $target, $lun));
 
 	my ($path, $cmd);
-	if (length($group)) {
+	if (valid($group)) {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				  SCST_GROUPS, $group, SCST_LUNS,
 				  SCST_MGMT_IO);
@@ -2153,15 +2153,15 @@ sub removeLun {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	if (length($group)) {
+	if (valid($group)) {
 		$rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
 	}
 
 	$rc = $self->lunExists($driver, $target, $lun, $group);
-	return (length($group) ? SCST_C_GRP_NO_LUN : SCST_C_TGT_NO_LUN)
-	    if (!$rc);
+	return (valid($group) ? SCST_C_GRP_NO_LUN :
+		SCST_C_TGT_NO_LUN) if (!$rc);
 	return $rc if ($rc > 1);
 
 	return $err;
@@ -2178,7 +2178,7 @@ sub replaceLun {
 
 	my $err;
 
-	return TRUE if (!length($lun));
+	return TRUE if (!valid($lun));
 
 	my $rc = $self->driverExists($driver);
 	return SCST_C_DRV_NO_DRIVER if (!$rc);
@@ -2188,7 +2188,7 @@ sub replaceLun {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	if (length($group)) {
+	if (valid($group)) {
 		$rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
@@ -2248,13 +2248,13 @@ sub clearLuns {
 	my $target = shift;
 	my $group = shift;
 
-	my $err = length($group) ? SCST_C_GRP_CLR_LUN_FAIL :
+	my $err = valid($group) ? SCST_C_GRP_CLR_LUN_FAIL :
 	    SCST_C_TGT_CLR_LUN_FAIL;
 
-	return $err if (!length($driver) || !length($target));
+	return $err if (!valid($driver, $target));
 
 	my ($path, $cmd);
-	if (length($group)) {
+	if (valid($group)) {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				  SCST_GROUPS, $group, SCST_LUNS,
 				  SCST_MGMT_IO);
@@ -2284,7 +2284,7 @@ sub clearLuns {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	if (length($group)) {
+	if (valid($group)) {
 		$rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
@@ -2297,7 +2297,7 @@ sub deviceHandler {
 	my $self = shift;
 	my $device = shift;
 
-	return undef if (!length($device));
+	return undef if (!valid($device));
 
 	my $handler = readlink(make_path(SCST_DEVICES_DIR(), $device,
 					 'handler'));
@@ -2311,7 +2311,7 @@ sub devices {
 	my @devices;
 
 	my $dHandle = new IO::Handle;
-	my $_path = !length($handler) ? SCST_DEVICES_DIR() :
+	my $_path = !valid($handler) ? SCST_DEVICES_DIR() :
 	    make_path(SCST_HANDLERS_DIR(), $handler);
 	if (!(opendir $dHandle, $_path)) {
 		return (undef, "devices(): Unable to read directory '$_path': $!");
@@ -2321,7 +2321,7 @@ sub devices {
 		next if ($device eq '.' || $device eq '..');
 
 		my $isdev = (-d make_path(SCST_DEVICES_DIR(), $device));
-		if ($isdev && (!length($handler) ||
+		if ($isdev && (!valid($handler) ||
 			       $handler eq $self->deviceHandler($device))) {
 			push @devices, $device;
 		}
@@ -2336,11 +2336,11 @@ sub deviceOpen {
 	my $self = shift;
 	my $device = shift;
 
-	return FALSE if (!length($device));
+	return FALSE if (!valid($device));
 
 	my ($devices, $errorString) = $self->devices();
 
-	return SCST_C_FATAL_ERROR if (!length($devices));
+	return SCST_C_FATAL_ERROR if (!valid($devices));
 
 	foreach my $_device (@{$devices}) {
 		return TRUE if ($device eq $_device);
@@ -2592,7 +2592,7 @@ sub setDriverAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!length($attribute) || !defined($value));
+	return TRUE if (!valid($attribute) || !defined($value));
 
 	my $path = make_path(SCST_TARGETS_DIR(), $driver, $attribute);
 
@@ -2625,7 +2625,7 @@ sub targetAttributes {
 	my %attributes = ( );
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!length($driver) || !length($target));
+	return (undef, "Too few arguments") if (!valid($driver, $target));
 
 	my $pHandle = new IO::Handle;
 	my $_path = make_path(SCST_TARGETS_DIR(), $driver, $target);
@@ -2729,8 +2729,8 @@ sub setTargetAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!length($driver) || !length($target) ||
-			!length($attribute) || !defined($value));
+	return TRUE if (!valid($driver, $target, $attribute) ||
+			!defined($value));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, $attribute);
@@ -2856,7 +2856,7 @@ sub setGroupAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!length($attribute) || !defined($value));
+	return TRUE if (!valid($attribute) || !defined($value));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
@@ -2904,7 +2904,7 @@ sub lunAttributes {
 
 	my ($_path, $luncrattr);
 
-	if (length($group)) {
+	if (valid($group)) {
 		$_path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				   SCST_GROUPS, $group, SCST_LUNS, $lun);
 		($luncrattr, $errorString) =
@@ -2921,7 +2921,8 @@ sub lunAttributes {
 			$errorString = "lunAttributes(): Driver '$driver' is not available";
 		} elsif ($self->targetExists($driver, $target) != TRUE) {
 			$errorString = "lunAttributes(): Target '$target' is not available";
-		} elsif (length($group) && $self->groupExists($driver, $target, $group) != TRUE) {
+		} elsif (valid($group) &&
+			 $self->groupExists($driver, $target, $group) != TRUE) {
 			$errorString = "lunAttributes(): Group '$group' does not exist";
 		} elsif ($self->lunExists($driver, $target, $lun, $group) != TRUE) {
 			$errorString = "lunAttributes(): LUN '$lun' does not exist";
@@ -3008,12 +3009,11 @@ sub setLunAttribute {
 	my $group = shift;
 
 	return SCST_C_LUN_SETATTR_FAIL
-	    if (!length($driver) || !length($target) || !length($lun) ||
-		!length($attribute) || !defined($value));
+	    if (!valid($driver, $target, $lun, $attribute) || !defined($value));
 
 	my $path;
 
-	if (length($group)) {
+	if (valid($group)) {
 		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				  SCST_GROUPS, $group, SCST_LUNS, $lun,
 				  $attribute);
@@ -3043,15 +3043,15 @@ sub setLunAttribute {
 	return SCST_C_TGT_NO_TARGET if (!$rc);
 	return $rc if ($rc > 1);
 
-	if (length($group)) {
+	if (valid($group)) {
 		$rc = $self->groupExists($driver, $target, $group);
 		return SCST_C_GRP_NO_GROUP if (!$rc);
 		return $rc if ($rc > 1);
 	}
 
 	$rc = $self->lunExists($driver, $target, $lun, $group);
-	return (length($group) ? SCST_C_GRP_NO_LUN : SCST_C_TGT_NO_LUN)
-	    if (!$rc);
+	return (valid($group) ? SCST_C_GRP_NO_LUN :
+		SCST_C_TGT_NO_LUN) if (!$rc);
 	return $rc if ($rc > 1);
 
 	my ($attributes, $errorString) = $self->lunAttributes($driver, $target, $lun, $group);
@@ -3160,7 +3160,7 @@ sub setInitiatorAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!length($attribute) || !defined($value));
+	return TRUE if (!valid($attribute) || !defined($value));
 
 	my $path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_GROUPS,
 			     $group, SCST_LUNS, $initiator, $attribute);
@@ -3448,7 +3448,7 @@ sub setAluaAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!length($attribute) || !defined($value));
+	return TRUE if (!valid($attribute) || !defined($value));
 
 	my $bytes = - ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $attribute);
@@ -3475,7 +3475,7 @@ sub setDeviceGroupAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!length($attribute) || !defined($value));
+	return TRUE if (!valid($attribute) || !defined($value));
 
 	my $bytes = - ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $group, $attribute);
@@ -3507,8 +3507,7 @@ sub setTargetGroupAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!length($group) || !length($tgroup) ||
-			!length($attribute) || !defined($value));
+	return TRUE if !valid($group, $tgroup, $attribute) || !defined($value);
 
 	my $bytes = - ENOENT;
 	my $path = make_path(SCST_DEV_GROUP_DIR(), $group, SCST_DG_TGROUPS, $tgroup, $attribute);
@@ -3545,8 +3544,7 @@ sub setTargetGroupTargetAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!length($group) || !length($tgroup) ||
-			!length($tgt) || !length($attribute) ||
+	return TRUE if (!valid($group, $tgroup, $tgt, $attribute) ||
 			!defined($value));
 
 	my $bytes = - ENOENT;
@@ -3610,7 +3608,7 @@ sub handlerExists {
 	my $self = shift;
 	my $handler = shift;
 
-	return FALSE if (!length($handler));
+	return FALSE if (!valid($handler));
 
 	my ($handlers, $errorString) = $self->handlers();
 
@@ -3629,7 +3627,7 @@ sub setHandlerAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	return TRUE if (!length($attribute) || !defined($value));
+	return TRUE if (!valid($attribute) || !defined($value));
 
 	my $bytes = - ENOENT;
 	my $path = make_path(SCST_HANDLERS_DIR(), $handler, $attribute);
@@ -3861,7 +3859,7 @@ sub deviceCreateAttributes {
 	my %attributes = ( );
 	my $errorString;
 
-	return (undef, "missing handler argument") if (!length($handler));
+	return (undef, "missing handler argument") if (!valid($handler));
 
 	my $io = new IO::File make_path(SCST_HANDLERS_DIR(), $handler,
 					SCST_MGMT_IO), O_RDONLY;
@@ -3903,7 +3901,7 @@ sub openDevice {
 	my $attributes = shift;
 
 	return SCST_C_DEV_OPEN_FAIL
-	    if (!length($handler) || !length($device) || !length($attributes));
+	    if (!valid($handler, $device, $attributes));
 
 	my $o_string = "";
 	foreach my $attribute (keys %{$attributes}) {
@@ -3953,7 +3951,7 @@ sub closeDevice {
 	my $handler = shift;
 	my $device = shift;
 
-	return SCST_C_DEV_CLOSE_FAIL if (!length($handler) || !length($device));
+	return SCST_C_DEV_CLOSE_FAIL if (!valid($handler, $device));
 
 	my ($path, $cmd);
 	$path = make_path(SCST_HANDLERS_DIR(), $handler, SCST_MGMT_IO);
@@ -4237,7 +4235,7 @@ sub lunCreateAttributes {
 
 	my $_path;
 
-	if (length($group)) {
+	if (valid($group)) {
 		$_path = make_path(SCST_TARGETS_DIR(), $driver, $target,
 				   SCST_GROUPS, $group, SCST_LUNS,
 				   SCST_MGMT_IO);
@@ -4255,7 +4253,8 @@ sub lunCreateAttributes {
 		} elsif ($self->targetExists($driver, $target) != TRUE) {
 			$errorString = "lunCreateAttributes(): Target '$target' ".
 			    "is not available";
-		} elsif (length($group) && $self->groupExists($driver, $target, $group) != TRUE) {
+		} elsif (valid($group) &&
+			 $self->groupExists($driver, $target, $group) != TRUE) {
 			$errorString = "lunCreateAttributes(): Group '$group' ".
 			    "does not exist";
 		} else {
@@ -4382,7 +4381,7 @@ sub sessions {
 	my %_sessions;
 	my $errorString;
 
-	return (undef, "Too few arguments") if (!length($driver) || !length($target));
+	return (undef, "Too few arguments") if (!valid($driver, $target));
 
 	my $sHandle = new IO::Handle;
 	my $_path = make_path(SCST_TARGETS_DIR(), $driver, $target,
@@ -4636,7 +4635,7 @@ sub make_path {
 		if ($path && rindex($path, '/') != length($path) - 1) {
 			$path .= '/';
 		}
-		cluck("make_path: invalid argument") if !length($element);
+		cluck("make_path: invalid argument") if !valid($element);
 		$path .= $element;
 	}
 
