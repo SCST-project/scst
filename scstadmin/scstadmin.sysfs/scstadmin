@@ -1464,6 +1464,12 @@ sub readWorkingConfig {
 	return FALSE;
 }
 
+# Older Perl versions complain if the argument of length() is undefined. Hence
+# this function that checks whether its arguments are defined and not empty.
+sub valid {
+	return $SCST->valid(@_);
+}
+
 # Escape metacharacters (space, backslash and hash sign).
 sub escapeMeta {
 	my $value = shift;
@@ -3079,7 +3085,7 @@ sub listHandler {
 	my $handler = shift;
 	my %toprint;
 
-	my $got_handler = defined($handler);
+	my $got_handler = valid($handler);
 	my ($handlers, $errorString) = $SCST->handlers();
 
 	my $l_device = 0;
@@ -3142,7 +3148,7 @@ sub listDevices {
 	my $device = shift;
 	my $nonkey = shift;
 
-	return listDevice($device, $nonkey) if (length($device));
+	return listDevice($device, $nonkey) if (valid($device));
 	return listHandler();
 }
 
@@ -3166,7 +3172,7 @@ sub listDeviceGroups {
 	my $group = shift;
 	my $showall = shift;
 
-	return listDeviceGroup($group) if (length($group));
+	return listDeviceGroup($group) if (valid($group));
 
 	my ($groups, $errorString) = $SCST->deviceGroups();
 
@@ -3245,8 +3251,8 @@ sub listTargetGroups {
 	my $tgroup = shift;
 	my $indent = shift;
 
-	return listDeviceGroups(undef, TRUE) if (!length($group));
-	return listTargetGroup($group, $tgroup) if (length($tgroup));
+	return listDeviceGroups(undef, TRUE) if (!valid($group));
+	return listTargetGroup($group, $tgroup) if (valid($tgroup));
 
 	my ($tgroups, $errorString) = $SCST->targetGroups($group);
 
@@ -3334,7 +3340,7 @@ sub listDeviceGroupDevices {
 sub listDrivers {
 	my $driver = shift;
 
-	return listTargets($driver, undef) if (length($driver));
+	return listTargets($driver, undef) if (valid($driver));
 
 	my ($drivers, $errorString) = $SCST->drivers();
 
@@ -3362,10 +3368,9 @@ sub listTargets {
 	my $target = shift;
 	my %toprint;
 
-	return listGroups($driver, $target, undef)
-	    if (length($target) and length($driver));
+	return listGroups($driver, $target, undef) if (valid($target, $driver));
 
-	my $got_driver = !!length($driver);
+	my $got_driver = valid($driver);
 
 	my ($drivers, $errorString) = $SCST->drivers();
 
@@ -3472,7 +3477,7 @@ sub listGroup {
 	my $errorString;
 
 	($luns, $errorString) = $SCST->luns($driver, $target, $group) if (!$luns);
-	if (!length($initiators) && length($group)) {
+	if (!valid($initiators) && valid($group)) {
 		($initiators, $errorString) = $SCST->initiators($driver, $target, $group);
 		return TRUE if issueWarning($errorString);
 	}
@@ -3507,7 +3512,7 @@ sub listGroup {
 			print "\t(none)\n";
 		}
 
-		if (length($group)) {
+		if (valid($group)) {
 			print "\nAssigned Initiators:\n\n";
 
 			if ($#{$initiators} > -1) {
@@ -3526,7 +3531,7 @@ sub listGroup {
 			}
 		}
 	} else {
-		if (length($group)) {
+		if (valid($group)) {
 			print "Group '$group' has no associated LUNs or initiators.\n";
 		} else {
 			print "Driver/target '$driver/$target' has no associated LUNs.\n";
@@ -3542,7 +3547,7 @@ sub listGroups {
 	my $group = shift;
 	my $found = FALSE;
 
-	if (length($group) and length($driver) and length($target)) {
+	if (valid($group, $driver, $target)) {
 		return listGroup($driver, $target, $group);
 	}
 
@@ -3951,7 +3956,7 @@ sub listLunAttributes {
 	return TRUE if issueWarning($errorString);
 
 	if (!scalar(keys %{$attributes})) {
-		if (length($group)) {
+		if (valid($group)) {
 			print "No such driver/target/group/lun '$driver/$target/$group/$lun' found.\n";
 		} else {
 			print "No such driver/target/lun '$driver/$target/$lun' found.\n";
@@ -5163,7 +5168,7 @@ sub addLun {
 		return FALSE;
 	}
 
-	if (length($group)) {
+	if (valid($group)) {
 		print "\t-> Adding device '$device' at LUN $lun to driver/target/group ".
 		  "'$driver/$target/$group': ";
 	} else {
@@ -5354,7 +5359,7 @@ sub issueLip {
 	my $warn = shift;
 	my $errorString;
 
-	if (length($driver) && length($target)) {
+	if (valid($driver, $target)) {
 		return _issueLip($driver, $target, $warn);
 	} else {
 		my $drivers;

@@ -57,7 +57,7 @@ sub testDriverDynAttr {
 
     ok($SCST->addDriverDynamicAttribute(), $SCST->SCST_C_DRV_ADDATTR_FAIL);
     ok($SCST->addDriverDynamicAttribute('no-such-driver', '', ''),
-       $SCST->SCST_C_DRV_NO_DRIVER);
+       $SCST->SCST_C_DRV_ADDATTR_FAIL);
     ok($SCST->addDriverDynamicAttribute('iscsi', 'no-such-attribute', ''),
        $SCST->SCST_C_DRV_BAD_ATTRIBUTES);
     ok($SCST->addDriverDynamicAttribute('iscsi', 'IncomingUser',
@@ -71,7 +71,7 @@ sub testDriverDynAttr {
 	        'static' => 0 }));
     ok($SCST->removeDriverDynamicAttribute(), $SCST->SCST_C_DRV_REMATTR_FAIL);
     ok($SCST->removeDriverDynamicAttribute('no-such-driver', '', ''),
-       $SCST->SCST_C_DRV_NO_DRIVER);
+       $SCST->SCST_C_DRV_REMATTR_FAIL);
     ok($SCST->removeDriverDynamicAttribute('iscsi', 'no-such-attribute', ''),
        $SCST->SCST_C_DRV_BAD_ATTRIBUTES);
     ok($SCST->removeDriverDynamicAttribute('iscsi', 'IncomingUser',
@@ -113,9 +113,9 @@ sub testTargetDynAttr {
 
     ok($SCST->addTargetDynamicAttribute(), $SCST->SCST_C_TGT_ADDATTR_FAIL);
     ok($SCST->addTargetDynamicAttribute('no-such-driver', '', '', ''),
-       $SCST->SCST_C_DRV_NO_DRIVER);
+       $SCST->SCST_C_TGT_ADDATTR_FAIL);
     ok($SCST->addTargetDynamicAttribute('iscsi', 'no-such-target', '', ''),
-       $SCST->SCST_C_TGT_NO_TARGET);
+       $SCST->SCST_C_TGT_ADDATTR_FAIL);
     ok($SCST->addTargetDynamicAttribute('iscsi', 'tgt1', 'no-such-attribute',
 					'', ''),
        $SCST->SCST_C_TGT_BAD_ATTRIBUTES);
@@ -130,9 +130,9 @@ sub testTargetDynAttr {
 	        'static' => 0 }));
     ok($SCST->removeTargetDynamicAttribute(), $SCST->SCST_C_TGT_REMATTR_FAIL);
     ok($SCST->removeTargetDynamicAttribute('no-such-driver', '', '', ''),
-       $SCST->SCST_C_DRV_NO_DRIVER);
+       $SCST->SCST_C_TGT_REMATTR_FAIL);
     ok($SCST->removeTargetDynamicAttribute('iscsi', 'no-such-target', '', ''),
-       $SCST->SCST_C_TGT_NO_TARGET);
+       $SCST->SCST_C_TGT_REMATTR_FAIL);
     ok($SCST->removeTargetDynamicAttribute('iscsi', 'tgt1', 'no-such-attribute',
 					   ''),
        $SCST->SCST_C_TGT_BAD_ATTRIBUTES);
