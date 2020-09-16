@@ -2003,7 +2003,7 @@ int scst_tg_set_group_info(struct scst_cmd *cmd)
 		break;
 	default:
 		WARN_ONCE(true, "res = %d\n", res);
-		/* fall through */
+		fallthrough;
 	case -EOVERFLOW:
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_sense_set_target_pgs_failed));
