@@ -785,7 +785,7 @@ static int dev_user_parse(struct scst_cmd *cmd)
 			res = SCST_CMD_STATE_NEED_THREAD_CTX;
 			goto out;
 		}
-		/* fall through */
+		fallthrough;
 
 	case SCST_USER_PARSE_CALL:
 		TRACE_DBG("Preparing PARSE for user space (ucmd=%p, h=%d, "
@@ -1289,7 +1289,7 @@ out:
 out_nomem:
 	if (ucmd->cmd != NULL)
 		scst_set_busy(ucmd->cmd);
-	/* fall through */
+	fallthrough;
 
 out_err:
 	if (ucmd->cmd != NULL)

@@ -3792,7 +3792,7 @@ static int srpt_xmit_response(struct scst_cmd *cmd)
 				WARN_ONCE(true,
 					  "srpt_xfer_data() returned %d\n",
 					  ret);
-				/* fall-through */
+				fallthrough;
 			case -EIO:
 				ret = SCST_TGT_RES_FATAL_ERROR;
 				break;
