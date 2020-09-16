@@ -246,13 +246,14 @@ static inline void cpu_to_be32_array(__be32 *dst, const u32 *src, size_t len)
  * pseudo keyword for switch/case use") # v5.4
  */
 #ifndef fallthrough
-#ifdef __has_attribute
+#if __GNUC__ >= 5
 #if __has_attribute(__fallthrough__)
 #define fallthrough __attribute__((__fallthrough__))
 #else
 #define fallthrough do {} while (0)  /* fallthrough */
 #endif
 #else
+/* gcc 4.x doesn't support __has_attribute() */
 #define fallthrough do {} while (0)  /* fallthrough */
 #endif
 #endif
