@@ -1358,7 +1358,7 @@ set_res:
 		TRACE_DBG_FLAG(TRACE_DEBUG|TRACE_MINOR, "Atomic context and "
 			"non-WRITE data direction, rescheduling (cmd %p)", cmd);
 		res = SCST_CMD_STATE_RES_NEED_THREAD;
-		fallthrough;
+		/* fall through */
 	}
 #endif
 
