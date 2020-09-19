@@ -1289,7 +1289,7 @@ out:
 out_nomem:
 	if (ucmd->cmd != NULL)
 		scst_set_busy(ucmd->cmd);
-	fallthrough;
+	/* fall through */
 
 out_err:
 	if (ucmd->cmd != NULL)
