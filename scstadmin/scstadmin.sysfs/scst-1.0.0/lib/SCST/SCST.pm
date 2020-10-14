@@ -2223,8 +2223,14 @@ sub replaceLun {
 	$o_string =~ s/\s$//;
 
 	my ($path, $cmd);
-	$path = make_path(SCST_TARGETS_DIR(), $driver, $target, SCST_LUNS,
-			  SCST_MGMT_IO);
+	if (defined($group)) {
+		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
+				  SCST_GROUPS, $group, SCST_LUNS,
+				  SCST_MGMT_IO);
+	} else {
+		$path = make_path(SCST_TARGETS_DIR(), $driver, $target,
+				  SCST_LUNS, SCST_MGMT_IO);
+	}
 	$cmd .= "replace $device $lun $o_string";
 
 	my $bytes = - ENOENT;
