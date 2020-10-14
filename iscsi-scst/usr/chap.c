@@ -38,7 +38,7 @@
 #define BASE64_FORMAT 0x02
 
 #define CHAP_DIGEST_ALG_MD5   5
-#define CHAP_DIGEST_ALG_SHA1  7
+#define CHAP_DIGEST_ALG_SHA1  6
 
 #define CHAP_MD5_DIGEST_LEN  16
 #define CHAP_SHA1_DIGEST_LEN 20
@@ -370,7 +370,7 @@ static int chap_initiator_auth_create_challenge(struct connection *conn)
 			conn->auth.chap.digest_alg = CHAP_DIGEST_ALG_MD5;
 			conn->auth_state = CHAP_AUTH_STATE_CHALLENGE;
 			break;
-		} else if (!strcmp(p, "7")) {
+		} else if (!strcmp(p, "6")) {
 			conn->auth.chap.digest_alg = CHAP_DIGEST_ALG_SHA1;
 			conn->auth_state = CHAP_AUTH_STATE_CHALLENGE;
 			break;
