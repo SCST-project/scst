@@ -200,6 +200,7 @@ License: GPL-2+
 
 Files: scst/Makefile
        scst/include/backport.h
+       scst/include/build_mode.h
        scst/include/scst.h
        scst/include/scst_const.h
        scst/include/scst_debug.h
