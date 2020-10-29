@@ -6986,7 +6986,7 @@ static void scst_free_lat_stats_mem(void)
 		list_for_each_entry(tgt, &tt->tgt_list, tgt_list_entry) {
 			list_for_each_entry(sess, &tgt->sess_list,
 					    sess_list_entry) {
-				vfree(sess->lat_stats);
+				kvfree(sess->lat_stats);
 				sess->lat_stats = NULL;
 			}
 		}
