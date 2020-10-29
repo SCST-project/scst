@@ -7173,7 +7173,13 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	}
 
 	if (atomic_read(&scst_measure_latency)) {
-		sess->lat_stats = vzalloc(sizeof(*sess->lat_stats));
+		/*
+		 * To do: remove higher order allocation from the code below
+		 * for the GFP_ATOMIC case.
+		 */
+		sess->lat_stats = gfp_mask & GFP_ATOMIC ?
+			kzalloc(sizeof(*sess->lat_stats), gfp_mask) :
+			vzalloc(sizeof(*sess->lat_stats));
 		if (!sess->lat_stats)
 			goto out_free_name;
 	}
@@ -7232,7 +7238,7 @@ void scst_free_session(struct scst_session *sess)
 	mutex_unlock(&scst_mutex);
 
 	kfree(sess->transport_id);
-	vfree(sess->lat_stats);
+	kvfree(sess->lat_stats);
 	kfree(sess->initiator_name);
 	if (sess->sess_name != sess->initiator_name)
 		kfree(sess->sess_name);
