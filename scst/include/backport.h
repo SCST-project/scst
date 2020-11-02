@@ -1135,7 +1135,7 @@ static inline int pcie_capability_read_word(struct pci_dev *dev, int pos,
 {
 	WARN_ON_ONCE(true);
 	*val = 0;
-	return -ENOTSUPP;
+	return -EOPNOTSUPP;
 }
 
 static inline int pcie_capability_read_dword(struct pci_dev *dev, int pos,
@@ -1143,7 +1143,7 @@ static inline int pcie_capability_read_dword(struct pci_dev *dev, int pos,
 {
 	WARN_ON_ONCE(true);
 	*val = 0;
-	return -ENOTSUPP;
+	return -EOPNOTSUPP;
 }
 #endif
 

@@ -1167,7 +1167,7 @@ int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode,
 
 out:
 #else
-	res = cluster_mode ? -ENOTSUPP : 0;
+	res = cluster_mode ? -EOPNOTSUPP : 0;
 #endif
 
 	return res;

@@ -4880,7 +4880,7 @@ static struct kobj_type scst_session_ktype = {
 		       scst_sess_latency_store);			\
 	static struct kobj_attribute sess_lat_attr_b##size =		\
 		__ATTR(b##size, S_IRUGO | S_IWUSR, scst_sess_latency_show, \
-		       scst_sess_latency_store);
+		       scst_sess_latency_store)
 SCST_LAT_ATTR(512);
 SCST_LAT_ATTR(1024);
 SCST_LAT_ATTR(2048);
