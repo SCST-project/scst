@@ -742,8 +742,8 @@ enum scst_tg_sup {
 
 /*
  * Error code returned by target attribute sysfs methods if invoked after
- * scst_register_target() finished but before before scst_tgt_set_tgt_priv()
- * has been invoked.
+ * scst_register_target() finished but before scst_tgt_set_tgt_priv() has been
+ * invoked.
  */
 enum {
 	E_TGT_PRIV_NOT_YET_SET = EBUSY
