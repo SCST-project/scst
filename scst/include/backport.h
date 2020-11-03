@@ -1955,6 +1955,24 @@ static inline struct workqueue_struct *alloc_workqueue(const char *fmt,
 }
 #endif
 
+/*
+ * See also commits 18aa9effad4a ("workqueue: implement WQ_NON_REENTRANT";
+ * v2.6.36) and commits dbf2576e37da ("workqueue: make all workqueues
+ * non-reentrant"; v3.7).
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36) || \
+	LINUX_VERSION_CODE >= KERNEL_VERSION(3, 7, 0)
+#define WQ_NON_REENTRANT 0
+#endif
+
+/*
+ * See also commit 226223ab3c41 ("workqueue: implement sysfs interface for
+ * workqueues"; v3.10).
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
+#define WQ_SYSFS 0
+#endif
+
 /* <rdma/ib_verbs.h> */
 
 /* commit ed082d36 */

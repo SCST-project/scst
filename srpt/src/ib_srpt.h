@@ -373,7 +373,7 @@ enum rdma_ch_state {
 
 /**
  * struct srpt_rdma_ch - RDMA channel
- * @thread:        Kernel thread that processes the IB queues associated with
+ * @compl:         Work structure used for scheduling completion work.
  *                 the channel.
  * @nexus:         I_T nexus this channel is associated with.
  * @qp:            IB queue pair used for communicating over this channel.
@@ -411,7 +411,7 @@ enum rdma_ch_state {
  * @sess_name:     Session name.
  */
 struct srpt_rdma_ch {
-	struct task_struct	*thread;
+	struct work_struct	compl;
 	struct srpt_nexus	*nexus;
 	struct ib_qp		*qp;
 	union {
