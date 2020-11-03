@@ -1135,7 +1135,7 @@ static inline int pcie_capability_read_word(struct pci_dev *dev, int pos,
 {
 	WARN_ON_ONCE(true);
 	*val = 0;
-	return -ENOTSUPP;
+	return -EOPNOTSUPP;
 }
 
 static inline int pcie_capability_read_dword(struct pci_dev *dev, int pos,
@@ -1143,7 +1143,7 @@ static inline int pcie_capability_read_dword(struct pci_dev *dev, int pos,
 {
 	WARN_ON_ONCE(true);
 	*val = 0;
-	return -ENOTSUPP;
+	return -EOPNOTSUPP;
 }
 #endif
 
@@ -1556,7 +1556,7 @@ typedef void (*rcu_callback_t)(struct rcu_head *);
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
 	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 7)
 /*
- * See also commit 546a9d8519ed ("rcu: Export debug_init_rcu_head() and and
+ * See also commit 546a9d8519ed ("rcu: Export debug_init_rcu_head() and
  * debug_init_rcu_head()") # v3.16.
  */
 static inline void init_rcu_head(struct rcu_head *head) { }

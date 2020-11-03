@@ -6001,6 +6001,7 @@ ssize_t kernel_write(struct file *file, const void *buf, size_t count,
 {
 	mm_segment_t old_fs = get_fs();
 	ssize_t result;
+
 	set_fs(KERNEL_DS);
 	{
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
@@ -8189,7 +8190,7 @@ static struct request *blk_make_request(struct request_queue *q,
 			return ERR_PTR(ret);
 		}
 		/*
-		 * See also commit commit 0abc2a10389f ("block: fix
+		 * See also commit 0abc2a10389f ("block: fix
 		 * blk_rq_append_bio"). That commit has been backported to
 		 * kernel v4.14.11 as 88da02868f77.
 		 */
