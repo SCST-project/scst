@@ -192,7 +192,8 @@ static inline void *bsg_job_sense(struct bsg_job *job)
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0) && \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
-	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 5)
+	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 5) && \
+	!defined(UEK_KABI_RENAME)
 static inline void cpu_to_be32_array(__be32 *dst, const u32 *src, size_t len)
 {
 	int i;
@@ -1052,7 +1053,8 @@ static inline void *kvmalloc_array(size_t n, size_t size, gfp_t flags)
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
 	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 7) &&	\
 	!defined(CONFIG_SUSE_KERNEL) &&			\
-	!defined(_COMPAT_LINUX_MM_H)
+	!defined(_COMPAT_LINUX_MM_H) &&			\
+	!defined(UEK_KABI_RENAME)
 /* See also commit 1c542f38ab8d ("mm: Introduce kvcalloc()") # v4.18. */
 static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
 {
