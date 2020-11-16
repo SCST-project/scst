@@ -19,10 +19,15 @@
  * You should have received a copy of the GNU General Public License along with
  * this program.
  */
+#include <linux/version.h>
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <scsi/libfc.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 #include <scsi/fc_encode.h>
+#else
+#include <scsi/fc_frame.h>
+#endif
 #include "fcst.h"
 
 /*
