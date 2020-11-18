@@ -839,12 +839,15 @@ enum kobj_ns_type {
 };
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24) &&	\
-	LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 24) &&		      \
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0) &&	      \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
 /*
  * See also commit 5f256becd868 ("[NET]: Basic network namespace
- * infrastructure.") # v2.6.24. a685e08987d1 ("Delay struct net freeing while
- * there's a sysfs instance refering to it") # v3.0.
+ * infrastructure."; v2.6.24). a685e08987d1 ("Delay struct net freeing while
+ * there's a sysfs instance refering to it"; v3.0). See also commit
+ * 172856eac7cf ("kobject: Export kobj_ns_grab_current() and kobj_ns_drop()";
+ * v4.16).
  */
 static inline void *kobj_ns_grab_current(enum kobj_ns_type type)
 {
