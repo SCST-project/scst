@@ -33,6 +33,9 @@
 #include <linux/dmapool.h>
 #include <linux/eventpoll.h>
 #include <linux/iocontext.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
+#include <linux/kobject_ns.h>
+#endif
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/stddef.h>	/* sizeof_field() */
@@ -849,15 +852,18 @@ enum kobj_ns_type {
  * 172856eac7cf ("kobject: Export kobj_ns_grab_current() and kobj_ns_drop()";
  * v4.16).
  */
-static inline void *kobj_ns_grab_current(enum kobj_ns_type type)
+static inline void *kobj_ns_grab_current_backport(enum kobj_ns_type type)
 {
 	WARN_ON_ONCE(type != KOBJ_NS_TYPE_NET);
 	return &init_net;
 }
 
-static inline void kobj_ns_drop(enum kobj_ns_type type, void *ns)
+static inline void kobj_ns_drop_backport(enum kobj_ns_type type, void *ns)
 {
 }
+
+#define kobj_ns_grab_current kobj_ns_grab_current_backport
+#define kobj_ns_drop kobj_ns_drop_backport
 #endif
 
 /* <linux/kref.h> */
