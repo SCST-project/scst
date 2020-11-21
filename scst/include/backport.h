@@ -991,8 +991,8 @@ static inline void mempool_destroy_backport(mempool_t *pool)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0) &&	\
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
 	 (RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 5)) &&	\
-	!defined(UEK_KABI_RENAME) &&			\
 	!defined(_COMPAT_LINUX_MM_H)
+#if !defined(UEK_KABI_RENAME)
 /* See also commit a7c3e901a46f ("mm: introduce kv[mz]alloc helpers") # v4.12 */
 static inline void *kvmalloc_node(size_t size, gfp_t flags, int node)
 {
@@ -1047,6 +1047,7 @@ static inline void *kvzalloc(size_t size, gfp_t flags)
 {
 	return kvmalloc(size, flags | __GFP_ZERO);
 }
+#endif
 
 /*
  * See also commit 752ade68cbd8 ("treewide: use kv[mz]alloc* rather than
