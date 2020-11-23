@@ -1017,7 +1017,7 @@ write_error:
 
 write_error_close:
 	filp_close(file, NULL);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	{
 		struct nameidata nd;
 		int rc;

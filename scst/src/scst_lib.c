@@ -15210,7 +15210,7 @@ out:
 int scst_remove_file(const char *name)
 {
 	int res = 0;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	struct nameidata nd;
 #else
 	struct path path;
@@ -15218,7 +15218,7 @@ int scst_remove_file(const char *name)
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	res = path_lookup(name, 0, &nd);
 	if (!res)
 		scst_vfs_unlink_and_put(&nd);

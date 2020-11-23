@@ -10076,7 +10076,7 @@ static void init_ops(vdisk_op_fn *ops, int count)
 static int __init vdev_check_mode_pages_path(void)
 {
 	int res;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	struct nameidata nd;
 #else
 	struct path path;
@@ -10084,7 +10084,7 @@ static int __init vdev_check_mode_pages_path(void)
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	res = path_lookup(VDEV_MODE_PAGES_DIR, 0, &nd);
 	if (res == 0)
 		scst_path_put(&nd);
