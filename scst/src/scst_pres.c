@@ -1024,7 +1024,7 @@ write_error_close:
 
 		rc = path_lookup(dev->pr_file_name, 0,	&nd);
 		if (!rc)
-			scst_vfs_unlink_and_put(&nd);
+			scst_vfs_unlink_and_put_nd(&nd);
 		else
 			TRACE_PR("Unable to lookup '%s' - error %d",
 				dev->pr_file_name, rc);

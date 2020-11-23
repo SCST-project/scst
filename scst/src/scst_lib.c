@@ -15077,7 +15077,7 @@ out_unlock:
 
 /* Abstract vfs_unlink() for different kernel versions (as possible) */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-void scst_vfs_unlink_and_put(struct nameidata *nd)
+void scst_vfs_unlink_and_put_nd(struct nameidata *nd)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 	vfs_unlink(nd->dentry->d_parent->d_inode, nd->dentry);
@@ -15089,7 +15089,8 @@ void scst_vfs_unlink_and_put(struct nameidata *nd)
 	path_put(&nd->path);
 #endif
 }
-#else
+#endif
+
 void scst_vfs_unlink_and_put(struct path *path)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0) && \
@@ -15102,7 +15103,6 @@ void scst_vfs_unlink_and_put(struct path *path)
 #endif
 	path_put(path);
 }
-#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
 void scst_path_put(struct nameidata *nd)
@@ -15221,7 +15221,7 @@ int scst_remove_file(const char *name)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	res = path_lookup(name, 0, &nd);
 	if (!res)
-		scst_vfs_unlink_and_put(&nd);
+		scst_vfs_unlink_and_put_nd(&nd);
 	else
 		TRACE_DBG("Unable to lookup file '%s' - error %d", name, res);
 #else
