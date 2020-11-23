@@ -5999,25 +5999,12 @@ static int scst_cmp_fs_ds(void)
 ssize_t kernel_write(struct file *file, const void *buf, size_t count,
 		     loff_t *pos)
 {
-	mm_segment_t old_fs = get_fs();
-	ssize_t result;
-
-	set_fs(KERNEL_DS);
-	{
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
 	struct iovec iov = {
 		.iov_base = (void __force __user *)buf,
 		.iov_len = count
 	};
 
-	result = scst_writev(file, &iov, 1, pos);
-#else
-	result = vfs_write(file, (void __force __user *)buf, count, pos);
-#endif
-	}
-	set_fs(old_fs);
-
-	return result;
+	return scst_writev(file, &iov, 1, pos);
 }
 EXPORT_SYMBOL(kernel_write);
 #endif
