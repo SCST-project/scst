@@ -10076,18 +10076,15 @@ static void init_ops(vdisk_op_fn *ops, int count)
 static int __init vdev_check_mode_pages_path(void)
 {
 	int res;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	struct nameidata nd;
 #else
 	struct path path;
 #endif
-	mm_segment_t old_fs = get_fs();
 
 	TRACE_ENTRY();
 
-	set_fs(KERNEL_DS);
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	res = path_lookup(VDEV_MODE_PAGES_DIR, 0, &nd);
 	if (res == 0)
 		scst_path_put(&nd);
@@ -10101,11 +10098,7 @@ static int __init vdev_check_mode_pages_path(void)
 			"disabled. You should create this directory manually "
 			"or reinstall SCST", VDEV_MODE_PAGES_DIR, res);
 		vdev_saved_mode_pages_enabled = false;
-		goto out_setfs;
 	}
-
-out_setfs:
-	set_fs(old_fs);
 
 	res = 0; /* always succeed */
 

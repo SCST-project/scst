@@ -766,10 +766,9 @@ int scst_pr_init(struct scst_device *dev);
 void scst_pr_cleanup(struct scst_device *dev);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-void scst_vfs_unlink_and_put(struct nameidata *nd);
-#else
-void scst_vfs_unlink_and_put(struct path *path);
+void scst_vfs_unlink_and_put_nd(struct nameidata *nd);
 #endif
+void scst_vfs_unlink_and_put(struct path *path);
 
 int scst_copy_file(const char *src, const char *dest);
 

@@ -1017,14 +1017,14 @@ write_error:
 
 write_error_close:
 	filp_close(file, NULL);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
 	{
 		struct nameidata nd;
 		int rc;
 
 		rc = path_lookup(dev->pr_file_name, 0,	&nd);
 		if (!rc)
-			scst_vfs_unlink_and_put(&nd);
+			scst_vfs_unlink_and_put_nd(&nd);
 		else
 			TRACE_PR("Unable to lookup '%s' - error %d",
 				dev->pr_file_name, rc);

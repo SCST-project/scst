@@ -17,6 +17,28 @@
 #define _ISCSI_SCST_U_H
 
 #ifdef __KERNEL__
+#include <linux/uaccess.h>  /* mm_segment_t */
+#include <linux/version.h>
+
+/* <asm/uaccess.h> */
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+/*
+ * With kernel 5.9 or older, certain kernel functions, e.g. setsockopt(),
+ * sock_recvmsg() only accept a pointer to a user space buffer. With kernel
+ * v5.10 these functions accept a sockptr_t, a data structure that includes
+ * information about the address space of a pointer. See also commit
+ * 47058bb54b57 ("x86: remove address space overrides using set_fs()"). See
+ * also https://lwn.net/Articles/832121/. The definitions below make it easy
+ * to write kernel code that is compatible with all kernel versions.
+ */
+#define KERNEL_DS ((mm_segment_t) { })
+static inline mm_segment_t get_fs(void) { return ((mm_segment_t) { }); }
+static inline void set_fs(mm_segment_t seg) { }
+#endif
+#endif
+
+#ifdef __KERNEL__
 #include <linux/types.h>
 #else
 #include <sys/uio.h>
