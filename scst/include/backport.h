@@ -1184,7 +1184,11 @@ typedef unsigned percpu_count_t;
 #define READ_REF_COUNT(ref) atomic_read(&(ref)->count)
 #else
 typedef unsigned long percpu_count_t;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 #define READ_REF_COUNT(ref) atomic_long_read(&(ref)->count)
+#else
+#define READ_REF_COUNT(ref) atomic_long_read(&(ref)->data->count)
+#endif
 #endif
 
 /*
