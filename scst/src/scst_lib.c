@@ -15235,11 +15235,8 @@ int scst_remove_file(const char *name)
 #else
 	struct path path;
 #endif
-	mm_segment_t old_fs = get_fs();
 
 	TRACE_ENTRY();
-
-	set_fs(KERNEL_DS);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
 	res = path_lookup(name, 0, &nd);
@@ -15254,8 +15251,6 @@ int scst_remove_file(const char *name)
 	else
 		TRACE_DBG("Unable to lookup file '%s' - error %d", name, res);
 #endif
-
-	set_fs(old_fs);
 
 	TRACE_EXIT_RES(res);
 	return res;
