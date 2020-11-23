@@ -16,6 +16,7 @@
  *  GNU General Public License for more details.
  */
 
+#include <linux/aio.h>		/* struct kiocb for kernel v4.0 */
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
@@ -5987,6 +5988,7 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 	return;
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 static int scst_cmp_fs_ds(void)
 {
 	mm_segment_t fs = get_fs();
@@ -5994,6 +5996,7 @@ static int scst_cmp_fs_ds(void)
 
 	return memcmp(&fs, &ds, sizeof(fs));
 }
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0) && !defined(RHEL_MAJOR)
 ssize_t kernel_write(struct file *file, const void *buf, size_t count,
@@ -6012,38 +6015,35 @@ EXPORT_SYMBOL(kernel_write);
 ssize_t scst_readv(struct file *file, const struct iovec *vec,
 		   unsigned long vlen, loff_t *pos)
 {
-	mm_segment_t old_fs = get_fs();
 	ssize_t result;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
-	struct iovec iovstack[UIO_FASTIOV];
-	struct iovec *iov = iovstack;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	struct iov_iter iter;
+	struct kiocb kiocb;
+	size_t count = 0;
+	int i;
 
-	set_fs(KERNEL_DS);
-	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
-
-	result = import_iovec(READ, (const struct iovec __force __user *)vec,
-			      vlen, ARRAY_SIZE(iovstack), &iov, &iter);
-	if (result >= 0) {
-		result = vfs_iter_read(file, &iter, pos, 0);
-		BUG_ON(iov == iovstack);
-		kfree(iov);
-	}
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0) ||	\
-	(defined(CONFIG_SUSE_KERNEL) &&			\
-	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
-	set_fs(KERNEL_DS);
-	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
-
-	result = vfs_readv(file, (const struct iovec __user *)vec, vlen, pos,
-			   0);
+	BUILD_BUG_ON(sizeof(struct kvec) != sizeof(struct iovec));
+	BUILD_BUG_ON(offsetof(struct kvec, iov_base) !=
+		     offsetof(struct iovec, iov_base));
+	BUILD_BUG_ON(offsetof(struct kvec, iov_len) !=
+		     offsetof(struct iovec, iov_len));
+	init_sync_kiocb(&kiocb, file);
+	kiocb.ki_pos = *pos;
+	for (i = 0; i < vlen; i++)
+		count += vec[i].iov_len;
+	iov_iter_kvec(&iter, READ, (struct kvec *)vec, vlen, count);
+	result = call_read_iter(file, &kiocb, &iter);
+	sBUG_ON(result == -EIOCBQUEUED);
+	if (result > 0)
+		*pos += result;
 #else
+	mm_segment_t old_fs = get_fs();
 	set_fs(KERNEL_DS);
 	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
 
 	result = vfs_readv(file, (const struct iovec __user *)vec, vlen, pos);
-#endif
 	set_fs(old_fs);
+#endif
 
 	return result;
 }
@@ -6062,38 +6062,31 @@ EXPORT_SYMBOL(scst_readv);
 ssize_t scst_writev(struct file *file, const struct iovec *vec,
 		    unsigned long vlen, loff_t *pos)
 {
-	mm_segment_t old_fs = get_fs();
 	ssize_t result;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0)
-	struct iovec iovstack[UIO_FASTIOV];
-	struct iovec *iov = iovstack;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	struct iov_iter iter;
+	struct kiocb kiocb;
+	size_t count = 0;
+	int i;
 
-	set_fs(KERNEL_DS);
-	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
-
-	result = import_iovec(WRITE, (const struct iovec __force __user *)vec,
-			      vlen, ARRAY_SIZE(iovstack), &iov, &iter);
-	if (result >= 0) {
-		file_start_write(file);
-		result = vfs_iter_write(file, &iter, pos, 0);
-		file_end_write(file);
-		BUG_ON(iov == iovstack);
-		kfree(iov);
-	}
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 6, 0) ||	\
-	(defined(CONFIG_SUSE_KERNEL) &&			\
-	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
-	set_fs(KERNEL_DS);
-	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
-	result = vfs_writev(file, (const struct iovec __user *)vec, vlen, pos,
-			    0);
+	init_sync_kiocb(&kiocb, file);
+	kiocb.ki_pos = *pos;
+	for (i = 0; i < vlen; i++)
+		count += vec[i].iov_len;
+	iov_iter_kvec(&iter, WRITE, (struct kvec *)vec, vlen, count);
+	file_start_write(file);
+	result = call_write_iter(file, &kiocb, &iter);
+	file_end_write(file);
+	sBUG_ON(result == -EIOCBQUEUED);
+	if (result > 0)
+		*pos += result;
 #else
+	mm_segment_t old_fs = get_fs();
 	set_fs(KERNEL_DS);
 	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
 	result = vfs_writev(file, (const struct iovec __user *)vec, vlen, pos);
-#endif
 	set_fs(old_fs);
+#endif
 
 	return result;
 }
