@@ -3162,7 +3162,7 @@ static bool do_fileio_async(const struct vdisk_cmd_params *p)
 	}
 }
 
-static bool vdisk_alloc_kvec(struct scst_cmd *cmd, struct vdisk_cmd_params *p)
+static bool vdisk_alloc_async_kvec(struct scst_cmd *cmd, struct vdisk_cmd_params *p)
 {
 	int n;
 
@@ -3239,7 +3239,7 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 		return CMD_FAILED;
 	}
 
-	if (!vdisk_alloc_kvec(cmd, p)) {
+	if (!vdisk_alloc_async_kvec(cmd, p)) {
 		scst_set_busy(cmd);
 		return CMD_SUCCEEDED;
 	}
