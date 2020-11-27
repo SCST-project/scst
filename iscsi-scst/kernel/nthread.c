@@ -1097,7 +1097,7 @@ out:
 static int write_data(struct iscsi_conn *conn)
 {
 	struct file *file;
-	struct iovec *iop;
+	struct kvec *iop;
 	struct socket *sock;
 	ssize_t (*sock_sendpage)(struct socket *, struct page *, int, size_t,
 				 int);
@@ -1381,7 +1381,7 @@ static int tx_ddigest(struct iscsi_cmnd *cmnd, int state)
 static void init_tx_hdigest(struct iscsi_cmnd *cmnd)
 {
 	struct iscsi_conn *conn = cmnd->conn;
-	struct iovec *iop;
+	struct kvec *iop;
 
 	iscsi_extracheck_is_wr_thread(conn);
 
@@ -1391,7 +1391,7 @@ static void init_tx_hdigest(struct iscsi_cmnd *cmnd)
 
 	iop = &conn->write_iop[conn->write_iop_used];
 	conn->write_iop_used++;
-	iop->iov_base = (void __force __user *)&(cmnd->hdigest);
+	iop->iov_base = &cmnd->hdigest;
 	iop->iov_len = sizeof(u32);
 	conn->write_size += sizeof(u32);
 

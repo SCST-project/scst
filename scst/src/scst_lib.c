@@ -6002,8 +6002,8 @@ static int scst_cmp_fs_ds(void)
 ssize_t kernel_write(struct file *file, const void *buf, size_t count,
 		     loff_t *pos)
 {
-	struct iovec iov = {
-		.iov_base = (void __force __user *)buf,
+	struct kvec iov = {
+		.iov_base = buf,
 		.iov_len = count
 	};
 
@@ -6012,7 +6012,14 @@ ssize_t kernel_write(struct file *file, const void *buf, size_t count,
 EXPORT_SYMBOL(kernel_write);
 #endif
 
-ssize_t scst_readv(struct file *file, const struct iovec *vec,
+/**
+ * scst_writev - read data from a file into a kernel buffer
+ * @file: File to read from.
+ * @vec:  Pointer to first element of struct kvec array.
+ * @vlen: Number of elements of the kvec array.
+ * @pos:  Position in @file where to start reading.
+ */
+ssize_t scst_readv(struct file *file, const struct kvec *vec,
 		   unsigned long vlen, loff_t *pos)
 {
 	ssize_t result;
@@ -6022,25 +6029,25 @@ ssize_t scst_readv(struct file *file, const struct iovec *vec,
 	size_t count = 0;
 	int i;
 
-	BUILD_BUG_ON(sizeof(struct kvec) != sizeof(struct iovec));
-	BUILD_BUG_ON(offsetof(struct kvec, iov_base) !=
-		     offsetof(struct iovec, iov_base));
-	BUILD_BUG_ON(offsetof(struct kvec, iov_len) !=
-		     offsetof(struct iovec, iov_len));
 	init_sync_kiocb(&kiocb, file);
 	kiocb.ki_pos = *pos;
 	for (i = 0; i < vlen; i++)
 		count += vec[i].iov_len;
-	iov_iter_kvec(&iter, READ, (struct kvec *)vec, vlen, count);
+	iov_iter_kvec(&iter, READ, vec, vlen, count);
 	result = call_read_iter(file, &kiocb, &iter);
 	sBUG_ON(result == -EIOCBQUEUED);
 	if (result > 0)
 		*pos += result;
 #else
 	mm_segment_t old_fs = get_fs();
+
 	set_fs(KERNEL_DS);
 	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
-
+	BUILD_BUG_ON(sizeof(struct kvec) != sizeof(struct iovec));
+	BUILD_BUG_ON(offsetof(struct kvec, iov_base) !=
+		     offsetof(struct iovec, iov_base));
+	BUILD_BUG_ON(offsetof(struct kvec, iov_len) !=
+		     offsetof(struct iovec, iov_len));
 	result = vfs_readv(file, (const struct iovec __user *)vec, vlen, pos);
 	set_fs(old_fs);
 #endif
@@ -6050,16 +6057,13 @@ ssize_t scst_readv(struct file *file, const struct iovec *vec,
 EXPORT_SYMBOL(scst_readv);
 
 /**
- * scst_writev - write a buffer to a file
+ * scst_writev - write kernel data to a file
  * @file: File to write to.
- * @vec:  Pointer to first element of struct iovec array.
- * @vlen: Number of elements of the iovec array.
+ * @vec:  Pointer to first element of struct kvec array.
+ * @vlen: Number of elements of the kvec array.
  * @pos:  Position in @file where to start writing.
- *
- * Note: although @vec->iov_base has type void __user*, it points at kernel
- * data and not at data in user space.
  */
-ssize_t scst_writev(struct file *file, const struct iovec *vec,
+ssize_t scst_writev(struct file *file, const struct kvec *vec,
 		    unsigned long vlen, loff_t *pos)
 {
 	ssize_t result;
@@ -6073,7 +6077,7 @@ ssize_t scst_writev(struct file *file, const struct iovec *vec,
 	kiocb.ki_pos = *pos;
 	for (i = 0; i < vlen; i++)
 		count += vec[i].iov_len;
-	iov_iter_kvec(&iter, WRITE, (struct kvec *)vec, vlen, count);
+	iov_iter_kvec(&iter, WRITE, vec, vlen, count);
 	file_start_write(file);
 	result = call_write_iter(file, &kiocb, &iter);
 	file_end_write(file);
@@ -6082,8 +6086,14 @@ ssize_t scst_writev(struct file *file, const struct iovec *vec,
 		*pos += result;
 #else
 	mm_segment_t old_fs = get_fs();
+
 	set_fs(KERNEL_DS);
 	WARN_ON_ONCE(scst_cmp_fs_ds() != 0);
+	BUILD_BUG_ON(sizeof(struct kvec) != sizeof(struct iovec));
+	BUILD_BUG_ON(offsetof(struct kvec, iov_base) !=
+		     offsetof(struct iovec, iov_base));
+	BUILD_BUG_ON(offsetof(struct kvec, iov_len) !=
+		     offsetof(struct iovec, iov_len));
 	result = vfs_writev(file, (const struct iovec __user *)vec, vlen, pos);
 	set_fs(old_fs);
 #endif
