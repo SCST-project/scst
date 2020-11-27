@@ -5195,8 +5195,8 @@ static enum compl_status_e vdisk_exec_prevent_allow_medium_removal(struct vdisk_
 	return CMD_SUCCEEDED;
 }
 
-static struct iovec *vdisk_alloc_iv(struct scst_cmd *cmd,
-				    struct vdisk_cmd_params *p)
+static struct iovec *vdisk_alloc_sync_kvec(struct scst_cmd *cmd,
+					   struct vdisk_cmd_params *p)
 {
 	int iv_count;
 
@@ -5285,7 +5285,7 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 
 	iv = p->sync.iv;
 	if (iv == NULL) {
-		iv = vdisk_alloc_iv(cmd, p);
+		iv = vdisk_alloc_sync_kvec(cmd, p);
 		if (iv == NULL) {
 			unsigned long flags;
 
@@ -5399,7 +5399,7 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 
 	iv = p->sync.iv;
 	if (iv == NULL) {
-		iv = vdisk_alloc_iv(cmd, p);
+		iv = vdisk_alloc_sync_kvec(cmd, p);
 		if (iv == NULL) {
 			unsigned long flags;
 
@@ -5578,7 +5578,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 	if (unlikely(rc != 0))
 		goto out;
 
-	iv = vdisk_alloc_iv(cmd, p);
+	iv = vdisk_alloc_sync_kvec(cmd, p);
 	if (iv == NULL)
 		goto out_nomem;
 
@@ -6285,7 +6285,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 	if (do_fileio_async(p))
 		return fileio_exec_async(p);
 
-	iv = vdisk_alloc_iv(cmd, p);
+	iv = vdisk_alloc_sync_kvec(cmd, p);
 	if (iv == NULL)
 		goto out_nomem;
 
