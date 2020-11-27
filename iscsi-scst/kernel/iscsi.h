@@ -184,7 +184,7 @@ struct iscsi_session {
 	u64 sid;
 };
 
-#define ISCSI_CONN_IOV_MAX			(PAGE_SIZE/sizeof(struct iovec))
+#define ISCSI_CONN_IOV_MAX			(PAGE_SIZE/sizeof(struct kvec))
 
 #define ISCSI_CONN_RD_STATE_IDLE		0
 #define ISCSI_CONN_RD_STATE_IN_LIST		1
@@ -243,9 +243,9 @@ struct iscsi_conn {
 	 * thread.
 	 */
 	struct iscsi_cmnd *write_cmnd;
-	struct iovec *write_iop;
+	struct kvec *write_iop;
 	int write_iop_used;
-	struct iovec write_iov[2];
+	struct kvec write_iov[2];
 	u32 write_size;
 	u32 write_offset;
 	int write_state;

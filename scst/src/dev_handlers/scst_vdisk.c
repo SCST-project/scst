@@ -257,9 +257,9 @@ struct scst_vdisk_dev {
 struct vdisk_cmd_params {
 	union {
 		struct {
-			struct iovec *iv;
-			int iv_count;
-			struct iovec small_iv[4];
+			struct kvec	*kvec;
+			int		kvec_segs;
+			struct kvec	small_kvec[4];
 		} sync;
 		struct {
 			struct kiocb	iocb;
@@ -1689,9 +1689,9 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 	loff_t err = 0;
 	ssize_t full_len;
 	struct file *fd = virt_dev->dif_fd;
-	struct iovec *iv;
-	int max_iv_count, iv_count, i;
-	struct page *iv_page, *data_page;
+	struct kvec *kvec;
+	int max_kvec_segs, kvec_segs, i;
+	struct page *kvec_page, *data_page;
 	uint8_t *data_buf;
 	int64_t left, done;
 
@@ -1702,9 +1702,9 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 
 	EXTRACHECKS_BUG_ON(!(dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE));
 
-	iv_page = alloc_page(GFP_KERNEL);
-	if (iv_page == NULL) {
-		PRINT_ERROR("Unable to allocate iv page");
+	kvec_page = alloc_page(GFP_KERNEL);
+	if (kvec_page == NULL) {
+		PRINT_ERROR("Unable to allocate kvec page");
 		scst_set_busy(cmd);
 		res = -ENOMEM;
 		goto out;
@@ -1715,23 +1715,23 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 		PRINT_ERROR("Unable to allocate tags data page");
 		scst_set_busy(cmd);
 		res = -ENOMEM;
-		goto out_free_iv;
+		goto out_free_kvec;
 	}
 
 	data_buf = page_address(data_page);
 	memset(data_buf, 0xFF, PAGE_SIZE);
 
-	iv = page_address(iv_page);
-	max_iv_count = min_t(int, UIO_MAXIOV, (int)PAGE_SIZE/sizeof(*iv));
+	kvec = page_address(kvec_page);
+	max_kvec_segs = min_t(int, UIO_MAXIOV, (int)PAGE_SIZE/sizeof(*kvec));
 
-	for (i = 0; i < max_iv_count; i++)
-		iv[i].iov_base = (uint8_t __force __user *)data_buf;
+	for (i = 0; i < max_kvec_segs; i++)
+		kvec[i].iov_base = data_buf;
 
 	loff = start_lba << SCST_DIF_TAG_SHIFT;
 	left = blocks << SCST_DIF_TAG_SHIFT;
 	done = 0;
 	while (left > 0) {
-		iv_count = 0;
+		kvec_segs = 0;
 		full_len = 0;
 		i = -1;
 		while (1) {
@@ -1739,12 +1739,12 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 
 			full_len += len;
 			i++;
-			iv_count++;
-			iv[i].iov_len = len;
+			kvec_segs++;
+			kvec[i].iov_len = len;
 			left -= len;
 			done += len;
 			EXTRACHECKS_BUG_ON(left < 0);
-			if ((iv_count == max_iv_count) || (left == 0))
+			if (kvec_segs == max_kvec_segs || left == 0)
 				break;
 		}
 
@@ -1752,7 +1752,7 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 			full_len, (long long)loff);
 
 		/* WRITE */
-		err = scst_writev(fd, iv, iv_count, &loff);
+		err = scst_writev(fd, kvec, kvec_segs, &loff);
 		if (err < 0) {
 			PRINT_ERROR("Formatting DIF write() returned %lld from "
 				"%zd", err, full_len);
@@ -1781,8 +1781,8 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 out_free_data_page:
 	__free_page(data_page);
 
-out_free_iv:
-	__free_page(iv_page);
+out_free_kvec:
+	__free_page(kvec_page);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -3162,7 +3162,8 @@ static bool do_fileio_async(const struct vdisk_cmd_params *p)
 	}
 }
 
-static bool vdisk_alloc_async_kvec(struct scst_cmd *cmd, struct vdisk_cmd_params *p)
+static bool vdisk_alloc_async_kvec(struct scst_cmd *cmd,
+				   struct vdisk_cmd_params *p)
 {
 	int n;
 
@@ -3175,7 +3176,7 @@ static bool vdisk_alloc_async_kvec(struct scst_cmd *cmd, struct vdisk_cmd_params
 	p->async.kvec = kmalloc_array(n, sizeof(*p->async.kvec),
 				      cmd->cmd_gfp_mask);
 	if (p->async.kvec == NULL) {
-		PRINT_ERROR("Unable to allocate kvecv (%d)", n);
+		PRINT_ERROR("Unable to allocate kvec (%d)", n);
 		return false;
 	}
 
@@ -3308,8 +3309,8 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 static void vdisk_on_free_cmd_params(const struct vdisk_cmd_params *p)
 {
 	if (!p->execute_async) {
-		if (p->sync.iv != p->sync.small_iv)
-			kfree(p->sync.iv);
+		if (p->sync.kvec != p->sync.small_kvec)
+			kfree(p->sync.kvec);
 	}
 }
 
@@ -5195,30 +5196,30 @@ static enum compl_status_e vdisk_exec_prevent_allow_medium_removal(struct vdisk_
 	return CMD_SUCCEEDED;
 }
 
-static struct iovec *vdisk_alloc_sync_kvec(struct scst_cmd *cmd,
-					   struct vdisk_cmd_params *p)
+static struct kvec *vdisk_alloc_sync_kvec(struct scst_cmd *cmd,
+					  struct vdisk_cmd_params *p)
 {
-	int iv_count;
+	int kvec_segs;
 
-	iv_count = min_t(int, scst_get_buf_count(cmd), UIO_MAXIOV);
-	if (iv_count > p->sync.iv_count) {
-		if (p->sync.iv != p->sync.small_iv)
-			kfree(p->sync.iv);
-		p->sync.iv_count = 0;
+	kvec_segs = min_t(int, scst_get_buf_count(cmd), UIO_MAXIOV);
+	if (kvec_segs > p->sync.kvec_segs) {
+		if (p->sync.kvec != p->sync.small_kvec)
+			kfree(p->sync.kvec);
+		p->sync.kvec_segs = 0;
 		/* It can't be called in atomic context */
-		p->sync.iv = iv_count <= ARRAY_SIZE(p->sync.small_iv) ?
-			p->sync.small_iv :
-			kmalloc_array(iv_count, sizeof(*p->sync.iv),
+		p->sync.kvec = kvec_segs <= ARRAY_SIZE(p->sync.small_kvec) ?
+			p->sync.small_kvec :
+			kmalloc_array(kvec_segs, sizeof(*p->sync.kvec),
 				      cmd->cmd_gfp_mask);
-		if (p->sync.iv == NULL) {
-			PRINT_ERROR("Unable to allocate iv (%d)", iv_count);
+		if (p->sync.kvec == NULL) {
+			PRINT_ERROR("Unable to allocate kvec (%d)", kvec_segs);
 			goto out;
 		}
-		p->sync.iv_count = iv_count;
+		p->sync.kvec_segs = kvec_segs;
 	}
 
 out:
-	return p->sync.iv;
+	return p->sync.kvec;
 }
 
 static enum compl_status_e nullio_exec_read(struct vdisk_cmd_params *p)
@@ -5262,8 +5263,8 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 	uint8_t *address;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct file *fd = virt_dev->dif_fd;
-	struct iovec *iv;
-	int iv_count, max_iv_count, i;
+	struct kvec *kvec;
+	int kvec_segs, max_kvec_segs, i;
 	bool finished = false;
 	int tags_num, l;
 	struct scatterlist *tags_sg;
@@ -5283,10 +5284,10 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 	if (unlikely(tags_num == 0))
 		goto out;
 
-	iv = p->sync.iv;
-	if (iv == NULL) {
-		iv = vdisk_alloc_sync_kvec(cmd, p);
-		if (iv == NULL) {
+	kvec = p->sync.kvec;
+	if (kvec == NULL) {
+		kvec = vdisk_alloc_sync_kvec(cmd, p);
+		if (kvec == NULL) {
 			unsigned long flags;
 
 			/* To protect sense setting against blockio data reads */
@@ -5297,12 +5298,12 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 			goto out;
 		}
 	}
-	max_iv_count = p->sync.iv_count;
+	max_kvec_segs = p->sync.kvec_segs;
 
 	tags_sg = NULL;
 	loff = (p->loff >> cmd->dev->block_shift) << SCST_DIF_TAG_SHIFT;
 	while (1) {
-		iv_count = 0;
+		kvec_segs = 0;
 		full_len = 0;
 		i = -1;
 		address = scst_get_dif_buf(cmd, &tags_sg, &l);
@@ -5311,12 +5312,12 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 		while (1) {
 			full_len += length;
 			i++;
-			iv_count++;
-			iv[i].iov_base = (uint8_t __force __user *)address;
-			iv[i].iov_len = length;
+			kvec_segs++;
+			kvec[i].iov_base = address;
+			kvec[i].iov_len = length;
 			tags_num -= length >> SCST_DIF_TAG_SHIFT;
 			EXTRACHECKS_BUG_ON(tags_num < 0);
-			if ((iv_count == max_iv_count) || (tags_num == 0))
+			if (kvec_segs == max_kvec_segs || tags_num == 0)
 				break;
 			address = scst_get_dif_buf(cmd, &tags_sg, &l);
 			length = l;
@@ -5325,11 +5326,11 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 		if (tags_num == 0)
 			finished = true;
 
-		TRACE_DBG("Reading DIF iv_count %d, full_len %zd, loff %lld",
-			iv_count, full_len, (long long)loff);
+		TRACE_DBG("Reading DIF kvec_segs %d, full_len %zd, loff %lld",
+			kvec_segs, full_len, (long long)loff);
 
 		/* READ */
-		err = scst_readv(fd, iv, iv_count, &loff);
+		err = scst_readv(fd, kvec, kvec_segs, &loff);
 		if ((err < 0) || (err < full_len)) {
 			unsigned long flags;
 
@@ -5349,8 +5350,8 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 			goto out_put_dif_buf;
 		}
 
-		for (i = 0; i < iv_count; i++)
-			scst_put_dif_buf(cmd, (void __force *)(iv[i].iov_base));
+		for (i = 0; i < kvec_segs; i++)
+			scst_put_dif_buf(cmd, kvec[i].iov_base);
 
 		if (finished)
 			break;
@@ -5361,8 +5362,8 @@ out:
 	return res;
 
 out_put_dif_buf:
-	for (i = 0; i < iv_count; i++)
-		scst_put_dif_buf(cmd, (void __force *)(iv[i].iov_base));
+	for (i = 0; i < kvec_segs; i++)
+		scst_put_dif_buf(cmd, kvec[i].iov_base);
 	goto out;
 }
 
@@ -5376,8 +5377,8 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 	uint8_t *address;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct file *fd = virt_dev->dif_fd;
-	struct iovec *iv, *eiv;
-	int iv_count, eiv_count, max_iv_count, i;
+	struct kvec *kvec, *ekvec;
+	int kvec_segs, ekvec_segs, max_kvec_segs, i;
 	bool finished = false;
 	int tags_num, l;
 	struct scatterlist *tags_sg;
@@ -5397,10 +5398,10 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 	if (unlikely(tags_num == 0))
 		goto out;
 
-	iv = p->sync.iv;
-	if (iv == NULL) {
-		iv = vdisk_alloc_sync_kvec(cmd, p);
-		if (iv == NULL) {
+	kvec = p->sync.kvec;
+	if (kvec == NULL) {
+		kvec = vdisk_alloc_sync_kvec(cmd, p);
+		if (kvec == NULL) {
 			unsigned long flags;
 
 			/* To protect sense setting against blockio data writes */
@@ -5411,12 +5412,12 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 			goto out;
 		}
 	}
-	max_iv_count = p->sync.iv_count;
+	max_kvec_segs = p->sync.kvec_segs;
 
 	tags_sg = NULL;
 	loff = (p->loff >> cmd->dev->block_shift) << SCST_DIF_TAG_SHIFT;
 	while (1) {
-		iv_count = 0;
+		kvec_segs = 0;
 		full_len = 0;
 		i = -1;
 		address = scst_get_dif_buf(cmd, &tags_sg, &l);
@@ -5425,12 +5426,12 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 		while (1) {
 			full_len += length;
 			i++;
-			iv_count++;
-			iv[i].iov_base = (uint8_t __force __user *)address;
-			iv[i].iov_len = length;
+			kvec_segs++;
+			kvec[i].iov_base = address;
+			kvec[i].iov_len = length;
 			tags_num -= length >> SCST_DIF_TAG_SHIFT;
 			EXTRACHECKS_BUG_ON(tags_num < 0);
-			if ((iv_count == max_iv_count) || (tags_num == 0))
+			if (kvec_segs == max_kvec_segs || tags_num == 0)
 				break;
 			address = scst_get_dif_buf(cmd, &tags_sg, &l);
 			length = l;
@@ -5439,13 +5440,13 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 		if (tags_num == 0)
 			finished = true;
 
-		eiv = iv;
-		eiv_count = iv_count;
+		ekvec = kvec;
+		ekvec_segs = kvec_segs;
 restart:
-		TRACE_DBG("Writing DIF: eiv_count %d, full_len %zd", eiv_count, full_len);
+		TRACE_DBG("Writing DIF: ekvec_segs %d, full_len %zd", ekvec_segs, full_len);
 
 		/* WRITE */
-		err = scst_writev(fd, eiv, eiv_count, &loff);
+		err = scst_writev(fd, ekvec, ekvec_segs, &loff);
 		if (err < 0) {
 			unsigned long flags;
 
@@ -5467,33 +5468,32 @@ restart:
 			 * Probably that's wrong, but sometimes write() returns
 			 * value less, than requested. Let's restart.
 			 */
-			int e = eiv_count;
+			int e = ekvec_segs;
 
 			TRACE_MGMT_DBG("DIF write() returned %d from %zd "
-				"(iv_count=%d)", (int)err, full_len,
-				eiv_count);
+				"(kvec_segs=%d)", (int)err, full_len,
+				ekvec_segs);
 			if (err == 0) {
 				PRINT_INFO("Suspicious: DIF write() returned 0 from "
-					"%zd (iv_count=%d)", full_len, eiv_count);
+					"%zd (kvec_segs=%d)", full_len, ekvec_segs);
 			}
 			full_len -= err;
 			for (i = 0; i < e; i++) {
-				if ((long long)eiv->iov_len < err) {
-					err -= eiv->iov_len;
-					eiv++;
-					eiv_count--;
+				if ((long long)ekvec->iov_len < err) {
+					err -= ekvec->iov_len;
+					ekvec++;
+					ekvec_segs--;
 				} else {
-					eiv->iov_base =
-					    (uint8_t __force __user *)eiv->iov_base + err;
-					eiv->iov_len -= err;
+					ekvec->iov_base = ekvec->iov_base + err;
+					ekvec->iov_len -= err;
 					break;
 				}
 			}
 			goto restart;
 		}
 
-		for (i = 0; i < iv_count; i++)
-			scst_put_dif_buf(cmd, (void __force *)(iv[i].iov_base));
+		for (i = 0; i < kvec_segs; i++)
+			scst_put_dif_buf(cmd, kvec[i].iov_base);
 
 		if (finished)
 			break;
@@ -5504,8 +5504,8 @@ out:
 	return res;
 
 out_put_dif_buf:
-	for (i = 0; i < iv_count; i++)
-		scst_put_dif_buf(cmd, (void __force *)(iv[i].iov_base));
+	for (i = 0; i < kvec_segs; i++)
+		scst_put_dif_buf(cmd, kvec[i].iov_base);
 	goto out;
 }
 
@@ -5563,8 +5563,8 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 	uint8_t *address;
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	struct file *fd = virt_dev->fd;
-	struct iovec *iv, *eiv;
-	int rc, i, iv_count, eiv_count, max_iv_count;
+	struct kvec *kvec, *ekvec;
+	int rc, i, kvec_segs, ekvec_segs, max_kvec_segs;
 	bool finished = false;
 
 	TRACE_ENTRY();
@@ -5578,11 +5578,11 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 	if (unlikely(rc != 0))
 		goto out;
 
-	iv = vdisk_alloc_sync_kvec(cmd, p);
-	if (iv == NULL)
+	kvec = vdisk_alloc_sync_kvec(cmd, p);
+	if (kvec == NULL)
 		goto out_nomem;
 
-	max_iv_count = p->sync.iv_count;
+	max_kvec_segs = p->sync.kvec_segs;
 
 	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length < 0)) {
@@ -5593,22 +5593,22 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 	}
 
 	while (1) {
-		iv_count = 0;
+		kvec_segs = 0;
 		full_len = 0;
 		i = -1;
 		while (length > 0) {
 			full_len += length;
 			i++;
-			iv_count++;
-			iv[i].iov_base = (uint8_t __force __user *)address;
-			iv[i].iov_len = length;
-			if (iv_count == max_iv_count)
+			kvec_segs++;
+			kvec[i].iov_base = address;
+			kvec[i].iov_len = length;
+			if (kvec_segs == max_kvec_segs)
 				break;
 			length = scst_get_buf_next(cmd, &address);
 		}
 		if (length == 0) {
 			finished = true;
-			if (unlikely(iv_count == 0))
+			if (unlikely(kvec_segs == 0))
 				break;
 		} else if (unlikely(length < 0)) {
 			PRINT_ERROR("scst_get_buf_next() failed: %zd", length);
@@ -5617,13 +5617,13 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 			goto out_put_buf;
 		}
 
-		eiv = iv;
-		eiv_count = iv_count;
+		ekvec = kvec;
+		ekvec_segs = kvec_segs;
 restart:
-		TRACE_DBG("Writing: eiv_count %d, full_len %zd", eiv_count, full_len);
+		TRACE_DBG("Writing: ekvec_segs %d, full_len %zd", ekvec_segs, full_len);
 
 		/* WRITE */
-		err = scst_writev(fd, eiv, eiv_count, &loff);
+		err = scst_writev(fd, ekvec, ekvec_segs, &loff);
 		if (err < 0) {
 			PRINT_ERROR("write() returned %lld from %zd",
 				    (unsigned long long)err,
@@ -5643,32 +5643,32 @@ restart:
 			 * Probably that's wrong, but sometimes write() returns
 			 * value less, than requested. Let's restart.
 			 */
-			int e = eiv_count;
+			int e = ekvec_segs;
 
 			TRACE_MGMT_DBG("write() returned %d from %zd "
-				"(iv_count=%d)", (int)err, full_len,
-				eiv_count);
+				"(kvec_segs=%d)", (int)err, full_len,
+				ekvec_segs);
 			if (err == 0) {
 				PRINT_INFO("Suspicious: write() returned 0 from "
-					"%zd (iv_count=%d)", full_len, eiv_count);
+					"%zd (kvec_segs=%d)", full_len, ekvec_segs);
 			}
 			full_len -= err;
 			for (i = 0; i < e; i++) {
-				if ((long long)eiv->iov_len < err) {
-					err -= eiv->iov_len;
-					eiv++;
-					eiv_count--;
+				if ((long long)ekvec->iov_len < err) {
+					err -= ekvec->iov_len;
+					ekvec++;
+					ekvec_segs--;
 				} else {
-					eiv->iov_base += err;
-					eiv->iov_len -= err;
+					ekvec->iov_base += err;
+					ekvec->iov_len -= err;
 					break;
 				}
 			}
 			goto restart;
 		}
 
-		for (i = 0; i < iv_count; i++)
-			scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
+		for (i = 0; i < kvec_segs; i++)
+			scst_put_buf(cmd, kvec[i].iov_base);
 
 		if (finished)
 			break;
@@ -5693,8 +5693,8 @@ out:
 	return CMD_SUCCEEDED;
 
 out_put_buf:
-	for (i = 0; i < iv_count; i++)
-		scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
+	for (i = 0; i < kvec_segs; i++)
+		scst_put_buf(cmd, kvec[i].iov_base);
 	goto out_sync;
 
 out_nomem:
@@ -6270,12 +6270,12 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 	loff_t loff = p->loff;
 	loff_t err = 0;
 	ssize_t length, full_len;
-	uint8_t __user *address;
+	uint8_t *address;
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	struct file *fd = virt_dev->fd;
-	struct iovec *iv;
-	int iv_count, i, max_iv_count;
+	struct kvec *kvec;
+	int kvec_segs, i, max_kvec_segs;
 	bool finished = false;
 
 	TRACE_ENTRY();
@@ -6285,13 +6285,13 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 	if (do_fileio_async(p))
 		return fileio_exec_async(p);
 
-	iv = vdisk_alloc_sync_kvec(cmd, p);
-	if (iv == NULL)
+	kvec = vdisk_alloc_sync_kvec(cmd, p);
+	if (kvec == NULL)
 		goto out_nomem;
 
-	max_iv_count = p->sync.iv_count;
+	max_kvec_segs = p->sync.kvec_segs;
 
-	length = scst_get_buf_first(cmd, (uint8_t __force **)&address);
+	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length < 0)) {
 		PRINT_ERROR("scst_get_buf_first() failed: %zd", length);
 		scst_set_cmd_error(cmd,
@@ -6300,23 +6300,22 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 	}
 
 	while (1) {
-		iv_count = 0;
+		kvec_segs = 0;
 		full_len = 0;
 		i = -1;
 		while (length > 0) {
 			full_len += length;
 			i++;
-			iv_count++;
-			iv[i].iov_base = address;
-			iv[i].iov_len = length;
-			if (iv_count == max_iv_count)
+			kvec_segs++;
+			kvec[i].iov_base = address;
+			kvec[i].iov_len = length;
+			if (kvec_segs == max_kvec_segs)
 				break;
-			length = scst_get_buf_next(cmd,
-				(uint8_t __force **)&address);
+			length = scst_get_buf_next(cmd, &address);
 		}
 		if (length == 0) {
 			finished = true;
-			if (unlikely(iv_count == 0))
+			if (unlikely(kvec_segs == 0))
 				break;
 		} else if (unlikely(length < 0)) {
 			PRINT_ERROR("scst_get_buf_next() failed: %zd", length);
@@ -6325,10 +6324,10 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 			goto out_put_buf;
 		}
 
-		TRACE_DBG("Reading iv_count %d, full_len %zd", iv_count, full_len);
+		TRACE_DBG("Reading kvec_segs %d, full_len %zd", kvec_segs, full_len);
 
 		/* READ */
-		err = scst_readv(fd, iv, iv_count, &loff);
+		err = scst_readv(fd, kvec, kvec_segs, &loff);
 		if ((err < 0) || (err < full_len)) {
 			PRINT_ERROR("readv() returned %lld from %zd",
 				    (unsigned long long)err,
@@ -6342,13 +6341,13 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 			goto out_put_buf;
 		}
 
-		for (i = 0; i < iv_count; i++)
-			scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
+		for (i = 0; i < kvec_segs; i++)
+			scst_put_buf(cmd, kvec[i].iov_base);
 
 		if (finished)
 			break;
 
-		length = scst_get_buf_next(cmd, (uint8_t __force **)&address);
+		length = scst_get_buf_next(cmd, &address);
 	}
 
 	if ((dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) &&
@@ -6365,8 +6364,8 @@ out:
 	return CMD_SUCCEEDED;
 
 out_put_buf:
-	for (i = 0; i < iv_count; i++)
-		scst_put_buf(cmd, (void __force *)(iv[i].iov_base));
+	for (i = 0; i < kvec_segs; i++)
+		scst_put_buf(cmd, kvec[i].iov_base);
 	goto out;
 
 out_nomem:
