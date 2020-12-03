@@ -140,8 +140,9 @@ install: all
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
 	  CONFIG_MODULE_SIG_ALL= modules_install
 	install -d $(INSTALL_DIR_H)
-	header_files="backport.h scst.h scst_const.h scst_debug.h	\
-		      scst_itf_ver.h scst_sgv.h scst_user.h";		\
+	header_files="backport.h build_mode.h scst.h scst_const.h	\
+		      scst_debug.h scst_itf_ver.h scst_sgv.h		\
+		      scst_user.h";					\
 	for h in $${header_files}; do					\
 	    install -m 644 ../include/$$h $(INSTALL_DIR_H);		\
 	done
