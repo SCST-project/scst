@@ -218,7 +218,15 @@ static inline void *bsg_job_sense(struct bsg_job *job)
  * pseudo keyword for switch/case use") # v5.4
  */
 #ifndef fallthrough
+#ifdef __has_attribute
+#if __has_attribute(__fallthrough__)
 #define fallthrough __attribute__((__fallthrough__))
+#else
+#define fallthrough do {} while (0)  /* fallthrough */
+#endif
+#else
+#define fallthrough do {} while (0)  /* fallthrough */
+#endif
 #endif
 
 /* <linux/cpumask.h> */
