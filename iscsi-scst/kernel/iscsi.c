@@ -2890,7 +2890,7 @@ static inline void set_cork(struct socket *sock, int on)
 	oldfs = get_fs();
 	set_fs(KERNEL_DS);
 	sock->ops->setsockopt(sock, SOL_TCP, TCP_CORK,
-			      (void __force __user *)&opt, sizeof(opt));
+			      KERNEL_SOCKPTR(&opt), sizeof(opt));
 	set_fs(oldfs);
 	return;
 }
