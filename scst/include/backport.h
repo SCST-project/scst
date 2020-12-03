@@ -1544,6 +1544,32 @@ typedef unsigned long uintptr_t;
 char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap);
 #endif
 
+/* <linux/uio.h> */
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
+/* See also commit abb78f875f3f ("new helper: iov_iter_kvec()") # v3.19. */
+static inline void
+iov_iter_kvec_backport(struct iov_iter *i, unsigned int direction,
+		       const struct kvec *kvec, unsigned long nr_segs,
+		       size_t count)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0) ||	\
+	(defined(RHEL_MAJOR) && \
+	 (RHEL_MAJOR -0 > 8 || (RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 >= 2)))
+	/*
+	 * For iov_iter_kvec() implementations that have a WARN_ON(direction &
+	 * ~(READ | WRITE)) statement. See also commit aa563d7bca6e ("iov_iter:
+	 * Separate type from direction and use accessor functions") # v4.20.
+	 */
+	iov_iter_kvec(i, direction, kvec, nr_segs, count);
+#else
+	iov_iter_kvec(i, ITER_KVEC | direction, kvec, nr_segs, count);
+#endif
+}
+
+#define iov_iter_kvec iov_iter_kvec_backport
+#endif
+
 /* <linux/unaligned.h> */
 
 #if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
