@@ -1091,7 +1091,7 @@ struct percpu_ref;
 typedef void (percpu_ref_func_t)(struct percpu_ref *);
 
 struct percpu_ref {
-	atomic_long_t		count;
+	atomic_t		count;
 	percpu_ref_func_t	*release;
 };
 
@@ -1100,7 +1100,7 @@ static inline int __must_check percpu_ref_init(struct percpu_ref *ref,
 				 gfp_t gfp)
 {
 	WARN_ON_ONCE(flags != 0);
-	atomic_long_set(&ref->count, 1);
+	atomic_set(&ref->count, 1);
 	ref->release = release;
 	return 0;
 }
@@ -1111,12 +1111,12 @@ static inline void percpu_ref_exit(struct percpu_ref *ref)
 
 static inline void percpu_ref_get(struct percpu_ref *ref)
 {
-	atomic_long_inc(&ref->count);
+	atomic_inc(&ref->count);
 }
 
 static inline void percpu_ref_put(struct percpu_ref *ref)
 {
-	if (unlikely(atomic_long_dec_and_test(&ref->count)))
+	if (unlikely(atomic_dec_and_test(&ref->count)))
 		ref->release(ref);
 }
 
@@ -1127,7 +1127,7 @@ static inline void percpu_ref_kill(struct percpu_ref *ref)
 
 static inline bool percpu_ref_is_zero(struct percpu_ref *ref)
 {
-	return !atomic_long_read(&ref->count);
+	return !atomic_read(&ref->count);
 }
 #endif
 
