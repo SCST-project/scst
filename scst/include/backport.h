@@ -212,6 +212,15 @@ static inline void *bsg_job_sense(struct bsg_job *job)
 
 #endif
 
+/* <linux/compiler_attributes.h> */
+
+/* See also commit 294f69e662d1 ("compiler_attributes.h: Add 'fallthrough'
+ * pseudo keyword for switch/case use") # v5.4
+ */
+#ifndef fallthrough
+#define fallthrough __attribute__((__fallthrough__))
+#endif
+
 /* <linux/cpumask.h> */
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_CPUMASK_H)
