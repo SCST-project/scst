@@ -111,6 +111,7 @@ run_conftest = $(shell							\
     output=conftest/$1/build-output-$(KVER).txt;			\
   fi;									\
   if MAKEFLAGS= make -C $(KDIR) V=$(V)					\
+	$(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")		\
 	M="$(shell pwd)/conftest/$1"					\
 	CONFTEST_CFLAGS="-Werror $(OFED_CFLAGS)" $(OFED_CONFIG)		\
 	KBUILD_EXTRA_SYMBOLS="$(OFED_MODULE_SYMVERS)"			\
@@ -136,11 +137,13 @@ ISER_CFLAGS = $(OFED_CFLAGS) -DOFED_FLAVOR=$(OFED_FLAVOR) $(CONFTEST_CFLAGS)
 
 mods: include/iscsi_scst_itf_ver.h $(CONFTEST_OUTPUTS)
 	$(MAKE) -C $(KDIR) M=$(KMOD) CONFTEST_CFLAGS="$(CONFTEST_CFLAGS)"\
+	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  modules
 	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
 	if $(INFINIBAND_ENABLED); then					\
 	  echo "  Building against $(OFED_FLAVOR) RDMA kernel headers.";\
 	  $(MAKE) -C $(KDIR) M=$(ISERTMOD) ISER_CFLAGS="$(ISER_CFLAGS)"	\
+	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  $(OFED_CONFIG) modules;					\
 	fi
 
@@ -161,15 +164,17 @@ install: all
 	@install -vD -m 755 usr/iscsi-scst-adm $(DESTDIR)$(SBINDIR)/iscsi-scst-adm
 	@install -vD -m 644 doc/manpages/iscsi-scst-adm.8 $(DESTDIR)$(MANDIR)/man8/iscsi-scst-adm.8
 	(cd $(KMOD) && KDIR=$(KDIR) ../../scripts/sign-modules)
-	$(MAKE) -C $(KDIR) M=$(KMOD)				\
-	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
+	$(MAKE) -C $(KDIR) M=$(KMOD)					\
+	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
+	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
 	  CONFIG_MODULE_SIG_ALL= modules_install
 	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
-	if $(INFINIBAND_ENABLED); then				\
+	if $(INFINIBAND_ENABLED); then					\
 	  (cd $(ISERTMOD) && KDIR=$(KDIR) ../../../scripts/sign-modules);\
-	  $(MAKE) -C $(KDIR) M=$(ISERTMOD)			\
-	    $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
-	    CONFIG_MODULE_SIG_ALL= modules_install;		\
+	  $(MAKE) -C $(KDIR) M=$(ISERTMOD)				\
+	    $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
+	    $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
+	    CONFIG_MODULE_SIG_ALL= modules_install;			\
 	fi
 
 uninstall:

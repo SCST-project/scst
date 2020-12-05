@@ -1,0 +1,19 @@
+Building SCST With Clang
+========================
+
+Clang is a C compiler that is an alternative for gcc. SCST can be built as
+follows with clang:
+1. Install clang.
+2. Download the Linux kernel source code and also the SCST source code.
+3. Build at least the modules_prepare Linux kernel make target.
+
+     cd $HOME/software/linux-kernel
+     make CC=clang modules_prepare
+
+5. Build SCST using any of the supported build methods. An example:
+
+     export KDIR=$HOME/software/linux-kernel
+     export PASS_CC_TO_MAKE=1
+     export CC=clang
+     cd scst.git
+     make rpm
