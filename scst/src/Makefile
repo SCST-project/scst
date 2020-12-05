@@ -71,16 +71,12 @@ $(SCST_INTF_VER_FILE): $(SCST_INC_DIR)/scst.h $(SCST_INC_DIR)/scst_const.h $(SCS
 	echo "\"`sha1sum $(SCST_INC_DIR)/scst_user.h|awk '{printf $$1}'`\"" >>$(SCST_INTF_VER_FILE)
 
 all: $(SCST_INTF_VER_FILE)
-	$(MAKE) -C certs KDIR=$(KDIR)				\
-	  $(shell [ -n "$(CC)" ] && echo CC="$(CC)")
-	$(MAKE) -C $(KDIR) M=$(shell pwd)			\
-	  $(shell [ -n "$(CC)" ] && echo CC="$(CC)")
-	$(MAKE) -C $(KDIR) M=$(shell pwd)/dev_handlers		\
-	  $(shell [ -n "$(CC)" ] && echo CC="$(CC)")
+	$(MAKE) -C certs KDIR=$(KDIR)
+	$(MAKE) -C $(KDIR) M=$(shell pwd)
+	$(MAKE) -C $(KDIR) M=$(shell pwd)/dev_handlers
 
 scst:
-	$(MAKE) -C $(KDIR) M=$(shell pwd)			\
-	  $(shell [ -n "$(CC)" ] && echo CC="$(CC)")
+	$(MAKE) -C $(KDIR) M=$(shell pwd)
 
 install: all
 	@if [ -z "$(DESTDIR)" ] && \
@@ -97,12 +93,10 @@ install: all
 		/usr/sbin/weak-modules --remove-kernel;			\
 	fi
 	$(MAKE) -C $(KDIR) M=$(shell pwd)/dev_handlers			\
-	  $(shell [ -n "$(CC)" ] && echo CC="$(CC)")			\
 	  INSTALL_MOD_DIR=extra/dev_handlers				\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
 	  CONFIG_MODULE_SIG_ALL= modules_install
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
-	  $(shell [ -n "$(CC)" ] && echo CC="$(CC)")			\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
 	  CONFIG_MODULE_SIG_ALL= modules_install
 	install -d $(INSTALL_DIR_H)

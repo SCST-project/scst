@@ -88,7 +88,6 @@ run_conftest = $(shell							\
     output=conftest/$1/build-output-$(KVER).txt;			\
   fi;									\
   if MAKEFLAGS= make -C $(KDIR) V=$(V)					\
-	$(shell [ -n "$(CC)" ] && echo CC="$(CC)")			\
 	M="$(shell pwd)/conftest/$1"					\
 	CONFTEST_CFLAGS="-Werror $(OFED_CFLAGS)" $(OFED_CONFIG)		\
 	KBUILD_EXTRA_SYMBOLS="$(OFED_MODULE_SYMVERS)"			\
@@ -113,7 +112,6 @@ CONFTEST_CFLAGS = $(OFED_CFLAGS)			\
 
 all: check $(CONFTEST_OUTPUTS)
 	$(MAKE) -C $(KDIR) M=$(shell pwd)/src		\
-	  $(shell [ -n "$(CC)" ] && echo CC="$(CC)")	\
 	  CONFTEST_CFLAGS="$(CONFTEST_CFLAGS)"		\
 	  $(OFED_CONFIG) modules
 
@@ -123,7 +121,6 @@ install: all
 	  true
 	(cd src && KDIR=$(KDIR) ../../scripts/sign-modules)
 	$(MAKE) -C $(KDIR) M=$(shell pwd)/src			\
-	  $(shell [ -n "$(CC)" ] && echo CC="$(CC)")		\
 	  CONFTEST_CFLAGS="$(CONFTEST_CFLAGS)"			\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
 	  CONFIG_MODULE_SIG_ALL= modules_install
