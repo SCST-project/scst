@@ -47,13 +47,11 @@ INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 
 all:
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
-	  $(shell [ -n "$(CC)" ] && echo CC="$(CC)")			\
 	  $(CONFIG_SCSI_QLA2XXX_TARGET)=CONFIG_SCSI_QLA2XXX_TARGET
 
 install: all
 	KDIR=$(KDIR) ../scripts/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m			\
-	  $(shell [ -n "$(CC)" ] && echo CC="$(CC)")			\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
 	  CONFIG_MODULE_SIG_ALL= modules_install
 

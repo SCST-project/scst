@@ -66,8 +66,7 @@ INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
 SCST_DIR := $(shell echo "$$PWD/../../scst/src")
 
 all: $(QLA2XXX_SCST)
-	$(MAKE) -C $(KDIR) M=$(shell pwd)			\
-	  $(shell [ -n "$(CC)" ] && echo CC="$(CC)")
+	$(MAKE) -C $(KDIR) M=$(shell pwd)
 
 install: all
 ifneq ($(BUILD_2X_MODULE),)
@@ -75,7 +74,6 @@ ifneq ($(BUILD_2X_MODULE),)
 endif
 	KDIR=$(KDIR) ../../scripts/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd)			\
-	  $(shell [ -n "$(CC)" ] && echo CC="$(CC)")		\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")	\
 	  CONFIG_MODULE_SIG_ALL= modules_install
 
