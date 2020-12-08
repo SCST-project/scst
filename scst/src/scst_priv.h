@@ -872,6 +872,7 @@ int scst_event_queue_negative_luns_inquiry(const struct scst_tgt *tgt,
 	const char *initiator_name);
 int scst_event_queue_ext_blocking_done(struct scst_device *dev, void *data, int len);
 int scst_event_queue_tm_fn_received(struct scst_mgmt_cmd *mcmd);
+int scst_event_queue_reg_vdev(const char *dev_name);
 
 typedef void __printf(2, 3) (*scst_show_fn)(void *arg, const char *fmt, ...);
 void scst_trace_cmds(scst_show_fn show, void *arg);

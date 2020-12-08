@@ -484,6 +484,45 @@ out:
 	return res;
 }
 
+/* No locks */
+int scst_event_queue_reg_vdev(const char *dev_name)
+{
+	int res = 0, event_entry_len;
+	struct scst_event_entry *event_entry;
+	struct scst_event *event;
+	struct scst_event_reg_vdev_payload *payload;
+
+	TRACE_ENTRY();
+
+	event_entry_len = sizeof(*event_entry) + sizeof(*payload);
+	event_entry = kzalloc(event_entry_len, GFP_ATOMIC);
+	if (event_entry == NULL) {
+		PRINT_ERROR("Unable to allocate event (size %d). Virtual "
+			"device registration event is lost (device name %s)!",
+			event_entry_len, dev_name);
+		res = -ENOMEM;
+		goto out;
+	}
+
+	TRACE_MEM("event_entry %p (len %d) allocated", event_entry,
+		event_entry_len);
+
+	event = &event_entry->event;
+
+	event->payload_len = sizeof(*payload);
+	payload = (struct scst_event_reg_vdev_payload *)event->payload;
+
+	strlcpy(payload->device_name, dev_name,
+		sizeof(payload->device_name));
+
+	scst_event_queue(SCST_EVENT_REG_VIRT_DEV,
+		SCST_EVENT_SCST_CORE_ISSUER, event_entry);
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
 /* scst_event_mutex supposed to be held. Can release/reacquire it inside */
 static void scst_release_event_entry(struct scst_event_entry *e)
 {
