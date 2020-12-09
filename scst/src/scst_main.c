@@ -1383,6 +1383,7 @@ int scst_register_virtual_device_node(struct scst_dev_type *dev_handler,
 
 	res = dev->virt_id;
 
+	scst_event_queue_reg_vdev(dev_name);
 	PRINT_INFO("Attached to virtual device %s (id %d)", dev_name, res);
 
 out:

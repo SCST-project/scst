@@ -156,4 +156,9 @@ struct scst_event_stpg_payload {
 	struct scst_event_stpg_descr stpg_descriptors[0];
 };
 
+#define SCST_EVENT_REG_VIRT_DEV		6
+struct scst_event_reg_vdev_payload {
+	uint8_t device_name[SCST_MAX_NAME+10];
+};
+
 #endif /* __SCST_EVENT_H */
