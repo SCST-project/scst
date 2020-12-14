@@ -7,8 +7,32 @@ Summary of changes between versions 3.4 and 3.5
   target port ID is now correct in the device identification inquiry response.
   The REPORT TARGET PORT GROUPS and SET TARGET PORT GROUPS commands are now
   processed locally instead of being forwarded.
+- A subtle bug in the COMPARE AND WRITE implementation for unaligned buffers
+  has been fixed (r8932).
+- Support for wildcard matching for initiator names has been added to the
+  copy manager.
+- Unloading scst_vdisk while I/O is ongoing works again reliably.
+- Support for scst_register_target(..., NULL) has been dropped. This feature
+  was declared obsolete in 2011.
+- The behavior of the on_alua_state_change_*() callback functions has been
+  modified such that these are only invoked if the state of a local target
+  port group is being modified.
+- The RPM build gained support for EL mainline kernels and also for CentOSPlus.
+- Performance of the ib_srpt driver has been improved by switching from a large
+  number of kernel threads to one workqueue per CPU core.
+- Support for MOFED 5 has been added in the isert-scst and ib_srpt drivers.
+- Network namespace support has been added in the iscsi-scst driver. This makes
+  it possible to run iscsi-scst inside a container that uses another network
+  namespace than the default.
 - Fixed a hard to trigger race condition in the iSCSI connection shutdown code.
-- Added support for unaligned buffers in vdisk_blockio.
+- Fixed a memory leak in conn_free() in iscsi-scstd.
+- Large RDMA transfers no longer trigger QP termination with the ib_srpt driver.
+- Handling of iWARP logins has been fixed in ib_srpt.
+- Updated the qla2x00t-32gbit to the version that is available in Linux kernel
+  v5.9 from v5.4.
+- The scst_user device handler has been made compatible with the ib_srpt
+  zero-copy mode.
+- scstadmin has been made compatible again with older Perl interpreters.
 
 Summary of changes between versions 3.3 and 3.4
 -----------------------------------------------
