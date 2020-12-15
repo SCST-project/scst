@@ -34,6 +34,12 @@ Summary of changes between versions 3.4 and 3.5
   zero-copy mode.
 - scstadmin has been made compatible again with older Perl interpreters.
 
+The kernel versions supported by this release are:
+* Kernel.org kernel versions v2.6.31..v5.10.
+* Debian / Ubuntu kernels based on upstream kernel versions v2.6.31..v5.10.
+* RHEL / CentOS 6.x, 7.x and 8.0..8.2 kernels.
+* UEK version 4, 5 and 6 kernels.
+
 Summary of changes between versions 3.3 and 3.4
 -----------------------------------------------
 - I/O keeps running at full speed if a LUN is added or removed and also if
