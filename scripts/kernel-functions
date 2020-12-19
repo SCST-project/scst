@@ -129,7 +129,7 @@ function extract_kernel_tree {
 function patch_kernel {
     case "$1" in
 	*^*)
-            # RHEL / CentOS.
+            # RHEL / CentOS or UEK.
             ;;
 	*)
 	    # See also commit f153b82121b0 ("Sanitize gcc version header
@@ -765,7 +765,14 @@ function download_and_extract_distro_rpm {
 	read -a urls -r <<<"$(get_srpm_urls "$distro" "$release" x86_64 |
 			      tr '\n' ' ')"
 	for url in "${urls[@]}"; do
-	    wget -q -nc "${url}/kernel-${kver}.src.rpm" && break
+	    case "$distro" in
+		CentOS)
+		    wget -q -nc "${url}/kernel-${kver}.src.rpm" && break
+		    ;;
+		UEK)
+		    wget -q -nc "${url}/kernel-uek-${kver}.src.rpm" && break
+		    ;;
+	    esac
 	done
     )
     local tmpdir=kernel-tree-tmp-$$
@@ -773,11 +780,25 @@ function download_and_extract_distro_rpm {
     mkdir "${tmpdir}" || return $?
     (
 	cd "${tmpdir}" &&
-	    rpm2cpio "${kernel_downloads}/kernel-${kver}.src.rpm" |
-		cpio -i --make-directories --quiet &&
-	    tar xaf "linux-${kver}.tar."* &&
-	    mv "linux-${kver}" ".." &&
-	    cd "../linux-${kver}"
+	    case "$distro" in
+		CentOS)
+		    rpm2cpio "${kernel_downloads}/kernel-${kver}.src.rpm" |
+			cpio -i --make-directories --quiet &&
+			tar xaf "linux-${kver}.tar."* &&
+			mv "linux-${kver}" ".." &&
+			cd "../linux-${kver}"
+		    ;;
+		UEK)
+		    rpm2cpio "${kernel_downloads}/kernel-uek-${kver}.src.rpm" |
+			cpio -i --make-directories --quiet &&
+			tar xaf "linux-${kver/-*}.tar."* &&
+			mv "linux-${kver/-*}" "../linux-${kver}" &&
+			cd "../linux-${kver}"
+		    ;;
+		*)
+		    echo "Error: unknown distro $distro"
+		    ;;
+	    esac
     ) || return $?
     rm -rf "${tmpdir}"
 }

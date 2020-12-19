@@ -35,10 +35,12 @@ function get_srpm_urls() {
 		    echo "http://ftp.redhat.com/redhat/rhel/rc/7/Server/source/tree/Packages";;
 	    esac
 	    ;;
-	"Oracle Linux Server")
+	"Oracle Linux Server"|"UEK")
 	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/${releaseverminor}/base/${arch}/getPackageSource"
 	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/latest/${arch}/getPackageSource"
-	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/UEK/latest/${arch}/getPackageSource"
+	    for ((i=4;i<=6;i++)); do
+		echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/UEKR$i/${arch}/getPackageSource"
+	    done
 	    ;;
 	"Scientific Linux")
 	    case $releasever in
@@ -87,10 +89,12 @@ function get_rpm_urls() {
 	    ;;
 	"Red Hat Enterprise Linux"*)
 	    echo "";;
-	"Oracle Linux Server")
+	"Oracle Linux Server"|"UEK")
 	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/${releaseverminor}/base/${arch}/getPackageSource"
 	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/latest/${arch}/getPackageSource"
-	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/UEK/latest/${arch}/getPackageSource"
+	    for ((i=4;i<=6;i++)); do
+		echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/UEKR$i/${arch}/getPackageSource"
+	    done
 	    ;;
 	"Scientific Linux")
 	    case $releasever in
