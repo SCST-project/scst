@@ -598,29 +598,6 @@ index 8fa38d3e7538..f5bc4c046461 100644
  
 EOF
 	;;
-	4.1.12-*uek)
-	    echo "Patching init.h ..."
-	    patch -f -s -p1 <<'EOF'
---- linux-4.1.12-124.45.6.el7uek/include/linux/init.h.orig
-+++ linux-4.1.12-124.45.6.el7uek/include/linux/init.h
-@@ -347,13 +347,13 @@
- #define module_init(initfn)					\
- 	static inline initcall_t __inittest(void)		\
- 	{ return initfn; }					\
--	int init_module(void) __attribute__((alias(#initfn)));
-+	int init_module(void) __attribute__((__copy__(initfn)));
- 
- /* This is only required if you want to be unloadable. */
- #define module_exit(exitfn)					\
- 	static inline exitcall_t __exittest(void)		\
- 	{ return exitfn; }					\
--	void cleanup_module(void) __attribute__((alias(#exitfn)));
-+	void cleanup_module(void) __attribute__((__copy__(exitfn)));
- 
- #define __setup_param(str, unique_id, fn)	/* nothing */
- #define __setup(str, func) 			/* nothing */
-EOF
-	    ;;
 	2.*|3.*)
 	    patch -f -s -p1 <<'EOF'
 --- linux-3.10.0-1127.el7/include/linux/init.h.orig	2020-05-09 20:55:48.638956513 -0700
