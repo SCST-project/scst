@@ -191,7 +191,6 @@ function in_separate_patch {
 debug_specialize="false"
 enable_specialize="true"
 generating_upstream_patch="false"
-mpt_scst="false"
 multiple_patches="false"
 patchdir=""
 replace_sbug_by_bug="true"
@@ -212,7 +211,6 @@ do
     '-d') debug_specialize="true"; shift;;
     '-h') usage; exit 1;;
     '-l') shift;;
-    '-m') mpt_scst="true"; shift;;
     '-n') specialize_patch_options=(-v "blank_deleted_code=1")
           shift
           ;;
@@ -618,29 +616,6 @@ else
 
 fi \
 } | process_patch "scst_17_srpt.diff"
-
-
-# Directory drivers/message/fusion/mpt_scst
-
-if [ "$mpt_scst" = "true" ]; then
-
-  (
-  add_patch "mpt/in-tree/Kconfig-2.6.24.diff" "drivers/message/fusion/Kconfig"
-
-  add_patch "mpt/in-tree/Makefile.diff"       "drivers/message/fusion/Makefile"
-
-  add_file  "mpt/in-tree/Makefile" "drivers/message/fusion/mpt_scst/Makefile"
-
-  add_file  "mpt/in-tree/Kconfig"  "drivers/message/fusion/mpt_scst/Kconfig"
-
-  for f in mpt/*.[ch]; do
-    [ -e "$f" ] || continue
-    add_file "${f}" "drivers/message/fusion/mpt_scst/${f#mpt/}"
-  done
-  ) \
-  | process_patch "mpt_scst.diff"
-
-fi
 
 
 # Directory drivers/scst/scst_local
