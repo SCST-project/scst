@@ -137,7 +137,7 @@ function patch_kernel {
 	    # support for gcc 5") # v3.18. See also commit cb984d101b30
 	    # ("compiler-gcc: integrate the various compiler-gcc[345].h
 	    # files") # v4.2.
-	    if kernel_version_le 2.6.29 $1 && kernel_version_lt $1 4.2; then
+	    if kernel_version_le 2.6.29 "$1" && kernel_version_lt "$1" 4.2; then
 		# Tell the kernel that we are using gcc 4.6 since older kernel
 		# versions do not support recent gcc versions.
 		patch -f -s -p1 <<'EOF' ||
@@ -421,7 +421,7 @@ index d6d65537b0d9..6aad8308a0ac 100644
 EOF
     fi
 
-    if kernel_version_le 2.6.36 $1 && kernel_version_lt $1 4.8; then
+    if kernel_version_le 2.6.36 "$1" && kernel_version_lt "$1" 4.8; then
 	patch -f -s -p1 <<'EOF'
 From c6a385539175ebc603da53aafb7753d39089f32e Mon Sep 17 00:00:00 2001
 From: Borislav Petkov <bp@suse.de>
@@ -646,7 +646,7 @@ EOF
 	    ;;
     esac
 
-    if kernel_version_le 3.2 $1 && kernel_version_lt $1 3.18; then
+    if kernel_version_le 3.2 "$1" && kernel_version_lt "$1" 3.18; then
 	patch -f -s -p1 <<'EOF'
 From eeeda4cd06e828b331b15741a204ff9f5874d28d Mon Sep 17 00:00:00 2001
 From: Ben Hutchings <ben@decadent.org.uk>
@@ -688,7 +688,7 @@ EOF
 
     # See also commit e33a814e772c ("scripts/dtc: Remove redundant YYLOC global
     # declaration") # v5.6~10^2.
-    if kernel_version_lt $1 5.6; then
+    if kernel_version_lt "$1" 5.6; then
 	patch -p1 -f -s <<'EOF'
 From e33a814e772cdc36436c8c188d8c42d019fda639 Mon Sep 17 00:00:00 2001
 From: Dirk Mueller <dmueller@suse.com>
@@ -804,28 +804,36 @@ function download_and_extract_distro_rpm {
 }
 
 function download_and_extract_kernel_tree {
-    if [ -e "${kernel_tree}" ]; then
-	{ [ "${1/^}" = "$1" ] &&
-	(
-	    cd "${kernel_tree}" &&
-		{
-		    { git tag -l "v$1" | grep -q '^v'; } ||
-			{
-			    echo "Could not find tag v$1;" \
-				 "updating git repository" 1>&2
-			    git fetch origin
-			    git fetch stable
-			}
-		} &&
-		{ git tag -l "v$1" | grep -q '^v'; } &&
-		git archive "v$1"
-	) | {
-	    rm -rf "linux-$1" &&
-		mkdir "linux-$1" &&
-		tar -C "linux-$1" -xf- 2>/dev/null
-	}; } || download_and_extract_distro_rpm "$1"
+    if [ "${1/^}" = "$1" ]; then
+	# Upstream kernel.
+	if [ -e "${kernel_tree}" ]; then
+	    # If a git kernel tree is available, obtain the kernel source code
+	    # from that git tree.
+	    (
+		cd "${kernel_tree}" &&
+		    {
+			{ git tag -l "v$1" | grep -q '^v'; } ||
+			    {
+				echo "Could not find tag v$1;" \
+				     "updating git repository" 1>&2
+				git fetch origin
+				git fetch stable
+			    }
+		    } &&
+		    { git tag -l "v$1" | grep -q '^v'; } &&
+		    git archive "v$1"
+	    ) | {
+		rm -rf "linux-$1" &&
+		    mkdir "linux-$1" &&
+		    tar -C "linux-$1" -xf- 2>/dev/null
+	    }
+	else
+	    # Otherwise download a source code tar file and extract it.
+	    download_kernel "$1" && extract_kernel_tree "$1"
+	fi
     else
-	download_kernel "$1" && extract_kernel_tree "$1"
+	# Distro kernel.
+	download_and_extract_distro_rpm "$1"
     fi &&
 	(cd "linux-${1/^*}" && patch_kernel "${1/^*}")
 }
