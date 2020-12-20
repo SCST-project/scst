@@ -409,7 +409,7 @@ function run_sparse {
 
   echo "Running sparse on the patched kernel in $* ..."
   if (cd "${outputdir}/linux-$k" \
-      && make -s prepare \
+      && make -s modules_prepare \
       && make -s scripts \
       && if grep -q '^CONFIG_PPC=y$' .config; then LC_ALL=C make -k M=arch/powerpc/lib; fi \
       && for subdir; do
@@ -450,7 +450,7 @@ function run_smatch {
   if (cd "${outputdir}/linux-$k" &&
       for c in $disable; do sed -i.tmp "s/^$c=y\$/$c=n/" .config; done &&
       make -s oldconfig </dev/null &&
-      make -s prepare &&
+      make -s modules_prepare &&
       make -s scripts &&
       if grep -q '^CONFIG_PPC=y$' .config; then LC_ALL=C make -k M=arch/powerpc/lib; fi &&
       for subdir; do
@@ -482,7 +482,7 @@ function run_checkstack {
   echo "Running checkstack on the patched $1 kernel ..."
   (
     cd "${outputdir}/linux-$1" \
-    && make -s prepare \
+    && make -s modules_prepare \
     && make -s scripts \
     && LC_ALL=C make -k checkstack
   ) &> "${outputfile}"
@@ -499,7 +499,7 @@ function run_namespacecheck {
   echo "Running namespacecheck on the patched $1 kernel ..."
   (
     cd "${outputdir}/linux-$1" \
-    && make -s prepare \
+    && make -s modules_prepare \
     && make -s scripts \
     && LC_ALL=C make -k namespacecheck
   ) &> "${outputfile}"
@@ -516,7 +516,7 @@ function run_headers_check {
   echo "Running headers check on the patched $1 kernel ..."
   (
     cd "${outputdir}/linux-$1" \
-    && make -s prepare \
+    && make -s modules_prepare \
     && make -s scripts \
     && LC_ALL=C make -k headers_check
   ) &> "${outputfile}"
@@ -536,7 +536,7 @@ function run_make_htmldocs {
   echo "Generating HTML documentation for the patched $1 kernel ..."
   (
     cd "${outputdir}/linux-$1" \
-    && make -s prepare \
+    && make -s modules_prepare \
     && make -s scripts \
     && LC_ALL=C make -k htmldocs
   ) &> "${outputfile}"
