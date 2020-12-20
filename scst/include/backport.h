@@ -964,7 +964,9 @@ static inline void lockdep_unregister_key(struct lock_class_key *key)
  * See also commit 5facae4f3549 ("locking/lockdep: Remove unused @nested
  * argument from lock_release()").
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 3))
 #undef rwlock_release
 #define rwlock_release(l, i) lock_release(l, 1, i)
 #undef mutex_release
@@ -2006,7 +2008,9 @@ static inline struct ib_pd *ib_alloc_pd_backport(struct ib_device *device)
 /* <scsi/scsi_cmnd.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) || \
-	LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0)
+	LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0) || \
+	(defined(RHEL_RELEASE_CODE) &&			 \
+	 RHEL_RELEASE_CODE -0 >= RHEL_RELEASE_VERSION(8, 3))
 /*
  * See also patch "[SCSI] bidirectional command support" (commit ID
  * 6f9a35e2dafa). See also commit ae3d56d81507 ("scsi: remove bidirectional

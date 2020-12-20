@@ -1011,8 +1011,10 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *scmd,
 #endif
 
 	if (scsi_bidi_cmnd(scmd)) {
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 24) && \
-	LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 24) &&	\
+	LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0) && \
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 3))
 		/* Some of these symbols are only defined after 2.6.24 */
 		dir = SCST_DATA_BIDI;
 		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(scmd));
@@ -1155,6 +1157,7 @@ static int scst_local_slave_alloc(struct scsi_device *sdev)
 {
 	struct request_queue *q = sdev->request_queue;
 
+#ifdef QUEUE_FLAG_BIDI
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0) &&	\
 	!defined(CONFIG_SUSE_KERNEL)
 #if !defined(RHEL_MAJOR) || RHEL_MAJOR -0 >= 6
@@ -1162,6 +1165,7 @@ static int scst_local_slave_alloc(struct scsi_device *sdev)
 #endif
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
 	blk_queue_flag_set(QUEUE_FLAG_BIDI, q);
+#endif
 #endif
 
 	/*
