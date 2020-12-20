@@ -69,7 +69,8 @@ function evaluate(stmnt, pattern, arg, op, result) {
        "RHEL_RELEASE_CODE -0 >= 6 * 256 + 9)", stmnt)
 
   gsub("SOCK_RECVMSG_HAS_FOUR_ARGS",
-       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0))", stmnt)
+       "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0) \\&\\& " \
+       "!defined(UEK_KABI_RENAME))", stmnt)
 
   gsub("defined\\(USE_PRE_440_WR_STRUCTURE\\)",
        "(LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) \\&\\& " \
@@ -236,7 +237,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
   }
 
   gsub("defined\\(_COMPAT_LINUX_MM_H\\)", "0", stmnt)
-  gsub("defined\\(UEK_KABI_RENAME\\)", "0", stmnt)
+  gsub("defined\\(UEK_KABI_RENAME\\)", UEK_KABI_RENAME ? "1" : "0", stmnt)
 
   if (SCST_IO_CONTEXT != "")
   {

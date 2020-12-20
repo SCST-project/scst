@@ -113,13 +113,21 @@ function specialize_patch {
   set -- ${release//./ }
   local releasevermajor="$1"
   local releaseverminor="$2"
-  if [ -n "$releasevermajor" ]; then
-      ao=(
-	  -v "RHEL_MAJOR=$releasevermajor"
-	  -v "RHEL_MINOR=$releaseverminor"
-	  -v "RHEL_RELEASE_CODE=$((releasevermajor * 256 + releaseverminor))"
-      )
-  fi
+  case "$distro" in
+      CentOS)
+	  if [ -n "$releasevermajor" ]; then
+	      ao=(
+		  -v "RHEL_MAJOR=$releasevermajor"
+		  -v "RHEL_MINOR=$releaseverminor"
+		  -v "RHEL_RELEASE_CODE=$((releasevermajor * 256 +
+					   releaseverminor))"
+	      )
+	  fi
+	  ;;
+      UEK)
+	  ao=(-v UEK_KABI_RENAME=1)
+	  ;;
+  esac
   local kver3
   set -- ${kver//[.-]/ }
   if [ -n "$3" ]; then
