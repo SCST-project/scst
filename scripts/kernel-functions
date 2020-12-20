@@ -211,28 +211,6 @@ EOF
 	    ;;
     esac
 
-    if [ "$1" = "2.6.29" ] || [ "$1" = "2.6.29.1" ] || [ "$1" = "2.6.29.2" ] ||
-	   [ "$1" = "2.6.29.3" ]; then
-      patch -f -s -p1 <<'EOF'
-Make sure that branch profiling does not trigger sparse warnings.
-See also http://bugzilla.kernel.org/show_bug.cgi?id=12925
----
-See also http://lkml.org/lkml/2009/4/5/120
---- orig/linux-2.6.29/include/linux/compiler.h	2009-03-23 19:12:14.000000000 -0400
-+++ linux-2.6.29/include/linux/compiler.h	2009-03-24 08:46:46.000000000 -0400
-@@ -75,7 +75,8 @@ struct ftrace_branch_data {
-  * Note: DISABLE_BRANCH_PROFILING can be used by special lowlevel code
-  * to disable branch tracing on a per file basis.
-  */
--#if defined(CONFIG_TRACE_BRANCH_PROFILING) && !defined(DISABLE_BRANCH_PROFILING)
-+#if defined(CONFIG_TRACE_BRANCH_PROFILING) \
-+    && !defined(DISABLE_BRANCH_PROFILING) && !defined(__CHECKER__)
- void ftrace_likely_update(struct ftrace_branch_data *f, int val, int expect);
- 
- #define likely_notrace(x)	__builtin_expect(!!(x), 1)
-EOF
-    fi
-
     if [ "${1#2.6.31}" != "$1" ]; then
       patch -f -s -p1 <<'EOF'
 Checking a 2.6.31.1 kernel configured with allyesconfig/allmodconfig
