@@ -125,7 +125,7 @@ function make_dpkg {
 
 function compile_scst {
   (
-    for p in scst scst_local iscsi-scst srpt qla2x00t $(if [ "${mpt_scst}" = "true" ]; then echo mpt; fi); do
+    for p in scst scst_local iscsi-scst srpt qla2x00t qla2x00t-32gbit; do
       if [ "${p%qla2x00t}" != "$p" ]; then
         BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y \
         make -C "$p/qla2x00-target" || return $?
@@ -209,7 +209,6 @@ function generate_kernel_patch {
 
   kver="$(kernel_version "${1/^*}")"
   driver_options=(-l)
-  [ "${mpt_scst}" = "true" ] && driver_options+=("-m")
 
   "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" $2 "$1" > "${patchfile}"
 
@@ -567,7 +566,6 @@ kernel_versions=""
 # an absolute path.
 outputdir="${PWD}/regression-test-output-$(date +%Y-%m-%d_%Hh%Mm%Ss)"
 # Driver configuration.
-mpt_scst="false"
 multiple_patches="false"
 qla2x00t="true"
 remove_temporary_files_at_end="false"
