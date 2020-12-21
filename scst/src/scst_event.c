@@ -472,8 +472,9 @@ int scst_event_queue_tm_fn_received(struct scst_mgmt_cmd *mcmd)
 		sizeof(payload->session_sysfs_name));
 	if (mcmd->cmd_to_abort != NULL) {
 		payload->cmd_to_abort_tag = mcmd->cmd_to_abort->tag;
-		strlcpy(payload->cdb, mcmd->cmd_to_abort->cdb,
-			sizeof(payload->cdb));
+		memcpy(payload->cdb, mcmd->cmd_to_abort->cdb,
+		       min_t(u32, mcmd->cmd_to_abort->cdb_len,
+			     sizeof(payload->cdb)));
 	}
 
 	scst_event_queue(SCST_EVENT_TM_FN_RECEIVED,
