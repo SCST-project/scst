@@ -21,6 +21,9 @@
  */
 
 #include <linux/version.h>
+#ifndef RHEL_RELEASE_VERSION
+#define RHEL_RELEASE_VERSION(a, b) (((a) << 8) + (b))
+#endif
 #include <linux/bio.h>
 #include <linux/blkdev.h>	/* struct request_queue */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0) || \

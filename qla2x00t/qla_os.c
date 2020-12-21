@@ -22,10 +22,6 @@
 #include <scsi/scsi_transport.h>
 #include <scsi/scsi_transport_fc.h>
 
-#ifndef RHEL_RELEASE_VERSION
-#define RHEL_RELEASE_VERSION(maj, min) 0
-#endif
-
 /*
  * Driver version
  */
