@@ -1057,8 +1057,9 @@ int scst_get_suspend_count(void)
 
 static int scst_register_device(struct scsi_device *scsidp)
 {
-	int res;
+	DECLARE_COMPLETION_ONSTACK(c);
 	struct scst_device *dev, *d;
+	int res;
 
 	TRACE_ENTRY();
 
@@ -1128,8 +1129,9 @@ out_del_unlocked:
 	scst_pr_clear_dev(dev);
 
 out_free_dev:
+	dev->remove_completion = &c;
 	percpu_ref_kill(&dev->refcnt);
-
+	wait_for_completion(&c);
 	scst_free_device(dev);
 
 out_unlock:
@@ -1283,9 +1285,10 @@ out:
 int scst_register_virtual_device_node(struct scst_dev_type *dev_handler,
 	const char *dev_name, int nodeid)
 {
-	int res;
+	DECLARE_COMPLETION_ONSTACK(c);
 	struct scst_device *dev, *d;
 	bool sysfs_del = false;
+	int res;
 
 	TRACE_ENTRY();
 
@@ -1405,7 +1408,9 @@ out_free_dev:
 	mutex_unlock(&scst_mutex);
 	if (sysfs_del)
 		scst_dev_sysfs_del(dev);
+	dev->remove_completion = &c;
 	percpu_ref_kill(&dev->refcnt);
+	wait_for_completion(&c);
 	scst_free_device(dev);
 	goto out;
 
