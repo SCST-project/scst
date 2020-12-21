@@ -46,10 +46,6 @@ static inline u32 blk_mq_unique_tag(struct request *rq)
 #include <scst_debug.h>
 #endif
 
-#ifndef RHEL_RELEASE_VERSION
-#define RHEL_RELEASE_VERSION(maj, min) 0
-#endif
-
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
 #define SG_MAX_SINGLE_ALLOC	(PAGE_SIZE / sizeof(struct scatterlist))
 #endif

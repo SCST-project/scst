@@ -14,10 +14,6 @@
 #include "qla2x_tgt.h"
 #include <linux/ctype.h>
 
-#ifndef RHEL_RELEASE_VERSION
-#define RHEL_RELEASE_VERSION(maj, min) 0
-#endif
-
 static int qla24xx_vport_disable(struct fc_vport *, bool);
 
 /* SYSFS attributes --------------------------------------------------------- */

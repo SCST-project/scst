@@ -30,10 +30,6 @@
 #include "scst_pres.h"
 #include "scst_dlm.h"
 
-#ifndef RHEL_RELEASE_VERSION
-#define RHEL_RELEASE_VERSION(maj, min) 0
-#endif
-
 #if (defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE)) && \
 	!defined(CONFIG_SCST_NO_DLM)
 
