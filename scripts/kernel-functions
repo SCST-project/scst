@@ -139,8 +139,11 @@ function patch_kernel {
 	    # files") # v4.2.
 	    if kernel_version_le 2.6.29 "$1" && kernel_version_lt "$1" 4.2; then
 		# Tell the kernel that we are using gcc 4.6 since older kernel
-		# versions do not support recent gcc versions.
-		patch -f -s -p1 <<'EOF' ||
+		# versions do not support recent gcc versions. See also commit
+		# 9c695203a7dd ("compiler-gcc.h: gcc-4.5 needs noclone and
+		# noinline on __naked functions") # v2.6.35.
+		if kernel_version_le 2.6.35 "$1"; then
+		    patch -f -s -p1 <<'EOF'
 diff --git a/include/linux/compiler-gcc.h b/include/linux/compiler-gcc.h
 index 02ae99e8e6d3..47e12c19c965 100644
 --- a/include/linux/compiler-gcc.h
@@ -155,7 +158,8 @@ index 02ae99e8e6d3..47e12c19c965 100644
  #if !defined(__noclone)
  #define __noclone	/* not needed */
 EOF
-		patch -f -s -p1 <<'EOF'
+		else
+		    patch -f -s -p1 <<'EOF'
 diff --git a/include/linux/compiler-gcc.h b/include/linux/compiler-gcc.h
 index a3ed7cb8ca34..c5a6b8b52db4 100644
 --- a/include/linux/compiler-gcc.h
@@ -167,7 +171,11 @@ index a3ed7cb8ca34..c5a6b8b52db4 100644
 -#include gcc_header(__GNUC__)
 +#include "linux/compiler-gcc4.h"
 EOF
-		patch -f -s -p1 <<'EOF' ||
+		fi
+		# See also commit 733ed6e43756 ("compiler-gcc{3,4}.h: Use
+		# GCC_VERSION macro") # v3.9.
+		if kernel_version_le 3.9 "$1"; then
+		    patch -f -s -p1 <<'EOF'
 diff --git a/include/linux/compiler-gcc4.h b/include/linux/compiler-gcc4.h
 index 769e19864632..2ec6c7a11502 100644
 --- a/include/linux/compiler-gcc4.h
@@ -187,7 +195,8 @@ index 769e19864632..2ec6c7a11502 100644
  #define __must_check 		__attribute__((warn_unused_result))
  #define __compiler_offsetof(a,b) __builtin_offsetof(a,b)
 EOF
-		patch -f -s -p1 <<'EOF'
+		else
+		    patch -f -s -p1 <<'EOF'
 diff --git a/include/linux/compiler-gcc4.h b/include/linux/compiler-gcc4.h
 index 412bc6c2b023..901ca31be7f8 100644
 --- a/include/linux/compiler-gcc4.h
@@ -207,6 +216,7 @@ index 412bc6c2b023..901ca31be7f8 100644
  #define __must_check 		__attribute__((warn_unused_result))
  #define __compiler_offsetof(a,b) __builtin_offsetof(a,b)
 EOF
+		fi
 	    fi
 	    ;;
     esac
@@ -666,7 +676,7 @@ EOF
 
     # See also commit e33a814e772c ("scripts/dtc: Remove redundant YYLOC global
     # declaration") # v5.6~10^2.
-    if kernel_version_lt "$1" 5.6; then
+    if kernel_version_le 2.6.38 "$1" && kernel_version_lt "$1" 5.6; then
 	patch -p1 -f -s <<'EOF'
 From e33a814e772cdc36436c8c188d8c42d019fda639 Mon Sep 17 00:00:00 2001
 From: Dirk Mueller <dmueller@suse.com>
