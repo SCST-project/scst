@@ -4775,7 +4775,9 @@ qla2xxx_pci_resume(struct pci_dev *pdev)
 		    "The device failed to resume I/O from slot/link_reset.\n");
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 3))
 	pci_cleanup_aer_uncorrect_error_status(pdev);
 #endif
 
