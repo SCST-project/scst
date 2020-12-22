@@ -28,6 +28,7 @@ Summary of changes between versions 3.4 and 3.5
 - Fixed a memory leak in conn_free() in iscsi-scstd.
 - Large RDMA transfers no longer trigger QP termination with the ib_srpt driver.
 - Handling of iWARP logins has been fixed in ib_srpt.
+- Added a new driver, qla2x00t-32gbit, that supports 32 Gb/s QLogic FC adapters.
 - Updated the qla2x00t-32gbit to the version that is available in Linux kernel
   v5.9 from v5.4.
 - The scst_user device handler has been made compatible with the ib_srpt
