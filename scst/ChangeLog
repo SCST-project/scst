@@ -37,7 +37,7 @@ Summary of changes between versions 3.4 and 3.5
 The kernel versions supported by this release are:
 * Kernel.org kernel versions v2.6.31..v5.10.
 * Debian / Ubuntu kernels based on upstream kernel versions v2.6.31..v5.10.
-* RHEL / CentOS 6.x, 7.x and 8.0..8.2 kernels.
+* RHEL / CentOS 6.x, 7.x and 8.0..8.3 kernels.
 * UEK version 4, 5 and 6 kernels.
 
 Summary of changes between versions 3.3 and 3.4
