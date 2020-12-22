@@ -17,6 +17,11 @@
 #include <linux/sbitmap.h>
 #endif
 
+/* Driver version number */
+#define Q2T_VERSION(a, b, c, d)	(((a) << 030) + ((b) << 020) + (c) << 010 + (d))
+#define Q2T_VERSION_CODE	Q2T_VERSION(3, 5, 0, 0)
+#define Q2T_VERSION_STRING	"3.5.0"
+
 #define SQA_DEFAULT_TAGS 2048
 
 extern size_t qlt_add_vtarget(u64, u64, u64);
