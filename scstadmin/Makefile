@@ -164,6 +164,6 @@ extraclean:
 	cd $(SCSTADMIN_DIR) && $(MAKE) $@
 
 release-archive:
-	../scripts/generate-release-archive scstadmin "$$(sed -n 's/^\$$Version[[:blank:]]*=[[:blank:]]*'"'"'SCST Configurator v\([^'"'"']*\)'"'"'.*/\1/p' scstadmin.sysfs/scstadmin)"
+	../scripts/generate-release-archive scstadmin "$$(sed -n 's/^my \$$Version[[:blank:]]*=[[:blank:]]*'"'"'SCST Configurator v\([^'"'"']*\)'"'"'.*/\1/p' scstadmin.sysfs/scstadmin)"
 
 .PHONY: all install uninstall perl-module clean distclean extraclean
