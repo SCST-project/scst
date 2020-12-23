@@ -56,7 +56,8 @@ REVISION ?= $(shell if [ -e .svn ]; then				\
                       echo -n .;					\
 		      git log | grep -c ^commit;			\
 		    fi)
-VERSION := $(shell echo -n "$$(sed -n 's/^\#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^-]*\).*\"/\1/p' scst/include/scst_const.h)$(REVISION)")
+VERSION_WITHOUT_REVISION := $(shell echo -n "$$(sed -n 's/^\#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^-]*\).*\"/\1/p' scst/include/scst_const.h)")
+VERSION := $(VERSION_WITHOUT_REVISION)$(REVISION)
 DEBIAN_REVISION=1
 RPMTOPDIR ?= $(shell if [ $$(id -u) = 0 ]; then echo /usr/src/packages;\
 		else echo $$PWD/rpmbuilddir; fi)
@@ -400,6 +401,13 @@ dpkg: ../scst_$(VERSION).orig.tar.gz
 	ls -l dpkg
 
 release-archive:
+	$(MAKE) 2release
+	scripts/generate-release-archive scst "$(VERSION_WITHOUT_REVISION)"
+	md5sum ../scst-$(VERSION_WITHOUT_REVISION).tar.bz2	\
+	  > ../scst-$(VERSION_WITHOUT_REVISION).tar.bz2.md5sum
+	$(MAKE) 2debug
+
+multiple-release-archives:
 	$(MAKE) 2release
 	for m in $$(find -name Makefile |			\
 		    xargs grep -l '^release-archive:' |		\
