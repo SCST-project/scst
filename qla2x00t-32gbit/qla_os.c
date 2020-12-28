@@ -921,8 +921,8 @@ qla2xxx_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
 			goto qc24_fail_command;
 	}
 
-	if (!fcport) {
-		cmd->result = DID_NO_CONNECT << 16;
+	if (!fcport || fcport->deleted) {
+		cmd->result = DID_IMM_RETRY << 16;
 		goto qc24_fail_command;
 	}
 
@@ -1003,8 +1003,8 @@ qla2xxx_mqueuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd,
 		goto qc24_fail_command;
 	}
 
-	if (!fcport) {
-		cmd->result = DID_NO_CONNECT << 16;
+	if (!fcport || fcport->deleted) {
+		cmd->result = DID_IMM_RETRY << 16;
 		goto qc24_fail_command;
 	}
 
