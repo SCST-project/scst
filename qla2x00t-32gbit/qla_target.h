@@ -891,6 +891,7 @@ struct qla_tgt_cmd {
 	uint8_t cmd_type;
 	uint8_t pad[7];
 	struct se_cmd se_cmd;
+	struct list_head sess_cmd_list;
 	struct scst_cmd *scst_cmd;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0)
 	/*

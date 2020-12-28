@@ -1,8 +1,7 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  * QLogic Fibre Channel HBA Driver
  * Copyright (c)  2003-2017 QLogic Corporation
- *
- * See LICENSE.qla2xxx for copyright and licensing details.
  */
 
 #include <linux/version.h>
@@ -50,9 +49,11 @@ int qla_nvme_register_remote(struct scsi_qla_host *vha, struct fc_port *fcport)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
 	/*
 	 * See also commit 9dd9686b1419 ("scsi: qla2xxx: Add changes for
-	 * devloss timeout in driver") # v4.17.
+	 * devloss timeout in driver") # v4.17. See also commit dd8d0bf6fb72
+	 * ("scsi: qla2xxx: Fix I/O failures during remote port toggle
+	 * testing") # v5.10.
 	 */
-	req.dev_loss_tmo = NVME_FC_DEV_LOSS_TMO;
+	req.dev_loss_tmo = 0;
 #endif
 
 	if (fcport->nvme_prli_service_param & NVME_PRLI_SP_INITIATOR)
@@ -79,6 +80,14 @@ int qla_nvme_register_remote(struct scsi_qla_host *vha, struct fc_port *fcport)
 		    ret);
 		return ret;
 	}
+
+	if (fcport->nvme_prli_service_param & NVME_PRLI_SP_SLER)
+		ql_log(ql_log_info, vha, 0x212a,
+		       "PortID:%06x Supports SLER\n", req.port_id);
+
+	if (fcport->nvme_prli_service_param & NVME_PRLI_SP_PI_CTRL)
+		ql_log(ql_log_info, vha, 0x212b,
+		       "PortID:%06x Supports PI control\n", req.port_id);
 
 	rport = fcport->nvme_remote_port->private;
 	rport->fcport = fcport;
@@ -231,7 +240,7 @@ static void qla_nvme_abort_work(struct work_struct *work)
 	       "%s called for sp=%p, hndl=%x on fcport=%p deleted=%d\n",
 	       __func__, sp, sp->handle, fcport, fcport->deleted);
 
-	if (!ha->flags.fw_started && fcport->deleted)
+	if (!ha->flags.fw_started || fcport->deleted)
 		goto out;
 
 	if (ha->flags.host_shutting_down) {
@@ -379,6 +388,7 @@ static inline int qla2x00_start_nvme_mq(srb_t *sp)
 	struct srb_iocb *nvme = &sp->u.iocb_cmd;
 	struct scatterlist *sgl, *sg;
 	struct nvmefc_fcp_req *fd = nvme->u.nvme.desc;
+	struct nvme_fc_cmd_iu *cmd = fd->cmdaddr;
 	uint32_t        rval = QLA_SUCCESS;
 
 	/* Setup qpair pointers */
@@ -410,8 +420,6 @@ static inline int qla2x00_start_nvme_mq(srb_t *sp)
 	}
 
 	if (unlikely(!fd->sqid)) {
-		struct nvme_fc_cmd_iu *cmd = fd->cmdaddr;
-
 		if (cmd->sqe.common.opcode == nvme_admin_async_event) {
 			nvme->u.nvme.aen_op = 1;
 			atomic_inc(&ha->nvme_active_aen_cnt);
@@ -439,8 +447,8 @@ static inline int qla2x00_start_nvme_mq(srb_t *sp)
 	/* No data transfer how do we check buffer len == 0?? */
 	if (fd->io_dir == NVMEFC_FCP_READ) {
 		cmd_pkt->control_flags = cpu_to_le16(CF_READ_DATA);
-		vha->qla_stats.input_bytes += fd->payload_length;
-		vha->qla_stats.input_requests++;
+		qpair->counters.input_bytes += fd->payload_length;
+		qpair->counters.input_requests++;
 	} else if (fd->io_dir == NVMEFC_FCP_WRITE) {
 		cmd_pkt->control_flags = cpu_to_le16(CF_WRITE_DATA);
 		if ((vha->flags.nvme_first_burst) &&
@@ -452,10 +460,15 @@ static inline int qla2x00_start_nvme_mq(srb_t *sp)
 				cmd_pkt->control_flags |=
 					cpu_to_le16(CF_NVME_FIRST_BURST_ENABLE);
 		}
-		vha->qla_stats.output_bytes += fd->payload_length;
-		vha->qla_stats.output_requests++;
+		qpair->counters.output_bytes += fd->payload_length;
+		qpair->counters.output_requests++;
 	} else if (fd->io_dir == 0) {
 		cmd_pkt->control_flags = 0;
+	}
+	/* Set BIT_13 of control flags for Async event */
+	if (vha->flags.nvme2_enabled &&
+	    cmd->sqe.common.opcode == nvme_admin_async_event) {
+		cmd_pkt->control_flags |= cpu_to_le16(CF_ADMIN_ASYNC_EVENT);
 	}
 
 	/* Set NPORT-ID */
@@ -541,7 +554,7 @@ static int qla_nvme_post_cmd(struct nvme_fc_local_port *lport,
 	fc_port_t *fcport;
 	struct srb_iocb *nvme;
 	struct scsi_qla_host *vha;
-	int rval = -ENODEV;
+	int rval;
 	srb_t *sp;
 	struct qla_qpair *qpair = hw_queue_handle;
 	struct nvme_private *priv = fd->private;
@@ -549,16 +562,22 @@ static int qla_nvme_post_cmd(struct nvme_fc_local_port *lport,
 
 	if (!priv) {
 		/* nvme association has been torn down */
-		return rval;
+		return -ENODEV;
 	}
 
 	fcport = qla_rport->fcport;
 
-	if (!qpair || !fcport || (qpair && !qpair->fw_started) ||
-	    (fcport && fcport->deleted))
-		return rval;
+	if (unlikely(!qpair || !fcport || fcport->deleted))
+		return -EBUSY;
+
+	if (!(fcport->nvme_flag & NVME_FLAG_REGISTERED))
+		return -ENODEV;
 
 	vha = fcport->vha;
+
+	if (test_bit(ABORT_ISP_ACTIVE, &vha->dpc_flags))
+		return -EBUSY;
+
 	/*
 	 * If we know the dev is going away while the transport is still sending
 	 * IO's return busy back to stall the IO Q.  This happens when the
