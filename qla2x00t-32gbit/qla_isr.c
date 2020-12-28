@@ -4056,10 +4056,12 @@ msix_failed:
 	if (USER_CTRL_IRQ(ha) || !ha->mqiobase) {
 		/* user wants to control IRQ setting for target mode */
 		ret = pci_alloc_irq_vectors(ha->pdev, min_vecs,
-		    ha->msix_count, PCI_IRQ_MSIX);
+		    min((u16)ha->msix_count, (u16)num_online_cpus()),
+		    PCI_IRQ_MSIX);
 	} else
 		ret = pci_alloc_irq_vectors_affinity(ha->pdev, min_vecs,
-		    ha->msix_count, PCI_IRQ_MSIX | PCI_IRQ_AFFINITY,
+		    min((u16)ha->msix_count, (u16)num_online_cpus()),
+		    PCI_IRQ_MSIX | PCI_IRQ_AFFINITY,
 		    &desc);
 #endif
 
