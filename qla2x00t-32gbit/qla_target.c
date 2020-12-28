@@ -3828,7 +3828,7 @@ int qlt_abort_cmd(struct qla_tgt_cmd *cmd)
 		 */
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0xf016, "multiple abort. %p\n",
 		       cmd);
-		return EIO;
+		return -EIO;
 	}
 	cmd->aborted = 1;
 	cmd->trc_flags |= TRC_ABORT;
