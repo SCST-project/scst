@@ -49,9 +49,11 @@ int qla_nvme_register_remote(struct scsi_qla_host *vha, struct fc_port *fcport)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 17, 0)
 	/*
 	 * See also commit 9dd9686b1419 ("scsi: qla2xxx: Add changes for
-	 * devloss timeout in driver") # v4.17.
+	 * devloss timeout in driver") # v4.17. See also commit dd8d0bf6fb72
+	 * ("scsi: qla2xxx: Fix I/O failures during remote port toggle
+	 * testing") # v5.10.
 	 */
-	req.dev_loss_tmo = NVME_FC_DEV_LOSS_TMO;
+	req.dev_loss_tmo = 0;
 #endif
 
 	if (fcport->nvme_prli_service_param & NVME_PRLI_SP_INITIATOR)
