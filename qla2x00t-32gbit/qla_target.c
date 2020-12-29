@@ -2129,7 +2129,7 @@ static int __qlt_24xx_handle_abts(struct scsi_qla_host *vha,
 #endif
 
 	abort_cmd = ha->tgt.tgt_ops->find_cmd_by_tag(sess,
- 				le32_to_cpu(abts->exchange_addr_to_abort));
+				le32_to_cpu(abts->exchange_addr_to_abort));
 	if (!abort_cmd)
 		return -EIO;
 	mcmd->unpacked_lun = abort_cmd->se_cmd.orig_fe_lun;
@@ -2139,8 +2139,8 @@ static int __qlt_24xx_handle_abts(struct scsi_qla_host *vha,
 		mcmd->se_cmd.cpuid = abort_cmd->se_cmd.cpuid;
 		mcmd->abort_io_attr = abort_cmd->atio.u.isp24.attr;
 		mcmd->flags = QLA24XX_MGMT_ABORT_IO_ATTR_VALID;
- 	}
- 
+	}
+
 	INIT_WORK(&mcmd->work, qlt_do_tmr_work);
 #if HAVE_SE_CMD_CPUID
 	queue_work_on(mcmd->se_cmd.cpuid, qla_tgt_wq, &mcmd->work);
