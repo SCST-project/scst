@@ -2136,7 +2136,9 @@ static int __qlt_24xx_handle_abts(struct scsi_qla_host *vha,
 
 	if (abort_cmd->qpair) {
 		mcmd->qpair = abort_cmd->qpair;
+#if HAVE_SE_CMD_CPUID
 		mcmd->se_cmd.cpuid = abort_cmd->se_cmd.cpuid;
+#endif
 		mcmd->abort_io_attr = abort_cmd->atio.u.isp24.attr;
 		mcmd->flags = QLA24XX_MGMT_ABORT_IO_ATTR_VALID;
 	}
