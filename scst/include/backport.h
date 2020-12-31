@@ -381,6 +381,40 @@ static inline bool cpumask_equal(const cpumask_t *src1p,
 }
 #endif
 
+/* <linux/debugfs.h> */
+
+/*
+ * See also commit c64688081490 ("debugfs: add support for self-protecting
+ * attribute file fops") # v4.7.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+#define DEFINE_DEBUGFS_ATTRIBUTE(__fops, __get, __set, __fmt)		\
+static int __fops ## _open(struct inode *inode, struct file *file)	\
+{									\
+	__simple_attr_check_format(__fmt, 0ull);			\
+	return simple_attr_open(inode, file, __get, __set, __fmt);	\
+}									\
+static const struct file_operations __fops = {				\
+	.owner	 = THIS_MODULE,						\
+	.open	 = __fops ## _open,					\
+	.release = simple_attr_release,					\
+	.read	 = debugfs_attr_read,					\
+	.write	 = debugfs_attr_write,					\
+	.llseek  = no_llseek,						\
+}
+
+static inline ssize_t debugfs_attr_read(struct file *file, char __user *buf,
+					size_t len, loff_t *ppos)
+{
+	return -ENOENT;
+}
+static inline ssize_t debugfs_attr_write(struct file *file,
+		const char __user *buf, size_t len, loff_t *ppos)
+{
+	return -ENOENT;
+}
+#endif
+
 /* <linux/device.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0)
@@ -1681,6 +1715,28 @@ static inline void sg_unmark_end(struct scatterlist *sg)
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) && !defined(MIN_NICE)
 #define MIN_NICE -20
+#endif
+
+/* <linux/seq_file.h> */
+
+/*
+ * See also commit a08f06bb7a07 ("seq_file: Introduce DEFINE_SHOW_ATTRIBUTE()
+ * helper macro") # v4.16.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0)
+#define DEFINE_SHOW_ATTRIBUTE(__name)					\
+static int __name ## _open(struct inode *inode, struct file *file)	\
+{									\
+	return single_open(file, __name ## _show, inode->i_private);	\
+}									\
+									\
+static const struct file_operations __name ## _fops = {			\
+	.owner		= THIS_MODULE,					\
+	.open		= __name ## _open,				\
+	.read		= seq_read,					\
+	.llseek		= seq_lseek,					\
+	.release	= single_release,				\
+}
 #endif
 
 /* <linux/slab.h> */

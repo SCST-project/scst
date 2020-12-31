@@ -21,8 +21,12 @@ qla_dfs_rport_get(struct fc_port *fp, int attr_id, u64 *val)
 		/* Only supported for FC-NVMe devices that are registered. */
 		if (!(fp->nvme_flag & NVME_FLAG_REGISTERED))
 			return -EIO;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
 		*val = fp->nvme_remote_port->dev_loss_tmo;
 		break;
+#else
+		return -EINVAL;
+#endif
 	default:
 		return -EINVAL;
 	}
@@ -37,7 +41,7 @@ qla_dfs_rport_set(struct fc_port *fp, int attr_id, u64 val)
 		/* Only supported for FC-NVMe devices that are registered. */
 		if (!(fp->nvme_flag & NVME_FLAG_REGISTERED))
 			return -EIO;
-#if (IS_ENABLED(CONFIG_NVME_FC))
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0) && IS_ENABLED(CONFIG_NVME_FC)
 		return nvme_fc_set_remoteport_devloss(fp->nvme_remote_port,
 						      val);
 #else /* CONFIG_NVME_FC */
