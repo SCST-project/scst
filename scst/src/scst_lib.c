@@ -6013,7 +6013,7 @@ EXPORT_SYMBOL(kernel_write);
 #endif
 
 /**
- * scst_writev - read data from a file into a kernel buffer
+ * scst_readv - read data from a file into a kernel buffer
  * @file: File to read from.
  * @vec:  Pointer to first element of struct kvec array.
  * @vlen: Number of elements of the kvec array.

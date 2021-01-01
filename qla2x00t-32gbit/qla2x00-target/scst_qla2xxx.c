@@ -667,6 +667,26 @@ done:
 	return res;
 }
 
+static struct qla_tgt_cmd *
+sqa_qla2xxx_find_cmd_by_tag(struct fc_port *fcport, uint64_t tag)
+{
+	struct scst_session *sess = fcport->se_sess->fabric_sess_ptr;
+	struct qla_tgt_cmd *qla_cmd = NULL;
+	struct scst_cmd *cmd;
+	unsigned long flags;
+
+	spin_lock_irqsave(&sess->sess_list_lock, flags);
+	list_for_each_entry(cmd, &sess->sess_cmd_list, sess_cmd_list_entry) {
+		if (cmd->tag == tag) {
+			qla_cmd = scst_cmd_get_tgt_priv(cmd);
+			break;
+		}
+	}
+	spin_unlock_irqrestore(&sess->sess_list_lock, flags);
+
+	return qla_cmd;
+}
+
 static void sqa_qla2xxx_free_cmd(struct qla_tgt_cmd *cmd)
 {
 	struct scst_cmd *scst_cmd = cmd->scst_cmd;
@@ -1859,6 +1879,7 @@ static struct qla_tgt_func_tmpl sqa_qla2xxx_template = {
 	.handle_cmd		    = sqa_qla2xxx_handle_cmd,
 	.handle_data		    = sqa_qla2xxx_handle_data,
 	.handle_tmr		    = sqa_qla2xxx_handle_tmr,
+	.find_cmd_by_tag	    = sqa_qla2xxx_find_cmd_by_tag,
 	.get_cmd		    = sqa_qla2xxx_get_cmd,
 	.rel_cmd		    = sqa_qla2xxx_rel_cmd,
 	.free_cmd		    = sqa_qla2xxx_free_cmd,
