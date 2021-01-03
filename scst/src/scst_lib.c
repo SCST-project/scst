@@ -16,6 +16,7 @@
  *  GNU General Public License for more details.
  */
 
+#include <linux/version.h>
 #include <linux/aio.h>		/* struct kiocb for kernel v4.0 */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -31,7 +32,9 @@
 #include <linux/ctype.h>
 #include <linux/delay.h>
 #include <linux/vmalloc.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
 #include <asm/kmap_types.h>
+#endif
 #include <asm/unaligned.h>
 #include <asm/checksum.h>
 #ifndef INSIDE_KERNEL_TREE
