@@ -519,7 +519,8 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 
 	TRACE_ENTRY();
 
-	if (!virt_dev->blockio || virt_dev->rd_only || virt_dev->nv_cache || virt_dev->wt_flag || !virt_dev->dev_active)
+	if (!virt_dev->blockio || virt_dev->rd_only || virt_dev->nv_cache ||
+	    virt_dev->wt_flag || !virt_dev->dev_active)
 		goto out;
 
 	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
@@ -564,7 +565,7 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 
 	virt_dev->dev_thin_provisioned = 0;
 
-	if (virt_dev->rd_only || (virt_dev->filename == NULL) || !virt_dev->dev_active)
+	if (virt_dev->rd_only || !virt_dev->filename || !virt_dev->dev_active)
 		goto check;
 
 	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
@@ -587,7 +588,8 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 				virt_dev->filename);
 			goto check;
 		}
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) || (defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
+#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) ||	\
+	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 		virt_dev->dev_thin_provisioned =
 			blk_queue_discard(bdev_get_queue(inode->i_bdev));
 #endif
@@ -686,7 +688,8 @@ static int vdisk_get_file_size(const struct scst_vdisk_dev *virt_dev,
 	sBUG_ON(!virt_dev->filename);
 
 	if (!virt_dev->dev_active) {
-		TRACE_DBG("Not active dev %s, skip reexaming", virt_dev->dev->virt_name);
+		TRACE_DBG("Not active dev %s, skip reexaming",
+			  virt_dev->dev->virt_name);
 		res = -EMEDIUMTYPE;
 		goto out;
 	}
@@ -7660,8 +7663,7 @@ out:
 }
 
 
-static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
-	char *buffer)
+static int vcdrom_change(struct scst_vdisk_dev *virt_dev, char *buffer)
 {
 	loff_t err;
 	char *old_fn, *p;
@@ -7674,8 +7676,9 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("virt_dev %s, empty %d, fd %p (dif_fd %p), filename %p", virt_dev->name,
-		virt_dev->cdrom_empty, virt_dev->fd, virt_dev->dif_fd, virt_dev->filename);
+	TRACE_DBG("virt_dev %s, empty %d, fd %p (dif_fd %p), filename %p",
+		  virt_dev->name, virt_dev->cdrom_empty, virt_dev->fd,
+		  virt_dev->dif_fd, virt_dev->filename);
 
 	sBUG_ON(virt_dev->dif_fd); /* DIF is not supported for CDROMs */
 
