@@ -6,7 +6,7 @@
  *  Copyright (C) 2007 Ming Zhang <blackmagic02881 at gmail dot com>
  *  Copyright (C) 2007 Ross Walker <rswwalker at hotmail dot com>
  *  Copyright (C) 2007 - 2018 Western Digital Corporation
- *  Copyright (C) 2008 - 2018 Bart Van Assche <bvanassche@acm.org>
+ *  Copyright (C) 2008 - 2020 Bart Van Assche <bvanassche@acm.org>
  *
  *  SCSI disk (type 0) and CDROM (type 5) dev handler using files
  *  on file systems or block devices (VDISK)
@@ -191,6 +191,7 @@ struct scst_vdisk_dev {
 	struct file *fd;
 	struct file *dif_fd;
 	struct block_device *bdev;
+	fmode_t bdev_mode;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 	struct bio_set *vdisk_bioset;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
@@ -1321,21 +1322,35 @@ static void vdisk_detach(struct scst_device *dev)
 	return;
 }
 
+static bool vdisk_is_open(const struct scst_vdisk_dev *virt_dev)
+{
+	return virt_dev->fd || virt_dev->bdev;
+}
+
 static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 {
 	int res;
 
 	sBUG_ON(!virt_dev->filename);
-	sBUG_ON(virt_dev->fd);
+	sBUG_ON(vdisk_is_open(virt_dev));
 
-	virt_dev->fd = vdev_open_fd(virt_dev, virt_dev->filename, read_only);
-	if (IS_ERR(virt_dev->fd)) {
-		res = PTR_ERR(virt_dev->fd);
+	if (virt_dev->blockio) {
+		virt_dev->bdev_mode = FMODE_READ;
+		if (!read_only)
+			virt_dev->bdev_mode |= FMODE_WRITE;
+		virt_dev->bdev = blkdev_get_by_path(virt_dev->filename,
+					virt_dev->bdev_mode, (void *)__func__);
+		res = IS_ERR(virt_dev->bdev) ? PTR_ERR(virt_dev->bdev) : 0;
+	} else {
+		virt_dev->fd = vdev_open_fd(virt_dev, virt_dev->filename,
+					    read_only);
+		res = IS_ERR(virt_dev->fd) ? PTR_ERR(virt_dev->fd) : 0;
+	}
+	if (res) {
+		virt_dev->bdev = NULL;
 		virt_dev->fd = NULL;
 		goto out;
 	}
-	virt_dev->bdev = virt_dev->blockio ? file_inode(virt_dev->fd)->i_bdev : NULL;
-	res = 0;
 
 	/*
 	 * For block devices, get the optimal I/O size from the block device
@@ -1355,27 +1370,34 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 		}
 	}
 
-	TRACE_DBG("virt_dev %s: fd %p open (dif_fd %p)", virt_dev->name,
-		virt_dev->fd, virt_dev->dif_fd);
+	TRACE_DBG("virt_dev %s: fd %p %p open (dif_fd %p)", virt_dev->name,
+		  virt_dev->fd, virt_dev->bdev, virt_dev->dif_fd);
 
 out:
 	return res;
 
 out_close_fd:
-	filp_close(virt_dev->fd, NULL);
-	virt_dev->fd = NULL;
+	if (virt_dev->blockio) {
+		blkdev_put(virt_dev->bdev, virt_dev->bdev_mode);
+		virt_dev->bdev = NULL;
+	} else {
+		filp_close(virt_dev->fd, NULL);
+		virt_dev->fd = NULL;
+	}
 	goto out;
 }
 
 static void vdisk_close_fd(struct scst_vdisk_dev *virt_dev)
 {
-	TRACE_DBG("virt_dev %s: closing fd %p (dif_fd %p)", virt_dev->name,
-		virt_dev->fd, virt_dev->dif_fd);
+	TRACE_DBG("virt_dev %s: closing fd %p %p (dif_fd %p)", virt_dev->name,
+		  virt_dev->fd, virt_dev->bdev, virt_dev->dif_fd);
 
-	if (virt_dev->fd) {
+	if (virt_dev->bdev) {
+		blkdev_put(virt_dev->bdev, virt_dev->bdev_mode);
+		virt_dev->bdev = NULL;
+	} else if (virt_dev->fd) {
 		filp_close(virt_dev->fd, NULL);
 		virt_dev->fd = NULL;
-		virt_dev->bdev = NULL;
 	}
 	if (virt_dev->dif_fd) {
 		filp_close(virt_dev->dif_fd, NULL);
@@ -1405,7 +1427,7 @@ static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 
 	virt_dev->tgt_dev_cnt++;
 
-	if (virt_dev->fd != NULL)
+	if (vdisk_is_open(virt_dev))
 		goto out;
 
 	if (!virt_dev->nullio && !virt_dev->cdrom_empty) {
@@ -1421,6 +1443,7 @@ static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 		}
 	} else {
 		virt_dev->fd = NULL;
+		virt_dev->bdev = NULL;
 		virt_dev->dif_fd = NULL;
 	}
 
@@ -1810,7 +1833,6 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 #else
 	int res;
 #endif
-	struct file *fd = virt_dev->fd;
 
 	TRACE_ENTRY();
 
@@ -1868,6 +1890,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 	} else {
 		loff_t off = start_lba << cmd->dev->block_shift;
 		loff_t len = blocks << cmd->dev->block_shift;
+		struct file *fd = virt_dev->fd;
 
 		res = vdisk_unmap_file_range(cmd, virt_dev, off, len, fd);
 		if (unlikely(res != 0))
@@ -3390,7 +3413,7 @@ static enum scst_exec_res blockio_exec(struct scst_cmd *cmd)
 	if (unlikely(!vdisk_parse_offset(&p, cmd)))
 		goto err;
 
-	if (unlikely(virt_dev->fd == NULL)) {
+	if (unlikely(virt_dev->bdev == NULL)) {
 		if (!vdisk_no_fd_allowed_commands(cmd)) {
 			/*
 			 * We should not get here, unless the user space
@@ -4533,7 +4556,7 @@ static int vdisk_set_wt(struct scst_vdisk_dev *virt_dev, int wt, bool read_only)
 	 * MODE SELECT is a strictly serialized command so it's safe to reopen
 	 * the fd.
 	 */
-	if (virt_dev->fd) {
+	if (vdisk_is_open(virt_dev)) {
 		res = vdisk_reopen_fd(virt_dev, read_only);
 		if (res < 0)
 			goto out_err;
@@ -7686,7 +7709,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev, char *buffer)
 		res = vdisk_get_file_size(virt_dev, &err);
 		if (res != 0)
 			goto out_free_fn;
-		if (virt_dev->fd == NULL) {
+		if (!vdisk_is_open(virt_dev)) {
 			res = vdisk_reopen_fd(virt_dev, true);
 			if (res != 0)
 				goto out_free_fn;
@@ -7696,6 +7719,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev, char *buffer)
 		err = 0;
 		virt_dev->filename = NULL;
 		virt_dev->fd = NULL;
+		virt_dev->bdev = NULL;
 	}
 
 	virt_dev->file_size = err;
@@ -7852,7 +7876,7 @@ static int vdev_size_process_store(struct scst_sysfs_work_item *work)
 
 	virt_dev = dev->dh_priv;
 
-	queue_ua = (virt_dev->fd != NULL);
+	queue_ua = vdisk_is_open(virt_dev);
 
 	if ((new_size & ((1 << virt_dev->blk_shift) - 1)) == 0) {
 		virt_dev->file_size = new_size;
