@@ -59,7 +59,16 @@ static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 
 	i = &scst_percpu_infos[smp_processor_id()];
 
-	if (atomic_read(&i->cpu_cmd_count) <= scst_max_tasklet_cmd) {
+	/*
+	 * Commands are removed from the list they are on before being
+	 * processed. If both lists are empty that means that at most two
+	 * commands are being processed and hence that processing a
+	 * command in tasklet context is possible without making a CPU core
+	 * spend all its time in interrupt and tasklet context and thereby
+	 * starving threads scheduled on the same CPU core.
+	 */
+	if (list_empty_careful(&i->tasklet_cmd_list) &&
+	    list_empty_careful(&cmd->cmd_threads->active_cmd_list)) {
 		spin_lock_irqsave(&i->tasklet_lock, flags);
 		TRACE_DBG("Adding cmd %p to tasklet %d cmd list", cmd,
 			smp_processor_id());
@@ -69,8 +78,8 @@ static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 		tasklet_schedule(&i->tasklet);
 	} else {
 		spin_lock_irqsave(&cmd->cmd_threads->cmd_list_lock, flags);
-		TRACE_DBG("Too many tasklet commands (%d), adding cmd %p to "
-			"active cmd list", atomic_read(&i->cpu_cmd_count), cmd);
+		TRACE_DBG("Too many tasklet commands, adding cmd %p to active cmd list",
+			  cmd);
 		list_add_tail(&cmd->cmd_list_entry,
 			&cmd->cmd_threads->active_cmd_list);
 		wake_up(&cmd->cmd_threads->cmd_list_waitQ);
