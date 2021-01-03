@@ -1657,7 +1657,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_len_off = 6, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_len_4},
 	{.ops = 0xBF, .devkey = "     O          ",
-	 .info_op_name = "SEND DVD STRUCTUE",
+	 .info_op_name = "SEND DVD STRUCTURE",
 	 .info_data_direction = SCST_DATA_WRITE,
 	 .info_op_flags = FLAG_NONE,
 	 .info_len_off = 8, .info_len_len = 4,
