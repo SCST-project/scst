@@ -1417,6 +1417,16 @@ static void vdisk_close_fd(struct scst_vdisk_dev *virt_dev)
 	}
 }
 
+static int vdisk_reopen_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
+{
+	/*
+	 * To do: make this function transactional. That means that it either
+	 * succeeds or does not modify the state of @virt_dev.
+	 */
+	vdisk_close_fd(virt_dev);
+	return vdisk_open_fd(virt_dev, read_only);
+}
+
 /* Invoked with scst_mutex held, so no further locking is necessary here. */
 static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 {
@@ -4541,7 +4551,6 @@ out_not_sup:
 static int vdisk_set_wt(struct scst_vdisk_dev *virt_dev, int wt, bool read_only)
 {
 	int res = 0;
-	struct file *fd, *dif_fd = NULL;
 	bool old_wt = virt_dev->wt_flag;
 
 	TRACE_ENTRY();
@@ -4553,41 +4562,19 @@ static int vdisk_set_wt(struct scst_vdisk_dev *virt_dev, int wt, bool read_only)
 	virt_dev->wt_flag = wt;
 	spin_unlock(&virt_dev->flags_lock);
 
-	if (virt_dev->fd == NULL)
-		goto out;
-
 	/*
-	 * MODE SELECT is strictly serialized command, so it's safe here
-	 * to reopen fd.
+	 * MODE SELECT is a strictly serialized command so it's safe to reopen
+	 * the fd.
 	 */
-
-	fd = vdev_open_fd(virt_dev, virt_dev->filename, read_only);
-	if (IS_ERR(fd)) {
-		res = PTR_ERR(fd);
-		goto out_err;
+	if (virt_dev->fd) {
+		res = vdisk_reopen_fd(virt_dev, read_only);
+		if (res < 0)
+			goto out_err;
 	}
-
-	if (virt_dev->dif_filename != NULL) {
-		dif_fd = vdev_open_fd(virt_dev, virt_dev->dif_filename, read_only);
-		if (IS_ERR(dif_fd)) {
-			res = PTR_ERR(dif_fd);
-			goto out_err_close_fd;
-		}
-	}
-
-	filp_close(virt_dev->fd, NULL);
-	if (virt_dev->dif_fd)
-		filp_close(virt_dev->dif_fd, NULL);
-
-	virt_dev->fd = fd;
-	virt_dev->dif_fd = dif_fd;
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_err_close_fd:
-	filp_close(fd, NULL);
 
 out_err:
 	spin_lock(&virt_dev->flags_lock);
@@ -7668,8 +7655,6 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev, char *buffer)
 	loff_t err;
 	char *old_fn, *p;
 	bool old_empty;
-	struct file *old_fd;
-	struct file *old_dif_fd;
 	const char *filename = NULL;
 	int length = strlen(buffer);
 	int res = 0;
@@ -7679,8 +7664,6 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev, char *buffer)
 	TRACE_DBG("virt_dev %s, empty %d, fd %p (dif_fd %p), filename %p",
 		  virt_dev->name, virt_dev->cdrom_empty, virt_dev->fd,
 		  virt_dev->dif_fd, virt_dev->filename);
-
-	sBUG_ON(virt_dev->dif_fd); /* DIF is not supported for CDROMs */
 
 	if (virt_dev->prevent_allow_medium_removal) {
 		PRINT_ERROR("Prevent medium removal for "
@@ -7710,8 +7693,6 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev, char *buffer)
 	mutex_lock(&scst_mutex);
 
 	old_empty = virt_dev->cdrom_empty;
-	old_fd = virt_dev->fd;
-	old_dif_fd = virt_dev->dif_fd;
 	old_fn = virt_dev->filename;
 
 	if (*filename == '\0') {
@@ -7739,18 +7720,10 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev, char *buffer)
 		if (res != 0)
 			goto out_free_fn;
 		if (virt_dev->fd == NULL) {
-			res = vdisk_open_fd(virt_dev, true);
+			res = vdisk_reopen_fd(virt_dev, true);
 			if (res != 0)
 				goto out_free_fn;
 			sBUG_ON(!virt_dev->fd);
-
-			TRACE_DBG("Closing old_fd %p", old_fd);
-			if (old_fd != NULL)
-				filp_close(old_fd, NULL);
-			if (old_dif_fd != NULL)
-				filp_close(old_dif_fd, NULL);
-			old_fd = NULL;
-			old_dif_fd = NULL;
 		}
 	} else {
 		err = 0;
@@ -7793,7 +7766,6 @@ out:
 	return res;
 
 out_free_fn:
-	virt_dev->fd = old_fd;
 	kfree(virt_dev->filename);
 	virt_dev->filename = old_fn;
 
