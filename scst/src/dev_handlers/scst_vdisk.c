@@ -7664,7 +7664,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 	char *buffer)
 {
 	loff_t err;
-	char *old_fn, *p, *pp;
+	char *old_fn, *p;
 	bool old_empty;
 	struct file *old_fd;
 	struct file *old_dif_fd;
@@ -7688,16 +7688,16 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev,
 
 	p = buffer;
 
+	/* Skip leading whitespace */
 	while (isspace(*p) && *p != '\0')
 		p++;
 	filename = p;
+	/* Strip trailing whitespace */
+	WARN_ON_ONCE(length == 0);
 	p = &buffer[length-1];
-	pp = &buffer[length];
-	while (isspace(*p) && (*p != '\0')) {
-		pp = p;
+	while (p > buffer && isspace(*p))
 		p--;
-	}
-	*pp = '\0';
+	p[1] = '\0';
 
 	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
