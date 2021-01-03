@@ -2081,7 +2081,7 @@ struct scst_cmd {
 
 	struct scst_session *sess;	/* corresponding session */
 
-	atomic_t *cpu_cmd_counter;
+	bool counted;
 
 	atomic_t cmd_ref;
 
@@ -2571,7 +2571,7 @@ struct scst_mgmt_cmd {
 
 	struct scst_session *sess;
 
-	atomic_t *cpu_cmd_counter;
+	bool counted;
 
 	/* Mgmt cmd state, one of SCST_MCMD_STATE_* constants */
 	int state;
@@ -5543,6 +5543,9 @@ struct scst_data_descriptor {
 	uint64_t sdd_blocks;
 };
 
+loff_t scst_file_size(const char *path, umode_t *mode);
+loff_t scst_bdev_size(const char *path);
+loff_t scst_file_or_bdev_size(const char *path);
 ssize_t scst_readv(struct file *file, const struct kvec *vec,
 		   unsigned long vlen, loff_t *pos);
 ssize_t scst_writev(struct file *file, const struct kvec *vec,

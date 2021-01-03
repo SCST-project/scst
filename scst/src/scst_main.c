@@ -112,8 +112,6 @@ struct kmem_cache *scst_cmd_cachep;
 unsigned long scst_trace_flag;
 #endif
 
-unsigned long scst_flags;
-
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 unsigned long scst_poll_ns = SCST_DEF_POLL_NS;
 #endif
@@ -122,6 +120,9 @@ int scst_max_tasklet_cmd = SCST_DEF_MAX_TASKLET_CMD;
 
 struct scst_cmd_threads scst_main_cmd_threads;
 
+static bool percpu_ref_killed;
+struct percpu_ref scst_cmd_count;
+struct percpu_ref scst_mcmd_count;
 struct scst_percpu_info scst_percpu_infos[NR_CPUS];
 
 spinlock_t scst_mcmd_lock;
@@ -796,13 +797,15 @@ static void __printf(2, 3) scst_to_syslog(void *arg, const char *fmt, ...)
 	return;
 }
 
+/*
+ * Number of SCST non-management commands, management commands and activities
+ * that are in progress. Must only be called if both scst_cmd_count and
+ * scst_mcmd_count are in atomic mode.
+ */
 int scst_get_cmd_counter(void)
 {
-	int i, res = 0;
-
-	for (i = 0; i < ARRAY_SIZE(scst_percpu_infos); i++)
-		res += atomic_read(&scst_percpu_infos[i].cpu_cmd_count);
-	return res;
+	return percpu_ref_read(&scst_cmd_count) +
+		percpu_ref_read(&scst_mcmd_count);
 }
 
 static int scst_susp_wait(unsigned long timeout)
@@ -820,7 +823,7 @@ static int scst_susp_wait(unsigned long timeout)
 		t = min(timeout, SCST_SUSP_WAIT_REPORT_TIMEOUT);
 
 	res = wait_event_interruptible_timeout(scst_dev_cmd_waitQ,
-			(scst_get_cmd_counter() == 0), t);
+			percpu_ref_killed, t);
 	if (res > 0) {
 		res = 0;
 		goto out;
@@ -836,13 +839,13 @@ static int scst_susp_wait(unsigned long timeout)
 
 	if (timeout != SCST_SUSPEND_TIMEOUT_UNLIMITED) {
 		res = wait_event_interruptible_timeout(scst_dev_cmd_waitQ,
-			(scst_get_cmd_counter() == 0), timeout - t);
+			percpu_ref_killed, timeout - t);
 		if (res == 0)
 			res = -EBUSY;
 		else if (res > 0)
 			res = 0;
 	} else {
-		wait_event(scst_dev_cmd_waitQ, scst_get_cmd_counter() == 0);
+		wait_event(scst_dev_cmd_waitQ, percpu_ref_killed);
 		res = 0;
 	}
 
@@ -855,17 +858,18 @@ out:
 }
 
 /*
- * scst_suspend_activity() - globally suspend any activity
+ * scst_suspend_activity() - globally suspend activity
  *
  * Description:
- *    Globally suspends any activity and doesn't return, until there are any
- *    active commands (state after SCST_CMD_STATE_INIT). Timeout parameter sets
- *    max time this function will wait for suspending or interrupted by a
- *    signal with the corresponding error status < 0. If timeout is
- *    SCST_SUSPEND_TIMEOUT_UNLIMITED, then it will wait virtually forever.
- *    On success returns 0.
+ *    Globally suspends SCSI command and SCSI management command processing and
+ *    waits until all active commands have finished (state after
+ *    SCST_CMD_STATE_INIT). The timeout parameter defines the maximum time this
+ *    function will wait until activity has been suspended. If this function is
+ *    interrupted by a signal, it returns a negative value. If the timeout value
+ *    is SCST_SUSPEND_TIMEOUT_UNLIMITED, then it will wait virtually forever.
+ *    Returns 0 upon success.
  *
- *    New arriving commands stay in the suspended state until
+ *    Newly arriving commands remain in the suspended state until
  *    scst_resume_activity() is called.
  */
 int scst_suspend_activity(unsigned long timeout)
@@ -892,14 +896,9 @@ int scst_suspend_activity(unsigned long timeout)
 	if (suspend_count > 1)
 		goto out_up;
 
-	set_bit(SCST_FLAG_SUSPENDING, &scst_flags);
-	set_bit(SCST_FLAG_SUSPENDED, &scst_flags);
-	/*
-	 * Assignment of SCST_FLAG_SUSPENDING and SCST_FLAG_SUSPENDED must be
-	 * ordered with cpu_cmd_count in scst_get(). Otherwise, lockless logic
-	 * of scst_get() users won't work.
-	 */
-	smp_mb__after_set_bit();
+	/* Cause scst_get_cmd() to fail. */
+	percpu_ref_killed = false;
+	percpu_ref_kill(&scst_cmd_count);
 
 	/*
 	 * See comment in scst_user.c::dev_user_task_mgmt_fn() for more
@@ -921,12 +920,13 @@ int scst_suspend_activity(unsigned long timeout)
 	}
 
 	res = scst_susp_wait(timeout);
-	if (res != 0)
-		goto out_clear;
 
-	clear_bit(SCST_FLAG_SUSPENDING, &scst_flags);
-	/* See comment about smp_mb() above */
-	smp_mb__after_clear_bit();
+	/* Cause scst_get_mcmd() to fail. */
+	percpu_ref_killed = false;
+	percpu_ref_kill(&scst_mcmd_count);
+
+	if (res != 0)
+		goto out_resume;
 
 	if (scst_get_cmd_counter() != 0)
 		TRACE_MGMT_DBG("Waiting for %d active commands finally to "
@@ -964,11 +964,6 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-out_clear:
-	clear_bit(SCST_FLAG_SUSPENDING, &scst_flags);
-	/* See comment about smp_mb() above */
-	smp_mb__after_clear_bit();
-
 out_resume:
 	__scst_resume_activity();
 	EXTRACHECKS_BUG_ON(suspend_count != 0);
@@ -994,7 +989,8 @@ static void __scst_resume_activity(void)
 	if (suspend_count > 0)
 		goto out;
 
-	clear_bit(SCST_FLAG_SUSPENDED, &scst_flags);
+	percpu_ref_resurrect(&scst_mcmd_count);
+	percpu_ref_resurrect(&scst_cmd_count);
 
 	mutex_lock(&scst_cmd_threads_mutex);
 	list_for_each_entry(l, &scst_cmd_threads_list, lists_list_entry) {
@@ -1004,7 +1000,7 @@ static void __scst_resume_activity(void)
 
 	/*
 	 * Wait until scst_init_thread() either is waiting or has reexamined
-	 * scst_flags.
+	 * scst_cmd_count.
 	 */
 	spin_lock_irq(&scst_init_lock);
 	spin_unlock_irq(&scst_init_lock);
@@ -2318,6 +2314,13 @@ static void __init scst_print_config(void)
 		PRINT_INFO("%s", buf);
 }
 
+static void scst_suspended(struct percpu_ref *ref)
+{
+	WARN_ON_ONCE(ref != &scst_cmd_count && ref != &scst_mcmd_count);
+	percpu_ref_killed = true;
+	wake_up_all(&scst_dev_cmd_waitQ);
+}
+
 static int __init init_scst(void)
 {
 	int res, i;
@@ -2526,8 +2529,17 @@ static int __init init_scst(void)
 	if (res != 0)
 		goto out_destroy_sgv_pool;
 
+	res = percpu_ref_init(&scst_cmd_count, scst_suspended,
+			      PERCPU_REF_ALLOW_REINIT, GFP_KERNEL);
+	if (res != 0)
+		goto out_unreg_interface;
+
+	res = percpu_ref_init(&scst_mcmd_count, scst_suspended,
+			      PERCPU_REF_ALLOW_REINIT, GFP_KERNEL);
+	if (res != 0)
+		goto out_cmd_count;
+
 	for (i = 0; i < ARRAY_SIZE(scst_percpu_infos); i++) {
-		atomic_set(&scst_percpu_infos[i].cpu_cmd_count, 0);
 		spin_lock_init(&scst_percpu_infos[i].tasklet_lock);
 		INIT_LIST_HEAD(&scst_percpu_infos[i].tasklet_cmd_list);
 		tasklet_init(&scst_percpu_infos[i].tasklet,
@@ -2565,9 +2577,13 @@ out:
 
 out_thread_free:
 	scst_stop_global_threads();
+	percpu_ref_exit(&scst_mcmd_count);
 
+out_cmd_count:
+	percpu_ref_exit(&scst_cmd_count);
+
+out_unreg_interface:
 	scsi_unregister_interface(&scst_interface);
-
 
 out_destroy_sgv_pool:
 	scst_sgv_pools_deinit();
@@ -2650,6 +2666,9 @@ static void __exit exit_scst(void)
 	scst_stop_global_threads();
 
 	scst_deinit_threads(&scst_main_cmd_threads);
+
+	percpu_ref_exit(&scst_mcmd_count);
+	percpu_ref_exit(&scst_cmd_count);
 
 	scsi_unregister_interface(&scst_interface);
 

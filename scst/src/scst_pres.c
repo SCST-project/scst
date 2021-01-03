@@ -660,7 +660,6 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 {
 	int res = 0, rc;
 	struct file *file = NULL;
-	struct inode *inode;
 	char *buf = NULL;
 	loff_t file_size, pos, data_size;
 	uint64_t sign, version;
@@ -676,25 +675,18 @@ static int scst_pr_do_load_device_file(struct scst_device *dev,
 
 	TRACE_PR("Loading persistent file '%s'", file_name);
 
+	file_size = scst_file_or_bdev_size(file_name);
+	if (file_size < 0) {
+		res = file_size;
+		goto out;
+	}
+
 	file = filp_open(file_name, O_RDONLY, 0);
 	if (IS_ERR(file)) {
 		res = PTR_ERR(file);
 		TRACE_PR("Unable to open file '%s' - error %d", file_name, res);
 		goto out;
 	}
-
-	inode = file_inode(file);
-
-	if (S_ISREG(inode->i_mode)) {
-		/* Nothing to do */
-	} else if (S_ISBLK(inode->i_mode)) {
-		inode = inode->i_bdev->bd_inode;
-	} else {
-		PRINT_ERROR("Invalid file mode 0x%x", inode->i_mode);
-		goto out_close;
-	}
-
-	file_size = inode->i_size;
 
 	/* Let's limit the file size by some reasonable number */
 	if ((file_size == 0) || (file_size >= 15*1024*1024)) {

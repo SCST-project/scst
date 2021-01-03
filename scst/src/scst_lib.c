@@ -16,6 +16,7 @@
  *  GNU General Public License for more details.
  */
 
+#include <linux/version.h>
 #include <linux/aio.h>		/* struct kiocb for kernel v4.0 */
 #include <linux/init.h>
 #include <linux/kernel.h>
@@ -31,7 +32,9 @@
 #include <linux/ctype.h>
 #include <linux/delay.h>
 #include <linux/vmalloc.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
 #include <asm/kmap_types.h>
+#endif
 #include <asm/unaligned.h>
 #include <asm/checksum.h>
 #ifndef INSIDE_KERNEL_TREE
@@ -5821,7 +5824,7 @@ struct scst_cmd *__scst_create_prepare_internal_cmd(const uint8_t *cdb,
 	}
 
 	scst_sess_get(res->sess);
-	res->cpu_cmd_counter = scst_get();
+	scst_get_icmd(res);
 
 	TRACE(TRACE_SCSI, "New internal cmd %p (op %s)", res,
 		scst_get_opcode_name(res));
@@ -6011,6 +6014,66 @@ ssize_t kernel_write(struct file *file, const void *buf, size_t count,
 }
 EXPORT_SYMBOL(kernel_write);
 #endif
+
+/**
+ * scst_file_size - returns the size of a regular file
+ * @path: Path of the file.
+ * @mode: If not NULL, the file mode will be stored in *@mode.
+ *
+ * Returns the file size or an error code.
+ */
+loff_t scst_file_size(const char *path, umode_t *mode)
+{
+	struct file *filp;
+	struct inode *inode;
+	loff_t res;
+
+	filp = filp_open(path, O_LARGEFILE | O_RDONLY, 0600);
+	if (IS_ERR(filp))
+		return PTR_ERR(filp);
+	inode = file_inode(filp);
+	if (mode)
+		*mode = inode->i_mode;
+	res = S_ISREG(inode->i_mode) ? i_size_read(file_inode(filp)) : -ENOTTY;
+	filp_close(filp, NULL);
+	return res;
+}
+EXPORT_SYMBOL(scst_file_size);
+
+/**
+ * scst_bdev_size - returns the size of a block device
+ * @path: Path of the block device.
+ *
+ * Returns the block device size or an error code.
+ */
+loff_t scst_bdev_size(const char *path)
+{
+	struct block_device *bdev;
+	loff_t res;
+
+	bdev = blkdev_get_by_path(path, FMODE_READ, (void *)__func__);
+	if (IS_ERR(bdev))
+		return PTR_ERR(bdev);
+	res = i_size_read(bdev->bd_inode);
+	blkdev_put(bdev, FMODE_READ);
+	return res;
+}
+EXPORT_SYMBOL(scst_bdev_size);
+
+loff_t scst_file_or_bdev_size(const char *path)
+{
+	enum { INVALID_FILE_MODE = 0 };
+	umode_t mode = INVALID_FILE_MODE;
+	loff_t res;
+
+	res = scst_file_size(path, &mode);
+	if (S_ISREG(mode))
+		return res;
+	if (mode != INVALID_FILE_MODE && !S_ISBLK(mode))
+		return -EINVAL;
+	return scst_bdev_size(path);
+}
+EXPORT_SYMBOL(scst_file_or_bdev_size);
 
 /**
  * scst_readv - read data from a file into a kernel buffer
@@ -7471,10 +7534,8 @@ static void scst_destroy_cmd(struct scst_cmd *cmd)
 
 	scst_sess_put(cmd->sess);
 
-	if (likely(cmd->cpu_cmd_counter)) {
-		scst_put(cmd->cpu_cmd_counter);
-		cmd->cpu_cmd_counter = NULL;
-	}
+	if (likely(cmd->counted))
+		scst_put_cmd(cmd);
 
 	EXTRACHECKS_BUG_ON(cmd->pre_alloced && cmd->internal);
 
@@ -7714,10 +7775,8 @@ void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 
 	scst_sess_put(mcmd->sess);
 
-	if (mcmd->cpu_cmd_counter) {
-		scst_put(mcmd->cpu_cmd_counter);
-		mcmd->cpu_cmd_counter = NULL;
-	}
+	if (mcmd->counted)
+		scst_put_mcmd(mcmd);
 
 	mempool_free(mcmd, scst_mgmt_mempool);
 
@@ -15130,7 +15189,6 @@ EXPORT_SYMBOL(scst_path_put);
 int scst_copy_file(const char *src, const char *dest)
 {
 	int res = 0;
-	struct inode *inode;
 	loff_t file_size, pos;
 	uint8_t *buf = NULL;
 	struct file *file_src = NULL, *file_dest = NULL;
@@ -15146,6 +15204,12 @@ int scst_copy_file(const char *src, const char *dest)
 
 	TRACE_DBG("Copying '%s' into '%s'", src, dest);
 
+	file_size = scst_file_or_bdev_size(src);
+	if (file_size < 0) {
+		res = file_size;
+		goto out;
+	}
+
 	file_src = filp_open(src, O_RDONLY, 0);
 	if (IS_ERR(file_src)) {
 		res = PTR_ERR(file_src);
@@ -15160,20 +15224,6 @@ int scst_copy_file(const char *src, const char *dest)
 			res);
 		goto out_close;
 	}
-
-	inode = file_inode(file_src);
-
-	if (S_ISREG(inode->i_mode)) {
-		/* Nothing to do */
-	} else if (S_ISBLK(inode->i_mode)) {
-		inode = inode->i_bdev->bd_inode;
-	} else {
-		PRINT_ERROR("Invalid file mode 0x%x", inode->i_mode);
-		res = -EINVAL;
-		goto out_skip;
-	}
-
-	file_size = inode->i_size;
 
 	buf = vmalloc(file_size);
 	if (buf == NULL) {
@@ -15329,12 +15379,17 @@ static int __scst_read_file_transactional(const char *file_name,
 {
 	int res;
 	struct file *file = NULL;
-	struct inode *inode;
 	loff_t file_size, pos;
 
 	TRACE_ENTRY();
 
 	TRACE_DBG("Loading file '%s'", file_name);
+
+	file_size = scst_file_or_bdev_size(file_name);
+	if (file_size < 0) {
+		res = file_size;
+		goto out;
+	}
 
 	file = filp_open(file_name, O_RDONLY, 0);
 	if (IS_ERR(file)) {
@@ -15342,20 +15397,6 @@ static int __scst_read_file_transactional(const char *file_name,
 		TRACE_DBG("Unable to open file '%s' - error %d", file_name, res);
 		goto out;
 	}
-
-	inode = file_inode(file);
-
-	if (S_ISREG(inode->i_mode)) {
-		/* Nothing to do */
-	} else if (S_ISBLK(inode->i_mode)) {
-		inode = inode->i_bdev->bd_inode;
-	} else {
-		PRINT_ERROR("Invalid file mode 0x%x", inode->i_mode);
-		res = -EINVAL;
-		goto out_close;
-	}
-
-	file_size = inode->i_size;
 
 	if (file_size > size) {
 		PRINT_ERROR("Supplied buffer (%d) too small (need %d)", size,

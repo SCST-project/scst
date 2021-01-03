@@ -161,6 +161,29 @@ static inline int bdev_io_opt(struct block_device *bdev)
 }
 #endif
 
+/*
+ * See also commit d4d77629953e ("block: clean up blkdev_get() wrappers and
+ * their users") # v2.6.38.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38)
+static inline struct block_device *
+blkdev_get_by_path(const char *path, fmode_t mode, void *holder)
+{
+	struct block_device *bdev;
+	int err;
+
+	bdev = lookup_bdev(path);
+	if (IS_ERR(bdev))
+		return bdev;
+
+	err = blkdev_get(bdev, mode);
+	if (err)
+		return ERR_PTR(err);
+
+	return bdev;
+}
+#endif
+
 /* <linux/bsg-lib.h> */
 
 /*
@@ -1206,11 +1229,13 @@ static inline int pcie_capability_read_dword(struct pci_dev *dev, int pos,
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 3, 0)
+#if !defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8
 /*
  * See also commit 09ed79d6d75f ("percpu_ref: introduce PERCPU_REF_ALLOW_REINIT
  * flag") # v5.3.
  */
 #define PERCPU_REF_ALLOW_REINIT 0
+#endif
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
