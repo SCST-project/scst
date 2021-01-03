@@ -74,20 +74,6 @@ extern unsigned long scst_trace_flag;
 
 #endif
 
-/**
- ** Bits for scst_flags
- **/
-
-/*
- * Set if new commands initialization is being suspended for a while.
- * Used to let TM commands execute while preparing the suspend, since
- * RESET or ABORT could be necessary to free SCSI commands.
- */
-#define SCST_FLAG_SUSPENDING		     0
-
-/* Set if new commands initialization is suspended for a while */
-#define SCST_FLAG_SUSPENDED		     1
-
 extern spinlock_t scst_measure_latency_lock;
 extern atomic_t scst_measure_latency;
 void scst_update_latency_stats(struct scst_cmd *cmd, int new_state);
@@ -184,7 +170,6 @@ extern struct kmem_cache *scst_tgt_cachep;
 extern struct kmem_cache *scst_tgtd_cachep;
 extern struct kmem_cache *scst_acgd_cachep;
 
-extern unsigned long scst_flags;
 extern struct list_head scst_template_list;
 extern struct list_head scst_dev_list;
 extern struct list_head scst_dev_type_list;
@@ -217,8 +202,9 @@ extern struct list_head scst_active_mgmt_cmd_list;
 extern struct list_head scst_delayed_mgmt_cmd_list;
 extern wait_queue_head_t scst_mgmt_cmd_list_waitQ;
 
+extern struct percpu_ref scst_cmd_count;
+extern struct percpu_ref scst_mcmd_count;
 struct scst_percpu_info {
-	atomic_t cpu_cmd_count;
 	spinlock_t tasklet_lock;
 	struct list_head tasklet_cmd_list;
 	struct tasklet_struct tasklet;
@@ -671,51 +657,64 @@ void scst_ext_blocking_done(struct scst_device *dev);
 int scst_get_suspend_count(void);
 
 /*
- * Increases global SCST ref counters which prevent from entering into suspended
- * activities stage, so protects from any global management operations.
+ * Increase the global command count if it has not been 'killed'. Use this
+ * function to protect regular commands.
  */
-static inline atomic_t *scst_get(void)
+static inline bool __must_check scst_get_cmd(struct scst_cmd *cmd)
 {
-	atomic_t *a;
-
-	/*
-	 * Avoid that a high I/O load prevents activity to be suspended. See
-	 * also http://sourceforge.net/p/scst/mailman/message/34074831/.
-	 */
-	if (unlikely(test_bit(SCST_FLAG_SUSPENDING, &scst_flags)))
-		mdelay(100);
-
-	/*
-	 * We don't mind if we because of preemption inc counter from another
-	 * CPU as soon in the majority cases we will the correct one.
-	 */
-	a = &scst_percpu_infos[raw_smp_processor_id()].cpu_cmd_count;
-	atomic_inc(a);
-	TRACE_DBG("Incrementing cpu_cmd_count %p (new value %d)",
-		a, atomic_read(a));
-	/* See comment about smp_mb() in scst_suspend_activity() */
-	smp_mb__after_atomic_inc();
-
-	return a;
+	if (!percpu_ref_tryget_live(&scst_cmd_count))
+		return false;
+	cmd->counted = true;
+	return true;
 }
 
 /*
- * Decreases global SCST ref counters which prevent from entering into suspended
- * activities stage, so protects from any global management operations. On
- * all them zero, if suspending activities is waiting, it will be proceed.
+ * Increase the global management command count if it is not zero. Use this
+ * function to protect management commands.
  */
-static inline void scst_put(atomic_t *a)
+static inline bool __must_check scst_get_mcmd(struct scst_mgmt_cmd *mcmd)
 {
-	int f;
+	if (!percpu_ref_tryget_live(&scst_mcmd_count))
+		return false;
+	mcmd->counted = true;
+	return true;
+}
 
-	f = atomic_dec_and_test(a);
-	/* See comment about smp_mb() in scst_suspend_activity() */
-	if (unlikely(test_bit(SCST_FLAG_SUSPENDED, &scst_flags)) && f) {
-		TRACE_MGMT_DBG("%s", "Waking up scst_dev_cmd_waitQ");
-		wake_up_all(&scst_dev_cmd_waitQ);
-	}
-	TRACE_DBG("Decrementing cpu_cmd_count %p (new value %d)",
-	      a, atomic_read(a));
+/*
+ * Increase the global command count. Use this function to protect internal
+ * commands.
+ */
+static inline void scst_get_icmd(struct scst_cmd *cmd)
+{
+	percpu_ref_get(&scst_cmd_count);
+	cmd->counted = true;
+}
+
+/* Decrease the global SCST refcount which prevents suspending activity. */
+static inline void scst_put_cmd(struct scst_cmd *cmd)
+{
+	WARN_ON_ONCE(!cmd->counted);
+	cmd->counted = false;
+	percpu_ref_put(&scst_cmd_count);
+}
+
+static inline void scst_put_mcmd(struct scst_mgmt_cmd *mcmd)
+{
+	WARN_ON_ONCE(!mcmd->counted);
+	mcmd->counted = false;
+	percpu_ref_put(&scst_mcmd_count);
+}
+
+/* Whether or not activities are being suspended or have been suspended. */
+static inline bool scst_activity_suspended(void)
+{
+	return percpu_ref_is_dying(&scst_cmd_count);
+}
+
+/* Returns true if and only if regular commands have already been suspended. */
+static inline bool scst_mcmd_suspended(void)
+{
+	return percpu_ref_is_dying(&scst_mcmd_count);
 }
 
 int scst_get_cmd_counter(void);

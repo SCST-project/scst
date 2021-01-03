@@ -5824,7 +5824,7 @@ struct scst_cmd *__scst_create_prepare_internal_cmd(const uint8_t *cdb,
 	}
 
 	scst_sess_get(res->sess);
-	res->cpu_cmd_counter = scst_get();
+	scst_get_icmd(res);
 
 	TRACE(TRACE_SCSI, "New internal cmd %p (op %s)", res,
 		scst_get_opcode_name(res));
@@ -7534,10 +7534,8 @@ static void scst_destroy_cmd(struct scst_cmd *cmd)
 
 	scst_sess_put(cmd->sess);
 
-	if (likely(cmd->cpu_cmd_counter)) {
-		scst_put(cmd->cpu_cmd_counter);
-		cmd->cpu_cmd_counter = NULL;
-	}
+	if (likely(cmd->counted))
+		scst_put_cmd(cmd);
 
 	EXTRACHECKS_BUG_ON(cmd->pre_alloced && cmd->internal);
 
@@ -7777,10 +7775,8 @@ void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 
 	scst_sess_put(mcmd->sess);
 
-	if (mcmd->cpu_cmd_counter) {
-		scst_put(mcmd->cpu_cmd_counter);
-		mcmd->cpu_cmd_counter = NULL;
-	}
+	if (mcmd->counted)
+		scst_put_mcmd(mcmd);
 
 	mempool_free(mcmd, scst_mgmt_mempool);
 

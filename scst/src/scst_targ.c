@@ -574,7 +574,7 @@ static void __scst_rx_cmd(struct scst_cmd *cmd, struct scst_session *sess,
 {
 	TRACE_ENTRY();
 
-	WARN_ON_ONCE(cmd->cpu_cmd_counter);
+	WARN_ON_ONCE(cmd->counted);
 
 	cmd->sess = sess;
 	scst_sess_get(sess);
@@ -4159,7 +4159,7 @@ struct scst_tgt_dev *scst_lookup_tgt_dev(struct scst_session *sess, u64 lun)
  * scst_translate_lun() - Translate @cmd->lun into a tgt_dev pointer.
  * @cmd: SCSI command for which to translate the LUN number.
  *
- * Initialize the following @cmd members: cpu_cmd_counter, cmd_threads,
+ * Initialize the following @cmd members: counted, cmd_threads,
  * tgt_dev, cur_order_data, dev and devt.
  *
  * The caller must not hold any locks. May be called from IRQ context. The data
@@ -4177,9 +4177,7 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	cmd->cpu_cmd_counter = scst_get();
-
-	if (likely(!test_bit(SCST_FLAG_SUSPENDED, &scst_flags))) {
+	if (likely(scst_get_cmd(cmd))) {
 		TRACE_DBG("Finding tgt_dev for cmd %p (lun %lld)", cmd,
 			(unsigned long long)cmd->lun);
 		res = -1;
@@ -4222,12 +4220,9 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 					cmd->sess->initiator_name, cmd->tgt->tgt_name);
 				scst_event_queue_lun_not_found(cmd);
 			}
-			scst_put(cmd->cpu_cmd_counter);
-			cmd->cpu_cmd_counter = NULL;
+			scst_put_cmd(cmd);
 		}
 	} else {
-		scst_put(cmd->cpu_cmd_counter);
-		cmd->cpu_cmd_counter = NULL;
 		TRACE_MGMT_DBG("%s", "FLAG SUSPENDED set, skipping");
 		res = 1;
 	}
@@ -4436,7 +4431,8 @@ restart:
 	 * There is no need for read barrier here, because we don't care where
 	 * this check will be done.
 	 */
-	susp = test_bit(SCST_FLAG_SUSPENDED, &scst_flags);
+	susp = scst_activity_suspended();
+
 	if (scst_init_poll_cnt > 0)
 		scst_init_poll_cnt--;
 
@@ -4497,13 +4493,13 @@ restart:
 	return;
 }
 
-static inline int test_init_cmd_list(void)
+/* Whether or not scst_init_thread() should stop waiting. */
+static inline bool test_init_cmd_list(void)
 {
-	int res = (!list_empty(&scst_init_cmd_list) &&
-		   !test_bit(SCST_FLAG_SUSPENDED, &scst_flags)) ||
-		  unlikely(kthread_should_stop()) ||
-		  (scst_init_poll_cnt > 0);
-	return res;
+	return (!list_empty(&scst_init_cmd_list) &&
+		!scst_activity_suspended()) ||
+		unlikely(kthread_should_stop()) ||
+		(scst_init_poll_cnt > 0);
 }
 
 int scst_init_thread(void *arg)
@@ -5024,9 +5020,8 @@ void scst_cmd_tasklet(long p)
 }
 
 /*
- * Returns 0 on success, or > 0 if SCST_FLAG_SUSPENDED set and
- * SCST_FLAG_SUSPENDING - not. No locks, protection is done by the
- * suspended activity.
+ * Returns 0 on success, or > 0 upon failure. No locks, protection is done by
+ * suspending activity.
  */
 static int scst_get_mgmt(struct scst_mgmt_cmd *mcmd)
 {
@@ -5034,12 +5029,7 @@ static int scst_get_mgmt(struct scst_mgmt_cmd *mcmd)
 
 	TRACE_ENTRY();
 
-	mcmd->cpu_cmd_counter = scst_get();
-
-	if (unlikely(test_bit(SCST_FLAG_SUSPENDED, &scst_flags) &&
-		     !test_bit(SCST_FLAG_SUSPENDING, &scst_flags))) {
-		scst_put(mcmd->cpu_cmd_counter);
-		mcmd->cpu_cmd_counter = NULL;
+	if (unlikely(!scst_get_mcmd(mcmd))) {
 		TRACE_MGMT_DBG("%s", "FLAG SUSPENDED set, skipping");
 		res = 1;
 		goto out;
@@ -5051,9 +5041,8 @@ out:
 }
 
 /*
- * Returns 0 on success, < 0 if there is no device handler or
- * > 0 if SCST_FLAG_SUSPENDED set and SCST_FLAG_SUSPENDING - not.
- * No locks, protection is done by the suspended activity.
+ * Returns 0 on success, < 0 if there is no device handler or > 0 if activity
+ * has been suspended. No locks, protection is done by the suspended activity.
  */
 static int scst_mgmt_translate_lun(struct scst_mgmt_cmd *mcmd)
 {
@@ -5078,8 +5067,7 @@ static int scst_mgmt_translate_lun(struct scst_mgmt_cmd *mcmd)
 		mcmd->mcmd_tgt_dev = tgt_dev;
 		res = 0;
 	} else {
-		scst_put(mcmd->cpu_cmd_counter);
-		mcmd->cpu_cmd_counter = NULL;
+		scst_put_mcmd(mcmd);
 		res = -1;
 	}
 
@@ -5911,10 +5899,14 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 			res = scst_set_mcmd_next_state(mcmd);
 			goto out;
 		}
-		__scst_cmd_get(cmd);
 		tgt_dev = cmd->tgt_dev;
-		if (tgt_dev != NULL)
-			mcmd->cpu_cmd_counter = scst_get();
+		if (tgt_dev && !scst_get_mcmd(mcmd)) {
+			TRACE_MGMT_DBG("Suspended; skipping mcmd");
+			spin_unlock_irq(&sess->sess_list_lock);
+			res = 1;
+			goto ret;
+		}
+		__scst_cmd_get(cmd);
 		spin_unlock_irq(&sess->sess_list_lock);
 		TRACE_DBG("Cmd to abort %p for tag %llu found (tgt_dev %p)",
 			cmd, (unsigned long long)mcmd->tag, tgt_dev);
@@ -5972,6 +5964,7 @@ static int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 out:
 	scst_event_queue_tm_fn_received(mcmd);
 
+ret:
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -6851,9 +6844,7 @@ int scst_tm_thread(void *arg)
 			rc = scst_process_mgmt_cmd(mcmd);
 			spin_lock_irq(&scst_mcmd_lock);
 			if (rc > 0) {
-				if (test_bit(SCST_FLAG_SUSPENDED, &scst_flags) &&
-				    !test_bit(SCST_FLAG_SUSPENDING,
-						&scst_flags)) {
+				if (scst_mcmd_suspended()) {
 					TRACE_MGMT_DBG("Adding mgmt cmd %p to "
 						"head of delayed mgmt cmd list",
 						mcmd);

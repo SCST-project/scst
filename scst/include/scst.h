@@ -2081,7 +2081,7 @@ struct scst_cmd {
 
 	struct scst_session *sess;	/* corresponding session */
 
-	atomic_t *cpu_cmd_counter;
+	bool counted;
 
 	atomic_t cmd_ref;
 
@@ -2571,7 +2571,7 @@ struct scst_mgmt_cmd {
 
 	struct scst_session *sess;
 
-	atomic_t *cpu_cmd_counter;
+	bool counted;
 
 	/* Mgmt cmd state, one of SCST_MCMD_STATE_* constants */
 	int state;
