@@ -514,8 +514,7 @@ out:
 
 static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 {
-	struct inode *inode;
-	struct file *fd;
+	struct block_device *bdev;
 
 	TRACE_ENTRY();
 
@@ -523,33 +522,26 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 	    virt_dev->wt_flag || !virt_dev->dev_active)
 		goto out;
 
-	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
-	if (IS_ERR(fd)) {
-		if ((PTR_ERR(fd) == -EMEDIUMTYPE) && virt_dev->blockio)
+	bdev = blkdev_get_by_path(virt_dev->filename, FMODE_READ,
+				  (void *)__func__);
+	if (IS_ERR(bdev)) {
+		if (PTR_ERR(bdev) == -EMEDIUMTYPE)
 			TRACE(TRACE_MINOR, "Unable to open %s with EMEDIUMTYPE, "
 				"DRBD passive?", virt_dev->filename);
 		else
-			PRINT_ERROR("filp_open(%s) failed: %ld",
-				virt_dev->filename, PTR_ERR(fd));
+			PRINT_ERROR("blkdev_get_by_path(%s) failed: %ld",
+				virt_dev->filename, PTR_ERR(bdev));
 		goto out;
 	}
 
-	inode = file_inode(fd);
-
-	if (!S_ISBLK(inode->i_mode)) {
-		PRINT_ERROR("%s is NOT a block device", virt_dev->filename);
-		goto out_close;
-	}
-
-	if (vdisk_blockio_flush(inode->i_bdev, GFP_KERNEL, false, NULL, false) != 0) {
+	if (vdisk_blockio_flush(bdev, GFP_KERNEL, false, NULL, false) != 0) {
 		PRINT_WARNING("Device %s doesn't support barriers, switching "
 			"to NV_CACHE mode. Read README for more details.",
 			virt_dev->filename);
 		virt_dev->nv_cache = 1;
 	}
 
-out_close:
-	filp_close(fd, NULL);
+	blkdev_put(bdev, FMODE_READ);
 
 out:
 	TRACE_EXIT();
@@ -558,8 +550,10 @@ out:
 
 static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 {
+	struct block_device *bdev = NULL;
 	struct file *fd = NULL;
 	bool fd_open = false;
+	int res;
 
 	TRACE_ENTRY();
 
@@ -568,30 +562,32 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 	if (virt_dev->rd_only || !virt_dev->filename || !virt_dev->dev_active)
 		goto check;
 
-	fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
-	if (IS_ERR(fd)) {
-		if ((PTR_ERR(fd) == -EMEDIUMTYPE) && virt_dev->blockio)
-			TRACE(TRACE_MINOR, "Unable to open %s with EMEDIUMTYPE, "
-				"DRBD passive?", virt_dev->filename);
+	if (virt_dev->blockio) {
+		bdev = blkdev_get_by_path(virt_dev->filename, FMODE_READ,
+					  (void *)__func__);
+		res = IS_ERR(bdev) ? PTR_ERR(bdev) : 0;
+	} else {
+		fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
+		res = IS_ERR(fd) ? PTR_ERR(fd) : 0;
+	}
+	if (res) {
+		if (res == -EMEDIUMTYPE && virt_dev->blockio)
+			TRACE(TRACE_MINOR,
+			      "Unable to open %s with EMEDIUMTYPE, DRBD passive?",
+			      virt_dev->filename);
 		else
-			PRINT_ERROR("filp_open(%s) failed: %ld",
-				virt_dev->filename, PTR_ERR(fd));
+			PRINT_ERROR("opening %s failed: %d",
+				    virt_dev->filename, res);
 		goto check;
 	}
+
 	fd_open = true;
 
 	if (virt_dev->blockio) {
-		struct inode *inode = file_inode(fd);
-
-		if (!S_ISBLK(inode->i_mode)) {
-			PRINT_ERROR("%s is NOT a block device",
-				virt_dev->filename);
-			goto check;
-		}
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 32) ||	\
 	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 6)
 		virt_dev->dev_thin_provisioned =
-			blk_queue_discard(bdev_get_queue(inode->i_bdev));
+			blk_queue_discard(bdev_get_queue(bdev));
 #endif
 	} else {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
@@ -635,7 +631,7 @@ check:
 			struct request_queue *q;
 
 			sBUG_ON(!fd_open);
-			q = bdev_get_queue(file_inode(fd)->i_bdev);
+			q = bdev_get_queue(bdev);
 			virt_dev->unmap_opt_gran = q->limits.discard_granularity >> block_shift;
 			virt_dev->unmap_align = q->limits.discard_alignment >> block_shift;
 			if (virt_dev->unmap_opt_gran == virt_dev->unmap_align)
@@ -668,8 +664,12 @@ check:
 			virt_dev->discard_zeroes_data);
 	}
 
-	if (fd_open)
-		filp_close(fd, NULL);
+	if (fd_open) {
+		if (virt_dev->blockio)
+			blkdev_put(bdev, FMODE_READ);
+		else
+			filp_close(fd, NULL);
+	}
 
 	TRACE_EXIT();
 	return;
@@ -983,28 +983,20 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 {
 	int res;
 	struct scst_device *dev = virt_dev->dev;
-	struct inode *inode;
-	struct file *fd;
+	struct block_device *bdev;
 	struct blk_integrity *bi;
 	const char *bi_profile_name;
 
 	TRACE_ENTRY();
 
-	fd = vdev_open_fd(virt_dev, virt_dev->filename, virt_dev->rd_only);
-	if (IS_ERR(fd)) {
-		res = -EINVAL;
+	bdev = blkdev_get_by_path(virt_dev->filename, FMODE_READ,
+				  (void *)__func__);
+	if (IS_ERR(bdev)) {
+		res = PTR_ERR(bdev);
 		goto out;
 	}
 
-	inode = file_inode(fd);
-
-	if (!S_ISBLK(inode->i_mode)) {
-		PRINT_ERROR("%s is NOT a block device!", virt_dev->filename);
-		res = -EINVAL;
-		goto out_close;
-	}
-
-	bi = bdev_get_integrity(inode->i_bdev);
+	bi = bdev_get_integrity(bdev);
 	if (bi == NULL) {
 		TRACE_DBG("Block integrity not supported");
 		goto out_no_bi;
@@ -1076,7 +1068,7 @@ out_no_bi:
 	res = 0;
 
 out_close:
-	filp_close(fd, NULL);
+	blkdev_put(bdev, FMODE_READ);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1839,24 +1831,25 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 		  (unsigned long long)start_lba, blocks);
 
 	if (virt_dev->blockio) {
+		struct block_device *bdev = virt_dev->bdev;
 #if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 27)
 		sector_t start_sector = start_lba << (cmd->dev->block_shift - 9);
 		sector_t nr_sects = blocks << (cmd->dev->block_shift - 9);
-		struct inode *inode = file_inode(fd);
 		gfp_t gfp = cmd->cmd_gfp_mask;
 
 #if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 31)
-		err = blkdev_issue_discard(inode->i_bdev, start_sector, nr_sects, gfp);
+		err = blkdev_issue_discard(bdev, start_sector, nr_sects, gfp);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35)       \
       && !(LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 34) \
 	   && defined(CONFIG_SUSE_KERNEL))
-		err = blkdev_issue_discard(inode->i_bdev, start_sector, nr_sects,
-				gfp, DISCARD_FL_WAIT);
+		err = blkdev_issue_discard(bdev, start_sector, nr_sects, gfp,
+					   DISCARD_FL_WAIT);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
-		err = blkdev_issue_discard(inode->i_bdev, start_sector, nr_sects,
-				gfp, BLKDEV_IFL_WAIT);
+		err = blkdev_issue_discard(bdev, start_sector, nr_sects, gfp,
+					   BLKDEV_IFL_WAIT);
 #else
-		err = blkdev_issue_discard(inode->i_bdev, start_sector, nr_sects, gfp, 0);
+		err = blkdev_issue_discard(bdev, start_sector, nr_sects, gfp,
+					   0);
 #endif
 		if (unlikely(err != 0)) {
 			PRINT_ERROR("blkdev_issue_discard() for "
