@@ -161,6 +161,29 @@ static inline int bdev_io_opt(struct block_device *bdev)
 }
 #endif
 
+/*
+ * See also commit d4d77629953e ("block: clean up blkdev_get() wrappers and
+ * their users") # v2.6.38.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38)
+static inline struct block_device *
+blkdev_get_by_path(const char *path, fmode_t mode, void *holder)
+{
+	struct block_device *bdev;
+	int err;
+
+	bdev = lookup_bdev(path);
+	if (IS_ERR(bdev))
+		return bdev;
+
+	err = blkdev_get(bdev, mode);
+	if (err)
+		return ERR_PTR(err);
+
+	return bdev;
+}
+#endif
+
 /* <linux/bsg-lib.h> */
 
 /*

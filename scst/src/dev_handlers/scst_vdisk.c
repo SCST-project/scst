@@ -679,9 +679,7 @@ check:
 static int vdisk_get_file_size(const struct scst_vdisk_dev *virt_dev,
 	loff_t *file_size)
 {
-	struct inode *inode;
-	int res = 0;
-	struct file *fd;
+	loff_t res;
 
 	TRACE_ENTRY();
 
@@ -694,42 +692,18 @@ static int vdisk_get_file_size(const struct scst_vdisk_dev *virt_dev,
 		goto out;
 	}
 
-	*file_size = 0;
-
-	fd = filp_open(virt_dev->filename, O_LARGEFILE | O_RDONLY, 0600);
-	if (IS_ERR(fd)) {
-		res = PTR_ERR(fd);
-		if ((res == -EMEDIUMTYPE) && virt_dev->blockio)
-			TRACE(TRACE_MINOR, "Unable to open %s with EMEDIUMTYPE, "
-				"DRBD passive?", virt_dev->filename);
-		else
-			PRINT_ERROR("filp_open(%s) failed: %d", virt_dev->filename, res);
+	res = scst_file_or_bdev_size(virt_dev->filename);
+	if (res == -EMEDIUMTYPE && virt_dev->blockio) {
+		TRACE(TRACE_MINOR,
+		      "Unable to open %s with EMEDIUMTYPE, DRBD passive?",
+		      virt_dev->filename);
 		goto out;
 	}
-
-	inode = file_inode(fd);
-
-	if (virt_dev->blockio && !S_ISBLK(inode->i_mode)) {
-		PRINT_ERROR("File %s is NOT a block device", virt_dev->filename);
-		res = -EINVAL;
-		goto out_close;
+	if (res < 0) {
+		PRINT_ERROR("opening %s failed: %lld", virt_dev->filename, res);
+		goto out;
 	}
-
-	if (S_ISREG(inode->i_mode)) {
-		/* Nothing to do */
-	} else if (S_ISBLK(inode->i_mode)) {
-		inode = inode->i_bdev->bd_inode;
-	} else {
-		PRINT_ERROR("File %s unsupported mode: mode=0%o\n",
-			    virt_dev->filename, inode->i_mode);
-		res = -EINVAL;
-		goto out_close;
-	}
-
-	*file_size = inode->i_size;
-
-out_close:
-	filp_close(fd, NULL);
+	*file_size = res;
 
 out:
 	TRACE_EXIT_RES(res);
