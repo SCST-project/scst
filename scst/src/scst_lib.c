@@ -495,6 +495,8 @@ static int get_cdb_info_mo(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
 static int get_cdb_info_var_len(struct scst_cmd *cmd,
 	const struct scst_sdbops *sdbops);
+static int get_cdb_info_dyn_runtime_attr(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops);
 
 /*
  * +=====================================-============-======-
@@ -1668,6 +1670,18 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_flags = FLAG_NONE,
 	 .info_len_off = 6, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_len_4},
+	{.ops = 0xD1, .devkey = " O              ",
+	 .info_op_name = "READ DYN RUNTIME ATTR",
+	 .info_data_direction = SCST_DATA_READ,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 6, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_dyn_runtime_attr},
+	{.ops = 0xD2, .devkey = " O              ",
+	 .info_op_name = "WRITE DYN RUNTIME ATTR",
+	 .info_data_direction = SCST_DATA_WRITE,
+	 .info_op_flags = FLAG_NONE,
+	 .info_len_off = 6, .info_len_len = 4,
+	 .get_cdb_info = get_cdb_info_dyn_runtime_attr},
 	{.ops = 0xE7, .devkey = "        V       ",
 	 .info_op_name = "INIT ELEMENT STATUS WRANGE",
 	 .info_data_direction = SCST_DATA_NONE,
@@ -11782,6 +11796,16 @@ static int get_cdb_info_write_same32(struct scst_cmd *cmd,
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	cmd->data_len = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 	return get_cdb_info_write_same(cmd, sdbops, cmd->cdb[10] & 1 /*NDOB*/);
+}
+
+static int get_cdb_info_dyn_runtime_attr(struct scst_cmd *cmd,
+	const struct scst_sdbops *sdbops)
+{
+	/*
+	 * Read/write dyn runtime attr commands are non-standard, CDB len is 12
+	 */
+	cmd->cdb_len = 12;
+	return get_cdb_info_len_4(cmd, sdbops);
 }
 
 /**
