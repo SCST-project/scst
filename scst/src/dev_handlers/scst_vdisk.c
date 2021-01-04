@@ -705,6 +705,7 @@ static int vdisk_get_file_size(const struct scst_vdisk_dev *virt_dev,
 		goto out;
 	}
 	*file_size = res;
+	res = 0;
 
 out:
 	TRACE_EXIT_RES(res);
