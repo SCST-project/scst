@@ -1229,7 +1229,8 @@ static inline int pcie_capability_read_dword(struct pci_dev *dev, int pos,
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 3, 0)
-#if !defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8
+#if defined(RHEL_RELEASE_CODE) &&				\
+	 RHEL_RELEASE_CODE -0 >= RHEL_RELEASE_VERSION(8, 3))
 /*
  * See also commit 09ed79d6d75f ("percpu_ref: introduce PERCPU_REF_ALLOW_REINIT
  * flag") # v5.3.
