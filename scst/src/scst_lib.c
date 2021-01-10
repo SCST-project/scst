@@ -12441,21 +12441,20 @@ int scst_tape_generic_parse(struct scst_cmd *cmd)
 	 */
 
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED && cmd->cdb[1] & 1) {
-		int block_size = cmd->dev->block_size;
-		uint64_t b, ob;
-		bool overflow;
+		uint32_t block_size = cmd->dev->block_size;
+		uint32_t block_shift = cmd->dev->block_shift;
+		bool overflow = shift_left_overflows(cmd->bufflen, block_shift) ||
+				shift_left_overflows(cmd->data_len, block_shift) ||
+				shift_left_overflows(cmd->out_bufflen, block_shift);
 
-		b = ((uint64_t)cmd->bufflen) * block_size;
-		ob = ((uint64_t)cmd->out_bufflen) * block_size;
-
-		overflow = (b > 0xFFFFFFFF) ||
-			   (ob > 0xFFFFFFFF);
+		BUILD_BUG_ON(sizeof(cmd->bufflen) != 4);
+		BUILD_BUG_ON(sizeof(cmd->out_bufflen) != 4);
 		if (unlikely(overflow)) {
 			PRINT_WARNING("bufflen %u, data_len %llu or out_bufflen"
 				      " %u too large for device %s (block size"
-				      " %u, b %llu, ob %llu)", cmd->bufflen,
+				      " %u)", cmd->bufflen,
 				      cmd->data_len, cmd->out_bufflen,
-				      cmd->dev->virt_name, block_size, b, ob);
+				      cmd->dev->virt_name, block_size);
 			PRINT_BUFFER("CDB", cmd->cdb, cmd->cdb_len);
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
 					scst_sense_block_out_range_error));
@@ -12463,12 +12462,9 @@ int scst_tape_generic_parse(struct scst_cmd *cmd)
 			goto out;
 		}
 
-		cmd->bufflen = b;
-		cmd->out_bufflen = ob;
-
-		/* cmd->data_len is 64-bit, so can't overflow here */
-		BUILD_BUG_ON(sizeof(cmd->data_len) < 8);
-		cmd->data_len *= block_size;
+		cmd->bufflen <<= block_shift;
+		cmd->out_bufflen <<= block_shift;
+		cmd->data_len <<= block_shift;
 	}
 
 	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
