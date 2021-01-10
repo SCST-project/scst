@@ -24,8 +24,7 @@ VERSION:=$(shell head -n1 debian/changelog | sed 's/.*(\([0-9.]*\).*).*/\1/')
 clean:
 	dh_testdir &&							\
 	dh_prep -Xqla_isp/TAGS -Xdebian/changelog &&			\
-	scripts/clean-source-tree -x debian/changelog &&		\
-	rm -f scstadmin/scstadmin
+	scripts/clean-source-tree -x debian/changelog -x debian/compat
 
 build:
 	make 2release &&						\
@@ -97,10 +96,8 @@ binary: binary-indep binary-arch
 override_dh_installinit:
 	dh_installinit --onlyscripts
 
-# dh_make generated override targets
-# This is example for Cmake (See https://bugs.debian.org/641051 )
-#override_dh_auto_configure:
-#	dh_auto_configure -- #	-DCMAKE_LIBRARY_PATH=$(DEB_HOST_MULTIARCH)
+override_dh_auto_configure:
+	true
 
 .PHONY: clean binary binary-arch binary-indep build build-arch build-indep \
 	install
