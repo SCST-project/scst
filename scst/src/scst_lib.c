@@ -550,6 +550,8 @@ struct scst_sdbops {
 				 * target <--> init: SCST_DATA_READ|
 				 *		     SCST_DATA_WRITE
 				 */
+	/* If not zero, logarithm base 2 of the maximum data buffer length. */
+	uint8_t log2_max_buf_len;
 	uint32_t info_op_flags;	/* various flags of this opcode */
 	const char *info_op_name;/* op code SCSI full name */
 	int (*get_cdb_info)(struct scst_cmd *cmd, const struct scst_sdbops *sdbops);
@@ -876,6 +878,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_data_direction = SCST_DATA_READ,
 	 .info_op_flags = SCST_IMPLICIT_HQ|SCST_REG_RESERVE_ALLOWED|
 		SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+	 .log2_max_buf_len = 3,
 	 .get_cdb_info = get_cdb_info_read_capacity},
 	{.ops = 0x25, .devkey = "      O         ",
 	 .info_op_name = "GET WINDOW",
@@ -11213,6 +11216,7 @@ static int get_cdb_info_serv_act_in(struct scst_cmd *cmd,
 				SCST_REG_RESERVE_ALLOWED |
 				SCST_WRITE_EXCL_ALLOWED |
 				SCST_EXCL_ACCESS_ALLOWED;
+		cmd->log2_max_buf_len = 5;
 		break;
 	case SAI_GET_LBA_STATUS:
 		cmd->op_name = "GET LBA STATUS";
@@ -11818,6 +11822,8 @@ static int get_cdb_info_dyn_runtime_attr(struct scst_cmd *cmd,
 static int scst_set_cmd_from_cdb_info(struct scst_cmd *cmd,
 	const struct scst_sdbops *ptr)
 {
+	int res;
+
 	cmd->cdb_len = SCST_GET_CDB_LEN(cmd->cdb[0]);
 	cmd->cmd_naca = (cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_NACA_BIT);
 	cmd->cmd_linked = (cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_LINK_BIT);
@@ -11828,7 +11834,16 @@ static int scst_set_cmd_from_cdb_info(struct scst_cmd *cmd,
 	cmd->lba_len = ptr->info_lba_len;
 	cmd->len_off = ptr->info_len_off;
 	cmd->len_len = ptr->info_len_len;
-	return (*ptr->get_cdb_info)(cmd, ptr);
+	cmd->log2_max_buf_len = ptr->log2_max_buf_len;
+	res = (*ptr->get_cdb_info)(cmd, ptr);
+	if (!cmd->log2_max_buf_len ||
+	    cmd->bufflen <= (1U << cmd->log2_max_buf_len))
+		return res;
+	PRINT_ERROR("Data buffer length %d is too big for SCSI command %s (max %d)",
+		    cmd->bufflen, scst_get_opcode_name(cmd),
+		    1U << cmd->log2_max_buf_len);
+	scst_set_invalid_field_in_cdb(cmd, cmd->len_off, 0);
+	return 1;
 }
 
 static int get_cdb_info_var_len(struct scst_cmd *cmd,
