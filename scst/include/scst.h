@@ -2342,6 +2342,8 @@ struct scst_cmd {
 	uint8_t lba_len;	/* LBA length in cdb */
 	uint8_t len_off;	/* length offset in cdb */
 	uint8_t len_len;	/* length length in cdb */
+	/* If not zero, logarithm base 2 of the maximum data buffer length. */
+	uint8_t log2_max_buf_len;
 	uint32_t op_flags;	/* various flags of this opcode */
 	const char *op_name;	/* op code SCSI full name */
 
