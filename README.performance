@@ -1,0 +1,67 @@
+SCST Performance
+================
+
+A question that is asked often is how to tune performance. This means how to
+improve the IOPS and/or bandwidth measured at the initiator side. In this
+README it is explained how to optimize storage performance.
+
+Local storage
+-------------
+Start with measuring the performance of the local block device(s). IOPS can be
+measured e.g. as follows:
+
+    fio --ioengine=libaio --rw=randread --ioscheduler=none --numjobs=$(nproc) \
+    --runtime=60 --group_reporting=1 --gtod_reduce=1 --norandommap \
+    --thread --buffered=0 --iodepth=256 --iodepth_batch=128 --bs=4k \
+    --name=bdev --filename=/dev/...
+
+The bandwidth supported by a block device can be measured by increasing the
+block size to a larger value in the above command, e.g. --bs=1M.
+
+Storage network
+---------------
+Start with measuring the network bandwidth using your favorite tool, e.g.
+netperf for non-RDMA networks or ib_write_bw for RDMA networks.
+
+Next, add a nullio LUN to SCST, e.g. by adding the following in /etc/scst.conf:
+
+    HANDLER vdisk_nullio {
+        DEVICE disk09 {
+            blocksize 4096
+            size_mb   256
+        }
+    }
+
+    TARGET_DRIVER ... {
+        TARGET ... {
+	    LUN ... disk09
+	}
+    }
+
+After a nullio LUN has been added, verify that this LUN is visible at the
+initiator side. If it is not visible at the initiator side, consider
+rescanning LUNs or disconnecting and reconnecting the initiator system to the
+SCST server.
+
+Once the nullio LUN is visible at the initiator side, measure IOPS and
+bandwidth. The bandwidth should be close to the network bandwidth. When using
+the Linux iSCSI initiator this may require configuring multiple iSCSI sessions
+and activating multipathd on top of the multiple iSCSI sessions. The sequence
+for logging in with iSCSI and activating multiple iSCSI sessions is as follows:
+
+    iscsiadm -m iface -I iface2 -o new
+    iscsiadm -m iface -I iface2 -o update -n iface.initiatorname -v ${iqn2}
+    iscsiadm -m discovery -t st -p ${scst_ip_address}
+    iscsiadm -m discovery -t st -p ${scst_ip_address} -I iface2
+    iscsiadm -m node -p ${scst_ip_address} -l
+    iscsiadm -m node -p ${scst_ip_address} -I iface2 -l
+
+SCST Configuration
+------------------
+If the number of IOPS measured at the initiator side is significantly lower
+than the minimum of the IOPS supported by the local storage and the storage
+network, further tuning is required. Look up in /proc/interrupts which CPU
+cores process the most network and storage interrupts and configure the SCST
+kernel threads such that these run on other CPU cores than those that process
+the most interrupts by configuring the cpu_mask attribute. More information
+about the SCST cpu_mask sysfs attribute is available in the SCST README.
