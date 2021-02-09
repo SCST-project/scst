@@ -2669,8 +2669,13 @@ void scst_cm_update_dev(struct scst_device *dev)
 	spin_unlock_bh(&dev->dev_lock);
 
 	lun = scst_cm_get_lun(dev);
-	if (WARN_ON_ONCE(lun == SCST_MAX_LUN))
+	if (lun == SCST_MAX_LUN) {
+		/*
+		 * Verify that scst_unregister_virtual_device() is in progress.
+		 */
+		WARN_ON_ONCE(!dev->remove_completion);
 		goto out_unblock;
+	}
 
 	rc = scst_cm_send_init_inquiry(dev, lun, NULL);
 	if (rc != 0)

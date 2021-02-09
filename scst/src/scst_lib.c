@@ -11216,7 +11216,7 @@ static int get_cdb_info_serv_act_in(struct scst_cmd *cmd,
 				SCST_REG_RESERVE_ALLOWED |
 				SCST_WRITE_EXCL_ALLOWED |
 				SCST_EXCL_ACCESS_ALLOWED;
-		cmd->log2_max_buf_len = 5;
+		cmd->log2_max_buf_len = 7;
 		break;
 	case SAI_GET_LBA_STATUS:
 		cmd->op_name = "GET LBA STATUS";
