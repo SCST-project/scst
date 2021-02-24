@@ -5891,6 +5891,8 @@ int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 	wake_up(&rs_cmd->cmd_threads->cmd_list_waitQ);
 	spin_unlock_irq(&rs_cmd->cmd_threads->cmd_list_lock);
 
+	res = 0;
+
 out:
 	TRACE_EXIT_RES(res);
 	return res;
