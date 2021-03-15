@@ -4,6 +4,7 @@
  * Copyright (c)  2003-2014 QLogic Corporation
  */
 #include "qla_def.h"
+#include "qla_gbl.h"
 
 #include <linux/kthread.h>
 #include <linux/vmalloc.h>
@@ -2685,6 +2686,18 @@ qla2x00_process_vendor_specific(struct bsg_job *bsg_job)
 	case QL_VND_SS_GET_FLASH_IMAGE_STATUS:
 		return qla2x00_get_flash_image_status(bsg_job);
 
+	case QL_VND_MANAGE_HOST_STATS:
+		return qla2x00_manage_host_stats(bsg_job);
+
+	case QL_VND_GET_HOST_STATS:
+		return qla2x00_get_host_stats(bsg_job);
+
+	case QL_VND_GET_TGT_STATS:
+		return qla2x00_get_tgt_stats(bsg_job);
+
+	case QL_VND_MANAGE_HOST_PORT:
+		return qla2x00_manage_host_port(bsg_job);
+
 	default:
 		return -ENOSYS;
 	}
@@ -2717,6 +2730,17 @@ qla24xx_bsg_request(struct bsg_job *bsg_job)
 		vha = shost_priv(host);
 	}
 
+	/* Disable port will bring down the chip, allow enable command */
+	if (bsg_request->rqst_data.h_vendor.vendor_cmd[0] == QL_VND_MANAGE_HOST_PORT ||
+	    bsg_request->rqst_data.h_vendor.vendor_cmd[0] == QL_VND_GET_HOST_STATS)
+		goto skip_chip_chk;
+
+	if (vha->hw->flags.port_isolated) {
+		bsg_reply->result = DID_ERROR;
+		/* operation not permitted */
+		return -EPERM;
+	}
+
 	if (qla2x00_chip_is_down(vha)) {
 		ql_dbg(ql_dbg_user, vha, 0x709f,
 		    "BSG: ISP abort active/needed -- cmd=%d.\n",
@@ -2724,6 +2748,7 @@ qla24xx_bsg_request(struct bsg_job *bsg_job)
 		return -EBUSY;
 	}
 
+skip_chip_chk:
 	ql_dbg(ql_dbg_user, vha, 0x7000,
 	    "Entered %s msgcode=0x%x.\n", __func__, bsg_request->msgcode);
 

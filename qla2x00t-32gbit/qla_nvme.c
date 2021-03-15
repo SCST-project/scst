@@ -304,7 +304,7 @@ static int qla_nvme_ls_req(struct nvme_fc_local_port *lport,
 	struct qla_hw_data *ha;
 	srb_t           *sp;
 
-	if (!fcport || (fcport && fcport->deleted))
+	if (!fcport || fcport->deleted)
 		return rval;
 
 	vha = fcport->vha;
@@ -653,15 +653,6 @@ static void qla_nvme_remoteport_delete(struct nvme_fc_remote_port *rport)
 }
 
 static struct nvme_fc_port_template qla_nvme_fc_transport = {
-#if 0
-	/*
-	 * See also commit 863fbae929c7 ("nvme_fc: add module to ops template
-	 * to allow module references"). See also commit 8c5c66052920
-	 * ("nvme-fc: Revert "add module to ops template to allow module
-	 * references"") # v5.7-rc1.
-	 */
-	.module	= THIS_MODULE,
-#endif
 	.localport_delete = qla_nvme_localport_delete,
 	.remoteport_delete = qla_nvme_remoteport_delete,
 	.create_queue   = qla_nvme_alloc_queue,
@@ -774,7 +765,6 @@ int qla_nvme_register_hba(struct scsi_qla_host *vha)
 
 	return ret;
 }
-
 
 void qla_nvme_abort_set_option(struct abort_entry_24xx *abt, srb_t *orig_sp)
 {
