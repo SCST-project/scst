@@ -775,7 +775,6 @@ int qla_nvme_register_hba(struct scsi_qla_host *vha)
 	return ret;
 }
 
-
 void qla_nvme_abort_set_option(struct abort_entry_24xx *abt, srb_t *orig_sp)
 {
 	struct qla_hw_data *ha;
