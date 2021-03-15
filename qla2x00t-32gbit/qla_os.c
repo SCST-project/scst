@@ -55,7 +55,7 @@ MODULE_PARM_DESC(ql2xfulldump_on_mpifail,
 int ql2xenforce_iocb_limit = 1;
 module_param(ql2xenforce_iocb_limit, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(ql2xenforce_iocb_limit,
-		 "Enforce IOCB throttling, to avoid FW congestion. (default: 0)");
+		 "Enforce IOCB throttling, to avoid FW congestion. (default: 1)");
 
 /*
  * CT6 CTX allocation cache
@@ -345,6 +345,11 @@ MODULE_PARM_DESC(ql2xrdpenable,
 		"Enables RDP responses. "
 		"0 - no RDP responses (default). "
 		"1 - provide RDP responses.");
+int ql2xabts_wait_nvme = 1;
+module_param(ql2xabts_wait_nvme, int, 0444);
+MODULE_PARM_DESC(ql2xabts_wait_nvme,
+		 "To wait for ABTS response on I/O timeouts for NVMe. (default: 1)");
+
 
 static void qla2x00_clear_drv_active(struct qla_hw_data *);
 static void qla2x00_free_device(scsi_qla_host_t *);
@@ -994,7 +999,7 @@ qla2xxx_mqueuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd,
 	srb_t *sp;
 	int rval;
 
-	rval = rport ? fc_remote_port_chkready(rport) : FC_PORTSTATE_OFFLINE;
+	rval = rport ? fc_remote_port_chkready(rport) : (DID_NO_CONNECT << 16);
 	if (rval) {
 		cmd->result = rval;
 		ql_dbg(ql_dbg_io + ql_dbg_verbose, vha, 0x3076,

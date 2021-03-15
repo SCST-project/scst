@@ -5,6 +5,7 @@
  */
 #include "qla_def.h"
 #include "qla_target.h"
+#include "qla_gbl.h"
 
 #include <linux/delay.h>
 #include <linux/slab.h>
@@ -773,7 +774,7 @@ static void
 qla27xx_handle_8200_aen(scsi_qla_host_t *vha, uint16_t *mb)
 {
 	struct qla_hw_data *ha = vha->hw;
-	bool reset_isp_needed = 0;
+	bool reset_isp_needed = false;
 
 	ql_log(ql_log_warn, vha, 0x02f0,
 	       "MPI Heartbeat stop. MPI reset is%s needed. "
@@ -789,7 +790,7 @@ qla27xx_handle_8200_aen(scsi_qla_host_t *vha, uint16_t *mb)
 
 	if (ql2xfulldump_on_mpifail) {
 		ha->isp_ops->fw_dump(vha);
-		reset_isp_needed = 1;
+		reset_isp_needed = true;
 	}
 
 	ha->isp_ops->mpi_fw_dump(vha, 1);
@@ -1454,9 +1455,9 @@ global_port_update:
 		if (ha->flags.npiv_supported && vha->vp_idx != (mb[3] & 0xff))
 			break;
 
-		ql_dbg(ql_dbg_async, vha, 0x5013,
-		    "RSCN database changed -- %04x %04x %04x.\n",
-		    mb[1], mb[2], mb[3]);
+		ql_log(ql_log_warn, vha, 0x5013,
+		       "RSCN database changed -- %04x %04x %04x.\n",
+		       mb[1], mb[2], mb[3]);
 
 		rscn_entry = ((mb[1] & 0xff) << 16) | mb[2];
 		host_pid = (vha->d_id.b.domain << 16) | (vha->d_id.b.area << 8)
@@ -2226,12 +2227,12 @@ qla24xx_logio_entry(scsi_qla_host_t *vha, struct req_que *req,
 		break;
 	}
 
-	ql_dbg(ql_dbg_async, sp->vha, 0x5037,
-	    "Async-%s failed: handle=%x pid=%06x wwpn=%8phC comp_status=%x iop0=%x iop1=%x\n",
-	    type, sp->handle, fcport->d_id.b24, fcport->port_name,
-	    le16_to_cpu(logio->comp_status),
-	    le32_to_cpu(logio->io_parameter[0]),
-	    le32_to_cpu(logio->io_parameter[1]));
+	ql_log(ql_log_warn, sp->vha, 0x5037,
+	       "Async-%s failed: handle=%x pid=%06x wwpn=%8phC comp_status=%x iop0=%x iop1=%x\n",
+	       type, sp->handle, fcport->d_id.b24, fcport->port_name,
+	       le16_to_cpu(logio->comp_status),
+	       le32_to_cpu(logio->io_parameter[0]),
+	       le32_to_cpu(logio->io_parameter[1]));
 
 logio_done:
 	sp->done(sp, 0);
@@ -2405,9 +2406,9 @@ static void qla24xx_nvme_iocb_entry(scsi_qla_host_t *vha, struct req_que *req,
 		tgt_xfer_len = 0;
 #endif
 		if (fd->transferred_length != tgt_xfer_len) {
-			ql_dbg(ql_dbg_io, fcport->vha, 0x3079,
-				"Dropped frame(s) detected (sent/rcvd=%u/%u).\n",
-				tgt_xfer_len, fd->transferred_length);
+			ql_log(ql_log_warn, fcport->vha, 0x3079,
+			       "Dropped frame(s) detected (sent/rcvd=%u/%u).\n",
+			       tgt_xfer_len, fd->transferred_length);
 			logit = 1;
 		} else if (le16_to_cpu(comp_status) == CS_DATA_UNDERRUN) {
 			/*
@@ -3132,9 +3133,9 @@ qla2x00_status_entry(scsi_qla_host_t *vha, struct rsp_que *rsp, void *pkt)
 		scsi_set_resid(cp, resid);
 		if (scsi_status & SS_RESIDUAL_UNDER) {
 			if (IS_FWI2_CAPABLE(ha) && fw_resid_len != resid_len) {
-				ql_dbg(ql_dbg_io, fcport->vha, 0x301d,
-				    "Dropped frame(s) detected (0x%x of 0x%x bytes).\n",
-				    resid, scsi_bufflen(cp));
+				ql_log(ql_log_warn, fcport->vha, 0x301d,
+				       "Dropped frame(s) detected (0x%x of 0x%x bytes).\n",
+				       resid, scsi_bufflen(cp));
 
 				res = DID_ERROR << 16 | lscsi_status;
 				goto check_scsi_status;
@@ -3157,9 +3158,9 @@ qla2x00_status_entry(scsi_qla_host_t *vha, struct rsp_que *rsp, void *pkt)
 			 * task not completed.
 			 */
 
-			ql_dbg(ql_dbg_io, fcport->vha, 0x301f,
-			    "Dropped frame(s) detected (0x%x of 0x%x bytes).\n",
-			    resid, scsi_bufflen(cp));
+			ql_log(ql_log_warn, fcport->vha, 0x301f,
+			       "Dropped frame(s) detected (0x%x of 0x%x bytes).\n",
+			       resid, scsi_bufflen(cp));
 
 			res = DID_ERROR << 16 | lscsi_status;
 			goto check_scsi_status;
@@ -3271,10 +3272,8 @@ check_scsi_status:
 
 out:
 	if (logit)
-		ql_dbg(ql_dbg_io, fcport->vha, 0x3022,
-		    "FCP command status: 0x%x-0x%x (0x%x) nexus=%ld:%d:%llu "
-		    "portid=%02x%02x%02x oxid=0x%x cdb=%10phN len=0x%x "
-		    "rsp_info=0x%x resid=0x%x fw_resid=0x%x sp=%p cp=%p.\n",
+		ql_log(ql_log_warn, fcport->vha, 0x3022,
+		    "FCP command status: 0x%x-0x%x (0x%x) nexus=%ld:%d:%llu portid=%02x%02x%02x oxid=0x%x cdb=%10phN len=0x%x rsp_info=0x%x resid=0x%x fw_resid=0x%x sp=%p cp=%p.\n",
 		    comp_status, scsi_status, res, vha->host_no,
 		    cp->device->id, (u64)cp->device->lun, fcport->d_id.b.domain,
 		    fcport->d_id.b.area, fcport->d_id.b.al_pa, ox_id,
@@ -3447,6 +3446,7 @@ qla24xx_abort_iocb_entry(scsi_qla_host_t *vha, struct req_que *req,
 {
 	const char func[] = "ABT_IOCB";
 	srb_t *sp;
+	srb_t *orig_sp = NULL;
 	struct srb_iocb *abt;
 
 	sp = qla2x00_get_sp_from_handle(vha, func, req, pkt);
@@ -3454,7 +3454,12 @@ qla24xx_abort_iocb_entry(scsi_qla_host_t *vha, struct req_que *req,
 		return;
 
 	abt = &sp->u.iocb_cmd;
-	abt->u.abt.comp_status = pkt->nport_handle;
+	abt->u.abt.comp_status = le16_to_cpu(pkt->comp_status);
+	orig_sp = sp->cmd_sp;
+	/* Need to pass original sp */
+	if (orig_sp)
+		qla_nvme_abort_process_comp_status(pkt, orig_sp);
+
 	sp->done(sp, 0);
 }
 

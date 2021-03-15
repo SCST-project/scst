@@ -3234,6 +3234,8 @@ qla24xx_abort_command(srb_t *sp)
 	abt->vp_index = fcport->vha->vp_idx;
 
 	abt->req_que_no = cpu_to_le16(req->id);
+	/* Need to pass original sp */
+	qla_nvme_abort_set_option(abt, sp);
 
 	rval = qla2x00_issue_iocb(vha, abt, abt_dma, 0);
 	if (rval != QLA_SUCCESS) {
@@ -3256,6 +3258,10 @@ qla24xx_abort_command(srb_t *sp)
 		ql_dbg(ql_dbg_mbx + ql_dbg_verbose, vha, 0x1091,
 		    "Done %s.\n", __func__);
 	}
+	if (rval == QLA_SUCCESS)
+		qla_nvme_abort_process_comp_status(abt, sp);
+
+	qla_wait_nvme_release_cmd_kref(sp);
 
 	dma_pool_free(ha->s_dma_pool, abt, abt_dma);
 
@@ -4276,7 +4282,8 @@ qla2x00_dump_ram(scsi_qla_host_t *vha, dma_addr_t req_dma, uint32_t addr,
 	if (MSW(addr) || IS_FWI2_CAPABLE(vha->hw)) {
 		mcp->mb[0] = MBC_DUMP_RISC_RAM_EXTENDED;
 		mcp->mb[8] = MSW(addr);
-		mcp->out_mb = MBX_8|MBX_0;
+		mcp->mb[10] = 0;
+		mcp->out_mb = MBX_10|MBX_8|MBX_0;
 	} else {
 		mcp->mb[0] = MBC_DUMP_RISC_RAM;
 		mcp->out_mb = MBX_0;

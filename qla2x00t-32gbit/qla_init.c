@@ -136,6 +136,10 @@ static void qla24xx_abort_iocb_timeout(void *data)
 static void qla24xx_abort_sp_done(srb_t *sp, int res)
 {
 	struct srb_iocb *abt = &sp->u.iocb_cmd;
+	srb_t *orig_sp = sp->cmd_sp;
+
+	if (orig_sp)
+		qla_wait_nvme_release_cmd_kref(orig_sp);
 
 	del_timer(&sp->u.iocb_cmd.timer);
 	if (sp->flags & SRB_WAKEUP_ON_COMP)
@@ -347,11 +351,11 @@ qla2x00_async_login(struct scsi_qla_host *vha, fc_port_t *fcport,
 	if (NVME_TARGET(vha->hw, fcport))
 		lio->u.logio.flags |= SRB_LOGIN_SKIP_PRLI;
 
-	ql_dbg(ql_dbg_disc, vha, 0x2072,
-	    "Async-login - %8phC hdl=%x, loopid=%x portid=%02x%02x%02x "
-		"retries=%d.\n", fcport->port_name, sp->handle, fcport->loop_id,
-	    fcport->d_id.b.domain, fcport->d_id.b.area, fcport->d_id.b.al_pa,
-	    fcport->login_retry);
+	ql_log(ql_log_warn, vha, 0x2072,
+	       "Async-login - %8phC hdl=%x, loopid=%x portid=%02x%02x%02x retries=%d.\n",
+	       fcport->port_name, sp->handle, fcport->loop_id,
+	       fcport->d_id.b.domain, fcport->d_id.b.area, fcport->d_id.b.al_pa,
+	       fcport->login_retry);
 
 	rval = qla2x00_start_sp(sp);
 	if (rval != QLA_SUCCESS) {
@@ -3371,8 +3375,7 @@ qla2x00_alloc_fw_dump(scsi_qla_host_t *vha)
 				    "Re-Allocated (%d KB) and save firmware dump.\n",
 				    dump_size / 1024);
 			} else {
-				if (ha->fw_dump)
-					vfree(ha->fw_dump);
+				vfree(ha->fw_dump);
 				ha->fw_dump = fw_dump;
 
 				ha->fw_dump_len = ha->fw_dump_alloc_len =
@@ -7855,8 +7858,7 @@ qla24xx_load_risc_flash(scsi_qla_host_t *vha, uint32_t *srisc_addr,
 	templates = (risc_attr & BIT_9) ? 2 : 1;
 	ql_dbg(ql_dbg_init, vha, 0x0160, "-> templates = %u\n", templates);
 	for (j = 0; j < templates; j++, fwdt++) {
-		if (fwdt->template)
-			vfree(fwdt->template);
+		vfree(fwdt->template);
 		fwdt->template = NULL;
 		fwdt->length = 0;
 
@@ -7916,8 +7918,7 @@ qla24xx_load_risc_flash(scsi_qla_host_t *vha, uint32_t *srisc_addr,
 	return QLA_SUCCESS;
 
 failed:
-	if (fwdt->template)
-		vfree(fwdt->template);
+	vfree(fwdt->template);
 	fwdt->template = NULL;
 	fwdt->length = 0;
 
@@ -8113,8 +8114,7 @@ qla24xx_load_risc_blob(scsi_qla_host_t *vha, uint32_t *srisc_addr)
 	templates = (risc_attr & BIT_9) ? 2 : 1;
 	ql_dbg(ql_dbg_init, vha, 0x0170, "-> templates = %u\n", templates);
 	for (j = 0; j < templates; j++, fwdt++) {
-		if (fwdt->template)
-			vfree(fwdt->template);
+		vfree(fwdt->template);
 		fwdt->template = NULL;
 		fwdt->length = 0;
 
@@ -8174,8 +8174,7 @@ qla24xx_load_risc_blob(scsi_qla_host_t *vha, uint32_t *srisc_addr)
 	return QLA_SUCCESS;
 
 failed:
-	if (fwdt->template)
-		vfree(fwdt->template);
+	vfree(fwdt->template);
 	fwdt->template = NULL;
 	fwdt->length = 0;
 
