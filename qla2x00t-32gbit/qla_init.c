@@ -3375,8 +3375,7 @@ qla2x00_alloc_fw_dump(scsi_qla_host_t *vha)
 				    "Re-Allocated (%d KB) and save firmware dump.\n",
 				    dump_size / 1024);
 			} else {
-				if (ha->fw_dump)
-					vfree(ha->fw_dump);
+				vfree(ha->fw_dump);
 				ha->fw_dump = fw_dump;
 
 				ha->fw_dump_len = ha->fw_dump_alloc_len =
@@ -7859,8 +7858,7 @@ qla24xx_load_risc_flash(scsi_qla_host_t *vha, uint32_t *srisc_addr,
 	templates = (risc_attr & BIT_9) ? 2 : 1;
 	ql_dbg(ql_dbg_init, vha, 0x0160, "-> templates = %u\n", templates);
 	for (j = 0; j < templates; j++, fwdt++) {
-		if (fwdt->template)
-			vfree(fwdt->template);
+		vfree(fwdt->template);
 		fwdt->template = NULL;
 		fwdt->length = 0;
 
@@ -7920,8 +7918,7 @@ qla24xx_load_risc_flash(scsi_qla_host_t *vha, uint32_t *srisc_addr,
 	return QLA_SUCCESS;
 
 failed:
-	if (fwdt->template)
-		vfree(fwdt->template);
+	vfree(fwdt->template);
 	fwdt->template = NULL;
 	fwdt->length = 0;
 
@@ -8117,8 +8114,7 @@ qla24xx_load_risc_blob(scsi_qla_host_t *vha, uint32_t *srisc_addr)
 	templates = (risc_attr & BIT_9) ? 2 : 1;
 	ql_dbg(ql_dbg_init, vha, 0x0170, "-> templates = %u\n", templates);
 	for (j = 0; j < templates; j++, fwdt++) {
-		if (fwdt->template)
-			vfree(fwdt->template);
+		vfree(fwdt->template);
 		fwdt->template = NULL;
 		fwdt->length = 0;
 
@@ -8178,8 +8174,7 @@ qla24xx_load_risc_blob(scsi_qla_host_t *vha, uint32_t *srisc_addr)
 	return QLA_SUCCESS;
 
 failed:
-	if (fwdt->template)
-		vfree(fwdt->template);
+	vfree(fwdt->template);
 	fwdt->template = NULL;
 	fwdt->length = 0;
 
