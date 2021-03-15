@@ -2,6 +2,7 @@
 # :3,$!LC_ALL=C sort -fu
 
 *.cmd
+*.gcno
 *.ko
 *.ko.unsigned
 *.mod
