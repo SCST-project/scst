@@ -27,6 +27,14 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0) || \
 	defined(CONFIG_SUSE_KERNEL) && \
 	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
+/*
+ * See also commit 768c72cc34a2 ("scsi: libfc: Replace ->exch_done callback
+ * with function call") # v4.10
+ * and commit 9625cc483b8c ("scsi: libfc: Replace ->seq_release callback with
+ * function call") # v4.10
+ * and commit c6865b30be7e ("scsi: libfc: Replace ->seq_start_next callback
+ * with function call") # v4.10.
+ */
 #define NEW_LIBFC_API
 #endif
 
