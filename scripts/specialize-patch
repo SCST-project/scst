@@ -31,10 +31,14 @@
 # Convert a kernel version in the x.y.z format into numeric form, just like
 # the KERNEL_VERSION() macro.
 
+function version_number(a, b, c) {
+  return a * 65536 + b * 256 + (c > 255 ? 255 : c);
+}
+
 function version_code(kver, array) {
   if (!match(kver, "^([0-9]+)\\.([0-9]+)\\.([0-9]+)$", array))
     match(kver, "^([0-9]+)\\.([0-9]+)$", array)
-  return 65536*array[1] + 256*array[2] + array[3]
+  return version_number(array[1], array[2], array[3]);
 }
 
 
@@ -172,7 +176,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
   pattern="KERNEL_VERSION\\([[:blank:]]*([0-9]+)[[:blank:]]*,[[:blank:]]*([0-9]+)[[:blank:]]*,[[:blank:]]*([0-9]+)[[:blank:]]*\\)"
   while (match(stmnt, pattern, op) != 0)
   {
-    sub(pattern, op[1] * 65536 + op[2] * 256 + op[3], stmnt)
+    sub(pattern, version_number(op[1], op[2], op[3]), stmnt)
   }
 
   gsub("defined\\(INSIDE_KERNEL_TREE\\)", "1", stmnt)
