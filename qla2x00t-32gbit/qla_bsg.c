@@ -2605,8 +2605,13 @@ qla2x00_get_flash_image_status(struct bsg_job *bsg_job)
 	return 0;
 }
 
+#ifndef NEW_LIBFC_API
+static int
+qla2x00_manage_host_stats(struct fc_bsg_job *bsg_job)
+#else
 static int
 qla2x00_manage_host_stats(struct bsg_job *bsg_job)
+#endif
 {
 	scsi_qla_host_t *vha = shost_priv(fc_bsg_to_shost(bsg_job));
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -2674,8 +2679,13 @@ qla2x00_manage_host_stats(struct bsg_job *bsg_job)
 	return ret;
 }
 
+#ifndef NEW_LIBFC_API
+static int
+qla2x00_get_host_stats(struct fc_bsg_job *bsg_job)
+#else
 static int
 qla2x00_get_host_stats(struct bsg_job *bsg_job)
+#endif
 {
 	scsi_qla_host_t *vha = shost_priv(fc_bsg_to_shost(bsg_job));
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -2775,8 +2785,13 @@ qla2xxx_find_rport(scsi_qla_host_t *vha, uint32_t tgt_num)
 	return NULL;
 }
 
+#ifndef NEW_LIBFC_API
+static int
+qla2x00_get_tgt_stats(struct fc_bsg_job *bsg_job)
+#else
 static int
 qla2x00_get_tgt_stats(struct bsg_job *bsg_job)
+#endif
 {
 	scsi_qla_host_t *vha = shost_priv(fc_bsg_to_shost(bsg_job));
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -2864,8 +2879,13 @@ tgt_stat_out:
 	return ret;
 }
 
+#ifndef NEW_LIBFC_API
+static int
+qla2x00_manage_host_port(struct fc_bsg_job *bsg_job)
+#else
 static int
 qla2x00_manage_host_port(struct bsg_job *bsg_job)
+#endif
 {
 	scsi_qla_host_t *vha = shost_priv(fc_bsg_to_shost(bsg_job));
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;

@@ -766,6 +766,14 @@ int qla_nvme_register_hba(struct scsi_qla_host *vha)
 	return ret;
 }
 
+#else
+
+void qla_nvme_unregister_remote_port(struct fc_port *fcport)
+{
+}
+
+#endif
+
 void qla_nvme_abort_set_option(struct abort_entry_24xx *abt, srb_t *orig_sp)
 {
 	struct qla_hw_data *ha;
@@ -847,11 +855,3 @@ inline void qla_wait_nvme_release_cmd_kref(srb_t *orig_sp)
 		return;
 	kref_put(&orig_sp->cmd_kref, orig_sp->put_fn);
 }
-
-#else
-
-void qla_nvme_unregister_remote_port(struct fc_port *fcport)
-{
-}
-
-#endif
