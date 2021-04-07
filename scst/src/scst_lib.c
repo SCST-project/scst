@@ -8313,7 +8313,7 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 	 */
 	max_nr_vecs = min_t(int,
 		(PAGE_SIZE - sizeof(struct bio)) / sizeof(struct bio_vec),
-		BIO_MAX_PAGES);
+		BIO_MAX_VECS);
 
 	TRACE_DBG("max_nr_vecs %d, nents %d, reading %d", max_nr_vecs,
 		nents, reading);
@@ -8823,7 +8823,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	rq->cmd_flags |= REQ_FAILFAST_MASK;
 #endif
 
-	blk_execute_rq_nowait(rq->q, NULL, rq,
+	blk_execute_rq_nowait(NULL, rq,
 		(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE), scsi_end_async);
 out:
 	return res;
@@ -15208,8 +15208,11 @@ void scst_vfs_unlink_and_put(struct path *path)
 	(!defined(CONFIG_SUSE_KERNEL) || \
 	 LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0))
 	vfs_unlink(path->dentry->d_parent->d_inode, path->dentry);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 12, 0)
 	vfs_unlink(path->dentry->d_parent->d_inode, path->dentry, NULL);
+#else
+	vfs_unlink(&init_user_ns, path->dentry->d_parent->d_inode, path->dentry,
+		   NULL);
 #endif
 	path_put(path);
 }

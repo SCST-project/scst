@@ -2931,9 +2931,9 @@ static ssize_t blockio_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
-	max_nr_vecs = BIO_MAX_PAGES;
+	max_nr_vecs = BIO_MAX_VECS;
 #else
-	max_nr_vecs = min(bio_get_nr_vecs(bdev), BIO_MAX_PAGES);
+	max_nr_vecs = min(bio_get_nr_vecs(bdev), BIO_MAX_VECS);
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
@@ -6052,9 +6052,9 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 
 	if (q)
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
-		max_nr_vecs = BIO_MAX_PAGES;
+		max_nr_vecs = BIO_MAX_VECS;
 #else
-		max_nr_vecs = min(bio_get_nr_vecs(bdev), BIO_MAX_PAGES);
+		max_nr_vecs = min(bio_get_nr_vecs(bdev), BIO_MAX_VECS);
 #endif
 	else
 		max_nr_vecs = 1;
