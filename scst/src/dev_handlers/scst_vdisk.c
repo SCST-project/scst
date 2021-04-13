@@ -8319,17 +8319,6 @@ static ssize_t vdisk_sysfs_rotational_show(struct kobject *kobj,
 	return pos;
 }
 
-static bool scst_dev_being_unregistered(struct scst_device *dev)
-{
-	bool res;
-
-	mutex_lock(&scst_mutex);
-	res = list_empty(&dev->dev_list_entry);
-	mutex_unlock(&scst_mutex);
-
-	return res;
-}
-
 static int vdev_sysfs_process_get_filename(struct scst_sysfs_work_item *work)
 {
 	int res = 0;
@@ -8347,7 +8336,7 @@ static int vdev_sysfs_process_get_filename(struct scst_sysfs_work_item *work)
 	 * under scst_vdisk_mutex.
 	 */
 	while (!mutex_trylock(&scst_vdisk_mutex)) {
-		if (scst_dev_being_unregistered(dev)) {
+		if (dev->dev_unregistering) {
 			TRACE_MGMT_DBG("Skipping being unregistered dev %s",
 				dev->virt_name);
 			res = -ENOENT;
@@ -8358,6 +8347,18 @@ static int vdev_sysfs_process_get_filename(struct scst_sysfs_work_item *work)
 			goto out_put;
 		}
 		msleep(100);
+		/*
+		 * We need to reread dev_unregistering from memory, hence
+		 * prevent compiler from putting it in a register. Generally,
+		 * it shouldn't happen, because the compiler isn't allowed to do
+		 * such a transformation if any functions that can cause side
+		 * effects are called between successive accesses, but let's be
+		 * on the safe side. We can't cast dev_unregistering to
+		 * volatile, because it has no effect we need, and can't cast
+		 * it to *(volatile bool*)&, because it isn't possible to get
+		 * address of a bit field.
+		 */
+		barrier();
 	}
 
 	virt_dev = dev->dh_priv;
