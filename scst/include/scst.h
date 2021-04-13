@@ -2724,6 +2724,14 @@ struct scst_device {
 	unsigned int strictly_serialized_cmd_waiting:1;
 
 	/*
+	 * Set, if this device is being unregistered. Useful to let sysfs
+	 * attributes know when they should exit immediately to prevent
+	 * possible deadlocks with their device unregistration waiting for
+	 * their kobj last put.
+	 */
+	unsigned int dev_unregistering:1;
+
+	/*
 	 * Set if ext blocking is pending. It is just shortcut for
 	 * !list_empty(&dev->ext_blockers_list) to save a cache miss.
 	 */
