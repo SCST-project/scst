@@ -39,12 +39,9 @@ void digest_alg_available(int *val)
 }
 
 /**
- * initialize support for digest calculation.
- *
- * digest_init -
+ * digest_init - initialize support for digest calculation.
  * @conn: ptr to connection to make use of digests
- *
- * @return: 0 on success, < 0 on error
+ * Returns: 0 on success, < 0 on error
  */
 int digest_init(struct iscsi_conn *conn)
 {
