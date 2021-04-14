@@ -4657,7 +4657,7 @@ static int scst_tgt_devs_cmds(struct list_head *tgt_dev_list)
 static void scst_wait_for_tgt_devs(struct list_head *tgt_dev_list)
 {
 	while (scst_tgt_devs_cmds(tgt_dev_list) > 0)
-		mdelay(100);
+		msleep(100);
 }
 
 int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
