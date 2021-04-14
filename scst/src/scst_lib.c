@@ -14583,11 +14583,11 @@ static void scst_free_descriptors(struct scst_cmd *cmd)
 	return;
 }
 
-/**
- ** We currently have only few saved parameters and it is impossible to get
- ** pointer on a bit field, so let's have a simple straightforward
- ** implementation.
- **/
+/*
+ * We currently have only few saved parameters and it is impossible to get
+ * pointer on a bit field, so let's have a simple straightforward
+ * implementation.
+ */
 
 #define SCST_TAS_LABEL		"TAS"
 #define SCST_QERR_LABEL		"QERR"
