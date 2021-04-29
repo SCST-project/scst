@@ -66,7 +66,7 @@ is /sys/kernel/scst_tgt/targets/iscsi. It has the following entries:
 
  - allowed_portal[num] - optional attribute, which specifies, on which
    portals (target's IP addresses) this target will be available. If not
-   specified (default) the target will be available on all all portals.
+   specified (default) the target will be available on all portals.
    As soon as at least one allowed_portal specified, the target will be
    accessible for initiators only on the specified portals. There might
    be any number of the allowed_portal attributes. The portals
@@ -582,7 +582,7 @@ echo 'add_target_attribute iqn.2006-10.net.vlnb:tgt allowed_portal !*' >/sys/ker
 
 will disable all portals.
 
-2. If you want to want to allow only only specific set of initiators be
+2. If you want to want to allow only specific set of initiators be
 able to connect to your target, you should don't add any default LUNs
 for the target and create for allowed initiators a security group to
 which they will be assigned.
@@ -694,7 +694,7 @@ simultaneously on both ports, i.e. they transfer data via both ports on
 the same speed as via any single port. Thus, using such adapters in MPIO
 configuration can't improve performance. To allow MPIO to have double
 performance you should either use separate network adapters, or find a
-dual-port adapter capable to to transfer data simultaneously on both
+dual-port adapter capable to transfer data simultaneously on both
 ports. You can check it by running 2 iperf's through both ports in
 parallel.
 
