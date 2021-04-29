@@ -690,7 +690,7 @@ time:
 
 This is because both dtc-lexer as well as dtc-parser define the same
 global symbol yyloc. Before with -fcommon those were merged into one
-defintion. The proper solution would be to to mark this as "extern",
+defintion. The proper solution would be to mark this as "extern",
 however that leads to:
 
   dtc-lexer.l:26:16: error: redundant redeclaration of 'yylloc' [-Werror=redundant-decls]

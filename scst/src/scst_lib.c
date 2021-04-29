@@ -542,7 +542,7 @@ struct scst_sdbops {
 	uint8_t info_lba_off;	/* LBA offset in cdb */
 	uint8_t info_lba_len;	/* LBA length in cdb */
 	uint8_t info_len_off;	/* length offset in cdb */
-	uint8_t info_len_len;	/* length length in cdb */
+	uint8_t info_len_len;	/* length of length in cdb */
 	uint8_t info_data_direction;
 				/*
 				 * init --> target: SCST_DATA_WRITE
@@ -12171,7 +12171,7 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 			      ptr->devkey[9],	/* commdev */
 			      ptr->info_op_name);
 			TRACE_DBG("data direction %d, op flags 0x%x, lba off %d, "
-				"lba len %d, len off %d, len len %d",
+				"lba len %d, len off %d, len of len %d",
 				ptr->info_data_direction, ptr->info_op_flags,
 				ptr->info_lba_off, ptr->info_lba_len,
 				ptr->info_len_off, ptr->info_len_len);
