@@ -6712,7 +6712,7 @@ static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 	sBUG_ON(virt_dev->nullio);
 	sBUG_ON(!virt_dev->filename);
 
-	if ((virt_dev->fd == NULL) || !virt_dev->dev_active) {
+	if ((!virt_dev->fd && !virt_dev->bdev) || !virt_dev->dev_active) {
 		res = -EMEDIUMTYPE;
 		goto out;
 	}
