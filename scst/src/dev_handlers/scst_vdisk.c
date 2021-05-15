@@ -714,12 +714,13 @@ out:
 	return res;
 }
 
-/* scst_vdisk_mutex supposed to be held */
 static struct scst_vdisk_dev *vdev_find(const char *name)
 {
 	struct scst_vdisk_dev *res, *vv;
 
 	TRACE_ENTRY();
+
+	lockdep_assert_held(&scst_vdisk_mutex);
 
 	res = NULL;
 	list_for_each_entry(vv, &vdev_list, vdev_list_entry) {
@@ -6832,13 +6833,14 @@ static void vdev_inq_changed_fn(struct work_struct *work)
 	return;
 }
 
-/* scst_vdisk_mutex supposed to be held */
 static int vdev_create_node(struct scst_dev_type *devt,
 	const char *name, int nodeid, struct scst_vdisk_dev **res_virt_dev)
 {
 	int res;
 	struct scst_vdisk_dev *virt_dev, *vv;
 	uint64_t dev_id_num;
+
+	lockdep_assert_held(&scst_vdisk_mutex);
 
 	res = -EEXIST;
 	if (vdev_find(name))
@@ -7239,13 +7241,14 @@ out:
 	return res;
 }
 
-/* scst_vdisk_mutex supposed to be held */
 static int vdev_fileio_add_device(const char *device_name, char *params)
 {
 	int res = 0;
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
+
+	lockdep_assert_held(&scst_vdisk_mutex);
 
 	res = vdev_create(&vdisk_file_devtype, device_name, &virt_dev);
 	if (res != 0)
@@ -7302,13 +7305,14 @@ out_destroy:
 	goto out;
 }
 
-/* scst_vdisk_mutex supposed to be held */
 static int vdev_blockio_add_device(const char *device_name, char *params)
 {
 	int res = 0;
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
+
+	lockdep_assert_held(&scst_vdisk_mutex);
 
 	res = vdev_create(&vdisk_blk_devtype, device_name, &virt_dev);
 	if (res != 0)
@@ -7366,13 +7370,14 @@ out_destroy:
 	goto out;
 }
 
-/* scst_vdisk_mutex supposed to be held */
 static int vdev_nullio_add_device(const char *device_name, char *params)
 {
 	int res = 0;
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
+
+	lockdep_assert_held(&scst_vdisk_mutex);
 
 	res = vdev_create(&vdisk_null_devtype, device_name, &virt_dev);
 	if (res != 0)
@@ -7490,10 +7495,11 @@ static void vdev_on_free(struct scst_device *dev, void *arg)
 	cancel_work_sync(&virt_dev->vdev_inq_changed_work);
 }
 
-/* scst_vdisk_mutex supposed to be held */
 static void vdev_del_device(struct scst_vdisk_dev *virt_dev)
 {
 	TRACE_ENTRY();
+
+	lockdep_assert_held(&scst_vdisk_mutex);
 
 	scst_unregister_virtual_device(virt_dev->virt_id, vdev_on_free,
 				       virt_dev);
@@ -7537,13 +7543,14 @@ out:
 	return res;
 }
 
-/* scst_vdisk_mutex supposed to be held */
 static ssize_t __vcdrom_add_device(const char *device_name, char *params)
 {
 	int res = 0;
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
+
+	lockdep_assert_held(&scst_vdisk_mutex);
 
 	res = vdev_create(&vcdrom_devtype, device_name, &virt_dev);
 	if (res != 0)
