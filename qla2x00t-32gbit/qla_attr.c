@@ -2876,7 +2876,10 @@ qla2x00_reset_host_stats(struct Scsi_Host *shost)
 
 		/* reset firmware statistics */
 		rval = qla24xx_get_isp_stats(base_vha, stats, stats_dma, BIT_0);
-		WARN_ONCE(rval != QLA_SUCCESS, "rval = %d\n", rval);
+		if (rval != QLA_SUCCESS)
+			ql_log(ql_log_warn, vha, 0x70de,
+			       "Resetting ISP statistics failed: rval = %d\n",
+			       rval);
 
 		dma_free_coherent(&ha->pdev->dev, sizeof(*stats),
 		    stats, stats_dma);
