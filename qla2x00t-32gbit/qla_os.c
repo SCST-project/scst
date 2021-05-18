@@ -7793,7 +7793,11 @@ struct scsi_host_template qla2xxx_driver_template = {
 	.eh_timed_out		= fc_eh_timed_out,
 #endif
 	.eh_abort_handler	= qla2xxx_eh_abort,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 12, 0)
+	/* See also commit 60bee27ba2df ("scsi: core: No retries on abort
+	 * success") */
 	.eh_should_retry_cmd	= fc_eh_should_retry_cmd,
+#endif
 	.eh_device_reset_handler = qla2xxx_eh_device_reset,
 	.eh_target_reset_handler = qla2xxx_eh_target_reset,
 	.eh_bus_reset_handler	= qla2xxx_eh_bus_reset,
