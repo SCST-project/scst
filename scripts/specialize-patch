@@ -342,6 +342,12 @@ function evaluate(stmnt, pattern, arg, op, result) {
       sub(pattern, (op[1] != 0) && (op[2] != 0), stmnt)
     }
 
+    pattern="0[[:blank:]]*&&[[:blank:]]*defined\\([A-Za-z0-9_]*\\)"
+    while (match(stmnt, pattern, op) != 0)
+    {
+      sub(pattern, 0, stmnt)
+    }
+
     pattern="^+#(if|elif)[[:blank:]]*([01])[[:blank:]]*&&[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))$"
     while (match(stmnt, pattern, op) != 0)
     {
