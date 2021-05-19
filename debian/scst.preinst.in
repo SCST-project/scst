@@ -17,7 +17,7 @@ set -e
 case "$1" in
     install)
 	# Remove any existing ib_srpt.ko kernel modules
-	find "/lib/modules/$(uname -r)" -name ib_srpt.ko -exec rm {} \;
+	find "/lib/modules/%{KVER}" -name ib_srpt.ko -exec rm {} \;
 	# Remove files installed by "make install"
 	rm -f /usr/local/man/man5/iscsi-scstd.conf.5
 	rm -f /usr/local/man/man8/iscsi-scst-adm.8
