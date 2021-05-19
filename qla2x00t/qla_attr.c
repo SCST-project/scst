@@ -159,7 +159,7 @@ qla2x00_store_ini_mode_force_reverse(struct device *dev,
 
 	set_bit(ISP_ABORT_NEEDED, &base_vha->dpc_flags);
 	qla2xxx_wake_dpc(base_vha);
-	qla2x00_wait_for_hba_online(vha);
+	WARN_ON_ONCE(qla2x00_wait_for_hba_online(vha) != QLA_SUCCESS);
 
 out:
 	return size;
@@ -1096,7 +1096,7 @@ qla2x00_sysfs_write_reset(struct file *file,
 		    "Issuing MPI reset.\n");
 
 		/* Make sure FC side is not in reset */
-		qla2x00_wait_for_hba_online(vha);
+		WARN_ON_ONCE(qla2x00_wait_for_hba_online(vha) != QLA_SUCCESS);
 
 		/* Issue MPI reset */
 		scsi_block_requests(vha->host);
