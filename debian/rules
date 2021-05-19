@@ -29,7 +29,8 @@ export KDIR=$(DEB_KDIR_SET)
 clean:
 	dh_testdir &&							\
 	dh_prep -Xqla_isp/TAGS -Xdebian/changelog &&			\
-	scripts/clean-source-tree -x debian/changelog -x debian/compat -x debian/scst.preinst
+	scripts/clean-source-tree -x debian/changelog -x debian/compat -x debian/scst.preinst \
+	    -x debian/scst.postinst
 
 build:
 	make 2release &&						\
