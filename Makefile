@@ -387,7 +387,7 @@ dpkg: ../scst_$(VERSION).orig.tar.gz
 	else								\
 	  buildopts+=(-j4);						\
 	fi &&								\
-	debuild "$${buildopts[@]}" --lintian-opts --profile debian &&   \
+	DEB_KVER_SET=$(KVER) DEB_KDIR_SET=$(KDIR) debuild "$${buildopts[@]}" --lintian-opts --profile debian && \
 	mkdir -p dpkg &&						\
 	for f in "$${output_files[@]}" ../scst_$(VERSION).orig.tar.[gx]z; do\
 		mv $$f dpkg || true;					\
