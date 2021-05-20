@@ -367,6 +367,8 @@ dpkg: ../scst_$(VERSION).orig.tar.gz
 	[ -z "$$DEBFULLNAME" ] || export DEBFULLNAME="Bart Van Assche" &&\
 	sed 's/%{scst_version}/$(VERSION)/'				\
 	  <debian/scst.dkms.in >debian/scst.dkms &&			\
+	sed 's/%{KVER}/$(KVER)/'				\
+	  <debian/scst.preinst.in >debian/scst.preinst &&			\
 	output_files=(							\
 		../*_$(VERSION)-$(DEBIAN_REVISION)_*.deb		\
 		../*_$(VERSION)-$(DEBIAN_REVISION)_*.ddeb		\
