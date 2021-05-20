@@ -21,6 +21,7 @@ VERSION:=$(shell head -n1 debian/changelog | sed 's/.*(\([0-9.]*\).*).*/\1/')
 # an intermediary. Also, export variables for sub-makes to be able to see them.
 export KVER=$(DEB_KVER_SET)
 export KDIR=$(DEB_KDIR_SET)
+export CC=$(DEB_CC_SET)
 
 %:
 	echo "*** dh $@ ***"
