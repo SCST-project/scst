@@ -367,6 +367,10 @@ dpkg: ../scst_$(VERSION).orig.tar.gz
 	[ -z "$$DEBFULLNAME" ] || export DEBFULLNAME="Bart Van Assche" &&\
 	sed 's/%{scst_version}/$(VERSION)/'				\
 	  <debian/scst.dkms.in >debian/scst.dkms &&			\
+	sed 's/%{KVER}/$(KVER)/'				\
+	  <debian/scst.preinst.in >debian/scst.preinst &&			\
+	sed 's/%{KVER}/$(KVER)/'				\
+	  <debian/scst.postinst.in >debian/scst.postinst &&			\
 	output_files=(							\
 		../*_$(VERSION)-$(DEBIAN_REVISION)_*.deb		\
 		../*_$(VERSION)-$(DEBIAN_REVISION)_*.ddeb		\
@@ -387,11 +391,7 @@ dpkg: ../scst_$(VERSION).orig.tar.gz
 	else								\
 	  buildopts+=(-j4);						\
 	fi &&								\
-	if false; then							\
-	  dpkg-buildpackage "$${buildopts[@]}";				\
-	else								\
-	  debuild "$${buildopts[@]}" --lintian-opts --profile debian;	\
-	fi &&								\
+	DEB_CC_SET="$(CC)" DEB_KVER_SET=$(KVER) DEB_KDIR_SET=$(KDIR) debuild "$${buildopts[@]}" --lintian-opts --profile debian && \
 	mkdir -p dpkg &&						\
 	for f in "$${output_files[@]}" ../scst_$(VERSION).orig.tar.[gx]z; do\
 		mv $$f dpkg || true;					\

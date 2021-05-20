@@ -17,6 +17,12 @@ SUBDIRS=scst fcst iscsi-scst qla2x00t/qla2x00-target scst_local scstadmin srpt
 DESTDIR=$(CURDIR)/debian/tmp
 VERSION:=$(shell head -n1 debian/changelog | sed 's/.*(\([0-9.]*\).*).*/\1/')
 
+# rules won't see variables unless they're using DEB_foo_SET syntax. So use that as
+# an intermediary. Also, export variables for sub-makes to be able to see them.
+export KVER=$(DEB_KVER_SET)
+export KDIR=$(DEB_KDIR_SET)
+export CC=$(DEB_CC_SET)
+
 %:
 	echo "*** dh $@ ***"
 	dh $@
@@ -24,7 +30,8 @@ VERSION:=$(shell head -n1 debian/changelog | sed 's/.*(\([0-9.]*\).*).*/\1/')
 clean:
 	dh_testdir &&							\
 	dh_prep -Xqla_isp/TAGS -Xdebian/changelog &&			\
-	scripts/clean-source-tree -x debian/changelog -x debian/compat
+	scripts/clean-source-tree -x debian/changelog -x debian/compat -x debian/scst.preinst \
+	    -x debian/scst.postinst
 
 build:
 	make 2release &&						\
