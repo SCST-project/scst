@@ -369,6 +369,8 @@ dpkg: ../scst_$(VERSION).orig.tar.gz
 	  <debian/scst.dkms.in >debian/scst.dkms &&			\
 	sed 's/%{KVER}/$(KVER)/'				\
 	  <debian/scst.preinst.in >debian/scst.preinst &&			\
+	sed 's/%{KVER}/$(KVER)/'				\
+	  <debian/scst.postinst.in >debian/scst.postinst &&			\
 	output_files=(							\
 		../*_$(VERSION)-$(DEBIAN_REVISION)_*.deb		\
 		../*_$(VERSION)-$(DEBIAN_REVISION)_*.ddeb		\
