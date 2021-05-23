@@ -301,7 +301,9 @@ make-scst-dist =							\
 	tar -c$(1) -f "$${name}-$(3).tar.$(2)" "$${name}-$(3)" &&	\
 	rm -rf "$${name}-$(3)"
 
-scst-dist-gzip:
+scst-dist-gzip: scst-$(VERSION).tar.bz2
+
+scst-$(VERSION).tar.bz2: $(shell scripts/list-source-files)
 	$(call make-scst-dist,j,bz2,$(VERSION),grep -E '^doc/|^fcst/|^iscsi-scst/|^Makefile|^qla2x00t(|_git)/|^scripts/|^scst.spec|^scst/|^scst_local/|^srpt/|^usr/|^scstadmin/')
 
 scst-rpm:
@@ -354,11 +356,13 @@ debian/compat:
 	dpkg-query -W --showformat='$${Version}\n' debhelper 2>/dev/null | \
 	sed 's/\..*//' >$@
 
-../scst_$(VERSION).orig.tar.gz: debian/changelog debian/compat Makefile
+../scst_$(VERSION).orig.tar.gz: debian/changelog debian/compat Makefile	\
+		$(shell scripts/list-source-files)
 	$(call make-scst-dist,z,gz,$(VERSION),cat) &&			\
 	mv "scst-$(VERSION).tar.gz" "$@"
 
-../scst_$(VERSION).orig.tar.xz: debian/changelog debian/compat Makefile
+../scst_$(VERSION).orig.tar.xz: debian/changelog debian/compat Makefile	\
+		$(shell scripts/list-source-files)
 	$(call make-scst-dist,J,xz,$(VERSION),cat) &&			\
 	mv "scst-$(VERSION).tar.xz" "$@"
 
