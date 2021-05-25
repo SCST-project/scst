@@ -24,6 +24,7 @@ setups.
 
 There is also a newer driver that supports 32 Gb/s FC in the qla2x00t-32gbit
 directory. That driver has not yet reached the same maturity level as the
-old qla2x00t driver.
+old qla2x00t driver. It can be enabled by setting `QLA_32GBIT=y` variable
+while compiling.
 
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net

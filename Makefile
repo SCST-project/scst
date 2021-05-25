@@ -37,11 +37,22 @@ ifdef KDIR
      endif
 endif
 
+ifdef QLA_32GBIT
+    ifneq ($(QLA_32GBIT),no)
+        QLA_INI_DIR=qla2x00t-32gbit
+        QLA_DIR=qla2x00t-32gbit/qla2x00-target
+    else
+        QLA_INI_DIR=qla2x00t
+        QLA_DIR=qla2x00t/qla2x00-target
+    endif
+else
+    QLA_INI_DIR=qla2x00t
+    QLA_DIR=qla2x00t/qla2x00-target
+endif
+
 SCST_DIR=scst
 DOC_DIR=doc
 SCSTADM_DIR=scstadmin
-QLA_INI_DIR=qla2x00t
-QLA_DIR=qla2x00t/qla2x00-target
 USR_DIR=usr
 SRP_DIR=srpt
 SCST_LOCAL_DIR=scst_local
@@ -395,7 +406,8 @@ dpkg: ../scst_$(VERSION).orig.tar.gz
 	else								\
 	  buildopts+=(-j4);						\
 	fi &&								\
-	DEB_CC_SET="$(CC)" DEB_KVER_SET=$(KVER) DEB_KDIR_SET=$(KDIR) debuild "$${buildopts[@]}" --lintian-opts --profile debian && \
+	DEB_CC_SET="$(CC)" DEB_KVER_SET=$(KVER) DEB_KDIR_SET=$(KDIR) DEB_QLA_DIR_SET=$(QLA_DIR) \
+	   DEB_QLA_INI_DIR_SET=$(QLA_INI_DIR) debuild "$${buildopts[@]}" --lintian-opts --profile debian && \
 	mkdir -p dpkg &&						\
 	for f in "$${output_files[@]}" ../scst_$(VERSION).orig.tar.[gx]z; do\
 		mv $$f dpkg || true;					\
