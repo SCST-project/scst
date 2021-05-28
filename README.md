@@ -17,14 +17,13 @@ file.
 
 ## QLogic target driver
 
-Two QLogic target drivers are included in the SCST project. The driver in
-the qla2x00t directory is a very stable driver that supports up to 16 Gb/s
-adapters. It is very stable, well tested and actively used in many production
-setups.
+Two QLogic target drivers are included in the SCST project.
 
-There is also a newer driver that supports 32 Gb/s FC in the qla2x00t-32gbit
-directory. That driver has not yet reached the same maturity level as the
-old qla2x00t driver. It can be enabled by setting `QLA_32GBIT=y` variable
-while compiling.
+The default driver is located in qla2x00t-32gbit directory and it supports up
+to 32 Gb/s FC. It is the newer one.
+
+May anyone wish to switch back to the older driver that only supported up to
+16 Gb/s adapters, it is located in qla2x00t directory. To make use of the
+older driver build scst with environment variable `QLA_32GBIT=no` set.
 
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net

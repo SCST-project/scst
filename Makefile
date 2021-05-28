@@ -37,17 +37,12 @@ ifdef KDIR
      endif
 endif
 
-ifdef QLA_32GBIT
-    ifneq ($(QLA_32GBIT),no)
-        QLA_INI_DIR=qla2x00t-32gbit
-        QLA_DIR=qla2x00t-32gbit/qla2x00-target
-    else
-        QLA_INI_DIR=qla2x00t
-        QLA_DIR=qla2x00t/qla2x00-target
-    endif
-else
+ifeq ($(QLA_32GBIT),no)
     QLA_INI_DIR=qla2x00t
     QLA_DIR=qla2x00t/qla2x00-target
+else
+    QLA_INI_DIR=qla2x00t-32gbit
+    QLA_DIR=qla2x00t-32gbit/qla2x00-target
 endif
 
 SCST_DIR=scst
