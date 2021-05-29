@@ -13,7 +13,7 @@ export DH_VERBOSE = 1
 # package maintainers to append LDFLAGS
 #export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
 
-SUBDIRS=scst fcst iscsi-scst qla2x00t/qla2x00-target scst_local scstadmin srpt
+SUBDIRS=scst $(shell grep -qw '^CONFIG_LIBFC' /boot/config-$(uname -r) && echo fcst) iscsi-scst qla2x00t/qla2x00-target scst_local scstadmin srpt
 DESTDIR=$(CURDIR)/debian/tmp
 VERSION:=$(shell head -n1 debian/changelog | sed 's/.*(\([0-9.]*\).*).*/\1/')
 
