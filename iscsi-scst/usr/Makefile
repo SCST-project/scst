@@ -18,7 +18,7 @@ ifndef PREFIX
         PREFIX=/usr/local
 endif
 
-cc-option = $(shell if $(CC) $(1) -S -o /dev/null -xc /dev/null \
+cc-option = $(shell if $(CC) $(1) -Werror -S -o /dev/null -xc /dev/null \
              > /dev/null 2>&1; then echo "$(1)"; else echo "$(2)"; fi ;)
 
 SRCS_D = iscsid.c iscsi_scstd.c conn.c session.c target.c message.c ctldev.c \
