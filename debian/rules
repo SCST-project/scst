@@ -21,7 +21,7 @@ export CC=$(DEB_CC_SET)
 export QLA_DIR=$(DEB_QLA_DIR_SET)
 export QLA_INI_DIR=$(DEB_QLA_INI_DIR_SET)
 
-SUBDIRS=scst $(shell grep -qw '^CONFIG_LIBFC' /boot/config-$(uname -r) && echo fcst) iscsi-scst $(QLA_DIR) scst_local scstadmin srpt
+SUBDIRS=scst $(shell grep -qw '^CONFIG_LIBFC' /boot/config-$(KVER) && echo fcst) iscsi-scst $(QLA_DIR) scst_local scstadmin srpt
 DESTDIR=$(CURDIR)/debian/tmp
 VERSION:=$(shell head -n1 debian/changelog | sed 's/.*(\([0-9.]*\).*).*/\1/')
 
