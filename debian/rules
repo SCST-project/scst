@@ -13,16 +13,15 @@ export DH_VERBOSE = 1
 # package maintainers to append LDFLAGS
 #export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
 
-# rules won't see variables unless they're using DEB_foo_SET syntax. So use that
-# as an intermediary. Also, export variables for sub-makes to be able to see
-# them.
+SUBDIRS=scst $(shell grep -qw '^CONFIG_LIBFC' /boot/config-$(uname -r) && echo fcst) iscsi-scst qla2x00t/qla2x00-target scst_local scstadmin srpt
+DESTDIR=$(CURDIR)/debian/tmp
+VERSION:=$(shell head -n1 debian/changelog | sed 's/.*(\([0-9.]*\).*).*/\1/')
+
+# rules won't see variables unless they're using DEB_foo_SET syntax. So use that as
+# an intermediary. Also, export variables for sub-makes to be able to see them.
 export KVER=$(DEB_KVER_SET)
 export KDIR=$(DEB_KDIR_SET)
 export CC=$(DEB_CC_SET)
-
-SUBDIRS=scst $(shell grep -qw '^CONFIG_LIBFC' /boot/config-$(KVER) && echo fcst) iscsi-scst qla2x00t/qla2x00-target scst_local scstadmin srpt
-DESTDIR=$(CURDIR)/debian/tmp
-VERSION:=$(shell head -n1 debian/changelog | sed 's/.*(\([0-9.]*\).*).*/\1/')
 
 %:
 	echo "*** dh $@ ***"
