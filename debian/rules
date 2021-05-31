@@ -13,15 +13,17 @@ export DH_VERBOSE = 1
 # package maintainers to append LDFLAGS
 #export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
 
-SUBDIRS=scst $(shell grep -qw '^CONFIG_LIBFC' /boot/config-$(uname -r) && echo fcst) iscsi-scst qla2x00t/qla2x00-target scst_local scstadmin srpt
-DESTDIR=$(CURDIR)/debian/tmp
-VERSION:=$(shell head -n1 debian/changelog | sed 's/.*(\([0-9.]*\).*).*/\1/')
-
 # rules won't see variables unless they're using DEB_foo_SET syntax. So use that as
 # an intermediary. Also, export variables for sub-makes to be able to see them.
 export KVER=$(DEB_KVER_SET)
 export KDIR=$(DEB_KDIR_SET)
 export CC=$(DEB_CC_SET)
+export QLA_DIR=$(DEB_QLA_DIR_SET)
+export QLA_INI_DIR=$(DEB_QLA_INI_DIR_SET)
+
+SUBDIRS=scst $(shell grep -qw '^CONFIG_LIBFC' /boot/config-$(uname -r) && echo fcst) iscsi-scst $(QLA_DIR) scst_local scstadmin srpt
+DESTDIR=$(CURDIR)/debian/tmp
+VERSION:=$(shell head -n1 debian/changelog | sed 's/.*(\([0-9.]*\).*).*/\1/')
 
 %:
 	echo "*** dh $@ ***"
@@ -41,7 +43,7 @@ build:
 	{								\
 		echo dkms.conf &&					\
 		echo Makefile &&					\
-		for d in fcst iscsi-scst qla2x00t scst scst_local srpt; do\
+		for d in fcst iscsi-scst $(QLA_INI_DIR) scst scst_local srpt; do\
 			echo $$d;					\
 		done;							\
 	} | sed "s,^,usr/src/scst-$(VERSION)/," >debian/scst-dkms.install
@@ -75,7 +77,7 @@ install:
 	cp debian/scst.dkms						\
 		$(DESTDIR)/usr/src/scst-$(VERSION)/dkms.conf &&		\
 	scripts/list-source-files |					\
-	grep -E '^Makefile$$|^(fcst|iscsi-scst|qla2x00t|scst|scst_local|srpt)/'|\
+	grep -E '^Makefile$$|^(fcst|iscsi-scst|$(QLA_INI_DIR)|scst|scst_local|srpt)/'|\
 	tar -T- -cf- |							\
 	tar -C $(DESTDIR)/usr/src/scst-$(VERSION) -xf- &&		\
 	find $(DESTDIR) -type f -print0 | xargs -0 -r chmod 0644 &&	\
