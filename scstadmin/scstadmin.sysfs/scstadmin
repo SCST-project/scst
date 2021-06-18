@@ -2445,7 +2445,8 @@ sub applyConfigAssignments {
 
 				if (!defined($$config{'TARGET_DRIVER'}->{$driver}->{'TARGET'}->{$target}->{'GROUP'}->{$group})) {
 					if ($deletions) {
-						removeGroup($driver, $target, $group);
+						removeGroup($driver, $target,
+							    $group, TRUE);
 						$changes++;
 					} else {
 						print "\t-> Group '$group' is not in configuration. Use -force to remove.\n";
