@@ -36,6 +36,7 @@ clean:
 	    -x debian/scst.postinst
 
 build:
+	[ -n "$(QLA_INI_DIR)" ] &&					\
 	make 2release &&						\
 	export BUILD_2X_MODULE=y &&					\
 	export CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y &&	\
