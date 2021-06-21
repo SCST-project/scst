@@ -315,7 +315,7 @@ make-scst-dist =							\
 scst-dist-gzip: scst-$(VERSION).tar.bz2
 
 scst-$(VERSION).tar.bz2: $(SCST_SOURCE_FILES)
-	$(call make-scst-dist,j,bz2,$(VERSION),grep -E '^doc/|^fcst/|^iscsi-scst/|^Makefile|^qla2x00t(|_git)/|^scripts/|^scst.spec|^scst/|^scst_local/|^srpt/|^usr/|^scstadmin/')
+	$(call make-scst-dist,j,bz2,$(VERSION),grep -E '^doc/|^fcst/|^iscsi-scst/|^Makefile|^qla2x00t(|-32gbit)/|^scripts/|^scst.spec|^scst/|^scst_local/|^srpt/|^usr/|^scstadmin/')
 
 scst-rpm:
 	name=scst &&							\
