@@ -486,7 +486,9 @@ static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 		res = blkdev_issue_flush(bdev, NULL);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
 		res = blkdev_issue_flush(bdev, gfp_mask, NULL, BLKDEV_IFL_WAIT);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
+	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 4)
 		res = blkdev_issue_flush(bdev, gfp_mask, NULL);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 12, 0)
 		res = blkdev_issue_flush(bdev, gfp_mask);

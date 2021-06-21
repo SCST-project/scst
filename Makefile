@@ -67,6 +67,11 @@ VERSION := $(VERSION_WITHOUT_REVISION)$(REVISION)
 DEBIAN_REVISION=1.1
 RPMTOPDIR ?= $(shell if [ $$(id -u) = 0 ]; then echo /usr/src/packages;\
 		else echo $$PWD/rpmbuilddir; fi)
+SCST_SOURCE_FILES = $(shell if [ -e scripts/list-source-files ]; then	\
+				scripts/list-source-files;		\
+			else						\
+				echo scripts-source-files-is-missing;	\
+			fi)
 
 help:
 	@echo "		all               : make all"
@@ -309,8 +314,8 @@ make-scst-dist =							\
 
 scst-dist-gzip: scst-$(VERSION).tar.bz2
 
-scst-$(VERSION).tar.bz2: $(shell scripts/list-source-files)
-	$(call make-scst-dist,j,bz2,$(VERSION),grep -E '^doc/|^fcst/|^iscsi-scst/|^Makefile|^qla2x00t(|_git)/|^scripts/|^scst.spec|^scst/|^scst_local/|^srpt/|^usr/|^scstadmin/')
+scst-$(VERSION).tar.bz2: $(SCST_SOURCE_FILES)
+	$(call make-scst-dist,j,bz2,$(VERSION),grep -E '^doc/|^fcst/|^iscsi-scst/|^Makefile|^qla2x00t(|-32gbit)/|^scripts/|^scst.spec|^scst/|^scst_local/|^srpt/|^usr/|^scstadmin/')
 
 scst-rpm:
 	name=scst &&							\
@@ -363,12 +368,12 @@ debian/compat:
 	sed 's/\..*//' >$@
 
 ../scst_$(VERSION).orig.tar.gz: debian/changelog debian/compat Makefile	\
-		$(shell scripts/list-source-files)
+		$(SCST_SOURCE_FILES)
 	$(call make-scst-dist,z,gz,$(VERSION),cat) &&			\
 	mv "scst-$(VERSION).tar.gz" "$@"
 
 ../scst_$(VERSION).orig.tar.xz: debian/changelog debian/compat Makefile	\
-		$(shell scripts/list-source-files)
+		$(SCST_SOURCE_FILES)
 	$(call make-scst-dist,J,xz,$(VERSION),cat) &&			\
 	mv "scst-$(VERSION).tar.xz" "$@"
 

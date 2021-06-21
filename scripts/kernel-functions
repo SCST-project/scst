@@ -119,9 +119,9 @@ function extract_kernel_tree {
 	{ extract_kernel_archive "$kver" && mv "linux-$kver" "linux-$1"; } ||
 	return $?
     fi
-    mv "linux-$1" ".." || return $?
+    mv "linux-$1" .. || return $?
     cd "../linux-$1" || return $?
-  )
+  ) || return $?
   rmdir "${tmpdir}"
 }
 
@@ -784,16 +784,14 @@ function download_and_extract_distro_rpm {
 		CentOS)
 		    rpm2cpio "${kernel_downloads}/kernel-${kver}.src.rpm" |
 			cpio -i --make-directories --quiet &&
-			tar xaf "linux-${kver}.tar."* &&
-			mv "linux-${kver}" ".." &&
-			cd "../linux-${kver}"
+			tar xaf "linux-${kver}"*.tar.* &&
+			mv "linux-${kver}"*[^z] "../linux-${kver}"
 		    ;;
 		UEK)
 		    rpm2cpio "${kernel_downloads}/kernel-uek-${kver}.src.rpm" |
 			cpio -i --make-directories --quiet &&
 			tar xaf "linux-${kver/-*}.tar."* &&
-			mv "linux-${kver/-*}" "../linux-${kver}" &&
-			cd "../linux-${kver}"
+			mv "linux-${kver/-*}" "../linux-${kver}"
 		    ;;
 		*)
 		    echo "Error: unknown distro $distro"
