@@ -142,7 +142,7 @@ function patch_kernel {
 		# versions do not support recent gcc versions. See also commit
 		# 9c695203a7dd ("compiler-gcc.h: gcc-4.5 needs noclone and
 		# noinline on __naked functions") # v2.6.35.
-		if kernel_version_le 2.6.35 "$1"; then
+		if kernel_version_le 2.6.34.2 "$1"; then
 		    patch -f -s -p1 <<'EOF'
 diff --git a/include/linux/compiler-gcc.h b/include/linux/compiler-gcc.h
 index 02ae99e8e6d3..47e12c19c965 100644
