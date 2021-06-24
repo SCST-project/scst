@@ -1762,11 +1762,16 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 /* <linux/sockptr.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
+#if !defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
+	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 4
 /* See also commit ba423fdaa589 ("net: add a new sockptr_t type") # v5.9 */
 static inline void __user *KERNEL_SOCKPTR(void *p)
 {
 	return (void __force __user *)p;
 }
+#else
+#define KERNEL_SOCKPTR(p) ((char __force __user *)p)
+#endif
 #endif
 
 /* <linux/stddef.h> */
@@ -1930,7 +1935,9 @@ static inline void put_unaligned_be64(uint64_t i, void *p)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
+	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 4)
 /* Only use get_unaligned_be24() if reading p - 1 is allowed. */
 static inline uint32_t get_unaligned_be24(const uint8_t *const p)
 {
@@ -2135,6 +2142,8 @@ fc_host_fpin_rcv(struct Scsi_Host *shost, u32 fpin_len, char *fpin_buf)
  * ELS requests").
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0) &&			\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||			\
+	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 4) &&			\
 	!(defined(UEK_KABI_RENAME) && defined(FC_PORTSPEED_256GBIT))
 #define ELS_RDP 0x18
 #endif
