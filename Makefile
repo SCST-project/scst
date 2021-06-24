@@ -57,7 +57,7 @@ REVISION ?= $(shell if [ -e .svn ]; then				\
 		      git log | grep -c ^commit;			\
 		    fi)
 VERSION := $(shell echo -n "$$(sed -n 's/^\#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^-]*\).*\"/\1/p' scst/include/scst_const.h)$(REVISION)")
-DEBIAN_REVISION=1
+DEBIAN_REVISION=1.1
 RPMTOPDIR ?= $(shell if [ $$(id -u) = 0 ]; then echo /usr/src/packages;\
 		else echo $$PWD/rpmbuilddir; fi)
 
@@ -288,8 +288,9 @@ make-scst-dist =							\
 	mkdir "$${name}-$(3)" &&					\
 	{								\
 	  {								\
-	    scripts/list-source-files &&				\
+	    scripts/list-source-files | grep -v '/\.gitignore' &&	\
 	    if [ -e debian/changelog ]; then echo debian/changelog; fi;	\
+	    if [ -e debian/compat ]; then echo debian/compat; fi;	\
 	  } |								\
 	  $(4) |							\
 	  tar -T- -cf- |						\
@@ -348,11 +349,15 @@ debian/changelog: debian/changelog.in
 	sed 's/%{scst_version}/$(VERSION)-$(DEBIAN_REVISION)/'		\
 	  <debian/changelog.in >debian/changelog
 
-../scst_$(VERSION).orig.tar.gz: debian/changelog Makefile
+debian/compat:
+	dpkg-query -W --showformat='$${Version}\n' debhelper 2>/dev/null | \
+	sed 's/\..*//' >$@
+
+../scst_$(VERSION).orig.tar.gz: debian/changelog debian/compat Makefile
 	$(call make-scst-dist,z,gz,$(VERSION),cat) &&			\
 	mv "scst-$(VERSION).tar.gz" "$@"
 
-../scst_$(VERSION).orig.tar.xz: debian/changelog Makefile
+../scst_$(VERSION).orig.tar.xz: debian/changelog debian/compat Makefile
 	$(call make-scst-dist,J,xz,$(VERSION),cat) &&			\
 	mv "scst-$(VERSION).tar.xz" "$@"
 
