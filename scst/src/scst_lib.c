@@ -14037,8 +14037,6 @@ int scst_process_check_condition(struct scst_cmd *cmd)
 process_qerr:
 	scst_process_qerr(cmd);
 
-	scst_store_sense(cmd);
-
 	res = 0;
 
 out:
