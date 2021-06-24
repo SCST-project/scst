@@ -24,8 +24,7 @@ VERSION:=$(shell head -n1 debian/changelog | sed 's/.*(\([0-9.]*\).*).*/\1/')
 clean:
 	dh_testdir &&							\
 	dh_prep -Xqla_isp/TAGS -Xdebian/changelog &&			\
-	scripts/clean-source-tree -x debian/changelog &&		\
-	rm -f scstadmin/scstadmin
+	scripts/clean-source-tree -x debian/changelog
 
 build:
 	make 2release &&						\
