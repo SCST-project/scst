@@ -785,7 +785,11 @@ function download_and_extract_distro_rpm {
 		    rpm2cpio "${kernel_downloads}/kernel-${kver}.src.rpm" |
 			cpio -i --make-directories --quiet &&
 			tar xaf "linux-${kver}"*.tar.* &&
-			mv "linux-${kver}"*[^z] "../linux-${kver}"
+			if [ -e "linux-${kver}" ]; then
+			    mv "linux-${kver}" ..
+			else
+			    mv "linux-${kver}"*[^z] "../linux-${kver}"
+			fi
 		    ;;
 		UEK)
 		    rpm2cpio "${kernel_downloads}/kernel-uek-${kver}.src.rpm" |
