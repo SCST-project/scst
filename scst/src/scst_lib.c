@@ -5421,7 +5421,9 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 		struct Scsi_Host *shost = dev->scsi_dev->host;
 
 		ini_sg = shost->sg_tablesize;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 13, 0)
 		ini_unchecked_isa_dma = shost->unchecked_isa_dma;
+#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0)
 		ini_use_clustering = shost->use_clustering == ENABLE_CLUSTERING;
 #else
@@ -8160,7 +8162,11 @@ static struct blk_kern_sg_work *blk_copy_kern_sg(struct request_queue *q,
 	for_each_sg(new_sgl, sg, new_sgl_nents, i) {
 		struct page *pg;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 13, 0)
 		pg = alloc_page(q->bounce_gfp | gfp_mask);
+#else
+		pg = alloc_page(gfp_mask);
+#endif
 		if (pg == NULL)
 			goto err_free_table;
 
@@ -8259,10 +8265,6 @@ static struct request *blk_make_request(struct request_queue *q,
 
 		blk_queue_bounce(q, &bounce_bio);
 		ret = blk_rq_append_bio(rq, bounce_bio);
-		if (unlikely(ret)) {
-			blk_put_request(rq);
-			return ERR_PTR(ret);
-		}
 		/*
 		 * See also commit 0abc2a10389f ("block: fix
 		 * blk_rq_append_bio"). That commit has been backported to
@@ -8271,17 +8273,15 @@ static struct request *blk_make_request(struct request_queue *q,
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 11) &&	\
 	!defined(CONFIG_SUSE_KERNEL)
 		ret = blk_rq_append_bio(rq, bio);
-		if (unlikely(ret)) {
-			blk_put_request(rq);
-			return ERR_PTR(ret);
-		}
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 13, 0)
 		ret = blk_rq_append_bio(rq, &bio);
+#else
+		ret = blk_rq_append_bio(rq, bio);
+#endif
 		if (unlikely(ret)) {
 			blk_put_request(rq);
 			return ERR_PTR(ret);
 		}
-#endif
 	}
 
 	return rq;
