@@ -1597,45 +1597,34 @@ out:
 	return ret;
 }
 
-static const char *cm_event_type_str(enum rdma_cm_event_type ev_type)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 2, 0)
+static const char *const cma_events[] = {
+	[RDMA_CM_EVENT_ADDR_RESOLVED]	 = "address resolved",
+	[RDMA_CM_EVENT_ADDR_ERROR]	 = "address error",
+	[RDMA_CM_EVENT_ROUTE_RESOLVED]	 = "route resolved ",
+	[RDMA_CM_EVENT_ROUTE_ERROR]	 = "route error",
+	[RDMA_CM_EVENT_CONNECT_REQUEST]	 = "connect request",
+	[RDMA_CM_EVENT_CONNECT_RESPONSE] = "connect response",
+	[RDMA_CM_EVENT_CONNECT_ERROR]	 = "connect error",
+	[RDMA_CM_EVENT_UNREACHABLE]	 = "unreachable",
+	[RDMA_CM_EVENT_REJECTED]	 = "rejected",
+	[RDMA_CM_EVENT_ESTABLISHED]	 = "established",
+	[RDMA_CM_EVENT_DISCONNECTED]	 = "disconnected",
+	[RDMA_CM_EVENT_DEVICE_REMOVAL]	 = "device removal",
+	[RDMA_CM_EVENT_MULTICAST_JOIN]	 = "multicast join",
+	[RDMA_CM_EVENT_MULTICAST_ERROR]	 = "multicast error",
+	[RDMA_CM_EVENT_ADDR_CHANGE]	 = "address change",
+	[RDMA_CM_EVENT_TIMEWAIT_EXIT]	 = "timewait exit",
+};
+
+static const char *rdma_event_msg(enum rdma_cm_event_type event)
 {
-	switch (ev_type) {
-	case RDMA_CM_EVENT_ADDR_RESOLVED:
-		return "ADDRESS_RESOLVED";
-	case RDMA_CM_EVENT_ADDR_ERROR:
-		return "ADDESS_ERROR";
-	case RDMA_CM_EVENT_ROUTE_RESOLVED:
-		return "ROUTE_RESOLVED";
-	case RDMA_CM_EVENT_ROUTE_ERROR:
-		return "ROUTE_ERROR";
-	case RDMA_CM_EVENT_CONNECT_REQUEST:
-		return "CONNECT_REQUEST";
-	case RDMA_CM_EVENT_CONNECT_RESPONSE:
-		return "CONNECT_RESPONSE";
-	case RDMA_CM_EVENT_CONNECT_ERROR:
-		return "CONNECT_ERROR";
-	case RDMA_CM_EVENT_UNREACHABLE:
-		return "UNREACHABLE";
-	case RDMA_CM_EVENT_REJECTED:
-		return "REJECTED";
-	case RDMA_CM_EVENT_ESTABLISHED:
-		return "ESTABLISHED";
-	case RDMA_CM_EVENT_DISCONNECTED:
-		return "DISCONNECTED";
-	case RDMA_CM_EVENT_DEVICE_REMOVAL:
-		return "DEVICE_REMOVAL";
-	case RDMA_CM_EVENT_MULTICAST_JOIN:
-		return "MULTICAST_JOIN";
-	case RDMA_CM_EVENT_MULTICAST_ERROR:
-		return "MULTICAST_ERROR";
-	case RDMA_CM_EVENT_ADDR_CHANGE:
-		return "ADDR_CHANGE";
-	case RDMA_CM_EVENT_TIMEWAIT_EXIT:
-		return "TIMEWAIT_EXIT";
-	default:
-		return "UNKNOWN";
-	}
+	size_t index = event;
+
+	return (index < ARRAY_SIZE(cma_events) && cma_events[index]) ?
+			cma_events[index] : "unrecognized event";
 }
+#endif
 
 static int isert_handle_failure(struct isert_connection *conn)
 {
@@ -1656,7 +1645,7 @@ static int isert_cm_evt_listener_handler(struct rdma_cm_id *cm_id,
 		break;
 	default:
 		PRINT_INFO("Listener event:%s(%d), ignored",
-			   cm_event_type_str(event), event);
+			   rdma_event_msg(event), event);
 		break;
 	}
 
@@ -1685,7 +1674,7 @@ static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 	ev_type = cm_ev->event;
 	portal = cm_id->context;
 	PRINT_INFO("isert_cm_evt:%s(%d) status:%d portal:%p cm_id:%p",
-		   cm_event_type_str(ev_type), ev_type, cm_ev->status,
+		   rdma_event_msg(ev_type), ev_type, cm_ev->status,
 		   portal, cm_id);
 
 	if (portal->cm_id == cm_id) {
