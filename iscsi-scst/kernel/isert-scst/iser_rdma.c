@@ -1525,36 +1525,8 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 		goto fail_accept;
 	}
 
-	switch (isert_conn->peer_addr.ss_family) {
-	case AF_INET:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
-		PRINT_INFO("iser accepted connection cm_id:%p "
-			   NIPQUAD_FMT "->" NIPQUAD_FMT, cm_id,
-			   NIPQUAD(((struct sockaddr_in *)&isert_conn->peer_addr)->sin_addr.s_addr),
-			   NIPQUAD(((struct sockaddr_in *)&isert_conn->self_addr)->sin_addr.s_addr));
-#else
-		PRINT_INFO("iser accepted connection cm_id:%p %pI4->%pI4",
-			   cm_id,
-			   &((struct sockaddr_in *)&isert_conn->peer_addr)->sin_addr.s_addr,
-			   &((struct sockaddr_in *)&isert_conn->self_addr)->sin_addr.s_addr);
-#endif
-		break;
-	case AF_INET6:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-		PRINT_INFO("iser accepted connection cm_id:%p "
-			   NIP6_FMT "->" NIP6_FMT, cm_id,
-			   NIP6(((struct sockaddr_in6 *)&isert_conn->peer_addr)->sin6_addr),
-			   NIP6(((struct sockaddr_in6 *)&isert_conn->self_addr)->sin6_addr));
-#else
-		PRINT_INFO("iser accepted connection cm_id:%p %pI6->%pI6",
-			   cm_id,
-			   &((struct sockaddr_in6 *)&isert_conn->peer_addr)->sin6_addr,
-			   &((struct sockaddr_in6 *)&isert_conn->self_addr)->sin6_addr);
-#endif
-		break;
-	default:
-		PRINT_INFO("iser accepted connection cm_id:%p", cm_id);
-	}
+	PRINT_INFO("iser accepted connection cm_id:%p %pISpc->%pISpc",
+		   cm_id, &isert_conn->peer_addr, &isert_conn->self_addr);
 
 	mutex_lock(&dev_list_mutex);
 	list_add_tail(&isert_conn->portal_node, &portal->conn_list);
