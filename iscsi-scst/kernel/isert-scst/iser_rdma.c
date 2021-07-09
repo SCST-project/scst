@@ -1625,16 +1625,6 @@ out:
 	return ret;
 }
 
-static int isert_cm_disconnect_handler(struct rdma_cm_id *cm_id,
-				       struct rdma_cm_event *event)
-{
-	struct isert_connection *isert_conn = cm_id->qp->qp_context;
-
-	isert_conn_disconnect(isert_conn);
-
-	return 0;
-}
-
 static const char *cm_event_type_str(enum rdma_cm_event_type ev_type)
 {
 	switch (ev_type) {
@@ -1682,28 +1672,33 @@ static int isert_handle_failure(struct isert_connection *conn)
 }
 
 static int isert_cm_evt_listener_handler(struct rdma_cm_id *cm_id,
-					 struct rdma_cm_event *cm_ev)
+					 enum rdma_cm_event_type event)
 {
-	enum rdma_cm_event_type ev_type;
 	struct isert_portal *portal;
-	int err = 0;
 
-	ev_type = cm_ev->event;
 	portal = cm_id->context;
 
-	switch (ev_type) {
+	switch (event) {
 	case RDMA_CM_EVENT_DEVICE_REMOVAL:
 		portal->cm_id = NULL;
-		err = -EINVAL;
 		break;
-
 	default:
 		PRINT_INFO("Listener event:%s(%d), ignored",
-			   cm_event_type_str(ev_type), ev_type);
+			   cm_event_type_str(event), event);
 		break;
 	}
 
-	return err;
+	return -1;
+}
+
+static int isert_cm_disconnect_handler(struct rdma_cm_id *cm_id,
+				       enum rdma_cm_event_type event)
+{
+	struct isert_connection *isert_conn = cm_id->qp->qp_context;
+
+	isert_conn_disconnect(isert_conn);
+
+	return 0;
 }
 
 static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
@@ -1722,7 +1717,7 @@ static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 		   portal, cm_id);
 
 	if (portal->cm_id == cm_id) {
-		err = isert_cm_evt_listener_handler(cm_id, cm_ev);
+		err = isert_cm_evt_listener_handler(cm_id, ev_type);
 		goto out;
 	}
 
@@ -1739,14 +1734,14 @@ static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 
 	case RDMA_CM_EVENT_CONNECT_ERROR:
 	case RDMA_CM_EVENT_REJECTED:
-		err = isert_cm_disconnect_handler(cm_id, cm_ev);
+		err = isert_cm_disconnect_handler(cm_id, ev_type);
 		break;
 
 	case RDMA_CM_EVENT_ADDR_CHANGE:
 	case RDMA_CM_EVENT_DISCONNECTED:
 	case RDMA_CM_EVENT_DEVICE_REMOVAL:
 	case RDMA_CM_EVENT_TIMEWAIT_EXIT:
-		isert_cm_disconnect_handler(cm_id, cm_ev);
+		isert_cm_disconnect_handler(cm_id, ev_type);
 		err = isert_cm_disconnected_handler(cm_id, cm_ev);
 		break;
 
