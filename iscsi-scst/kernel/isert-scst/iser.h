@@ -66,6 +66,8 @@ struct isert_portal {
 	/* protected by dev_list_mutex */
 	struct list_head	conn_list; /* head of conns list */
 	enum isert_portal_state	state;
+	struct work_struct      work;
+	struct workqueue_struct *reinit_id_wq;
 	int			refcnt;
 };
 
@@ -88,13 +90,13 @@ enum isert_wr_op {
 };
 
 struct isert_device;
-struct isert_connection;
+struct isert_conn;
 
 struct isert_wr {
 	enum isert_wr_op	wr_op;
 	struct isert_buf	*buf;
 
-	struct isert_connection	*conn;
+	struct isert_conn       *conn;
 	struct isert_cmnd	*pdu;
 
 	struct isert_device	*isert_dev;
@@ -168,7 +170,7 @@ struct isert_cq {
 #define ISERT_CONNECTION_CLOSE		5
 #define ISERT_IN_PORTAL_LIST		6
 
-struct isert_connection {
+struct isert_conn {
 	struct iscsi_conn	iscsi ____cacheline_aligned;
 
 	int			repost_threshold ____cacheline_aligned;
@@ -224,13 +226,16 @@ struct isert_connection {
 	struct work_struct	close_work;
 	struct work_struct	drain_work;
 	struct work_struct	discon_work;
-	struct work_struct	free_work;
+	struct work_struct	release_work;
 	struct isert_wr		drain_wr_sq;
 	struct isert_wr		drain_wr_rq;
 	struct kref		kref;
 
 	struct isert_portal	*portal;
 	void			*priv_data; /* for connection tracking */
+
+	wait_queue_head_t       rem_wait;
+	atomic_t                dev_removed;
 };
 
 struct isert_device {
@@ -286,33 +291,30 @@ extern struct kmem_cache *isert_cmnd_cache;
 extern struct kmem_cache *isert_conn_cache;
 
 /* iser portal */
-struct isert_portal *isert_portal_create(void);
-int isert_portal_listen(struct isert_portal *portal,
-			struct sockaddr *sa,
-			size_t addr_len);
+struct isert_portal *isert_portal_create(struct sockaddr *sa, size_t addr_len);
 void isert_portal_release(struct isert_portal *portal);
 void isert_portal_list_release_all(void);
 struct isert_portal *isert_portal_start(struct sockaddr *sa, size_t addr_len);
 
 /* iser connection */
-int isert_post_recv(struct isert_connection *isert_conn,
+int isert_post_recv(struct isert_conn *isert_conn,
 		    struct isert_wr *first_wr, int num_wr);
-int isert_post_send(struct isert_connection *isert_conn,
+int isert_post_send(struct isert_conn *isert_conn,
 		    struct isert_wr *first_wr, int num_wr);
 
-int isert_alloc_conn_resources(struct isert_connection *isert_conn);
-void isert_free_conn_resources(struct isert_connection *isert_conn);
-void isert_conn_free(struct isert_connection *isert_conn);
-void isert_conn_disconnect(struct isert_connection *isert_conn);
-void isert_post_drain(struct isert_connection *isert_conn);
-void isert_sched_conn_free(struct isert_connection *isert_conn);
+int isert_alloc_conn_resources(struct isert_conn *isert_conn);
+void isert_free_conn_resources(struct isert_conn *isert_conn);
+void isert_put_conn(struct isert_conn *isert_conn);
+void isert_conn_disconnect(struct isert_conn *isert_conn);
+void isert_post_drain(struct isert_conn *isert_conn);
+void isert_sched_conn_free(struct isert_conn *isert_conn);
 
-static inline struct isert_connection *isert_conn_zalloc(void)
+static inline struct isert_conn *isert_conn_zalloc(void)
 {
 	return kmem_cache_zalloc(isert_conn_cache, GFP_KERNEL);
 }
 
-static inline void isert_conn_kfree(struct isert_connection *isert_conn)
+static inline void isert_conn_kfree(struct isert_conn *isert_conn)
 {
 	kmem_cache_free(isert_conn_cache, isert_conn);
 }
@@ -322,12 +324,12 @@ int isert_buf_alloc_data_buf(struct ib_device *ib_dev,
 			     struct isert_buf *isert_buf, size_t size,
 			     enum dma_data_direction dma_dir);
 void isert_wr_set_fields(struct isert_wr *wr,
-			 struct isert_connection *isert_conn,
+			 struct isert_conn *isert_conn,
 			 struct isert_cmnd *pdu);
 int isert_wr_init(struct isert_wr *wr,
 		  enum isert_wr_op wr_op,
 		  struct isert_buf *isert_buf,
-		  struct isert_connection *isert_conn,
+		  struct isert_conn *isert_conn,
 		  struct isert_cmnd *pdu,
 		  struct ib_sge *sge,
 		  int sg_offset,
@@ -357,23 +359,23 @@ static inline void isert_pdu_kfree(struct isert_cmnd *cmnd)
 	kmem_cache_free(isert_cmnd_cache, cmnd);
 }
 
-struct isert_cmnd *isert_rx_pdu_alloc(struct isert_connection *isert_conn,
+struct isert_cmnd *isert_rx_pdu_alloc(struct isert_conn *isert_conn,
 				      size_t size);
-struct isert_cmnd *isert_tx_pdu_alloc(struct isert_connection *isert_conn,
+struct isert_cmnd *isert_tx_pdu_alloc(struct isert_conn *isert_conn,
 				      size_t size);
 void isert_tx_pdu_init(struct isert_cmnd *isert_pdu,
-		       struct isert_connection *isert_conn);
-int isert_pdu_send(struct isert_connection *isert_conn,
+		       struct isert_conn *isert_conn);
+int isert_pdu_send(struct isert_conn *isert_conn,
 		   struct isert_cmnd *tx_pdu);
 
 int isert_prepare_rdma(struct isert_cmnd *isert_pdu,
-		       struct isert_connection *isert_conn,
+		       struct isert_conn *isert_conn,
 		       enum isert_wr_op op);
-int isert_pdu_post_rdma_write(struct isert_connection *isert_conn,
+int isert_pdu_post_rdma_write(struct isert_conn *isert_conn,
 			      struct isert_cmnd *isert_cmd,
 			      struct isert_cmnd *isert_rsp,
 			      int wr_cnt);
-int isert_pdu_post_rdma_read(struct isert_connection *isert_conn,
+int isert_pdu_post_rdma_read(struct isert_conn *isert_conn,
 			     struct isert_cmnd *isert_cmd,
 			     int wr_cnt);
 

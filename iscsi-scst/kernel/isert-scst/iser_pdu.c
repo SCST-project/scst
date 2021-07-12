@@ -43,7 +43,7 @@
 #include "iser_datamover.h"
 
 static inline int isert_pdu_rx_buf_init(struct isert_cmnd *isert_pdu,
-				 struct isert_connection *isert_conn)
+				 struct isert_conn *isert_conn)
 {
 	struct isert_buf *isert_buf = &isert_pdu->buf;
 
@@ -53,7 +53,7 @@ static inline int isert_pdu_rx_buf_init(struct isert_cmnd *isert_pdu,
 }
 
 static inline int isert_pdu_tx_buf_init(struct isert_cmnd *isert_pdu,
-				 struct isert_connection *isert_conn)
+				 struct isert_conn *isert_conn)
 {
 	struct isert_buf *isert_buf = &isert_pdu->buf;
 
@@ -78,7 +78,7 @@ static inline void isert_pdu_set_hdr_plain(struct isert_cmnd *isert_pdu)
  * it should be parsed to setup isert_cmnd + iscsi_cmnd in full
  */
 static int isert_rx_pdu_init(struct isert_cmnd *isert_pdu,
-			     struct isert_connection *isert_conn)
+			     struct isert_conn *isert_conn)
 {
 	struct iscsi_cmnd *iscsi_cmnd = &isert_pdu->iscsi;
 	int err = isert_pdu_rx_buf_init(isert_pdu, isert_conn);
@@ -105,7 +105,7 @@ void isert_tx_pdu_init_iscsi(struct isert_cmnd *isert_pdu)
  * of the iscsi pdu struct
  */
 void isert_tx_pdu_init(struct isert_cmnd *isert_pdu,
-		       struct isert_connection *isert_conn)
+		       struct isert_conn *isert_conn)
 {
 	struct iscsi_cmnd *iscsi_cmnd = &isert_pdu->iscsi;
 	struct isert_buf *isert_buf = &isert_pdu->buf;
@@ -142,7 +142,7 @@ void isert_tx_pdu_convert_from_iscsi(struct isert_cmnd *isert_cmnd,
 	return;
 }
 
-static inline int isert_pdu_prepare_send(struct isert_connection *isert_conn,
+static inline int isert_pdu_prepare_send(struct isert_conn *isert_conn,
 					  struct isert_cmnd *tx_pdu)
 {
 	struct isert_device *isert_dev = isert_conn->isert_dev;
@@ -168,7 +168,7 @@ static inline int isert_pdu_prepare_send(struct isert_connection *isert_conn,
 }
 
 static int isert_alloc_for_rdma(struct isert_cmnd *pdu, int sge_cnt,
-				struct isert_connection *isert_conn)
+				struct isert_conn *isert_conn)
 {
 	struct isert_wr *wr;
 	struct ib_sge *sg_pool;
@@ -234,7 +234,7 @@ static inline void isert_link_send_pdu_wrs(struct isert_cmnd *from_pdu,
 }
 
 int isert_prepare_rdma(struct isert_cmnd *isert_pdu,
-		       struct isert_connection *isert_conn,
+		       struct isert_conn *isert_conn,
 		       enum isert_wr_op op)
 {
 	struct isert_buf *isert_buf = &isert_pdu->rdma_buf;
@@ -323,7 +323,7 @@ void isert_pdu_free(struct isert_cmnd *pdu)
 	isert_pdu_kfree(pdu);
 }
 
-struct isert_cmnd *isert_rx_pdu_alloc(struct isert_connection *isert_conn,
+struct isert_cmnd *isert_rx_pdu_alloc(struct isert_conn *isert_conn,
 				      size_t size)
 {
 	struct isert_cmnd *pdu = NULL;
@@ -371,7 +371,7 @@ out:
 	return pdu;
 }
 
-struct isert_cmnd *isert_tx_pdu_alloc(struct isert_connection *isert_conn,
+struct isert_cmnd *isert_tx_pdu_alloc(struct isert_conn *isert_conn,
 				      size_t size)
 {
 	struct isert_cmnd *pdu = NULL;
@@ -437,7 +437,7 @@ static inline void isert_link_recv_pdu_wrs(struct isert_cmnd *from_pdu,
 	isert_link_recv_wrs(&from_pdu->wr[0], &to_pdu->wr[0]);
 }
 
-int isert_alloc_conn_resources(struct isert_connection *isert_conn)
+int isert_alloc_conn_resources(struct isert_conn *isert_conn)
 {
 	struct isert_cmnd *pdu, *prev_pdu = NULL, *first_pdu = NULL;
 	/* RFC states that minimum receive data size is 512 */
@@ -496,8 +496,8 @@ clean_pdus:
 
 static int isert_reinit_rx_pdu(struct isert_cmnd *pdu)
 {
-	struct isert_connection *isert_conn = container_of(pdu->iscsi.conn,
-						struct isert_connection, iscsi);
+	struct isert_conn *isert_conn = container_of(pdu->iscsi.conn,
+						struct isert_conn, iscsi);
 
 	pdu->is_rstag_valid = 0;
 	pdu->is_wstag_valid = 0;
@@ -510,8 +510,8 @@ static int isert_reinit_rx_pdu(struct isert_cmnd *pdu)
 int isert_rx_pdu_done(struct isert_cmnd *pdu)
 {
 	int err;
-	struct isert_connection *isert_conn = container_of(pdu->iscsi.conn,
-						struct isert_connection, iscsi);
+	struct isert_conn *isert_conn = container_of(pdu->iscsi.conn,
+						struct isert_conn, iscsi);
 
 	TRACE_ENTRY();
 
@@ -539,7 +539,7 @@ out:
 	return err;
 }
 
-void isert_free_conn_resources(struct isert_connection *isert_conn)
+void isert_free_conn_resources(struct isert_conn *isert_conn)
 {
 	struct isert_cmnd *pdu;
 
@@ -577,7 +577,7 @@ void isert_free_conn_resources(struct isert_connection *isert_conn)
 	TRACE_EXIT();
 }
 
-int isert_pdu_send(struct isert_connection *isert_conn,
+int isert_pdu_send(struct isert_conn *isert_conn,
 		   struct isert_cmnd *tx_pdu)
 {
 	int err;
@@ -607,7 +607,7 @@ int isert_pdu_send(struct isert_connection *isert_conn,
 	return err;
 }
 
-int isert_pdu_post_rdma_write(struct isert_connection *isert_conn,
+int isert_pdu_post_rdma_write(struct isert_conn *isert_conn,
 			      struct isert_cmnd *isert_cmd,
 			      struct isert_cmnd *isert_rsp,
 			      int wr_cnt)
@@ -634,7 +634,7 @@ int isert_pdu_post_rdma_write(struct isert_connection *isert_conn,
 	return err;
 }
 
-int isert_pdu_post_rdma_read(struct isert_connection *isert_conn,
+int isert_pdu_post_rdma_read(struct isert_conn *isert_conn,
 			     struct isert_cmnd *isert_cmd, int wr_cnt)
 {
 	int err;

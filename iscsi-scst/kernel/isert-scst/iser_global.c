@@ -152,7 +152,7 @@ int isert_global_init(void)
 		return -ENOMEM;
 	}
 
-	isert_conn_cache = KMEM_CACHE(isert_connection,
+	isert_conn_cache = KMEM_CACHE(isert_conn,
 				     SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
 	if (!isert_conn_cache) {
 		destroy_workqueue(isert_glob.conn_wq);
