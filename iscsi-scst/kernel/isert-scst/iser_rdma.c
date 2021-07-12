@@ -1649,10 +1649,25 @@ static int isert_handle_failure(struct isert_conn *conn)
 	return 0;
 }
 
+static void isert_portal_reinit_id_work(struct work_struct *w)
+{
+	struct isert_portal *portal = container_of(w, struct isert_portal, work);
+
+	rdma_destroy_id(portal->cm_id);
+
+	portal->cm_id = isert_setup_id(portal);
+	if (IS_ERR(portal->cm_id)) {
+		PRINT_ERROR("Failed to create rdma id, err:%ld\n",
+				PTR_ERR(portal->cm_id));
+		portal->cm_id = NULL;
+	}
+}
+
 static int isert_cm_evt_listener_handler(struct rdma_cm_id *cm_id,
 					 enum rdma_cm_event_type event)
 {
 	struct isert_portal *portal;
+	int ret = -1;
 
 	portal = cm_id->context;
 
@@ -1661,12 +1676,8 @@ static int isert_cm_evt_listener_handler(struct rdma_cm_id *cm_id,
 		portal->cm_id = NULL;
 		break;
 	case RDMA_CM_EVENT_ADDR_CHANGE:
-		portal->cm_id = isert_setup_id(portal);
-		if (IS_ERR(portal->cm_id)) {
-			PRINT_ERROR("Failed to create rdma id, err:%ld\n",
-					PTR_ERR(portal->cm_id));
-			portal->cm_id = NULL;
-		}
+		queue_work(portal->reinit_id_wq, &portal->work);
+		ret = 0;
 		break;
 	default:
 		PRINT_INFO("Listener event:%s(%d), ignored",
@@ -1674,7 +1685,7 @@ static int isert_cm_evt_listener_handler(struct rdma_cm_id *cm_id,
 		break;
 	}
 
-	return -1;
+	return ret;
 }
 
 static int isert_cm_disconnect_handler(struct rdma_cm_id *cm_id,
@@ -1872,6 +1883,15 @@ struct isert_portal *isert_portal_create(struct sockaddr *sa, size_t addr_len)
 		goto err_alloc;
 	}
 
+	portal->reinit_id_wq = alloc_ordered_workqueue("isert_reinit_id_wq", WQ_MEM_RECLAIM);
+	if (unlikely(!portal->reinit_id_wq)) {
+		PRINT_ERROR("Unable to allocate reinit workqueue");
+		err = -ENOMEM;
+		goto free_portal;
+	}
+
+	INIT_WORK(&portal->work, isert_portal_reinit_id_work);
+
 	INIT_LIST_HEAD(&portal->conn_list);
 	isert_portal_list_add(portal);
 
@@ -1881,7 +1901,7 @@ struct isert_portal *isert_portal_create(struct sockaddr *sa, size_t addr_len)
 	if (IS_ERR(cm_id)) {
 		err = PTR_ERR(cm_id);
 		PRINT_ERROR("Failed to create rdma id, err:%d", err);
-		goto create_id_err;
+		goto free_wq;
 	}
 
 	portal->cm_id = cm_id;
@@ -1890,7 +1910,9 @@ struct isert_portal *isert_portal_create(struct sockaddr *sa, size_t addr_len)
 out:
 	return portal;
 
-create_id_err:
+free_wq:
+	destroy_workqueue(portal->reinit_id_wq);
+free_portal:
 	kfree(portal);
 	portal = ERR_PTR(err);
 err_alloc:
@@ -1904,6 +1926,8 @@ static void isert_portal_free(struct isert_portal *portal)
 
 	if (portal->refcnt > 0)
 		return;
+
+	destroy_workqueue(portal->reinit_id_wq);
 
 	kfree(portal);
 	module_put(THIS_MODULE);

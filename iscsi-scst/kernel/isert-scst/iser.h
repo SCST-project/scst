@@ -66,6 +66,8 @@ struct isert_portal {
 	/* protected by dev_list_mutex */
 	struct list_head	conn_list; /* head of conns list */
 	enum isert_portal_state	state;
+	struct work_struct      work;
+	struct workqueue_struct *reinit_id_wq;
 	int			refcnt;
 };
 
