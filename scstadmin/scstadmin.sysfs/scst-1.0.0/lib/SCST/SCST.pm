@@ -11,6 +11,7 @@ use strict;
 use warnings;
 use 5.005;
 use Fcntl ':mode';
+use File::Spec;
 use IO::Handle;
 use IO::File;
 use Carp qw(cluck);
@@ -4635,17 +4636,7 @@ sub _syswrite {
 }
 
 sub make_path {
-	my $path;
-
-	foreach my $element (@_) {
-		if ($path && rindex($path, '/') != length($path) - 1) {
-			$path .= '/';
-		}
-		cluck("make_path: invalid argument") if !valid($element);
-		$path .= $element;
-	}
-
-	return $path;
+	return File::Spec->catdir(@_);
 }
 
 ;1 __END__
