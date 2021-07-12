@@ -1266,6 +1266,19 @@ fail_create_qp:
 	goto out;
 }
 
+static void
+isert_init_conn(struct isert_conn *isert_conn)
+{
+	isert_conn->state = ISER_CONN_INIT;
+	INIT_LIST_HEAD(&isert_conn->rx_buf_list);
+	INIT_LIST_HEAD(&isert_conn->tx_free_list);
+	INIT_LIST_HEAD(&isert_conn->tx_busy_list);
+	spin_lock_init(&isert_conn->tx_lock);
+	spin_lock_init(&isert_conn->post_recv_lock);
+	kref_init(&isert_conn->kref);
+	mutex_init(&isert_conn->state_mutex);
+}
+
 static struct isert_conn *isert_conn_create(struct rdma_cm_id *cm_id,
 						struct isert_device *isert_dev)
 {
@@ -1281,7 +1294,9 @@ static struct isert_conn *isert_conn_create(struct rdma_cm_id *cm_id,
 		err = -ENOMEM;
 		goto fail_alloc;
 	}
-	isert_conn->state = ISER_CONN_INIT;
+
+	isert_init_conn(isert_conn);
+
 	isert_conn->cm_id = cm_id;
 	isert_conn->isert_dev = isert_dev;
 
@@ -1306,12 +1321,6 @@ static struct isert_conn *isert_conn_create(struct rdma_cm_id *cm_id,
 		err = -ENODEV;
 		goto fail_login_req_pdu;
 	}
-
-	INIT_LIST_HEAD(&isert_conn->rx_buf_list);
-	INIT_LIST_HEAD(&isert_conn->tx_free_list);
-	INIT_LIST_HEAD(&isert_conn->tx_busy_list);
-	spin_lock_init(&isert_conn->tx_lock);
-	spin_lock_init(&isert_conn->post_recv_lock);
 
 	isert_conn->login_req_pdu = isert_rx_pdu_alloc(isert_conn,
 						       ISER_MAX_LOGIN_RDSL);
@@ -1339,9 +1348,6 @@ static struct isert_conn *isert_conn_create(struct rdma_cm_id *cm_id,
 			    err);
 		goto fail_post_recv;
 	}
-
-	kref_init(&isert_conn->kref);
-	mutex_init(&isert_conn->state_mutex);
 
 	TRACE_EXIT();
 	return isert_conn;
