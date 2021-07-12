@@ -1274,6 +1274,7 @@ isert_init_conn(struct isert_conn *isert_conn)
 	INIT_LIST_HEAD(&isert_conn->tx_busy_list);
 	spin_lock_init(&isert_conn->tx_lock);
 	spin_lock_init(&isert_conn->post_recv_lock);
+	init_waitqueue_head(&isert_conn->rem_wait);
 	kref_init(&isert_conn->kref);
 	mutex_init(&isert_conn->state_mutex);
 }
@@ -1389,8 +1390,11 @@ static void isert_release_kref(struct kref *kref)
 
 	isert_free_conn_resources(isert_conn);
 
-	rdma_destroy_id(isert_conn->cm_id);
-	isert_conn->cm_id = NULL;
+	if (isert_conn->cm_id &&
+	    !atomic_read(&isert_conn->dev_removed)) {
+		rdma_destroy_id(isert_conn->cm_id);
+		isert_conn->cm_id = NULL;
+	}
 
 	dev = isert_get_priv(&isert_conn->iscsi);
 	if (dev) {
@@ -1413,9 +1417,14 @@ static void isert_release_kref(struct kref *kref)
 		isert_portal_free(isert_conn->portal);
 	mutex_unlock(&dev_list_mutex);
 
-	isert_conn_kfree(isert_conn);
 
-	module_put(THIS_MODULE);
+	if (atomic_read(&isert_conn->dev_removed)) {
+		atomic_set(&isert_conn->dev_removed, 0);
+		wake_up_interruptible(&isert_conn->rem_wait);
+	} else {
+		isert_conn_kfree(isert_conn);
+		module_put(THIS_MODULE);
+	}
 
 	TRACE_EXIT();
 }
@@ -1706,12 +1715,31 @@ static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 
 	case RDMA_CM_EVENT_ADDR_CHANGE:
 	case RDMA_CM_EVENT_DISCONNECTED:
-	case RDMA_CM_EVENT_DEVICE_REMOVAL:
 	case RDMA_CM_EVENT_TIMEWAIT_EXIT:
 		isert_cm_disconnect_handler(cm_id, ev_type);
 		err = isert_cm_disconnected_handler(cm_id, cm_ev);
 		break;
+	case RDMA_CM_EVENT_DEVICE_REMOVAL: {
+		struct isert_conn *isert_conn = cm_id->qp->qp_context;
 
+		atomic_set(&isert_conn->dev_removed, 1);
+
+		isert_cm_disconnect_handler(cm_id, ev_type);
+		isert_cm_disconnected_handler(cm_id, cm_ev);
+
+		wait_event_interruptible(isert_conn->rem_wait,
+					 !atomic_read(&isert_conn->dev_removed));
+
+		isert_conn_kfree(isert_conn);
+		module_put(THIS_MODULE);
+		/*
+		 * return non-zero from the callback to destroy
+		 * the rdma cm id
+		 */
+		err = 1;
+
+		break;
+	}
 	case RDMA_CM_EVENT_MULTICAST_JOIN:
 	case RDMA_CM_EVENT_MULTICAST_ERROR:
 		PRINT_ERROR("UD-related event:%d, ignored", ev_type);

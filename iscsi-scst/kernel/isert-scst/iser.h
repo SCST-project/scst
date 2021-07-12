@@ -231,6 +231,9 @@ struct isert_conn {
 
 	struct isert_portal	*portal;
 	void			*priv_data; /* for connection tracking */
+
+	wait_queue_head_t       rem_wait;
+	atomic_t                dev_removed;
 };
 
 struct isert_device {
