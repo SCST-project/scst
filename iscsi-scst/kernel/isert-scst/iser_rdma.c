@@ -1660,6 +1660,14 @@ static int isert_cm_evt_listener_handler(struct rdma_cm_id *cm_id,
 	case RDMA_CM_EVENT_DEVICE_REMOVAL:
 		portal->cm_id = NULL;
 		break;
+	case RDMA_CM_EVENT_ADDR_CHANGE:
+		portal->cm_id = isert_setup_id(portal);
+		if (IS_ERR(portal->cm_id)) {
+			PRINT_ERROR("Failed to create rdma id, err:%ld\n",
+					PTR_ERR(portal->cm_id));
+			portal->cm_id = NULL;
+		}
+		break;
 	default:
 		PRINT_INFO("Listener event:%s(%d), ignored",
 			   rdma_event_msg(event), event);
