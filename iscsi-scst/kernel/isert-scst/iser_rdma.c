@@ -1890,64 +1890,6 @@ err_alloc:
 	goto out;
 }
 
-int isert_portal_listen(struct isert_portal *portal,
-			struct sockaddr *sa,
-			size_t addr_len)
-{
-	int err;
-
-	TRACE_ENTRY();
-	err = rdma_bind_addr(portal->cm_id, sa);
-	if (err) {
-		PRINT_WARNING("Failed to bind rdma addr, err:%d", err);
-		goto out;
-	}
-	err = rdma_listen(portal->cm_id, ISER_LISTEN_BACKLOG);
-	if (err) {
-		PRINT_ERROR("Failed rdma listen, err:%d", err);
-		goto out;
-	}
-	memcpy(&portal->addr, sa, addr_len);
-
-	switch (sa->sa_family) {
-	case AF_INET:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
-		PRINT_INFO("iser portal cm_id:%p listens on: "
-			   NIPQUAD_FMT ":%d", portal->cm_id,
-			   NIPQUAD(((struct sockaddr_in *)sa)->sin_addr.s_addr),
-			   (int)ntohs(((struct sockaddr_in *)sa)->sin_port));
-#else
-		PRINT_INFO("iser portal cm_id:%p listens on: %pI4:%d",
-			   portal->cm_id,
-			   &((struct sockaddr_in *)sa)->sin_addr.s_addr,
-			   (int)ntohs(((struct sockaddr_in *)sa)->sin_port));
-#endif
-		break;
-	case AF_INET6:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-		PRINT_INFO("iser portal cm_id:%p listens on: "
-			   NIP6_FMT " %d",
-			   portal->cm_id,
-			   NIP6(((struct sockaddr_in6 *)sa)->sin6_addr),
-			   (int)ntohs(((struct sockaddr_in6 *)sa)->sin6_port));
-#else
-		PRINT_INFO("iser portal cm_id:%p listens on: %pI6 %d",
-			   portal->cm_id,
-			   &((struct sockaddr_in6 *)sa)->sin6_addr,
-			   (int)ntohs(((struct sockaddr_in6 *)sa)->sin6_port));
-#endif
-		break;
-	default:
-		PRINT_ERROR("Unknown address family");
-		err = -EINVAL;
-		goto out;
-	}
-
-out:
-	TRACE_EXIT_RES(err);
-	return err;
-}
-
 static void isert_portal_free(struct isert_portal *portal)
 {
 	lockdep_assert_held(&dev_list_mutex);

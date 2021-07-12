@@ -290,9 +290,6 @@ extern struct kmem_cache *isert_conn_cache;
 
 /* iser portal */
 struct isert_portal *isert_portal_create(struct sockaddr *sa, size_t addr_len);
-int isert_portal_listen(struct isert_portal *portal,
-			struct sockaddr *sa,
-			size_t addr_len);
 void isert_portal_release(struct isert_portal *portal);
 void isert_portal_list_release_all(void);
 struct isert_portal *isert_portal_start(struct sockaddr *sa, size_t addr_len);
