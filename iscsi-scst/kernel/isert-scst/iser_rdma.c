@@ -618,7 +618,7 @@ static void isert_conn_drained_do_work(struct work_struct *work)
 		container_of(work, struct isert_conn, drain_work);
 #endif
 
-	isert_conn_free(isert_conn);
+	isert_put_conn(isert_conn);
 }
 
 static void isert_sched_conn_drained(struct isert_conn *isert_conn)
@@ -648,7 +648,7 @@ static void isert_conn_closed_do_work(struct work_struct *work)
 	if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))
 		isert_connection_abort(&isert_conn->iscsi);
 
-	isert_conn_free(isert_conn);
+	isert_put_conn(isert_conn);
 }
 
 static void isert_sched_conn_closed(struct isert_conn *isert_conn)
@@ -663,30 +663,29 @@ static void isert_sched_conn_closed(struct isert_conn *isert_conn)
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void isert_conn_free_do_work(void *ctx)
+static void isert_release_work(void *ctx)
 #else
-static void isert_conn_free_do_work(struct work_struct *work)
+static void isert_release_work(struct work_struct *work)
 #endif
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 	struct isert_conn *isert_conn = ctx;
 #else
 	struct isert_conn *isert_conn =
-		container_of(work, struct isert_conn, free_work);
+		container_of(work, struct isert_conn, release_work);
 #endif
 
-	isert_conn_free(isert_conn);
+	isert_put_conn(isert_conn);
 }
 
 void isert_sched_conn_free(struct isert_conn *isert_conn)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	INIT_WORK(&isert_conn->free_work, isert_conn_free_do_work,
-		  isert_conn);
+	INIT_WORK(&isert_conn->release_work, isert_release_work, isert_conn);
 #else
-	INIT_WORK(&isert_conn->free_work, isert_conn_free_do_work);
+	INIT_WORK(&isert_conn->release_work, isert_release_work);
 #endif
-	isert_conn_queue_work(&isert_conn->free_work);
+	isert_conn_queue_work(&isert_conn->release_work);
 }
 
 static void isert_handle_wc_error(struct ib_wc *wc)
@@ -1376,7 +1375,7 @@ static void isert_deref_device(struct isert_device *isert_dev)
 		isert_device_release(isert_dev);
 }
 
-static void isert_kref_free(struct kref *kref)
+static void isert_release_kref(struct kref *kref)
 {
 	struct isert_conn_dev *dev;
 	struct isert_conn *isert_conn =
@@ -1421,10 +1420,10 @@ static void isert_kref_free(struct kref *kref)
 	TRACE_EXIT();
 }
 
-void isert_conn_free(struct isert_conn *isert_conn)
+void isert_put_conn(struct isert_conn *isert_conn)
 {
 	sBUG_ON(kref_read(&isert_conn->kref) == 0);
-	kref_put(&isert_conn->kref, isert_kref_free);
+	kref_put(&isert_conn->kref, isert_release_kref);
 }
 
 static int isert_cm_disconnected_handler(struct rdma_cm_id *cm_id,
@@ -1447,8 +1446,8 @@ static void isert_immediate_conn_close(struct isert_conn *isert_conn)
 	 * one from the init and two from the connect request,
 	 * thus it is safe to deref directly before the sched_conn_free.
 	 */
-	isert_conn_free(isert_conn);
-	isert_conn_free(isert_conn);
+	isert_put_conn(isert_conn);
+	isert_put_conn(isert_conn);
 	isert_sched_conn_free(isert_conn);
 }
 

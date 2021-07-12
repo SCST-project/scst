@@ -110,7 +110,7 @@ void isert_free_connection(struct iscsi_conn *iscsi_conn)
 						struct isert_conn, iscsi);
 
 	isert_post_drain(isert_conn);
-	isert_conn_free(isert_conn);
+	isert_put_conn(isert_conn);
 }
 
 struct iscsi_cmnd *isert_alloc_login_rsp_pdu(struct iscsi_conn *iscsi_conn)

@@ -224,7 +224,7 @@ struct isert_conn {
 	struct work_struct	close_work;
 	struct work_struct	drain_work;
 	struct work_struct	discon_work;
-	struct work_struct	free_work;
+	struct work_struct	release_work;
 	struct isert_wr		drain_wr_sq;
 	struct isert_wr		drain_wr_rq;
 	struct kref		kref;
@@ -302,7 +302,7 @@ int isert_post_send(struct isert_conn *isert_conn,
 
 int isert_alloc_conn_resources(struct isert_conn *isert_conn);
 void isert_free_conn_resources(struct isert_conn *isert_conn);
-void isert_conn_free(struct isert_conn *isert_conn);
+void isert_put_conn(struct isert_conn *isert_conn);
 void isert_conn_disconnect(struct isert_conn *isert_conn);
 void isert_post_drain(struct isert_conn *isert_conn);
 void isert_sched_conn_free(struct isert_conn *isert_conn);
