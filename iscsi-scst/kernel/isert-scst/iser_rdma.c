@@ -54,6 +54,8 @@
 static DEFINE_MUTEX(dev_list_mutex);
 
 static void isert_portal_free(struct isert_portal *portal);
+static struct rdma_cm_id *
+isert_setup_id(struct isert_portal *portal);
 
 static int isert_num_recv_posted_on_err(struct ib_recv_wr *first_ib_wr,
 					BAD_WR_MODIFIER struct ib_recv_wr *bad_wr)
@@ -1781,10 +1783,69 @@ out:
 	return err;
 }
 
+static struct rdma_cm_id *
+isert_setup_id(struct isert_portal *portal)
+{
+	struct rdma_cm_id *id;
+	struct sockaddr *sa;
+	int ret;
+
+	sa = (struct sockaddr *)&portal->addr;
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5)
+	id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP);
+#elif !RDMA_CREATE_ID_TAKES_NET_ARG
+	id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP,
+			       IB_QPT_RC);
+#else
+	id = rdma_create_id(iscsi_net_ns, isert_cm_evt_handler, portal,
+			       RDMA_PS_TCP, IB_QPT_RC);
+#endif
+	if (IS_ERR(id)) {
+		ret = PTR_ERR(id);
+		PRINT_ERROR("Failed to create rdma id, err:%d", ret);
+		goto out;
+	}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
+	/*
+	 * Allow both IPv4 and IPv6 sockets to bind a single port
+	 * at the same time.
+	 */
+	ret = rdma_set_afonly(id, 1);
+	if (ret) {
+		PRINT_ERROR("Failed to set afonly, err:%d", ret);
+		goto out_id;
+	}
+#endif
+
+	ret = rdma_bind_addr(id, sa);
+	if (ret) {
+		PRINT_ERROR("Failed to bind rdma addr, err:%d", ret);
+		goto out_id;
+	}
+
+	ret = rdma_listen(id, ISER_LISTEN_BACKLOG);
+	if (ret) {
+		PRINT_ERROR("Failed rdma listen, err:%d", ret);
+		goto out_id;
+	}
+
+	PRINT_INFO("iser portal with cm_id %p listens on %pISpc", id, &sa);
+
+	return id;
+
+out_id:
+	rdma_destroy_id(id);
+out:
+	return ERR_PTR(ret);
+}
+
 /* create a portal, after listening starts all events
  * are received in isert_cm_evt_handler()
  */
-struct isert_portal *isert_portal_create(void)
+struct isert_portal *isert_portal_create(struct sockaddr *sa, size_t addr_len)
 {
 	struct isert_portal *portal;
 	struct rdma_cm_id *cm_id;
@@ -1803,29 +1864,19 @@ struct isert_portal *isert_portal_create(void)
 		goto err_alloc;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5)
-	cm_id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP);
-#elif !RDMA_CREATE_ID_TAKES_NET_ARG
-	cm_id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP,
-			       IB_QPT_RC);
-#else
-	cm_id = rdma_create_id(iscsi_net_ns, isert_cm_evt_handler, portal,
-			       RDMA_PS_TCP, IB_QPT_RC);
-#endif
+	INIT_LIST_HEAD(&portal->conn_list);
+	isert_portal_list_add(portal);
+
+	memcpy(&portal->addr, sa, addr_len);
+
+	cm_id = isert_setup_id(portal);
 	if (IS_ERR(cm_id)) {
 		err = PTR_ERR(cm_id);
 		PRINT_ERROR("Failed to create rdma id, err:%d", err);
 		goto create_id_err;
 	}
+
 	portal->cm_id = cm_id;
-
-	INIT_LIST_HEAD(&portal->conn_list);
-	isert_portal_list_add(portal);
-
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
-	rdma_set_afonly(cm_id, 1);
-#endif
 
 	PRINT_INFO("Created iser portal cm_id:%p", cm_id);
 out:
@@ -1938,17 +1989,5 @@ void isert_portal_release(struct isert_portal *portal)
 
 struct isert_portal *isert_portal_start(struct sockaddr *sa, size_t addr_len)
 {
-	struct isert_portal *portal;
-	int err;
-
-	portal = isert_portal_create();
-	if (IS_ERR(portal))
-		return portal;
-
-	err = isert_portal_listen(portal, sa, addr_len);
-	if (err) {
-		isert_portal_release(portal);
-		portal = ERR_PTR(err);
-	}
-	return portal;
+	return isert_portal_create(sa, addr_len);
 }

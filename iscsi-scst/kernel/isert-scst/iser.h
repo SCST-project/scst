@@ -289,7 +289,7 @@ extern struct kmem_cache *isert_cmnd_cache;
 extern struct kmem_cache *isert_conn_cache;
 
 /* iser portal */
-struct isert_portal *isert_portal_create(void);
+struct isert_portal *isert_portal_create(struct sockaddr *sa, size_t addr_len);
 int isert_portal_listen(struct isert_portal *portal,
 			struct sockaddr *sa,
 			size_t addr_len);
