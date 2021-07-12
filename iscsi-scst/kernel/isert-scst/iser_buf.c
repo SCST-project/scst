@@ -197,7 +197,7 @@ void isert_buf_release(struct isert_buf *isert_buf)
 }
 
 void isert_wr_set_fields(struct isert_wr *wr,
-			 struct isert_connection *isert_conn,
+			 struct isert_conn *isert_conn,
 			 struct isert_cmnd *pdu)
 {
 	struct isert_device *isert_dev = isert_conn->isert_dev;
@@ -210,7 +210,7 @@ void isert_wr_set_fields(struct isert_wr *wr,
 int isert_wr_init(struct isert_wr *wr,
 		  enum isert_wr_op wr_op,
 		  struct isert_buf *isert_buf,
-		  struct isert_connection *isert_conn,
+		  struct isert_conn *isert_conn,
 		  struct isert_cmnd *pdu,
 		  struct ib_sge *sge,
 		  int sg_offset,

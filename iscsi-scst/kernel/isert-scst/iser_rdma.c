@@ -67,7 +67,7 @@ static int isert_num_recv_posted_on_err(struct ib_recv_wr *first_ib_wr,
 	return num_posted;
 }
 
-int isert_post_recv(struct isert_connection *isert_conn,
+int isert_post_recv(struct isert_conn *isert_conn,
 		    struct isert_wr *first_wr,
 		    int num_wr)
 {
@@ -110,7 +110,7 @@ static int isert_num_send_posted_on_err(struct ib_send_wr *first_ib_wr,
 	return num_posted;
 }
 
-int isert_post_send(struct isert_connection *isert_conn,
+int isert_post_send(struct isert_conn *isert_conn,
 		    struct isert_wr *first_wr,
 		    int num_wr)
 {
@@ -145,7 +145,7 @@ int isert_post_send(struct isert_connection *isert_conn,
 	return err;
 }
 
-static void isert_post_drain_sq(struct isert_connection *isert_conn)
+static void isert_post_drain_sq(struct isert_conn *isert_conn)
 {
 	BAD_WR_MODIFIER struct ib_send_wr *bad_wr;
 	struct isert_wr *drain_wr_sq = &isert_conn->drain_wr_sq;
@@ -177,7 +177,7 @@ static void isert_post_drain_sq(struct isert_connection *isert_conn)
 	}
 }
 
-static void isert_post_drain_rq(struct isert_connection *isert_conn)
+static void isert_post_drain_rq(struct isert_conn *isert_conn)
 {
 	BAD_WR_MODIFIER struct ib_recv_wr *bad_wr;
 	struct isert_wr *drain_wr_rq = &isert_conn->drain_wr_rq;
@@ -197,7 +197,7 @@ static void isert_post_drain_rq(struct isert_connection *isert_conn)
 	}
 }
 
-void isert_post_drain(struct isert_connection *isert_conn)
+void isert_post_drain(struct isert_conn *isert_conn)
 {
 	if (!test_and_set_bit(ISERT_DRAIN_POSTED, &isert_conn->flags)) {
 		mutex_lock(&isert_conn->state_mutex);
@@ -208,7 +208,7 @@ void isert_post_drain(struct isert_connection *isert_conn)
 	}
 }
 
-void isert_conn_disconnect(struct isert_connection *isert_conn)
+void isert_conn_disconnect(struct isert_conn *isert_conn)
 {
 	int err;
 
@@ -468,7 +468,7 @@ static void isert_rdma_wr_completion_handler(struct isert_wr *wr)
 static void isert_handle_wc(struct ib_wc *wc)
 {
 	struct isert_wr *wr = _u64_to_ptr(wc->wr_id);
-	struct isert_connection *isert_conn;
+	struct isert_conn *isert_conn;
 
 	TRACE_ENTRY();
 
@@ -585,17 +585,17 @@ static void isert_discon_do_work(struct work_struct *work)
 #endif
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct isert_connection *isert_conn = ctx;
+	struct isert_conn *isert_conn = ctx;
 #else
-	struct isert_connection *isert_conn =
-		container_of(work, struct isert_connection, discon_work);
+	struct isert_conn *isert_conn =
+		container_of(work, struct isert_conn, discon_work);
 #endif
 
 	/* notify upper layer */
 	isert_connection_closed(&isert_conn->iscsi);
 }
 
-static void isert_sched_discon(struct isert_connection *isert_conn)
+static void isert_sched_discon(struct isert_conn *isert_conn)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 	INIT_WORK(&isert_conn->discon_work, isert_discon_do_work, isert_conn);
@@ -612,16 +612,16 @@ static void isert_conn_drained_do_work(struct work_struct *work)
 #endif
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct isert_connection *isert_conn = ctx;
+	struct isert_conn *isert_conn = ctx;
 #else
-	struct isert_connection *isert_conn =
-		container_of(work, struct isert_connection, drain_work);
+	struct isert_conn *isert_conn =
+		container_of(work, struct isert_conn, drain_work);
 #endif
 
 	isert_conn_free(isert_conn);
 }
 
-static void isert_sched_conn_drained(struct isert_connection *isert_conn)
+static void isert_sched_conn_drained(struct isert_conn *isert_conn)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 	INIT_WORK(&isert_conn->drain_work, isert_conn_drained_do_work,
@@ -639,10 +639,10 @@ static void isert_conn_closed_do_work(struct work_struct *work)
 #endif
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct isert_connection *isert_conn = ctx;
+	struct isert_conn *isert_conn = ctx;
 #else
-	struct isert_connection *isert_conn =
-		container_of(work, struct isert_connection, close_work);
+	struct isert_conn *isert_conn =
+		container_of(work, struct isert_conn, close_work);
 #endif
 
 	if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))
@@ -651,7 +651,7 @@ static void isert_conn_closed_do_work(struct work_struct *work)
 	isert_conn_free(isert_conn);
 }
 
-static void isert_sched_conn_closed(struct isert_connection *isert_conn)
+static void isert_sched_conn_closed(struct isert_conn *isert_conn)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 	INIT_WORK(&isert_conn->close_work, isert_conn_closed_do_work,
@@ -669,16 +669,16 @@ static void isert_conn_free_do_work(struct work_struct *work)
 #endif
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct isert_connection *isert_conn = ctx;
+	struct isert_conn *isert_conn = ctx;
 #else
-	struct isert_connection *isert_conn =
-		container_of(work, struct isert_connection, free_work);
+	struct isert_conn *isert_conn =
+		container_of(work, struct isert_conn, free_work);
 #endif
 
 	isert_conn_free(isert_conn);
 }
 
-void isert_sched_conn_free(struct isert_connection *isert_conn)
+void isert_sched_conn_free(struct isert_conn *isert_conn)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
 	INIT_WORK(&isert_conn->free_work, isert_conn_free_do_work,
@@ -693,7 +693,7 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 {
 	struct isert_wr *wr = _u64_to_ptr(wc->wr_id);
 	struct isert_cmnd *isert_pdu = wr->pdu;
-	struct isert_connection *isert_conn = wr->conn;
+	struct isert_conn *isert_conn = wr->conn;
 	struct isert_buf *isert_buf = wr->buf;
 	struct isert_device *isert_dev = wr->isert_dev;
 	struct ib_device *ib_dev = isert_dev->ib_dev;
@@ -887,7 +887,7 @@ static void isert_async_evt_handler(struct ib_event *async_ev, void *context)
 	struct ib_device *ib_dev = isert_dev->ib_dev;
 	char *dev_name = ib_dev->name;
 	enum ib_event_type ev_type = async_ev->event;
-	struct isert_connection *isert_conn;
+	struct isert_conn *isert_conn;
 
 	TRACE_ENTRY();
 
@@ -1206,7 +1206,7 @@ static int isert_get_cq_idx(struct isert_device *isert_dev)
 	return min_idx;
 }
 
-static int isert_conn_qp_create(struct isert_connection *isert_conn)
+static int isert_conn_qp_create(struct isert_conn *isert_conn)
 {
 	struct rdma_cm_id *cm_id = isert_conn->cm_id;
 	struct isert_device *isert_dev = isert_conn->isert_dev;
@@ -1266,10 +1266,10 @@ fail_create_qp:
 	goto out;
 }
 
-static struct isert_connection *isert_conn_create(struct rdma_cm_id *cm_id,
+static struct isert_conn *isert_conn_create(struct rdma_cm_id *cm_id,
 						struct isert_device *isert_dev)
 {
-	struct isert_connection *isert_conn;
+	struct isert_conn *isert_conn;
 	int err;
 	struct isert_cq *cq;
 
@@ -1373,8 +1373,8 @@ static void isert_deref_device(struct isert_device *isert_dev)
 static void isert_kref_free(struct kref *kref)
 {
 	struct isert_conn_dev *dev;
-	struct isert_connection *isert_conn =
-		container_of(kref, struct isert_connection, kref);
+	struct isert_conn *isert_conn =
+		container_of(kref, struct isert_conn, kref);
 	struct isert_device *isert_dev = isert_conn->isert_dev;
 	struct isert_cq *cq = isert_conn->qp->recv_cq->cq_context;
 
@@ -1415,7 +1415,7 @@ static void isert_kref_free(struct kref *kref)
 	TRACE_EXIT();
 }
 
-void isert_conn_free(struct isert_connection *isert_conn)
+void isert_conn_free(struct isert_conn *isert_conn)
 {
 	sBUG_ON(kref_read(&isert_conn->kref) == 0);
 	kref_put(&isert_conn->kref, isert_kref_free);
@@ -1424,14 +1424,14 @@ void isert_conn_free(struct isert_connection *isert_conn)
 static int isert_cm_disconnected_handler(struct rdma_cm_id *cm_id,
 					 struct rdma_cm_event *event)
 {
-	struct isert_connection *isert_conn = cm_id->qp->qp_context;
+	struct isert_conn *isert_conn = cm_id->qp->qp_context;
 
 	if (!test_and_set_bit(ISERT_CONNECTION_CLOSE, &isert_conn->flags))
 		isert_sched_conn_closed(isert_conn);
 	return 0;
 }
 
-static void isert_immediate_conn_close(struct isert_connection *isert_conn)
+static void isert_immediate_conn_close(struct isert_conn *isert_conn)
 {
 	set_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags);
 	set_bit(ISERT_CONNECTION_CLOSE, &isert_conn->flags);
@@ -1453,7 +1453,7 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 	struct isert_portal *portal = cm_id->context;
 	struct ib_device *ib_dev = cm_id->device;
 	struct isert_device *isert_dev;
-	struct isert_connection *isert_conn;
+	struct isert_conn *isert_conn;
 	struct rdma_conn_param *ini_conn_param;
 	struct rdma_conn_param tgt_conn_param;
 	struct isert_cm_hdr cm_hdr = { 0 };
@@ -1559,7 +1559,7 @@ fail_dev_create:
 static int isert_cm_connect_handler(struct rdma_cm_id *cm_id,
 				    struct rdma_cm_event *event)
 {
-	struct isert_connection *isert_conn = cm_id->qp->qp_context;
+	struct isert_conn *isert_conn = cm_id->qp->qp_context;
 	int push_saved_pdu = 0;
 	int ret = 0;
 
@@ -1627,7 +1627,7 @@ static const char *rdma_event_msg(enum rdma_cm_event_type event)
 }
 #endif
 
-static int isert_handle_failure(struct isert_connection *conn)
+static int isert_handle_failure(struct isert_conn *conn)
 {
 	isert_conn_disconnect(conn);
 	return 0;
@@ -1656,7 +1656,7 @@ static int isert_cm_evt_listener_handler(struct rdma_cm_id *cm_id,
 static int isert_cm_disconnect_handler(struct rdma_cm_id *cm_id,
 				       enum rdma_cm_event_type event)
 {
-	struct isert_connection *isert_conn = cm_id->qp->qp_context;
+	struct isert_conn *isert_conn = cm_id->qp->qp_context;
 
 	isert_conn_disconnect(isert_conn);
 
@@ -1723,7 +1723,7 @@ static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 	/* We can receive this instead of RDMA_CM_EVENT_ESTABLISHED */
 	case RDMA_CM_EVENT_UNREACHABLE:
 		{
-			struct isert_connection *isert_conn =
+			struct isert_conn *isert_conn =
 				cm_id->qp->qp_context;
 
 			mutex_lock(&isert_conn->state_mutex);
@@ -1879,7 +1879,7 @@ static void isert_portal_free(struct isert_portal *portal)
 
 void isert_portal_release(struct isert_portal *portal)
 {
-	struct isert_connection *conn;
+	struct isert_conn *conn;
 
 	PRINT_INFO("iser portal cm_id:%p releasing", portal->cm_id);
 
