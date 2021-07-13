@@ -1892,8 +1892,6 @@ struct isert_portal *isert_portal_create(struct sockaddr *sa, size_t addr_len)
 	INIT_WORK(&portal->work, isert_portal_reinit_id_work);
 
 	INIT_LIST_HEAD(&portal->conn_list);
-	isert_portal_list_add(portal);
-
 	memcpy(&portal->addr, sa, addr_len);
 
 	cm_id = isert_setup_id(portal);
@@ -1904,6 +1902,7 @@ struct isert_portal *isert_portal_create(struct sockaddr *sa, size_t addr_len)
 	}
 
 	portal->cm_id = cm_id;
+	isert_portal_list_add(portal);
 
 	PRINT_INFO("Created iser portal cm_id:%p", cm_id);
 out:
