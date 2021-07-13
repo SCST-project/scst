@@ -1721,6 +1721,9 @@ static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 	switch (ev_type) {
 	case RDMA_CM_EVENT_CONNECT_REQUEST:
 		err = isert_cm_conn_req_handler(cm_id, cm_ev);
+		if (unlikely(err))
+			PRINT_ERROR("Failed to handle RDMA_CM_EVENT_CONNECT_REQUEST, err:%d",
+				    err);
 		break;
 
 	case RDMA_CM_EVENT_ESTABLISHED:
@@ -1792,10 +1795,6 @@ static int isert_cm_evt_handler(struct rdma_cm_id *cm_id,
 		PRINT_ERROR("Illegal event:%d, ignored", ev_type);
 		break;
 	}
-
-	if (unlikely(err))
-		PRINT_ERROR("Failed to handle rdma cm evt:%d, err:%d",
-			    ev_type, err);
 
 out:
 	TRACE_EXIT_RES(err);
