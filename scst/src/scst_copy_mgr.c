@@ -2559,14 +2559,14 @@ static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 
 	TRACE_DBG("dev %s, LUN %ld", dev->virt_name, (unsigned long)lun);
 
-	if (scst_cm_get_lun(dev) != SCST_MAX_LUN) {
-		TRACE_DBG("Copy Manager already registered device %s",
-			  dev->virt_name);
-		res = 0;
-		goto out;
-	}
-
 	if (lun == SCST_MAX_LUN) {
+		if (scst_cm_get_lun(dev) != SCST_MAX_LUN) {
+			TRACE_DBG("Copy Manager already registered device %s",
+				  dev->virt_name);
+			res = 0;
+			goto out;
+		}
+
 		add_lun = true;
 		while (1) {
 			lun = scst_cm_next_lun++;
