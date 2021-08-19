@@ -39,7 +39,8 @@ build:
 	[ -n "$(QLA_INI_DIR)" ] &&					\
 	make 2release &&						\
 	export BUILD_2X_MODULE=y &&					\
-	export CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y &&	\
+	export CONFIG_SCSI_QLA_FC=y &&					\
+	export CONFIG_SCSI_QLA2XXX_TARGET=y &&				\
 	for d in $(SUBDIRS); do $(MAKE) -C $$d; done &&			\
 	{								\
 		echo dkms.conf &&					\
@@ -59,7 +60,8 @@ install:
 	export PREFIX=/usr &&						\
 	export DESTDIR="$(DESTDIR)" &&					\
 	export BUILD_2X_MODULE=y &&					\
-	export CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y &&	\
+	export CONFIG_SCSI_QLA_FC=y &&					\
+	export CONFIG_SCSI_QLA2XXX_TARGET=y &&				\
 	for d in $(SUBDIRS); do						\
 	    if [ $$d = scst ]; then					\
 		{ $(MAKE) -C $$d install || break; }			\
