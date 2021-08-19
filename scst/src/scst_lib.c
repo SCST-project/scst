@@ -4541,12 +4541,6 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 	list_add_tail(&acg_dev->acg_dev_list_entry, &acg->acg_dev_list);
 	list_add_tail(&acg_dev->dev_acg_dev_list_entry, &dev->dev_acg_dev_list);
 
-	if (!(flags & SCST_ADD_LUN_CM)) {
-		res = scst_cm_on_add_lun(acg_dev, lun, &flags);
-		if (res != 0)
-			goto out_free;
-	}
-
 	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
 		res = scst_alloc_add_tgt_dev(sess, acg_dev, &tgt_dev);
 		if (res == -EPERM)
@@ -4556,6 +4550,12 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 
 		list_add_tail(&tgt_dev->extra_tgt_dev_list_entry,
 			      &tmp_tgt_dev_list);
+	}
+
+	if (!(flags & SCST_ADD_LUN_CM)) {
+		res = scst_cm_on_add_lun(acg_dev, lun, &flags);
+		if (res != 0)
+			goto out_free;
 	}
 
 	res = scst_acg_dev_sysfs_create(acg_dev, parent);
