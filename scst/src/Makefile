@@ -89,13 +89,6 @@ install: all
 	false; fi
 	-rm -f $(INSTALL_DIR)/scsi_tgt.ko
 	KDIR=$(KDIR) ../../scripts/sign-modules
-	# Apparently on RHEL 8 and CentOS 8 the module installation can
-	# leave stale symlinks in /lib/modules/$(KVER)/weak-updates/. These
-	# symlinks may cause loading of SCST to fail, Remove these symlinks
-	# before installing SCST.
-	if [ -e /usr/sbin/weak-modules ]; then				\
-		/usr/sbin/weak-modules --remove-kernel;			\
-	fi
 	$(MAKE) -C $(KDIR) M=$(shell pwd)/dev_handlers			\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  INSTALL_MOD_DIR=extra/dev_handlers				\
