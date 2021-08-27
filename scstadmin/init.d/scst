@@ -69,8 +69,6 @@ fi
 PATH=/bin:/usr/bin:/sbin:/usr/sbin:/usr/local/sbin:/usr/local/bin
 SCST_DFLT=/etc/default/scst
 
-[ -x "$(which scstadmin)" ] || exit 5
-
 if [ -f $SCST_DFLT ]; then
     . $SCST_DFLT
 fi
