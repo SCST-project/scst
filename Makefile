@@ -35,6 +35,11 @@ ifdef KDIR
 		cat $(KDIR)/include/config/kernel.release 2>/dev/null || \
 		make -s -C $(KDIR) kernelversion))
      endif
+else
+     ifndef KVER
+	KVER=$(strip $(shell uname -r))
+     endif
+     KDIR=/lib/modules/$(KVER)/build
 endif
 
 ifeq ($(QLA_32GBIT),no)
