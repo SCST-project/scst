@@ -1850,7 +1850,7 @@ isert_setup_id(struct isert_portal *portal)
 		goto out_id;
 	}
 
-	PRINT_INFO("iser portal with cm_id %p listens on %pISpc", id, &sa);
+	PRINT_INFO("iser portal with cm_id %p listens on %pISpc", id, sa);
 
 	return id;
 
