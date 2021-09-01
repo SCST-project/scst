@@ -2944,6 +2944,8 @@ static int scst_cm_parse_id_tgt_descr(struct scst_cmd *cmd, const uint8_t *seg,
 	/* ToDo: make it hash based */
 
 	list_for_each_entry(des, &scst_cm_desig_list, cm_desig_list_entry) {
+		uint8_t cmp_len;
+
 		TRACE_DBG("des %p (tgt_dev %p, lun %lld)", des, des->desig_tgt_dev,
 			(unsigned long long)des->desig_tgt_dev->lun);
 		if (seg[4] != des->desig[0])
@@ -2952,7 +2954,14 @@ static int scst_cm_parse_id_tgt_descr(struct scst_cmd *cmd, const uint8_t *seg,
 			continue;
 		if (seg[7] > des->desig[3])
 			continue;
-		if (memcmp(&des->desig[4], &seg[8], min_t(int, seg[7], des->desig[3])) == 0) {
+		/*
+		 * From SPC-6: "The designator length shall be 20 or less".
+		 * However, both libiscsi and sg_copy may specify a designator
+		 * length > 20 bytes while truncating the designator to 20
+		 * bytes. Hence the code below that restricts cmp_len to 20.
+		 */
+		cmp_len = min_t(u8, min(seg[7], des->desig[3]), 20);
+		if (memcmp(&des->desig[4], &seg[8], cmp_len) == 0) {
 			TRACE_DBG("Tgt_dev %p (lun %lld) found",
 				des->desig_tgt_dev,
 				(unsigned long long)des->desig_tgt_dev->lun);
