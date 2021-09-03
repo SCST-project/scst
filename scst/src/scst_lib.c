@@ -13849,9 +13849,11 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 					goto brk;
 				}
 				switch (driver_byte(rc)) {
+#if defined(DRIVER_BUSY) && defined(DRIVER_SOFT)
 				case DRIVER_BUSY:
 				case DRIVER_SOFT:
 					break;
+#endif
 				default:
 					goto brk;
 				}
