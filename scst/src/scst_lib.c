@@ -12928,7 +12928,7 @@ static void scst_check_internal_sense(struct scst_device *dev, int result,
 		sl = scst_set_sense(sense, sense_len, dev->d_sense,
 			SCST_LOAD_SENSE(scst_sense_reset_UA));
 		scst_dev_check_set_UA(dev, NULL, sense, sl);
-	} else if ((status_byte(result) == CHECK_CONDITION) &&
+	} else if ((result & 0xff) == SAM_STAT_CHECK_CONDITION &&
 		   scst_is_ua_sense(sense, sense_len))
 		scst_dev_check_set_UA(dev, NULL, sense, sense_len);
 
@@ -13809,7 +13809,7 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 			scst_check_internal_sense(dev, rc, sense_buffer,
 				sizeof(sense_buffer));
 #if 0
-			if ((status_byte(rc) == CHECK_CONDITION) &&
+			if ((rc & 0xff) == SAM_STAT_CHECK_CONDITION &&
 			    scst_sense_valid(sense_buffer)) {
 #else
 			/*
