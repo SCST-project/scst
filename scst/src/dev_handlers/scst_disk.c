@@ -264,7 +264,7 @@ static void disk_cmd_done(void *data, char *sense, int result, int resid)
 
 	WARN_ON_ONCE(IS_ERR_VALUE((long)result));
 
-	if (status_byte(result) == GOOD)
+	if ((result & 0xff) == SAM_STAT_GOOD)
 		goto out_complete;
 
 	work->result = result;
