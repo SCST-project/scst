@@ -885,7 +885,7 @@ skip_rio:
 	case MBA_CHG_IN_CONNECTION:	/* Change in connection mode */
 		if (IS_QLA2100(ha))
 			break;
-		/* fall through */
+		fallthrough;
 	case MBA_RESET:			/* Reset */
 	case MBA_SYSTEM_ERR:		/* System Error */
 	case MBA_REQ_TRANSFER_ERR:	/* Request Transfer Error */
@@ -2251,7 +2251,7 @@ void qla24xx_process_response_queue(struct scsi_qla_host *vha,
 		case ABTS_RECV_24XX:
 			/* ensure that the ATIO queue is empty */
 			qla24xx_process_atio_queue(vha);
-			/* fall through */
+			fallthrough;
 		case ABTS_RESP_24XX:
 		case CTIO_TYPE7:
 		case NOTIFY_ACK_TYPE:
