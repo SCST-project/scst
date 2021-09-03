@@ -1653,7 +1653,14 @@ out:
 	return ret;
 }
 
-static int scst_local_driver_remove(struct device *dev)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)
+/* See also commit fc7a6209d571 ("bus: Make remove callback return void") */
+#define DRIVER_REMOVE_RET int
+#else
+#define DRIVER_REMOVE_RET void
+#endif
+
+static DRIVER_REMOVE_RET scst_local_driver_remove(struct device *dev)
 {
 	struct scst_local_sess *sess;
 	struct Scsi_Host *shost = NULL;
@@ -1670,7 +1677,7 @@ static int scst_local_driver_remove(struct device *dev)
 	scsi_host_put(shost);
 
 	TRACE_EXIT();
-	return 0;
+	return (DRIVER_REMOVE_RET)0;
 }
 
 static int scst_local_bus_match(struct device *dev,
