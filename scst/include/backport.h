@@ -2145,6 +2145,41 @@ static inline void *scsi_cmd_priv(struct scsi_cmnd *cmd)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+/*
+ * See also commit f2b1e9c6f867 ("scsi: core: Introduce scsi_build_sense()";
+ * v5.14-rc1).
+ */
+static inline void scsi_build_sense(struct scsi_cmnd *scmd, int desc,
+                            u8 key, u8 asc, u8 ascq)
+{
+	scsi_build_sense_buffer(desc, scmd->sense_buffer, key, asc, ascq);
+	scmd->result = (DRIVER_SENSE << 24) | SAM_STAT_CHECK_CONDITION;
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)
+/*
+ * See also 51f3a4788928 ("scsi: core: Introduce the scsi_cmd_to_rq()
+ * function").
+ */
+static inline struct request *scsi_cmd_to_rq(struct scsi_cmnd *scmd)
+{
+	return blk_mq_rq_from_pdu(scmd);
+}
+
+/*
+ * See also commit 7ba46799d346 ("scsi: core: Add scsi_prot_ref_tag()
+ * helper").
+ */
+static inline u32 scsi_prot_ref_tag(struct scsi_cmnd *scmd)
+{
+	struct request *rq = blk_mq_rq_from_pdu(scmd);
+
+	return t10_pi_ref_tag(rq);
+}
+#endif
+
 /* <scsi/scsi_request.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)

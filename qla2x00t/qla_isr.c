@@ -885,7 +885,7 @@ skip_rio:
 	case MBA_CHG_IN_CONNECTION:	/* Change in connection mode */
 		if (IS_QLA2100(ha))
 			break;
-		/* fall through */
+		fallthrough;
 	case MBA_RESET:			/* Reset */
 	case MBA_SYSTEM_ERR:		/* System Error */
 	case MBA_REQ_TRANSFER_ERR:	/* Request Transfer Error */
@@ -1667,31 +1667,22 @@ qla2x00_handle_dif_error(srb_t *sp, struct sts_entry_24xx *sts24)
 
 	/* check guard */
 	if (e_guard != a_guard) {
-		scsi_build_sense_buffer(1, cmd->sense_buffer, ILLEGAL_REQUEST,
-		    0x10, 0x1);
-		set_driver_byte(cmd, DRIVER_SENSE);
+		scsi_build_sense(cmd, 1, ILLEGAL_REQUEST, 0x10, 0x1);
 		set_host_byte(cmd, DID_ABORT);
-		cmd->result |= SAM_STAT_CHECK_CONDITION << 1;
 		return 1;
 	}
 
 	/* check ref tag */
 	if (e_ref_tag != a_ref_tag) {
-		scsi_build_sense_buffer(1, cmd->sense_buffer, ILLEGAL_REQUEST,
-		    0x10, 0x3);
-		set_driver_byte(cmd, DRIVER_SENSE);
+		scsi_build_sense(cmd, 1, ILLEGAL_REQUEST, 0x10, 0x3);
 		set_host_byte(cmd, DID_ABORT);
-		cmd->result |= SAM_STAT_CHECK_CONDITION << 1;
 		return 1;
 	}
 
 	/* check appl tag */
 	if (e_app_tag != a_app_tag) {
-		scsi_build_sense_buffer(1, cmd->sense_buffer, ILLEGAL_REQUEST,
-		    0x10, 0x2);
-		set_driver_byte(cmd, DRIVER_SENSE);
+		scsi_build_sense(cmd, 1, ILLEGAL_REQUEST, 0x10, 0x2);
 		set_host_byte(cmd, DID_ABORT);
-		cmd->result |= SAM_STAT_CHECK_CONDITION << 1;
 		return 1;
 	}
 
@@ -2251,7 +2242,7 @@ void qla24xx_process_response_queue(struct scsi_qla_host *vha,
 		case ABTS_RECV_24XX:
 			/* ensure that the ATIO queue is empty */
 			qla24xx_process_atio_queue(vha);
-			/* fall through */
+			fallthrough;
 		case ABTS_RESP_24XX:
 		case CTIO_TYPE7:
 		case NOTIFY_ACK_TYPE:

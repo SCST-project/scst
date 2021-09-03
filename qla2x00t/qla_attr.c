@@ -419,7 +419,7 @@ qla2x00_update_portdb(struct device *dev,
 		printk(KERN_INFO "Reconfiguring fabric on %ld\n",
 			vha->host_no);
 		qla2x00_configure_fabric(vha);
-		/* fall through */
+		fallthrough;
 
 	default:
 		printk(KERN_INFO "Resyncing loop on %ld\n",
