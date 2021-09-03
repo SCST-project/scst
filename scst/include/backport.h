@@ -2118,6 +2118,37 @@ static inline struct ib_pd *ib_alloc_pd_backport(struct ib_device *device)
 	})
 #endif
 
+/* <scsi/scsi.h> */
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 14, 0)
+#ifndef msg_byte
+/*
+ * See also commit 54cf31d07aa8 ("scsi: core: Drop message byte helper";
+ * v5.14-rc1).
+ */
+static inline uint8_t msg_byte(uint32_t result)
+{
+	return (result >> 8) & 0xff;
+}
+#endif
+#ifndef host_byte
+static inline uint8_t host_byte(uint32_t result)
+{
+	return (result >> 16) & 0xff;
+}
+#endif
+#ifndef driver_byte
+/*
+ * See also commit 54c29086195f ("scsi: core: Drop the now obsolete driver_byte
+ * definitions"; v5.14-rc1).
+ */
+static inline uint8_t driver_byte(uint32_t result)
+{
+	return (result >> 24) & 0xff;
+}
+#endif
+#endif
+
 /* <scsi/scsi_cmnd.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24) || \
