@@ -1,12 +1,12 @@
 diff --git a/drivers/Makefile b/drivers/Makefile
-index 31cf17dee252..b45c17aee468 100644
+index 27c018bdf4de..6fc8c24fd0d6 100644
 --- a/drivers/Makefile
 +++ b/drivers/Makefile
-@@ -75,6 +75,7 @@ obj-$(CONFIG_DAX)		+= dax/
- obj-$(CONFIG_DMA_SHARED_BUFFER) += dma-buf/
- obj-$(CONFIG_NUBUS)		+= nubus/
- obj-y				+= macintosh/
-+obj-$(CONFIG_SCST)		+= scst/
- obj-$(CONFIG_IDE)		+= ide/
+@@ -81,6 +81,7 @@ obj-y				+= macintosh/
  obj-y				+= scsi/
  obj-y				+= nvme/
+ obj-$(CONFIG_ATA)		+= ata/
++obj-$(CONFIG_SCST)		+= scst/
+ obj-$(CONFIG_TARGET_CORE)	+= target/
+ obj-$(CONFIG_MTD)		+= mtd/
+ obj-$(CONFIG_SPI)		+= spi/

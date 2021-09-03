@@ -134,6 +134,15 @@ static inline void bio_set_dev(struct bio *bio, struct block_device *bdev)
 #define BIO_MAX_VECS BIO_MAX_PAGES
 #endif
 
+/* <linux/blk_types.h> */
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 14, 0)
+enum {
+	REQ_OP_SCSI_IN	= REQ_OP_DRV_IN,
+	REQ_OP_SCSI_OUT	= REQ_OP_DRV_OUT,
+};
+#endif
+
 /* <linux/blk-mq.h> */
 
 static inline unsigned int scst_blk_rq_cpu(struct request *rq)
