@@ -54,7 +54,7 @@
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
 #error
 #error ***This version of qla2xxx does not support distributions based on***
-#error ***kernels before Linux kernel v3.15.***
+#error ***kernels before Linux kernel v3.18.***
 #error
 #endif
 
