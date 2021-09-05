@@ -3536,6 +3536,7 @@ skip_dpc:
 
 probe_failed:
 	qla_enode_stop(base_vha);
+	qla_edb_stop(base_vha);
 	if (base_vha->gnl.l) {
 		dma_free_coherent(&ha->pdev->dev, base_vha->gnl.size,
 				base_vha->gnl.l, base_vha->gnl.ldma);
@@ -3839,6 +3840,7 @@ qla2x00_remove_one(struct pci_dev *pdev)
 
 	base_vha->gnl.l = NULL;
 	qla_enode_stop(base_vha);
+	qla_edb_stop(base_vha);
 
 	vfree(base_vha->scan.l);
 
@@ -4965,6 +4967,8 @@ struct scsi_qla_host *qla2x00_create_host(struct scsi_host_template *sht,
 	init_waitqueue_head(&vha->fcport_waitQ);
 	init_waitqueue_head(&vha->vref_waitq);
 	qla_enode_init(vha);
+	qla_edb_init(vha);
+
 
 	vha->gnl.size = sizeof(struct get_name_list_extended) *
 			(ha->max_loop_id + 1);
