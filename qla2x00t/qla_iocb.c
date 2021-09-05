@@ -504,7 +504,7 @@ qla2x00_start_iocbs(struct scsi_qla_host *vha, struct req_que *req)
 EXPORT_SYMBOL(qla2x00_start_iocbs);
 
 /**
- * qla2x00_marker() - Send a marker IOCB to the firmware.
+ * __qla2x00_marker() - Send a marker IOCB to the firmware.
  * @vha: HA context
  * @req: Request queue
  * @rsp: ...

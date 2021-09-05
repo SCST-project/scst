@@ -248,7 +248,7 @@ fi
 
 # See also commit 89d9a567952b ("[SCSI] add support for per-host cmd pools";
 # v3.15).
-if kernel_version_lt "$kver" 3.15; then
+if kernel_version_lt "$kver" 3.18; then
     qla2x00t="true"
     qla2x00t_32gbit="false"
 else
