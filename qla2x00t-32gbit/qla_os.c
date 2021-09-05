@@ -20,6 +20,7 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 #include <linux/refcount.h>
 #endif
+#include <linux/crash_dump.h>
 
 #include <scsi/scsi_tcq.h>
 #include <scsi/scsicam.h>
@@ -2883,6 +2884,11 @@ qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	} else {
 		if (pci_enable_device(pdev))
 			return ret;
+	}
+
+	if (is_kdump_kernel()) {
+		ql2xmqsupport = 0;
+		ql2xallocfwdump = 0;
 	}
 
 	/* This may fail but that's ok */
