@@ -2215,11 +2215,7 @@ qlafx00_ioctl_iosb_entry(scsi_qla_host_t *vha, struct req_que *req,
 {
 	const char func[] = "IOSB_IOCB";
 	srb_t *sp;
-#ifndef NEW_LIBFC_API
-	struct fc_bsg_job *bsg_job;
-#else
-	struct bsg_job *bsg_job;
-#endif
+	BSG_JOB_TYPE *bsg_job;
 	struct fc_bsg_reply *bsg_reply;
 	struct srb_iocb *iocb_job;
 	int res = 0;
@@ -3257,11 +3253,7 @@ qlafx00_fxdisc_iocb(srb_t *sp, struct fxdisc_entry_fx00 *pfxiocb)
 {
 	struct srb_iocb *fxio = &sp->u.iocb_cmd;
 	struct qla_mt_iocb_rqst_fx00 *piocb_rqst;
-#ifndef NEW_LIBFC_API
-	struct fc_bsg_job *bsg_job;
-#else
-	struct bsg_job *bsg_job;
-#endif
+	BSG_JOB_TYPE *bsg_job;
 	struct fc_bsg_request *bsg_request;
 	struct fxdisc_entry_fx00 fx_iocb;
 	uint8_t entry_cnt = 1;

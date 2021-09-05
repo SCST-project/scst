@@ -1083,12 +1083,8 @@ qla2x00_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	const char func[] = "CT_IOCB";
 	const char *type;
 	srb_t *sp;
-#ifndef NEW_LIBFC_API
-	struct fc_bsg_job *bsg_job;
-#else
-	struct bsg_job *bsg_job;
+	BSG_JOB_TYPE *bsg_job;
 	struct fc_bsg_reply *bsg_reply;
-#endif
 	uint16_t comp_status;
 	int res;
 
@@ -1097,9 +1093,7 @@ qla2x00_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 		return;
 
 	bsg_job = sp->u.bsg_job;
-#ifdef NEW_LIBFC_API
 	bsg_reply = bsg_job->reply;
-#endif
 
 	type = "ct pass-through";
 
@@ -1108,52 +1102,32 @@ qla2x00_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	/* return FC_CTELS_STATUS_OK and leave the decoding of the ELS/CT
 	 * fc payload  to the caller
 	 */
-#ifndef NEW_LIBFC_API
-	bsg_job->reply->reply_data.ctels_reply.status = FC_CTELS_STATUS_OK;
-#else
 	bsg_reply->reply_data.ctels_reply.status = FC_CTELS_STATUS_OK;
-#endif
 	bsg_job->reply_len = sizeof(struct fc_bsg_reply);
 
 	if (comp_status != CS_COMPLETE) {
 		if (comp_status == CS_DATA_UNDERRUN) {
 			res = DID_OK << 16;
-#ifndef NEW_LIBFC_API
-			bsg_job->reply->reply_payload_rcv_len =
-#else
 			bsg_reply->reply_payload_rcv_len =
-#endif
 			    le16_to_cpu(((sts_entry_t *)pkt)->rsp_info_len);
 
 			ql_log(ql_log_warn, vha, 0x5048,
 			    "CT pass-through-%s error "
 			    "comp_status-status=0x%x total_byte = 0x%x.\n",
 			    type, comp_status,
-#ifndef NEW_LIBFC_API
-			    bsg_job->reply->reply_payload_rcv_len);
-#else
 			    bsg_reply->reply_payload_rcv_len);
-#endif
 		} else {
 			ql_log(ql_log_warn, vha, 0x5049,
 			    "CT pass-through-%s error "
 			    "comp_status-status=0x%x.\n", type, comp_status);
 			res = DID_ERROR << 16;
-#ifndef NEW_LIBFC_API
-			bsg_job->reply->reply_payload_rcv_len = 0;
-#else
 			bsg_reply->reply_payload_rcv_len = 0;
-#endif
 		}
 		ql_dump_buffer(ql_dbg_async + ql_dbg_buffer, vha, 0x5035,
 		    (uint8_t *)pkt, sizeof(*pkt));
 	} else {
 		res =  DID_OK << 16;
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->reply_payload_rcv_len =
-#else
 		bsg_reply->reply_payload_rcv_len =
-#endif
 		    bsg_job->reply_payload.payload_len;
 		bsg_job->reply_len = 0;
 	}
@@ -1167,12 +1141,8 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	const char func[] = "ELS_CT_IOCB";
 	const char *type;
 	srb_t *sp;
-#ifndef NEW_LIBFC_API
-	struct fc_bsg_job *bsg_job;
-#else
-	struct bsg_job *bsg_job;
+	BSG_JOB_TYPE *bsg_job;
 	struct fc_bsg_reply *bsg_reply;
-#endif
 	uint16_t comp_status;
 	uint32_t fw_status[3];
 	uint8_t *fw_sts_ptr;
@@ -1181,9 +1151,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	if (!sp)
 		return;
 	bsg_job = sp->u.bsg_job;
-#ifdef NEW_LIBFC_API
 	bsg_reply = bsg_job->reply;
-#endif
 
 	type = NULL;
 	switch (sp->type) {
@@ -1207,20 +1175,12 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 	/* return FC_CTELS_STATUS_OK and leave the decoding of the ELS/CT
 	 * fc payload  to the caller
 	 */
-#ifndef NEW_LIBFC_API
-	bsg_job->reply->reply_data.ctels_reply.status = FC_CTELS_STATUS_OK;
-#else
 	bsg_reply->reply_data.ctels_reply.status = FC_CTELS_STATUS_OK;
-#endif
 	bsg_job->reply_len = sizeof(struct fc_bsg_reply) + sizeof(fw_status);
 
 	if (comp_status != CS_COMPLETE) {
 		if (comp_status == CS_DATA_UNDERRUN) {
-#ifndef NEW_LIBFC_API
-			bsg_job->reply->reply_payload_rcv_len =
-#else
 			bsg_reply->reply_payload_rcv_len =
-#endif
 			    le16_to_cpu(((struct els_sts_entry_24xx *)pkt)->total_byte_count);
 
 			ql_dbg(ql_dbg_user, vha, 0x503f,
@@ -1241,11 +1201,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 				pkt)->error_subcode_1),
 			    le16_to_cpu(((struct els_sts_entry_24xx *)
 				    pkt)->error_subcode_2));
-#ifndef NEW_LIBFC_API
-			bsg_job->reply->reply_payload_rcv_len = 0;
-#else
 			bsg_reply->reply_payload_rcv_len = 0;
-#endif
 			fw_sts_ptr = bsg_job_sense(bsg_job) +
 				sizeof(struct fc_bsg_reply);
 			memcpy(fw_sts_ptr, fw_status, sizeof(fw_status));
@@ -1253,11 +1209,7 @@ qla24xx_els_ct_entry(scsi_qla_host_t *vha, struct req_que *req,
 		ql_dump_buffer(ql_dbg_user + ql_dbg_buffer, vha, 0x5056,
 				(uint8_t *)pkt, sizeof(*pkt));
 	} else {
-#ifndef NEW_LIBFC_API
-		bsg_job->reply->reply_payload_rcv_len = bsg_job->reply_payload.payload_len;
-#else
 		bsg_reply->reply_payload_rcv_len = bsg_job->reply_payload.payload_len;
-#endif
 		bsg_job->reply_len = 0;
 	}
 	sp->done(vha, sp, 0);

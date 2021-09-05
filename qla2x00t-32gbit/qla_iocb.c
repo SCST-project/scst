@@ -3111,11 +3111,7 @@ done:
 static void
 qla24xx_els_iocb(srb_t *sp, struct els_entry_24xx *els_iocb)
 {
-#ifndef NEW_LIBFC_API
-	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
-#else
-	struct bsg_job *bsg_job = sp->u.bsg_job;
-#endif
+	BSG_JOB_TYPE *bsg_job = sp->u.bsg_job;
 	struct fc_bsg_request *bsg_request = bsg_job->request;
 
         els_iocb->entry_type = ELS_IOCB_TYPE;
@@ -3165,11 +3161,7 @@ qla2x00_ct_iocb(srb_t *sp, ms_iocb_entry_t *ct_iocb)
 	uint16_t tot_dsds;
 	scsi_qla_host_t *vha = sp->vha;
 	struct qla_hw_data *ha = vha->hw;
-#ifndef NEW_LIBFC_API
-	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
-#else
-	struct bsg_job *bsg_job = sp->u.bsg_job;
-#endif
+	BSG_JOB_TYPE *bsg_job = sp->u.bsg_job;
 	int entry_count = 1;
 
 	memset(ct_iocb, 0, sizeof(ms_iocb_entry_t));
@@ -3236,11 +3228,7 @@ qla24xx_ct_iocb(srb_t *sp, struct ct_entry_24xx *ct_iocb)
 	uint16_t cmd_dsds, rsp_dsds;
 	scsi_qla_host_t *vha = sp->vha;
 	struct qla_hw_data *ha = vha->hw;
-#ifndef NEW_LIBFC_API
-	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
-#else
-	struct bsg_job *bsg_job = sp->u.bsg_job;
-#endif
+	BSG_JOB_TYPE *bsg_job = sp->u.bsg_job;
 	int entry_count = 1;
 	cont_a64_entry_t *cont_pkt = NULL;
 
@@ -3890,11 +3878,7 @@ qla25xx_build_bidir_iocb(srb_t *sp, struct scsi_qla_host *vha,
 	struct scatterlist *sg;
 	int index;
 	int entry_count = 1;
-#ifndef NEW_LIBFC_API
-	struct fc_bsg_job *bsg_job = sp->u.bsg_job;
-#else
-	struct bsg_job *bsg_job = sp->u.bsg_job;
-#endif
+	BSG_JOB_TYPE *bsg_job = sp->u.bsg_job;
 
 	/*Update entry type to indicate bidir command */
 	put_unaligned_le32(COMMAND_BIDIRECTIONAL, &cmd_pkt->entry_type);

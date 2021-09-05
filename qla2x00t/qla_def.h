@@ -31,6 +31,9 @@
 	defined(CONFIG_SUSE_KERNEL) && \
 	LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
 #define NEW_LIBFC_API
+#define BSG_JOB_TYPE struct bsg_job
+#else
+#define BSG_JOB_TYPE struct fc_bsg_job
 #endif
 
 #ifdef NEW_LIBFC_API

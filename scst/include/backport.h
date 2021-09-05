@@ -52,7 +52,7 @@
 #include <rdma/ib_verbs.h>
 #include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
 struct scsi_target;
-#include <scsi/scsi_transport_fc.h> /* struct fc_bsg_job */
+#include <scsi/scsi_transport_fc.h> /* struct bsg_job */
 #include <asm/unaligned.h>	/* get_unaligned_be64() */
 
 /* <asm-generic/barrier.h> */
@@ -2205,19 +2205,22 @@ static inline void scsi_build_sense(struct scsi_cmnd *scmd, int desc,
  */
 static inline struct request *scsi_cmd_to_rq(struct scsi_cmnd *scmd)
 {
-	return blk_mq_rq_from_pdu(scmd);
+	return scmd->request;
 }
 
 /*
- * See also commit 7ba46799d346 ("scsi: core: Add scsi_prot_ref_tag()
- * helper").
+ * See also commits 7ba46799d346 ("scsi: core: Add scsi_prot_ref_tag()
+ * helper") and ddd0bc756983 ("block: move ref_tag calculation func to the
+ * block layer"; v4.19).
  */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
 static inline u32 scsi_prot_ref_tag(struct scsi_cmnd *scmd)
 {
 	struct request *rq = blk_mq_rq_from_pdu(scmd);
 
 	return t10_pi_ref_tag(rq);
 }
+#endif
 #endif
 
 /* <scsi/scsi_request.h> */
