@@ -51,6 +51,7 @@
 #endif
 #include <rdma/ib_verbs.h>
 #include <scsi/scsi_cmnd.h>	/* struct scsi_cmnd */
+#include <scsi/scsi_eh.h>	/* scsi_build_sense_buffer() */
 struct scsi_target;
 #include <scsi/scsi_transport_fc.h> /* struct bsg_job */
 #include <asm/unaligned.h>	/* get_unaligned_be64() */
@@ -260,6 +261,14 @@ static inline void cpu_to_be32_array(__be32 *dst, const u32 *src, size_t len)
 
 	for (i = 0; i < len; i++)
 		dst[i] = cpu_to_be32(src[i]);
+}
+
+static inline void be32_to_cpu_array(u32 *dst, const __be32 *src, size_t len)
+{
+	int i;
+
+	for (i = 0; i < len; i++)
+		dst[i] = be32_to_cpu(src[i]);
 }
 #endif
 
@@ -2113,6 +2122,15 @@ static inline struct workqueue_struct *alloc_workqueue(const char *fmt,
 #define WQ_SYSFS 0
 #endif
 
+/*
+ * To do: backport alloc_ordered_workqueue(). See also commit 81dcaf6516d8
+ * ("workqueue: implement alloc_ordered_workqueue()"; v2.6.37).
+ */
+#ifndef alloc_ordered_workqueue
+#define alloc_ordered_workqueue(fmt, flags, args...)	\
+	({ WARN_ON_ONCE(true); ERR_PTR(-ENOMEM); })
+#endif
+
 /* <rdma/ib_verbs.h> */
 
 /* commit ed082d36 */
@@ -2304,6 +2322,19 @@ enum {
 static inline void
 fc_host_fpin_rcv(struct Scsi_Host *shost, u32 fpin_len, char *fpin_buf)
 {
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
+/*
+ * See also commit 67b465250e04 ("scsi: fc: start decoupling fc_block_scsi_eh
+ * from scsi_cmnd"; v4.14).
+ */
+static inline int fc_block_rport(struct fc_rport *rport)
+{
+	/* To do: backport this function. */
+	WARN_ON_ONCE(true);
+	return 0;
 }
 #endif
 
