@@ -205,7 +205,7 @@ qla_edif_sa_ctl_init(scsi_qla_host_t *vha, struct fc_port  *fcport)
 	fcport->edif.rx_bytes = 0;
 }
 
-static int qla_bsg_check(scsi_qla_host_t *vha, struct bsg_job *bsg_job,
+static int qla_bsg_check(scsi_qla_host_t *vha, BSG_JOB_TYPE *bsg_job,
 fc_port_t *fcport)
 {
 	struct extra_auth_els *p;
@@ -521,7 +521,7 @@ void qla2x00_release_all_sadb(struct scsi_qla_host *vha, struct fc_port *fcport)
  * secure flag.
  */
 static int
-qla_edif_app_start(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
+qla_edif_app_start(scsi_qla_host_t *vha, BSG_JOB_TYPE *bsg_job)
 {
 	int32_t			rval = 0;
 	struct fc_bsg_reply	*bsg_reply = bsg_job->reply;
@@ -626,7 +626,7 @@ qla_edif_app_start(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
  * to application. Reject any message relate to security.
  */
 static int
-qla_edif_app_stop(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
+qla_edif_app_stop(scsi_qla_host_t *vha, BSG_JOB_TYPE *bsg_job)
 {
 	struct app_stop         appstop;
 	struct fc_bsg_reply     *bsg_reply = bsg_job->reply;
@@ -712,7 +712,7 @@ qla_edif_app_chk_sa_update(scsi_qla_host_t *vha, fc_port_t *fcport,
  * @bsg_job: user request
  */
 static int
-qla_edif_app_authok(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
+qla_edif_app_authok(scsi_qla_host_t *vha, BSG_JOB_TYPE *bsg_job)
 {
 	int32_t			rval = 0;
 	struct auth_complete_cmd appplogiok;
@@ -820,7 +820,7 @@ errstate_exit:
  * @bsg_job: user request
  */
 static int
-qla_edif_app_authfail(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
+qla_edif_app_authfail(scsi_qla_host_t *vha, BSG_JOB_TYPE *bsg_job)
 {
 	int32_t			rval = 0;
 	struct auth_complete_cmd appplogifail;
@@ -888,7 +888,7 @@ qla_edif_app_authfail(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
  * @bsg_job: user request pointer
  */
 static int
-qla_edif_app_getfcinfo(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
+qla_edif_app_getfcinfo(scsi_qla_host_t *vha, BSG_JOB_TYPE *bsg_job)
 {
 	int32_t			rval = 0;
 	int32_t			num_cnt;
@@ -996,7 +996,7 @@ qla_edif_app_getfcinfo(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
  * @bsg_job: user request
  */
 static int32_t
-qla_edif_app_getstats(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
+qla_edif_app_getstats(scsi_qla_host_t *vha, BSG_JOB_TYPE *bsg_job)
 {
 	int32_t			rval = 0;
 	struct fc_bsg_reply	*bsg_reply = bsg_job->reply;
@@ -1064,7 +1064,7 @@ qla_edif_app_getstats(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
 }
 
 int32_t
-qla_edif_app_mgmt(struct bsg_job *bsg_job)
+qla_edif_app_mgmt(BSG_JOB_TYPE *bsg_job)
 {
 	struct fc_bsg_request	*bsg_request = bsg_job->request;
 	struct fc_bsg_reply	*bsg_reply = bsg_job->reply;
@@ -1232,7 +1232,7 @@ qla_edif_find_sa_ctl_by_index(fc_port_t *fcport, int index, int dir)
 
 /* add the sa to the correct list */
 static int
-qla24xx_check_sadb_avail_slot(struct bsg_job *bsg_job, fc_port_t *fcport,
+qla24xx_check_sadb_avail_slot(BSG_JOB_TYPE *bsg_job, fc_port_t *fcport,
 	struct qla_sa_update_frame *sa_frame)
 {
 	struct edif_sa_ctl *sa_ctl = NULL;
@@ -1301,7 +1301,7 @@ qla24xx_check_sadb_avail_slot(struct bsg_job *bsg_job, fc_port_t *fcport,
 #define QLA_SA_UPDATE_FLAGS_TX_KEY      0x2
 
 int
-qla24xx_sadb_update(struct bsg_job *bsg_job)
+qla24xx_sadb_update(BSG_JOB_TYPE *bsg_job)
 {
 	struct	fc_bsg_reply	*bsg_reply = bsg_job->reply;
 	struct Scsi_Host *host = fc_bsg_to_shost(bsg_job);
@@ -1747,7 +1747,7 @@ qla_enode_find(scsi_qla_host_t *vha, uint32_t ntype, uint32_t p1, uint32_t p2)
  */
 static int
 qla_pur_get_pending(scsi_qla_host_t *vha, fc_port_t *fcport,
-	struct bsg_job *bsg_job)
+	BSG_JOB_TYPE *bsg_job)
 {
 	struct enode		*ptr;
 	struct purexevent	*purex;
@@ -3295,7 +3295,7 @@ void qlt_chk_edif_rx_sa_delete_pending(scsi_qla_host_t *vha, fc_port_t *fcport,
 static void qla_parse_auth_els_ctl(struct srb *sp)
 {
 	struct qla_els_pt_arg *a = &sp->u.bsg_cmd.u.els_arg;
-	struct bsg_job *bsg_job = sp->u.bsg_cmd.bsg_job;
+	BSG_JOB_TYPE *bsg_job = sp->u.bsg_cmd.bsg_job;
 	struct fc_bsg_request *request = bsg_job->request;
 	struct qla_bsg_auth_els_request *p =
 	    (struct qla_bsg_auth_els_request *)bsg_job->request;
@@ -3319,7 +3319,7 @@ static void qla_parse_auth_els_ctl(struct srb *sp)
 	a->vp_idx = sp->vha->vp_idx;
 }
 
-int qla_edif_process_els(scsi_qla_host_t *vha, struct bsg_job *bsg_job)
+int qla_edif_process_els(scsi_qla_host_t *vha, BSG_JOB_TYPE *bsg_job)
 {
 	struct fc_bsg_request *bsg_request = bsg_job->request;
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;

@@ -140,7 +140,7 @@ void qla_chk_edif_rx_sa_delete_pending(scsi_qla_host_t *vha,
 void qlt_chk_edif_rx_sa_delete_pending(scsi_qla_host_t *vha, fc_port_t *fcport,
 		struct ctio7_from_24xx *ctio);
 void qla2x00_release_all_sadb(struct scsi_qla_host *vha, struct fc_port *fcport);
-int qla_edif_process_els(scsi_qla_host_t *vha, struct bsg_job *bsgjob);
+int qla_edif_process_els(scsi_qla_host_t *vha, BSG_JOB_TYPE *bsgjob);
 void qla_edif_sess_down(struct scsi_qla_host *vha, struct fc_port *sess);
 const char *sc_to_str(uint16_t cmd);
 
@@ -907,7 +907,7 @@ extern int qla2x00_issue_iocb_timeout(scsi_qla_host_t *, void *,
 	dma_addr_t, size_t, uint32_t);
 extern int qla2x00_get_idma_speed(scsi_qla_host_t *, uint16_t,
 	uint16_t *, uint16_t *);
-extern int qla24xx_sadb_update(struct bsg_job *bsg_job);
+extern int qla24xx_sadb_update(BSG_JOB_TYPE *bsg_job);
 extern int qla_post_sa_replace_work(struct scsi_qla_host *vha,
 	 fc_port_t *fcport, uint16_t nport_handle, struct edif_sa_ctl *sa_ctl);
 
@@ -989,7 +989,7 @@ void qla_edb_eventcreate(scsi_qla_host_t *vha, uint32_t dbtype, uint32_t data, u
 		fc_port_t *fcport);
 void qla_edb_stop(scsi_qla_host_t *vha);
 ssize_t edif_doorbell_show(struct device *dev, struct device_attribute *attr, char *buf);
-int32_t qla_edif_app_mgmt(struct bsg_job *bsg_job);
+int32_t qla_edif_app_mgmt(BSG_JOB_TYPE *bsg_job);
 void qla_enode_init(scsi_qla_host_t *vha);
 void qla_enode_stop(scsi_qla_host_t *vha);
 void qla_edif_flush_sa_ctl_lists(fc_port_t *fcport);
