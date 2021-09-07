@@ -2227,16 +2227,34 @@ static inline struct request *scsi_cmd_to_rq(struct scsi_cmnd *scmd)
 }
 
 /*
+ * See also commit c611529e7cd3 ("sd: Honor block layer integrity handling
+ * flags"; v3.18).
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
+static inline unsigned int scsi_prot_interval(struct scsi_cmnd *scmd)
+{
+	/* To do: backport this function properly. */
+	WARN_ON_ONCE(true);
+	return 512;
+}
+#endif
+
+/*
  * See also commits 7ba46799d346 ("scsi: core: Add scsi_prot_ref_tag()
  * helper") and ddd0bc756983 ("block: move ref_tag calculation func to the
  * block layer"; v4.19).
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) || defined(RHEL_MAJOR)
 static inline u32 scsi_prot_ref_tag(struct scsi_cmnd *scmd)
 {
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 7
+	WARN_ON_ONCE(true);
+	return 0;
+#else
 	struct request *rq = blk_mq_rq_from_pdu(scmd);
 
 	return t10_pi_ref_tag(rq);
+#endif
 }
 #endif
 #endif
