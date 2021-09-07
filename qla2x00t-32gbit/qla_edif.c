@@ -17,7 +17,7 @@ static uint16_t qla_edif_sadb_get_sa_index(fc_port_t *fcport,
 		struct qla_sa_update_frame *sa_frame);
 static int qla_edif_sadb_delete_sa_index(fc_port_t *fcport, uint16_t nport_handle,
 		uint16_t sa_index);
-static int qla_pur_get_pending(scsi_qla_host_t *, fc_port_t *, struct bsg_job *);
+static int qla_pur_get_pending(scsi_qla_host_t *, fc_port_t *, BSG_JOB_TYPE *);
 
 struct edb_node {
 	struct  list_head	list;
