@@ -12,24 +12,6 @@
 
 #ifdef NEW_LIBFC_API
 #include <linux/bsg-lib.h>
-#else
-static inline struct Scsi_Host *fc_bsg_to_shost(struct fc_bsg_job *job)
-{
-	return job->shost;
-}
-
-static inline struct fc_rport *fc_bsg_to_rport(struct fc_bsg_job *job)
-{
-	return job->rport;
-}
-
-static inline void bsg_job_done_backport(struct fc_bsg_job *job, int result,
-					 unsigned int reply_payload_rcv_len)
-{
-	job->job_done(job);
-}
-
-#define bsg_job_done bsg_job_done_backport
 #endif
 
 static void qla2xxx_free_fcport_work(struct work_struct *work)

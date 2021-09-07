@@ -165,18 +165,24 @@ qla24xx_configure_prot_mode(srb_t *sp, uint16_t *fw_prot_opts)
 		break;
 	case SCSI_PROT_READ_PASS:
 	case SCSI_PROT_WRITE_PASS:
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
 		if (cmd->prot_flags & SCSI_PROT_IP_CHECKSUM)
 			*fw_prot_opts |= PO_MODE_DIF_TCP_CKSUM;
 		else
 			*fw_prot_opts |= PO_MODE_DIF_PASS;
+#endif
 		break;
 	default:	/* Normal Request */
 		*fw_prot_opts |= PO_MODE_DIF_PASS;
 		break;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
 	if (!(cmd->prot_flags & SCSI_PROT_GUARD_CHECK))
 		*fw_prot_opts |= PO_DISABLE_GUARD_CHECK;
+#else
+		WARN_ON_ONCE(true);
+#endif
 
 	return scsi_prot_sg_count(cmd);
 }
@@ -776,6 +782,7 @@ qla24xx_set_t10dif_tags(srb_t *sp, struct fw_dif_context *pkt,
 
 	pkt->ref_tag = cpu_to_le32(scsi_prot_ref_tag(cmd));
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
 	if (cmd->prot_flags & SCSI_PROT_REF_CHECK &&
 	    qla2x00_hba_err_chk_enabled(sp)) {
 		pkt->ref_tag_mask[0] = 0xff;
@@ -783,6 +790,9 @@ qla24xx_set_t10dif_tags(srb_t *sp, struct fw_dif_context *pkt,
 		pkt->ref_tag_mask[2] = 0xff;
 		pkt->ref_tag_mask[3] = 0xff;
 	}
+#else
+	WARN_ON_ONCE(true);
+#endif
 
 	pkt->app_tag = cpu_to_le16(0);
 	pkt->app_tag_mask[0] = 0x0;

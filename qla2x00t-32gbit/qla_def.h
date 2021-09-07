@@ -25,6 +25,9 @@
 #include <linux/aer.h>
 #include <linux/mutex.h>
 #include <linux/version.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 1, 0)
+#include <linux/bsg-lib.h>	/* struct bsg_job */
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
 /*
  * See also commit 5db53f3e80de ("[LogFS] add new flash file system") # v2.6.34.
@@ -48,6 +51,24 @@
 #define BSG_JOB_TYPE struct bsg_job
 #else
 #define BSG_JOB_TYPE struct fc_bsg_job
+
+static inline struct Scsi_Host *fc_bsg_to_shost(struct fc_bsg_job *job)
+{
+	return job->shost;
+}
+
+static inline struct fc_rport *fc_bsg_to_rport(struct fc_bsg_job *job)
+{
+	return job->rport;
+}
+
+static inline void bsg_job_done_backport(struct fc_bsg_job *job, int result,
+					 unsigned int reply_payload_rcv_len)
+{
+	job->job_done(job);
+}
+
+#define bsg_job_done bsg_job_done_backport
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) &&	\
@@ -685,7 +706,11 @@ struct iocb_resource {
 };
 
 struct bsg_cmd {
+#ifndef NEW_LIBFC_API
+	struct fc_bsg_job *bsg_job;
+#else
 	struct bsg_job *bsg_job;
+#endif
 	union {
 		struct qla_els_pt_arg els_arg;
 	} u;
