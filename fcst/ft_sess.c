@@ -348,7 +348,9 @@ int ft_get_transport_id(struct scst_tgt *tgt, struct scst_session *scst_sess,
 		u8	__resv1[7];
 		__be64	port_name;	/* N_Port Name */
 		u8	__resv2[8];
-	} __attribute__((__packed__)) *id;
+	} *id;
+
+	static_assert(sizeof(*id) == 24);
 
 	if (!scst_sess)
 		return SCSI_TRANSPORTID_PROTOCOLID_FCP2;

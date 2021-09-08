@@ -269,8 +269,8 @@ struct isert_global {
 	struct workqueue_struct	*conn_wq;
 };
 
-#define _ptr_to_u64(p)		(u64)(unsigned long)(p)
-#define _u64_to_ptr(v)		(void *)(unsigned long)(v)
+#define _ptr_to_u64(p)		((u64)(unsigned long)(p))
+#define _u64_to_ptr(v)		((void *)(unsigned long)(v))
 
 /* global iser scope */
 int isert_global_init(void);
