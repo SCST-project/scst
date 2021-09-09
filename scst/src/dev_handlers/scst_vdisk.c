@@ -5933,7 +5933,7 @@ static void vdisk_blk_add_dif(struct bio *bio, gfp_t gfp_mask,
 	}
 
 	bip = bio_integrity_alloc(bio, gfp_mask, pages);
-	if (unlikely(bip == NULL)) {
+	if (unlikely(IS_ERR_OR_NULL(bip))) {
 		PRINT_WARNING("Allocation of %d pages for DIF tags "
 			"failed! (dev %s)", pages, dev->virt_name);
 		goto out; /* proceed without integrity */
