@@ -350,7 +350,7 @@ int ft_get_transport_id(struct scst_tgt *tgt, struct scst_session *scst_sess,
 		u8	__resv2[8];
 	} *id;
 
-	static_assert(sizeof(*id) == 24);
+	BUILD_BUG_ON(sizeof(*id) != 24);
 
 	if (!scst_sess)
 		return SCSI_TRANSPORTID_PROTOCOLID_FCP2;
