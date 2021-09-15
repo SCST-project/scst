@@ -12470,6 +12470,8 @@ int scst_tape_generic_parse(struct scst_cmd *cmd)
 				shift_left_overflows(cmd->data_len, block_shift) ||
 				shift_left_overflows(cmd->out_bufflen, block_shift);
 
+		EXTRACHECKS_BUG_ON(block_shift < 0);
+		
 		BUILD_BUG_ON(sizeof(cmd->bufflen) != 4);
 		BUILD_BUG_ON(sizeof(cmd->out_bufflen) != 4);
 		if (unlikely(overflow)) {
