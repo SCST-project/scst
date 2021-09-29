@@ -2399,6 +2399,9 @@ qla2x00_initialize_adapter(scsi_qla_host_t *vha)
 	    ha->fc4_type_priority != FC4_PRIORITY_NVME)
 		ha->fc4_type_priority = FC4_PRIORITY_FCP;
 
+	/* BVA: Ignore the NVRAM configuration and force the default to FCP. */
+	ha->fc4_type_priority = FC4_PRIORITY_FCP;
+
 	ql_log(ql_log_info, vha, 0xffff, "FC4 priority set to %s\n",
 	       ha->fc4_type_priority == FC4_PRIORITY_FCP ? "FCP" : "NVMe");
 
