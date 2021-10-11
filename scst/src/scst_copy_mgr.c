@@ -2494,7 +2494,7 @@ out_free:
 	goto out;
 }
 
-/* scst_mutex supposed to be held and activities suspended */
+/* scst_mutex supposed to be held */
 static bool scst_cm_is_lun_free(unsigned int lun)
 {
 	bool res = true;
@@ -2516,7 +2516,7 @@ static bool scst_cm_is_lun_free(unsigned int lun)
 	return res;
 }
 
-/* scst_mutex supposed to be held and activities suspended */
+/* scst_mutex supposed to be held */
 static unsigned int scst_cm_get_lun(const struct scst_device *dev)
 {
 	unsigned int res = SCST_MAX_LUN;
@@ -2612,7 +2612,7 @@ out_err:
 	goto out;
 }
 
-/* scst_mutex supposed to be held and activities suspended */
+/* scst_mutex supposed to be held */
 static void scst_cm_dev_unregister(struct scst_device *dev, bool del_lun)
 {
 	struct scst_cm_desig *des, *t;
@@ -2647,7 +2647,7 @@ out:
 void scst_cm_update_dev(struct scst_device *dev)
 {
 	unsigned int lun;
-	int rc, res;
+	int rc;
 
 	TRACE_ENTRY();
 
@@ -2656,9 +2656,6 @@ void scst_cm_update_dev(struct scst_device *dev)
 	if (!scst_auto_cm_assignment ||
 	    !dev->handler->auto_cm_assignment_possible)
 		goto out;
-
-	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
-	WARN_ON_ONCE(res);
 
 	mutex_lock(&scst_mutex);
 
@@ -2681,9 +2678,8 @@ void scst_cm_update_dev(struct scst_device *dev)
 	if (rc != 0)
 		goto out_unblock;
 
-out_resume:
+out_unlock:
 	mutex_unlock(&scst_mutex);
-	scst_resume_activity();
 
 out:
 	TRACE_EXIT();
@@ -2693,7 +2689,7 @@ out_unblock:
 	spin_lock_bh(&dev->dev_lock);
 	scst_unblock_dev(dev);
 	spin_unlock_bh(&dev->dev_lock);
-	goto out_resume;
+	goto out_unlock;
 }
 
 int scst_cm_on_dev_register(struct scst_device *dev)
@@ -2726,7 +2722,7 @@ void scst_cm_on_dev_unregister(struct scst_device *dev)
 	return;
 }
 
-/* scst_mutex supposed to be held and activities suspended */
+/* scst_mutex supposed to be held */
 int scst_cm_on_add_acg(struct scst_acg *acg)
 {
 	int res = 0;
@@ -2760,7 +2756,7 @@ void scst_cm_on_del_acg(struct scst_acg *acg)
 	/* Nothing to do */
 }
 
-/* scst_mutex supposed to be held and activities suspended */
+/* scst_mutex supposed to be held */
 int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun,
 	unsigned int *flags)
 {
@@ -2788,7 +2784,7 @@ out:
 	return res;
 }
 
-/* scst_mutex supposed to be held and activities suspended */
+/* scst_mutex supposed to be held */
 bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev, bool gen_report_luns_changed)
 {
 	bool res = gen_report_luns_changed;
