@@ -4502,7 +4502,7 @@ out:
 	return res;
 }
 
-/* The activity supposed to be suspended and scst_mutex held */
+/* The caller must hold scst_mutex. */
 int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 	struct scst_device *dev, uint64_t lun, unsigned int flags,
 	struct scst_acg_dev **out_acg_dev)
@@ -4515,7 +4515,7 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 
 	TRACE_ENTRY();
 
-	INIT_LIST_HEAD(&tmp_tgt_dev_list);
+	lockdep_assert_held(&scst_mutex);
 
 	res = scst_check_dif_compatibility(acg, dev);
 	if (res != 0)
