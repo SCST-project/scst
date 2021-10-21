@@ -2203,7 +2203,15 @@ static inline void *scsi_cmd_priv(struct scsi_cmnd *cmd)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
+/*
+ * The Debian 5.13.0 kernel has a scsi_build_sense() definition but does not
+ * define bio_multiple_segments() while the upstream 5.13.0 kernel defines
+ * bio_multiple_segments(). Hence the check two lines below for the Debian
+ * kernel.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0) && \
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 13, 0) >> 8 ||	\
+	 defined(bio_multiple_segments))
 /*
  * See also commit f2b1e9c6f867 ("scsi: core: Introduce scsi_build_sense()";
  * v5.14-rc1).
