@@ -20,7 +20,7 @@
 #include <linux/types.h>
 #include <scsi/libfc.h>
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0) &&		\
-	!(LINUX_VERSION_CODE == KERNEL_VERSION(5, 4, 7) &&	\
+	!(LINUX_VERSION_CODE == KERNEL_VERSION(5, 4, 17) &&	\
 	  defined(UEK_KABI_RENAME))
 #include <scsi/fc_encode.h>
 #else
