@@ -1376,15 +1376,11 @@ static void sgv_pool_init_cache(struct sgv_pool *pool, int cache_num,
 	scnprintf(pool->cache_names[cache_num],
 		sizeof(pool->cache_names[cache_num]),
 		"%s-%uK", pool->name, (pages << PAGE_SHIFT) >> 10);
-	pool->caches[cache_num] = kmem_cache_create(
+	pool->caches[cache_num] = kmem_cache_create_usercopy(
 		pool->cache_names[cache_num], size,
-		0, per_cpu ? SCST_SLAB_FLAGS :
-			     (SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN), NULL
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
-		, NULL);
-#else
-		);
-#endif
+		/*align=*/0, per_cpu ? SCST_SLAB_FLAGS :
+		(SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN),
+		/*useroffset=*/0, /*usersize=*/size, /*ctor=*/NULL);
 	return;
 }
 
