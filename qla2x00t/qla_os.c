@@ -1146,7 +1146,7 @@ __qla2xxx_eh_generic_reset(char *name, enum nexus_wait_type type,
 	}
 	err = 2;
 	if (do_reset(fcport, cmd->device->lun,
-		     scst_blk_rq_cpu(cmd->request) + 1)
+		     scst_blk_rq_cpu(scsi_cmd_to_rq(cmd)) + 1)
 		!= QLA_SUCCESS) {
 		ql_log(ql_log_warn, vha, 0x800c,
 		    "do_reset failed for cmd=%p.\n", cmd);

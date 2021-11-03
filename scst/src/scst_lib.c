@@ -8249,7 +8249,8 @@ static struct request *blk_make_request(struct request_queue *q,
 	if (IS_ERR(rq))
 		return rq;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0) ||	\
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0) ||	\
 	defined(CONFIG_SUSE_KERNEL)
 	scsi_req_init(scsi_req(rq));
 #else
@@ -8480,7 +8481,8 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 		if (unlikely(!rq))
 			return ERR_PTR(-ENOMEM);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0) ||	\
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0) ||	\
 	defined(CONFIG_SUSE_KERNEL)
 		scsi_req_init(scsi_req(rq));
 #else

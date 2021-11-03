@@ -763,7 +763,7 @@ static int scst_local_abort(struct scsi_cmnd *scmd)
 	sess = to_scst_lcl_sess(scsi_get_device(scmd->device->host));
 
 	ret = scst_rx_mgmt_fn_tag(sess->scst_sess, SCST_ABORT_TASK,
-				  blk_mq_unique_tag(scmd->request),
+				  blk_mq_unique_tag(scsi_cmd_to_rq(scmd)),
 				  false, &dev_reset_completion);
 
 	/* Now wait for the completion ... */
@@ -962,7 +962,7 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *scmd,
 		return SCSI_MLQUEUE_HOST_BUSY;
 	}
 
-	scst_cmd_set_tag(scst_cmd, blk_mq_unique_tag(scmd->request));
+	scst_cmd_set_tag(scst_cmd, blk_mq_unique_tag(scsi_cmd_to_rq(scmd)));
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
 	if (scmd->device->tagged_supported && scmd->device->simple_tags)
 		scst_cmd_set_queue_type(scst_cmd, SCST_CMD_QUEUE_SIMPLE);
