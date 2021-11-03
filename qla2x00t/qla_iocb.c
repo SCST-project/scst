@@ -1875,7 +1875,7 @@ static void qla25xx_set_que(srb_t *sp, struct rsp_que **rsp)
 {
 	struct scsi_cmnd *cmd = GET_CMD_SP(sp);
 	struct qla_hw_data *ha = sp->fcport->vha->hw;
-	int affinity = scst_blk_rq_cpu(cmd->request);
+	int affinity = scst_blk_rq_cpu(scsi_cmd_to_rq(cmd));
 
 	if (ha->flags.cpu_affinity_enabled && affinity >= 0 &&
 		affinity < ha->max_rsp_queues - 1)
