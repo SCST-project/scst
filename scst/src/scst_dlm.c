@@ -510,6 +510,13 @@ static int scst_read_file(const char *path, char *buf, int buf_len)
 		goto out;
 	}
 	pos = 0;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+	/*
+	 * Commit 4d03e3cc5982 ("fs: don't allow kernel reads and writes
+	 * without iter ops") made kernel_read() depend on .read_iter.
+	 */
+	WARN_ON_ONCE(!f->f_op->read_iter);
+#endif
 	ret = kernel_read(f, buf, buf_len, &pos);
 	if (ret >= 0)
 		buf[min(ret, buf_len - 1)] = '\0';
