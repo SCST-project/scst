@@ -44,6 +44,9 @@
 #else
 #include <asm/atomic.h>
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+#include <linux/blk-integrity.h>
+#endif
 #include <linux/kthread.h>
 #include <linux/sched.h>
 #include <linux/delay.h>
@@ -3188,7 +3191,11 @@ static bool vdisk_alloc_async_kvec(struct scst_cmd *cmd,
 	return true;
 }
 
-static void fileio_async_complete(struct kiocb *iocb, long ret, long ret2)
+static void fileio_async_complete(struct kiocb *iocb, long ret
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
+				  , long ret2
+#endif
+				  )
 {
 	struct vdisk_cmd_params *p = container_of(iocb, typeof(*p), async.iocb);
 	struct scst_cmd *cmd = p->cmd;
@@ -3290,8 +3297,13 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 	}
 	if (p->async.kvec != p->async.small_kvec)
 		kfree(p->async.kvec);
-	if (ret != -EIOCBQUEUED)
+	if (ret != -EIOCBQUEUED) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
 		fileio_async_complete(iocb, ret, 0);
+#else
+		fileio_async_complete(iocb, ret);
+#endif
+	}
 	/*
 	 * Return RUNNING_ASYNC even if fileio_async_complete() has been
 	 * called because that function calls cmd->scst_cmd_done().

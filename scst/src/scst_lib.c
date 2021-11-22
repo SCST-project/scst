@@ -8213,7 +8213,7 @@ static void bio_kmalloc_destructor(struct bio *bio)
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
-static blk_mq_req_flags_t gfp_mask_to_flags(gfp_t gfp_mask)
+static blk_mq_req_flags_t scst_gfp_mask_to_flags(gfp_t gfp_mask)
 {
 	switch (gfp_mask) {
 	case GFP_KERNEL:
@@ -8228,6 +8228,35 @@ static blk_mq_req_flags_t gfp_mask_to_flags(gfp_t gfp_mask)
 }
 #endif
 
+/**
+ * scst_alloc_passthrough_request - Allocate a SCSI pass-through request.
+ * @q: Request queue.
+ * @rw: READ or WRITE.
+ * @gfp_mask: GFP_KERNEL, GFP_ATOMIC or GFP_NOIO.
+ *
+ * Returns
+ * A valid request pointer, NULL or an error pointer. The value NULL is only
+ * returned for the legacy block layer if allocation fails. The legacy block
+ * layer is only supported by kernel versions before v5.0.
+ */
+static inline struct request *
+scst_alloc_passthrough_request(struct request_queue *q, int rw, gfp_t gfp_mask)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+	return blk_get_request(q, rw, gfp_mask);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
+	return blk_get_request(q, rw == READ ? REQ_OP_SCSI_IN : REQ_OP_SCSI_OUT,
+			       gfp_mask);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
+	return blk_get_request(q, rw == READ ? REQ_OP_SCSI_IN : REQ_OP_SCSI_OUT,
+			       scst_gfp_mask_to_flags(gfp_mask));
+#else
+	return blk_mq_alloc_request(q, rw == READ ? REQ_OP_DRV_IN :
+				    rw == READ ? REQ_OP_DRV_IN : REQ_OP_DRV_OUT,
+				    scst_gfp_mask_to_flags(gfp_mask));
+#endif
+}
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0) ||			\
 (defined(CONFIG_SUSE_KERNEL) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 static struct request *blk_make_request(struct request_queue *q,
@@ -8236,17 +8265,8 @@ static struct request *blk_make_request(struct request_queue *q,
 {
 	struct request *rq;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
-	rq = blk_get_request(q, bio_data_dir(bio), gfp_mask);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
-	rq = blk_get_request(q, bio_data_dir(bio) == READ ? REQ_OP_SCSI_IN :
-			     REQ_OP_SCSI_OUT, gfp_mask);
-#else
-	rq = blk_get_request(q, bio_data_dir(bio) == READ ? REQ_OP_SCSI_IN :
-			     REQ_OP_SCSI_OUT, gfp_mask_to_flags(gfp_mask));
-#endif
-
-	if (IS_ERR(rq))
+	rq = scst_alloc_passthrough_request(q, bio_data_dir(bio), gfp_mask);
+	if (IS_ERR_OR_NULL(rq))
 		return rq;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
@@ -8280,7 +8300,11 @@ static struct request *blk_make_request(struct request_queue *q,
 		ret = blk_rq_append_bio(rq, bio);
 #endif
 		if (unlikely(ret)) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
 			blk_put_request(rq);
+#else
+			blk_mq_free_request(rq);
+#endif
 			return ERR_PTR(ret);
 		}
 	}
@@ -8469,16 +8493,9 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 	struct request *rq;
 
 	if (!sgl) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
-		rq = blk_get_request(q, reading ? READ : WRITE, gfp);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
-		rq = blk_get_request(q, reading ? REQ_OP_SCSI_IN :
-				     REQ_OP_SCSI_OUT, gfp);
-#else
-		rq = blk_get_request(q, reading ? REQ_OP_SCSI_IN :
-				     REQ_OP_SCSI_OUT, gfp_mask_to_flags(gfp));
-#endif
-		if (unlikely(!rq))
+		rq = scst_alloc_passthrough_request(q, reading ? READ : WRITE,
+						    gfp);
+		if (unlikely(IS_ERR_OR_NULL(rq)))
 			return ERR_PTR(-ENOMEM);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
@@ -8728,8 +8745,10 @@ static void scsi_end_async(struct request *req, blk_status_t error)
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8)
 	/* See also commit 92bc5a24844a ("block: remove __blk_put_request()") */
 	__blk_put_request(req->q, req);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
 	blk_put_request(req);
+#else
+	blk_mq_free_request(req);
 #endif
 	return;
 }

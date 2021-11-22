@@ -41,7 +41,11 @@
 #endif
 #include <linux/vmalloc.h>
 #include <asm/unaligned.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
 #include <stdarg.h>
+#else
+#include <linux/stdarg.h>
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
 #include <linux/mount.h>
