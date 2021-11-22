@@ -371,13 +371,6 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev,
 
 	sBUG_ON(!name);
 
-	if (!virt_dev->dev_active) {
-		TRACE_MGMT_DBG("Skip opening for not active dev %s",
-			       virt_dev->dev->virt_name);
-		fd = ERR_PTR(-EMEDIUMTYPE);
-		goto out;
-	}
-
 	if (read_only)
 		open_flags |= O_RDONLY;
 	else
@@ -395,7 +388,6 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev,
 			PRINT_ERROR("filp_open(%s) failed: %d", name, (int)PTR_ERR(fd));
 	}
 
-out:
 	TRACE_EXIT();
 	return fd;
 }
@@ -1191,7 +1183,7 @@ next:
 		}
 	}
 
-	if (virt_dev->dif_filename != NULL) {
+	if (virt_dev->dev_active && virt_dev->dif_filename != NULL) {
 		/* Check if it can be used */
 		struct file *dfd = vdev_open_fd(virt_dev, virt_dev->dif_filename,
 					virt_dev->rd_only);
@@ -1340,19 +1332,17 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 	sBUG_ON(!virt_dev->filename);
 	sBUG_ON(vdisk_is_open(virt_dev));
 
-	if (virt_dev->blockio) {
+	if (!virt_dev->dev_active) {
+		TRACE_MGMT_DBG("Skip opening for not active dev %s",
+			       virt_dev->dev->virt_name);
+		res = -EMEDIUMTYPE;
+	} else if (virt_dev->blockio) {
 		virt_dev->bdev_mode = FMODE_READ;
 		if (!read_only)
 			virt_dev->bdev_mode |= FMODE_WRITE;
 		virt_dev->bdev = blkdev_get_by_path(virt_dev->filename,
 					virt_dev->bdev_mode, (void *)__func__);
 		res = IS_ERR(virt_dev->bdev) ? PTR_ERR(virt_dev->bdev) : 0;
-		if ((!virt_dev->dev_active) && (res == -ENOENT))
-		{
-			TRACE_MGMT_DBG("Skip opening for not active dev %s",
-			       virt_dev->dev->virt_name);
-			res = -EMEDIUMTYPE;
-		}
 	} else {
 		virt_dev->fd = vdev_open_fd(virt_dev, virt_dev->filename,
 					    read_only);
