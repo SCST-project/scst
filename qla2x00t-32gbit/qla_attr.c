@@ -2461,7 +2461,7 @@ static DEVICE_ATTR(port_no, 0444, qla2x00_port_no_show, NULL);
 static DEVICE_ATTR(fw_attr, 0444, qla2x00_fw_attr_show, NULL);
 static DEVICE_ATTR_RO(edif_doorbell);
 
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
 struct device_attribute *qla2x00_host_attrs[] = {
 	&dev_attr_driver_version,
 	&dev_attr_fw_version,
@@ -2527,6 +2527,79 @@ void qla_insert_tgt_attrs(void)
 	attr++;
 	*attr = &dev_attr_ql2xexchoffld;
 }
+#else
+static struct attribute *qla2x00_host_attrs[] = {
+	&dev_attr_driver_version.attr,
+	&dev_attr_fw_version.attr,
+	&dev_attr_serial_num.attr,
+	&dev_attr_isp_name.attr,
+	&dev_attr_isp_id.attr,
+	&dev_attr_model_name.attr,
+	&dev_attr_model_desc.attr,
+	&dev_attr_pci_info.attr,
+	&dev_attr_link_state.attr,
+	&dev_attr_zio.attr,
+	&dev_attr_zio_timer.attr,
+	&dev_attr_beacon.attr,
+	&dev_attr_beacon_config.attr,
+	&dev_attr_optrom_bios_version.attr,
+	&dev_attr_optrom_efi_version.attr,
+	&dev_attr_optrom_fcode_version.attr,
+	&dev_attr_optrom_fw_version.attr,
+	&dev_attr_84xx_fw_version.attr,
+	&dev_attr_total_isp_aborts.attr,
+	&dev_attr_serdes_version.attr,
+	&dev_attr_mpi_version.attr,
+	&dev_attr_phy_version.attr,
+	&dev_attr_flash_block_size.attr,
+	&dev_attr_vlan_id.attr,
+	&dev_attr_vn_port_mac_address.attr,
+	&dev_attr_fabric_param.attr,
+	&dev_attr_fw_state.attr,
+	&dev_attr_optrom_gold_fw_version.attr,
+	&dev_attr_thermal_temp.attr,
+	&dev_attr_diag_requests.attr,
+	&dev_attr_diag_megabytes.attr,
+	&dev_attr_fw_dump_size.attr,
+	&dev_attr_allow_cna_fw_dump.attr,
+	&dev_attr_pep_version.attr,
+	&dev_attr_min_supported_speed.attr,
+	&dev_attr_max_supported_speed.attr,
+	&dev_attr_zio_threshold.attr,
+	&dev_attr_dif_bundle_statistics.attr,
+	&dev_attr_port_speed.attr,
+	&dev_attr_port_no.attr,
+	&dev_attr_fw_attr.attr,
+	&dev_attr_dport_diagnostics.attr,
+	&dev_attr_edif_doorbell.attr,
+	&dev_attr_mpi_pause.attr,
+	&dev_attr_qlini_mode.attr,
+	&dev_attr_ql2xiniexchg.attr,
+	&dev_attr_ql2xexchoffld.attr,
+	NULL,
+};
+
+static umode_t qla_host_attr_is_visible(struct kobject *kobj,
+					struct attribute *attr, int i)
+{
+	if (ql2x_ini_mode != QLA2XXX_INI_MODE_DUAL &&
+	    (attr == &dev_attr_qlini_mode.attr ||
+	     attr == &dev_attr_ql2xiniexchg.attr ||
+	     attr == &dev_attr_ql2xexchoffld.attr))
+		return 0;
+	return attr->mode;
+}
+
+static const struct attribute_group qla2x00_host_attr_group = {
+	.is_visible = qla_host_attr_is_visible,
+	.attrs = qla2x00_host_attrs
+};
+
+const struct attribute_group *qla2x00_host_groups[] = {
+	&qla2x00_host_attr_group,
+	NULL
+};
+#endif
 
 /* Host attributes. */
 
