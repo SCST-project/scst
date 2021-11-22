@@ -2267,6 +2267,16 @@ static inline u32 scsi_prot_ref_tag(struct scsi_cmnd *scmd)
 #endif
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
+/*
+ * See also commit 11b68e36b167 ("scsi: core: Call scsi_done directly"; v5.16)
+ */
+static inline void scsi_done(struct scsi_cmnd *cmd)
+{
+	return cmd->scsi_done(cmd);
+}
+#endif
+
 /* <scsi/scsi_request.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
