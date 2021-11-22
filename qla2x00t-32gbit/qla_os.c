@@ -757,7 +757,7 @@ void qla2x00_sp_compl(srb_t *sp, int res)
 	sp->free(sp);
 	cmd->result = res;
 	CMD_SP(cmd) = NULL;
-	cmd->scsi_done(cmd);
+	scsi_done(cmd);
 	if (comp)
 		complete(comp);
 }
@@ -848,7 +848,7 @@ void qla2xxx_qpair_sp_compl(srb_t *sp, int res)
 	sp->free(sp);
 	cmd->result = res;
 	CMD_SP(cmd) = NULL;
-	cmd->scsi_done(cmd);
+	scsi_done(cmd);
 	if (comp)
 		complete(comp);
 }
@@ -987,7 +987,7 @@ qc24_target_busy:
 	return SCSI_MLQUEUE_TARGET_BUSY;
 
 qc24_fail_command:
-	cmd->scsi_done(cmd);
+	scsi_done(cmd);
 
 	return 0;
 }
@@ -1075,7 +1075,7 @@ qc24_target_busy:
 	return SCSI_MLQUEUE_TARGET_BUSY;
 
 qc24_fail_command:
-	cmd->scsi_done(cmd);
+	scsi_done(cmd);
 
 	return 0;
 }
@@ -8039,7 +8039,11 @@ struct scsi_host_template qla2xxx_driver_template = {
 	.sg_tablesize		= SG_ALL,
 
 	.max_sectors		= 0xFFFF,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
 	.shost_attrs		= qla2x00_host_attrs,
+#else
+	.shost_groups		= qla2x00_host_groups,
+#endif
 
 	.supported_mode		= MODE_INITIATOR,
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
@@ -8252,8 +8256,10 @@ qla2x00_module_init(void)
 	if (ql2xextended_error_logging == 1)
 		ql2xextended_error_logging = QL_DBG_DEFAULT1_MASK;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
 	if (ql2x_ini_mode == QLA2XXX_INI_MODE_DUAL)
 		qla_insert_tgt_attrs();
+#endif
 
 	qla2xxx_transport_template =
 	    fc_attach_transport(&qla2xxx_transport_functions);

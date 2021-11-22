@@ -249,8 +249,12 @@ static int qla2xxx_slave_alloc(struct scsi_device *);
 static int qla2xxx_scan_finished(struct Scsi_Host *, unsigned long time);
 static void qla2xxx_scan_start(struct Scsi_Host *);
 static void qla2xxx_slave_destroy(struct scsi_device *);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
 static int qla2xxx_queuecommand_lck(struct scsi_cmnd *cmd,
 		void (*fn)(struct scsi_cmnd *));
+#else
+static int qla2xxx_queuecommand_lck(struct scsi_cmnd *cmd);
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
 static DEF_SCSI_QCMD(qla2xxx_queuecommand);
 #endif
@@ -306,7 +310,11 @@ struct scsi_host_template qla2xxx_driver_template = {
 	.sg_tablesize		= SG_ALL,
 
 	.max_sectors		= 0xFFFF,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
 	.shost_attrs		= qla2x00_host_attrs,
+#else
+	.shost_groups		= qla2x00_host_groups,
+#endif
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 	.supported_mode		= MODE_INITIATOR | MODE_TARGET,
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
@@ -674,11 +682,15 @@ qla2x00_sp_compl(void *data, void *ptr, int res)
 		return;
 
 	qla2x00_sp_free_dma(ha, sp);
-	cmd->scsi_done(cmd);
+	scsi_done(cmd);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
 static int
 qla2xxx_queuecommand_lck(struct scsi_cmnd *cmd, void (*done)(struct scsi_cmnd *))
+#else
+static int qla2xxx_queuecommand_lck(struct scsi_cmnd *cmd)
+#endif
 {
 	scsi_qla_host_t *vha = shost_priv(cmd->device->host);
 	fc_port_t *fcport = (struct fc_port *) cmd->device->hostdata;
@@ -757,7 +769,9 @@ qla2xxx_queuecommand_lck(struct scsi_cmnd *cmd, void (*done)(struct scsi_cmnd *)
 	sp->type = SRB_SCSI_CMD;
 	atomic_set(&sp->ref_count, 1);
 	CMD_SP(cmd) = (void *)sp;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
 	cmd->scsi_done = done;
+#endif
 	sp->free = qla2x00_sp_free_dma;
 	sp->done = qla2x00_sp_compl;
 
@@ -785,7 +799,7 @@ qc24_target_busy:
 
 qc24_fail_command:
 	spin_lock_irq(vha->host->host_lock);
-	done(cmd);
+	scsi_done(cmd);
 
 	return 0;
 }

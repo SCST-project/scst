@@ -1803,6 +1803,7 @@ static DEVICE_ATTR(fabric_param, S_IRUGO, qla2x00_fabric_param_show, NULL);
 static DEVICE_ATTR(fw_state, S_IRUGO, qla2x00_fw_state_show, NULL);
 static DEVICE_ATTR(thermal_temp, S_IRUGO, qla2x00_thermal_temp_show, NULL);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
 struct device_attribute *qla2x00_host_attrs[] = {
 	&dev_attr_driver_version,
 	&dev_attr_fw_version,
@@ -1839,6 +1840,53 @@ struct device_attribute *qla2x00_host_attrs[] = {
 	&dev_attr_thermal_temp,
 	NULL,
 };
+#else
+static struct attribute *qla2x00_host_attrs[] = {
+	&dev_attr_driver_version.attr,
+	&dev_attr_fw_version.attr,
+	&dev_attr_serial_num.attr,
+	&dev_attr_isp_name.attr,
+	&dev_attr_isp_id.attr,
+	&dev_attr_model_name.attr,
+	&dev_attr_model_desc.attr,
+	&dev_attr_pci_info.attr,
+	&dev_attr_link_state.attr,
+	&dev_attr_zio.attr,
+	&dev_attr_zio_timer.attr,
+	&dev_attr_beacon.attr,
+	&dev_attr_optrom_bios_version.attr,
+	&dev_attr_optrom_efi_version.attr,
+	&dev_attr_optrom_fcode_version.attr,
+	&dev_attr_optrom_fw_version.attr,
+	&dev_attr_84xx_fw_version.attr,
+	&dev_attr_class2_enabled.attr,
+#ifdef CONFIG_SCSI_QLA2XXX_TARGET
+	&dev_attr_ini_mode_force_reverse.attr,
+	&dev_attr_resource_counts.attr,
+	&dev_attr_port_database.attr,
+#endif
+	&dev_attr_total_isp_aborts.attr,
+	&dev_attr_mpi_version.attr,
+	&dev_attr_phy_version.attr,
+	&dev_attr_flash_block_size.attr,
+	&dev_attr_vlan_id.attr,
+	&dev_attr_vn_port_mac_address.attr,
+	&dev_attr_fabric_param.attr,
+	&dev_attr_fw_state.attr,
+	&dev_attr_optrom_gold_fw_version.attr,
+	&dev_attr_thermal_temp.attr,
+	NULL,
+};
+
+static const struct attribute_group qla2x00_host_attr_group = {
+       .attrs = qla2x00_host_attrs
+};
+
+const struct attribute_group *qla2x00_host_groups[] = {
+	&qla2x00_host_attr_group,
+	NULL
+};
+#endif
 
 /* Host attributes. */
 

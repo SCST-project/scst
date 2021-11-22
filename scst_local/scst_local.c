@@ -925,7 +925,7 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *scmd,
 
 	if (sess->unregistering) {
 		scmd->result = DID_BAD_TARGET << 16;
-		scmd->scsi_done(scmd);
+		scsi_done(scmd);
 		return 0;
 	}
 
@@ -1420,7 +1420,11 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 	done = tgt_specific->done;
 #else
 	scmd = scst_cmd_get_tgt_priv(scst_cmd);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
 	done = scmd->scsi_done;
+#else
+	done = scsi_done;
+#endif
 #endif
 
 	/*

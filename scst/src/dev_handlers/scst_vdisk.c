@@ -44,6 +44,9 @@
 #else
 #include <asm/atomic.h>
 #endif
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+#include <linux/blk-integrity.h>
+#endif
 #include <linux/kthread.h>
 #include <linux/sched.h>
 #include <linux/delay.h>
@@ -371,13 +374,6 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev,
 
 	sBUG_ON(!name);
 
-	if (!virt_dev->dev_active) {
-		TRACE_MGMT_DBG("Skip opening for not active dev %s",
-			       virt_dev->dev->virt_name);
-		fd = ERR_PTR(-EMEDIUMTYPE);
-		goto out;
-	}
-
 	if (read_only)
 		open_flags |= O_RDONLY;
 	else
@@ -395,7 +391,6 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev,
 			PRINT_ERROR("filp_open(%s) failed: %d", name, (int)PTR_ERR(fd));
 	}
 
-out:
 	TRACE_EXIT();
 	return fd;
 }
@@ -1191,7 +1186,7 @@ next:
 		}
 	}
 
-	if (virt_dev->dif_filename != NULL) {
+	if (virt_dev->dev_active && virt_dev->dif_filename != NULL) {
 		/* Check if it can be used */
 		struct file *dfd = vdev_open_fd(virt_dev, virt_dev->dif_filename,
 					virt_dev->rd_only);
@@ -1340,7 +1335,11 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 	sBUG_ON(!virt_dev->filename);
 	sBUG_ON(vdisk_is_open(virt_dev));
 
-	if (virt_dev->blockio) {
+	if (!virt_dev->dev_active) {
+		TRACE_MGMT_DBG("Skip opening for not active dev %s",
+			       virt_dev->dev->virt_name);
+		res = -EMEDIUMTYPE;
+	} else if (virt_dev->blockio) {
 		virt_dev->bdev_mode = FMODE_READ;
 		if (!read_only)
 			virt_dev->bdev_mode |= FMODE_WRITE;
@@ -3198,7 +3197,11 @@ static bool vdisk_alloc_async_kvec(struct scst_cmd *cmd,
 	return true;
 }
 
-static void fileio_async_complete(struct kiocb *iocb, long ret, long ret2)
+static void fileio_async_complete(struct kiocb *iocb, long ret
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
+				  , long ret2
+#endif
+				  )
 {
 	struct vdisk_cmd_params *p = container_of(iocb, typeof(*p), async.iocb);
 	struct scst_cmd *cmd = p->cmd;
@@ -3300,8 +3303,13 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 	}
 	if (p->async.kvec != p->async.small_kvec)
 		kfree(p->async.kvec);
-	if (ret != -EIOCBQUEUED)
+	if (ret != -EIOCBQUEUED) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
 		fileio_async_complete(iocb, ret, 0);
+#else
+		fileio_async_complete(iocb, ret);
+#endif
+	}
 	/*
 	 * Return RUNNING_ASYNC even if fileio_async_complete() has been
 	 * called because that function calls cmd->scst_cmd_done().
