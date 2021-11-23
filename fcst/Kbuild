@@ -1,5 +1,5 @@
 KBUILD_EXTRA_SYMBOLS=$(src)/../scst/src/Module.symvers
-ccflags-y += -I$(src)/../scst/include
+ccflags-y += -I$(src)/../scst/include $(shell ev=$$(basename $$(pwd)); echo "ev=$$ev" >&2; [ "$${ev/uek}" != "$${ev}" ] && ev=$${ev/*.el/} && echo -DUEK_RELEASE=$${ev/uek.*})
 
 obj-$(CONFIG_FCST) += fcst.o
 
