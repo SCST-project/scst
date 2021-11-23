@@ -1346,12 +1346,6 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 		virt_dev->bdev = blkdev_get_by_path(virt_dev->filename,
 					virt_dev->bdev_mode, (void *)__func__);
 		res = IS_ERR(virt_dev->bdev) ? PTR_ERR(virt_dev->bdev) : 0;
-		if ((!virt_dev->dev_active) && (res == -ENOENT))
-		{
-			TRACE_MGMT_DBG("Skip opening for not active dev %s",
-			       virt_dev->dev->virt_name);
-			res = -EMEDIUMTYPE;
-		}
 	} else {
 		virt_dev->fd = vdev_open_fd(virt_dev, virt_dev->filename,
 					    read_only);
