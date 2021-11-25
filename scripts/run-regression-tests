@@ -303,6 +303,7 @@ CONFIG_SCHED_TRACER				\
 CONFIG_SECURITY_SELINUX				\
 CONFIG_STACK_TRACER				\
 CONFIG_STACK_VALIDATION				\
+CONFIG_TARGET_CORE				\
 CONFIG_TRACEPOINTS				\
 CONFIG_TRACER_MAX_TRACE				\
 CONFIG_TRACE_BRANCH_PROFILING			\
@@ -386,7 +387,7 @@ function compile_kernel {
   if (cd "${outputdir}/linux-$k" \
       && make -s modules_prepare \
       && make -s scripts \
-      && for subdir; do LC_ALL=C make -k M="${subdir}"; done
+      && for subdir; do LC_ALL=C make -j$(nproc) -k M="${subdir}"; done
      ) &> "${outputfile}"
   then
     local errors warnings
