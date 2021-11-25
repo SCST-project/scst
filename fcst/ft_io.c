@@ -24,10 +24,15 @@
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <scsi/libfc.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0) && !defined(UEK_RELEASE)
+/*
+ * See also upstream commit e31ac898ac29 ("scsi: libfc: Move scsi/fc_encode.h
+ * to libfc"). That commit moved fc_fill_fc_hdr() from <scsi/fc_encode.h> into
+ * <scsi/fc_frame.h>.
+ */
+#if defined(FC_FILL_FC_HDR_IN_SCSI_FC_ENCODE_H)
 #include <scsi/fc_encode.h>
 #else
-#include <scsi/fc/fc_ms.h>
+#include <scsi/fc_frame.h>
 #endif
 #include "fcst.h"
 
