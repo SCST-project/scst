@@ -1,0 +1,92 @@
+# Send commits info to SCST mailing list on push
+name: Mailing list
+
+on:
+  push:
+    branches:
+      - 3.5.x
+      - master
+
+jobs:
+  send_mails:
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 1
+      matrix:
+        commit: ${{github.event.commits}}
+    steps:
+      - name: Checkout Project
+        uses: actions/checkout@v2
+        with:
+          ref: ${{matrix.commit.id}}
+          fetch-depth: 2
+
+      - name: Get short ref
+        id: get_short_ref
+        run: |
+          echo ::set-output name=short_ref::${GITHUB_REF#refs/*/}
+
+      - name: Get commit id
+        id: get_comm_id
+        run: |
+          echo ::set-output name=comm_id::$(git rev-parse --short HEAD)
+
+      - name: Get commit message
+        id: get_comm_message
+        run: |
+          echo ::set-output name=comm_message::$(git log --format=%s -n 1 HEAD)
+
+      - name: Get commit diff
+        id: get_comm_diff
+        run: |
+          if [ $(git show --no-patch --format="%P" | wc -w) -eq 1 ]; then
+            diff="$(git --no-pager diff -p HEAD^1)"
+
+            diff="${diff//'%'/'%25'}"
+            diff="${diff//$'\n'/'%0A'}"
+            diff="${diff//$'\r'/'%0D'}"
+
+            echo ::set-output name=comm_diff::"$diff"
+          fi
+
+      - name: Send mail
+        uses: dawidd6/action-send-mail@v3
+        with:
+          # Required mail server address:
+          server_address: smtp.gmail.com
+          # Required mail server port:
+          server_port: 465
+          # Optional (recommended): mail server username:
+          username: ${{secrets.MAIL_SERVER_USERNAME}}
+          # Optional (recommended) mail server password:
+          password: ${{secrets.MAIL_SERVER_PASSWORD}}
+          # Required mail subject:
+          subject: |
+            [${{steps.get_short_ref.outputs.short_ref}}] ${{steps.get_comm_message.outputs.comm_message}}
+          # Required recipients' addresses:
+          to: scst-svn@lists.sourceforge.net
+          # Required sender full name (address can be skipped):
+          from: GitHub
+          # Optional whether this connection use TLS (default is true if server_port is 465)
+          # secure: true
+
+          # Optional plain body:
+          body: |
+            Commit: ${{steps.get_comm_id.outputs.comm_id}}
+            GitHub URL: ${{matrix.commit.url}}
+            Author: ${{matrix.commit.author.name}}
+            Date: ${{matrix.commit.timestamp}}
+            Log Message:
+            ------------------------------
+            ${{matrix.commit.message}}
+            ==============================
+            ${{steps.get_comm_diff.outputs.comm_diff}}
+
+          # Optional unsigned/invalid certificates allowance:
+          ignore_cert: true
+          # Optional converting Markdown to HTML (set content_type to text/html too):
+          # convert_markdown: true
+          # Optional attachments:
+          # attachments: attachments.zip,git.diff,./dist/static/*.js
+          # Optional priority: 'high', 'normal' (default) or 'low'
+          # priority: low
