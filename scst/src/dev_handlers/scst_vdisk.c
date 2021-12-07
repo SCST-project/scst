@@ -267,8 +267,8 @@ struct vdisk_cmd_params {
 		} sync;
 		struct {
 			struct kiocb	iocb;
-			struct kvec	*kvec;
-			struct kvec	small_kvec[4];
+			struct bio_vec	*bvec;
+			struct bio_vec	small_bvec[4];
 		} async;
 	};
 	struct scst_cmd *cmd;
@@ -3170,21 +3170,21 @@ static bool do_fileio_async(const struct vdisk_cmd_params *p)
 	}
 }
 
-static bool vdisk_alloc_async_kvec(struct scst_cmd *cmd,
+static bool vdisk_alloc_async_bvec(struct scst_cmd *cmd,
 				   struct vdisk_cmd_params *p)
 {
 	int n;
 
 	n = scst_get_buf_count(cmd);
-	if (n <= ARRAY_SIZE(p->async.small_kvec)) {
-		p->async.kvec = &p->async.small_kvec[0];
+	if (n <= ARRAY_SIZE(p->async.small_bvec)) {
+		p->async.bvec = &p->async.small_bvec[0];
 		return true;
 	}
 
-	p->async.kvec = kmalloc_array(n, sizeof(*p->async.kvec),
+	p->async.bvec = kmalloc_array(n, sizeof(*p->async.bvec),
 				      cmd->cmd_gfp_mask);
-	if (p->async.kvec == NULL) {
-		PRINT_ERROR("Unable to allocate kvec (%d)", n);
+	if (p->async.bvec == NULL) {
+		PRINT_ERROR("Unable to allocate bvec (%d)", n);
 		return false;
 	}
 
@@ -3235,10 +3235,10 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 	struct file *fd = virt_dev->fd;
 	struct iov_iter iter = { };
 	ssize_t length, total = 0;
-	struct kvec *kvec;
+	struct bio_vec *bvec;
+	struct page *page;
 	struct kiocb *iocb = &p->async.iocb;
-	uint8_t *address;
-	int sg_cnt = 0, dir, ret;
+	int offset, sg_cnt = 0, dir, ret;
 
 	switch (cmd->data_direction) {
 	case SCST_DATA_READ:
@@ -3252,28 +3252,35 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 		return CMD_FAILED;
 	}
 
-	if (!vdisk_alloc_async_kvec(cmd, p)) {
+	if (!vdisk_alloc_async_bvec(cmd, p)) {
 		scst_set_busy(cmd);
 		return CMD_SUCCEEDED;
 	}
 
 	p->execute_async = true;
 
-	kvec = p->async.kvec;
-	length = scst_get_buf_first(cmd, &address);
+	bvec = p->async.bvec;
+	length = scst_get_sg_page_first(cmd, &page, &offset);
 	while (length) {
-		*kvec++ = (struct kvec){
-			.iov_base = address,
-			.iov_len = length,
+		*bvec++ = (struct bio_vec){
+			.bv_page   = page,
+			.bv_offset = offset,
+			.bv_len    = length,
 		};
 		total += length;
 		sg_cnt++;
-		length = scst_get_buf_next(cmd, &address);
+		length = scst_get_sg_page_next(cmd, &page, &offset);
 	}
 
 	WARN_ON_ONCE(sg_cnt != cmd->sg_cnt);
 
-	iov_iter_kvec(&iter, dir, p->async.kvec, sg_cnt, total);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0) || 	\
+		(defined(RHEL_RELEASE_CODE) && 		\
+		 RHEL_RELEASE_CODE -0 >= RHEL_RELEASE_VERSION(8, 2))
+	iov_iter_bvec(&iter, dir, p->async.bvec, sg_cnt, total);
+#else
+	iov_iter_bvec(&iter, ITER_BVEC | dir, p->async.bvec, sg_cnt, total);
+#endif
 	*iocb = (struct kiocb) {
 		.ki_pos = p->loff,
 		.ki_filp = fd,
@@ -3295,8 +3302,8 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 		else
 			break;
 	}
-	if (p->async.kvec != p->async.small_kvec)
-		kfree(p->async.kvec);
+	if (p->async.bvec != p->async.small_bvec)
+		kfree(p->async.bvec);
 	if (ret != -EIOCBQUEUED) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
 		fileio_async_complete(iocb, ret, 0);
