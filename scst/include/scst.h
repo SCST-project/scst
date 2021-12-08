@@ -5134,6 +5134,23 @@ static inline int scst_get_buf_count(struct scst_cmd *cmd)
 }
 
 /*
+ * Returns approximate higher rounded buffers count in pages
+ */
+static inline int scst_get_buf_page_count(struct scst_cmd *cmd)
+{
+	struct scatterlist *sg;
+	int page_cnt = 0, i;
+
+	if (unlikely(cmd->sg_cnt == 0))
+		return 1;
+
+	for (i = 0, sg = cmd->sg; i < cmd->sg_cnt; i++, sg = sg_next_inline(sg))
+		page_cnt += PAGE_ALIGN(sg->offset + sg->length) >> PAGE_SHIFT;
+
+	return page_cnt;
+}
+
+/*
  * Returns approximate higher rounded buffers count that
  * scst_get_out_buf_[first|next]() return.
  */

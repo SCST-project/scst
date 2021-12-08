@@ -3175,7 +3175,11 @@ static bool vdisk_alloc_async_bvec(struct scst_cmd *cmd,
 {
 	int n;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
+	n = scst_get_buf_page_count(cmd);
+#else
 	n = scst_get_buf_count(cmd);
+#endif
 	if (n <= ARRAY_SIZE(p->async.small_bvec)) {
 		p->async.bvec = &p->async.small_bvec[0];
 		return true;
@@ -3189,6 +3193,42 @@ static bool vdisk_alloc_async_bvec(struct scst_cmd *cmd,
 	}
 
 	return true;
+}
+
+static inline
+struct bio_vec *vdisk_map_pages_to_bvec(struct bio_vec *bvec, struct page *page,
+					ssize_t length, int offset)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
+	ssize_t page_len = min_t(ssize_t, length, PAGE_SIZE - offset);
+#else
+	ssize_t page_len = length;
+#endif
+
+	*bvec++ = (struct bio_vec) {
+		.bv_page   = page,
+		.bv_offset = offset,
+		.bv_len    = page_len,
+	};
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
+	length -= page_len;
+
+	while (length > 0) {
+		page++;
+		page_len = min_t(ssize_t, length, PAGE_SIZE);
+
+		*bvec++ = (struct bio_vec) {
+			.bv_page   = page,
+			.bv_offset = 0,
+			.bv_len    = page_len,
+		};
+
+		length -= page_len;
+	}
+#endif
+
+	return bvec;
 }
 
 static void fileio_async_complete(struct kiocb *iocb, long ret
@@ -3262,11 +3302,8 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 	bvec = p->async.bvec;
 	length = scst_get_sg_page_first(cmd, &page, &offset);
 	while (length) {
-		*bvec++ = (struct bio_vec){
-			.bv_page   = page,
-			.bv_offset = offset,
-			.bv_len    = length,
-		};
+		bvec = vdisk_map_pages_to_bvec(bvec, page, length, offset);
+
 		total += length;
 		sg_cnt++;
 		length = scst_get_sg_page_next(cmd, &page, &offset);
