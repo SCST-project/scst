@@ -3224,7 +3224,7 @@ static void fileio_async_complete(struct kiocb *iocb, long ret
 		}
 	}
 	cmd->completed = 1;
-	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
+	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, scst_estimate_context());
 }
 
 static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
