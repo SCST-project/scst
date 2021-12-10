@@ -47,14 +47,6 @@
 #include <linux/stdarg.h>
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-#include <linux/mount.h>
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-#include <linux/writeback.h>
-#endif
-
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
 #include <scst/scst_const.h>
@@ -75,7 +67,7 @@
 #define isblank(c)		((c) == ' ' || (c) == '\t')
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32) && defined(CONFIG_LOCKDEP)
+#if defined(CONFIG_LOCKDEP)
 #define scst_assert_pr_mutex_held(dev)					\
 	do {								\
 		if (dev->dev_list_entry.next &&				\
@@ -1013,19 +1005,7 @@ write_error:
 
 write_error_close:
 	filp_close(file, NULL);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
-	{
-		struct nameidata nd;
-		int rc;
 
-		rc = path_lookup(dev->pr_file_name, 0,	&nd);
-		if (!rc)
-			scst_vfs_unlink_and_put_nd(&nd);
-		else
-			TRACE_PR("Unable to lookup '%s' - error %d",
-				dev->pr_file_name, rc);
-	}
-#else
 	{
 		struct path path;
 		int rc;
@@ -1037,7 +1017,6 @@ write_error_close:
 			TRACE_PR("Unable to lookup '%s' - error %d",
 				dev->pr_file_name, rc);
 	}
-#endif
 	goto out;
 }
 

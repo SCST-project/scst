@@ -22,9 +22,7 @@
 #include <linux/types.h>
 #include <linux/slab.h>
 #include <linux/delay.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 #include <linux/export.h>
-#endif
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_driver.h>
@@ -184,10 +182,8 @@ extern unsigned int scst_setup_id;
 #define SCST_DEF_MAX_TASKLET_CMD 10
 extern int scst_max_tasklet_cmd;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 #define SCST_DEF_POLL_NS 0
 extern unsigned long scst_poll_ns;
-#endif
 
 extern spinlock_t scst_init_lock;
 extern struct list_head scst_init_cmd_list;
@@ -230,9 +226,6 @@ struct scst_cmd_thread_t {
 static inline bool scst_set_io_context(struct scst_cmd *cmd,
 				       struct io_context **old)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-	return false;
-#else
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 	return false;
 #else
@@ -258,7 +251,6 @@ static inline bool scst_set_io_context(struct scst_cmd *cmd,
 	}
 
 	return res;
-#endif
 #endif
 }
 
@@ -425,33 +417,9 @@ static inline int scst_dlm_new_lockspace(const char *name, int namelen,
 					 uint32_t flags,
 					 int lvblen)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
-	return dlm_new_lockspace((char *)name, namelen, lockspace, flags,
-				 lvblen);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 3, 0)
-	return dlm_new_lockspace(name, namelen, lockspace, flags, lvblen);
-#else
 	return dlm_new_lockspace(name, NULL, flags, lvblen, NULL, NULL, NULL,
 				 lockspace);
-#endif
 }
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
-static inline int scst_exec_req(struct scsi_device *sdev,
-	const unsigned char *cmd, int cmd_len, int data_direction,
-	struct scatterlist *sgl, unsigned int bufflen, unsigned int nents,
-	int timeout, int retries, void *privdata,
-	void (*done)(void *, char *, int, int), gfp_t gfp)
-{
-#if defined(CONFIG_SCST_STRICT_SERIALIZING)
-	return scsi_execute_async(sdev, cmd, cmd_len, data_direction, (void *)sgl,
-		    bufflen, nents, timeout, retries, privdata, done, gfp);
-#else
-	WARN_ON(1);
-	return -1;
-#endif
-}
-#endif
 
 int scst_alloc_space(struct scst_cmd *cmd);
 
@@ -498,11 +466,7 @@ void scst_tg_tgt_sysfs_del(struct scst_target_group *tg,
 			   struct scst_tg_tgt *tg_tgt);
 
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
 extern const struct sysfs_ops scst_sysfs_ops;
-#else
-extern struct sysfs_ops scst_sysfs_ops;
-#endif
 int scst_sysfs_init(void);
 void scst_sysfs_cleanup(void);
 int scst_tgtt_sysfs_create(struct scst_tgt_template *tgtt);
@@ -764,9 +728,6 @@ enum scst_exec_res scst_cmp_wr_local(struct scst_cmd *cmd);
 int scst_pr_init(struct scst_device *dev);
 void scst_pr_cleanup(struct scst_device *dev);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-void scst_vfs_unlink_and_put_nd(struct nameidata *nd);
-#endif
 void scst_vfs_unlink_and_put(struct path *path);
 
 int scst_copy_file(const char *src, const char *dest);
@@ -810,11 +771,7 @@ void scst_cm_free_descriptors(struct scst_cmd *cmd);
 enum scst_exec_res scst_cm_ext_copy_exec(struct scst_cmd *cmd);
 enum scst_exec_res scst_cm_rcv_copy_res_exec(struct scst_cmd *cmd);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-void sess_cm_list_id_cleanup_work_fn(void *p);
-#else
 void sess_cm_list_id_cleanup_work_fn(struct work_struct *work);
-#endif
 void scst_cm_free_pending_list_ids(struct scst_session *sess);
 
 bool scst_cm_check_block_all_devs(struct scst_cmd *cmd);

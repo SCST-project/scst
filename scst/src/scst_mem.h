@@ -108,11 +108,7 @@ struct sgv_pool {
 
 	struct sgv_pool_cache_acc cache_acc[SGV_POOL_ELEMENTS];
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
 	struct delayed_work sgv_purge_work;
-#else
-	struct work_struct sgv_purge_work;
-#endif
 
 	atomic_t big_alloc, big_pages, big_merged;
 	atomic_t other_alloc, other_pages, other_merged;

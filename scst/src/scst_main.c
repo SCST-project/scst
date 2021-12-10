@@ -47,12 +47,6 @@ option or use a 64-bit configuration instead. See README file for \
 details.
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) && \
-	!defined(CONFIG_SCST_STRICT_SERIALIZING)
-#warning CONFIG_SCST_STRICT_SERIALIZING has not been defined. \
-Pass-through dev handlers will not work.
-#endif
-
 /*
  ** SCST global variables. They are all uninitialized to have their layout in
  ** memory be exactly as specified. Otherwise compiler puts zero-initialized
@@ -112,9 +106,7 @@ struct kmem_cache *scst_cmd_cachep;
 unsigned long scst_trace_flag;
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 unsigned long scst_poll_ns = SCST_DEF_POLL_NS;
-#endif
 
 int scst_max_tasklet_cmd = SCST_DEF_MAX_TASKLET_CMD;
 
@@ -151,12 +143,10 @@ static struct task_struct *scst_mgmt_cmd_thread;
  * several threads simultaneously.
  */
 static struct mutex scst_suspend_mutex;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 #ifdef CONFIG_LOCKDEP
 static struct lock_class_key scst_suspend_key;
 struct lockdep_map scst_suspend_dep_map =
 	STATIC_LOCKDEP_MAP_INIT("scst_suspend_activity", &scst_suspend_key);
-#endif
 #endif
 
 /* Protected by scst_suspend_mutex */
@@ -880,9 +870,7 @@ int scst_suspend_activity(unsigned long timeout)
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 	rwlock_acquire_read(&scst_suspend_dep_map, 0, 0, _RET_IP_);
-#endif
 
 	if (timeout != SCST_SUSPEND_TIMEOUT_UNLIMITED) {
 		res = mutex_lock_interruptible(&scst_suspend_mutex);
@@ -914,9 +902,7 @@ int scst_suspend_activity(unsigned long timeout)
 			scst_get_cmd_counter());
 		rep = true;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 		lock_contended(&scst_suspend_dep_map, _RET_IP_);
-#endif
 	}
 
 	res = scst_susp_wait(timeout);
@@ -954,12 +940,10 @@ out_up:
 	mutex_unlock(&scst_suspend_mutex);
 
 out:
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 	if (res == 0)
 		lock_acquired(&scst_suspend_dep_map, _RET_IP_);
 	else
 		rwlock_release(&scst_suspend_dep_map, _RET_IP_);
-#endif
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -1033,9 +1017,7 @@ void scst_resume_activity(void)
 {
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 	rwlock_release(&scst_suspend_dep_map, _RET_IP_);
-#endif
 
 	mutex_lock(&scst_suspend_mutex);
 	__scst_resume_activity();
@@ -1526,19 +1508,6 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	res = scst_dev_handler_check(dev_type);
 	if (res != 0)
 		goto out;
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30) && \
-	!defined(CONFIG_SCST_STRICT_SERIALIZING)
-	if (dev_type->exec == NULL) {
-		PRINT_ERROR("Pass-through dev handlers (handler \"%s\") not "
-			"supported. Consider applying on your kernel patch "
-			"scst_exec_req_fifo-<kernel-version> or define "
-			"CONFIG_SCST_STRICT_SERIALIZING", dev_type->name);
-		res = -EINVAL;
-		goto out;
-	}
-#endif
-
 
 	res = mutex_lock_interruptible(&scst_mutex);
 	if (res != 0)
@@ -2191,22 +2160,14 @@ unsigned int scst_get_setup_id(void)
 }
 EXPORT_SYMBOL_GPL(scst_get_setup_id);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-static int scst_add(struct class_device *cdev, struct class_interface *intf)
-#else
 static int scst_add(struct device *cdev, struct class_interface *intf)
-#endif
 {
 	struct scsi_device *scsidp;
 	int res = 0;
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-	scsidp = to_scsi_device(cdev->dev);
-#else
 	scsidp = to_scsi_device(cdev->parent);
-#endif
 
 	if ((scsidp->host->hostt->name == NULL) ||
 	    (strcmp(scsidp->host->hostt->name, SCST_LOCAL_NAME) != 0))
@@ -2216,21 +2177,13 @@ static int scst_add(struct device *cdev, struct class_interface *intf)
 	return res;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-static void scst_remove(struct class_device *cdev, struct class_interface *intf)
-#else
 static void scst_remove(struct device *cdev, struct class_interface *intf)
-#endif
 {
 	struct scsi_device *scsidp;
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-	scsidp = to_scsi_device(cdev->dev);
-#else
 	scsidp = to_scsi_device(cdev->parent);
-#endif
 
 	if ((scsidp->host->hostt->name == NULL) ||
 	    (strcmp(scsidp->host->hostt->name, SCST_LOCAL_NAME) != 0))
@@ -2240,17 +2193,10 @@ static void scst_remove(struct device *cdev, struct class_interface *intf)
 	return;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-static struct class_interface scst_interface = {
-	.add = scst_add,
-	.remove = scst_remove,
-};
-#else
 static struct class_interface scst_interface = {
 	.add_dev = scst_add,
 	.remove_dev = scst_remove,
 };
-#endif
 
 static void __init scst_print_config(void)
 {
