@@ -32,26 +32,17 @@
 #include <linux/ctype.h>
 #include <linux/delay.h>
 #include <linux/vmalloc.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-#include <asm/kmap_types.h>
-#endif
 #include <asm/unaligned.h>
 #include <asm/checksum.h>
 #ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 #include <linux/crc-t10dif.h>
-#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 #include <linux/sched/task_stack.h>
 #endif
 #include <linux/namei.h>
 #include <linux/mount.h>
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-#include <linux/writeback.h>
-#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 18, 0)
 #include <linux/t10-pi.h>
@@ -79,93 +70,23 @@
 static DEFINE_SPINLOCK(scst_global_stpg_list_lock);
 static LIST_HEAD(scst_global_stpg_list);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void scst_put_acg_work(void *p);
-#else
 static void scst_put_acg_work(struct work_struct *work);
-#endif
 static void scst_free_acn(struct scst_acn *acn, bool reassign);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 struct scsi_io_context {
 	void *data;
 	void (*done)(void *data, char *sense, int result, int resid);
 	char sense[SCST_SENSE_BUFFERSIZE];
 };
 static struct kmem_cache *scsi_io_context_cache;
-#endif
 static struct workqueue_struct *scst_release_acg_wq;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22) \
-    && (!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < 5 * 256 + 3) \
-    && !defined(CONFIG_PPC)
-static int strncasecmp(const char *s1, const char *s2, size_t n)
-{
-	int c1, c2;
-
-	do {
-		c1 = tolower(*s1++);
-		c2 = tolower(*s2++);
-	} while ((--n > 0) && c1 == c2 && c1 != 0);
-	return c1 - c2;
-}
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
-char *kvasprintf(gfp_t gfp, const char *fmt, va_list ap)
-{
-	unsigned int len;
-	char *p;
-	va_list aq;
-
-	va_copy(aq, ap);
-	len = vsnprintf(NULL, 0, fmt, aq);
-	va_end(aq);
-
-	p = kmalloc(len + 1, gfp);
-	if (!p)
-		return NULL;
-
-	vsnprintf(p, len + 1, fmt, ap);
-
-	return p;
-}
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6 ||	\
-	 RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 < 1)
-/*
- * See also "lib: introduce common method to convert hex digits" (commit
- * 903788892ea0fc7fcaf7e8e5fac9a77379fc215b).
- */
-int hex_to_bin(char ch)
-{
-	if (ch >= '0' && ch <= '9')
-		return ch - '0';
-	ch = tolower(ch);
-	if (ch >= 'a' && ch <= 'f')
-		return ch - 'a' + 10;
-	return -1;
-}
-EXPORT_SYMBOL(hex_to_bin);
-#endif
-
 static int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-	    int nents_to_copy, size_t copy_len,
-	    enum km_type d_km_type, enum km_type s_km_type);
-#else
 	    int nents_to_copy, size_t copy_len);
-#endif
 
 static void scst_free_descriptors(struct scst_cmd *cmd);
 static bool sg_cmp(struct scatterlist *dst_sg, struct scatterlist *src_sg,
-	    int nents_to_cmp, size_t cmp_len, int *miscompare_offs
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-	    , enum km_type d_km_type, enum km_type s_km_type
-#endif
-	    );
+	    int nents_to_cmp, size_t cmp_len, int *miscompare_offs);
 
 const struct scst_opcode_descriptor scst_op_descr_inquiry = {
 	.od_opcode = INQUIRY,
@@ -4011,18 +3932,10 @@ out:
 	return res;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void scst_hw_pending_work_fn(void *p)
-#else
 static void scst_hw_pending_work_fn(struct work_struct *work)
-#endif
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct scst_session *sess = (struct scst_session *)p;
-#else
 	struct scst_session *sess = container_of(work, struct scst_session,
 						 hw_pending_work.work);
-#endif
 	struct scst_tgt_template *tgtt = sess->tgt->tgtt;
 	struct scst_cmd *cmd;
 	unsigned long cur_time = jiffies;
@@ -4226,11 +4139,7 @@ static void scst_init_order_data(struct scst_order_data *order_data)
 	return;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void scst_ext_blocking_done_fn(void *p);
-#else
 static void scst_ext_blocking_done_fn(struct work_struct *work);
-#endif
 
 static int scst_dif_none(struct scst_cmd *cmd);
 #ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
@@ -4311,11 +4220,7 @@ int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev)
 	INIT_LIST_HEAD(&dev->dev_tgt_dev_list);
 	INIT_LIST_HEAD(&dev->dev_acg_dev_list);
 	INIT_LIST_HEAD(&dev->ext_blockers_list);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	INIT_WORK(&dev->ext_blockers_work, scst_ext_blocking_done_fn, dev);
-#else
 	INIT_WORK(&dev->ext_blockers_work, scst_ext_blocking_done_fn);
-#endif
 	dev->dev_double_ua_possible = 1;
 	dev->queue_alg = SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER;
 	dev->dev_numa_node_id = nodeid;
@@ -4913,16 +4818,10 @@ struct scst_acg_put_work {
 	struct scst_acg		*acg;
 };
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void scst_put_acg_work(void *p)
-{
-	struct scst_acg_put_work *put_work = p;
-#else
 static void scst_put_acg_work(struct work_struct *work)
 {
 	struct scst_acg_put_work *put_work =
 		container_of(work, typeof(*put_work), work);
-#endif
 	struct scst_acg *acg = put_work->acg;
 
 	kfree(put_work);
@@ -4940,11 +4839,7 @@ void scst_put_acg(struct scst_acg *acg)
 		return;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	INIT_WORK(&put_work->work, scst_put_acg_work, put_work);
-#else
 	INIT_WORK(&put_work->work, scst_put_acg_work);
-#endif
 	put_work->acg = acg;
 
 	/*
@@ -6028,20 +5923,6 @@ static int scst_cmp_fs_ds(void)
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 9, 0) && !defined(RHEL_MAJOR)
-ssize_t kernel_write(struct file *file, const void *buf, size_t count,
-		     loff_t *pos)
-{
-	struct kvec iov = {
-		.iov_base = buf,
-		.iov_len = count
-	};
-
-	return scst_writev(file, &iov, 1, pos);
-}
-EXPORT_SYMBOL(kernel_write);
-#endif
-
 /**
  * scst_file_size - returns the size of a regular file
  * @path: Path of the file.
@@ -6911,11 +6792,7 @@ static void scst_cwr_read_cmd_finished(struct scst_cmd *cmd)
 		goto out_finish;
 	}
 
-	c = sg_cmp(cmd->sg, cwr_cmd->sg, 0, 0, &miscompare_offs
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-		, KM_USER0, KM_USER1
-#endif
-	);
+	c = sg_cmp(cmd->sg, cwr_cmd->sg, 0, 0, &miscompare_offs);
 	if (!c) {
 		scst_set_cmd_error_and_inf(cwr_cmd,
 			SCST_LOAD_SENSE(scst_sense_miscompare_error), miscompare_offs);
@@ -7236,15 +7113,9 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 	INIT_LIST_HEAD(&sess->init_deferred_cmd_list);
 	INIT_LIST_HEAD(&sess->init_deferred_mcmd_list);
 	INIT_LIST_HEAD(&sess->sess_cm_list_id_list);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)
 	INIT_DELAYED_WORK(&sess->sess_cm_list_id_cleanup_work,
 			  sess_cm_list_id_cleanup_work_fn);
 	INIT_DELAYED_WORK(&sess->hw_pending_work, scst_hw_pending_work_fn);
-#else
-	INIT_WORK(&sess->sess_cm_list_id_cleanup_work,
-		  sess_cm_list_id_cleanup_work_fn, sess);
-	INIT_WORK(&sess->hw_pending_work, scst_hw_pending_work_fn, sess);
-#endif
 	spin_lock_init(&sess->lat_stats_lock);
 
 	sess->initiator_name = kstrdup(initiator_name, gfp_mask);
@@ -8029,7 +7900,6 @@ out:
 	return;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 struct blk_kern_sg_work {
 	atomic_t bios_inflight;
 	struct sg_table sg_table;
@@ -8078,11 +7948,7 @@ static void blk_bio_map_kern_endio(struct bio *bio)
 				unsigned long flags;
 
 				local_irq_save(flags);	/* to protect KMs */
-				sg_copy(bw->src_sgl, bw->sg_table.sgl, 0, 0
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-					, KM_BIO_DST_IRQ, KM_BIO_SRC_IRQ
-#endif
-					);
+				sg_copy(bw->src_sgl, bw->sg_table.sgl, 0, 0);
 				local_irq_restore(flags);
 			}
 			blk_free_kern_sg_work(bw);
@@ -8092,38 +7958,6 @@ static void blk_bio_map_kern_endio(struct bio *bio)
 	bio_put(bio);
 	return;
 }
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31)
-/*
- * See also patch "block: Add blk_make_request(), takes bio, returns a
- * request" (commit 79eb63e9e5875b84341a3a05f8e6ae9cdb4bb6f6).
- */
-static struct request *blk_make_request(struct request_queue *q,
-					struct bio *bio,
-					gfp_t gfp_mask)
-{
-	struct request *rq = blk_get_request(q, bio_data_dir(bio), gfp_mask);
-
-	if (unlikely(!rq))
-		return ERR_PTR(-ENOMEM);
-
-	rq->cmd_type = REQ_TYPE_BLOCK_PC;
-
-	for ( ; bio; bio = bio->bi_next) {
-		struct bio *bounce_bio = bio;
-		int ret;
-
-		blk_queue_bounce(q, &bounce_bio);
-		ret = blk_rq_append_bio(q, rq, bounce_bio);
-		if (unlikely(ret)) {
-			blk_put_request(rq);
-			return ERR_PTR(ret);
-		}
-	}
-
-	return rq;
-}
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) */
 
 /*
  * Copy an sg-list. This function is related to bio_copy_kern() but duplicates
@@ -8182,11 +8016,7 @@ static struct blk_kern_sg_work *blk_copy_kern_sg(struct request_queue *q,
 		 * sgl might have the last element in sgl not marked as last in
 		 * SG chaining.
 		 */
-		sg_copy(new_sgl, sgl, 0, to_copy
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-			, KM_USER0, KM_USER1
-#endif
-			);
+		sg_copy(new_sgl, sgl, 0, to_copy);
 	}
 
 out:
@@ -8203,14 +8033,6 @@ err:
 	bw = ERR_PTR(res);
 	goto out;
 }
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
-static void bio_kmalloc_destructor(struct bio *bio)
-{
-	kfree(bio->bi_io_vec);
-	kfree(bio);
-}
-#endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
 static blk_mq_req_flags_t scst_gfp_mask_to_flags(gfp_t gfp_mask)
@@ -8379,23 +8201,14 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 			int rc;
 
 			if (need_new_bio) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
-				bio = bio_alloc_bioset(gfp_mask, max_nr_vecs, NULL);
-				if (bio)
-					bio->bi_destructor =
-						bio_kmalloc_destructor;
-#else
 				bio = bio_kmalloc(gfp_mask, max_nr_vecs);
-#endif
 				if (bio == NULL) {
 					rq = ERR_PTR(-ENOMEM);
 					goto out_free_bios;
 				}
 
 				if (!reading)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-					bio->bi_rw |= 1 << BIO_RW;
-#elif (!defined(CONFIG_SUSE_KERNEL) &&			\
+#if (!defined(CONFIG_SUSE_KERNEL) && \
 	LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)) || \
 	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 					bio->bi_rw |= REQ_WRITE;
@@ -8529,7 +8342,6 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 out:
 	return rq;
 }
-#endif
 
 /*
  * Can switch to the next dst_sg element, so, to copy to strictly only
@@ -8538,12 +8350,7 @@ out:
  */
 static int sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 			size_t *pdst_offs, struct scatterlist *src_sg,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-			size_t copy_len,
-			enum km_type d_km_type, enum km_type s_km_type)
-#else
 			size_t copy_len)
-#endif
 {
 	int res = 0;
 	struct scatterlist *dst_sg;
@@ -8563,19 +8370,10 @@ static int sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 		void *saddr, *daddr;
 		size_t n;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-		saddr = kmap_atomic(src_page +
-					 (src_offs >> PAGE_SHIFT), s_km_type) +
-				    (src_offs & ~PAGE_MASK);
-		daddr = kmap_atomic(dst_page +
-					(dst_offs >> PAGE_SHIFT), d_km_type) +
-				    (dst_offs & ~PAGE_MASK);
-#else
 		saddr = kmap_atomic(src_page + (src_offs >> PAGE_SHIFT)) +
 			(src_offs & ~PAGE_MASK);
 		daddr = kmap_atomic(dst_page + (dst_offs >> PAGE_SHIFT)) +
 			(dst_offs & ~PAGE_MASK);
-#endif
 
 		if (((src_offs & ~PAGE_MASK) == 0) &&
 		    ((dst_offs & ~PAGE_MASK) == 0) &&
@@ -8594,13 +8392,8 @@ static int sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 		dst_offs += n;
 		src_offs += n;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-		kunmap_atomic(saddr, s_km_type);
-		kunmap_atomic(daddr, d_km_type);
-#else
 		kunmap_atomic(saddr);
 		kunmap_atomic(daddr);
-#endif
 
 		res += n;
 		copy_len -= n;
@@ -8641,12 +8434,7 @@ out:
  *    NULL. Returns number of bytes copied.
  */
 static int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-	    int nents_to_copy, size_t copy_len,
-	    enum km_type d_km_type, enum km_type s_km_type)
-#else
 	    int nents_to_copy, size_t copy_len)
-#endif
 {
 	int res = 0;
 	size_t dst_len, dst_offs;
@@ -8662,11 +8450,7 @@ static int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
 
 	do {
 		int copied = sg_copy_elem(&dst_sg, &dst_len, &dst_offs,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-				src_sg, copy_len, d_km_type, s_km_type);
-#else
 				src_sg, copy_len);
-#endif
 		copy_len -= copied;
 		res += copied;
 		if ((copy_len == 0) || (dst_sg == NULL))
@@ -8683,7 +8467,6 @@ out:
 	return res;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&	\
 	!defined(CONFIG_SUSE_KERNEL)
 static void scsi_end_async(struct request *req, int error)
@@ -8725,15 +8508,8 @@ static void scsi_end_async(struct request *req, blk_status_t error)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 		resid_len = scsi_req(req)->resid_len;
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
-		resid_len = req->resid_len;
 #else
-		/*
-		 * A quote from commit c3a4d78c580d: "rq->data_len served two
-		 * purposes - the length of data buffer on issue and the
-		 * residual count on completion."
-		 */
-		resid_len = req->data_len;
+		resid_len = req->resid_len;
 #endif
 
 		sioc->done(sioc->data, sioc->sense, result, resid_len);
@@ -8840,9 +8616,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	rq->retries = cmd->retries;
 #endif
 	rq->end_io_data = sioc;
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 35)
 	rq->cmd_flags |= REQ_FAILFAST_MASK;
-#endif
 
 	blk_execute_rq_nowait(NULL, rq,
 		(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE), scsi_end_async);
@@ -8881,8 +8655,6 @@ out_free_sioc:
 }
 EXPORT_SYMBOL(scst_scsi_exec_async);
 
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30) */
-
 /*
  * Can switch to the next dst_sg element, so, to cmp to strictly only
  * one dst_sg element, it must be either last in the chain, or
@@ -8891,9 +8663,6 @@ EXPORT_SYMBOL(scst_scsi_exec_async);
 static int sg_cmp_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 			size_t *pdst_offs, struct scatterlist *src_sg,
 			size_t cmp_len, int *miscompare_offs,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-			enum km_type d_km_type, enum km_type s_km_type,
-#endif
 			bool *cmp_res)
 {
 	int res = 0;
@@ -8917,17 +8686,10 @@ static int sg_cmp_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 		size_t n;
 		int rc;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-		saddr = kmap_atomic(src_page + (src_offs >> PAGE_SHIFT), s_km_type) +
-			(src_offs & ~PAGE_MASK);
-		daddr = kmap_atomic(dst_page + (dst_offs >> PAGE_SHIFT), d_km_type) +
-			(dst_offs & ~PAGE_MASK);
-#else
 		saddr = kmap_atomic(src_page + (src_offs >> PAGE_SHIFT)) +
 			(src_offs & ~PAGE_MASK);
 		daddr = kmap_atomic(dst_page + (dst_offs >> PAGE_SHIFT)) +
 			(dst_offs & ~PAGE_MASK);
-#endif
 
 		if (((src_offs & ~PAGE_MASK) == 0) &&
 		    ((dst_offs & ~PAGE_MASK) == 0) &&
@@ -8999,13 +8761,8 @@ static int sg_cmp_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 		dst_offs += n;
 		src_offs += n;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-		kunmap_atomic(saddr, s_km_type);
-		kunmap_atomic(daddr, d_km_type);
-#else
 		kunmap_atomic(saddr);
 		kunmap_atomic(daddr);
-#endif
 
 		res += n;
 		cmp_len -= n;
@@ -9031,13 +8788,8 @@ out:
 	return res;
 
 out_unmap:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-	kunmap_atomic(saddr, s_km_type);
-	kunmap_atomic(daddr, d_km_type);
-#else
 	kunmap_atomic(saddr);
 	kunmap_atomic(daddr);
-#endif
 	goto out;
 }
 
@@ -9060,11 +8812,7 @@ out_unmap:
  * the same data in min(sg1_size, sg2_size) size will match!
  */
 static bool sg_cmp(struct scatterlist *dst_sg, struct scatterlist *src_sg,
-	    int nents_to_cmp, size_t cmp_len, int *miscompare_offs
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-	    , enum km_type d_km_type, enum km_type s_km_type
-#endif
-	    )
+	    int nents_to_cmp, size_t cmp_len, int *miscompare_offs)
 {
 	bool res = true;
 	size_t dst_len, dst_offs;
@@ -9094,9 +8842,6 @@ static bool sg_cmp(struct scatterlist *dst_sg, struct scatterlist *src_sg,
 
 		compared = sg_cmp_elem(&dst_sg, &dst_len, &dst_offs,
 				src_sg, cmp_len, miscompare_offs,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-				d_km_type, s_km_type,
-#endif
 				&res);
 		if (!res) {
 			if (miscompare_offs != NULL) {
@@ -9135,9 +8880,6 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 	struct scatterlist *src_sg, *dst_sg;
 	struct scatterlist *src_sg_dif, *dst_sg_dif;
 	unsigned int to_copy, to_copy_dif;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-	int atomic = scst_cmd_atomic(cmd);
-#endif
 
 	TRACE_ENTRY();
 
@@ -9181,24 +8923,12 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 		goto out;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-	sg_copy(dst_sg, src_sg, 0, to_copy,
-		atomic ? KM_SOFTIRQ0 : KM_USER0,
-		atomic ? KM_SOFTIRQ1 : KM_USER1);
-#else
 	sg_copy(dst_sg, src_sg, 0, to_copy);
-#endif
 
 	if ((src_sg_dif == NULL) || (dst_sg_dif == NULL) || (to_copy_dif == 0))
 		goto out;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 4, 0)
-	sg_copy(dst_sg_dif, src_sg_dif, 0, to_copy_dif,
-		atomic ? KM_SOFTIRQ0 : KM_USER0,
-		atomic ? KM_SOFTIRQ1 : KM_USER1);
-#else
 	sg_copy(dst_sg_dif, src_sg_dif, 0, to_copy_dif);
-#endif
 
 out:
 	TRACE_EXIT();
@@ -9354,12 +9084,7 @@ EXPORT_SYMBOL(scst_put_buf_full);
 
 static __be16 scst_dif_crc_fn(const void *data, unsigned int len)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 	return cpu_to_be16(crc_t10dif(data, len));
-#else
-	WARN_ON_ONCE(true);
-	return 0;
-#endif
 }
 
 static __be16 scst_dif_ip_fn(const void *data, unsigned int len)
@@ -14989,16 +14714,10 @@ void __scst_ext_blocking_done(struct scst_device *dev)
 	return;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void scst_ext_blocking_done_fn(void *p)
-{
-	struct scst_device *dev = p;
-#else
 static void scst_ext_blocking_done_fn(struct work_struct *work)
 {
 	struct scst_device *dev = container_of(work, struct scst_device,
 					ext_blockers_work);
-#endif
 
 	TRACE_ENTRY();
 
@@ -15209,20 +14928,6 @@ out_unlock:
 }
 
 /* Abstract vfs_unlink() for different kernel versions (as possible) */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-void scst_vfs_unlink_and_put_nd(struct nameidata *nd)
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-	vfs_unlink(nd->dentry->d_parent->d_inode, nd->dentry);
-	dput(nd->dentry);
-	mntput(nd->mnt);
-#else
-	vfs_unlink(nd->path.dentry->d_parent->d_inode,
-		nd->path.dentry);
-	path_put(&nd->path);
-#endif
-}
-#endif
 
 void scst_vfs_unlink_and_put(struct path *path)
 {
@@ -15239,19 +14944,6 @@ void scst_vfs_unlink_and_put(struct path *path)
 #endif
 	path_put(path);
 }
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-void scst_path_put(struct nameidata *nd)
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)
-	dput(nd->dentry);
-	mntput(nd->mnt);
-#else
-	path_put(&nd->path);
-#endif
-}
-EXPORT_SYMBOL(scst_path_put);
-#endif
 
 int scst_copy_file(const char *src, const char *dest)
 {
@@ -15337,27 +15029,15 @@ out:
 int scst_remove_file(const char *name)
 {
 	int res = 0;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
-	struct nameidata nd;
-#else
 	struct path path;
-#endif
 
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
-	res = path_lookup(name, 0, &nd);
-	if (!res)
-		scst_vfs_unlink_and_put_nd(&nd);
-	else
-		TRACE_DBG("Unable to lookup file '%s' - error %d", name, res);
-#else
 	res = kern_path(name, 0, &path);
 	if (!res)
 		scst_vfs_unlink_and_put(&path);
 	else
 		TRACE_DBG("Unable to lookup file '%s' - error %d", name, res);
-#endif
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -15604,7 +15284,6 @@ int __init scst_lib_init(void)
 
 	scst_scsi_op_list_init();
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 	scsi_io_context_cache = kmem_cache_create("scst_scsi_io_context",
 					sizeof(struct scsi_io_context),
 					__alignof__(struct scsi_io_context),
@@ -15616,7 +15295,6 @@ int __init scst_lib_init(void)
 	}
 
 out:
-#endif
 	TRACE_EXIT_RES(res);
 	return res;
 }
@@ -15627,12 +15305,10 @@ void scst_lib_exit(void)
 	flush_workqueue(scst_release_acg_wq);
 	destroy_workqueue(scst_release_acg_wq);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 	BUILD_BUG_ON(SCST_MAX_CDB_SIZE != BLK_MAX_CDB);
 	BUILD_BUG_ON(SCST_SENSE_BUFFERSIZE < SCSI_SENSE_BUFFERSIZE);
 
 	kmem_cache_destroy(scsi_io_context_cache);
-#endif
 }
 
 #ifdef CONFIG_SCST_DEBUG
