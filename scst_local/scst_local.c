@@ -46,10 +46,6 @@ static inline u32 blk_mq_unique_tag(struct request *rq)
 #include <scst_debug.h>
 #endif
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-#define SG_MAX_SINGLE_ALLOC	(PAGE_SIZE / sizeof(struct scatterlist))
-#endif
-
 #ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
 #warning HIGHMEM kernel configurations are not supported by this module, \
@@ -75,20 +71,6 @@ README file for details.
 static unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
 #endif
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 19))
-/*
- * Provide some local definitions that are not provided for some earlier
- * kernels so we operate over a wider range of kernels
- *
- * Some time before 2.6.24 scsi_sg_count, scsi_sglist and scsi_bufflen were
- * not available. Make it available for 2.6.18 which is used still on some
- * distros, like CentOS etc.
- */
-#define scsi_sg_count(cmd) ((cmd)->use_sg)
-#define scsi_sglist(cmd) ((struct scatterlist *)(cmd)->request_buffer)
-#define scsi_bufflen(cmd) ((cmd)->request_bufflen)
-#endif
-
 #define SCST_LOCAL_VERSION "3.7.0-pre"
 static const char *scst_local_version_date = "20110901";
 
@@ -97,12 +79,7 @@ static atomic_t num_aborts = ATOMIC_INIT(0);
 static atomic_t num_dev_resets = ATOMIC_INIT(0);
 static atomic_t num_target_resets = ATOMIC_INIT(0);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
-    || defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
-static int scst_local_add_default_tgt = true;
-#else
 static bool scst_local_add_default_tgt = true;
-#endif
 module_param_named(add_default_tgt, scst_local_add_default_tgt, bool, S_IRUGO);
 MODULE_PARM_DESC(add_default_tgt, "add (default) or not on start default "
 	"target scst_local_tgt with default session scst_local_host");
@@ -162,31 +139,6 @@ static int scst_local_add_target(const char *target_name,
 	struct scst_local_tgt **out_tgt);
 static void __scst_local_remove_target(struct scst_local_tgt *tgt);
 static void scst_local_remove_target(struct scst_local_tgt *tgt);
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-
-/*
- * Maintains data that is needed during command processing ...
- * We have a single element scatterlist in here in case the scst_cmnd
- * we are given has a buffer, not a scatterlist, but we only need this for
- * kernels less than 2.6.25.
- */
-struct scst_local_tgt_specific {
-	struct scsi_cmnd *cmnd;
-	void (*done)(struct scsi_cmnd *);
-	struct scatterlist sgl;
-};
-
-/*
- * We use a pool of objects maintaind by the kernel so that it is less
- * likely to have to allocate them when we are in the data path.
- *
- * Note, we only need this for kernels in which we are likely to get non
- * scatterlist requests.
- */
-static struct kmem_cache *tgt_specific_pool;
-
-#endif /* (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25)) */
 
 static atomic_t scst_local_sess_num = ATOMIC_INIT(0);
 
@@ -807,7 +759,6 @@ static int scst_local_device_reset(struct scsi_cmnd *scmd)
 	return ret;
 }
 
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 25))
 static int scst_local_target_reset(struct scsi_cmnd *scmd)
 {
 	struct scst_local_sess *sess;
@@ -836,7 +787,6 @@ static int scst_local_target_reset(struct scsi_cmnd *scmd)
 	TRACE_EXIT_RES(ret);
 	return ret;
 }
-#endif
 
 static void scst_local_copy_sense(struct scsi_cmnd *cmnd, struct scst_cmd *scst_cmnd)
 {
@@ -888,19 +838,9 @@ static int scst_local_send_resp(struct scsi_cmnd *cmnd,
  * This does the heavy lifting ... we pass all the commands on to the
  * target driver and have it do its magic ...
  */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
 static int scst_local_queuecommand(struct Scsi_Host *host,
 				   struct scsi_cmnd *scmd)
-#else
-static int scst_local_queuecommand_lck(struct scsi_cmnd *scmd,
-				       void (*done)(struct scsi_cmnd *))
-	__acquires(&h->host_lock)
-	__releases(&h->host_lock)
-#endif
 {
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-	struct scst_local_tgt_specific *tgt_specific = NULL;
-#endif
 	struct scst_local_sess *sess;
 	struct scatterlist *sgl = NULL;
 	int sgl_count = 0;
@@ -913,14 +853,6 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *scmd,
 	TRACE_DBG("lun %lld, cmd: 0x%02X", (u64)scmd->device->lun,
 		  scmd->cmnd[0]);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
-	/*
-	 * We save a pointer to the done routine in scmd->scsi_done and
-	 * we save that as tgt specific stuff below.
-	 */
-	scmd->scsi_done = done;
-#endif
-
 	sess = to_scst_lcl_sess(scsi_get_device(scmd->device->host));
 
 	if (sess->unregistering) {
@@ -930,21 +862,6 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *scmd,
 	}
 
 	scsi_set_resid(scmd, 0);
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-	/*
-	 * Allocate a tgt_specific_structure. We need this in case we need
-	 * to construct a single element SGL.
-	 */
-	tgt_specific = kmem_cache_alloc(tgt_specific_pool, GFP_ATOMIC);
-	if (!tgt_specific) {
-		PRINT_ERROR("Unable to create tgt_specific (size %zu)",
-			sizeof(*tgt_specific));
-		return SCSI_MLQUEUE_HOST_BUSY;
-	}
-	tgt_specific->cmnd = scmd;
-	tgt_specific->done = done;
-#endif
 
 	/*
 	 * Tell the target that we have a command ... but first we need
@@ -986,43 +903,11 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *scmd,
 	}
 #endif
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-	/*
-	 * If the command has a request, not a scatterlist, then convert it
-	 * to one. We use scsi_sg_count to isolate us from the changes from
-	 * version to version
-	 */
-	if (scsi_sg_count(scmd)) {
-		sgl = scsi_sglist(scmd);
-		sgl_count = scsi_sg_count(scmd);
-	} else {
-		/*
-		 * Build a one-element scatter list out of the buffer
-		 * We will not even get here if the kernel version we
-		 * are building on only supports scatterlists. See #if above.
-		 *
-		 * We use the sglist and bufflen function/macros to isolate
-		 * us from kernel version differences.
-		 */
-		if (scsi_sglist(scmd)) {
-			sg_init_one(&tgt_specific->sgl,
-				    scsi_sglist(scmd),
-				    scsi_bufflen(scmd));
-			sgl	  = &tgt_specific->sgl;
-			sgl_count = 1;
-		} else {
-			sgl = NULL;
-			sgl_count = 0;
-		}
-	}
-#else
 	sgl = scsi_sglist(scmd);
 	sgl_count = scsi_sg_count(scmd);
-#endif
 
 	if (scsi_bidi_cmnd(scmd)) {
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 24) &&	\
-	LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0) && \
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0) && 		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
 	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 3))
 		/* Some of these symbols are only defined after 2.6.24 */
@@ -1051,11 +936,7 @@ static int scst_local_queuecommand_lck(struct scsi_cmnd *scmd,
 	}
 
 	/* Save the correct thing below depending on version */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-	scst_cmd_set_tgt_priv(scst_cmd, tgt_specific);
-#else
 	scst_cmd_set_tgt_priv(scst_cmd, scmd);
-#endif
 
 	scst_cmd_init_done(scst_cmd, SCST_CONTEXT_THREAD);
 
@@ -1102,10 +983,7 @@ static int scst_local_change_queue_depth(struct scsi_device *sdev, int depth)
 	return scsi_change_queue_depth(sdev, depth);
 }
 
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) || \
-    defined(CONFIG_SUSE_KERNEL) || \
-    !(!defined(RHEL_RELEASE_CODE) || \
-     RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
+#else
 
 static int scst_local_change_queue_depth(struct scsi_device *sdev, int depth,
 	int reason)
@@ -1153,15 +1031,7 @@ out:
 	return res;
 }
 
-#else /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) || defined(CONFIG_SUSE_KERNEL) || !(!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1)) */
-
-static int scst_local_change_queue_depth(struct scsi_device *sdev, int qdepth)
-{
-	scsi_adjust_queue_depth(sdev, scsi_get_tag_type(sdev), qdepth);
-	return sdev->queue_depth;
-}
-
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) || defined(CONFIG_SUSE_KERNEL) || !(!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1)) */
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) */
 
 static int scst_local_slave_alloc(struct scsi_device *sdev)
 {
@@ -1256,18 +1126,10 @@ done:
 	return;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void scst_aen_work_fn(void *ctx)
-#else
 static void scst_aen_work_fn(struct work_struct *work)
-#endif
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct scst_local_sess *sess = ctx;
-#else
 	struct scst_local_sess *sess =
 		container_of(work, struct scst_local_sess, aen_work);
-#endif
 
 	TRACE_ENTRY();
 
@@ -1344,18 +1206,10 @@ static int scst_local_targ_release(struct scst_tgt *tgt)
 	return 0;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void scst_remove_work_fn(void *ctx)
-#else
 static void scst_remove_work_fn(struct work_struct *work)
-#endif
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct scst_local_sess *sess = ctx;
-#else
 	struct scst_local_sess *sess =
 		container_of(work, struct scst_local_sess, remove_work);
-#endif
 
 	scst_local_remove_adapter(sess);
 }
@@ -1396,9 +1250,6 @@ static int scst_local_close_session(struct scst_session *scst_sess)
 
 static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 {
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-	struct scst_local_tgt_specific *tgt_specific;
-#endif
 	struct scsi_cmnd *scmd = NULL;
 	void (*done)(struct scsi_cmnd *);
 
@@ -1414,17 +1265,11 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 	    (scst_cmd_get_data_direction(scst_cmd) & SCST_DATA_READ))
 		scst_copy_sg(scst_cmd, SCST_SG_COPY_TO_TARGET);
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-	tgt_specific = scst_cmd_get_tgt_priv(scst_cmd);
-	scmd = tgt_specific->cmnd;
-	done = tgt_specific->done;
-#else
 	scmd = scst_cmd_get_tgt_priv(scst_cmd);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
 	done = scmd->scsi_done;
 #else
 	done = scsi_done;
-#endif
 #endif
 
 	/*
@@ -1458,21 +1303,6 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 	TRACE_EXIT();
 	return SCST_TGT_RES_SUCCESS;
 }
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-static void scst_local_targ_on_free_cmd(struct scst_cmd *scst_cmd)
-{
-	struct scst_local_tgt_specific *tgt_specific;
-
-	TRACE_ENTRY();
-
-	tgt_specific = scst_cmd_get_tgt_priv(scst_cmd);
-	kmem_cache_free(tgt_specific_pool, tgt_specific);
-
-	TRACE_EXIT();
-	return;
-}
-#endif
 
 static void scst_local_targ_task_mgmt_done(struct scst_mgmt_cmd *mgmt_cmd)
 {
@@ -1517,11 +1347,7 @@ static uint16_t scst_local_get_phys_transport_version(struct scst_tgt *scst_tgt)
 
 static struct scst_tgt_template scst_local_targ_tmpl = {
 	.name			= "scst_local",
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	.sg_tablesize		= SG_MAX_SINGLE_ALLOC,
-#else
 	.sg_tablesize		= 0xffff,
-#endif
 	.xmit_response_atomic	= 1,
 	.multithreaded_init_done = 1,
 	.enabled_attr_not_needed = 1,
@@ -1538,9 +1364,6 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 	.close_session		= scst_local_close_session,
 	.pre_exec		= scst_local_targ_pre_exec,
 	.xmit_response		= scst_local_targ_xmit_response,
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-	.on_free_cmd		= scst_local_targ_on_free_cmd,
-#endif
 	.task_mgmt_fn_done	= scst_local_targ_task_mgmt_done,
 	.report_aen		= scst_local_report_aen,
 	.get_initiator_port_transport_id = scst_local_get_initiator_port_transport_id,
@@ -1554,27 +1377,17 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 
 static struct scsi_host_template scst_lcl_ini_driver_template = {
 	.name				= SCST_LOCAL_NAME,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
-	.queuecommand			= scst_local_queuecommand_lck,
-#else
 	.queuecommand			= scst_local_queuecommand,
-#endif
 	.change_queue_depth		= scst_local_change_queue_depth,
 	.slave_alloc			= scst_local_slave_alloc,
 	.slave_configure		= scst_local_slave_configure,
 	.eh_abort_handler		= scst_local_abort,
 	.eh_device_reset_handler	= scst_local_device_reset,
-#if (LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 25))
 	.eh_target_reset_handler	= scst_local_target_reset,
-#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) && \
 	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 	.use_blk_tags			= true,
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 33) || \
-    defined(CONFIG_SUSE_KERNEL) || \
-    !(!defined(RHEL_RELEASE_CODE) || \
-     RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
 	.can_queue			= 2048,
 	/*
 	 * Set it low for the "Drop back to untagged" case in
@@ -1582,10 +1395,6 @@ static struct scsi_host_template scst_lcl_ini_driver_template = {
 	 * default in slave_configure()
 	 */
 	.cmd_per_lun			= 3,
-#else
-	.can_queue			= 256,
-	.cmd_per_lun			= 32,
-#endif
 	.this_id			= -1,
 	.sg_tablesize			= 0xFFFF,
 	.max_sectors			= 0xffff,
@@ -1638,11 +1447,7 @@ static int scst_local_driver_probe(struct device *dev)
 	 * kernels. If we don't,  max_cmd_size gets set to 4 (and we get
 	 * a compiler warning) so a scan never occurs.
 	 */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-	hpnt->max_cmd_len = 16;
-#else
 	hpnt->max_cmd_len = 260;
-#endif
 
 	ret = scsi_add_host(hpnt, &sess->dev);
 	if (ret) {
@@ -1705,26 +1510,7 @@ static struct device_driver scst_local_driver = {
 	.bus	= &scst_local_lld_bus,
 };
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-static void scst_local_root_release(struct device *dev)
-{
-	TRACE_ENTRY();
-
-	TRACE_EXIT();
-	return;
-}
-
-static struct device scst_local_root = {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
-	.bus_id		= "scst_local_root",
-#else
-	.init_name	= "scst_local_root",
-#endif
-	.release	= scst_local_root_release,
-};
-#else
 static struct device *scst_local_root;
-#endif
 
 static void scst_local_free_sess(struct scst_session *scst_sess)
 {
@@ -1756,15 +1542,7 @@ static void scst_local_release_adapter(struct device *dev)
 	 * work.
 	 */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
-	/*
-	 * cancel_work_sync() was introduced in 2.6.22. We can only wait until
-	 * all scheduled work is done.
-	 */
-	flush_workqueue(aen_workqueue);
-#else
 	cancel_work_sync(&sess->aen_work);
-#endif
 
 	spin_lock(&sess->aen_lock);
 	WARN_ON_ONCE(!sess->unregistering);
@@ -1801,13 +1579,8 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 	/*
 	 * Init this stuff we need for scheduling AEN work
 	 */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20))
-	INIT_WORK(&sess->aen_work, scst_aen_work_fn, sess);
-	INIT_WORK(&sess->remove_work, scst_remove_work_fn, sess);
-#else
 	INIT_WORK(&sess->aen_work, scst_aen_work_fn);
 	INIT_WORK(&sess->remove_work, scst_remove_work_fn);
-#endif
 	spin_lock_init(&sess->aen_lock);
 	INIT_LIST_HEAD(&sess->aen_work_list);
 
@@ -1820,17 +1593,9 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 	}
 
 	sess->dev.bus     = &scst_local_lld_bus;
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29))
-	sess->dev.parent  = &scst_local_root;
-#else
 	sess->dev.parent = scst_local_root;
-#endif
 	sess->dev.release = &scst_local_release_adapter;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
-	snprintf(sess->dev.bus_id, sizeof(sess->dev.bus_id), initiator_name);
-#else
 	sess->dev.init_name = kobject_name(&sess->scst_sess->sess_kobj);
-#endif
 
 	res = device_register(&sess->dev);
 	if (res != 0)
@@ -1984,44 +1749,11 @@ static int __init scst_local_init(void)
 #endif
 #endif
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-	/*
-	 * Allocate a pool of structures for tgt_specific structures.
-	 * We only need this if we could get non scatterlist requests
-	 */
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 23)
-	tgt_specific_pool = kmem_cache_create("scst_tgt_specific",
-				      sizeof(struct scst_local_tgt_specific),
-				      0, SCST_SLAB_FLAGS, NULL);
-#else
-	tgt_specific_pool = kmem_cache_create("scst_tgt_specific",
-				      sizeof(struct scst_local_tgt_specific),
-				      0, SCST_SLAB_FLAGS, NULL, NULL);
-#endif
-	if (!tgt_specific_pool) {
-		PRINT_ERROR("%s", "Unable to initialize tgt_specific_pool");
-		ret = -ENOMEM;
-		goto out;
-	}
-#endif
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29))
-	ret = device_register(&scst_local_root);
-	if (ret < 0) {
-		PRINT_ERROR("Root device_register() error: %d", ret);
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-		goto destroy_kmem;
-#else
-		goto out;
-#endif
-	}
-#else
 	scst_local_root = root_device_register(SCST_LOCAL_NAME);
 	if (IS_ERR(scst_local_root)) {
 		ret = PTR_ERR(scst_local_root);
 		goto out;
 	}
-#endif
 
 	ret = bus_register(&scst_local_lld_bus);
 	if (ret < 0) {
@@ -2083,16 +1815,8 @@ bus_unreg:
 	bus_unregister(&scst_local_lld_bus);
 
 dev_unreg:
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29))
-	device_unregister(&scst_local_root);
-#else
 	root_device_unregister(scst_local_root);
-#endif
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-destroy_kmem:
-	kmem_cache_destroy(tgt_specific_pool);
-#endif
 	goto out;
 }
 
@@ -2115,20 +1839,10 @@ static void __exit scst_local_exit(void)
 
 	driver_unregister(&scst_local_driver);
 	bus_unregister(&scst_local_lld_bus);
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29))
-	device_unregister(&scst_local_root);
-#else
 	root_device_unregister(scst_local_root);
-#endif
 
 	/* Now unregister the target template */
 	scst_unregister_target_template(&scst_local_targ_tmpl);
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 25))
-	/* Free the non scatterlist pool we allocated */
-	if (tgt_specific_pool)
-		kmem_cache_destroy(tgt_specific_pool);
-#endif
 
 	/* To make lockdep happy */
 	up_write(&scst_local_exit_rwsem);
