@@ -356,15 +356,7 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #define INIT_ELEMENT_STATUS         0x07
 #define INIT_ELEMENT_STATUS_RANGE   0x37
 #define PREVENT_ALLOW_MEDIUM        0x1E
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38) \
-	&& (!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5)
-#define READ_ATTRIBUTE              0x8C
-#endif
 #define REQUEST_VOLUME_ADDRESS      0xB5
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38) \
-	&& (!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5)
-#define WRITE_ATTRIBUTE             0x8D
-#endif
 #if (!defined(__KERNEL__) || LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)) &&\
 	!defined(WRITE_VERIFY_16)
 #define WRITE_VERIFY_16             0x8E
@@ -373,8 +365,7 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #ifndef VERIFY_12
 #define VERIFY_12                   0xAF
 #endif
-#if !defined(GENERATING_UPSTREAM_PATCH) || \
-	LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38)
+#if !defined(GENERATING_UPSTREAM_PATCH)
 /*
  * The constants below have been defined in the kernel header <scsi/scsi.h>
  * and hence are not needed when this header file is included in kernel code.
@@ -385,9 +376,6 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 /* Upstream commit 93aae17a (v2.6.38) */
 #define GET_EVENT_STATUS_NOTIFICATION 0x4a
 #endif
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-#define VARIABLE_LENGTH_CMD   0x7f
-#endif
 #ifndef READ_16
 #define READ_16               0x88
 #endif
@@ -397,25 +385,9 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #ifndef VERIFY_16
 #define VERIFY_16	      0x8f
 #endif
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 38)
-#ifndef MI_REPORT_IDENTIFYING_INFORMATION
-#define MI_REPORT_IDENTIFYING_INFORMATION 0x05
-#endif
-#ifndef MI_REPORT_SUPPORTED_OPERATION_CODES
-#define MI_REPORT_SUPPORTED_OPERATION_CODES 0x0c
-#endif
-#ifndef MI_REPORT_SUPPORTED_TASK_MANAGEMENT_FUNCTIONS
-#define MI_REPORT_SUPPORTED_TASK_MANAGEMENT_FUNCTIONS 0x0d
-#endif
-#endif
 #ifndef SAI_READ_CAPACITY_16
 /* values for service action in */
 #define	SAI_READ_CAPACITY_16  0x10
-#endif
-#endif
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
-#ifndef SAI_GET_LBA_STATUS
-#define SAI_GET_LBA_STATUS    0x12
 #endif
 #endif
 #ifndef GENERATING_UPSTREAM_PATCH
@@ -438,14 +410,6 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 
 #ifndef SYNCHRONIZE_CACHE_16
 #define SYNCHRONIZE_CACHE_16  0x91
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
-/*
- * From <scsi/scsi.h>. See also commit
- * f57e4502cea471c69782d4790c71d8414ab49a9d.
- */
-#define UNMAP 0x42
 #endif
 
 /* Subcodes of VARIABLE_LENGTH_CMD (0x7F) */
@@ -473,14 +437,6 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 #ifndef SERVICE_ACTION_IN_16
 #define SERVICE_ACTION_IN_16  0x9e
 #endif
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
-/*
- * From <linux/fs.h>. See also commit
- * d30a2605be9d5132d95944916e8f578fcfe4f976.
- */
-#define BLKDISCARD _IO(0x12, 119)
 #endif
 
 /*************************************************************

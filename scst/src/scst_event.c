@@ -95,16 +95,10 @@ out:
 	return res;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void scst_event_timeout_fn(void *p)
-{
-	struct scst_event_entry *event_entry = p;
-#else
 static void scst_event_timeout_fn(struct work_struct *work)
 {
 	struct scst_event_entry *event_entry = container_of(work,
 		struct scst_event_entry, event_timeout_work.work);
-#endif
 
 	TRACE_ENTRY();
 
@@ -211,14 +205,8 @@ static void __scst_event_queue(struct scst_event_entry *event_entry)
 					break;
 				}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-				INIT_WORK(&new_event_entry->event_timeout_work,
-					  scst_event_timeout_fn,
-					  new_event_entry);
-#else
 				INIT_DELAYED_WORK(&new_event_entry->event_timeout_work,
 						  scst_event_timeout_fn);
-#endif
 				if (new_event_entry->event_notify_fn != NULL) {
 					new_event_entry->event.event_id = atomic_inc_return(&base_event_id);
 					if (new_event_entry->event_timeout == 0)
@@ -264,16 +252,10 @@ done:
 	return;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void scst_event_queue_work_fn(void *p)
-{
-	struct scst_event_entry *e = p;
-#else
 static void scst_event_queue_work_fn(struct work_struct *work)
 {
 	struct scst_event_entry *e = container_of(work,
 		struct scst_event_entry, scst_event_queue_work);
-#endif
 
 	TRACE_ENTRY();
 
@@ -289,11 +271,7 @@ void scst_event_queue(uint32_t event_code, const char *issuer_name,
 {
 	TRACE_ENTRY();
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	INIT_WORK(&e->scst_event_queue_work, scst_event_queue_work_fn, e);
-#else
 	INIT_WORK(&e->scst_event_queue_work, scst_event_queue_work_fn);
-#endif
 
 	TRACE_DBG("Scheduling event entry %p", e);
 
@@ -1123,11 +1101,7 @@ static const struct file_operations scst_event_fops = {
 int scst_event_init(void)
 {
 	int res = 0;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
-	struct class_device *class_member;
-#else
 	struct device *dev;
-#endif
 
 	TRACE_ENTRY();
 
@@ -1145,15 +1119,6 @@ int scst_event_init(void)
 		goto out_class;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
-	class_member = class_device_create(scst_event_sysfs_class, NULL,
-					   MKDEV(scst_event_major, 0), NULL,
-					   SCST_EVENT_NAME);
-	if (IS_ERR(class_member)) {
-		res = PTR_ERR(class_member);
-		goto out_chrdev;
-	}
-#else
 	dev = device_create(scst_event_sysfs_class, NULL,
 			    MKDEV(scst_event_major, 0),
 				NULL,
@@ -1162,7 +1127,6 @@ int scst_event_init(void)
 		res = PTR_ERR(dev);
 		goto out_chrdev;
 	}
-#endif
 
 #ifdef CONFIG_EVENTS_WAIT_TEST
 	sysfs_create_file(kernel_kobj, &event_wait_test_attr.attr);

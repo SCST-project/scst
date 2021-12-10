@@ -34,7 +34,6 @@
 #include "scst_pres.h"
 #include "scst_mem.h"
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 #ifdef CONFIG_LOCKDEP
 static struct lock_class_key scst_tgtt_key;
 static struct lockdep_map scst_tgtt_dep_map =
@@ -67,7 +66,6 @@ static struct lockdep_map scst_dg_dep_map =
 static struct lock_class_key scst_tg_key;
 static struct lockdep_map scst_tg_dep_map =
 	STATIC_LOCKDEP_MAP_INIT("scst_tg_kref", &scst_tg_key);
-#endif
 #endif
 
 static DECLARE_COMPLETION(scst_sysfs_root_release_completion);
@@ -317,37 +315,6 @@ out:
 
 #endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 34) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6 ||	\
-	 (RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 < 6))
-/*
- ** Backported sysfs functions.
- **/
-
-static int sysfs_create_files(struct kobject *kobj,
-			      const struct attribute **ptr)
-{
-	int err = 0;
-	int i;
-
-	for (i = 0; ptr[i] && !err; i++)
-		err = sysfs_create_file(kobj, ptr[i]);
-	if (err)
-		while (--i >= 0)
-			sysfs_remove_file(kobj, ptr[i]);
-	return err;
-}
-
-static void sysfs_remove_files(struct kobject *kobj,
-			       const struct attribute **ptr)
-{
-	int i;
-
-	for (i = 0; ptr[i]; i++)
-		sysfs_remove_file(kobj, ptr[i]);
-}
-#endif
-
 /*
  ** Sysfs work
  **/
@@ -453,19 +420,15 @@ static void scst_process_sysfs_works(void)
 
 		TRACE_DBG("Sysfs work %p", work);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 		if (work->dep_map) {
 			mutex_acquire(work->dep_map, 0, 0, _RET_IP_);
 			lock_acquired(work->dep_map, _RET_IP_);
 		}
-#endif
 
 		work->work_res = work->sysfs_work_fn(work);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 		if (work->dep_map)
 			mutex_release(work->dep_map, _RET_IP_);
-#endif
 
 		spin_lock(&sysfs_work_lock);
 		if (!work->read_only_action)
@@ -806,20 +769,12 @@ static ssize_t scst_store(struct kobject *kobj, struct attribute *attr,
 		return -EIO;
 }
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34))
 const struct sysfs_ops scst_sysfs_ops = {
-#else
-struct sysfs_ops scst_sysfs_ops = {
-#endif
 	.show = scst_show,
 	.store = scst_store,
 };
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34))
 const struct sysfs_ops *scst_sysfs_get_sysfs_ops(void)
-#else
-struct sysfs_ops *scst_sysfs_get_sysfs_ops(void)
-#endif
 {
 	return &scst_sysfs_ops;
 }
@@ -1184,7 +1139,7 @@ out_del:
 
 void scst_kobject_put_and_wait(struct kobject *kobj, const char *category,
 			       struct completion *c
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29) && defined(CONFIG_LOCKDEP)
+#if defined(CONFIG_LOCKDEP)
 			       , struct lockdep_map *dep_map
 #endif
 			       )
@@ -1197,9 +1152,7 @@ void scst_kobject_put_and_wait(struct kobject *kobj, const char *category,
 
 	kobject_put(kobj);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 	mutex_acquire(dep_map, 0, 0, _RET_IP_);
-#endif
 
 	if (wait_for_completion_timeout(c, HZ) > 0)
 		goto out_free;
@@ -1211,10 +1164,8 @@ void scst_kobject_put_and_wait(struct kobject *kobj, const char *category,
 		   category, name ? : "(?)");
 
 out_free:
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 	lock_acquired(dep_map, _RET_IP_);
 	mutex_release(dep_map, _RET_IP_);
-#endif
 
 	kfree(name);
 
@@ -1960,10 +1911,7 @@ static ssize_t __scst_acg_cpu_mask_show(struct scst_acg *acg, char *buf)
 {
 	int res;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
-	res = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
-		acg->acg_cpu_mask);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
 	res = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
 		&acg->acg_cpu_mask);
 #else
@@ -5663,10 +5611,8 @@ int scst_acn_sysfs_create(struct scst_acn *acn)
 	int res = 0;
 	struct scst_acg *acg = acn->acg;
 	struct kobj_attribute *attr = NULL;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	static struct lock_class_key __key;
-#endif
 #endif
 
 	TRACE_ENTRY();
@@ -5689,13 +5635,8 @@ int scst_acn_sysfs_create(struct scst_acn *acn)
 		goto out_free;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-	attr->attr.owner = THIS_MODULE;
-#endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	attr->attr.key = &__key;
-#endif
 #endif
 
 	attr->attr.mode = S_IRUGO;
@@ -7261,8 +7202,6 @@ static struct kobj_attribute scst_max_tasklet_cmd_attr =
 	__ATTR(max_tasklet_cmd, S_IRUGO | S_IWUSR, scst_max_tasklet_cmd_show,
 	       scst_max_tasklet_cmd_store);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
-
 static ssize_t scst_poll_us_show(struct kobject *kobj,
 				  struct kobj_attribute *attr, char *buf)
 {
@@ -7309,8 +7248,6 @@ out:
 static struct kobj_attribute scst_poll_us_attr =
 	__ATTR(poll_us, S_IRUGO | S_IWUSR, scst_poll_us_show,
 	       scst_poll_us_store);
-
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0) */
 
 static ssize_t scst_suspend_show(struct kobject *kobj,
 				 struct kobj_attribute *attr, char *buf)
@@ -7619,9 +7556,7 @@ static struct attribute *scst_sysfs_root_default_attrs[] = {
 	&scst_threads_attr.attr,
 	&scst_setup_id_attr.attr,
 	&scst_max_tasklet_cmd_attr.attr,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 	&scst_poll_us_attr.attr,
-#endif
 	&scst_suspend_attr.attr,
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	&scst_main_trace_level_attr.attr,

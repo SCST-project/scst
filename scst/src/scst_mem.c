@@ -52,12 +52,10 @@ static struct sgv_pool *sgv_norm_pool_global[NR_CPUS];
 
 static struct sgv_pool *sgv_norm_clust_pool_main, *sgv_norm_pool_main, *sgv_dma_pool_main;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 #if defined(CONFIG_LOCKDEP) && !defined(CONFIG_SCST_PROC)
 static struct lock_class_key scst_pool_key;
 static struct lockdep_map scst_pool_dep_map =
 	STATIC_LOCKDEP_MAP_INIT("scst_pool_kref", &scst_pool_key);
-#endif
 #endif
 
 #ifndef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
@@ -80,11 +78,7 @@ static atomic_t sgv_releases_on_hiwmk_failed = ATOMIC_INIT(0);
 static atomic_t sgv_other_total_alloc = ATOMIC_INIT(0);
 #endif
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
-static struct shrinker *sgv_shrinker;
-#else
 static struct shrinker sgv_shrinker;
-#endif
 
 static struct kmem_cache *sgv_pool_cachep;
 
@@ -340,17 +334,9 @@ static unsigned long sgv_scan_shrink(struct shrinker *shrinker,
 	return freed;
 }
 #else /* if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0) */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && (!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
-static int sgv_shrink(int nr, gfp_t gfpm)
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0)
-static int sgv_shrink(struct shrinker *shrinker, int nr, gfp_t gfpm)
-#else
 static int sgv_shrink(struct shrinker *shrinker, struct shrink_control *sc)
-#endif
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 0)
 	int nr = sc->nr_to_scan;
-#endif
 	int freed = 0;
 
 	TRACE_ENTRY();
@@ -366,19 +352,11 @@ static int sgv_shrink(struct shrinker *shrinker, struct shrink_control *sc)
 }
 #endif /* if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0) */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void sgv_purge_work_fn(void *p)
-#else
 static void sgv_purge_work_fn(struct work_struct *work)
-#endif
 {
 	unsigned long cur_time = jiffies;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct sgv_pool *pool = (struct sgv_pool *)p;
-#else
 	struct sgv_pool *pool = container_of(work, struct sgv_pool,
 					     sgv_purge_work.work);
-#endif
 
 	TRACE_ENTRY();
 
@@ -1453,11 +1431,7 @@ static int sgv_pool_init(struct sgv_pool *pool, const char *name,
 	for (i = 0; i < pool->max_caches; i++)
 		INIT_LIST_HEAD(&pool->recycling_lists[i]);
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
 	INIT_DELAYED_WORK(&pool->sgv_purge_work, sgv_purge_work_fn);
-#else
-	INIT_WORK(&pool->sgv_purge_work, sgv_purge_work_fn, pool);
-#endif
 
 	spin_lock_bh(&sgv_pools_lock);
 	list_add_tail(&pool->sgv_pools_list_entry, &sgv_pools_list);
@@ -1817,9 +1791,6 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 			goto out_free_per_cpu_dma;
 	}
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
-	sgv_shrinker = set_shrinker(DEFAULT_SEEKS, sgv_shrink);
-#else
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
 	sgv_shrinker.count_objects = sgv_can_be_shrunk;
 	sgv_shrinker.scan_objects = sgv_scan_shrink;
@@ -1828,7 +1799,6 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 #endif
 	sgv_shrinker.seeks = DEFAULT_SEEKS;
 	register_shrinker(&sgv_shrinker);
-#endif
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1871,11 +1841,7 @@ void scst_sgv_pools_deinit(void)
 
 	TRACE_ENTRY();
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
-	remove_shrinker(sgv_shrinker);
-#else
 	unregister_shrinker(&sgv_shrinker);
-#endif
 
 	sgv_pool_destroy(sgv_dma_pool_main);
 	for (i = 0; i < nr_cpu_ids; i++)

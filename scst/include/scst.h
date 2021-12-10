@@ -1874,11 +1874,7 @@ struct scst_session {
 	/* List entry for the sessions list inside ACG */
 	struct list_head acg_sess_list_entry;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
 	struct delayed_work hw_pending_work;
-#else
-	struct work_struct hw_pending_work;
-#endif
 
 	/* Name of attached initiator */
 	const char *initiator_name;
@@ -1923,11 +1919,7 @@ struct scst_session {
 	 */
 	struct list_head sess_cm_list_id_list;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct work_struct sess_cm_list_id_cleanup_work;
-#else
 	struct delayed_work sess_cm_list_id_cleanup_work;
-#endif
 
 	/* sysfs release completion */
 	struct completion *sess_kobj_release_cmpl;
@@ -5169,12 +5161,11 @@ static inline gfp_t scst_cmd_get_gfp_mask(struct scst_cmd *cmd)
 }
 
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29) && defined(CONFIG_LOCKDEP)
+#if defined(CONFIG_LOCKDEP)
 extern struct lockdep_map scst_suspend_dep_map;
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 32) && \
-	defined(CONFIG_DEBUG_LOCK_ALLOC)
+#if defined(CONFIG_DEBUG_LOCK_ALLOC)
 #define scst_assert_activity_suspended()		\
 	WARN_ON(debug_locks && !lock_is_held(&scst_suspend_dep_map))
 #else
@@ -5223,13 +5214,9 @@ struct scst_trace_log {
 extern struct mutex scst_mutex;
 
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34))
 const struct sysfs_ops *scst_sysfs_get_sysfs_ops(void);
-#else
-struct sysfs_ops *scst_sysfs_get_sysfs_ops(void);
-#endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29) && defined(CONFIG_LOCKDEP)
+#if defined(CONFIG_LOCKDEP)
 #define SCST_SET_DEP_MAP(work, dm) ((work)->dep_map = (dm))
 #define SCST_KOBJECT_PUT_AND_WAIT(kobj, category, c, dep_map) \
 	scst_kobject_put_and_wait(kobj, category, c, dep_map)
@@ -5541,10 +5528,8 @@ int scst_sysfs_queue_wait_work(struct scst_sysfs_work_item *work);
 void scst_sysfs_work_get(struct scst_sysfs_work_item *work);
 void scst_sysfs_work_put(struct scst_sysfs_work_item *work);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 #ifdef CONFIG_LOCKDEP
 extern struct lockdep_map scst_dev_dep_map;
-#endif
 #endif
 
 
@@ -5557,10 +5542,8 @@ void scst_deinit_threads(struct scst_cmd_threads *cmd_threads);
 
 void scst_pass_through_cmd_done(void *data, char *sense, int result, int resid);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	void (*done)(void *data, char *sense, int result, int resid));
-#endif
 
 int scst_get_file_mode(const char *path);
 bool scst_parent_dir_exists(const char *path);
@@ -5599,16 +5582,11 @@ void scst_write_same(struct scst_cmd *cmd, struct scst_data_descriptor *where);
 	scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense,	\
 		     NULL /* sshdr */, timeout, retries, flags,		\
 		     0 /* rq_flags */, NULL /* resid */)
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
-#define scst_scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense, \
-			  timeout, retries, flags)			\
-	scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense,	\
-		     timeout, retries, flags, NULL /* resid */)
 #else
 #define scst_scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense, \
 			  timeout, retries, flags)			\
 	scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense,	\
-		     timeout, retries, flags)
+		     timeout, retries, flags, NULL /* resid */)
 #endif
 
 __be64 scst_pack_lun(const uint64_t lun, enum scst_lun_addr_method addr_method);
@@ -5624,9 +5602,6 @@ int scst_read_file_transactional(const char *name, const char *name1,
 int scst_write_file_transactional(const char *name, const char *name1,
 	const char *signature, int signature_len, const uint8_t *buf, int size);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-void scst_path_put(struct nameidata *nd);
-#endif
 int scst_remove_file(const char *name);
 
 void scst_set_tp_soft_threshold_reached_UA(struct scst_tgt_dev *tgt_dev);

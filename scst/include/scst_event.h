@@ -61,11 +61,7 @@ struct scst_event_entry {
 	int *pqueued_events_cnt;
 	union {
 		struct work_struct scst_event_queue_work;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-		struct work_struct event_timeout_work;
-#else
 		struct delayed_work event_timeout_work;
-#endif
 	};
 
 	struct scst_event event;
