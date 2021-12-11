@@ -501,10 +501,8 @@ int iscsi_add_attr(struct iscsi_target *target,
 	struct iscsi_attr *tgt_attr;
 	struct list_head *attrs_list;
 	const char *name;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	static struct lock_class_key __key;
-#endif
 #endif
 
 	TRACE_ENTRY();
@@ -551,13 +549,8 @@ int iscsi_add_attr(struct iscsi_target *target,
 	list_add(&tgt_attr->attrs_list_entry, attrs_list);
 
 	tgt_attr->attr.attr.name = tgt_attr->name;
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 35)
-	tgt_attr->attr.attr.owner = THIS_MODULE;
-#endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 34)
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	tgt_attr->attr.attr.key = &__key;
-#endif
 #endif
 	tgt_attr->attr.attr.mode = attr_info->mode & (S_IRUGO | S_IWUGO);
 	tgt_attr->attr.show = iscsi_attr_show;

@@ -432,25 +432,13 @@ static ssize_t isert_get_initiator_ip(struct iscsi_conn *conn,
 
 	switch (ss.ss_family) {
 	case AF_INET:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
-		pos = scnprintf(buf, size,
-			 "%u.%u.%u.%u",
-			 NIPQUAD(((struct sockaddr_in *)&ss)->sin_addr.s_addr));
-#else
 		pos = scnprintf(buf, size,
 			"%pI4", &((struct sockaddr_in *)&ss)->sin_addr.s_addr);
-#endif
 		break;
 #if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	case AF_INET6:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-		pos = scnprintf(buf, size,
-			 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
-			 NIP6(((struct sockaddr_in6 *)&ss)->sin6_addr));
-#else
 		pos = scnprintf(buf, size, "[%pI6]",
 			&((struct sockaddr_in6 *)&ss)->sin6_addr);
-#endif
 		break;
 #endif
 	default:

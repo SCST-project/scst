@@ -42,11 +42,7 @@
 #ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20)
 #include <linux/freezer.h>
-#else
-#define wait_event_freezable(wq, cond) ({ wait_event(wq, cond); 0; })
-#endif
 #include <linux/file.h>
 #include "isert_dbg.h"
 #include "../iscsi.h"
@@ -119,18 +115,10 @@ static void isert_dev_release(struct isert_conn_dev *dev)
 	mutex_unlock(&isert_listen_dev.conn_lock);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void isert_close_conn_fn(void *ctx)
-#else
 static void isert_close_conn_fn(struct work_struct *work)
-#endif
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct iscsi_conn *conn = ctx;
-#else
 	struct iscsi_conn *conn = container_of(work,
 		struct iscsi_conn, close_work);
-#endif
 
 	isert_close_connection(conn);
 }
@@ -166,11 +154,7 @@ static int add_new_connection(struct isert_listener_dev *dev,
 		goto out;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	INIT_WORK(&conn->close_work, isert_close_conn_fn, conn);
-#else
 	INIT_WORK(&conn->close_work, isert_close_conn_fn);
-#endif
 
 	timer_setup(&conn_dev->tmo_timer, isert_conn_timer_fn, 0);
 	conn_dev->tmo_timer.expires = jiffies + 60 * HZ;
@@ -953,9 +937,7 @@ static void __init isert_setup_cdev(struct isert_conn_dev *dev,
 			    index);
 
 	dev->dev = device_create(isert_class, NULL, dev->devno,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 				 NULL,
-#endif
 				 ISER_CONN_DEV_PREFIX"%d", index);
 
 	TRACE_EXIT();
@@ -983,9 +965,7 @@ static void __init isert_setup_listener_cdev(struct isert_listener_dev *dev)
 		PRINT_ERROR("Error %d adding isert_scst", err);
 
 	dev->dev = device_create(isert_class, NULL, dev->devno,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 				 NULL,
-#endif
 				 "isert_scst");
 
 	TRACE_EXIT();

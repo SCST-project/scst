@@ -49,11 +49,7 @@ static int event_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 {
 	u32 pid;
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 7, 0))
-	pid = NETLINK_CB(skb).pid;
-#else
 	pid = NETLINK_CB(skb).portid;
-#endif
 	WARN_ON(pid == 0);
 
 	iscsid_pid = pid;
@@ -61,11 +57,7 @@ static int event_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 	return 0;
 }
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24))
-static int event_recv_skb(struct sk_buff *skb)
-#else
 static void event_recv_skb(struct sk_buff *skb)
-#endif
 {
 	int err;
 	struct nlmsghdr	*nlh;
@@ -87,26 +79,8 @@ static void event_recv_skb(struct sk_buff *skb)
 	}
 
 out:
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24))
-	return 0;
-#else
 	return;
-#endif
 }
-
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24))
-static void event_recv(struct sock *sk, int length)
-{
-	struct sk_buff *skb;
-
-	while ((skb = skb_dequeue(&sk->sk_receive_queue))) {
-		if (event_recv_skb(skb) && skb->len)
-			skb_queue_head(&sk->sk_receive_queue, skb);
-		else
-			kfree_skb(skb);
-	}
-}
-#endif
 
 /* event_mutex supposed to be held */
 static int __event_send(const void *buf, int buf_len)
@@ -196,30 +170,14 @@ int __init event_init(void)
 {
 	iscsi_net_ns = kobj_ns_grab_current(KOBJ_NS_TYPE_NET);
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22))
-	nl = netlink_kernel_create(NETLINK_ISCSI_SCST, 1, event_recv,
-		THIS_MODULE);
-#elif (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 24))
-	nl = netlink_kernel_create(NETLINK_ISCSI_SCST, 1, event_recv, NULL,
-				   THIS_MODULE);
-#elif (LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0))
-	nl = netlink_kernel_create(iscsi_net_ns, NETLINK_ISCSI_SCST, 1,
-				   event_recv_skb, NULL, THIS_MODULE);
-#else
 	{
 		struct netlink_kernel_cfg cfg = {
 			.input = event_recv_skb,
 			.groups = 1,
 		};
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 7, 0))
-		nl = netlink_kernel_create(iscsi_net_ns, NETLINK_ISCSI_SCST,
-				   THIS_MODULE, &cfg);
-#else
 		nl = netlink_kernel_create(iscsi_net_ns, NETLINK_ISCSI_SCST,
 					   &cfg);
-#endif
 	}
-#endif
 	if (!nl)
 		goto drop_ns;
 
@@ -234,12 +192,7 @@ drop_ns:
 
 void event_exit(void)
 {
-#if (LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 24))
-	if (nl)
-		sock_release(nl->sk_socket);
-#else
 	netlink_kernel_release(nl);
-#endif
 	kobj_ns_drop(KOBJ_NS_TYPE_NET, iscsi_net_ns);
 	iscsi_net_ns = NULL;
 }
