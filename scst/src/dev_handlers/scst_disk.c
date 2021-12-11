@@ -200,8 +200,6 @@ static int disk_done(struct scst_cmd *cmd)
 	return res;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
-
 static bool disk_on_sg_tablesize_low(struct scst_cmd *cmd)
 {
 	bool res;
@@ -466,7 +464,6 @@ out_error:
 	goto out_done;
 }
 
-#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30) */
 
 static enum scst_exec_res disk_perf_exec(struct scst_cmd *cmd)
 {
@@ -517,10 +514,8 @@ static struct scst_dev_type disk_devtype = {
 	.attach =		disk_attach,
 	.detach =		disk_detach,
 	.parse =		disk_parse,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 	.exec =			disk_exec,
 	.on_sg_tablesize_low = disk_on_sg_tablesize_low,
-#endif
 	.dev_done =		disk_done,
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags = SCST_DEFAULT_DEV_LOG_FLAGS,
@@ -538,9 +533,7 @@ static struct scst_dev_type disk_devtype_perf = {
 	.parse =		disk_parse,
 	.exec =			disk_perf_exec,
 	.dev_done =		disk_done,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 30)
 	.on_sg_tablesize_low = disk_on_sg_tablesize_low,
-#endif
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags =	SCST_DEFAULT_DEV_LOG_FLAGS,
 	.trace_flags =		&trace_flag,
