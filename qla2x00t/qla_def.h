@@ -40,13 +40,6 @@
 #include <linux/bsg-lib.h>
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 32)
-#error
-#error ***This version of qla2xxx does not support distributions based on***
-#error ***kernels less than 2.6.32.***
-#error
-#endif
-
 #include <scsi/scsi.h>
 #include <scsi/scsi_host.h>
 #include <scsi/scsi_device.h>

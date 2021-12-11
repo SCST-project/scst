@@ -441,13 +441,7 @@ static DEVICE_ATTR(port_database,
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 
 static ssize_t
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && \
-	(!defined(RHEL_RELEASE_CODE) || \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
-qla2x00_sysfs_read_fw_dump(
-#else
 qla2x00_sysfs_read_fw_dump(struct file *file,
-#endif
 			   struct kobject *kobj,
 			   struct bin_attribute *bin_attr,
 			   char *buf, loff_t off, size_t count)
@@ -476,13 +470,7 @@ qla2x00_sysfs_read_fw_dump(struct file *file,
 }
 
 static ssize_t
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && \
-	(!defined(RHEL_RELEASE_CODE) || \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
-qla2x00_sysfs_write_fw_dump(
-#else
 qla2x00_sysfs_write_fw_dump(struct file *file,
-#endif
 			    struct kobject *kobj,
 			    struct bin_attribute *bin_attr,
 			    char *buf, loff_t off, size_t count)
@@ -561,13 +549,7 @@ static struct bin_attribute sysfs_fw_dump_attr = {
 };
 
 static ssize_t
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && \
-	(!defined(RHEL_RELEASE_CODE) || \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
-qla2x00_sysfs_read_nvram(
-#else
 qla2x00_sysfs_read_nvram(struct file *file,
-#endif
 			 struct kobject *kobj,
 			 struct bin_attribute *bin_attr,
 			 char *buf, loff_t off, size_t count)
@@ -587,13 +569,7 @@ qla2x00_sysfs_read_nvram(struct file *file,
 }
 
 static ssize_t
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && \
-	(!defined(RHEL_RELEASE_CODE) || \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
-qla2x00_sysfs_write_nvram(
-#else
 qla2x00_sysfs_write_nvram(struct file *file,
-#endif
 			  struct kobject *kobj,
 			  struct bin_attribute *bin_attr,
 			  char *buf, loff_t off, size_t count)
@@ -662,13 +638,7 @@ static struct bin_attribute sysfs_nvram_attr = {
 };
 
 static ssize_t
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && \
-	(!defined(RHEL_RELEASE_CODE) || \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
-qla2x00_sysfs_read_optrom(
-#else
 qla2x00_sysfs_read_optrom(struct file *file,
-#endif
 			  struct kobject *kobj,
 			  struct bin_attribute *bin_attr,
 			  char *buf, loff_t off, size_t count)
@@ -685,13 +655,7 @@ qla2x00_sysfs_read_optrom(struct file *file,
 }
 
 static ssize_t
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && \
-	(!defined(RHEL_RELEASE_CODE) || \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
-qla2x00_sysfs_write_optrom(
-#else
 qla2x00_sysfs_write_optrom(struct file *file,
-#endif
 			   struct kobject *kobj,
 			   struct bin_attribute *bin_attr,
 			   char *buf, loff_t off, size_t count)
@@ -723,13 +687,7 @@ static struct bin_attribute sysfs_optrom_attr = {
 };
 
 static ssize_t
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && \
-	(!defined(RHEL_RELEASE_CODE) || \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
-qla2x00_sysfs_write_optrom_ctl(
-#else
 qla2x00_sysfs_write_optrom_ctl(struct file *file,
-#endif
 			       struct kobject *kobj,
 			       struct bin_attribute *bin_attr,
 			       char *buf, loff_t off, size_t count)
@@ -894,13 +852,7 @@ static struct bin_attribute sysfs_optrom_ctl_attr = {
 };
 
 static ssize_t
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && \
-	(!defined(RHEL_RELEASE_CODE) || \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
-qla2x00_sysfs_read_vpd(
-#else
 qla2x00_sysfs_read_vpd(struct file *file,
-#endif
 		       struct kobject *kobj,
 		       struct bin_attribute *bin_attr,
 		       char *buf, loff_t off, size_t count)
@@ -922,13 +874,7 @@ qla2x00_sysfs_read_vpd(struct file *file,
 }
 
 static ssize_t
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && \
-	(!defined(RHEL_RELEASE_CODE) || \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
-qla2x00_sysfs_write_vpd(
-#else
 qla2x00_sysfs_write_vpd(struct file *file,
-#endif
 			struct kobject *kobj,
 			struct bin_attribute *bin_attr,
 			char *buf, loff_t off, size_t count)
@@ -982,13 +928,7 @@ static struct bin_attribute sysfs_vpd_attr = {
 };
 
 static ssize_t
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && \
-	(!defined(RHEL_RELEASE_CODE) || \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
-qla2x00_sysfs_read_sfp(
-#else
 qla2x00_sysfs_read_sfp(struct file *file,
-#endif
 		       struct kobject *kobj,
 		       struct bin_attribute *bin_attr,
 		       char *buf, loff_t off, size_t count)
@@ -1050,13 +990,7 @@ static struct bin_attribute sysfs_sfp_attr = {
 };
 
 static ssize_t
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && \
-	(!defined(RHEL_RELEASE_CODE) || \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
-qla2x00_sysfs_write_reset(
-#else
 qla2x00_sysfs_write_reset(struct file *file,
-#endif
 			struct kobject *kobj,
 			struct bin_attribute *bin_attr,
 			char *buf, loff_t off, size_t count)
@@ -1132,13 +1066,7 @@ static struct bin_attribute sysfs_reset_attr = {
 };
 
 static ssize_t
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && \
-	(!defined(RHEL_RELEASE_CODE) || \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
-qla2x00_sysfs_read_xgmac_stats(
-#else
 qla2x00_sysfs_read_xgmac_stats(struct file *file,
-#endif
 		       struct kobject *kobj,
 		       struct bin_attribute *bin_attr,
 		       char *buf, loff_t off, size_t count)
@@ -1191,13 +1119,7 @@ static struct bin_attribute sysfs_xgmac_stats_attr = {
 };
 
 static ssize_t
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 35) && \
-	(!defined(RHEL_RELEASE_CODE) || \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
-qla2x00_sysfs_read_dcbx_tlv(
-#else
 qla2x00_sysfs_read_dcbx_tlv(struct file *file,
-#endif
 		       struct kobject *kobj,
 		       struct bin_attribute *bin_attr,
 		       char *buf, loff_t off, size_t count)

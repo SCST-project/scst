@@ -13,10 +13,6 @@
 #include <linux/mutex.h>
 #include <linux/version.h>
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-#error Kernel 2.6.26 or above is needed to build the qla2x00t driver
-#endif
-
 #include <scsi/scsi_tcq.h>
 #include <scsi/scsicam.h>
 #include <scsi/scsi_transport.h>
@@ -255,36 +251,22 @@ static int qla2xxx_queuecommand_lck(struct scsi_cmnd *cmd,
 #else
 static int qla2xxx_queuecommand_lck(struct scsi_cmnd *cmd);
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
 static DEF_SCSI_QCMD(qla2xxx_queuecommand);
-#endif
 static int qla2xxx_eh_abort(struct scsi_cmnd *);
 static int qla2xxx_eh_device_reset(struct scsi_cmnd *);
 static int qla2xxx_eh_target_reset(struct scsi_cmnd *);
 static int qla2xxx_eh_bus_reset(struct scsi_cmnd *);
 static int qla2xxx_eh_host_reset(struct scsi_cmnd *);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && \
-	!defined(CONFIG_SUSE_KERNEL) && \
-	(!defined(RHEL_RELEASE_CODE) || \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
-static int qla2x00_change_queue_depth(struct scsi_device *, int);
-#else
-static int qla2x00_change_queue_depth(struct scsi_device *, int, int);
-#endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
+static int qla2x00_change_queue_depth(struct scsi_device *, int, int);
 static int qla2x00_change_queue_type(struct scsi_device *, int);
 #endif
 
 struct scsi_host_template qla2xxx_driver_template = {
 	.module			= THIS_MODULE,
 	.name			= QLA2XXX_DRIVER_NAME,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
-	.queuecommand		= qla2xxx_queuecommand_lck,
-#else
 	.queuecommand		= qla2xxx_queuecommand,
-#endif
 
 	.eh_abort_handler	= qla2xxx_eh_abort,
 	.eh_device_reset_handler = qla2xxx_eh_device_reset,
@@ -963,25 +945,6 @@ sp_get(struct srb *sp)
 	atomic_inc(&sp->ref_count);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL)
-static void
-qla2x00_block_error_handler(struct scsi_cmnd *cmnd)
-{
-	struct Scsi_Host *shost = cmnd->device->host;
-	struct fc_rport *rport = starget_to_rport(scsi_target(cmnd->device));
-	unsigned long flags;
-
-	spin_lock_irqsave(shost->host_lock, flags);
-	while (rport->port_state == FC_PORTSTATE_BLOCKED) {
-		spin_unlock_irqrestore(shost->host_lock, flags);
-		msleep(1000);
-		spin_lock_irqsave(shost->host_lock, flags);
-	}
-	spin_unlock_irqrestore(shost->host_lock, flags);
-	return;
-}
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL) */
-
 /**************************************************************************
 * qla2xxx_eh_abort
 *
@@ -1011,13 +974,10 @@ qla2xxx_eh_abort(struct scsi_cmnd *cmd)
 	if (!CMD_SP(cmd))
 		return SUCCESS;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL)
-	qla2x00_block_error_handler(cmd);
-#else
 	ret = fc_block_scsi_eh(cmd);
 	if (ret != SUCCESS && ret != 0)
 		return ret;
-#endif
+
 	ret = SUCCESS;
 
 	id = cmd->device->id;
@@ -1140,13 +1100,9 @@ __qla2xxx_eh_generic_reset(char *name, enum nexus_wait_type type,
 		return FAILED;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL)
-	qla2x00_block_error_handler(cmd);
-#else
 	err = fc_block_scsi_eh(cmd);
 	if (err != SUCCESS && err != 0)
 		return err;
-#endif
 
 	ql_log(ql_log_info, vha, 0x8009,
 	    "%s RESET ISSUED nexus=%ld:%d:%lld cmd=%p.\n", name, vha->host_no,
@@ -1238,13 +1194,10 @@ qla2xxx_eh_bus_reset(struct scsi_cmnd *cmd)
 		return ret;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL)
-	qla2x00_block_error_handler(cmd);
-#else
 	ret = fc_block_scsi_eh(cmd);
 	if (ret != SUCCESS && ret != 0)
 		return ret;
-#endif
+
 	ret = FAILED;
 
 	ql_log(ql_log_info, vha, 0x8012,
@@ -1476,20 +1429,7 @@ qla2xxx_slave_destroy(struct scsi_device *sdev)
 	sdev->hostdata = NULL;
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && \
-	!defined(CONFIG_SUSE_KERNEL) && \
-	(!defined(RHEL_RELEASE_CODE) || \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1))
-
-static int
-qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth)
-{
-	scsi_adjust_queue_depth(sdev, scsi_get_tag_type(sdev), qdepth);
-	return sdev->queue_depth;
-}
-
-#else /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL) && (!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1)) */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 
 static void qla2x00_handle_queue_full(struct scsi_device *sdev, int qdepth)
 {
@@ -1546,9 +1486,6 @@ qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth, int reason)
 	return sdev->queue_depth;
 }
 
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL) && (!defined(RHEL_RELEASE_CODE) || RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(6, 1)) */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 static int
 qla2x00_change_queue_type(struct scsi_device *sdev, int tag_type)
 {
@@ -2301,8 +2238,6 @@ out:
 }
 EXPORT_SYMBOL(qla2xxx_add_targets);
 
-#if ((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
-     defined(FC_VPORT_CREATE_DEFINED))
 size_t qla2xxx_add_vtarget(u64 port_name, u64 node_name, u64 parent_host)
 {
 	struct Scsi_Host *shost = NULL;
@@ -2382,12 +2317,6 @@ size_t qla2xxx_del_vtarget(u64 port_name)
 }
 EXPORT_SYMBOL(qla2xxx_del_vtarget);
 
-#else
-#warning "Patch scst_fc_vport_create was not applied on\
- your kernel. Adding NPIV targets using SCST sysfs interface will be disabled."
-#endif /*((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
-	  defined(FC_VPORT_CREATE_DEFINED))*/
-
 void qla_unknown_atio_work_fn(struct work_struct *work)
 {
 	struct qla_hw_data *ha = container_of(work, struct qla_hw_data,
@@ -2399,9 +2328,6 @@ void qla_unknown_atio_work_fn(struct work_struct *work)
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 
 static int
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 8, 0))
-__devinit
-#endif
 qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 {
 	int	ret = -ENODEV;
@@ -4618,11 +4544,7 @@ static uint32_t qla82xx_error_recovery(scsi_qla_host_t *base_vha)
 		ql_dbg(ql_dbg_aer, base_vha, 0x9007,
 		    "Finding pci device at function = 0x%x.\n", fn);
 		other_pdev =
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33) && !defined(CONFIG_SUSE_KERNEL)
-		    pci_get_bus_and_slot(
-#else
 		    pci_get_domain_bus_and_slot(pci_domain_nr(ha->pdev->bus),
-#endif
 		    ha->pdev->bus->number, PCI_DEVFN(PCI_SLOT(ha->pdev->devfn),
 		    fn));
 
