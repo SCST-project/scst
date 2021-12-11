@@ -580,18 +580,10 @@ static const char *wr_status_str(enum ib_wc_status status)
 	}
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void isert_discon_do_work(void *ctx)
-#else
 static void isert_discon_do_work(struct work_struct *work)
-#endif
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct isert_conn *isert_conn = ctx;
-#else
 	struct isert_conn *isert_conn =
 		container_of(work, struct isert_conn, discon_work);
-#endif
 
 	/* notify upper layer */
 	isert_connection_closed(&isert_conn->iscsi);
@@ -599,53 +591,28 @@ static void isert_discon_do_work(struct work_struct *work)
 
 static void isert_sched_discon(struct isert_conn *isert_conn)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	INIT_WORK(&isert_conn->discon_work, isert_discon_do_work, isert_conn);
-#else
 	INIT_WORK(&isert_conn->discon_work, isert_discon_do_work);
-#endif
 	isert_conn_queue_work(&isert_conn->discon_work);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void isert_conn_drained_do_work(void *ctx)
-#else
 static void isert_conn_drained_do_work(struct work_struct *work)
-#endif
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct isert_conn *isert_conn = ctx;
-#else
 	struct isert_conn *isert_conn =
 		container_of(work, struct isert_conn, drain_work);
-#endif
 
 	isert_put_conn(isert_conn);
 }
 
 static void isert_sched_conn_drained(struct isert_conn *isert_conn)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	INIT_WORK(&isert_conn->drain_work, isert_conn_drained_do_work,
-		  isert_conn);
-#else
 	INIT_WORK(&isert_conn->drain_work, isert_conn_drained_do_work);
-#endif
 	isert_conn_queue_work(&isert_conn->drain_work);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void isert_conn_closed_do_work(void *ctx)
-#else
 static void isert_conn_closed_do_work(struct work_struct *work)
-#endif
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct isert_conn *isert_conn = ctx;
-#else
 	struct isert_conn *isert_conn =
 		container_of(work, struct isert_conn, close_work);
-#endif
 
 	if (!test_bit(ISERT_CONNECTION_ABORTED, &isert_conn->flags))
 		isert_connection_abort(&isert_conn->iscsi);
@@ -655,38 +622,21 @@ static void isert_conn_closed_do_work(struct work_struct *work)
 
 static void isert_sched_conn_closed(struct isert_conn *isert_conn)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	INIT_WORK(&isert_conn->close_work, isert_conn_closed_do_work,
-		  isert_conn);
-#else
 	INIT_WORK(&isert_conn->close_work, isert_conn_closed_do_work);
-#endif
 	isert_conn_queue_work(&isert_conn->close_work);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void isert_release_work(void *ctx)
-#else
 static void isert_release_work(struct work_struct *work)
-#endif
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct isert_conn *isert_conn = ctx;
-#else
 	struct isert_conn *isert_conn =
 		container_of(work, struct isert_conn, release_work);
-#endif
 
 	isert_put_conn(isert_conn);
 }
 
 void isert_sched_conn_free(struct isert_conn *isert_conn)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	INIT_WORK(&isert_conn->release_work, isert_release_work, isert_conn);
-#else
 	INIT_WORK(&isert_conn->release_work, isert_release_work);
-#endif
 	isert_conn_queue_work(&isert_conn->release_work);
 }
 
@@ -789,18 +739,10 @@ static int isert_poll_cq(struct isert_cq *cq)
 }
 
 /* callback function for isert_dev->[cq]->cq_comp_work */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && \
-	!defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
-/* A vanilla 2.6.19 or older kernel without backported OFED kernel headers. */
-static void isert_cq_comp_work_cb(void *ctx)
-{
-	struct isert_cq *cq_desc = ctx;
-#else
 static void isert_cq_comp_work_cb(struct work_struct *work)
 {
 	struct isert_cq *cq_desc =
 		container_of(work, struct isert_cq, cq_comp_work);
-#endif
 	int ret;
 
 	TRACE_ENTRY();
@@ -829,12 +771,8 @@ static void isert_cq_comp_handler(struct ib_cq *cq, void *context)
 {
 	struct isert_cq *cq_desc = context;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	queue_work(cq_desc->cq_workqueue, &cq_desc->cq_comp_work);
-#else
 	queue_work_on(smp_processor_id(), cq_desc->cq_workqueue,
 		      &cq_desc->cq_comp_work);
-#endif
 }
 
 static const char *ib_event_type_str(enum ib_event_type ev_type)
@@ -1038,26 +976,12 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 
 		cq_desc->dev = isert_dev;
 		cq_desc->idx = i;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-		INIT_WORK(&cq_desc->cq_comp_work, isert_cq_comp_work_cb, NULL);
-#else
 		INIT_WORK(&cq_desc->cq_comp_work, isert_cq_comp_work_cb);
-#endif
 
 		snprintf(wq_name, sizeof(wq_name), "isert_cq_%p", cq_desc);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-		cq_desc->cq_workqueue = create_singlethread_workqueue(wq_name);
-#else
-#if LINUX_VERSION_CODE == KERNEL_VERSION(2, 6, 36)
-		cq_desc->cq_workqueue = alloc_workqueue(wq_name,
-							WQ_CPU_INTENSIVE|
-							WQ_RESCUER, 1);
-#else
 		cq_desc->cq_workqueue = alloc_workqueue(wq_name,
 							WQ_CPU_INTENSIVE|
 							WQ_MEM_RECLAIM, 1);
-#endif
-#endif
 		if (unlikely(!cq_desc->cq_workqueue)) {
 			PRINT_ERROR("Failed to alloc iser cq work queue for dev:%s",
 				    ib_dev->name);
@@ -1160,15 +1084,7 @@ static void isert_device_release(struct isert_device *isert_dev)
 	for (i = 0; i < isert_dev->num_cqs; ++i) {
 		struct isert_cq *cq_desc = &isert_dev->cq_desc[i];
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 22)
-		/*
-		 * cancel_work_sync() was introduced in 2.6.22. We can
-		 * only wait until all scheduled work is done.
-		 */
-		flush_workqueue(cq_desc->cq_workqueue);
-#else
 		cancel_work_sync(&cq_desc->cq_comp_work);
-#endif
 
 		ib_destroy_cq(cq_desc->cq);
 		destroy_workqueue(cq_desc->cq_workqueue);
@@ -1810,10 +1726,7 @@ isert_setup_id(struct isert_portal *portal)
 
 	sa = (struct sockaddr *)&portal->addr;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 <= 5)
-	id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP);
-#elif !RDMA_CREATE_ID_TAKES_NET_ARG
+#if !RDMA_CREATE_ID_TAKES_NET_ARG
 	id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP,
 			       IB_QPT_RC);
 #else
@@ -1826,7 +1739,6 @@ isert_setup_id(struct isert_portal *portal)
 		goto out;
 	}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 6, 0)
 	/*
 	 * Allow both IPv4 and IPv6 sockets to bind a single port
 	 * at the same time.
@@ -1836,7 +1748,6 @@ isert_setup_id(struct isert_portal *portal)
 		PRINT_ERROR("Failed to set afonly, err:%d", ret);
 		goto out_id;
 	}
-#endif
 
 	ret = rdma_bind_addr(id, sa);
 	if (ret) {

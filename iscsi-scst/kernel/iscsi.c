@@ -2469,18 +2469,10 @@ struct iscsi_cmnd_abort_params {
 
 static mempool_t *iscsi_cmnd_abort_mempool;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void iscsi_cmnd_abort_fn(void *ctx)
-#else
 static void iscsi_cmnd_abort_fn(struct work_struct *work)
-#endif
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct iscsi_cmnd_abort_params *params = ctx;
-#else
 	struct iscsi_cmnd_abort_params *params = container_of(work,
 		struct iscsi_cmnd_abort_params, iscsi_cmnd_abort_work);
-#endif
 	struct scst_cmd *scst_cmd = params->scst_cmd;
 	struct iscsi_session *session = scst_sess_get_tgt_priv(scst_cmd->sess);
 	struct iscsi_conn *conn;
@@ -2540,11 +2532,7 @@ static void iscsi_on_abort_cmd(struct scst_cmd *scst_cmd)
 	}
 
 	memset(params, 0, sizeof(*params));
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	INIT_WORK(&params->iscsi_cmnd_abort_work, iscsi_cmnd_abort_fn, params);
-#else
 	INIT_WORK(&params->iscsi_cmnd_abort_work, iscsi_cmnd_abort_fn);
-#endif
 	params->scst_cmd = scst_cmd;
 
 	scst_cmd_get(scst_cmd);
@@ -3278,19 +3266,10 @@ static ssize_t iscsi_tcp_get_initiator_ip(struct iscsi_conn *conn,
 	switch (sk->sk_family) {
 	case AF_INET:
 		pos = scnprintf(buf, size,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
-			 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->daddr));
-#else
 			"%pI4", &inet_sk(sk)->inet_daddr);
-#endif
 		break;
 #if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	case AF_INET6:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-		pos = scnprintf(buf, size,
-			 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
-			 NIP6(inet6_sk(sk)->daddr));
-#else
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0) && \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
 		pos = scnprintf(buf, size, "[%pI6]", &inet6_sk(sk)->daddr);
@@ -3299,7 +3278,6 @@ static ssize_t iscsi_tcp_get_initiator_ip(struct iscsi_conn *conn,
 #endif
 #endif
 		break;
-#endif
 	default:
 		pos = scnprintf(buf, size, "Unknown family %d",
 			sk->sk_family);

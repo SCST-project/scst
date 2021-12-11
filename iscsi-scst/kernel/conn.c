@@ -26,12 +26,10 @@
 #include "iscsi.h"
 #include "digest.h"
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 29)
 #if defined(CONFIG_LOCKDEP) && !defined(CONFIG_SCST_PROC)
 static struct lock_class_key scst_conn_key;
 static struct lockdep_map scst_conn_dep_map =
 	STATIC_LOCKDEP_MAP_INIT("iscsi_conn_kref", &scst_conn_key);
-#endif
 #endif
 
 static int print_conn_state(char *p, size_t size, struct iscsi_conn *conn)
@@ -132,19 +130,10 @@ static ssize_t iscsi_get_target_ip(struct iscsi_conn *conn,
 	switch (sk->sk_family) {
 	case AF_INET:
 		pos = scnprintf(buf, size,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 33)
-			 "%u.%u.%u.%u", NIPQUAD(inet_sk(sk)->saddr));
-#else
 			"%pI4", &inet_sk(sk)->inet_saddr);
-#endif
 		break;
 #ifdef CONFIG_IPV6
 	case AF_INET6:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 29)
-		pos = scnprintf(buf, size,
-			 "[%04x:%04x:%04x:%04x:%04x:%04x:%04x:%04x]",
-			 NIP6(inet6_sk(sk)->saddr));
-#else
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
 		pos = scnprintf(buf, size, "[%pI6]", &inet6_sk(sk)->saddr);
 #else
@@ -152,7 +141,6 @@ static ssize_t iscsi_get_target_ip(struct iscsi_conn *conn,
 #endif
 #endif
 		break;
-#endif
 	default:
 		pos = scnprintf(buf, size, "Unknown family %d",
 			sk->sk_family);
@@ -580,18 +568,10 @@ out:
 	return;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void conn_nop_in_delayed_work_fn(void *p)
-#else
 static void conn_nop_in_delayed_work_fn(struct work_struct *work)
-#endif
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct iscsi_conn *conn = p;
-#else
 	struct iscsi_conn *conn = container_of(work, struct iscsi_conn,
 					       nop_in_delayed_work.work);
-#endif
 	unsigned long next_timeout = 0;
 
 	TRACE_ENTRY();
@@ -889,13 +869,8 @@ int iscsi_init_conn(struct iscsi_session *session,
 	conn->conn_thr_pool = session->sess_thr_pool;
 
 	conn->nop_in_ttt = 0;
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
 	INIT_DELAYED_WORK(&conn->nop_in_delayed_work,
 			  conn_nop_in_delayed_work_fn);
-#else
-	INIT_WORK(&conn->nop_in_delayed_work, conn_nop_in_delayed_work_fn,
-		conn);
-#endif
 	conn->last_rcv_time = jiffies;
 	conn->data_rsp_timeout = session->tgt_params.rsp_timeout * HZ;
 	conn->nop_in_interval = session->tgt_params.nop_in_interval * HZ;

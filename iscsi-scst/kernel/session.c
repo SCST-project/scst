@@ -17,9 +17,7 @@
 #ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 #include <linux/export.h>
-#endif
 
 #include "iscsi_trace_flag.h"
 #include "iscsi.h"

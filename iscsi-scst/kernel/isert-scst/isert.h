@@ -44,11 +44,7 @@
 #include <linux/wait.h>
 #include <linux/init.h>
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 37)
-#include <asm/atomic.h>
-#else
 #include <linux/atomic.h>
-#endif
 
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/isert_scst.h>

@@ -130,11 +130,7 @@ struct iscsi_target {
 };
 
 #define ISCSI_HASH_ORDER	8
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
 #define	cmnd_hashfn(itt)	hash_32(itt, ISCSI_HASH_ORDER)
-#else
-#define	cmnd_hashfn(itt)	hash_long(itt, ISCSI_HASH_ORDER)
-#endif
 
 struct iscsi_session {
 	struct iscsi_target *target;
@@ -315,11 +311,7 @@ struct iscsi_conn {
 	/* Doesn't need any protection */
 	u16 cid;
 
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20))
 	struct delayed_work nop_in_delayed_work;
-#else
-	struct work_struct nop_in_delayed_work;
-#endif
 	struct work_struct close_work;
 	unsigned int nop_in_interval; /* in jiffies */
 	unsigned int nop_in_timeout; /* in jiffies */
