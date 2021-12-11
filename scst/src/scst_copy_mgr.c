@@ -180,11 +180,7 @@ typedef void (*scst_cm_retry_fn_t)(struct scst_cmd *cmd);
 
 struct scst_cm_retry {
 	struct scst_cmd *cm_retry_cmd;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct work_struct cm_retry_work;
-#else
 	struct delayed_work cm_retry_work;
-#endif
 	scst_cm_retry_fn_t cm_retry_fn;
 };
 
@@ -1975,16 +1971,10 @@ out_unlock_free:
 	goto out;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-void sess_cm_list_id_cleanup_work_fn(void *p)
-{
-	struct scst_session *sess = p;
-#else
 void sess_cm_list_id_cleanup_work_fn(struct work_struct *work)
 {
 	struct scst_session *sess = container_of(work,
 			struct scst_session, sess_cm_list_id_cleanup_work.work);
-#endif
 	struct scst_cm_list_id *l, *t;
 	unsigned long cur_time = jiffies;
 	unsigned long flags;
@@ -3742,11 +3732,7 @@ static int scst_cm_report_aen(struct scst_aen *aen)
 
 static struct scst_tgt_template scst_cm_tgtt = {
 	.name			= SCST_CM_NAME,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	.sg_tablesize		= SG_MAX_SINGLE_ALLOC,
-#else
 	.sg_tablesize		= 0xffff,
-#endif
 	.enabled_attr_not_needed = 1,
 	.dif_supported		= 1,
 	.hw_dif_type1_supported = 1,
