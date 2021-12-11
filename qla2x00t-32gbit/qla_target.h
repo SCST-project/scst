@@ -736,15 +736,11 @@ struct qla_tgt_func_tmpl {
 
 int qla2x00_wait_for_hba_online(struct scsi_qla_host *);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 38)
 /*
  * See also commit c66ac9db8d4a ("[SCSI] target: Add LIO target core v4.0.0")
  * # v2.6.38.
  */
 #include <target/target_core_base.h>
-#else
-#include "target_core_base-backport.h"
-#endif
 
 #define QLA_TGT_TIMEOUT			10	/* in seconds */
 
