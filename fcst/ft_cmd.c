@@ -129,13 +129,11 @@ static void ft_cmd_done(struct ft_cmd *fcmd)
 		lport->tt.exch_done(sp);
 #endif
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 36)
 	if (fr_seq(fp))
 #ifdef NEW_LIBFC_API
 		fc_seq_release(fr_seq(fp));
 #else
 		lport->tt.seq_release(fr_seq(fp));
-#endif
 #endif
 
 	fc_frame_free(fp);
@@ -405,9 +403,6 @@ static void ft_send_resp_status(struct fc_frame *rx_fp, u32 status,
 	struct fcp_resp_with_ext *fcp;
 	struct fcp_resp_rsp_info *info;
 	struct fc_lport *lport;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-	struct fc_exch *ep;
-#endif
 
 	fh = fc_frame_header_get(rx_fp);
 	FT_IO_DBG("FCP error response: did %x oxid %x status %x code %x\n",
@@ -418,11 +413,8 @@ static void ft_send_resp_status(struct fc_frame *rx_fp, u32 status,
 		len += sizeof(*info);
 	fp = fc_frame_alloc(lport, len);
 	if (!fp)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-		goto out;
-#else
 		return;
-#endif
+
 	fcp = fc_frame_payload_get(fp, len);
 	memset(fcp, 0, len);
 	fcp->resp.fr_status = status;
@@ -433,17 +425,6 @@ static void ft_send_resp_status(struct fc_frame *rx_fp, u32 status,
 		info->rsp_code = code;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-	sp = fr_seq(rx_fp);
-	sp = lport->tt.seq_start_next(sp);
-	ep = fc_seq_exch(sp);
-	fc_fill_fc_hdr(fp, FC_RCTL_DD_CMD_STATUS, ep->did, ep->sid, FC_TYPE_FCP,
-		       FC_FC_EX_CTX | FC_FC_LAST_SEQ | FC_FC_END_SEQ, 0);
-
-	lport->tt.seq_send(lport, sp, fp);
-out:
-	;
-#else
 	fc_fill_reply_hdr(fp, rx_fp, FC_RCTL_DD_CMD_STATUS, 0);
 	sp = fr_seq(fp);
 	if (sp)
@@ -454,7 +435,6 @@ out:
 #endif
 	else
 		lport->tt.frame_send(lport, fp);
-#endif
 }
 
 /*
@@ -513,13 +493,7 @@ static void ft_recv_tm(struct scst_session *scst_sess,
 
 	scst_rx_mgmt_params_init(&params);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) || \
-	defined(CONFIG_SUSE_KERNEL) && \
-	LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 101)
 	params.lun = fcp->fc_lun.scsi_lun;
-#else
-	params.lun = fcp->fc_lun;
-#endif
 	params.lun_len = sizeof(fcp->fc_lun);
 	params.lun_set = 1;
 	params.atomic = SCST_ATOMIC;
@@ -575,9 +549,6 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 
 	lport = sess->tport->lport;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-	sp = fr_seq(fp);
-#else
 #ifdef NEW_LIBFC_API
 	sp = fc_seq_assign(lport, fp);
 #else
@@ -585,7 +556,6 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 #endif
 	if (!sp)
 		goto busy;
-#endif
 
 	fcmd = kzalloc(sizeof(*fcmd), GFP_ATOMIC);
 	if (!fcmd)
@@ -614,16 +584,9 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 	cdb_len += sizeof(fcp->fc_cdb);
 	data_len = ntohl(*(__be32 *)(fcp->fc_cdb + cdb_len));
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 4, 0) || \
-	defined(CONFIG_SUSE_KERNEL) && \
-	LINUX_VERSION_CODE >= KERNEL_VERSION(3, 0, 101)
 	cmd = scst_rx_cmd(sess->scst_sess, fcp->fc_lun.scsi_lun,
 			  sizeof(fcp->fc_lun), fcp->fc_cdb, cdb_len,
 			  SCST_ATOMIC);
-#else
-	cmd = scst_rx_cmd(sess->scst_sess, fcp->fc_lun, sizeof(fcp->fc_lun),
-			  fcp->fc_cdb, cdb_len, SCST_ATOMIC);
-#endif
 	if (!cmd)
 		goto busy;
 	fcmd->scst_cmd = cmd;
@@ -697,30 +660,6 @@ busy:
 static void ft_cmd_ls_rjt(struct fc_frame *rx_fp, enum fc_els_rjt_reason reason,
 			  enum fc_els_rjt_explan explan)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-	struct fc_seq *sp = fr_seq(rx_fp);
-	struct fc_frame *fp;
-	struct fc_els_ls_rjt *rjt;
-	struct fc_lport *lport;
-	struct fc_exch *ep;
-
-	ep = fc_seq_exch(sp);
-	lport = ep->lp;
-	fp = fc_frame_alloc(lport, sizeof(*rjt));
-	if (!fp)
-		return;
-
-	rjt = fc_frame_payload_get(fp, sizeof(*rjt));
-	memset(rjt, 0, sizeof(*rjt));
-	rjt->er_cmd = ELS_LS_RJT;
-	rjt->er_reason = reason;
-	rjt->er_explan = explan;
-
-	sp = lport->tt.seq_start_next(sp);
-	fc_fill_fc_hdr(fp, FC_RCTL_ELS_REP, ep->did, ep->sid, FC_TYPE_FCP,
-		       FC_FC_EX_CTX | FC_FC_END_SEQ | FC_FC_LAST_SEQ, 0);
-	lport->tt.seq_send(lport, sp, fp);
-#else
 	struct fc_seq_els_data rjt_data;
 
 	rjt_data.reason = reason;
@@ -729,7 +668,6 @@ static void ft_cmd_ls_rjt(struct fc_frame *rx_fp, enum fc_els_rjt_reason reason,
 	fc_seq_els_rsp_send(rx_fp, ELS_LS_RJT, &rjt_data);
 #else
 	fr_dev(rx_fp)->tt.seq_els_rsp_send(rx_fp, ELS_LS_RJT, &rjt_data);
-#endif
 #endif
 }
 
@@ -769,9 +707,6 @@ void ft_recv_req(struct ft_sess *sess, struct fc_frame *fp)
 	default:
 		pr_info("%s: unhandled frame r_ctl %x\n", __func__,
 			fh->fh_r_ctl);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 36)
-		sess->tport->lport->tt.exch_done(fr_seq(fp));
-#endif
 		fc_frame_free(fp);
 		break;
 	}
