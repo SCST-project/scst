@@ -1102,16 +1102,10 @@ static void scst_dlm_pre_bast(void *bastarg, int mode)
 		queue_work(pr_dlm->from_wq, &pr_dlm->pre_upd_work);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void scst_pre_join_work(void *p)
-{
-	struct scst_pr_dlm_data *pr_dlm = p;
-#else
 static void scst_pre_join_work(struct work_struct *work)
 {
 	struct scst_pr_dlm_data *pr_dlm = container_of(work,
 				struct scst_pr_dlm_data, pre_join_work);
-#endif
 	dlm_lockspace_t *ls;
 
 	mutex_lock(&pr_dlm->ls_mutex);
@@ -1125,16 +1119,10 @@ static void scst_pre_join_work(struct work_struct *work)
 	mutex_unlock(&pr_dlm->ls_mutex);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void scst_pre_upd_work(void *p)
-{
-	struct scst_pr_dlm_data *pr_dlm = p;
-#else
 static void scst_pre_upd_work(struct work_struct *work)
 {
 	struct scst_pr_dlm_data *pr_dlm = container_of(work,
 				struct scst_pr_dlm_data, pre_upd_work);
-#endif
 	dlm_lockspace_t *ls;
 
 	mutex_lock(&pr_dlm->ls_mutex);
@@ -1165,16 +1153,10 @@ static void scst_dlm_post_bast(void *bastarg, int mode)
  * Note: the node that has invoked scst_trigger_lvb_update() holds PR_LOCK
  * in EX mode and waits until this function has finished.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void scst_copy_to_dlm_work(void *p)
-{
-	struct scst_pr_dlm_data *pr_dlm = p;
-#else
 static void scst_copy_to_dlm_work(struct work_struct *work)
 {
 	struct scst_pr_dlm_data *pr_dlm = container_of(work,
 				struct scst_pr_dlm_data, copy_to_dlm_work);
-#endif
 	struct scst_device *dev = pr_dlm->dev;
 	dlm_lockspace_t *ls;
 	int res;
@@ -1238,16 +1220,10 @@ unlock_ls:
  * scst_pr_init_tgt_dev() and scst_pr_clear_tgt_dev() in scst_pres.c protect
  * these manipulations by locking the PR data structures for writing.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void scst_copy_from_dlm_work(void *p)
-{
-	struct scst_pr_dlm_data *pr_dlm = p;
-#else
 static void scst_copy_from_dlm_work(struct work_struct *work)
 {
 	struct scst_pr_dlm_data *pr_dlm = container_of(work,
 				struct scst_pr_dlm_data, copy_from_dlm_work);
-#endif
 	struct scst_device *dev = pr_dlm->dev;
 	dlm_lockspace_t *ls;
 	int res = -ENOENT;
@@ -1299,16 +1275,10 @@ static void scst_dlm_post_ast(void *astarg)
 }
 
 /* Tell other nodes to refresh their local state from the lock value blocks. */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void scst_reread_lvb_work(void *p)
-{
-	struct scst_pr_dlm_data *pr_dlm = p;
-#else
 static void scst_reread_lvb_work(struct work_struct *work)
 {
 	struct scst_pr_dlm_data *pr_dlm = container_of(work,
 				struct scst_pr_dlm_data, reread_lvb_work);
-#endif
 	dlm_lockspace_t *ls;
 	struct scst_lksb pr_lksb;
 	int res;
@@ -1330,16 +1300,10 @@ unlock_ls:
 }
 
 /* Tell other nodes to update the DLM lock value blocks. */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void scst_lvb_upd_work(void *p)
-{
-	struct scst_pr_dlm_data *pr_dlm = p;
-#else
 static void scst_lvb_upd_work(struct work_struct *work)
 {
 	struct scst_pr_dlm_data *pr_dlm = container_of(work,
 				struct scst_pr_dlm_data, lvb_upd_work);
-#endif
 	dlm_lockspace_t *ls;
 	struct scst_lksb lksb;
 	int res;
@@ -1399,21 +1363,12 @@ static int scst_pr_dlm_init(struct scst_device *dev, const char *cl_dev_id)
 	mutex_init(&pr_dlm->ls_cr_mutex);
 	mutex_init(&pr_dlm->ls_mutex);
 	pr_dlm->data_lksb.lksb.sb_lvbptr = pr_dlm->lvb;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	INIT_WORK(&pr_dlm->pre_join_work, scst_pre_join_work, pr_dlm);
-	INIT_WORK(&pr_dlm->pre_upd_work, scst_pre_upd_work, pr_dlm);
-	INIT_WORK(&pr_dlm->copy_from_dlm_work, scst_copy_from_dlm_work, pr_dlm);
-	INIT_WORK(&pr_dlm->copy_to_dlm_work, scst_copy_to_dlm_work, pr_dlm);
-	INIT_WORK(&pr_dlm->lvb_upd_work, scst_lvb_upd_work, pr_dlm);
-	INIT_WORK(&pr_dlm->reread_lvb_work, scst_reread_lvb_work, pr_dlm);
-#else
 	INIT_WORK(&pr_dlm->pre_join_work, scst_pre_join_work);
 	INIT_WORK(&pr_dlm->pre_upd_work, scst_pre_upd_work);
 	INIT_WORK(&pr_dlm->copy_from_dlm_work, scst_copy_from_dlm_work);
 	INIT_WORK(&pr_dlm->copy_to_dlm_work, scst_copy_to_dlm_work);
 	INIT_WORK(&pr_dlm->lvb_upd_work, scst_lvb_upd_work);
 	INIT_WORK(&pr_dlm->reread_lvb_work, scst_reread_lvb_work);
-#endif
 	pr_dlm->latest_lscr_attempt = jiffies - 100 * HZ;
 
 	res = -ENOMEM;
