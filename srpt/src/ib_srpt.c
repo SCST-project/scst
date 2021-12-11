@@ -47,11 +47,7 @@
 #if !defined(INSIDE_KERNEL_TREE)
 #include <linux/version.h>
 #endif
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
 #include <linux/atomic.h>
-#else
-#include <asm/atomic.h>
-#endif
 #include <rdma/ib_cache.h>
 #include "ib_srpt.h"
 #define LOG_PREFIX "ib_srpt" /* Prefix for SCST tracing macros. */
@@ -112,12 +108,7 @@ module_param(srp_max_rsp_size, int, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(srp_max_rsp_size,
 		 "Maximum size of SRP response messages in bytes.");
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
-	|| defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
-static int use_srq;
-#else
 static bool use_srq;
-#endif
 module_param(use_srq, bool, S_IRUGO | S_IWUSR);
 MODULE_PARM_DESC(use_srq, "Whether or not to use SRQ");
 
@@ -130,23 +121,13 @@ static int srpt_sq_size = DEF_SRPT_SQ_SIZE;
 module_param(srpt_sq_size, int, 0444);
 MODULE_PARM_DESC(srpt_sq_size, "Per-channel send queue (SQ) size.");
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
-	|| defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
-static int use_port_guid_in_session_name;
-#else
 static bool use_port_guid_in_session_name;
-#endif
 module_param(use_port_guid_in_session_name, bool, 0444);
 MODULE_PARM_DESC(use_port_guid_in_session_name,
 		 "Use target port ID in the session name such that"
 		 " redundant paths between multiport systems can be masked.");
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) \
-	|| defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
-static int use_node_guid_in_target_name;
-#else
 static bool use_node_guid_in_target_name;
-#endif
 module_param(use_node_guid_in_target_name, bool, 0444);
 MODULE_PARM_DESC(use_node_guid_in_target_name,
 		 "Use HCA node GUID as SCST target name.");
@@ -357,15 +338,10 @@ static void srpt_qp_event(struct ib_event *event, struct srpt_rdma_ch *ch)
 
 	switch (event->event) {
 	case IB_EVENT_COMM_EST:
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20) || defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
 		if (ch->using_rdma_cm)
 			rdma_notify(ch->rdma_cm.cm_id, event->event);
 		else
 			ib_cm_notify(ch->ib_cm.cm_id, event->event);
-#else
-		/* Vanilla 2.6.19 kernel (or before) without OFED. */
-		pr_err("how to perform ib_cm_notify() on a vanilla 2.6.18 kernel ???\n");
-#endif
 		break;
 	case IB_EVENT_QP_LAST_WQE_REACHED:
 		pr_debug("%s-%d, state %s: received Last WQE event.\n",
@@ -1095,7 +1071,6 @@ static int srpt_zerolength_write(struct srpt_rdma_ch *ch)
 
 static inline void *srpt_get_desc_buf(struct srp_cmd *srp_cmd)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 31)
 	/*
 	 * The pointer computations below will only be compiled correctly
 	 * if srp_cmd::add_data is declared as s8*, u8*, s8[] or u8[], so check
@@ -1103,7 +1078,6 @@ static inline void *srpt_get_desc_buf(struct srp_cmd *srp_cmd)
 	 */
 	BUILD_BUG_ON(!__same_type(srp_cmd->add_data[0], (s8)0) &&
 		     !__same_type(srp_cmd->add_data[0], (u8)0));
-#endif
 
 	/*
 	 * According to the SRP spec, the lower two bits of the 'ADDITIONAL
@@ -2281,11 +2255,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 		goto out;
 
 retry:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && \
-	!defined(RHEL_RELEASE_CODE)
-	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
-			      ch->rq_size + sq_size);
-#elif !defined(IB_CREATE_CQ_HAS_INIT_ATTR)
+#if !defined(IB_CREATE_CQ_HAS_INIT_ATTR)
 	ch->cq = ib_create_cq(sdev->device, srpt_completion, NULL, ch,
 			      ch->rq_size + sq_size, ch->comp_vector);
 #else
@@ -2604,14 +2574,8 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 
 	WARN_ON_ONCE(irqs_disabled());
 
-#if LINUX_VERSION_CODE <= KERNEL_VERSION(2, 6, 18)
-	WARN_ON(!sdev || !req);
-	if (!sdev || !req)
-		return -EINVAL;
-#else
 	if (WARN_ON(!sdev || !req))
 		return -EINVAL;
-#endif
 
 	it_iu_len = be32_to_cpu(req->req_it_iu_len);
 
@@ -3887,18 +3851,9 @@ static void srpt_on_free_cmd(struct scst_cmd *cmd)
 	srpt_put_send_ioctx(ioctx);
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
-/* A vanilla 2.6.19 or older kernel without backported OFED kernel headers. */
-static void srpt_refresh_port_work(void *ctx)
-#else
 static void srpt_refresh_port_work(struct work_struct *work)
-#endif
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
-	struct srpt_port *sport = ctx;
-#else
 	struct srpt_port *sport = container_of(work, struct srpt_port, work);
-#endif
 
 	srpt_refresh_port(sport);
 }
@@ -4013,9 +3968,7 @@ static ssize_t show_comp_v_mask(struct kobject *kobj,
 
 	if (!sport)
 		goto out;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 28)
-	res = cpumask_scnprintf(buf, PAGE_SIZE, sport->comp_v_mask);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
 	res = cpumask_scnprintf(buf, PAGE_SIZE, &sport->comp_v_mask);
 #else
 	res = scnprintf(buf, PAGE_SIZE, "%*pb",
@@ -4046,11 +3999,7 @@ static ssize_t store_comp_v_mask(struct kobject *kobj,
 	res = -ENOMEM;
 	if (!alloc_cpumask_var(&mask, GFP_KERNEL))
 		goto out;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
-	res = bitmap_parse(buf, count, cpumask_bits(mask), nr_cpumask_bits);
-#else
 	res = cpumask_parse(buf, mask);
-#endif
 	if (res)
 		goto free_mask;
 	res = -EINVAL;
@@ -4110,7 +4059,6 @@ static ssize_t srpt_show_link_layer(struct kobject *kobj,
 	if (!sport)
 		goto out;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37) /* commit a3f5adaf4 */
 	switch (rdma_port_get_link_layer(sport->sdev->device, sport->port)) {
 	case IB_LINK_LAYER_INFINIBAND:
 		lln = "InfiniBand";
@@ -4122,7 +4070,6 @@ static ssize_t srpt_show_link_layer(struct kobject *kobj,
 	default:
 		break;
 	}
-#endif
 	res = sprintf(buf, "%s\n", lln);
 
 out:
@@ -4268,7 +4215,6 @@ static ssize_t show_ch_state(struct kobject *kobj, struct kobj_attribute *attr,
 	return sprintf(buf, "%s\n", get_ch_state_name(ch->state));
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20) || defined(RHEL_RELEASE_CODE)
 static ssize_t show_comp_vector(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
 {
@@ -4279,7 +4225,6 @@ static ssize_t show_comp_vector(struct kobject *kobj,
 	ch = scst_sess_get_tgt_priv(sess);
 	return ch ? sprintf(buf, "%u\n", ch->comp_vector) : -ENOENT;
 }
-#endif
 
 static const struct kobj_attribute srpt_req_lim_attr =
 	__ATTR(req_lim,       S_IRUGO, show_req_lim,       NULL);
@@ -4287,18 +4232,14 @@ static const struct kobj_attribute srpt_req_lim_delta_attr =
 	__ATTR(req_lim_delta, S_IRUGO, show_req_lim_delta, NULL);
 static const struct kobj_attribute srpt_ch_state_attr =
 	__ATTR(ch_state, S_IRUGO, show_ch_state, NULL);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20) || defined(RHEL_RELEASE_CODE)
 static const struct kobj_attribute srpt_comp_vector_attr =
 	__ATTR(comp_vector, S_IRUGO, show_comp_vector, NULL);
-#endif
 
 static const struct attribute *srpt_sess_attrs[] = {
 	&srpt_req_lim_attr.attr,
 	&srpt_req_lim_delta_attr.attr,
 	&srpt_ch_state_attr.attr,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20) || defined(RHEL_RELEASE_CODE)
 	&srpt_comp_vector_attr.attr,
-#endif
 	NULL
 };
 
@@ -4397,9 +4338,7 @@ static int srpt_add_one(struct ib_device *device)
 	srq_attr.attr.max_wr = sdev->srq_size;
 	srq_attr.attr.max_sge = 1;
 	srq_attr.attr.srq_limit = 0;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0)
 	srq_attr.srq_type = IB_SRQT_BASIC;
-#endif
 
 	sdev->srq = use_srq ? ib_create_srq(sdev->pd, &srq_attr) :
 		ERR_PTR(-EOPNOTSUPP);
@@ -4448,15 +4387,7 @@ static int srpt_add_one(struct ib_device *device)
 		sport->sdev = sdev;
 		sport->port = i;
 		srpt_init_sport(sport, sdev->device);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20) && !defined(BACKPORT_LINUX_WORKQUEUE_TO_2_6_19)
-		/*
-		 * A vanilla 2.6.19 or older kernel without backported OFED
-		 * kernel headers.
-		 */
-		INIT_WORK(&sport->work, srpt_refresh_port_work, sport);
-#else
 		INIT_WORK(&sport->work, srpt_refresh_port_work);
-#endif
 		ret = srpt_refresh_port(sport);
 		if (ret) {
 			pr_err("MAD registration failed for %s-%d.\n",
@@ -4567,16 +4498,7 @@ static void srpt_remove_one(struct ib_device *device, void *client_data)
 
 	/* Cancel any work queued by the just unregistered IB event handler. */
 	for (i = 0; i < sdev->device->phys_port_cnt; i++)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 22)
 		cancel_work_sync(&sdev->port[i].work);
-#else
-		/*
-		 * cancel_work_sync() was introduced in kernel 2.6.22. Older
-		 * kernels do not have a facility to cancel scheduled work, so
-		 * wait until the scheduled work finished.
-		 */
-		flush_scheduled_work();
-#endif
 
 	ib_destroy_cm_id(sdev->cm_id);
 
@@ -4685,11 +4607,7 @@ static int __init srpt_init_module(void)
 	if (rdma_cm_port) {
 		struct sockaddr_in addr;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 0, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
-		rdma_cm_id = rdma_create_id(srpt_rdma_cm_handler, NULL,
-					    RDMA_PS_TCP);
-#elif !RDMA_CREATE_ID_TAKES_NET_ARG
+#if !RDMA_CREATE_ID_TAKES_NET_ARG
 		rdma_cm_id = rdma_create_id(srpt_rdma_cm_handler, NULL,
 					    RDMA_PS_TCP, IB_QPT_RC);
 #else
