@@ -204,12 +204,6 @@ enum {
 	RDMA_COMPL_TIMEOUT_S = 80,
 };
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 1, 0) &&			\
-	!defined(HAVE_IB_EVENT_GID_CHANGE)
-/* See also patch "IB/core: Add GID change event" (commit 761d90ed4). */
-enum { IB_EVENT_GID_CHANGE = 18 };
-#endif
-
 enum srpt_opcode {
 	SRPT_RECV,
 	SRPT_SEND,
@@ -445,9 +439,7 @@ struct srpt_rdma_ch {
 	struct list_head	list;
 	struct list_head	cmd_wait_list;
 	uint16_t		pkey;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 20) || defined(RHEL_RELEASE_CODE)
 	u16			comp_vector;
-#endif
 	bool			using_rdma_cm;
 	bool			processing_wait_list;
 	struct scst_session	*sess;
