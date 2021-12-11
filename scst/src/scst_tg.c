@@ -50,12 +50,7 @@ static const struct alua_state_and_name scst_tg_state_names[] = {
 static DEFINE_MUTEX(scst_dg_mutex);
 static LIST_HEAD(scst_dev_group_list);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 31) || \
-	defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
-static int alua_invariant_check;
-#else
 static bool alua_invariant_check;
-#endif
 module_param(alua_invariant_check, bool, 0644);
 MODULE_PARM_DESC(alua_invariant_check,
 		 "Enables a run-time ALUA state invariant check.");
@@ -404,24 +399,14 @@ out:
 
 struct scst_alua_retry {
 	struct scst_cmd *alua_retry_cmd;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-	struct work_struct alua_retry_work;
-#else
 	struct delayed_work alua_retry_work;
-#endif
 };
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-static void scst_alua_transitioning_work_fn(void *p)
-{
-	struct scst_alua_retry *retry = p;
-#else
 static void scst_alua_transitioning_work_fn(struct work_struct *work)
 {
 	struct scst_alua_retry *retry =
 		container_of(work, struct scst_alua_retry,
 			     alua_retry_work.work);
-#endif
 	struct scst_cmd *cmd = retry->alua_retry_cmd;
 
 	TRACE_ENTRY();
@@ -493,13 +478,8 @@ static int scst_tg_accept_transitioning(struct scst_cmd *cmd)
 
 		/* No get is needed, because cmd is sync here */
 		retry->alua_retry_cmd = cmd;
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 20)
-		INIT_WORK(&retry->alua_retry_work,
-			  scst_alua_transitioning_work_fn, retry);
-#else
 		INIT_DELAYED_WORK(&retry->alua_retry_work,
 				  scst_alua_transitioning_work_fn);
-#endif
 		cmd->already_transitioning = 1;
 		schedule_delayed_work(&retry->alua_retry_work, HZ/2);
 		res = SCST_ALUA_CHECK_DELAYED;
@@ -679,12 +659,7 @@ int scst_tg_tgt_add(struct scst_target_group *tg, const char *name)
 	if (!tg_tgt)
 		goto out;
 	tg_tgt->tg = tg;
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 24)
 	kobject_init(&tg_tgt->kobj, &scst_tg_tgt_ktype);
-#else
-	kobject_init(&tg_tgt->kobj);
-	tg_tgt->kobj.ktype = &scst_tg_tgt_ktype;
-#endif
 	tg_tgt->name = kstrdup(name, GFP_KERNEL);
 	if (!tg_tgt->name)
 		goto out_put;
@@ -809,12 +784,7 @@ int scst_tg_add(struct scst_dev_group *dg, const char *name)
 	tg = kzalloc(sizeof(*tg), GFP_KERNEL);
 	if (!tg)
 		goto out;
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 24)
 	kobject_init(&tg->kobj, &scst_tg_ktype);
-#else
-	kobject_init(&tg->kobj);
-	tg->kobj.ktype = &scst_tg_ktype;
-#endif
 	tg->name = kstrdup(name, GFP_KERNEL);
 	if (!tg->name)
 		goto out_put;
@@ -1316,12 +1286,7 @@ int scst_dg_add(struct kobject *parent, const char *name)
 	dg = kzalloc(sizeof(*dg), GFP_KERNEL);
 	if (!dg)
 		goto out;
-#if LINUX_VERSION_CODE > KERNEL_VERSION(2, 6, 24)
 	kobject_init(&dg->kobj, &scst_dg_ktype);
-#else
-	kobject_init(&dg->kobj);
-	dg->kobj.ktype = &scst_dg_ktype;
-#endif
 	dg->name = kstrdup(name, GFP_KERNEL);
 	if (!dg->name)
 		goto out_put;

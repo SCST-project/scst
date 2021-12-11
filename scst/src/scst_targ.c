@@ -2622,14 +2622,7 @@ static enum scst_exec_res scst_do_real_exec(struct scst_cmd *cmd)
 		  scsi_dev->host->host_no, scsi_dev->channel, scsi_dev->id,
 		  (u64)scsi_dev->lun);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 30)
-	rc = scst_exec_req(scsi_dev, cmd->cdb, cmd->cdb_len,
-			cmd->data_direction, cmd->sg, cmd->bufflen,
-			cmd->sg_cnt, cmd->timeout, cmd->retries, cmd,
-			scst_pass_through_cmd_done, cmd->cmd_gfp_mask);
-#else
 	rc = scst_scsi_exec_async(cmd, cmd, scst_pass_through_cmd_done);
-#endif
 	if (unlikely(rc != 0)) {
 		PRINT_ERROR("scst pass-through exec failed: %d", rc);
 		/* "Sectors" are hardcoded as 512 bytes in the kernel */
@@ -2680,11 +2673,6 @@ static inline int scst_real_exec(struct scst_cmd *cmd)
 	res = scst_do_real_exec(cmd);
 	if (likely(res == SCST_EXEC_COMPLETED)) {
 		scst_post_exec_sn(cmd, true);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-		if (cmd->dev->scsi_dev != NULL)
-			generic_unplug_device(
-				cmd->dev->scsi_dev->request_queue);
-#endif
 	} else
 		sBUG();
 
@@ -2932,11 +2920,6 @@ done:
 	}
 
 	*active_cmd = cmd;
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 39)
-	if (ref_cmd->dev->scsi_dev != NULL)
-		generic_unplug_device(ref_cmd->dev->scsi_dev->request_queue);
-#endif
 
 	__scst_cmd_put(ref_cmd);
 	/* !! At this point sess, dev and tgt_dev can be already freed !! */
@@ -4137,13 +4120,11 @@ struct scst_tgt_dev *scst_lookup_tgt_dev(struct scst_session *sess, u64 lun)
 	struct list_head *head;
 	struct scst_tgt_dev *tgt_dev;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 37)
 #if defined(CONFIG_SCST_EXTRACHECKS) && defined(CONFIG_PREEMPT_RCU) && \
 	defined(CONFIG_DEBUG_LOCK_ALLOC)
 	WARN_ON_ONCE(debug_locks &&
 		     !lockdep_is_held(&sess->tgt_dev_list_mutex) &&
 		     rcu_preempt_depth() == 0);
-#endif
 #endif
 
 	head = &sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(lun)];
@@ -4547,7 +4528,6 @@ int scst_init_thread(void *arg)
  */
 static void scst_ioctx_get(struct scst_cmd_threads *p_cmd_threads)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
 	mutex_lock(&p_cmd_threads->io_context_mutex);
 
 	WARN_ON(current->io_context);
@@ -4569,31 +4549,16 @@ static void scst_ioctx_get(struct scst_cmd_threads *p_cmd_threads)
 			 */
 			put_io_context(p_cmd_threads->io_context);
 		} else {
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 5, 0) && (LINUX_VERSION_CODE < KERNEL_VERSION(3, 6, 0)))
-#warning IO context sharing functionality disabled on 3.5 kernels due to bug in them. \
-See "http://lkml.org/lkml/2012/7/17/515" for more details.
-			static int q;
-
-			if (q == 0) {
-				q++;
-				PRINT_WARNING("IO context sharing functionality "
-					"disabled on 3.5 kernels due to bug in "
-					"them. See http://lkml.org/lkml/2012/7/17/515 "
-					"for more details.");
-			}
-#else
 			ioc_task_link(p_cmd_threads->io_context);
 			current->io_context = p_cmd_threads->io_context;
 			TRACE_DBG("Linked IO context %p "
 				"(p_cmd_threads %p)", p_cmd_threads->io_context,
 				p_cmd_threads);
-#endif
 		}
 		p_cmd_threads->io_context_refcnt++;
 	}
 
 	mutex_unlock(&p_cmd_threads->io_context_mutex);
-#endif
 
 	smp_wmb();
 	p_cmd_threads->io_context_ready = true;
@@ -4605,14 +4570,12 @@ See "http://lkml.org/lkml/2012/7/17/515" for more details.
  */
 static void scst_ioctx_put(struct scst_cmd_threads *p_cmd_threads)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 25)
 	if (p_cmd_threads != &scst_main_cmd_threads) {
 		mutex_lock(&p_cmd_threads->io_context_mutex);
 		if (--p_cmd_threads->io_context_refcnt == 0)
 			p_cmd_threads->io_context = NULL;
 		mutex_unlock(&p_cmd_threads->io_context_mutex);
 	}
-#endif
 	return;
 }
 
@@ -4972,7 +4935,6 @@ again:
 			thr_locked = false;
 		}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 9, 0)
 		if (scst_poll_ns > 0) {
 			ktime_t end, kt;
 
@@ -4990,7 +4952,6 @@ again:
 				kt = ktime_get();
 			} while (ktime_before(kt, end));
 		}
-#endif
 		spin_lock_irq(&p_cmd_threads->cmd_list_lock);
 		spin_lock(&thr->thr_cmd_list_lock);
 	}
@@ -5979,10 +5940,8 @@ static int scst_reset_scsi_target(struct scsi_device *sdev)
 	int arg = SG_SCSI_RESET_TARGET;
 
 	return scsi_ioctl_reset(sdev, (__force __user int *)&arg);
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 26)
-	return scsi_reset_provider(sdev, SCSI_TRY_RESET_TARGET);
 #else
-	return scsi_reset_provider(sdev, SCSI_TRY_RESET_BUS);
+	return scsi_reset_provider(sdev, SCSI_TRY_RESET_TARGET);
 #endif
 }
 
