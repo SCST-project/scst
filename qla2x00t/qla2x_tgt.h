@@ -132,13 +132,9 @@ qla2x00_send_enable_lun(scsi_qla_host_t *vha, bool enable)
 }
 
 extern void qla2xxx_add_targets(void);
-#if ((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
-     defined(FC_VPORT_CREATE_DEFINED))
 extern size_t
 qla2xxx_add_vtarget(u64 port_name, u64 node_name, u64 parent_host);
 extern size_t qla2xxx_del_vtarget(u64 port_name);
-#endif /*((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
-	  defined(FC_VPORT_CREATE_DEFINED))*/
 
 extern void qla_unknown_atio_work_fn(struct work_struct *work);
 

@@ -197,15 +197,8 @@ static bool q2t_is_tgt_enabled(struct scst_tgt *tgt);
 #define ENABLE_NPIV 0 /* NPIV does not work */
 
 #if ENABLE_NPIV
-#if ((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
-     defined(FC_VPORT_CREATE_DEFINED))
 static ssize_t q2t_add_vtarget(const char *target_name, char *params);
 static ssize_t q2t_del_vtarget(const char *target_name);
-#else
-#warning Patch scst_fc_vport_create was not applied on\
- your kernel. Adding NPIV targets using SCST sysfs interface will be disabled.
-#endif /*((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
-	  defined(FC_VPORT_CREATE_DEFINED))*/
 #endif /* ENABLE_NPIV */
 
 /*
@@ -242,12 +235,8 @@ static struct scst_tgt_template tgt2x_template = {
 	.enable_target = q2t_enable_tgt,
 	.is_target_enabled = q2t_is_tgt_enabled,
 #if ENABLE_NPIV
-#if ((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
-     defined(FC_VPORT_CREATE_DEFINED))
 	.add_target = q2t_add_vtarget,
 	.del_target = q2t_del_vtarget,
-#endif /*((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
-	  defined(FC_VPORT_CREATE_DEFINED))*/
 	.add_target_parameters = "node_name, parent_host",
 #endif
 	.tgtt_attrs = q2tt_attrs,
@@ -6458,8 +6447,6 @@ static int q2t_parse_wwn(const char *ns, u64 *nm)
 }
 
 #if ENABLE_NPIV
-#if ((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
-     defined(FC_VPORT_CREATE_DEFINED))
 static ssize_t q2t_add_vtarget(const char *target_name, char *params)
 {
 	int res;
@@ -6571,8 +6558,6 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
-#endif /*((LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 28)) || \
-	  defined(FC_VPORT_CREATE_DEFINED))*/
 #endif /* ENABLE_NPIV */
 
 static int q2t_get_initiator_port_transport_id(struct scst_tgt *tgt,
