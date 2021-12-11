@@ -4120,11 +4120,7 @@ static int __init init_scst_user(void)
 			struct scst_user_reply_cmd r;
 		};
 	};
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
-	struct class_device *class_member;
-#else
 	struct device *dev;
-#endif
 
 	TRACE_ENTRY();
 
@@ -4174,25 +4170,14 @@ static int __init init_scst_user(void)
 		goto out_class;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
-	class_member = class_device_create(dev_user_sysfs_class, NULL,
-				MKDEV(dev_user_major, 0), NULL, DEV_USER_NAME);
-	if (IS_ERR(class_member)) {
-		res = PTR_ERR(class_member);
-		goto out_chrdev;
-	}
-#else
 	dev = device_create(dev_user_sysfs_class, NULL,
 			    MKDEV(dev_user_major, 0),
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(2, 6, 27)
 				NULL,
-#endif
 				DEV_USER_NAME);
 	if (IS_ERR(dev)) {
 		res = PTR_ERR(dev);
 		goto out_chrdev;
 	}
-#endif
 
 	cleanup_thread = kthread_run(dev_user_cleanup_thread, NULL,
 		"scst_usr_cleanupd");
@@ -4207,11 +4192,7 @@ out:
 	return res;
 
 out_dev:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
-	class_device_destroy(dev_user_sysfs_class, MKDEV(dev_user_major, 0));
-#else
 	device_destroy(dev_user_sysfs_class, MKDEV(dev_user_major, 0));
-#endif
 
 out_chrdev:
 	unregister_chrdev(dev_user_major, DEV_USER_NAME);
@@ -4242,11 +4223,7 @@ static void __exit exit_scst_user(void)
 		TRACE_MGMT_DBG("kthread_stop() failed: %d", rc);
 
 	unregister_chrdev(dev_user_major, DEV_USER_NAME);
-#if LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 21)
-	class_device_destroy(dev_user_sysfs_class, MKDEV(dev_user_major, 0));
-#else
 	device_destroy(dev_user_sysfs_class, MKDEV(dev_user_major, 0));
-#endif
 	class_destroy(dev_user_sysfs_class);
 
 	scst_unregister_virtual_dev_driver(&dev_user_devtype);
