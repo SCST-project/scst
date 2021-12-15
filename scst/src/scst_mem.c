@@ -1379,12 +1379,7 @@ static void sgv_pool_init_cache(struct sgv_pool *pool, int cache_num,
 	pool->caches[cache_num] = kmem_cache_create(
 		pool->cache_names[cache_num], size,
 		0, per_cpu ? SCST_SLAB_FLAGS :
-			     (SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN), NULL
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 23))
-		, NULL);
-#else
-		);
-#endif
+		(SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN), NULL);
 	return;
 }
 
