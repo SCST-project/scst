@@ -66,7 +66,7 @@ jobs:
           # Required recipients' addresses:
           to: scst-svn@lists.sourceforge.net
           # Required sender full name (address can be skipped):
-          from: GitHub
+          from: ${{matrix.commit.committer.name}}
           # Optional whether this connection use TLS (default is true if server_port is 465)
           # secure: true
 
