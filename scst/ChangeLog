@@ -1,3 +1,40 @@
+Summary of changes between versions 3.5 and 3.6
+-----------------------------------------------
+- Made the command processing path slightly faster by removing two atomic
+  instructions from the command processing path.
+- Added support for the READ and WRITE DYN RUNTIME ATTR commands and also
+  for SERVICE ACTION IN(12).
+- An infinite loop in the code that sets CHECK CONDITION has been fixed.
+- A deadlock has been fixed in the code for assigning a device handler to a
+  vdisk.
+- Support for adding a vdisk_blockio device with a non-existent filename has
+  been restored.
+- The async mode of vdisk_fileio has been made compatible with filesystems that
+  use the iomap code, e.g. XFS.
+- A "INFO: rcu_sched self-detected stall" issue has been fixed.
+- Support in the copy manager for auto_cm_assignment=0 has been fixed.
+- Standards-compliance of the copy manager has been improved. Designators with
+  a length above 20 bytes are now rejected instead of being accepted.
+- The copy manager no longer suspends activity when adding a LUN.
+- A bug has been fixed in the vdisk resync_size functionality.
+- The tape device handler now sets 'block_shift' correctly.
+- Improved the code for building a Debian package (dpkg).
+- scst_local: the SCSI host number is now available in sysfs.
+- scst-isert: support for RDMA_CV_EVENT_ADDR_CHANGE has been added.
+- scst-isert: a hang in iscsi_release() has been fixed.
+- The top-level Makefile has been modified such that the qla2x00t-32gbit driver
+  is built by default instead of the qla2x00t driver. The qla2x00t driver can
+  be selected by passing QLA_32GBIT=no as argument to make.
+- qla2x00t-32gbit driver: updated from Linux kernel version v5.10 to v5.15.
+- scstadmin: the -force option is now passed to removeGroup().
+- scstadmin: improved performance of the scstadmin function make_path().
+
+The kernel versions supported by this release are:
+* Kernel.org kernel versions v3.10..v5.15.
+* Debian / Ubuntu kernels based on upstream kernel versions v3.10..v5.15.
+* RHEL / CentOS 7.x and 8.0..8.5 kernels.
+* UEK version 6, 7 and 8 kernels.
+
 Summary of changes between versions 3.4 and 3.5
 -----------------------------------------------
 - Added the forward_src and forward_dst sysfs attributes. Removed
