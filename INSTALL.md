@@ -41,9 +41,16 @@ or not your Linux distribution supports a package manager:
 Since the above step installs several kernel modules into directory
 /lib/modules/$(uname -r), that step has to be repeated every time a new kernel
 or a kernel update has been installed. If you want to avoid this, install the
-scst-dkms package instead of the scst package. That will cause SCST to be
-rebuilt and installed every time a kernel version is booted for which the SCST
-kernel modules had not yet been built.
+scst-dkms package instead of the scst package.
+
+For example, if you want to have dkms support for your SCST rpm install, then you would use the
+following command to make your SCST packages:
+
+make scst-dkms-rpm
+
+This make step will create rpm packages that will cause SCST to be automatically rebuilt and installed every time a 
+new kernel version is installed and booted for which the SCST kernel modules had not yet been built so that SCST
+rpm packages will not need to be rebuilt after each kernel update.
 
 ## Configuring SCST
 
