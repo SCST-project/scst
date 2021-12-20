@@ -364,6 +364,15 @@ rpm:
 	    find -name '*.rpm';				\
 	fi
 
+rpm-dkms:
+	$(MAKE) scst-dkms-rpm
+	$(MAKE) -C scstadmin rpm
+	@if [ "$$(id -u)" != 0 ]; then			\
+	    echo;					\
+	    echo "The following RPMs have been built:";	\
+	    find -name '*.rpm';				\
+	fi
+
 debian/changelog: debian/changelog.in
 	sed 's/%{scst_version}/$(VERSION)-$(DEBIAN_REVISION)/'		\
 	  <debian/changelog.in >debian/changelog
