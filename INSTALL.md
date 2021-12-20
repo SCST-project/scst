@@ -46,9 +46,14 @@ scst-dkms package instead of the scst package.
 For example, if you want to have dkms support for your SCST rpm install, then
 you would use the following command to make your SCST packages:
 
+    make rpm-dkms 
+
+or
+
     make scst-dkms-rpm
 
-This make step will create rpm packages that will cause SCST to be
+make rpm-dkms also builds scstadmin packages in addition to the SCST dkms
+packages. Both make commands will create rpm packages that will cause SCST to be
 automatically rebuilt and installed every time a new kernel version is
 installed and booted for which the SCST kernel modules had not yet been built
 so that SCST rpm packages will not need to be rebuilt after each kernel update.
