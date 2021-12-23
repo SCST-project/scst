@@ -20,6 +20,8 @@ Summary of changes between versions 3.5 and 3.6
 - The tape device handler now sets 'block_shift' correctly.
 - Improved the code for building a Debian package (dpkg).
 - scst_local: the SCSI host number is now available in sysfs.
+- scst-isert: this driver has been made compatible with
+  CONFIG_HARDENED_USERCOPY.
 - scst-isert: support for RDMA_CV_EVENT_ADDR_CHANGE has been added.
 - scst-isert: a hang in iscsi_release() has been fixed.
 - The top-level Makefile has been modified such that the qla2x00t-32gbit driver
