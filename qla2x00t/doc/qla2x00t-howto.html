@@ -63,7 +63,7 @@ qla2xxx 0000:13:00.0: Failed to initialize adapter</pre>
   Copy the firmware image (.BIN) file to the /lib/firmware directory and
   rename it such that the kernel driver can find it. The file name that should
   be used for the firmware file depends on the RISC controller ID:
-  <table border="1">
+  <table border="1" summary="">
     <tr><th><b>ISP Model</b></th><th><b>Firmware file<br>name</b></th></tr>
     <tr><td>ISP 21XX</td><td>ql2100_fw.bin</td></tr>
     <tr><td>ISP 22XX</td><td>ql2200_fw.bin</td></tr>
@@ -241,8 +241,8 @@ Now let's create our virtual device:
 
 <pre>modprobe qla2x00tgt
 find /sys/kernel/scst_tgt/targets/qla2x00t -name enabled | \
-while read f; do echo 1 >$f & done; wait
-find /sys -name issue_lip | while read f; do echo 1 >$f & done; wait
+while read f; do echo 1 >$f &amp; done; wait
+find /sys -name issue_lip | while read f; do echo 1 >$f &amp; done; wait
 {
 cat &lt;&lt;EOF
 HANDLER vdisk_fileio {
