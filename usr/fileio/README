@@ -1,7 +1,7 @@
 User space FILEIO handler
 =========================
 
-Version 3.6.0-pre, 02 January 2021
+Version 3.6.0, 29 December 2021
 ----------------------------
 
 User space program fileio_tgt uses interface of SCST's scst_user dev
