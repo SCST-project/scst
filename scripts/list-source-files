@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 list_source_files() {
   local d r
@@ -24,14 +24,14 @@ list_source_files() {
       done
     )
   elif [ -e "$r/.git" ]; then
-    subdir="${d#${r}}"
+    subdir="${d#"${r}"}"
     if [ "$r" != "" ]; then
       ( cd "$d" && git ls-tree --name-only -r HEAD ) | sed "s|^$subdir/||"
     else
       echo "Ignored directory $1" >&2
     fi
   elif [ -e "$r/.hg" ]; then
-    subdir="${d#${r}}"
+    subdir="${d#"${r}"}"
     if [ -n "${subdir}" ]; then
       subdir="${subdir#/}/"
       hg manifest | sed -n "s|^$subdir||p"
@@ -41,16 +41,35 @@ list_source_files() {
   else
     (
       cd "$d" &&
-      find . -type f -o -type l | \
-      sed -e 's|^\./||' \
-	  -e '\|\.k\{0,1\}o\(\.\(cm\)\{0,1\}d\)\{0,1\}$|d' \
-	  -e '\|\.mod\(\.c\)\{0,1\}$|d' \
-	  -e '\|/conftest/.*/result-.*\.txt$|d' \
-	  -e '\|/modules\.order$|d' \
-	  -e '\,/Module\.\(symver\|marker\)s$,d' \
-	  -e '\,/\.tmp_versions\(/\|$\),d'
+      find . -type f -o -type l |
+      sed -e 's/^\.\///'				\
+	  -e '/\.depend_\(adm\|d\|f\)$/d'		\
+	  -e '/\.o$/d'					\
+	  -e '/\.o\.d$/d'				\
+	  -e '/\.o\.cmd$/d'				\
+	  -e '/\.ko$/d'					\
+	  -e '/\.ko\.cmd$/d'				\
+	  -e '/\.mod$/d'				\
+	  -e '/\.mod\.c$/d'				\
+	  -e '/\.mod\.cmd$/d'				\
+	  -e '/\/Module\.\(symver\|marker\)s$/d'	\
+	  -e '/\/\.Module\.symvers\.cmd$/d'		\
+	  -e '/\/\.modules\.order\.cmd$/d'		\
+	  -e '/\/\.tmp_versions\(\/\|$\)/d'		\
+	  -e '/\/blib\//d'				\
+	  -e '/\/conftest\/.*\/build-output-.*\.txt$/d'	\
+	  -e '/\/conftest\/.*\/result-.*\.txt$/d'	\
+	  -e '/\/modules\.order$/d'			\
+	  -e '/\/rpmbuilddir\//d'			\
+	  -e '/^iscsi-scst\/usr\/iscsi-scst-adm$/d'	\
+	  -e '/^iscsi-scst\/usr\/iscsi-scstd$/d'	\
+	  -e '/^rpmbuilddir\//d'			\
+	  -e '/^usr\/fileio\/fileio_tgt$/d'		\
+	  -e '/^usr\/stpgd\/stpgd$/d'			\
+	  -e '/debian\/tmp\//d'				\
+	  -e '/~$/d'
     )
-  fi
+  fi | sort
 }
 
 if [ $# = 0 ]; then
