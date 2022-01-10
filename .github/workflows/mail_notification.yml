@@ -36,6 +36,17 @@ jobs:
         run: |
           echo ::set-output name=comm_message::$(git log --format=%s -n 1 HEAD)
 
+      - name: Get list of files
+        id: get_list_files
+        run: |
+          files="$(git diff-tree --no-commit-id --name-only -r HEAD)"
+
+          files="${files//'%'/'%25'}"
+          files="${files//$'\n'/'%0A'}"
+          files="${files//$'\r'/'%0D'}"
+
+          echo ::set-output name=files::"$files"
+
       - name: Get commit diff
         id: get_comm_diff
         run: |
@@ -77,9 +88,14 @@ jobs:
             Author: ${{matrix.commit.author.name}}
             Date: ${{matrix.commit.timestamp}}
             Log Message:
-            ------------------------------
+            ----------------------
             ${{matrix.commit.message}}
-            ==============================
+
+            Modified Paths:
+            ----------------------------
+            ${{steps.get_list_files.outputs.files}}
+
+            ===================================================================
             ${{steps.get_comm_diff.outputs.comm_diff}}
 
           # Optional unsigned/invalid certificates allowance:
