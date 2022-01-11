@@ -30,7 +30,7 @@
 /* 8 byte ASCII Vendor */
 #define VENDOR				"SCST_USR"
 /* 4 byte ASCII Product Revision Level - left aligned */
-#define FIO_REV				"360 "
+#define FIO_REV				"370 "
 
 #define MAX_USN_LEN			(20+1) /* For '\0' */
 
