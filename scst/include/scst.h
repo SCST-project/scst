@@ -45,10 +45,10 @@
 #define CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 #endif
 
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
-#error RHEL 5 is no longer supported. Please upgrade to RHEL 6 or later.
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(2, 6, 26)
-#error The SCST sysfs interface is supported from kernel version 2.6.26 on. Please upgrade to a newer kernel version.
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 6
+#error RHEL 6 is no longer supported. Please upgrade to RHEL 7 or later.
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
+#error The SCST has dropped support for kernels older than 3.10.0 since SCST v3.6. Please upgrade to a newer kernel version.
 #endif
 
 #include <scsi/scsi_cmnd.h>
