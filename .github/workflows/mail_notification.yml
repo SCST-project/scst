@@ -39,7 +39,7 @@ jobs:
       - name: Get list of files
         id: get_list_files
         run: |
-          files="$(git diff-tree --no-commit-id --name-only -r HEAD)"
+          files="$(git diff-tree --no-commit-id --stat --stat-name-width=60 --stat-graph-width=15 -r HEAD)"
 
           files="${files//'%'/'%25'}"
           files="${files//$'\n'/'%0A'}"
@@ -88,11 +88,11 @@ jobs:
             Author: ${{matrix.commit.author.name}}
             Date: ${{matrix.commit.timestamp}}
             Log Message:
-            ----------------------
+            -----------
             ${{matrix.commit.message}}
 
             Modified Paths:
-            ----------------------------
+            --------------
             ${{steps.get_list_files.outputs.files}}
 
             ===================================================================
