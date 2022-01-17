@@ -1314,12 +1314,6 @@ static inline void put_unaligned_be24(const uint32_t v, uint8_t *const p)
 /* <linux/workqueue.h> */
 
 /*
- * See also commits dbf2576e37da ("workqueue: make all workqueues
- * non-reentrant"; v3.7).
- */
-#define WQ_NON_REENTRANT 0
-
-/*
  * To do: backport alloc_ordered_workqueue(). See also commit 81dcaf6516d8
  * ("workqueue: implement alloc_ordered_workqueue()"; v2.6.37).
  */
