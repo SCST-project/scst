@@ -4589,7 +4589,7 @@ static int __init srpt_init_module(void)
 		goto out;
 	}
 
-	srpt_wq = alloc_workqueue("srpt", WQ_SYSFS | WQ_NON_REENTRANT, 0);
+	srpt_wq = alloc_workqueue("srpt", WQ_SYSFS, 0);
 	if (!srpt_wq) {
 		pr_err("Couldn't allocate the ib_srpt workqueue\n");
 		ret = -ENOMEM;
