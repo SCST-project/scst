@@ -24,12 +24,9 @@
 #include <linux/firmware.h>
 #include <linux/aer.h>
 #include <linux/mutex.h>
+#include <linux/btree.h>
 #include <linux/version.h>
 #include <linux/bsg-lib.h>	/* struct bsg_job */
-/*
- * See also commit 5db53f3e80de ("[LogFS] add new flash file system") # v2.6.34.
- */
-#include <linux/btree.h>
 
 #include <scsi/scsi.h>
 #include <scsi/scsi_host.h>

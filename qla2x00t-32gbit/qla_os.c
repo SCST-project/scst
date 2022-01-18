@@ -853,23 +853,8 @@ void qla2xxx_qpair_sp_compl(srb_t *sp, int res)
 		complete(comp);
 }
 
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 6 && RHEL_MINOR -0 >= 2
-static int
-qla2xxx_queuecommand_wrk(struct Scsi_Host *host, struct scsi_cmnd *cmd);
-
-static int qla2xxx_queuecommand(struct scsi_cmnd *scmnd,
-				void (*done)(struct scsi_cmnd *))
-{
-	scmnd->scsi_done = done;
-	return qla2xxx_queuecommand_wrk(scmnd->device->host, scmnd);
-}
-
-static int
-qla2xxx_queuecommand_wrk(struct Scsi_Host *host, struct scsi_cmnd *cmd)
-#else
 static int
 qla2xxx_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *cmd)
-#endif
 {
 	scsi_qla_host_t *vha = shost_priv(host);
 	fc_port_t *fcport = (struct fc_port *) cmd->device->hostdata;
@@ -5220,11 +5205,7 @@ void qla24xx_sched_upd_fcport(fc_port_t *fcport)
 	qla2x00_set_fcport_disc_state(fcport, DSC_UPD_FCPORT);
 	spin_unlock_irqrestore(&fcport->vha->work_lock, flags);
 
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 6
-	schedule_work(&fcport->reg_work);
-#else
 	queue_work(system_unbound_wq, &fcport->reg_work);
-#endif
 }
 
 static
