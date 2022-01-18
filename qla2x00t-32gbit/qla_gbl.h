@@ -751,7 +751,6 @@ extern struct device_attribute *qla2x00_host_attrs[];
 #else
 extern const struct attribute_group *qla2x00_host_groups[];
 #endif
-extern struct device_attribute *qla2x00_host_attrs_dm[];
 struct fc_function_template;
 extern struct fc_function_template qla2xxx_transport_functions;
 extern struct fc_function_template qla2xxx_transport_vport_functions;
