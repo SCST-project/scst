@@ -673,6 +673,11 @@ static int qla_nvme_post_cmd(struct nvme_fc_local_port *lport,
 	return rval;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+/*
+ * See also commit 01d838164b4c ("nvme-fc: add support for ->map_queues")
+ * # v5.16.
+ */
 static void qla_nvme_map_queues(struct nvme_fc_local_port *lport,
 		struct blk_mq_queue_map *map)
 {
@@ -684,6 +689,7 @@ static void qla_nvme_map_queues(struct nvme_fc_local_port *lport,
 		ql_log(ql_log_warn, vha, 0x21de,
 		       "pci map queue failed 0x%x", rc);
 }
+#endif
 
 static void qla_nvme_localport_delete(struct nvme_fc_local_port *lport)
 {
@@ -719,7 +725,9 @@ static struct nvme_fc_port_template qla_nvme_fc_transport = {
 	.ls_abort	= qla_nvme_ls_abort,
 	.fcp_io		= qla_nvme_post_cmd,
 	.fcp_abort	= qla_nvme_fcp_abort,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
 	.map_queues	= qla_nvme_map_queues,
+#endif
 	.max_hw_queues  = 8,
 	.max_sgl_segments = 1024,
 	.max_dif_sgl_segments = 64,
