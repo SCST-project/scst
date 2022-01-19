@@ -3021,7 +3021,7 @@ done:
 	return 0;
 }
 
-int qla2x00_mailbox_passthru(struct bsg_job *bsg_job)
+int qla2x00_mailbox_passthru(BSG_JOB_TYPE *bsg_job)
 {
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
 	scsi_qla_host_t *vha = shost_priv(fc_bsg_to_shost(bsg_job));
