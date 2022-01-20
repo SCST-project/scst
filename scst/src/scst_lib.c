@@ -5259,7 +5259,7 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 {
 	int res = 0;
 	struct scst_tgt_template *tgtt = sess->tgt->tgtt;
-	int ini_sg, ini_unchecked_isa_dma, ini_use_clustering;
+	int ini_sg, ini_unchecked_isa_dma = 0, ini_use_clustering;
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_device *dev = acg_dev->dev;
 	struct list_head *head;
