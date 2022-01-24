@@ -7944,9 +7944,7 @@ static ssize_t vdisk_sysfs_tp_show(struct kobject *kobj,
 	virt_dev = dev->dh_priv;
 
 	pos = sprintf(buf, "%d\n%s", virt_dev->thin_provisioned,
-		      virt_dev->thin_provisioned_manually_set &&
-		      (virt_dev->thin_provisioned !=
-		       virt_dev->dev_thin_provisioned) ?
+		      virt_dev->thin_provisioned_manually_set ?
 		      SCST_SYSFS_KEY_MARK "\n" : "");
 
 	TRACE_EXIT_RES(pos);
