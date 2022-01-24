@@ -8844,7 +8844,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	rq->cmd_flags |= REQ_FAILFAST_MASK;
 #endif
 
-	blk_execute_rq_nowait(NULL, rq,
+	blk_execute_rq_nowait(rq,
 		(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE), scsi_end_async);
 out:
 	return res;
