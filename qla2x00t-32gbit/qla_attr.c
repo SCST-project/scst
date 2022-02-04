@@ -2768,13 +2768,17 @@ qla2x00_get_starget_port_id(struct scsi_target *starget)
 static inline void
 qla2x00_set_rport_loss_tmo(struct fc_rport *rport, uint32_t timeout)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
 	fc_port_t *fcport = *(fc_port_t **)rport->dd_data;
+#endif
 
 	rport->dev_loss_tmo = timeout ? timeout : 1;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 15, 0)
 	if (IS_ENABLED(CONFIG_NVME_FC) && fcport && fcport->nvme_remote_port)
 		nvme_fc_set_remoteport_devloss(fcport->nvme_remote_port,
 					       rport->dev_loss_tmo);
+#endif
 }
 
 static void
