@@ -825,6 +825,8 @@ static ssize_t scst_tgtt_trace_level_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	tgtt = container_of(kobj, struct scst_tgt_template, tgtt_kobj);
 
 	res = mutex_lock_interruptible(&scst_log_mutex);
@@ -963,6 +965,8 @@ static ssize_t scst_tgtt_mgmt_store(struct kobject *kobj,
 	struct scst_tgt_template *tgtt;
 
 	TRACE_ENTRY();
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	tgtt = container_of(kobj, struct scst_tgt_template, tgtt_kobj);
 
@@ -1535,6 +1539,8 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 	struct scst_acg *acg;
 	struct scst_tgt *tgt;
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	tgt = container_of(kobj->parent, struct scst_tgt, tgt_kobj);
 	acg = tgt->default_acg;
 
@@ -1612,6 +1618,8 @@ static ssize_t scst_tgt_addr_method_store(struct kobject *kobj,
 	int res;
 	struct scst_acg *acg;
 	struct scst_tgt *tgt;
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	acg = tgt->default_acg;
@@ -1765,6 +1773,8 @@ static ssize_t scst_tgt_io_grouping_type_store(struct kobject *kobj,
 	struct scst_acg *acg;
 	struct scst_tgt *tgt;
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	acg = tgt->default_acg;
 
@@ -1888,6 +1898,8 @@ static ssize_t scst_tgt_black_hole_store(struct kobject *kobj,
 	int res;
 	struct scst_acg *acg;
 	struct scst_tgt *tgt;
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	acg = tgt->default_acg;
@@ -2062,6 +2074,8 @@ static ssize_t scst_tgt_cpu_mask_store(struct kobject *kobj,
 	struct scst_acg *acg;
 	struct scst_tgt *tgt;
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	acg = tgt->default_acg;
 
@@ -2199,6 +2213,8 @@ static ssize_t scst_ini_group_mgmt_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	tgt = container_of(kobj->parent, struct scst_tgt, tgt_kobj);
 
 	buffer = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
@@ -2302,6 +2318,8 @@ static ssize_t scst_tgt_enable_store(struct kobject *kobj,
 	struct scst_sysfs_work_item *work;
 
 	TRACE_ENTRY();
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	if (buf == NULL) {
 		PRINT_ERROR("%s: NULL buffer?", __func__);
@@ -2425,6 +2443,8 @@ static ssize_t scst_rel_tgt_id_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	if (buf == NULL)
 		goto out;
 
@@ -2476,6 +2496,8 @@ static ssize_t scst_tgt_forward_src_store(struct kobject *kobj,
 	struct scst_tgt *tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	int res, old, new;
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	res = kstrtoint(buf, 0, &new);
 	if (res < 0)
 		return res;
@@ -2525,6 +2547,8 @@ static ssize_t scst_tgt_forward_dst_store(struct kobject *kobj,
 	int old;
 
 	TRACE_ENTRY();
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	if ((buf == NULL) || (count == 0)) {
 		res = 0;
@@ -2628,6 +2652,8 @@ static ssize_t scst_tgt_comment_store(struct kobject *kobj,
 	int len;
 
 	TRACE_ENTRY();
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	if ((buf == NULL) || (count == 0)) {
 		res = 0;
@@ -2777,6 +2803,8 @@ static ssize_t scst_tgt_dif_checks_failed_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	struct scst_tgt *tgt;
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
@@ -3156,6 +3184,8 @@ static ssize_t scst_dev_sysfs_pr_file_name_store(struct kobject *kobj,
 	int res = -EPERM;
 	bool def = false;
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
 	if (dev->cluster_mode)
@@ -3348,6 +3378,8 @@ static ssize_t scst_dev_sysfs_threads_num_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
 	res = kstrtol(buf, 0, &newtn);
@@ -3440,6 +3472,8 @@ static ssize_t scst_dev_sysfs_threads_pool_type_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
 	newtpt = scst_parse_threads_pool_type(buf, count);
@@ -3507,6 +3541,8 @@ static ssize_t scst_dev_sysfs_max_tgt_dev_commands_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
 	res = kstrtol(buf, 0, &newtn);
@@ -3565,6 +3601,8 @@ static ssize_t scst_dev_numa_node_id_store(struct kobject *kobj,
 	long newtn;
 
 	TRACE_ENTRY();
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
@@ -3630,6 +3668,8 @@ static ssize_t scst_dev_block_store(struct kobject *kobj,
 	bool sync;
 
 	TRACE_ENTRY();
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
@@ -4032,6 +4072,8 @@ static ssize_t scst_dev_sysfs_dif_static_app_tag_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
 	res = kstrtoull(buf, 0, &val);
@@ -4201,6 +4243,8 @@ static ssize_t scst_tgt_dev_dif_checks_failed_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
 	struct scst_tgt_dev *tgt_dev;
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	tgt_dev = container_of(kobj, struct scst_tgt_dev, tgt_dev_kobj);
 
@@ -4470,6 +4514,8 @@ static ssize_t scst_sess_latency_store(struct kobject *kobj,
 	struct scst_session *sess =
 		container_of(kobj->parent, struct scst_session, sess_kobj);
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	spin_lock_irq(&sess->lat_stats_lock);
 	BUILD_BUG_ON(sizeof(*sess->lat_stats) != sizeof(struct scst_lat_stats));
 	memset(sess->lat_stats, 0, sizeof(*sess->lat_stats));
@@ -4677,6 +4723,8 @@ static ssize_t scst_sess_sysfs_dif_checks_failed_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	sess = container_of(kobj, struct scst_session, sess_kobj);
 
 	res = scst_alloc_sysfs_work(scst_sess_zero_dif_checks_failed, false, &work);
@@ -4779,6 +4827,8 @@ static ssize_t scst_sess_force_close_store(struct kobject *kobj,
 	struct scst_session *sess = container_of(kobj, struct scst_session,
 						 sess_kobj);
 	int res;
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	res = sess->tgt->tgtt->close_session(sess);
 	if (res < 0)
@@ -5351,6 +5401,8 @@ static ssize_t scst_acg_ini_mgmt_store(struct kobject *kobj,
 {
 	struct scst_acg *acg;
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	acg = container_of(kobj->parent, struct scst_acg, acg_kobj);
 
 	return __scst_acg_mgmt_store(acg, buf, count, false,
@@ -5367,6 +5419,8 @@ static ssize_t scst_acg_luns_mgmt_store(struct kobject *kobj,
 {
 	int res;
 	struct scst_acg *acg;
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	acg = container_of(kobj->parent, struct scst_acg, acg_kobj);
 	res = __scst_luns_mgmt_store(acg, false, buf, count);
@@ -5395,6 +5449,8 @@ static ssize_t scst_acg_addr_method_store(struct kobject *kobj,
 	int res;
 	struct scst_acg *acg;
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 
 	res = __scst_acg_addr_method_store(acg, buf, count);
@@ -5422,6 +5478,8 @@ static ssize_t scst_acg_io_grouping_type_store(struct kobject *kobj,
 {
 	int res;
 	struct scst_acg *acg;
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 
@@ -5457,6 +5515,8 @@ static ssize_t scst_acg_black_hole_store(struct kobject *kobj,
 	int res;
 	struct scst_acg *acg;
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 
 	res = __scst_acg_black_hole_store(acg, buf, count);
@@ -5489,6 +5549,8 @@ static ssize_t scst_acg_cpu_mask_store(struct kobject *kobj,
 {
 	int res;
 	struct scst_acg *acg;
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 
@@ -5755,6 +5817,8 @@ static ssize_t scst_devt_trace_level_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	devt = container_of(kobj, struct scst_dev_type, devt_kobj);
 
 	res = mutex_lock_interruptible(&scst_log_mutex);
@@ -5954,6 +6018,8 @@ static ssize_t __scst_devt_mgmt_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	devt = container_of(kobj, struct scst_dev_type, devt_kobj);
 
 	buffer = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
@@ -6114,6 +6180,8 @@ static int scst_devt_pass_through_mgmt_store_work_fn(
 static ssize_t scst_devt_pass_through_mgmt_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	return __scst_devt_mgmt_store(kobj, attr, buf, count,
 		scst_devt_pass_through_mgmt_store_work_fn);
 }
@@ -6304,6 +6372,8 @@ static ssize_t scst_dg_devs_mgmt_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	res = -ENOMEM;
 	cmd = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
 	if (!cmd)
@@ -6363,6 +6433,9 @@ static ssize_t scst_tg_tgt_rel_tgt_id_store(struct kobject *kobj,
 	int res;
 
 	TRACE_ENTRY();
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	tg_tgt = container_of(kobj, struct scst_tg_tgt, kobj);
 	snprintf(ch, sizeof(ch), "%.*s", min_t(int, count, sizeof(ch)-1), buf);
 	res = kstrtoul(ch, 0, &rel_tgt_id);
@@ -6453,6 +6526,9 @@ static ssize_t scst_tg_group_id_store(struct kobject *kobj,
 	int res;
 
 	TRACE_ENTRY();
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	tg = container_of(kobj, struct scst_target_group, kobj);
 	snprintf(ch, sizeof(ch), "%.*s", min_t(int, count, sizeof(ch)-1), buf);
 	res = kstrtoul(ch, 0, &group_id);
@@ -6514,6 +6590,8 @@ static ssize_t scst_tg_preferred_store(struct kobject *kobj,
 	char *cmd;
 	struct scst_sysfs_work_item *work;
 	int res;
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	res = -ENOMEM;
 	cmd = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
@@ -6595,6 +6673,8 @@ static ssize_t scst_tg_state_store(struct kobject *kobj,
 	int res;
 
 	TRACE_ENTRY();
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	res = -ENOMEM;
 	cmd = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
@@ -6680,6 +6760,8 @@ static ssize_t scst_tg_mgmt_store(struct kobject *kobj,
 	int res;
 
 	TRACE_ENTRY();
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	res = -ENOMEM;
 	cmd = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
@@ -6805,6 +6887,8 @@ static ssize_t scst_dg_tgs_mgmt_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	res = -ENOMEM;
 	cmd = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
 	if (!cmd)
@@ -6909,6 +6993,8 @@ static ssize_t scst_device_groups_mgmt_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	input = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
 	pp = input;
 	p = strchr(input, '\n');
@@ -7007,6 +7093,8 @@ static ssize_t scst_measure_latency_store(struct kobject *kobj,
 	bool prev_val;
 	long val;
 	int res;
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	res = kstrtol(buf, 0, &val);
 	if (res < 0)
@@ -7129,6 +7217,8 @@ static ssize_t scst_threads_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	res = kstrtol(buf, 0, &newtn);
 	if (res != 0) {
 		PRINT_ERROR("kstrtol() for %s failed: %d ", buf, res);
@@ -7181,6 +7271,8 @@ static ssize_t scst_setup_id_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	res = kstrtoul(buf, 0, &val);
 	if (res != 0) {
 		PRINT_ERROR("kstrtoul() for %s failed: %d ", buf, res);
@@ -7223,6 +7315,8 @@ static ssize_t scst_max_tasklet_cmd_store(struct kobject *kobj,
 	unsigned long val;
 
 	TRACE_ENTRY();
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	res = kstrtoul(buf, 0, &val);
 	if (res != 0) {
@@ -7269,6 +7363,8 @@ static ssize_t scst_poll_us_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	res = kstrtoul(buf, 0, &val);
 	if (res != 0) {
 		PRINT_ERROR("kstrtoul() for %s failed: %d ", buf, res);
@@ -7311,6 +7407,8 @@ static ssize_t scst_suspend_store(struct kobject *kobj,
 	long val;
 
 	TRACE_ENTRY();
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	res = kstrtol(buf, 0, &val);
 	if (res != 0) {
@@ -7356,6 +7454,8 @@ static ssize_t scst_main_trace_level_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	res = mutex_lock_interruptible(&scst_log_mutex);
 	if (res != 0)
 		goto out;
@@ -7390,6 +7490,8 @@ static ssize_t scst_force_global_sgv_pool_store(struct kobject *kobj,
 	unsigned long v;
 
 	TRACE_ENTRY();
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	res = kstrtoul(buf, 0, &v);
 	if (res)

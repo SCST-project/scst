@@ -177,6 +177,14 @@ do {									\
 	}								\
 } while (0)
 
+#define PRINT_SYSFS_BUFFER(kobj, kattr, buf)                           \
+do {                                                                   \
+	const char *sysfs_path = kobject_get_path((kobj), GFP_KERNEL); \
+	PRINT_INFO("SYSFS: %s/%s: %s",                                 \
+			sysfs_path, (kattr)->attr.name, (buf));        \
+	kfree_const(sysfs_path);                                       \
+} while (0)
+
 #define PRINT_LOG_FLAG(log_flag, format, args...)			\
 	debug_print_with_prefix(trace_flag, KERN_INFO, __LOG_PREFIX,	\
 		__func__, __LINE__, format, ## args)

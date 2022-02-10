@@ -7645,6 +7645,8 @@ static ssize_t vdisk_sysfs_sync_store(struct kobject *kobj,
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	int res;
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	if (virt_dev->nullio)
 		res = 0;
 	else if (virt_dev->blockio)
@@ -7685,6 +7687,8 @@ static ssize_t vcdrom_sysfs_filename_store(struct kobject *kobj,
 	struct scst_device *dev;
 
 	TRACE_ENTRY();
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
@@ -7808,6 +7812,8 @@ out_free:
 static ssize_t vdev_sysfs_size_store(struct kobject *kobj,
 		struct kobj_attribute *attr, const char *buf, size_t count)
 {
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	return vdev_size_store(kobj, attr, buf, count, 0);
 }
 
@@ -7843,6 +7849,8 @@ static ssize_t vdev_sysfs_size_show(struct kobject *kobj,
 static ssize_t vdev_sysfs_size_mb_store(struct kobject *kobj,
 		struct kobj_attribute *attr, const char *buf, size_t count)
 {
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	return vdev_size_store(kobj, attr, buf, count, 20);
 }
 
@@ -7879,6 +7887,8 @@ static ssize_t vdisk_opt_trans_len_store(struct kobject *kobj,
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	unsigned long val;
 	int res;
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	res = kstrtoul(buf, 0, &val);
 	if (res)
@@ -8018,6 +8028,8 @@ static ssize_t vdisk_sysfs_expl_alua_store(struct kobject *kobj,
 	unsigned long expl_alua;
 	int res;
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	res = kstrtoul(buf, 0, &expl_alua);
 	if (res < 0)
 		return res;
@@ -8102,6 +8114,8 @@ static ssize_t vdev_sysfs_rz_store(struct kobject *kobj,
 	long read_zero;
 	int res;
 	char ch[16];
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	sprintf(ch, "%.*s", min_t(int, sizeof(ch) - 1, count), buf);
 	res = kstrtol(ch, 0, &read_zero);
@@ -8364,6 +8378,8 @@ static ssize_t vdev_sysfs_filename_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	res = -ENOMEM;
 	arg = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
 	if (!arg)
@@ -8458,6 +8474,8 @@ static ssize_t vdev_sysfs_cluster_mode_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	res = -ENOMEM;
 	arg = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
 	if (!arg)
@@ -8542,6 +8560,8 @@ static ssize_t vdev_sysfs_t10_vend_id_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 	p = memchr(buf, '\n', count);
@@ -8601,6 +8621,8 @@ static ssize_t vdev_sysfs_vend_specific_id_store(struct kobject *kobj,
 	int res, len;
 
 	TRACE_ENTRY();
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
@@ -8663,6 +8685,8 @@ static ssize_t vdev_sysfs_prod_id_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 	p = memchr(buf, '\n', count);
@@ -8721,6 +8745,8 @@ static ssize_t vdev_sysfs_prod_rev_lvl_store(struct kobject *kobj,
 	int res, len;
 
 	TRACE_ENTRY();
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
@@ -8783,6 +8809,8 @@ static ssize_t vdev_sysfs_scsi_device_name_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 	p = memchr(buf, '\n', count);
@@ -8842,6 +8870,8 @@ static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
 	struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
@@ -8919,6 +8949,8 @@ static ssize_t vdev_sysfs_eui64_id_store(struct kobject *kobj,
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
@@ -8987,6 +9019,8 @@ static ssize_t vdev_sysfs_naa_id_store(struct kobject *kobj,
 	int res = -EINVAL, c = count;
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
@@ -9065,6 +9099,8 @@ static ssize_t vdev_sysfs_usn_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
@@ -9136,6 +9172,8 @@ static ssize_t vdev_sysfs_inq_vend_specific_store(struct kobject *kobj,
 	struct scst_vdisk_dev *virt_dev;
 	char *p;
 	int res = -EINVAL, len;
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
@@ -9272,6 +9310,8 @@ static ssize_t vdev_sysfs_active_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	res = -ENOMEM;
 	arg = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
 	if (!arg)
@@ -9331,6 +9371,8 @@ static ssize_t vdev_sysfs_bind_alua_state_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
+
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 	strlcpy(ch, buf, 16);
@@ -9357,6 +9399,8 @@ static ssize_t vdev_async_store(struct kobject *kobj,
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	long val;
 	int res;
+
+	PRINT_SYSFS_BUFFER(kobj, attr, buf);
 
 	res = kstrtol(buf, 0, &val);
 	if (res)
