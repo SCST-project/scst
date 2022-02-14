@@ -613,9 +613,11 @@ out:
 static int scst_event_get_event_from_user(struct scst_event_user __user *arg,
 	struct scst_event_entry **out_event_entry)
 {
-	int res, rc, event_entry_len;
+	int res, rc;
+	int event_entry_len, event_len;
 	uint32_t payload_len;
 	struct scst_event_entry *event_entry;
+	struct scst_event *event;
 
 	TRACE_ENTRY();
 
@@ -646,9 +648,10 @@ static int scst_event_get_event_from_user(struct scst_event_user __user *arg,
 
 	TRACE_MEM("Allocated event entry %p", event_entry);
 
-	rc = copy_from_user((u8 *)event_entry +
-			    offsetof(typeof(*event_entry), event), arg,
-			    event_entry_len);
+	event = &event_entry->event;
+	event_len = sizeof(*event) + payload_len;
+
+	rc = copy_from_user((u8 *)event, arg, event_len);
 	if (rc != 0) {
 		PRINT_ERROR("Failed to copy %d user's bytes", rc);
 		res = -EFAULT;
@@ -656,16 +659,16 @@ static int scst_event_get_event_from_user(struct scst_event_user __user *arg,
 	}
 
 	/* payload_len has been recopied, so recheck it. */
-	if (event_entry->event.payload_len != event_entry_len) {
+	if (event->payload_len != event_len) {
 		PRINT_ERROR("Payload len changed while being read");
 		res = -EINVAL;
 		goto out_free;
 	}
 
-	event_entry->event.issuer_name[sizeof(event_entry->event.issuer_name)-1] = '\0';
+	event->issuer_name[sizeof(event->issuer_name) - 1] = '\0';
 
 	TRACE_DBG("user event: event_code %d, issuer_name %s",
-		event_entry->event.event_code, event_entry->event.issuer_name);
+		event->event_code, event->issuer_name);
 
 	*out_event_entry = event_entry;
 
