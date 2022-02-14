@@ -637,8 +637,9 @@ static int scst_event_get_event_from_user(struct scst_event_user __user *arg,
 	}
 
 	/* payload_len has been recopied, so recheck it. */
-	if (event->payload_len != event_len) {
-		PRINT_ERROR("Payload len changed while being read");
+	if (event->payload_len != payload_len) {
+		PRINT_ERROR("Payload len %d changed while being read: %d",
+				event->payload_len, payload_len);
 		res = -EINVAL;
 		goto out_free;
 	}
