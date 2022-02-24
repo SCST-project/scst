@@ -224,7 +224,8 @@ struct target {
 extern int ctrl_fd;
 extern int conn_blocked;
 
-#define LISTEN_MAX		8
+#define ADDR_MAX		32
+#define LISTEN_MAX		32
 #define INCOMING_MAX		256
 
 enum {
