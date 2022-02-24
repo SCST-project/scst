@@ -925,7 +925,16 @@ static ssize_t sqa_version_show(struct kobject *kobj,
 static ssize_t sqa_hw_target_show(struct kobject *kobj,
 				  struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf, "%d\n", 1);
+	struct scst_tgt *scst_tgt;
+	struct sqa_scst_tgt *sqa_tgt;
+	struct qla_tgt *tgt;
+
+	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	sqa_tgt = scst_tgt_get_tgt_priv(scst_tgt);
+
+	tgt = sqa_tgt->qla_tgt;
+
+	return sprintf(buf, "%d\n", (tgt->vha->vp_idx == 0) ? 1 : 0);
 }
 
 static ssize_t sqa_node_name_show(struct kobject *kobj,
