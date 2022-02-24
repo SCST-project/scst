@@ -40,7 +40,7 @@
 #include "iscsid.h"
 #include "iscsi_adm.h"
 
-static char *server_address;
+static char *server_addresses[ADDR_MAX];
 uint16_t server_port = ISCSI_LISTEN_PORT;
 
 struct pollfd poll_array[POLL_MAX];
@@ -79,13 +79,13 @@ static void usage(int status)
 iSCSI target daemon.\n\
   -c, --config=[path]     Execute in the config file.\n");
 		printf("\
-  -f, --foreground        make the program run in the foreground\n\
-  -d, --debug debuglevel  print debugging information\n\
-  -u, --uid=uid           run as uid, default is current user\n\
-  -g, --gid=gid           run as gid, default is current user group\n\
-  -a, --address=address   listen on specified local address instead of all\n\
-  -p, --port=port         listen on specified port instead of 3260\n\
-  -h, --help              display this help and exit\n\
+  -f, --foreground           make the program run in the foreground\n\
+  -d, --debug debuglevel     print debugging information\n\
+  -u, --uid=uid              run as uid, default is current user\n\
+  -g, --gid=gid              run as gid, default is current user group\n\
+  -a, --address=address ...  listen on specified space-separated list of local address instead of all\n\
+  -p, --port=port            listen on specified port instead of 3260\n\
+  -h, --help                 display this help and exit\n\
 ");
 	}
 	exit(1);
@@ -103,7 +103,7 @@ static void create_listen_socket(struct pollfd *array)
 {
 	struct addrinfo hints, *res, *res0;
 	char servname[64];
-	int i, sock, opt, rc;
+	int i, k, sock, opt, rc;
 
 	memset(servname, 0, sizeof(servname));
 	snprintf(servname, sizeof(servname), "%d", server_port);
@@ -112,58 +112,74 @@ static void create_listen_socket(struct pollfd *array)
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
 
-	rc = getaddrinfo(server_address, servname, &hints, &res0);
-	if (rc != 0) {
-		log_error("Unable to get address info (%s)!",
-			get_error_str(rc));
-		exit(1);
-	}
-
 	i = 0;
-	for (res = res0; res && i < LISTEN_MAX; res = res->ai_next) {
-		sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
-		if (sock < 0) {
-			log_error("Unable to create server socket (%s) %d %d %d!",
-				  strerror(errno), res->ai_family,
-				  res->ai_socktype, res->ai_protocol);
-			continue;
+	for (k = 0; k < ADDR_MAX; k++) {
+		char *server_address;
+
+		server_address = server_addresses[k];
+		if (k > 0 && server_address == NULL)
+			break;
+
+		if (i == LISTEN_MAX) {
+			log_error("Cannot handle address %s! Too many were specified.", server_address);
+			exit(1);
 		}
 
-		sock_set_keepalive(sock, 50);
-
-		opt = 1;
-		if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)))
-			log_warning("Unable to set SO_REUSEADDR on server socket (%s)!",
-				    strerror(errno));
-		opt = 1;
-		if (res->ai_family == AF_INET6 &&
-		    setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt))) {
-			log_error("Unable to restrict IPv6 socket (%s)", strerror(errno));
-			close(sock);
-			continue;
+		rc = getaddrinfo(server_address, servname, &hints, &res0);
+		if (rc != 0) {
+			log_error("Unable to get address info [%s] (%s)!",
+				  server_address, get_error_str(rc));
+			exit(1);
 		}
 
-		if (bind(sock, res->ai_addr, res->ai_addrlen)) {
-			log_error("Unable to bind server socket (%s)!", strerror(errno));
-			close(sock);
-			continue;
+		for (res = res0; res && i < LISTEN_MAX; res = res->ai_next) {
+			sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
+			if (sock < 0) {
+				log_error("Unable to create server socket (%s) %d %d %d!",
+					  strerror(errno), res->ai_family,
+					  res->ai_socktype, res->ai_protocol);
+				continue;
+			}
+
+			sock_set_keepalive(sock, 50);
+
+			opt = 1;
+			if (setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt)))
+				log_warning("Unable to set SO_REUSEADDR on server socket (%s)!",
+					    strerror(errno));
+			opt = 1;
+			if (res->ai_family == AF_INET6 &&
+				setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt))) {
+				log_error("Unable to restrict IPv6 socket (%s)", strerror(errno));
+				close(sock);
+				continue;
+			}
+
+			if (bind(sock, res->ai_addr, res->ai_addrlen)) {
+				log_error("Unable to bind server socket (%s)!", strerror(errno));
+				close(sock);
+				continue;
+			}
+
+			if (listen(sock, INCOMING_MAX)) {
+				log_error("Unable to listen to server socket (%s)!", strerror(errno));
+				close(sock);
+				continue;
+			}
+
+			set_non_blocking(sock);
+
+			array[i].fd = sock;
+			array[i].events = POLLIN;
+
+			i++;
 		}
 
-		if (listen(sock, INCOMING_MAX)) {
-			log_error("Unable to listen to server socket (%s)!", strerror(errno));
-			close(sock);
-			continue;
-		}
+		if (res)
+			log_error("Unable to listen on all available sockets.");
 
-		set_non_blocking(sock);
-
-		array[i].fd = sock;
-		array[i].events = POLLIN;
-
-		i++;
+		freeaddrinfo(res0);
 	}
-
-	freeaddrinfo(res0);
 
 	if (i == 0)
 		exit(1);
@@ -226,7 +242,8 @@ static void create_iser_listen_socket(struct pollfd *array)
 {
 	struct addrinfo hints, *res, *res0;
 	char servname[64];
-	int rc, i;
+	char *server_address;
+	int rc, i, k;
 	int iser_fd;
 	struct isert_addr_info info;
 
@@ -252,27 +269,42 @@ static void create_iser_listen_socket(struct pollfd *array)
 	hints.ai_socktype = SOCK_STREAM;
 	hints.ai_flags = AI_PASSIVE;
 
-	rc = getaddrinfo(server_address, servname, &hints, &res0);
-	if (rc != 0) {
-		log_error("Unable to get address info (%s)!",
-			get_error_str(rc));
-		exit(1);
-	}
-
 	i = 0;
-	for (res = res0; res && i < ISERT_MAX_PORTALS; res = res->ai_next) {
-		memcpy(&info.addr, res->ai_addr, res->ai_addrlen);
-		info.addr_len = res->ai_addrlen;
+	for (k = 0; k < ADDR_MAX; k++) {
+		server_address = server_addresses[k];
 
-		rc = ioctl(iser_fd, SET_LISTEN_ADDR, &info);
-		if (rc != 0) {
-			log_error("Unable to set listen address (%s)!",
-				strerror(errno));
+		if (k > 0 && server_address == NULL)
+			break;
+
+		if (i == ISERT_MAX_PORTALS) {
+			log_error("iSER: Cannot handle address %s! Too many were specified.", server_address);
+			exit(1);
 		}
-		++i;
-	}
 
-	freeaddrinfo(res0);
+		rc = getaddrinfo(server_address, servname, &hints, &res0);
+		if (rc != 0) {
+			log_error("iSER: Unable to get address info[%s] (%s)!",
+				server_address, get_error_str(rc));
+			exit(1);
+		}
+
+		for (res = res0; res && i < ISERT_MAX_PORTALS; res = res->ai_next) {
+			memcpy(&info.addr, res->ai_addr, res->ai_addrlen);
+			info.addr_len = res->ai_addrlen;
+
+			rc = ioctl(iser_fd, SET_LISTEN_ADDR, &info);
+			if (rc != 0) {
+				log_error("iSER: Unable to set listen address (%s)!",
+					strerror(errno));
+			}
+			++i;
+		}
+
+		if (res)
+			log_error("iSER: Unable to listen on all available sockets.");
+
+		freeaddrinfo(res0);
+	}
 }
 
 static int iser_getsockname(int fd, struct sockaddr *name, socklen_t *namelen)
@@ -868,13 +900,28 @@ int main(int argc, char **argv)
 		case 'g':
 			gid = strtoul(optarg, NULL, 0);
 			break;
-		case 'a':
+		case 'a': {
+			char *server_address, *token;
+			int i = 0;
+
 			server_address = strdup(optarg);
 			if (server_address == NULL) {
 				perror("strdup failed");
 				exit(-1);
 			}
+
+			token = strtok(server_address, " ");
+
+			while ((i < ADDR_MAX) && token) {
+				log_debug(0, "Address to listen: %s\n", token);
+				server_addresses[i] = token;
+
+				i++;
+				token = strtok(NULL, " ");
+			}
+
 			break;
+		}
 		case 'p':
 			server_port = (uint16_t)strtoul(optarg, NULL, 0);
 			break;
