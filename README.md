@@ -27,3 +27,12 @@ May anyone wish to switch back to the older driver that only supported up to
 older driver build scst with environment variable `QLA_32GBIT=no` set.
 
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net
+
+## Sourceforge achievements
+<p align="middle">
+<img src="./www/images/sourceforge_badges/oss-users-love-us-white.svg" width="125" />
+<img src="./www/images/sourceforge_badges/oss-community-choice-white.svg" width="125" />
+<img src="./www/images/sourceforge_badges/oss-sf-favorite-white.svg" width="125" />
+<img src="./www/images/sourceforge_badges/oss-community-leader-white.svg" width="125" />
+<img src="./www/images/sourceforge_badges/oss-open-source-excellence-white.svg" width="125" />
+</p>
