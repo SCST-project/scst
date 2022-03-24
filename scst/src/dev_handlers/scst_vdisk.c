@@ -29,6 +29,7 @@
 #include <linux/aio.h>
 #include <linux/file.h>
 #include <linux/fs.h>
+#include <linux/pagemap.h>
 #include <linux/string.h>
 #include <linux/types.h>
 #include <linux/unistd.h>
@@ -428,15 +429,19 @@ static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 	TRACE_ENTRY();
 
 	if (async) {
-		struct bio *bio = bio_alloc(gfp_mask, 0);
+		struct bio *bio;
 
+		bio = bio_alloc(/*bdev=*/NULL, 0, /*opf=*/0, gfp_mask);
 		if (bio == NULL) {
 			res = -ENOMEM;
 			goto out_rep;
 		}
+
 		bio->bi_end_io = vdev_flush_end_io;
 		bio->bi_private = cmd;
+
 		bio_set_dev(bio, bdev);
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0) ||	\
 	(defined(CONFIG_SUSE_KERNEL) &&			\
 	 LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
@@ -2836,8 +2841,8 @@ static ssize_t blockio_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	max_nr_vecs = min(bio_get_nr_vecs(bdev), BIO_MAX_VECS);
 #endif
 
-	bio = bio_alloc_bioset(GFP_KERNEL, max_nr_vecs, virt_dev->vdisk_bioset);
-
+	bio = bio_alloc_bioset(/*bdev=*/NULL, max_nr_vecs, /*opf=*/0,
+			       GFP_KERNEL, virt_dev->vdisk_bioset);
 	if (!bio)
 		goto out;
 
@@ -5958,8 +5963,8 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 			int rc;
 
 			if (need_new_bio) {
-				bio = bio_alloc_bioset(gfp_mask, max_nr_vecs, bs);
-
+				bio = bio_alloc_bioset(/*bdev=*/NULL, max_nr_vecs, /*opf=*/0,
+						       gfp_mask, bs);
 				if (!bio) {
 					PRINT_ERROR("Failed to create bio "
 						"for data segment %d (cmd %p)",

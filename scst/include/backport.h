@@ -109,6 +109,54 @@ static inline void bio_set_dev(struct bio *bio, struct block_device *bdev)
 #define BIO_MAX_VECS BIO_MAX_PAGES
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 18, 0)
+/*
+ * See also commit 609be1066731 ("block: pass a block_device and opf to
+ * bio_alloc_bioset") # v5.18
+ */
+static inline
+struct bio *bio_alloc_bioset_backport(struct block_device *bdev,
+		unsigned short nr_vecs, unsigned int opf, gfp_t gfp_mask,
+		struct bio_set *bs)
+{
+	/*
+	 * Check that @bdev and @opf parameters are zeros.
+	 *
+	 * The old API expects these parameters to be set implicitly.
+	 * Therefore, warn about using an explicit setting that would
+	 * cause these parameters to be lost.
+	 */
+	WARN_ON_ONCE(bdev || opf);
+
+	return bio_alloc_bioset(gfp_mask, nr_vecs, bs);
+}
+
+#define bio_alloc_bioset bio_alloc_bioset_backport
+
+/*
+ * See also commit 07888c665b40 ("block: pass a block_device and opf to
+ * bio_alloc") # v5.18
+ */
+static inline
+struct bio *bio_alloc_backport(struct block_device *bdev,
+		unsigned short nr_vecs, unsigned int opf, gfp_t gfp_mask)
+{
+	/*
+	 * Check that @bdev and @opf parameters are zeros.
+	 *
+	 * The old API expects these parameters to be set implicitly.
+	 * Therefore, warn about using an explicit setting that would
+	 * cause these parameters to be lost.
+	 */
+	WARN_ON_ONCE(bdev || opf);
+
+	return bio_alloc(gfp_mask, nr_vecs);
+}
+
+#define bio_alloc bio_alloc_backport
+
+#endif
+
 /* <linux/blk_types.h> */
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 14, 0)
