@@ -354,7 +354,7 @@ struct scst_user_get_multi {
 	int16_t replies_done; /* out */
 	int16_t cmds_cnt; /* in/out */
 	int16_t pad;
-	struct scst_user_get_cmd cmds[0]; /* out */
+	struct scst_user_get_cmd cmds[]; /* out */
 };
 
 #define SCST_USER_REGISTER_DEVICE	_IOW('u', 1, struct scst_user_dev_desc)

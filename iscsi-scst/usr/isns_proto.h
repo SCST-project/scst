@@ -32,7 +32,7 @@ struct isns_hdr {
 	uint16_t flags;
 	uint16_t transaction;
 	uint16_t sequence;
-	uint32_t pdu[0];
+	uint32_t pdu[];
 } __attribute__ ((packed));
 
 struct isns_tlv {

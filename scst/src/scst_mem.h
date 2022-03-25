@@ -50,7 +50,7 @@ struct sgv_pool_obj {
 	void *allocator_priv;
 	struct trans_tbl_ent *trans_tbl;
 	struct scatterlist *sg_entries;
-	struct scatterlist sg_entries_data[0];
+	struct scatterlist sg_entries_data[];
 };
 
 /*

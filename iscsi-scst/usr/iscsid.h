@@ -52,7 +52,7 @@ struct buf_segment {
 	struct __qelem entry;
 
 	unsigned int len;
-	char data[0];
+	char data[];
 };
 
 struct PDU {
