@@ -149,7 +149,7 @@ struct scst_event_stpg_payload {
 	aligned_u64 stpg_cmd_tag;
 	uint8_t device_name[64];
 	uint16_t stpg_descriptors_cnt;
-	struct scst_event_stpg_descr stpg_descriptors[0];
+	struct scst_event_stpg_descr stpg_descriptors[];
 };
 
 #define SCST_EVENT_REG_VIRT_DEV		6
