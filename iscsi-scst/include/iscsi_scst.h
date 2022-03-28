@@ -32,6 +32,19 @@
  * also https://lwn.net/Articles/832121/. The definitions below make it easy
  * to write kernel code that is compatible with all kernel versions.
  */
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+/*
+ * Backport mm_segment_t to save compability with older kernel versions.
+ *
+ * mm_segment_t was dropped in commit
+ * 967747bbc084 ("uaccess: remove CONFIG_SET_FS") # v5.18
+ */
+typedef struct {
+	/* empty dummy */
+} mm_segment_t;
+#endif
+
 #define KERNEL_DS ((mm_segment_t) { })
 static inline mm_segment_t get_fs(void) { return ((mm_segment_t) { }); }
 static inline void set_fs(mm_segment_t seg) { }
