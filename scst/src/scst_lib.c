@@ -15064,7 +15064,7 @@ int scst_write_file_transactional(const char *name, const char *name1,
 		res = PTR_ERR(file);
 		PRINT_ERROR("Unable to (re)create file '%s' - error %d",
 			name, res);
-		goto out_set_fs;
+		goto out_remove_file;
 	}
 
 	TRACE_DBG("Writing file '%s'", name);
@@ -15100,7 +15100,7 @@ int scst_write_file_transactional(const char *name, const char *name1,
 
 	filp_close(file, NULL);
 
-out_set_fs:
+out_remove_file:
 	if (res == 0)
 		scst_remove_file(name1);
 	else
@@ -15117,7 +15117,7 @@ write_error_close:
 	filp_close(file, NULL);
 	if (res > 0)
 		res = -EIO;
-	goto out_set_fs;
+	goto out_remove_file;
 }
 EXPORT_SYMBOL_GPL(scst_write_file_transactional);
 
