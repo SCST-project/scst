@@ -8091,12 +8091,13 @@ static struct request *blk_make_request(struct request_queue *q,
 	if (IS_ERR_OR_NULL(rq))
 		return rq;
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0) ||	\
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0) ||	\
 	defined(CONFIG_SUSE_KERNEL)
 	scsi_req_init(scsi_req(rq));
 #else
 	scsi_req_init(rq);
+#endif
 #endif
 
 	for_each_bio(bio) {
@@ -8311,12 +8312,13 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 		if (unlikely(IS_ERR_OR_NULL(rq)))
 			return ERR_PTR(-ENOMEM);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 0)
-#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0) ||	\
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0) ||	\
 	defined(CONFIG_SUSE_KERNEL)
 		scsi_req_init(scsi_req(rq));
 #else
 		scsi_req_init(rq);
+#endif
 #endif
 		goto out;
 	}
@@ -8541,7 +8543,9 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	int res = 0;
 	struct request_queue *q = cmd->dev->scsi_dev->request_queue;
 	struct request *rq;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+	struct scsi_cmnd *req;
+#elif LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 	struct scsi_request *req;
 #else
 	struct request *req;
@@ -8601,13 +8605,21 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 
 	req = scsi_req(rq);
 	req->cmd_len = cmd_len;
-	if (req->cmd_len <= BLK_MAX_CDB) {
-		memset(req->cmd, 0, BLK_MAX_CDB); /* ATAPI hates garbage after CDB */
-		memcpy(req->cmd, cmd->cdb, cmd->cdb_len);
-	} else
-		req->cmd = cmd->cdb;
+	if (req->cmd_len > MAX_COMMAND_SIZE) {
+		PRINT_ERROR("SCSI command length %d exceeds the limit %d",
+				req->cmd_len, MAX_COMMAND_SIZE);
+		res = -EINVAL;
+#ifdef QUEUE_FLAG_BIDI
+		goto out_free_unmap;
+#else
+		goto out_free_sioc;
+#endif
+	}
 
-	req->sense = sioc->sense;
+	memset(SREQ_CP(req), 0, MAX_COMMAND_SIZE); /* ATAPI hates garbage after CDB */
+	memcpy(SREQ_CP(req), cmd->cdb, cmd->cdb_len);
+
+	SREQ_SENSE(req) = sioc->sense;
 	req->sense_len = sizeof(sioc->sense);
 	rq->timeout = cmd->timeout;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
@@ -15305,7 +15317,7 @@ void scst_lib_exit(void)
 	flush_workqueue(scst_release_acg_wq);
 	destroy_workqueue(scst_release_acg_wq);
 
-	BUILD_BUG_ON(SCST_MAX_CDB_SIZE != BLK_MAX_CDB);
+	BUILD_BUG_ON(SCST_MAX_CDB_SIZE != MAX_COMMAND_SIZE);
 	BUILD_BUG_ON(SCST_SENSE_BUFFERSIZE < SCSI_SENSE_BUFFERSIZE);
 
 	kmem_cache_destroy(scsi_io_context_cache);
