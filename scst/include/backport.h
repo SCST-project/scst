@@ -1498,6 +1498,22 @@ static inline void scsi_done(struct scsi_cmnd *cmd)
 
 /* <scsi/scsi_request.h> */
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+/*
+ * See also commit 6aded12b10e0 ("scsi: core: Remove struct scsi_request") # v5.18
+ */
+static inline struct scsi_cmnd *scsi_req(struct request *rq)
+{
+	return blk_mq_rq_to_pdu(rq);
+}
+
+#define SREQ_SENSE(req) ((req)->sense_buffer)
+#define SREQ_CP(req)    ((req)->cmnd)
+#else
+#define SREQ_SENSE(req) ((req)->sense)
+#define SREQ_CP(req)    ((req)->cmd)
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
 static inline struct request *scsi_req(struct request *rq)
 {
@@ -1542,7 +1558,7 @@ static inline void *bsg_job_sense(struct bsg_job *job)
 	!defined(CONFIG_SUSE_KERNEL)
 	return scsi_req(job->req)->sense;
 #else
-	return scsi_req(blk_mq_rq_from_pdu(job))->sense;
+	return SREQ_SENSE(scsi_req(blk_mq_rq_from_pdu(job)));
 #endif
 }
 #endif
