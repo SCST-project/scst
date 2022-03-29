@@ -20,21 +20,17 @@ static inline void set_bsg_result(struct fc_bsg_job *job, int result)
 {
 	job->req->errors = result;
 }
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
-static inline void set_bsg_result(struct bsg_job *job, int result)
-{
-	job->req->errors = result;
-}
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0) &&	\
-	!defined(CONFIG_SUSE_KERNEL)
-static inline void set_bsg_result(struct bsg_job *job, int result)
-{
-	scsi_req(job->req)->result = result;
-}
 #else
 static inline void set_bsg_result(struct bsg_job *job, int result)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
+	job->req->errors = result;
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0) &&	\
+	!defined(CONFIG_SUSE_KERNEL)
+	scsi_req(job->req)->result = result;
+#else
 	scsi_req(blk_mq_rq_from_pdu(job))->result = result;
+#endif
 }
 #endif
 
