@@ -201,34 +201,6 @@ void blk_execute_rq_nowait_backport(struct request *rq, bool at_head,
 #define blk_execute_rq_nowait blk_execute_rq_nowait_backport
 #endif
 
-/* <linux/bsg-lib.h> */
-
-/*
- * Note: the function bsg_job_sense() exists only in SCST but not in any
- * upstream kernel.
- */
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) &&	\
-     !defined(CONFIG_SUSE_KERNEL)) ||			\
-    (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) &&	\
-     defined(CONFIG_SUSE_KERNEL))
-static inline void *bsg_job_sense(struct fc_bsg_job *job)
-{
-	return job->req->sense;
-}
-#else
-static inline void *bsg_job_sense(struct bsg_job *job)
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
-	return job->req->sense;
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0) &&	\
-	!defined(CONFIG_SUSE_KERNEL)
-	return scsi_req(job->req)->sense;
-#else
-	return scsi_req(blk_mq_rq_from_pdu(job))->sense;
-#endif
-}
-#endif
-
 /* <linux/byteorder/generic.h> */
 /*
  * See also f2f2efb807d3 ("byteorder: Move {cpu_to_be32, be32_to_cpu}_array()
@@ -1543,6 +1515,34 @@ static inline void scsi_req_init(struct request *rq)
 	rq->cmd = rq->__cmd;
 #else
 	return blk_rq_set_block_pc(rq);
+#endif
+}
+#endif
+
+/* <linux/bsg-lib.h> */
+
+/*
+ * Note: the function bsg_job_sense() exists only in SCST but not in any
+ * upstream kernel.
+ */
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) &&	\
+     !defined(CONFIG_SUSE_KERNEL)) ||			\
+    (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) &&	\
+     defined(CONFIG_SUSE_KERNEL))
+static inline void *bsg_job_sense(struct fc_bsg_job *job)
+{
+	return job->req->sense;
+}
+#else
+static inline void *bsg_job_sense(struct bsg_job *job)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+	return job->req->sense;
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0) &&	\
+	!defined(CONFIG_SUSE_KERNEL)
+	return scsi_req(job->req)->sense;
+#else
+	return scsi_req(blk_mq_rq_from_pdu(job))->sense;
 #endif
 }
 #endif
