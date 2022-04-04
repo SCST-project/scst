@@ -3189,8 +3189,6 @@ struct qla_tgt_vp_map {
 
 #define        QLA_DSDS_PER_IOCB       37
 
-#define CMD_SP(Cmnd)           ((Cmnd)->SCp.ptr)
-
 #define QLA_SG_ALL     1024
 
 enum nexus_wait_type {
