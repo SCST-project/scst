@@ -2892,11 +2892,18 @@ static struct attribute *scst_tgt_attrs[] = {
 	&scst_tgt_none_cmd_count_attr.attr,
 	NULL,
 };
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+ATTRIBUTE_GROUPS(scst_tgt);
+#endif
 
 static struct kobj_type tgt_ktype = {
 	.sysfs_ops	= &scst_sysfs_ops,
 	.release	= scst_tgt_release,
-	.default_attrs	= scst_tgt_attrs,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+	.default_groups = scst_tgt_groups,
+#else
+	.default_attrs  = scst_tgt_attrs,
+#endif
 };
 
 /*
@@ -3726,6 +3733,9 @@ static struct attribute *scst_dev_attrs[] = {
 	&dev_block_attr.attr,
 	NULL,
 };
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+ATTRIBUTE_GROUPS(scst_dev);
+#endif
 
 static void scst_sysfs_dev_release(struct kobject *kobj)
 {
@@ -3853,7 +3863,11 @@ out:
 static struct kobj_type scst_dev_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_sysfs_dev_release,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+	.default_groups = scst_dev_groups,
+#else
 	.default_attrs = scst_dev_attrs,
+#endif
 };
 
 /*
@@ -4218,6 +4232,9 @@ static struct attribute *scst_tgt_dev_attrs[] = {
 	&tgt_dev_active_commands_attr.attr,
 	NULL,
 };
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+ATTRIBUTE_GROUPS(scst_tgt_dev);
+#endif
 
 static void scst_sysfs_tgt_dev_release(struct kobject *kobj)
 {
@@ -4236,7 +4253,11 @@ static void scst_sysfs_tgt_dev_release(struct kobject *kobj)
 static struct kobj_type scst_tgt_dev_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_sysfs_tgt_dev_release,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+	.default_groups = scst_tgt_dev_groups,
+#else
 	.default_attrs = scst_tgt_dev_attrs,
+#endif
 };
 
 int scst_tgt_dev_sysfs_create(struct scst_tgt_dev *tgt_dev)
@@ -4789,6 +4810,9 @@ static struct attribute *scst_session_attrs[] = {
 	&session_none_cmd_count_attr.attr,
 	NULL,
 };
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+ATTRIBUTE_GROUPS(scst_session);
+#endif
 
 static void scst_sysfs_session_release(struct kobject *kobj)
 {
@@ -4807,7 +4831,11 @@ static void scst_sysfs_session_release(struct kobject *kobj)
 static struct kobj_type scst_session_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_sysfs_session_release,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+	.default_groups = scst_session_groups,
+#else
 	.default_attrs = scst_session_attrs,
+#endif
 };
 
 #define SCST_LAT_ATTRS(size)		\
@@ -5043,15 +5071,22 @@ static ssize_t scst_lun_rd_only_show(struct kobject *kobj,
 static struct kobj_attribute lun_options_attr =
 	__ATTR(read_only, S_IRUGO, scst_lun_rd_only_show, NULL);
 
-static struct attribute *lun_attrs[] = {
+static struct attribute *acg_dev_attrs[] = {
 	&lun_options_attr.attr,
 	NULL,
 };
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+ATTRIBUTE_GROUPS(acg_dev);
+#endif
 
 static struct kobj_type acg_dev_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_acg_dev_release,
-	.default_attrs = lun_attrs,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+	.default_groups = acg_dev_groups,
+#else
+	.default_attrs = acg_dev_attrs,
+#endif
 };
 
 /*
@@ -5760,15 +5795,22 @@ static ssize_t scst_devt_type_show(struct kobject *kobj,
 static struct kobj_attribute scst_devt_type_attr =
 	__ATTR(type, S_IRUGO, scst_devt_type_show, NULL);
 
-static struct attribute *scst_devt_default_attrs[] = {
+static struct attribute *scst_devt_def_attrs[] = {
 	&scst_devt_type_attr.attr,
 	NULL,
 };
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+ATTRIBUTE_GROUPS(scst_devt_def);
+#endif
 
 static struct kobj_type scst_devt_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_devt_release,
-	.default_attrs = scst_devt_default_attrs,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+	.default_groups = scst_devt_def_groups,
+#else
+	.default_attrs = scst_devt_def_attrs,
+#endif
 };
 
 static char *scst_dev_params(struct scst_dev_type *devt)
@@ -7551,7 +7593,7 @@ static struct kobj_attribute scst_last_sysfs_mgmt_res_attr =
 	__ATTR(last_sysfs_mgmt_res, S_IRUGO,
 		scst_last_sysfs_mgmt_res_show, NULL);
 
-static struct attribute *scst_sysfs_root_default_attrs[] = {
+static struct attribute *scst_sysfs_root_def_attrs[] = {
 	&scst_measure_latency_attr.attr,
 	&scst_threads_attr.attr,
 	&scst_setup_id_attr.attr,
@@ -7568,6 +7610,9 @@ static struct attribute *scst_sysfs_root_default_attrs[] = {
 	&scst_last_sysfs_mgmt_res_attr.attr,
 	NULL,
 };
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+ATTRIBUTE_GROUPS(scst_sysfs_root_def);
+#endif
 
 static void scst_sysfs_root_release(struct kobject *kobj)
 {
@@ -7577,7 +7622,11 @@ static void scst_sysfs_root_release(struct kobject *kobj)
 static struct kobj_type scst_sysfs_root_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_sysfs_root_release,
-	.default_attrs = scst_sysfs_root_default_attrs,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+	.default_groups = scst_sysfs_root_def_groups,
+#else
+	.default_attrs = scst_sysfs_root_def_attrs,
+#endif
 };
 
 /*
