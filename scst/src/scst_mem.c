@@ -2012,10 +2012,13 @@ static struct kobj_attribute sgv_stat_attr =
 	__ATTR(stats, S_IRUGO | S_IWUSR, sgv_sysfs_stat_show,
 		sgv_sysfs_stat_reset);
 
-static struct attribute *sgv_attrs[] = {
+static struct attribute *sgv_pool_attrs[] = {
 	&sgv_stat_attr.attr,
 	NULL,
 };
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+ATTRIBUTE_GROUPS(sgv_pool);
+#endif
 
 static void sgv_kobj_release(struct kobject *kobj)
 {
@@ -2034,7 +2037,11 @@ static void sgv_kobj_release(struct kobject *kobj)
 static struct kobj_type sgv_pool_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = sgv_kobj_release,
-	.default_attrs = sgv_attrs,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+	.default_groups = sgv_pool_groups,
+#else
+	.default_attrs = sgv_pool_attrs,
+#endif
 };
 
 static int scst_sgv_sysfs_create(struct sgv_pool *pool)
@@ -2075,10 +2082,13 @@ static struct kobj_attribute sgv_global_stat_attr =
 	__ATTR(global_stats, S_IRUGO | S_IWUSR, sgv_sysfs_global_stat_show,
 		sgv_sysfs_global_stat_reset);
 
-static struct attribute *sgv_default_attrs[] = {
+static struct attribute *sgv_def_attrs[] = {
 	&sgv_global_stat_attr.attr,
 	NULL,
 };
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+ATTRIBUTE_GROUPS(sgv_def);
+#endif
 
 static void scst_sysfs_release(struct kobject *kobj)
 {
@@ -2088,7 +2098,11 @@ static void scst_sysfs_release(struct kobject *kobj)
 static struct kobj_type sgv_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_sysfs_release,
-	.default_attrs = sgv_default_attrs,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
+	.default_groups = sgv_def_groups,
+#else
+	.default_attrs = sgv_def_attrs,
+#endif
 };
 
 /*
