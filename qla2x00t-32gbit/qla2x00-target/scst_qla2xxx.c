@@ -1437,6 +1437,39 @@ static void sqa_qla2xxx_remove_target(struct scsi_qla_host *vha)
 	scst_unregister_target(sqa_tgt->scst_tgt);
 	TRACE_EXIT();
 }
+
+static void sqa_qla2xxx_drop_lport(struct qla_tgt *tgt)
+{
+	struct scsi_qla_host *vha = tgt->vha;
+
+	TRACE_ENTRY();
+
+	if (vha->vha_tgt.qla_tgt->tgt_stop &&
+			!vha->vha_tgt.qla_tgt->tgt_stopped) {
+		PRINT_INFO("sqatgt(%ld/%d): calling qlt_stop_phase2.\n",
+				vha->host_no, vha->vp_idx);
+		qlt_stop_phase2(vha->vha_tgt.qla_tgt);
+	}
+
+	qlt_lport_deregister(vha);
+
+	TRACE_EXIT();
+}
+
+static void sqa_qla2xxx_npiv_drop_lport(struct qla_tgt *tgt)
+{
+	struct scsi_qla_host *npiv_vha = tgt->vha;
+	struct qla_hw_data *ha = npiv_vha->hw;
+	scsi_qla_host_t *base_vha = pci_get_drvdata(ha->pdev);
+
+	TRACE_ENTRY();
+
+	scsi_host_put(npiv_vha->host);
+	scsi_host_put(base_vha->host);
+
+	TRACE_EXIT();
+}
+
 /*
  * Must be called under tgt_host_action_mutex or sqa_unreg_rwsem write
  * locked.
@@ -1450,21 +1483,20 @@ static int sqa_target_release(struct scst_tgt *scst_tgt)
 	TRACE_ENTRY();
 
 	if (vha->vha_tgt.target_lport_ptr) {
+
 		if (!vha->vha_tgt.qla_tgt->tgt_stop &&
-		    !vha->vha_tgt.qla_tgt->tgt_stopped) {
+				!vha->vha_tgt.qla_tgt->tgt_stopped) {
 			PRINT_INFO("sqatgt(%ld:%d: calling qlt_stop_phase1.\n",
-			vha->host_no, vha->vp_idx);
+					vha->host_no, vha->vp_idx);
 			qlt_stop_phase1(vha->vha_tgt.qla_tgt);
 		}
 
-		if (vha->vha_tgt.qla_tgt->tgt_stop &&
-		    !vha->vha_tgt.qla_tgt->tgt_stopped) {
-			PRINT_INFO("sqatgt(%ld/%d): calling qlt_stop_phase2.\n",
-			    vha->host_no, vha->vp_idx);
-			qlt_stop_phase2(vha->vha_tgt.qla_tgt);
-		}
-		qlt_lport_deregister(tgt->vha);
+		if (vha->vp_idx)
+			sqa_qla2xxx_npiv_drop_lport(tgt);
+		else
+			sqa_qla2xxx_drop_lport(tgt);
 	}
+
 	scst_tgt_set_tgt_priv(scst_tgt, NULL);
 
 	mutex_lock(&sqa_mutex);
@@ -1473,7 +1505,7 @@ static int sqa_target_release(struct scst_tgt *scst_tgt)
 	mutex_unlock(&sqa_mutex);
 
 	TRACE(TRACE_MGMT, "sqatgt(%ld/%d): Target release finished sqa_tgt %p",
-	    vha->host_no, tgt->vha->vp_idx, sqa_tgt);
+	    vha->host_no, vha->vp_idx, sqa_tgt);
 
 	kfree(sqa_tgt);
 

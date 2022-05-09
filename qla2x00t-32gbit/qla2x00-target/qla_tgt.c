@@ -47,9 +47,10 @@
 
 size_t qlt_add_vtarget(u64 port_name, u64 node_name, u64 parent_host)
 {
+	struct fc_vport *vport;
 	struct Scsi_Host *shost = NULL;
+	scsi_qla_host_t *vha = NULL, *npiv_vha;
 	struct qla_tgt *tgt;
-	scsi_qla_host_t *vha = NULL;
 	struct fc_vport_identifiers vid;
 	uint8_t parent_wwn[WWN_SIZE];
 
@@ -78,8 +79,14 @@ size_t qlt_add_vtarget(u64 port_name, u64 node_name, u64 parent_host)
 	vid.disable = false;            /* always enabled */
 
 	/* We only allow support on Channel 0 !!! */
-	if (!fc_vport_create(shost, 0, &vid))
+	vport = fc_vport_create(shost, 0, &vid);
+	if (!vport) {
+		pr_err("fc_vport_create failed for qla2xxx_npiv\n");
 		return -EINVAL;
+	}
+
+	npiv_vha = (struct scsi_qla_host *) vport->dd_data;
+	scsi_host_get(npiv_vha->host);
 
 	return 0;
 }
