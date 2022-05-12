@@ -2175,7 +2175,6 @@ static void __exit sqa_exit(void)
 				vha->host_no);
 
 			qlt_stop_phase1(sqa_tgt->qla_tgt);
-			scst_unregister_target(sqa_tgt->scst_tgt);
 			qlt_del_vtarget(wwn_to_u64(vha->port_name));
 		}
 	}
