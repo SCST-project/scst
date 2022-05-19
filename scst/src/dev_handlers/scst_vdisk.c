@@ -163,7 +163,6 @@ struct scst_vdisk_dev {
 	unsigned int wt_flag:1;
 	unsigned int nv_cache:1;
 	unsigned int o_direct_flag:1;
-	unsigned int zero_copy:1;
 	unsigned int async:1;
 	unsigned int media_changed:1;
 	unsigned int prevent_allow_medium_removal:1;
@@ -1185,12 +1184,6 @@ next:
 		}
 	}
 
-	if (virt_dev->zero_copy && virt_dev->o_direct_flag) {
-		PRINT_ERROR("%s: combining zero_copy with o_direct is not"
-			    " supported", virt_dev->filename);
-		res = -EINVAL;
-		goto out;
-	}
 	if (!virt_dev->async && virt_dev->o_direct_flag) {
 		PRINT_ERROR("%s: using o_direct without setting async is not"
 			    " supported", virt_dev->filename);
@@ -6543,10 +6536,6 @@ static void vdisk_report_registering(const struct scst_vdisk_dev *virt_dev)
 				(long long)be64_to_cpu(virt_dev->dif_static_app_tag_combined));
 	}
 
-	if (virt_dev->zero_copy)
-		i += snprintf(&buf[i], buf_size - i, "%sZERO_COPY",
-			(j == i) ? "(" : ", ");
-
 	if (virt_dev->async)
 		i += snprintf(&buf[i], buf_size - i, "%sASYNC",
 			(j == i) ? "(" : ", ");
@@ -7043,8 +7032,6 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 			virt_dev->thin_provisioned_manually_set = 1;
 			TRACE_DBG("THIN PROVISIONED %d",
 				virt_dev->thin_provisioned);
-		} else if (!strcasecmp("zero_copy", p)) {
-			virt_dev->zero_copy = !!ull_val;
 		} else if (!strcasecmp("async", p)) {
 			virt_dev->async = !!ull_val;
 		} else if (!strcasecmp("size", p)) {
@@ -9349,25 +9336,6 @@ out:
 	return res;
 }
 
-static ssize_t vdev_zero_copy_show(struct kobject *kobj,
-					struct kobj_attribute *attr, char *buf)
-{
-	int pos = 0;
-	struct scst_device *dev;
-	struct scst_vdisk_dev *virt_dev;
-
-	TRACE_ENTRY();
-
-	dev = container_of(kobj, struct scst_device, dev_kobj);
-	virt_dev = dev->dh_priv;
-
-	pos = sprintf(buf, "%d\n%s", virt_dev->zero_copy,
-		      virt_dev->zero_copy ? SCST_SYSFS_KEY_MARK "\n" : "");
-
-	TRACE_EXIT_RES(pos);
-	return pos;
-}
-
 static ssize_t vdev_async_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
@@ -9508,8 +9476,6 @@ static struct kobj_attribute vdev_inq_vend_specific_attr =
 	__ATTR(inq_vend_specific, S_IWUSR|S_IRUGO,
 	       vdev_sysfs_inq_vend_specific_show,
 	       vdev_sysfs_inq_vend_specific_store);
-static struct kobj_attribute vdev_zero_copy_attr =
-	__ATTR(zero_copy, S_IRUGO, vdev_zero_copy_show, NULL);
 static struct kobj_attribute vdev_async_attr =
 	__ATTR(async, S_IWUSR|S_IRUGO, vdev_async_show, vdev_async_store);
 
@@ -9556,7 +9522,6 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 	&vdev_eui64_id_attr.attr,
 	&vdev_usn_attr.attr,
 	&vdev_inq_vend_specific_attr.attr,
-	&vdev_zero_copy_attr.attr,
 	&vdev_async_attr.attr,
 	NULL,
 };
@@ -9579,7 +9544,6 @@ static const char *const fileio_add_dev_params[] = {
 	"thin_provisioned",
 	"tst",
 	"write_through",
-	"zero_copy",
 	NULL
 };
 
