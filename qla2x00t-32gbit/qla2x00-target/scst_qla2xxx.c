@@ -487,8 +487,7 @@ static int sqa_qla2xxx_handle_cmd(scsi_qla_host_t *vha,
 	      vha->host_no, vha->vp_idx, cmd, cmd->atio.u.isp24.exchange_addr,
 	      scst_cmd_get_queue_type(cmd->scst_cmd));
 
-	/* we're being call by wq, so do direct */
-	scst_cmd_init_done(cmd->scst_cmd, SCST_CONTEXT_DIRECT);
+	scst_cmd_init_done(cmd->scst_cmd, scst_work_context);
 
 out:
 	TRACE_EXIT_RES(res);
