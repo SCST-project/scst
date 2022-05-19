@@ -1196,7 +1196,7 @@ cache. The following parameters possible for vdisk_fileio:
  - rotational - if set, this device reported as rotational. Otherwise,
    it is reported as non-rotational (SSD, etc.)
 
- - zero_copy - ignored. For zero-copy I/O, set the async flag and
+ - zero_copy - obsolete. For zero-copy I/O, set the async flag and
    possibly also the o_direct flag and use Linux kernel v4.10 or later.
 
  - dif_mode - specifies which T10-PI, or DIF, mode this device will use.
