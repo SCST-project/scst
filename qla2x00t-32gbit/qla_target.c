@@ -47,17 +47,17 @@ module_param(ql2xtgt_tape_enable, int, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(ql2xtgt_tape_enable,
 		"Enables Sequence level error recovery (aka FC Tape). Default is 0 - no SLER. 1 - Enable SLER.");
 
-static char *qlini_mode = QLA2XXX_INI_MODE_STR_ENABLED;
+static char *qlini_mode = QLA2XXX_INI_MODE_STR_EXCLUSIVE;
 module_param(qlini_mode, charp, S_IRUGO);
 MODULE_PARM_DESC(qlini_mode,
 	"Determines when initiator mode will be enabled. Possible values: "
-	"\"exclusive\" - initiator mode will be enabled on load, "
+	"\"exclusive\" (default) - initiator mode will be enabled on load, "
 	"disabled on enabling target mode and then on disabling target mode "
 	"enabled back; "
 	"\"disabled\" - initiator mode will never be enabled; "
 	"\"dual\" - Initiator Modes will be enabled. Target Mode can be activated "
-	"when ready "
-	"\"enabled\" (default) - initiator mode will always stay enabled.");
+	"when ready; "
+	"\"enabled\" - initiator mode will always stay enabled.");
 
 static int ql_dm_tgt_ex_pct = 0;
 module_param(ql_dm_tgt_ex_pct, int, S_IRUGO|S_IWUSR);
