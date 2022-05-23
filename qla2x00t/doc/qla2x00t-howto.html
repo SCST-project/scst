@@ -231,6 +231,31 @@ Now let's create our virtual device:
   <pre>[root@proj ]# make -C scstadmin -s install</pre>
 </li>
 
+<li id="qlini_mode"> Initiator and target modes <br><br>
+  The qla2xxx_scst module has parameter "qlini_mode", which determines when initiator mode will be enabled.<br>
+  Possible values:
+<ul>
+<li>"exclusive" (default) - initiator mode will be enabled on load, disabled on enabling target mode and then on disabling target mode enabled back.</li>
+<li>"disabled" - initiator mode will never be enabled.</li>
+<li>"dual" - initiator mode will be enabled. Target mode can be activated when ready (only <b>qla2x00t-32gbit</b>).</li>
+<li>"enabled" - initiator mode will always stay enabled.</li>
+</ul>
+
+<br>
+  Usage of mode "disabled" is recommended, if you have incorrectly functioning your target's initiators, which if once seen a port in initiator mode, later refuse to see it as a target.
+<br><br>
+
+<b>qla2x00t</b> (old qlogic driver): <br><br>
+  Use mode "enabled" if you need your QLA adapters to work in both initiator and target modes at the same time.<br>
+  You can always see which modes are currently active in active_mode sysfs attribute.<br>
+  In all the modes you can at any time use sysfs attribute ini_mode_force_reverse to force enable or disable initiator mode on any particular port. Setting this attribute to 1 will reverse current status of the initiator mode from enabled to disabled and vice versa.<br>
+<br>
+<b>qla2x00t-32gbit</b> (new qlogic driver): <br><br>
+  Use mode "dual" if you need your QLA adapters to work in both initiator and target modes at the same time. In this mode, each qlogic host has individual <b>qlini_mode</b>, <b>ql2xexchoffld</b>, <b>ql2xiniexchg</b> attributes that can be changed dynamically.<br>
+  For example, you can change qlini_mode to "disabled" for specific qlogic host:
+  <pre>echo "disabled" > /sys/devices/pci0000:80/0000:80:02.0/0000:81:00.0/host1/scsi_host/host1/qlini_mode</pre>
+</li>
+
 <li id="target-mode">
   To see the device on the initiator we have to add it in the LUNs set of our
   target.<br>  We must have a LUN with number 0 (LUs numeration must not start
