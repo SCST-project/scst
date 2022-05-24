@@ -2346,7 +2346,7 @@ static int q2t_pci_map_calc_cnt(struct q2t_prm *prm)
 	sBUG_ON(prm->cmd->sg_cnt == 0);
 
 	prm->sg = prm->cmd->sg;
-	prm->seg_cnt = pci_map_sg(prm->tgt->vha->hw->pdev, prm->cmd->sg,
+	prm->seg_cnt = dma_map_sg(&prm->tgt->vha->hw->pdev->dev, prm->cmd->sg,
 		prm->cmd->sg_cnt, prm->cmd->dma_data_direction);
 	if (unlikely(prm->seg_cnt == 0))
 		goto out_err;
@@ -2376,7 +2376,7 @@ out_err:
 static inline void q2t_unmap_sg(scsi_qla_host_t *vha, struct q2t_cmd *cmd)
 {
 	EXTRACHECKS_BUG_ON(!cmd->sg_mapped);
-	pci_unmap_sg(vha->hw->pdev, cmd->sg, cmd->sg_cnt,
+	dma_unmap_sg(&vha->hw->pdev->dev, cmd->sg, cmd->sg_cnt,
 	    cmd->dma_data_direction);
 	cmd->sg_mapped = 0;
 }
