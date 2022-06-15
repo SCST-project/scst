@@ -178,23 +178,28 @@ static inline unsigned int scst_blk_rq_cpu(struct request *rq)
 #endif
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
 /*
- * See also commit b84ba30b6c7a ("block: remove the gendisk argument to
- * blk_execute_rq") # v5.17.
+ * See also commit e2e530867245 ("blk-mq: remove the done argument to
+ * blk_execute_rq_nowait") # v5.19.
  */
 static inline
-void blk_execute_rq_nowait_backport(struct request *rq, bool at_head,
-				    rq_end_io_fn *done)
+void blk_execute_rq_nowait_backport(struct request *rq, bool at_head)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 12, 0)
 	/*
 	 * See also commit 8eeed0b554b9 ("block: remove unnecessary argument from
 	 * blk_execute_rq_nowait") # v5.12.
 	 */
-	blk_execute_rq_nowait(rq->q, NULL, rq, at_head, done);
+	blk_execute_rq_nowait(rq->q, NULL, rq, at_head, NULL);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0)
+	/*
+	 * See also commit b84ba30b6c7a ("block: remove the gendisk argument to
+	 * blk_execute_rq") # v5.17.
+	 */
+	blk_execute_rq_nowait(NULL, rq, at_head, NULL);
 #else
-	blk_execute_rq_nowait(NULL, rq, at_head, done);
+	blk_execute_rq_nowait(rq, at_head, NULL);
 #endif
 }
 
