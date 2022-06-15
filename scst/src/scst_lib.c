@@ -8627,11 +8627,13 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 #else
 	rq->retries = cmd->retries;
 #endif
+	rq->end_io      = scsi_end_async;
 	rq->end_io_data = sioc;
+
 	rq->cmd_flags |= REQ_FAILFAST_MASK;
 
 	blk_execute_rq_nowait(rq,
-		(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE), scsi_end_async);
+		(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE));
 out:
 	return res;
 
