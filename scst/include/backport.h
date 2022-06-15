@@ -206,6 +206,23 @@ void blk_execute_rq_nowait_backport(struct request *rq, bool at_head)
 #define blk_execute_rq_nowait blk_execute_rq_nowait_backport
 #endif
 
+/* <linux/blkdev.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
+/*
+ * See also commit 44abff2c0b97 ("block: decouple REQ_OP_SECURE_ERASE
+ * from REQ_OP_DISCARD") # v5.19.
+ */
+static inline
+int blkdev_issue_discard_backport(struct block_device *bdev, sector_t sector,
+		sector_t nr_sects, gfp_t gfp_mask)
+{
+	return blkdev_issue_discard(bdev, sector, nr_sects, gfp_mask, 0);
+}
+
+#define blkdev_issue_discard blkdev_issue_discard_backport
+#endif
+
 /* <linux/byteorder/generic.h> */
 /*
  * See also f2f2efb807d3 ("byteorder: Move {cpu_to_be32, be32_to_cpu}_array()

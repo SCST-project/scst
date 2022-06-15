@@ -562,8 +562,13 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 	fd_open = true;
 
 	if (virt_dev->blockio) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+		virt_dev->dev_thin_provisioned =
+			!!bdev_max_discard_sectors(bdev);
+#else
 		virt_dev->dev_thin_provisioned =
 			blk_queue_discard(bdev_get_queue(bdev));
+#endif
 	} else {
 		virt_dev->dev_thin_provisioned = (fd->f_op->fallocate != NULL);
 	}
@@ -581,7 +586,6 @@ check:
 		if (virt_dev->thin_provisioned)
 			PRINT_INFO("Auto enable thin provisioning for device "
 				"%s", virt_dev->filename);
-
 	}
 
 	if (virt_dev->thin_provisioned) {
@@ -1811,8 +1815,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 		sector_t nr_sects = blocks << (cmd->dev->block_shift - 9);
 		gfp_t gfp = cmd->cmd_gfp_mask;
 
-		err = blkdev_issue_discard(bdev, start_sector, nr_sects, gfp,
-					   0);
+		err = blkdev_issue_discard(bdev, start_sector, nr_sects, gfp);
 		if (unlikely(err != 0)) {
 			PRINT_ERROR("blkdev_issue_discard() for "
 				"LBA %lld, blocks %lld failed: %d",
