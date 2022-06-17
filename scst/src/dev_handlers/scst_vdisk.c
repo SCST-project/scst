@@ -9206,27 +9206,26 @@ static int vdev_sysfs_process_active_store(
 	res = kstrtol(work->buf, 0, &dev_active);
 	if (res)
 		goto unlock;
-	res = -EINVAL;
-	if (dev_active < 0 || dev_active > 1)
+
+	if (dev_active < 0 || dev_active > 1) {
+		res = -EINVAL;
 		goto unlock;
-	if (dev_active != virt_dev->dev_active) {
-		res = 0;
-		if (dev_active == 0) {
-			/* Close the FD here */
-			vdisk_close_fd(virt_dev);
-			virt_dev->dev_active = dev_active;
-		} else {
-			/* Re-open FD if tgt_dev_cnt is not zero */
-			virt_dev->dev_active = dev_active;
-			if (virt_dev->tgt_dev_cnt)
-				res = vdisk_open_fd(virt_dev, dev->dev_rd_only);
-			if (res == 0) {
-				if (virt_dev->reexam_pending) {
-					res = vdisk_reexamine(virt_dev);
-					WARN_ON(res != 0);
-					virt_dev->reexam_pending = 0;
-				}
-			} else {
+	}
+
+	if (dev_active == virt_dev->dev_active)
+		goto unlock;
+
+	if (dev_active == 0) {
+		/* Close the FD here */
+		vdisk_close_fd(virt_dev);
+		virt_dev->dev_active = dev_active;
+	} else {
+		virt_dev->dev_active = dev_active;
+
+		/* Re-open FD if tgt_dev_cnt is not zero */
+		if (virt_dev->tgt_dev_cnt) {
+			res = vdisk_open_fd(virt_dev, dev->dev_rd_only);
+			if (res) {
 				PRINT_ERROR("Unable to open FD on active -> "
 					"%ld (dev %s): %d", dev_active,
 					dev->virt_name, res);
@@ -9234,8 +9233,12 @@ static int vdev_sysfs_process_active_store(
 				goto unlock;
 			}
 		}
-	} else {
-		res = 0;
+
+		if (virt_dev->reexam_pending) {
+			res = vdisk_reexamine(virt_dev);
+			WARN_ON(res != 0);
+			virt_dev->reexam_pending = 0;
+		}
 	}
 
 unlock:
