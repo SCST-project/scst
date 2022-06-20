@@ -8073,8 +8073,7 @@ scst_alloc_passthrough_request(struct request_queue *q, int rw, gfp_t gfp_mask)
 	return blk_get_request(q, rw == READ ? REQ_OP_SCSI_IN : REQ_OP_SCSI_OUT,
 			       scst_gfp_mask_to_flags(gfp_mask));
 #else
-	return blk_mq_alloc_request(q, rw == READ ? REQ_OP_DRV_IN :
-				    rw == READ ? REQ_OP_DRV_IN : REQ_OP_DRV_OUT,
+	return blk_mq_alloc_request(q, rw == READ ? REQ_OP_DRV_IN : REQ_OP_DRV_OUT,
 				    scst_gfp_mask_to_flags(gfp_mask));
 #endif
 }
