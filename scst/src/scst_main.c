@@ -158,8 +158,8 @@ cpumask_t default_cpu_mask;
 
 static unsigned int scst_max_cmd_mem;
 unsigned int scst_max_dev_cmd_mem;
-int scst_forcibly_close_sessions;
-int scst_auto_cm_assignment = true;
+bool scst_forcibly_close_sessions;
+bool scst_auto_cm_assignment = true;
 
 spinlock_t scst_measure_latency_lock;
 atomic_t scst_measure_latency;
@@ -175,13 +175,13 @@ module_param_named(scst_max_dev_cmd_mem, scst_max_dev_cmd_mem, int, S_IRUGO);
 MODULE_PARM_DESC(scst_max_dev_cmd_mem, "Maximum memory allowed to be consumed "
 	"by all SCSI commands of a device at any given time in MB");
 
-module_param_named(forcibly_close_sessions, scst_forcibly_close_sessions, int,
+module_param_named(forcibly_close_sessions, scst_forcibly_close_sessions, bool,
 		   S_IWUSR | S_IRUGO);
 MODULE_PARM_DESC(forcibly_close_sessions,
 "If enabled, close the sessions associated with an access control group (ACG)"
 " when an ACG is deleted via sysfs instead of returning -EBUSY");
 
-module_param_named(auto_cm_assignment, scst_auto_cm_assignment, int,
+module_param_named(auto_cm_assignment, scst_auto_cm_assignment, bool,
 		   S_IWUSR | S_IRUGO);
 MODULE_PARM_DESC(auto_cm_assignment, "Enables the copy managers auto registration");
 
