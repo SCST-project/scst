@@ -53,7 +53,7 @@ static LIST_HEAD(scst_dev_group_list);
 static bool alua_invariant_check;
 module_param(alua_invariant_check, bool, 0644);
 MODULE_PARM_DESC(alua_invariant_check,
-		 "Enables a run-time ALUA state invariant check.");
+		 "Enables a run-time ALUA state invariant check. (default: false)");
 
 /* Global SCST ALUA lock/unlock functions (scst_dg_mutex) */
 void scst_alua_lock(void)
