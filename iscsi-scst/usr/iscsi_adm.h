@@ -74,7 +74,6 @@ struct iscsi_adm_req {
 	u32 tid;
 	u64 sid;
 	u32 cid;
-	u32 lun;
 
 	union {
 		struct msg_trgt trgt;

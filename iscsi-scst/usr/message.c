@@ -58,8 +58,8 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 {
 	int err = 0;
 
-	log_debug(1, "request %u, tid %u, sid 0x%" PRIx64 ", cid %u, lun %u",
-		req->rcmnd, req->tid, req->sid, req->cid, req->lun);
+	log_debug(1, "request %u, tid %u, sid 0x%" PRIx64 ", cid %u",
+		req->rcmnd, req->tid, req->sid, req->cid);
 
 	switch (req->rcmnd) {
 	case C_TRGT_NEW:
