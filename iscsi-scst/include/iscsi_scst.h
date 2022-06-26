@@ -193,7 +193,6 @@ struct iscsi_kern_event {
 	u32 cid;
 	u32 code;
 	u32 cookie;
-	char target_name[ISCSI_NAME_LEN];
 	u32 param1_size;
 	u32 param2_size;
 };
