@@ -375,7 +375,7 @@ out:
 static int sess_handle(int op, u32 set, u32 tid, u64 sid, char *params)
 {
 	int err = -EINVAL;
-	struct iscsi_adm_req req;
+	struct iscsi_adm_req req = {};
 
 	if (op == OP_NEW || op == OP_UPDATE) {
 		fprintf(stderr, "Unsupported.\n");
