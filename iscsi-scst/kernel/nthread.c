@@ -1315,15 +1315,19 @@ out_err:
 			    (unsigned long long)conn->session->sid,
 			    conn->cid, conn->write_cmnd);
 	}
-	if (ref_cmd_to_parent &&
-	    ((ref_cmd->scst_cmd != NULL) || (ref_cmd->scst_aen != NULL))) {
-		if (ref_cmd->scst_state == ISCSI_CMD_STATE_AEN)
-			scst_set_aen_delivery_status(ref_cmd->scst_aen,
-				SCST_AEN_RES_FAILED);
-		else
-			scst_set_delivery_status(ref_cmd->scst_cmd,
-				SCST_CMD_DELIVERY_FAILED);
+
+	if (ref_cmd_to_parent) {
+		if (ref_cmd->scst_state == ISCSI_CMD_STATE_AEN) {
+			if (ref_cmd->scst_aen)
+				scst_set_aen_delivery_status(ref_cmd->scst_aen,
+					SCST_AEN_RES_FAILED);
+		} else {
+			if (ref_cmd->scst_cmd)
+				scst_set_delivery_status(ref_cmd->scst_cmd,
+					SCST_CMD_DELIVERY_FAILED);
+		}
 	}
+
 	goto out;
 }
 
