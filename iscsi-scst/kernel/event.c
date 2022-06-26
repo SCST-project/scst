@@ -129,7 +129,7 @@ int event_send(u32 tid, u64 sid, u32 cid, u32 cookie,
 {
 	int err;
 	static DEFINE_MUTEX(event_mutex);
-	struct iscsi_kern_event event;
+	struct iscsi_kern_event event = {};
 	int param1_size, param2_size;
 
 	param1_size = (param1 != NULL) ? strlen(param1) : 0;
