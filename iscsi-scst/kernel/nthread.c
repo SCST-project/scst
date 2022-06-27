@@ -1511,9 +1511,6 @@ int iscsi_send(struct iscsi_conn *conn)
 		sBUG();
 	}
 
-	if (res == 0)
-		goto out;
-
 	if (conn->write_state != TX_END)
 		goto out;
 
