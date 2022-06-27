@@ -15,21 +15,24 @@ install install_vendor: all
 	install -m 755 $(TOOL) $(DESTDIR)$(SBINDIR)
 	regex="s|%INSTALLSITELIB%|$$(make -sC scst-$(MODULE_VERSION) print-INSTALLSITELIB | grep -v ^make)|"; echo "$${regex}"; sed -i "$${regex}" $(DESTDIR)$(SBINDIR)/$(TOOL)
 
-uninstall:
+makefile:
+	@cd ./scst-$(MODULE_VERSION) &&		\
+	perl Makefile.PL PREFIX=$(PREFIX)
+
+uninstall: makefile
 	-rm -f $(DESTDIR)$(SBINDIR)/$(TOOL)
 	$(MAKE) -C scst-$(MODULE_VERSION) uninstall
 
-perl-module:
+perl-module: makefile
 	@cd ./scst-$(MODULE_VERSION) &&		\
-	perl Makefile.PL PREFIX=$(PREFIX) &&	\
 	printf '\nprint-%%:\n\t@echo '"'"'$$($$*)'"'"'\n' >> Makefile
 	$(MAKE) -C scst-$(MODULE_VERSION)
 
-test:
+test: makefile
 	export PERL_TEST_DIFF=diff
 	$(MAKE) -C scst-$(MODULE_VERSION) test #TEST_VERBOSE=1
 
-clean:
+clean: makefile
 	-$(MAKE) -C scst-$(MODULE_VERSION) clean
 
 distclean: clean
@@ -38,4 +41,4 @@ distclean: clean
 
 extraclean: distclean
 
-.PHONY: all install uninstall perl-module clean distclean extraclean
+.PHONY: all install uninstall makefile perl-module clean distclean extraclean
