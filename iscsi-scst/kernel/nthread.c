@@ -1331,7 +1331,7 @@ out_err:
 	goto out;
 }
 
-static int exit_tx(struct iscsi_conn *conn, int res)
+static void exit_tx(struct iscsi_conn *conn, int res)
 {
 	iscsi_extracheck_is_wr_thread(conn);
 
@@ -1355,7 +1355,8 @@ static int exit_tx(struct iscsi_conn *conn, int res)
 		mark_conn_closed(conn);
 		break;
 	}
-	return res;
+
+	return;
 }
 
 static int tx_ddigest(struct iscsi_cmnd *cmnd, int state)
@@ -1377,7 +1378,7 @@ static int tx_ddigest(struct iscsi_cmnd *cmnd, int state)
 		if (!cmnd->conn->write_size)
 			cmnd->conn->write_state = state;
 	} else
-		res = exit_tx(cmnd->conn, res);
+		exit_tx(cmnd->conn, res);
 
 	return res;
 }
@@ -1424,7 +1425,7 @@ static int tx_padding(struct iscsi_cmnd *cmnd, int state)
 		if (!cmnd->conn->write_size)
 			cmnd->conn->write_state = state;
 	} else
-		res = exit_tx(cmnd->conn, res);
+		exit_tx(cmnd->conn, res);
 
 	return res;
 }
@@ -1440,7 +1441,7 @@ static int iscsi_do_send(struct iscsi_conn *conn, int state)
 		if (!conn->write_size)
 			conn->write_state = state;
 	} else
-		res = exit_tx(conn, res);
+		exit_tx(conn, res);
 
 	return res;
 }
