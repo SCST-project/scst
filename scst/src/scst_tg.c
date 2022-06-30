@@ -991,6 +991,7 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_tgt *tgt;
 	bool invoke_callbacks;
+	bool tg_is_remote;
 
 	sBUG_ON(state >= ARRAY_SIZE(scst_alua_filter));
 	lockdep_assert_held(&scst_dg_mutex);
@@ -998,9 +999,21 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 	if (tg->state == state)
 		return;
 
+	/*
+	 * If the target group has a target with NULL target device,
+	 * that means that this target is remote one, so we shouldn't
+	 * call on_alua_state_change_*() callbacks then.
+	 *
+	 * See also 29548a4a ("scst: Remove the on_alua_state_change_*()
+	 * callback functions") and d333ce82 ("Restore the
+	 * on_alua_state_change_*() callback functions").
+	 */
+	tg_is_remote = __scst_tg_have_tgt(tg, NULL);
+
 	list_for_each_entry(dg_dev, &tg->dg->dev_list, entry) {
 		invoke_callbacks = true;
 		dev = dg_dev->dev;
+
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
 			tgt = tgt_dev->sess->tgt;
@@ -1010,6 +1023,28 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 						     invoke_callbacks);
 				invoke_callbacks = false;
 			}
+		}
+
+		/*
+		 * There are several cases when `invoke_callbacks` can
+		 * still be true here:
+		 * - The SCST device still doesn't have any target
+		 *   devices, or have only those that aren't included
+		 *   in the given target group (e.g. the default copy
+		 *   manager for a blockio devices).
+		 * - Target group has remote targets.
+		 *
+		 * We should call on_alua_state_chage_*() callbacks only
+		 * in the first case.
+		 *
+		 * See also https://github.com/SCST-project/scst/issues/55.
+		 */
+		if (invoke_callbacks && !tg_is_remote) {
+			if (dev->handler->on_alua_state_change_start)
+				dev->handler->on_alua_state_change_start(dev, tg->state, state);
+
+			if (dev->handler->on_alua_state_change_finish)
+				dev->handler->on_alua_state_change_finish(dev, tg->state, state);
 		}
 	}
 
