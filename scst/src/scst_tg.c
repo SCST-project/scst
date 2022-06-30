@@ -176,19 +176,29 @@ static struct scst_target_group *__lookup_tg_by_group_id(struct scst_dev_group *
 	return NULL;
 }
 
+static bool __scst_tg_have_tgt(struct scst_target_group *tg,
+			       const struct scst_tgt *tgt)
+{
+	struct scst_tg_tgt *tg_tgt;
+
+	list_for_each_entry(tg_tgt, &tg->tgt_list, entry)
+		if (tg_tgt->tgt == tgt)
+			return true;
+
+	return false;
+}
+
 /* Look up a target group by target port. */
 static struct scst_target_group *__lookup_tg_by_tgt(struct scst_dev_group *dg,
 						    const struct scst_tgt *tgt)
 {
 	struct scst_target_group *tg;
-	struct scst_tg_tgt *tg_tgt;
 
 	lockdep_assert_held(&scst_dg_mutex);
 
 	list_for_each_entry(tg, &dg->tg_list, entry)
-		list_for_each_entry(tg_tgt, &tg->tgt_list, entry)
-			if (tg_tgt->tgt == tgt)
-				return tg;
+		if (__scst_tg_have_tgt(tg, tgt))
+			return tg;
 
 	return NULL;
 }
@@ -979,7 +989,6 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 	struct scst_dg_dev *dg_dev;
 	struct scst_device *dev;
 	struct scst_tgt_dev *tgt_dev;
-	struct scst_tg_tgt *tg_tgt;
 	struct scst_tgt *tgt;
 	bool invoke_callbacks;
 
@@ -995,13 +1004,11 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
 			tgt = tgt_dev->sess->tgt;
-			list_for_each_entry(tg_tgt, &tg->tgt_list, entry) {
-				if (tg_tgt->tgt == tgt) {
-					__scst_tgt_set_state(tg, tgt_dev, state,
-							     invoke_callbacks);
-					invoke_callbacks = false;
-					break;
-				}
+
+			if (__scst_tg_have_tgt(tg, tgt)) {
+				__scst_tgt_set_state(tg, tgt_dev, state,
+						     invoke_callbacks);
+				invoke_callbacks = false;
 			}
 		}
 	}
@@ -1047,7 +1054,6 @@ static void __scst_gen_alua_state_changed_ua(struct scst_target_group *tg)
 	struct scst_dg_dev *dg_dev;
 	struct scst_device *dev;
 	struct scst_tgt_dev *tgt_dev;
-	struct scst_tg_tgt *tg_tgt;
 	struct scst_tgt *tgt;
 
 	lockdep_assert_held(&scst_dg_mutex);
@@ -1057,13 +1063,9 @@ static void __scst_gen_alua_state_changed_ua(struct scst_target_group *tg)
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
 			tgt = tgt_dev->sess->tgt;
-			list_for_each_entry(tg_tgt, &tg->tgt_list, entry) {
-				if (tg_tgt->tgt == tgt) {
-					scst_gen_aen_or_ua(tgt_dev,
-			SCST_LOAD_SENSE(scst_sense_asym_access_state_changed));
-					break;
-				}
-			}
+			if (__scst_tg_have_tgt(tg, tgt))
+				scst_gen_aen_or_ua(tgt_dev,
+					SCST_LOAD_SENSE(scst_sense_asym_access_state_changed));
 		}
 	}
 }
