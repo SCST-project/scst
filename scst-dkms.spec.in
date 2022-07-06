@@ -46,8 +46,13 @@
 # Fedora
 %define kernel_devel_rpm kernel-devel
 %else
+%if %([ %{kernel_rpm} = kernel-uek-core ]; echo $((1-$?)))
+# UEK 7
+%define kernel_devel_rpm kernel-uek-devel
+%else
 # Other Linux distros
 %define kernel_devel_rpm %{kernel_rpm}-devel
+%endif
 %endif
 %endif
 %endif
