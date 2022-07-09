@@ -1385,6 +1385,43 @@ static int vdisk_reopen_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 	return vdisk_open_fd(virt_dev, read_only);
 }
 
+static int vdisk_activate_dev(struct scst_vdisk_dev *virt_dev, bool rd_only)
+{
+	int rc = 0;
+
+	virt_dev->dev_active = 1;
+
+	/*
+	 * Only re-open FD if tgt_dev_cnt is not zero,
+	 * otherwise we will leak reference.
+	 */
+	if (virt_dev->tgt_dev_cnt) {
+		rc = vdisk_open_fd(virt_dev, rd_only);
+		if (rc) {
+			PRINT_ERROR("vdev %s: Unable to open FD: rd_only=%d, rc=%d",
+				    virt_dev->name, rd_only, rc);
+			virt_dev->dev_active = 0;
+			goto out;
+		}
+	}
+
+	if (virt_dev->reexam_pending) {
+		rc = vdisk_reexamine(virt_dev);
+		WARN_ON(rc != 0);
+		virt_dev->reexam_pending = 0;
+	}
+
+out:
+	return rc;
+}
+
+static void vdisk_disable_dev(struct scst_vdisk_dev *virt_dev)
+{
+	/* Close the FD here */
+	vdisk_close_fd(virt_dev);
+	virt_dev->dev_active = 0;
+}
+
 /* Invoked with scst_mutex held, so no further locking is necessary here. */
 static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 {
@@ -6301,9 +6338,7 @@ static void blockio_on_alua_state_change_start(struct scst_device *dev,
 	if (!close)
 		return;
 
-	virt_dev->dev_active = 0;
-
-	vdisk_close_fd(virt_dev);
+	vdisk_disable_dev(virt_dev);
 
 	TRACE_EXIT();
 	return;
@@ -6333,23 +6368,9 @@ static void blockio_on_alua_state_change_finish(struct scst_device *dev,
 	if (!open)
 		return;
 
-	virt_dev->dev_active = 1;
-
-	/*
-	 * only reopen fd if tgt_dev_cnt is not zero, otherwise we will
-	 * leak reference.
-	 */
-	if (virt_dev->tgt_dev_cnt)
-		rc = vdisk_open_fd(virt_dev, dev->dev_rd_only);
-
-	if (rc == 0) {
-		if (virt_dev->reexam_pending) {
-			rc = vdisk_reexamine(virt_dev);
-			WARN_ON(rc != 0);
-			virt_dev->reexam_pending = 0;
-		}
-	} else {
-		PRINT_ERROR("dev %s: opening after ALUA state change to %s failed",
+	rc = vdisk_activate_dev(virt_dev, dev->dev_rd_only);
+	if (rc) {
+		PRINT_ERROR("dev %s: Activating after ALUA state change to %s failed",
 			    dev->virt_name,
 			    scst_alua_state_name(new_state));
 	}
@@ -9217,28 +9238,13 @@ static int vdev_sysfs_process_active_store(
 		goto unlock;
 
 	if (dev_active == 0) {
-		/* Close the FD here */
-		vdisk_close_fd(virt_dev);
-		virt_dev->dev_active = dev_active;
+		vdisk_disable_dev(virt_dev);
 	} else {
-		virt_dev->dev_active = dev_active;
-
-		/* Re-open FD if tgt_dev_cnt is not zero */
-		if (virt_dev->tgt_dev_cnt) {
-			res = vdisk_open_fd(virt_dev, dev->dev_rd_only);
-			if (res) {
-				PRINT_ERROR("Unable to open FD on active -> "
-					"%ld (dev %s): %d", dev_active,
-					dev->virt_name, res);
-				virt_dev->dev_active = 0;
-				goto unlock;
-			}
-		}
-
-		if (virt_dev->reexam_pending) {
-			res = vdisk_reexamine(virt_dev);
-			WARN_ON(res != 0);
-			virt_dev->reexam_pending = 0;
+		res = vdisk_activate_dev(virt_dev, dev->dev_rd_only);
+		if (res) {
+			PRINT_ERROR("dev %s: Activating failed",
+				    dev->virt_name);
+			goto unlock;
 		}
 	}
 
