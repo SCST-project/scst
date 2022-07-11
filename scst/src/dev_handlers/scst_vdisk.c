@@ -41,7 +41,8 @@
 #include <linux/writeback.h>
 #include <linux/vmalloc.h>
 #include <linux/atomic.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0) || \
+	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 9)
 #include <linux/blk-integrity.h>
 #endif
 #include <linux/kthread.h>
