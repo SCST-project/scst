@@ -2341,7 +2341,7 @@ static void scst_cm_init_inq_finish(struct scst_cmd *cmd)
 		PRINT_CRIT_ERROR("Unable to perform initial INQUIRY for device "
 			"%s. Copy manager for this device will be disabled",
 			dev->virt_name);
-		goto out;
+		goto out_put_ref;
 	}
 
 	length = scst_get_buf_full(cmd, &buf, false);
@@ -2349,7 +2349,7 @@ static void scst_cm_init_inq_finish(struct scst_cmd *cmd)
 	if (unlikely(length <= 0)) {
 		if (length < 0)
 			PRINT_ERROR("scst_get_buf_full() failed: %d", length);
-		goto out;
+		goto out_put_ref;
 	}
 
 	TRACE_BUFF_FLAG(TRACE_DEBUG, "buf", buf, length);
@@ -2425,8 +2425,10 @@ next:
 out_put:
 	scst_put_buf_full(cmd, buf);
 
-out:
+out_put_ref:
 	percpu_ref_put(&dev->refcnt);
+
+out:
 	TRACE_EXIT();
 	return;
 }
@@ -2434,15 +2436,17 @@ out:
 static int scst_cm_send_init_inquiry(struct scst_device *dev,
 	unsigned int unpacked_lun, struct scst_cm_init_inq_priv *priv)
 {
-	int res = -EINVAL;
 	static const uint8_t inq_cdb[6] = { INQUIRY, 1, 0x83, 0x10, 0, 0 };
 	__be64 lun;
 	struct scst_cmd *cmd;
+	int res = 0;
 
 	TRACE_ENTRY();
 
-	if (WARN_ON_ONCE(!dev))
+	if (WARN_ON_ONCE(!dev)) {
+		res = -EINVAL;
 		goto out;
+	}
 
 	if (priv == NULL) {
 		priv = kzalloc(sizeof(*priv), GFP_KERNEL);
@@ -2473,13 +2477,13 @@ static int scst_cm_send_init_inquiry(struct scst_device *dev,
 
 	scst_cmd_init_done(cmd, SCST_CONTEXT_THREAD);
 
-	res = 0;
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 
 out_free:
+	percpu_ref_put(&dev->refcnt);
+
 	kfree(priv);
 	goto out;
 }
