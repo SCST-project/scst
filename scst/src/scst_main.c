@@ -1356,8 +1356,10 @@ int scst_register_virtual_device_node(struct scst_dev_type *dev_handler,
 	list_add_tail(&dev->dev_list_entry, &scst_dev_list);
 
 	res = scst_cm_on_dev_register(dev);
-	if (res != 0)
+	if (res != 0) {
+		sysfs_del = true;
 		goto out_unreg;
+	}
 
 	mutex_unlock(&scst_mutex);
 
