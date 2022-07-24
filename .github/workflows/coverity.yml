@@ -1,0 +1,71 @@
+name: Coverity Scan
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  coverity:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Project
+        uses: actions/checkout@v2
+
+      - name: Get version
+        id: get_version
+        run: |
+          echo ::set-output name=version::"3.7-pre-$(git rev-parse --short HEAD)"
+
+      - name: Run Coverity Build
+        uses: vapier/coverity-scan-action@v1
+        with:
+          # Project name in Coverity Scan.
+          #
+          # This should be as it appears on the Coverity Scan website.
+          # Find it in your dashboard:
+          # https://scan.coverity.com/dashboard
+          #
+          # For example, a GitHub project will look like "gentoo/pax-utils".
+          #
+          # NB: This value is case-sensitive and must match what your GitHub project
+          # is registered as exactly!
+          #
+          # Default: ${{ github.repository }}
+          project: 'SCST-project'
+          # Secret project token for accessing this project in Coverity Scan.
+          #
+          # Find this in the project's "Project Settings" tab under "Project token" on
+          # the Coverity Scan website.
+          #
+          # This value should not be specified in the yaml file directly.  Instead it
+          # should be set in your repositories secrets.  "COVERITY_SCAN_TOKEN" is a
+          # common name here.
+          # https://docs.github.com/en/actions/security-guides/encrypted-secrets
+          #
+          # You still have to write ${{ secrets.COVERITY_SCAN_TOKEN }} explicitly as
+          # GitHub Actions are not allowed to access secrets directly.
+          #
+          # REQUIRED.
+          token: ${{ secrets.COVERITY_SCAN_TOKEN }}
+
+          # Where Coverity Scan should send notifications.
+          #
+          # The Coverity Scan tool requires this be set.
+          #
+          # If you don't want to write this in your config files, you can also use a
+          # repository secret.  "COVERITY_SCAN_EMAIL" is a common name.  See the
+          # previous "token" section for more information.
+          #
+          # REQUIRED.
+          email: ${{ secrets.COVERITY_SCAN_EMAIL }}
+
+          # Command to pass to cov-build.
+          #
+          # Default: 'make'
+          command: 'make cov-build'
+
+          # (Informational) The source version being built.
+          #
+          # Default: ${{ github.sha }}
+          version: ${{steps.get_version.outputs.version}}
