@@ -6906,6 +6906,14 @@ enum scst_exec_res scst_cmp_wr_local(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
+	if (cmd->bufflen != scst_cmd_get_expected_transfer_len_data(cmd)) {
+		PRINT_ERROR("COMPARE AND WRITE: data buffer length mismatch (CDB %u <> ini %u)",
+			    cmd->bufflen,
+			    scst_cmd_get_expected_transfer_len_data(cmd));
+		scst_set_invalid_field_in_cdb(cmd, 13/*NLB*/, 0);
+		goto out_done;
+	}
+
 	/* ToDo: HWALIGN'ed kmem_cache */
 	cwrp = kzalloc(sizeof(*cwrp), GFP_KERNEL);
 	if (cwrp == NULL) {
@@ -6916,14 +6924,6 @@ enum scst_exec_res scst_cmp_wr_local(struct scst_cmd *cmd)
 
 	cwrp->cwr_orig_cmd = cmd;
 	cwrp->cwr_finish_fn = scst_cwr_read_cmd_finished;
-
-	if (cmd->bufflen != scst_cmd_get_expected_transfer_len_data(cmd)) {
-		PRINT_ERROR("COMPARE AND WRITE: data buffer length mismatch (CDB %u <> ini %u)",
-			    cmd->bufflen,
-			    scst_cmd_get_expected_transfer_len_data(cmd));
-		scst_set_invalid_field_in_cdb(cmd, 13/*NLB*/, 0);
-		goto out_done;
-	}
 
 	/*
 	 * As required by SBC, DIF PI, if any, is not checked for the read part
