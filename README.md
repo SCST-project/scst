@@ -1,3 +1,8 @@
+<a href="https://scan.coverity.com/projects/scst-project">
+  <img alt="Coverity Scan Build Status"
+       src="https://img.shields.io/coverity/scan/25131.svg"/>
+</a>
+
 # Overview
 
 This is the source code repository of the SCST project. SCST is a collection
