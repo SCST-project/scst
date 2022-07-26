@@ -63,7 +63,7 @@ jobs:
           # Command to pass to cov-build.
           #
           # Default: 'make'
-          command: 'make cov-build'
+          command: 'make -i cov-build'
 
           # (Informational) The source version being built.
           #
