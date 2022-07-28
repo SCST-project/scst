@@ -3182,9 +3182,9 @@ static void fileio_async_complete(struct kiocb *iocb, long ret
 			w->cmd = cmd;
 			schedule_work(&w->work);
 			return;
-		} else {
-			scst_set_busy(cmd);
 		}
+
+		scst_set_busy(cmd);
 	}
 	cmd->completed = 1;
 	cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, scst_estimate_context());
@@ -6978,8 +6978,8 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 				}
 				if (dd == NULL)
 					break;
-				else
-					*dd = '|';
+
+				*dd = '|';
 				d = dd+1;
 			}
 			TRACE_DBG("DIF DEV mode %x", virt_dev->dif_mode);
@@ -9007,13 +9007,13 @@ static ssize_t vdev_sysfs_naa_id_store(struct kobject *kobj,
 	case 2 * 8:
 		if (strchr("235", buf[0]))
 			break;
-		else
-			goto out;
+
+		goto out;
 	case 2 * 16:
 		if (strchr("6", buf[0]))
 			break;
-		else
-			goto out;
+
+		goto out;
 	default:
 		goto out;
 	}

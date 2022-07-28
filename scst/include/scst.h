@@ -4675,10 +4675,9 @@ static inline uint16_t scst_cmd_get_dif_exp_app_tag(struct scst_cmd *cmd)
 #endif
 	if (cmd->cdb_len == 32)
 		return get_unaligned_be16(&cmd->cdb[24]);
-	else {
-		/* cmd->dev must be alive at this point */
-		return be16_to_cpu(cmd->dev->dev_dif_static_app_tag);
-	}
+
+	/* cmd->dev must be alive at this point */
+	return be16_to_cpu(cmd->dev->dev_dif_static_app_tag);
 }
 
 /*
@@ -4693,12 +4692,11 @@ static inline uint16_t scst_cmd_get_dif_app_tag_mask(struct scst_cmd *cmd)
 #endif
 	if (cmd->cdb_len == 32)
 		return get_unaligned_be16(&cmd->cdb[26]);
-	else {
-		if (scst_get_dif_checks(cmd->cmd_dif_actions) & SCST_DIF_CHECK_APP_TAG)
-			return 0xFFFF;
-		else
-			return 0;
-	}
+
+	if (scst_get_dif_checks(cmd->cmd_dif_actions) & SCST_DIF_CHECK_APP_TAG)
+		return 0xFFFF;
+
+	return 0;
 }
 
 /*

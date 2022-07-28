@@ -139,9 +139,9 @@ int digest_rx_header(struct iscsi_cmnd *cmnd)
 	if (unlikely(crc != cmnd->hdigest)) {
 		PRINT_ERROR("%s", "RX header digest failed");
 		return -EIO;
-	} else {
-		TRACE_DBG("RX header digest OK for cmd %p", cmnd);
 	}
+
+	TRACE_DBG("RX header digest OK for cmd %p", cmnd);
 
 	return 0;
 }

@@ -3201,11 +3201,11 @@ const char *scst_get_opcode_name(struct scst_cmd *cmd)
 {
 	if (cmd->op_name)
 		return cmd->op_name;
-	else {
-		scnprintf(cmd->not_parsed_op_name,
-			sizeof(cmd->not_parsed_op_name), "0x%x", cmd->cdb[0]);
-		return cmd->not_parsed_op_name;
-	}
+
+	scnprintf(cmd->not_parsed_op_name,
+		sizeof(cmd->not_parsed_op_name), "0x%x", cmd->cdb[0]);
+
+	return cmd->not_parsed_op_name;
 }
 EXPORT_SYMBOL(scst_get_opcode_name);
 #endif
@@ -7036,14 +7036,12 @@ static void scst_send_release(struct scst_device *dev)
 				       sense, 15, 0, 0);
 		TRACE_DBG("RELEASE done: %x", rc);
 
-		if (scsi_status_is_good(rc)) {
+		if (scsi_status_is_good(rc))
 			break;
-		} else {
-			PRINT_ERROR("RELEASE failed: %d", rc);
-			PRINT_BUFFER("RELEASE sense", sense, sizeof(sense));
-			scst_check_internal_sense(dev, rc, sense,
-				sizeof(sense));
-		}
+
+		PRINT_ERROR("RELEASE failed: %d", rc);
+		PRINT_BUFFER("RELEASE sense", sense, sizeof(sense));
+		scst_check_internal_sense(dev, rc, sense, sizeof(sense));
 	}
 
 out:
@@ -11407,13 +11405,12 @@ static int get_cdb_info_read_10(struct scst_cmd *cmd,
 
 	if (res != 0)
 		return res;
-	else {
+
 #ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
-		EXTRACHECKS_BUG_ON(cmd->cdb[0] != READ_10);
-		cmd->cmd_corrupt_dif_tag = (cmd->cdb[6] & 0xE0) >> 5;
+	EXTRACHECKS_BUG_ON(cmd->cdb[0] != READ_10);
+	cmd->cmd_corrupt_dif_tag = (cmd->cdb[6] & 0xE0) >> 5;
 #endif
-		return scst_parse_rdprotect(cmd);
-	}
+	return scst_parse_rdprotect(cmd);
 }
 
 static int get_cdb_info_lba_4_len_2_wrprotect(struct scst_cmd *cmd,
@@ -11474,13 +11471,12 @@ static int get_cdb_info_read_16(struct scst_cmd *cmd,
 
 	if (res != 0)
 		return res;
-	else {
+
 #ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
-		EXTRACHECKS_BUG_ON(cmd->cdb[0] != READ_16);
-		cmd->cmd_corrupt_dif_tag = (cmd->cdb[14] & 0xE0) >> 5;
+	EXTRACHECKS_BUG_ON(cmd->cdb[0] != READ_16);
+	cmd->cmd_corrupt_dif_tag = (cmd->cdb[14] & 0xE0) >> 5;
 #endif
-		return scst_parse_rdprotect(cmd);
-	}
+	return scst_parse_rdprotect(cmd);
 }
 
 static int get_cdb_info_lba_8_len_4_wrprotect(struct scst_cmd *cmd,
