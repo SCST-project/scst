@@ -8308,7 +8308,7 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 	if (!sgl) {
 		rq = scst_alloc_passthrough_request(q, reading ? READ : WRITE,
 						    gfp);
-		if (unlikely(IS_ERR_OR_NULL(rq)))
+		if (IS_ERR_OR_NULL(rq))
 			return ERR_PTR(-ENOMEM);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)
