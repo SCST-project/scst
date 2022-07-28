@@ -175,10 +175,8 @@ the disk names assigned on the SCST target ("disk01" in the example below):
 Target names
 ------------
 
-The name assigned by the ib_srpt target driver to an SCST target is either
-ib_srpt_target_<n>, the node GUID of a HCA in hexadecimal form with a colon
-after every fourth digit or the port GID with a colon afer every fourth
-digit. The HCA node GUID and the port GIDs can be obtained via the
+The name assigned by the ib_srpt target driver to an SCST target is the port
+GID with a colon afer every fourth digit. The port GIDs can be obtained via the
 ibv_devinfo command. An example:
 
 # ibv_devinfo -v | grep -E '[^a-z]port:|guid|GID'

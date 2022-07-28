@@ -121,17 +121,6 @@ static int srpt_sq_size = DEF_SRPT_SQ_SIZE;
 module_param(srpt_sq_size, int, 0444);
 MODULE_PARM_DESC(srpt_sq_size, "Per-channel send queue (SQ) size.");
 
-static bool use_port_guid_in_session_name;
-module_param(use_port_guid_in_session_name, bool, 0444);
-MODULE_PARM_DESC(use_port_guid_in_session_name,
-		 "Use target port ID in the session name such that"
-		 " redundant paths between multiport systems can be masked.");
-
-static bool use_node_guid_in_target_name;
-module_param(use_node_guid_in_target_name, bool, 0444);
-MODULE_PARM_DESC(use_node_guid_in_target_name,
-		 "Use HCA node GUID as SCST target name.");
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0)
 static int srpt_get_u64_x(char *buffer, struct kernel_param *kp)
 #else

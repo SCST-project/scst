@@ -250,7 +250,7 @@ TARGET_DRIVER qla2x00t {
 .IP
 TARGET_DRIVER ib_srpt {
 .br
-	TARGET ib_srpt_target_0 {
+	TARGET fe80:0000:0000:0000:0002:c903:0005:f34b {
 .br
 		enabled 1
 .IP
@@ -260,7 +260,7 @@ TARGET_DRIVER ib_srpt {
 .br
 	}
 .IP
-	TARGET ib_srpt_target_1 {
+	TARGET fe80:0000:0000:0000:0002:c903:0005:f34c {
 .br
 		enabled 1
 .IP
@@ -306,7 +306,7 @@ DEVICE_GROUP dgroup1 {
 .br
 		state active
 .IP
-		TARGET ib_srpt_target_0 {
+		TARGET fe80:0000:0000:0000:0002:c903:0005:f34b {
 .br
 			rel_tgt_id 1
 .br
@@ -320,7 +320,7 @@ DEVICE_GROUP dgroup1 {
 .br
 		state offline
 .IP
-		TARGET ib_srpt_target_1 {
+		TARGET fe80:0000:0000:0000:0002:c903:0005:f34c {
 .br
 			rel_tgt_id 2
 .br
@@ -340,7 +340,7 @@ DEVICE_GROUP dgroup2 {
 .br
 		state offline
 .IP
-		TARGET ib_srpt_target_0 {
+		TARGET fe80:0000:0000:0000:0002:c903:0005:f34b {
 .br
 			rel_tgt_id 1
 .br
@@ -354,7 +354,7 @@ DEVICE_GROUP dgroup2 {
 .br
 		state active
 .IP
-		TARGET ib_srpt_target_1 {
+		TARGET fe80:0000:0000:0000:0002:c903:0005:f34c {
 .br
 			rel_tgt_id 2
 .br
@@ -368,7 +368,7 @@ Some SCST settings cannot be configured via scst.conf but only as a kernel
 module parameter. Parameters for an SCST kernel module can be configured in
 /etc/modprobe.d/99-local.conf just like for any other kernel module. An example:
 .IP
-options ib_srpt use_node_guid_in_target_name=1
+options ib_srpt rdma_cm_port=5000
 .SH FILES
 .IP "/etc/scst.conf"
 The configuration file read by

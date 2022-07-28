@@ -79,14 +79,14 @@ TARGET_DRIVER qla2x00t {
 }
 
 TARGET_DRIVER ib_srpt {
-	TARGET ib_srpt_target_0 {
+	TARGET fe80:0000:0000:0000:0002:c903:0005:f34b {
 		enabled 1
 
 		LUN 0 disk1
 		LUN 1 disk2
 	}
 
-	TARGET ib_srpt_target_1 {
+	TARGET fe80:0000:0000:0000:0002:c903:0005:f34c {
 		enabled 1
 
 		LUN 0 disk1
@@ -101,7 +101,7 @@ DEVICE_GROUP dgroup1 {
 		group_id 1
 		state active
 
-		TARGET ib_srpt_target_0 {
+		TARGET fe80:0000:0000:0000:0002:c903:0005:f34b {
 			rel_tgt_id 1
 		}
 	}
@@ -110,7 +110,7 @@ DEVICE_GROUP dgroup1 {
 		group_id 2
 		state offline
 
-		TARGET ib_srpt_target_1 {
+		TARGET fe80:0000:0000:0000:0002:c903:0005:f34c {
 			rel_tgt_id 2
 		}
 	}
@@ -123,7 +123,7 @@ DEVICE_GROUP dgroup2 {
 		group_id 1
 		state offline
 
-		TARGET ib_srpt_target_0 {
+		TARGET fe80:0000:0000:0000:0002:c903:0005:f34b {
 			rel_tgt_id 1
 		}
 	}
@@ -132,7 +132,7 @@ DEVICE_GROUP dgroup2 {
 		group_id 2
 		state active
 
-		TARGET ib_srpt_target_1 {
+		TARGET fe80:0000:0000:0000:0002:c903:0005:f34c {
 			rel_tgt_id 2
 		}
 	}
