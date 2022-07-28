@@ -1946,12 +1946,12 @@ static struct scst_cm_list_id *scst_cm_add_list_id(struct scst_cmd *cmd,
 			if (l->cm_list_id_state == SCST_CM_LIST_ID_STATE_PENDING_FREE) {
 				scst_cm_del_free_list_id(l);
 				break;
-			} else {
-				TRACE_DBG("List id %d already exists", list_id);
-				scst_set_cmd_error(cmd,
-					SCST_LOAD_SENSE(scst_sense_operation_in_progress));
-				goto out_unlock_free;
 			}
+
+			TRACE_DBG("List id %d already exists", list_id);
+			scst_set_cmd_error(cmd,
+				SCST_LOAD_SENSE(scst_sense_operation_in_progress));
+			goto out_unlock_free;
 		}
 	}
 

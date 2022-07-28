@@ -169,8 +169,9 @@ bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b)
 			if (tolower(tid_a[i]) != tolower(tid_b[i]))
 				return false;
 		return true;
-	} else
-		len = TID_COMMON_SIZE;
+	}
+
+	len = TID_COMMON_SIZE;
 
 	return memcmp(tid_a, tid_b, len) == 0;
 

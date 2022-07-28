@@ -4937,10 +4937,9 @@ again:
 
 				if (++thr_cnt == 2)
 					break;
-				else {
-					spin_lock_irq(&thr->thr_cmd_list_lock);
-					thr_locked = true;
-				}
+
+				spin_lock_irq(&thr->thr_cmd_list_lock);
+				thr_locked = true;
 			}
 		} while (someth_done);
 

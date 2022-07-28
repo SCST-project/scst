@@ -1020,10 +1020,10 @@ void req_add_to_write_timeout_list(struct iscsi_cmnd *req)
 					&r->write_timeout_list_entry);
 				inserted = true;
 				break;
-			} else {
-				TRACE_DBG("Skipping op %x req %p (tt %ld)",
-					cmnd_opcode(r), r, tt);
 			}
+
+			TRACE_DBG("Skipping op %x req %p (tt %ld)",
+				  cmnd_opcode(r), r, tt);
 		}
 		if (!inserted) {
 			TRACE_DBG("Add NOP IN req %p in the tail", req);
