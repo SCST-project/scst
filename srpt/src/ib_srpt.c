@@ -134,10 +134,6 @@ module_param_call(srpt_service_guid, NULL, srpt_get_u64_x, &srpt_service_guid,
 MODULE_PARM_DESC(srpt_service_guid,
 		 "Using this value for ioc_guid, id_ext, and cm_listen_id instead of using the node_guid of the first HCA.");
 
-static unsigned int max_sge_delta;
-module_param(max_sge_delta, uint, 0444);
-MODULE_PARM_DESC(max_sge_delta, "Number to subtract from max_sge (obsolete).");
-
 /*
  * Note: changing any of the two constants below into SCST_CONTEXT_DIRECT is
  * dangerous because it might cause IB completions to be processed too late
