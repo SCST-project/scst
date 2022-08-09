@@ -35,7 +35,7 @@
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
 /*
- * Backport mm_segment_t to save compability with older kernel versions.
+ * Backport mm_segment_t to save compatibility with older kernel versions.
  *
  * mm_segment_t was dropped in commit
  * 967747bbc084 ("uaccess: remove CONFIG_SET_FS") # v5.18
