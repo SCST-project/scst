@@ -4349,7 +4349,7 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj,
 #else
 	uint64_t sum = 0, sumsq = 0;
 #endif
-	unsigned count = 0, numst = 0;
+	unsigned int count = 0, numst = 0;
 	u64 d_min_div_10, d_max_div_10, avg_div_10, stddev_div_10;
 	u32 d_min_mod_10, d_max_mod_10, avg_mod_10, stddev_mod_10;
 	char state_name[32];
