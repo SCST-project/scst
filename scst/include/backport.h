@@ -842,7 +842,7 @@ struct nvmefc_fcp_req {
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0) &&	\
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
-typedef unsigned percpu_count_t;
+typedef unsigned int percpu_count_t;
 #define READ_REF_COUNT(ref) atomic_read(&(ref)->count)
 #else
 typedef unsigned long percpu_count_t;
