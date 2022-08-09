@@ -170,10 +170,8 @@ void isert_global_cleanup(void)
 	isert_portal_list_release_all();
 	if (isert_glob.conn_wq)
 		destroy_workqueue(isert_glob.conn_wq);
-	if (isert_cmnd_cache)
-		kmem_cache_destroy(isert_cmnd_cache);
-	if (isert_conn_cache)
-		kmem_cache_destroy(isert_conn_cache);
+	kmem_cache_destroy(isert_cmnd_cache);
+	kmem_cache_destroy(isert_conn_cache);
 }
 
 int isert_get_addr_size(struct sockaddr *sa, size_t *addr_len)

@@ -1456,11 +1456,8 @@ out_del:
 
 out_free:
 	for (i = 0; i < pool->max_caches; i++) {
-		if (pool->caches[i]) {
-			kmem_cache_destroy(pool->caches[i]);
-			pool->caches[i] = NULL;
-		} else
-			break;
+		kmem_cache_destroy(pool->caches[i]);
+		pool->caches[i] = NULL;
 	}
 	goto out;
 }
@@ -1537,8 +1534,7 @@ static void sgv_pool_destroy(struct sgv_pool *pool)
 	cancel_delayed_work_sync(&pool->sgv_purge_work);
 
 	for (i = 0; i < pool->max_caches; i++) {
-		if (pool->caches[i])
-			kmem_cache_destroy(pool->caches[i]);
+		kmem_cache_destroy(pool->caches[i]);
 		pool->caches[i] = NULL;
 	}
 
