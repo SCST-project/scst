@@ -26,7 +26,11 @@ struct edif_sa_ctl {
 #define EDIF_SA_CTL_REPL	3	/* Active Replace and Delete */
 #define EDIF_SA_CTL_DEL		4	/* Delete Pending */
 	struct fc_port	*fcport;
+#ifndef NEW_LIBFC_API
+	struct fc_bsg_job *bsg_job;
+#else
 	struct bsg_job *bsg_job;
+#endif
 	struct qla_sa_update_frame sa_frame;
 };
 
@@ -51,7 +55,12 @@ struct edif_dbell {
 	enum db_flags_t		db_flags;
 	spinlock_t		db_lock;
 	struct  list_head	head;
-	struct	completion	dbell;
+#ifndef NEW_LIBFC_API
+	struct fc_bsg_job *dbell_bsg_job;
+#else
+	struct bsg_job *dbell_bsg_job;
+#endif
+	unsigned long bsg_expire;
 };
 
 #define SA_UPDATE_IOCB_TYPE            0x71    /* Security Association Update IOCB entry */
