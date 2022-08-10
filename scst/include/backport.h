@@ -773,6 +773,22 @@ static inline void kvfree(void *addr)
 }
 #endif
 
+/* <linux/shrinker.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
+/*
+ * See also commit e33c267ab70d ("mm: shrinkers: provide shrinkers with
+ * names") # v6.0.
+ */
+static inline
+int register_shrinker_backport(struct shrinker *shrinker, const char *fmt, ...)
+{
+	return register_shrinker(shrinker);
+}
+
+#define register_shrinker register_shrinker_backport
+#endif
+
 /* <linux/module.h> */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
 #define MODULE_IMPORT_NS(ns)
