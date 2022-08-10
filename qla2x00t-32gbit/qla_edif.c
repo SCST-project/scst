@@ -1142,9 +1142,9 @@ static int qla_edif_consume_dbell(scsi_qla_host_t *vha, BSG_JOB_TYPE *bsg_job)
 			/* 8 = sizeof(ap.event_code + ap.event_data_size) */
 			dat_size += 8;
 			if (keep)
-				sg_skip += sg_copy_buffer(bsg_job->reply_payload.sg_list,
+				sg_skip += sg_pcopy_from_buffer(bsg_job->reply_payload.sg_list,
 						bsg_job->reply_payload.sg_cnt,
-						&ap, dat_size, sg_skip, false);
+						&ap, dat_size, sg_skip);
 
 			ql_dbg(ql_dbg_edif, vha, 0x09102,
 				"%s Doorbell consumed : type=%d %p\n",
