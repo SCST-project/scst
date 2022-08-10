@@ -1794,7 +1794,7 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 	sgv_shrinker.shrink = sgv_shrink;
 #endif
 	sgv_shrinker.seeks = DEFAULT_SEEKS;
-	register_shrinker(&sgv_shrinker);
+	register_shrinker(&sgv_shrinker, "scst-sgv");
 
 out:
 	TRACE_EXIT_RES(res);
