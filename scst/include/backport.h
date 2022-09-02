@@ -783,7 +783,15 @@ static inline void kvfree(void *addr)
 static inline
 int register_shrinker_backport(struct shrinker *shrinker, const char *fmt, ...)
 {
+/*
+ * See also commit 1d3d4437eae1 ("vmscan: per-node deferred work") # v3.12
+ */
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
 	return register_shrinker(shrinker);
+#else
+	register_shrinker(shrinker);
+	return 0;
+#endif
 }
 
 #define register_shrinker register_shrinker_backport
