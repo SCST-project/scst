@@ -1798,7 +1798,10 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 	sgv_shrinker.shrink = sgv_shrink;
 #endif
 	sgv_shrinker.seeks = DEFAULT_SEEKS;
-	register_shrinker(&sgv_shrinker, "scst-sgv");
+
+	res = register_shrinker(&sgv_shrinker, "scst-sgv");
+	if (unlikely(res))
+		goto out_free_per_cpu_dma;
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1828,7 +1831,7 @@ out_free_pool:
 	kmem_cache_destroy(sgv_pool_cachep);
 
 out_err:
-	res = -ENOMEM;
+	res = res ?: -ENOMEM;
 	goto out;
 }
 
