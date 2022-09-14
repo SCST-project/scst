@@ -31,7 +31,7 @@ sed -i "s,^\(<date>Version[[:blank:]]*\)[^[:blank:]]*\(</date>\),\1$fv\2," doc/s
 sed -i "s/^Version .*/Version $fv, $reldate/" iscsi-scst/README qla2x00t/qla2x00-target/README scst/README usr/fileio/README
 sed -i "s/^\(\(static const char \*scst_local_version_date\|#define[[:blank:]]*DRV_RELDATE\)[[:blank:]]*\)\"[^\"]*\"/\1\"$reldate\"/" iscsi-scst/kernel/isert-scst/isert.c scst_local/scst_local.c srpt/src/ib_srpt.c
 sed -i "s/^\(#define[[:blank:]]*[^[:blank:]]*_REV[[:blank:]]*\)\"[[:blank:]0-9]*\"/\1\"$(printf "%-4s" ${major}${minor}${release})\"/" usr/fileio/common.h scst/src/dev_handlers/scst_vdisk.c
-sed -i "s/^\(#define[[:blank:]]*SCST_VERSION_CODE[[:blank:]]*\).*/\1SCST_VERSION($major, $minor, $release, 0)/" scst/include/scst.h
+sed -i "s/^\(#define[[:blank:]]*SCST_VERSION_CODE[[:blank:]]*\).*/\1SCST_VERSION($major, $minor, $release, 0)/" scst/include/scst_const.h
 sed -i "s/^\(#define[[:blank:]]*Q2T_VERSION_CODE[[:blank:]]*\).*/\1Q2T_VERSION($major, $minor, $release, 0)/" \
     qla2x00t/qla2x00-target/qla2x00t.h \
     qla2x00t-32gbit/qla2x00-target/scst_qla2xxx.h

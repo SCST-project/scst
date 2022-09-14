@@ -44,7 +44,7 @@
  * and FIO_REV in usr/fileio/common.h as well.
  */
 #define SCST_VERSION(a, b, c, d)    (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
-#define SCST_VERSION_CODE	    SCST_VERSION(3, 4, 0, 0)
+#define SCST_VERSION_CODE	    SCST_VERSION(3, 7, 0, 0)
 #define SCST_VERSION_STRING_SUFFIX
 #define SCST_VERSION_NAME	    "3.7.0-pre"
 #define SCST_VERSION_STRING	    SCST_VERSION_NAME SCST_VERSION_STRING_SUFFIX
