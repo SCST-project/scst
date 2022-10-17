@@ -543,9 +543,21 @@ struct scst_dlm_readdir_context {
 static int scst_dlm_filldir(void *arg, const char *name_arg, int name_len,
 			    loff_t curr_pos, u64 inode, unsigned int dtype)
 #else
-static int scst_dlm_filldir(struct dir_context *arg, const char *name_arg,
-			    int name_len, loff_t curr_pos, u64 inode,
-			    unsigned int dtype)
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+/*
+ * See also commit 25885a35a720 ("Change calling conventions for filldir_t")
+ * # v6.1.
+ */
+#define DLM_FILLDIR_RET bool
+#else
+#define DLM_FILLDIR_RET int
+#endif
+
+static DLM_FILLDIR_RET
+scst_dlm_filldir(struct dir_context *arg, const char *name_arg,
+		 int name_len, loff_t curr_pos, u64 inode,
+		 unsigned int dtype)
 #endif
 {
 	char *p, *q, name[64];
@@ -580,7 +592,11 @@ static int scst_dlm_filldir(struct dir_context *arg, const char *name_arg,
 	(*entries)[i + 1] = '\0';
 
 out:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 	return *entries ? 0 : -ENOMEM;
+#else
+	return *entries ? true : false;
+#endif
 }
 
 /*
@@ -811,6 +827,7 @@ static dlm_lockspace_t *get_lockspace(struct scst_device *dev)
 	char lsp_name[32], lock_name[32];
 	int res;
 	bool modified_lvb = false;
+	uint32_t flags;
 
 	if (pr_dlm->ls || !pr_dlm->cl_dev_id || in_interrupt() ||
 	    time_is_after_jiffies(pr_dlm->latest_lscr_attempt + 1 * HZ))
@@ -835,9 +852,18 @@ static dlm_lockspace_t *get_lockspace(struct scst_device *dev)
 
 	snprintf(lsp_name, sizeof(lsp_name), "%s%s", SCST_DLM_LOCKSPACE_PFX,
 		 pr_dlm->cl_dev_id);
+
+	flags = DLM_LSFL_NEWEXCL;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
+	/*
+	 * See also commit 12cda13cfd53 ("fs: dlm: remove DLM_LSFL_FS from uapi")
+	 * # v6.1.
+	 */
+	flags |= DLM_LSFL_FS;
+#endif
+
 	res = scst_dlm_new_lockspace(lsp_name, strlen(lsp_name), &ls,
-				     DLM_LSFL_NEWEXCL | DLM_LSFL_FS,
-				     PR_DLM_LVB_LEN);
+				     flags, PR_DLM_LVB_LEN);
 	if (res) {
 		PRINT_ERROR("Creating DLM lockspace %s failed: %d", lsp_name,
 			    res);
