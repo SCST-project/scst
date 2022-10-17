@@ -1552,7 +1552,7 @@ qla24xx_sadb_update(BSG_JOB_TYPE *bsg_job)
 		ql_dbg(ql_dbg_edif, vha, 0x70a3, "Failed to find port= %06x\n",
 		    sa_frame.port_id.b24);
 		rval = -EINVAL;
-		SET_DID_STATUS(bsg_reply->result, DID_TARGET_FAILURE);
+		SET_DID_STATUS(bsg_reply->result, DID_NO_CONNECT);
 		goto done;
 	}
 
