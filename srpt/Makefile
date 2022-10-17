@@ -182,6 +182,12 @@ conftest/cm_listen/result-$(KVER).txt:					\
 	echo "$(call run_conftest,cm_listen,				\
 		-DIB_CM_LISTEN_TAKES_FOURTH_ARG)" >"$@"
 
+conftest/cm_listen_2/result-$(KVER).txt:				\
+	conftest/cm_listen_2/cm_listen_2.c				\
+	conftest/cm_listen_2/Kbuild
+	echo "$(call run_conftest,cm_listen_2,				\
+		-DIB_CM_LISTEN_TAKES_THIRD_ARG)" >"$@"
+
 conftest/create_cq/result-$(KVER).txt:					\
 	conftest/create_cq/create_cq.c					\
 	conftest/create_cq/Kbuild
