@@ -8474,7 +8474,18 @@ out:
 	!defined(CONFIG_SUSE_KERNEL)
 static void scsi_end_async(struct request *req, int error)
 #else
-static void scsi_end_async(struct request *req, blk_status_t error)
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+/*
+ * See also commit de671d6116b5 ("block: change request end_io handler to pass
+ * back a return value") # v6.1.
+ */
+#define RQ_END_IO_RET enum rq_end_io_ret
+#else
+#define RQ_END_IO_RET void
+#endif
+
+static RQ_END_IO_RET scsi_end_async(struct request *req, blk_status_t error)
 #endif
 {
 	struct scsi_io_context *sioc = req->end_io_data;
@@ -8520,6 +8531,7 @@ static void scsi_end_async(struct request *req, blk_status_t error)
 
 	kmem_cache_free(scsi_io_context_cache, sioc);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0) &&	\
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8)
 	/* See also commit 92bc5a24844a ("block: remove __blk_put_request()") */
@@ -8530,6 +8542,9 @@ static void scsi_end_async(struct request *req, blk_status_t error)
 	blk_mq_free_request(req);
 #endif
 	return;
+#else
+	return RQ_END_IO_FREE;
+#endif
 }
 
 /**
