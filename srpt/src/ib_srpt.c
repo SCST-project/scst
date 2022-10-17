@@ -4403,9 +4403,12 @@ static int srpt_add_one(struct ib_device *device)
 	 * in the system as service_id; therefore, the target_id will change
 	 * if this HCA is gone bad and replaced by different HCA
 	 */
-	ret = ib_cm_listen(sdev->cm_id, cpu_to_be64(srpt_service_guid), 0
+	ret = ib_cm_listen(sdev->cm_id, cpu_to_be64(srpt_service_guid)
 #ifdef IB_CM_LISTEN_TAKES_FOURTH_ARG
+			   , 0
 			   , NULL
+#elif defined(IB_CM_LISTEN_TAKES_THIRD_ARG)
+			   , 0
 #endif
 			   );
 	if (ret) {
