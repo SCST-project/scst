@@ -369,7 +369,18 @@ MODULE_PARM_DESC(ql2xrspq_follow_inptr_legacy,
 static void qla2x00_clear_drv_active(struct qla_hw_data *);
 static void qla2x00_free_device(scsi_qla_host_t *);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
-static int qla2xxx_map_queues(struct Scsi_Host *shost);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+/*
+ * See also commit a4e1d0b76e7b ("block: Change the return type of
+ * blk_mq_map_queues() into void") # v6.1.
+ */
+#define MAP_QUEUES_RET void
+#else
+#define MAP_QUEUES_RET int
+#endif
+
+static MAP_QUEUES_RET qla2xxx_map_queues(struct Scsi_Host *shost);
 #endif
 static void qla2x00_destroy_deferred_work(struct qla_hw_data *);
 
@@ -8039,21 +8050,20 @@ qla2x00_change_queue_depth(struct scsi_device *sdev, int qdepth, int reason)
 #endif
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
-static int qla2xxx_map_queues(struct Scsi_Host *shost)
+static MAP_QUEUES_RET qla2xxx_map_queues(struct Scsi_Host *shost)
 {
-	int rc;
 	scsi_qla_host_t *vha = (scsi_qla_host_t *)shost->hostdata;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 0, 0) ||	\
 	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 8)
 	struct blk_mq_queue_map *qmap = &shost->tag_set.map[0];
 
 	if (USER_CTRL_IRQ(vha->hw) || !vha->hw->mqiobase)
-		rc = blk_mq_map_queues(qmap);
+		blk_mq_map_queues(qmap);
 	else
-		rc = blk_mq_pci_map_queues(qmap, vha->hw->pdev, vha->irq_offset);
+		blk_mq_pci_map_queues(qmap, vha->hw->pdev, vha->irq_offset);
 #else
 	if (USER_CTRL_IRQ(vha->hw))
-		rc = blk_mq_map_queues(&shost->tag_set);
+		blk_mq_map_queues(&shost->tag_set);
 	else
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0) &&		\
 	(!defined(UEK_KABI_RENAME) ||				\
@@ -8063,12 +8073,13 @@ static int qla2xxx_map_queues(struct Scsi_Host *shost)
 		 * See also commit f23f5bece686 ("blk-mq: Allow PCI vector
 		 * offset for mapping queues") # v4.17.
 		 */
-		rc = blk_mq_pci_map_queues(&shost->tag_set, vha->hw->pdev);
+		blk_mq_pci_map_queues(&shost->tag_set, vha->hw->pdev);
 #else
-		rc = blk_mq_pci_map_queues(&shost->tag_set, vha->hw->pdev, 0);
+		blk_mq_pci_map_queues(&shost->tag_set, vha->hw->pdev, 0);
 #endif
 #endif
-	return rc;
+
+	return (MAP_QUEUES_RET) 0;
 }
 #endif
 
