@@ -1927,10 +1927,10 @@ out:
 
 static int scst_set_lun_not_supported_inquiry(struct scst_cmd *cmd)
 {
-	int res;
 	uint8_t *buf;
 	struct scatterlist *sg;
 	int len;
+	int res = 0;
 
 	TRACE_ENTRY();
 
@@ -1942,8 +1942,11 @@ static int scst_set_lun_not_supported_inquiry(struct scst_cmd *cmd)
 	}
 
 	if (cmd->sg == NULL) {
-		if (cmd->bufflen == 0)
-			cmd->bufflen = min_t(int, 36, get_unaligned_be16(&cmd->cdb[3]));
+		if (cmd->bufflen == 0) {
+			int bufflen = get_unaligned_be16(&cmd->cdb[3]);
+
+			cmd->bufflen = bufflen ? min_t(int, 36, bufflen) : 36;
+		}
 
 		/*
 		 * If target driver preparing data buffer using tgt_alloc_data_buf()
@@ -1990,12 +1993,12 @@ go:
 	cmd->data_direction = SCST_DATA_READ;
 	scst_set_resp_data_len(cmd, len);
 
-	res = 0;
 	cmd->completed = 1;
 	cmd->resid_possible = 1;
 
 out:
 	TRACE_EXIT_RES(res);
+
 	return res;
 }
 
