@@ -1783,8 +1783,8 @@ static int scst_set_lun_not_supported_request_sense(struct scst_cmd *cmd,
 	TRACE_ENTRY();
 
 	if (cmd->status != 0) {
-		TRACE_MGMT_DBG("cmd %p already has status %x set", cmd,
-			cmd->status);
+		TRACE_MGMT_DBG("cmd %p already has status %x set",
+			       cmd, cmd->status);
 		res = -EEXIST;
 		goto out;
 	}
@@ -1813,14 +1813,14 @@ static int scst_set_lun_not_supported_request_sense(struct scst_cmd *cmd,
 
 		cmd->sg = scst_alloc_sg(cmd->bufflen, GFP_ATOMIC, &cmd->sg_cnt);
 		if (cmd->sg == NULL) {
-			PRINT_ERROR("Unable to alloc sg for REQUEST SENSE"
-				"(sense %x/%x/%x)", key, asc, ascq);
+			PRINT_ERROR("Unable to alloc sg for REQUEST SENSE (sense %x/%x/%x)",
+				    key, asc, ascq);
 			res = 1;
 			goto out;
 		}
 
-		TRACE_MEM("sg %p alloced for sense for cmd %p (cnt %d, "
-			"len %d)", cmd->sg, cmd, cmd->sg_cnt, cmd->bufflen);
+		TRACE_MEM("sg %p (cnt %d, len %d) alloced for sense: cmd %p",
+			  cmd->sg, cmd->sg_cnt, cmd->bufflen, cmd);
 	}
 
 go:
@@ -1856,8 +1856,8 @@ static int scst_set_lun_not_supported_inquiry(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (cmd->status != 0) {
-		TRACE_MGMT_DBG("cmd %p already has status %x set", cmd,
-			cmd->status);
+		TRACE_MGMT_DBG("cmd %p already has status %x set",
+			       cmd, cmd->status);
 		res = -EEXIST;
 		goto out;
 	}
@@ -1874,22 +1874,20 @@ static int scst_set_lun_not_supported_inquiry(struct scst_cmd *cmd)
 		if (cmd->tgt_i_data_buf_alloced && (cmd->tgt_i_sg != NULL)) {
 			cmd->sg = cmd->tgt_i_sg;
 			cmd->sg_cnt = cmd->tgt_i_sg_cnt;
-			TRACE_MEM("Tgt used for INQUIRY for not supported "
-				"LUN for cmd %p", cmd);
+			TRACE_MEM("Tgt used for INQUIRY (not supported LUN): cmd %p",
+				  cmd);
 			goto go;
 		}
 
 		cmd->sg = scst_alloc_sg(cmd->bufflen, GFP_ATOMIC, &cmd->sg_cnt);
 		if (cmd->sg == NULL) {
-			PRINT_ERROR("%s", "Unable to alloc sg for INQUIRY "
-				"for not supported LUN");
+			PRINT_ERROR("Unable to alloc sg for INQUIRY (not supported LUN)");
 			res = 1;
 			goto out;
 		}
 
-		TRACE_MEM("sg %p alloced for INQUIRY for not supported LUN for "
-			"cmd %p (cnt %d, len %d)", cmd->sg, cmd, cmd->sg_cnt,
-			cmd->bufflen);
+		TRACE_MEM("sg %p (cnt %d, len %d) allocated for INQUIRY (not supported LUN): cmd %p",
+			  cmd->sg, cmd->sg_cnt, cmd->bufflen, cmd);
 	}
 
 go:
