@@ -1337,38 +1337,6 @@ iov_iter_kvec_backport(struct iov_iter *i, unsigned int direction,
 
 /* <linux/unaligned.h> */
 
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 <= 5
-static inline uint16_t get_unaligned_be16(const void *p)
-{
-	return be16_to_cpu(get_unaligned((__be16 *)p));
-}
-
-static inline void put_unaligned_be16(uint16_t i, void *p)
-{
-	put_unaligned(cpu_to_be16(i), (__be16 *)p);
-}
-
-static inline uint32_t get_unaligned_be32(const void *p)
-{
-	return be32_to_cpu(get_unaligned((__be32 *)p));
-}
-
-static inline void put_unaligned_be32(uint32_t i, void *p)
-{
-	put_unaligned(cpu_to_be32(i), (__be32 *)p);
-}
-
-static inline uint64_t get_unaligned_be64(const void *p)
-{
-	return be64_to_cpu(get_unaligned((__be64 *)p));
-}
-
-static inline void put_unaligned_be64(uint64_t i, void *p)
-{
-	put_unaligned(cpu_to_be64(i), (__be64 *)p);
-}
-#endif
-
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0) && \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
 	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 4)
