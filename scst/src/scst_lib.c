@@ -1855,9 +1855,9 @@ EXPORT_SYMBOL(scst_set_cmd_error_status);
 static int scst_set_lun_not_supported_request_sense(struct scst_cmd *cmd,
 	int key, int asc, int ascq)
 {
-	int res;
 	int sense_len, len;
 	struct scatterlist *sg;
+	int res = 0;
 
 	TRACE_ENTRY();
 
@@ -1875,6 +1875,12 @@ static int scst_set_lun_not_supported_request_sense(struct scst_cmd *cmd,
 	}
 
 	if (cmd->sg == NULL) {
+		if (cmd->bufflen == 0) {
+			int bufflen = cmd->cdb[4];
+
+			cmd->bufflen = bufflen ?: 18;
+		}
+
 		/*
 		 * If target driver preparing data buffer using tgt_alloc_data_buf()
 		 * callback, it is responsible to copy the sense to its buffer
@@ -1886,9 +1892,6 @@ static int scst_set_lun_not_supported_request_sense(struct scst_cmd *cmd,
 			TRACE_MEM("Tgt sg used for sense for cmd %p", cmd);
 			goto go;
 		}
-
-		if (cmd->bufflen == 0)
-			cmd->bufflen = cmd->cdb[4];
 
 		cmd->sg = scst_alloc_sg(cmd->bufflen, GFP_ATOMIC, &cmd->sg_cnt);
 		if (cmd->sg == NULL) {
@@ -1916,12 +1919,12 @@ go:
 	cmd->data_direction = SCST_DATA_READ;
 	scst_set_resp_data_len(cmd, sense_len);
 
-	res = 0;
 	cmd->completed = 1;
 	cmd->resid_possible = 1;
 
 out:
 	TRACE_EXIT_RES(res);
+
 	return res;
 }
 
