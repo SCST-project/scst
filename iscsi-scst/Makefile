@@ -214,12 +214,6 @@ conftest/cm_event_mod/result-$(KVER).txt:				\
 	echo "$(call run_conftest,cm_event_mod,				\
 		-DCM_HANDLER_EVENT_MODIFIER=const,-DCM_HANDLER_EVENT_MODIFIER=)" >"$@"
 
-conftest/cm_listen/result-$(KVER).txt:					\
-	conftest/cm_listen/cm_listen.c					\
-	conftest/cm_listen/Kbuild
-	echo "$(call run_conftest,cm_listen,				\
-		-DIB_CM_LISTEN_TAKES_FOURTH_ARG)" >"$@"
-
 conftest/create_cq/result-$(KVER).txt:					\
 	conftest/create_cq/create_cq.c					\
 	conftest/create_cq/Kbuild
