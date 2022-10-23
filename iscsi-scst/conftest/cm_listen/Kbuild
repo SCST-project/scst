@@ -1,3 +1,0 @@
-LINUXINCLUDE := $(CONFTEST_CFLAGS) $(LINUXINCLUDE)
-
-obj-m += cm_listen.o
