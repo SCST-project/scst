@@ -27,11 +27,10 @@
 source "$(dirname "$0")/kernel-functions"
 
 function usage {
-  echo "Usage: $0 [-d] [-h] [-m] [-n] [-p <dir>] [-s] [-u] <kernel version>"
+  echo "Usage: $0 [-d] [-h] [-n] [-p <dir>] [-s] [-u] <kernel version>"
   echo "where: "
   echo "        -d - enable patch specialization debugging"
   echo "        -h - show this text"
-  echo "        -m - add mpt target driver"
   echo "        -n - do not delete code disabled via preprocessor statements"
   echo "        -p - generate multiple patches instead of one big patch into"\
        "the specified directory."
@@ -489,7 +488,7 @@ make -s -C iscsi-scst include/iscsi_scst_itf_ver.h
 
 (
 for f in iscsi-scst/include/*h; do
-    [ -e "$f" ] || continue	
+    [ -e "$f" ] || continue
     case "${f}" in
       "iscsi-scst/include/iscsi_scst_itf_ver.h")
           ;;
@@ -578,7 +577,7 @@ elif [ "${qla2x00t_32gbit}" = "true" ]; then
   add_file "qla2x00t-32gbit/qla2x00-target/README" \
            "Documentation/scst/README.qla2x00t" \
   | process_patch "qla2x00t-doc.diff"
-    
+
 fi \
 | process_patch "qla2x00t.diff"
 
@@ -642,186 +641,3 @@ fi \
   add_file "scst_local/scst_local.c" "drivers/scst/scst_local/scst_local.c"
 ) \
 | process_patch "scst_16_local.diff"
-
-
-
-# Directory drivers/scsi/ibmvstgt
-
-{
-  ( cd ibmvstgt 2>/dev/null && ./generate-in-tree-patches "${kver}" ) &&
-  if [ -e "ibmvstgt/in-tree-patches/${kver}" ]; then
-    if [ "${multiple_patches}" = "true" ]; then
-      cat <<EOF
-[SCSI] ibmvstgt: Port from tgt to SCST
-
-The ibmvstgt and libsrp kernel modules as included in the 2.6.37 kernel are
-based on the tgt SCSI target framework. Both kernel modules need the scsi_tgt
-kernel module and the tgtd user space process in order to function
-properly. This patch modifies the ibmvstgt and libsrp kernel modules such that
-both use the SCST storage target framework instead of tgt. As a result,
-neither the scsi_tgt kernel module nor the tgtd user space process are any
-more necessary when using the ibmvstgt driver.
-
-This patch introduces one backwards-incompatible change, namely that the path
-of the ibmvstgt sysfs attributes is modified. This change is unavoidable
-because this patch dissociates ibmvstgt SRP sessions from a SCSI host
-instance.  Since the user space STGT driver ibmvio was the only user of
-these attributes, that shouldn't be an issue.
-
-Changes in ibmvstgt compared to kernel 2.6.36:
-- Increased maximum data size for a single SRP command from 128 KB to 64 MB
-  such that an initiator is not forced to split large transfers into
-  multiple SCSI commands.
-- The maximum RDMA transfer size supported by a single H_COPY_RDMA call is
-  queried at driver initialization time from the open firmware tree / larger
-  transfers than 128 KB are now supported too.
-- If DMA mapping fails while handling a READ or WRITE command, the offending
-  command is retried until the associated data has been transferred instead of
-  reporting to the ibmvscsi client that the SCSI command failed.
-- VSCSI command/response queue: one element has been reserved for management
-  datagrams since these fall outside the SRP credit mechanism. Added a compile-
-  time check whether the size of this queue is a power of two.
-- Fixed a race condition which in theory could have caused the VSCSI receive
-  queue to overflow: srp_iu_put() is now invoked before a response is sent back
-  to the initiator instead of after.
-- Moved enum iue_flags from libsrp to ibmvstgt because it is ibmvstgt-specific.
-- Removed a variable that was modified but never read from ibmvstgt_rdma().
-- ibmvstgt_probe(): changed the datatype of the variable "dma" from
-  unsigned * into const unsigned * such that a cast could be removed.
-- Fixed all compiler and sparse warnings (C=2 CF=-D__CHECK_ENDIAN__).
-
-Changes in libsrp compared to kernel 2.6.36:
-- Renamed vscsis_data_length() into srp_data_length() and exported
-  this function.
-- All error messages reported via printk() do now have prefix KERN_ERR.
-- modified srp_target_alloc() and srp_target_free() such that the
-  driver-private data reflects whether or not target data has been allocated.
-  This change was necessary to avoid that ibmvstgt_remove() triggers a
-  NULL-pointer dereference if ibmvstgt_probe() failed.
-- srp_transfer_data(): All three return statements related to DMA mapping
-  failure do now return -ENOMEM instead of 0, -EIO and -ENOMEM.
-- srp_direct_data(): Removed the ext_desc argument since not used.
-- srp_direct_data() and srp_indirect_data(): Use DMA_TO/FROM_DEVICE
-  instead of DMA_BIDIRECTIONAL for the buffers mapped for transferring data
-  via DMA.
-- struct srp_target: eliminated the information unit linked list and also the
-  V_FLYING flag since both were duplicating information managed by the SCST
-  core.
-- Fixed all compiler and sparse warnings (C=2 CF=-D__CHECK_ENDIAN__).
-
-Tests performed on a backport to kernel version 2.6.18 of this driver with a
-Linux initiator system:
-- Verified that the kernel module ibmvstgt loads and initializes successfully
-  and also that the client connects after loading.
-- Verified that all virtual disks configured in scst_vdisk were discovered by
-  the client after rescanning the SCSI bus.
-- Verified that after unloading and reloading ibmvstgt and after client
-  recovery that the initiator devices were functioning normally.
-- Verified that after a client reboot ibmvscsic reconnected with the target
-  and that the target devices were again usable.
-- Performed IO stress testing on the device.
-- Verified that SCSI task abortion works correctly.
-- Performed basic I/O performance testing. With a RAM disk as target linear
-  direct I/O throughput was above 2 GB/s and a random I/O test resulted in
-  about 30000 IOPS for all block sizes between 512 bytes and 16 KB.
-  Both initiator and target were dual core POWER6 LPAR systems.
-
-Note: ibmvstgt is the only user of libsrp.
-
-Signed-off-by: Bart Van Assche <bvanassche@acm.org>
-Cc: Fujita Tomonori <fujita.tomonori@lab.ntt.co.jp>
-Cc: Brian King <brking@linux.vnet.ibm.com>
-Cc: Robert Jennings <rcj@linux.vnet.ibm.com>
-
-EOF
-    fi
-    for f in \
-      drivers/scsi/ibmvscsi/ibmvstgt.c \
-      drivers/scsi/libsrp.c \
-      include/scsi/libsrp.h \
-      include/scsi/srp.h
-    do
-      patch="ibmvstgt/in-tree-patches/${kver}/$(basename $f).patch"
-      if [ -e "${patch}" ]; then
-        add_patch "${patch}" $f
-      fi
-    done
-    add_file "ibmvstgt/README.sysfs" "Documentation/powerpc/ibmvstgt.txt"
-  fi
-} \
-| process_patch "scst_18_ibmvstgt.diff"
-
-{
-  ( cd ibmvstgt 2>/dev/null && ./generate-in-tree-patches "${kver}" ) &&
-  if [ -e "ibmvstgt/in-tree-patches/${kver}" ]; then
-    if [ "${multiple_patches}" = "true" ]; then
-      cat <<EOF
-[SCSI] tgt: Removal
-
-Because of the conversion of the ibmvstgt driver from tgt to SCST, and because
-the ibmvstgt driver was the only user of scsi_tgt, the scsi_tgt kernel module,
-the CONFIG_SCSI_TGT, CONFIG_SCSI_SRP_TGT_ATTRS and CONFIG_SCSI_FC_TGT_ATTRS
-kbuild variable, the scsi_host_template member variables transfer_response,
-supportedmode and active_mode and the constants MODE_UNKNOWN, MODE_INITIATOR
-and MODE_TARGET are no longer needed.
-
-Note: this patch applies cleanly on a 2.6.35 kernel tree. The patch tool
-however complains about the defconfig changes when trying to apply this patch
-on a 2.6.36 kernel tree.
-
-Signed-off-by: Bart Van Assche <bvanassche@acm.org>
-
-EOF
-    fi
-    for f in \
-      arch/arm/configs/at572d940hfek_defconfig \
-      arch/arm/configs/cam60_defconfig \
-      arch/arm/configs/s3c2410_defconfig \
-      arch/m68k/configs/amiga_defconfig \
-      arch/m68k/configs/apollo_defconfig \
-      arch/m68k/configs/atari_defconfig \
-      arch/m68k/configs/bvme6000_defconfig \
-      arch/m68k/configs/hp300_defconfig \
-      arch/m68k/configs/mac_defconfig \
-      arch/m68k/configs/multi_defconfig \
-      arch/m68k/configs/mvme147_defconfig \
-      arch/m68k/configs/mvme16x_defconfig \
-      arch/m68k/configs/q40_defconfig \
-      arch/m68k/configs/sun3_defconfig \
-      arch/m68k/configs/sun3x_defconfig \
-      arch/mips/configs/bcm47xx_defconfig \
-      arch/mips/configs/decstation_defconfig \
-      arch/mips/configs/ip22_defconfig \
-      arch/mips/configs/ip27_defconfig \
-      arch/mips/configs/ip32_defconfig \
-      arch/mips/configs/jazz_defconfig \
-      arch/mips/configs/malta_defconfig \
-      arch/mips/configs/markeins_defconfig \
-      arch/mips/configs/pnx8550-jbs_defconfig \
-      arch/mips/configs/pnx8550-stb810_defconfig \
-      arch/mips/configs/rm200_defconfig \
-      arch/mips/configs/tb0226_defconfig \
-      arch/mips/configs/tb0287_defconfig \
-      arch/powerpc/configs/52xx/motionpro_defconfig \
-      arch/powerpc/configs/86xx/mpc8610_hpcd_defconfig \
-      arch/powerpc/configs/mpc5200_defconfig \
-      drivers/scsi/Kconfig \
-      drivers/scsi/Makefile \
-      drivers/scsi/hosts.c \
-      drivers/scsi/scsi_sysfs.c \
-      drivers/scsi/scsi_tgt_if.c \
-      drivers/scsi/scsi_tgt_lib.c \
-      drivers/scsi/scsi_tgt_priv.h \
-      drivers/scsi/scsi_transport_fc.c \
-      drivers/scsi/scsi_transport_fc_internal.h \
-      drivers/scsi/scsi_transport_srp.c \
-      drivers/scsi/scsi_transport_srp_internal.h \
-      include/scsi/scsi_host.h \
-      include/scsi/scsi_tgt.h \
-      include/scsi/scsi_tgt_if.h
-    do
-      add_patch "ibmvstgt/in-tree-patches/${kver}/$(basename $f).patch" $f
-    done
-  fi
-} \
-| process_patch "scst_19_scsi_tgt.diff"
