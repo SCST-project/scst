@@ -395,6 +395,8 @@ ql_mask_match_ext(uint level, int *log_tunable)
 	return (level & *log_tunable) == level;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
+
 /* Assumes local variable pbuf and pbuf_ready present. */
 #define ql_ktrace(dbg_msg, level, pbuf, pdev, vha, id, fmt) do {	\
 	struct va_format _vaf;						\
@@ -428,3 +430,5 @@ ql_mask_match_ext(uint level, int *log_tunable)
 #else /* QLA_ENABLE_KERNEL_TRACING */
 #define QLA_TRACE_ENABLE(_tr)
 #endif /* QLA_ENABLE_KERNEL_TRACING */
+
+#endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0) */

@@ -2494,6 +2494,7 @@ ql_dbg(uint level, scsi_qla_host_t *vha, uint id, const char *fmt, ...)
 	struct va_format vaf;
 	char pbuf[64];
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 	ql_ktrace(1, level, pbuf, NULL, vha, id, fmt);
 
 	if (!ql_mask_match(level))
@@ -2501,13 +2502,27 @@ ql_dbg(uint level, scsi_qla_host_t *vha, uint id, const char *fmt, ...)
 
 	if (!pbuf[0]) /* set by ql_ktrace */
 		ql_dbg_prefix(pbuf, ARRAY_SIZE(pbuf), NULL, vha, id);
+#else
+	if (!ql_mask_match(level) && !trace_ql_dbg_log_enabled())
+		return;
+#endif
 
 	va_start(va, fmt);
 
 	vaf.fmt = fmt;
 	vaf.va = &va;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 	pr_warn("%s%pV", pbuf, &vaf);
+#else
+	ql_dbg_prefix(pbuf, ARRAY_SIZE(pbuf), NULL, vha, id);
+
+	if (!ql_mask_match(level))
+		trace_ql_dbg_log(pbuf, &vaf);
+	else
+		pr_warn("%s%pV", pbuf, &vaf);
+
+#endif
 
 	va_end(va);
 
@@ -2537,7 +2552,9 @@ ql_dbg_pci(uint level, struct pci_dev *pdev, uint id, const char *fmt, ...)
 	if (pdev == NULL)
 		return;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 	ql_ktrace(1, level, pbuf, pdev, NULL, id, fmt);
+#endif
 
 	if (!ql_mask_match(level))
 		return;
@@ -2547,9 +2564,14 @@ ql_dbg_pci(uint level, struct pci_dev *pdev, uint id, const char *fmt, ...)
 	vaf.fmt = fmt;
 	vaf.va = &va;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 	if (!pbuf[0]) /* set by ql_ktrace */
 		ql_dbg_prefix(pbuf, ARRAY_SIZE(pbuf), pdev, NULL,
 			      id + ql_dbg_offset);
+#else
+	ql_dbg_prefix(pbuf, ARRAY_SIZE(pbuf), pdev, NULL,
+		      id + ql_dbg_offset);
+#endif
 	pr_warn("%s%pV", pbuf, &vaf);
 
 	va_end(va);
@@ -2578,10 +2600,14 @@ ql_log(uint level, scsi_qla_host_t *vha, uint id, const char *fmt, ...)
 	if (level > ql_errlev)
 		return;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 	ql_ktrace(0, level, pbuf, NULL, vha, id, fmt);
 
 	if (!pbuf[0]) /* set by ql_ktrace */
 		ql_dbg_prefix(pbuf, ARRAY_SIZE(pbuf), NULL, vha, id);
+#else
+	ql_dbg_prefix(pbuf, ARRAY_SIZE(pbuf), NULL, vha, id);
+#endif
 
 	va_start(va, fmt);
 
@@ -2632,10 +2658,14 @@ ql_log_pci(uint level, struct pci_dev *pdev, uint id, const char *fmt, ...)
 	if (level > ql_errlev)
 		return;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 	ql_ktrace(0, level, pbuf, pdev, NULL, id, fmt);
 
 	if (!pbuf[0]) /* set by ql_ktrace */
 		ql_dbg_prefix(pbuf, ARRAY_SIZE(pbuf), pdev, NULL, id);
+#else
+	ql_dbg_prefix(pbuf, ARRAY_SIZE(pbuf), pdev, NULL, id);
+#endif
 
 	va_start(va, fmt);
 
@@ -2730,11 +2760,16 @@ ql_log_qp(uint32_t level, struct qla_qpair *qpair, int32_t id,
 	if (level > ql_errlev)
 		return;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 	ql_ktrace(0, level, pbuf, NULL, qpair ? qpair->vha : NULL, id, fmt);
 
 	if (!pbuf[0]) /* set by ql_ktrace */
 		ql_dbg_prefix(pbuf, ARRAY_SIZE(pbuf), NULL,
 			      qpair ? qpair->vha : NULL, id);
+#else
+	ql_dbg_prefix(pbuf, ARRAY_SIZE(pbuf), NULL, qpair ? qpair->vha : NULL, id);
+
+#endif
 
 	va_start(va, fmt);
 
@@ -2780,7 +2815,9 @@ ql_dbg_qp(uint32_t level, struct qla_qpair *qpair, int32_t id,
 	struct va_format vaf;
 	char pbuf[128];
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 	ql_ktrace(1, level, pbuf, NULL, qpair ? qpair->vha : NULL, id, fmt);
+#endif
 
 	if (!ql_mask_match(level))
 		return;
@@ -2790,9 +2827,14 @@ ql_dbg_qp(uint32_t level, struct qla_qpair *qpair, int32_t id,
 	vaf.fmt = fmt;
 	vaf.va = &va;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 	if (!pbuf[0]) /* set by ql_ktrace */
 		ql_dbg_prefix(pbuf, ARRAY_SIZE(pbuf), NULL,
 			      qpair ? qpair->vha : NULL, id + ql_dbg_offset);
+#else
+	ql_dbg_prefix(pbuf, ARRAY_SIZE(pbuf), NULL, qpair ? qpair->vha : NULL,
+		      id + ql_dbg_offset);
+#endif
 
 	pr_warn("%s%pV", pbuf, &vaf);
 

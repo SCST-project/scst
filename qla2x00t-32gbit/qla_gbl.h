@@ -163,7 +163,9 @@ extern int ql2xrdpenable;
 extern int ql2xsmartsan;
 extern int ql2xallocfwdump;
 extern int ql2xextended_error_logging;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 extern int ql2xextended_error_logging_ktrace;
+#endif
 extern int ql2xiidmaenable;
 extern int ql2xmqsupport;
 extern int ql2xfwloadbin;

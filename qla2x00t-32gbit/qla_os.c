@@ -21,8 +21,10 @@
 #include <linux/refcount.h>
 #endif
 #include <linux/crash_dump.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 #include <linux/trace_events.h>
 #include <linux/trace.h>
+#endif
 
 #include <scsi/scsi_tcq.h>
 #include <scsi/scsicam.h>
@@ -50,7 +52,9 @@ static int apidev_major;
  */
 struct kmem_cache *srb_cachep;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 struct trace_array *qla_trc_array;
+#endif
 
 int ql2xfulldump_on_mpifail;
 module_param(ql2xfulldump_on_mpifail, int, S_IRUGO | S_IWUSR);
@@ -134,10 +138,12 @@ MODULE_PARM_DESC(ql2xextended_error_logging,
 		"ql2xextended_error_logging=1).\n"
 		"\t\tDo LOGICAL OR of the value to enable more than one level");
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 int ql2xextended_error_logging_ktrace = 1;
 module_param(ql2xextended_error_logging_ktrace, int, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(ql2xextended_error_logging_ktrace,
 		"Same BIT definiton as ql2xextended_error_logging, but used to control logging to kernel trace buffer (default=1).\n");
+#endif
 
 int ql2xshiftctondsd = 6;
 module_param(ql2xshiftctondsd, int, S_IRUGO);
@@ -2890,6 +2896,7 @@ static void qla2x00_iocb_work_fn(struct work_struct *work)
 	spin_unlock_irqrestore(&vha->work_lock, flags);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 static void
 qla_trace_init(void)
 {
@@ -2910,6 +2917,7 @@ qla_trace_uninit(void)
 		return;
 	trace_array_put(qla_trc_array);
 }
+#endif
 
 /*
  * PCI driver interface
@@ -8323,7 +8331,9 @@ qla2x00_module_init(void)
 	BUILD_BUG_ON(sizeof(sw_info_t) != 32);
 	BUILD_BUG_ON(sizeof(target_id_t) != 2);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 	qla_trace_init();
+#endif
 
 	/* Allocate cache for SRBs. */
 	srb_cachep = kmem_cache_create("qla2xxx_srbs", sizeof(srb_t), 0,
@@ -8409,7 +8419,9 @@ qlt_exit:
 destroy_cache:
 	kmem_cache_destroy(srb_cachep);
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 	qla_trace_uninit();
+#endif
 	return ret;
 }
 
@@ -8428,7 +8440,10 @@ qla2x00_module_exit(void)
 	fc_release_transport(qla2xxx_transport_template);
 	qlt_exit();
 	kmem_cache_destroy(srb_cachep);
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 	qla_trace_uninit();
+#endif
 }
 
 module_init(qla2x00_module_init);
