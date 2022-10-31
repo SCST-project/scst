@@ -1354,17 +1354,6 @@ static inline void put_unaligned_be24(const uint32_t v, uint8_t *const p)
 }
 #endif
 
-/* <linux/workqueue.h> */
-
-/*
- * To do: backport alloc_ordered_workqueue(). See also commit 81dcaf6516d8
- * ("workqueue: implement alloc_ordered_workqueue()"; v2.6.37).
- */
-#ifndef alloc_ordered_workqueue
-#define alloc_ordered_workqueue(fmt, flags, args...)	\
-	({ WARN_ON_ONCE(true); ERR_PTR(-ENOMEM); })
-#endif
-
 /* <rdma/ib_verbs.h> */
 
 /* commit ed082d36 */
