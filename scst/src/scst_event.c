@@ -29,6 +29,7 @@
 
 #include "scst_priv.h"
 
+static struct workqueue_struct *scst_event_wq;
 static struct class *scst_event_sysfs_class;
 
 static int scst_event_major;
@@ -211,8 +212,9 @@ static void __scst_event_queue(struct scst_event_entry *event_entry)
 					new_event_entry->event.event_id = atomic_inc_return(&base_event_id);
 					if (new_event_entry->event_timeout == 0)
 						new_event_entry->event_timeout = SCST_DEFAULT_EVENT_TIMEOUT;
-					schedule_delayed_work(&new_event_entry->event_timeout_work,
-						new_event_entry->event_timeout);
+
+					queue_delayed_work(scst_event_wq, &new_event_entry->event_timeout_work,
+							   new_event_entry->event_timeout);
 				}
 
 				list_add_tail(&new_event_entry->events_list_entry,
@@ -278,7 +280,7 @@ void scst_event_queue(uint32_t event_code, const char *issuer_name,
 	e->event.event_code = event_code;
 	strlcpy(e->event.issuer_name, issuer_name, sizeof(e->event.issuer_name));
 
-	schedule_work(&e->scst_event_queue_work);
+	queue_work(scst_event_wq, &e->scst_event_queue_work);
 
 	TRACE_EXIT();
 	return;
@@ -1109,11 +1111,18 @@ int scst_event_init(void)
 
 	TRACE_ENTRY();
 
+	scst_event_wq = alloc_workqueue("scst_event_wq", WQ_MEM_RECLAIM, 0);
+	if (unlikely(!scst_event_wq)) {
+		PRINT_ERROR("Failed to allocate scst_event_wq");
+		res = -ENOMEM;
+		goto out;
+	}
+
 	scst_event_sysfs_class = class_create(THIS_MODULE, SCST_EVENT_NAME);
 	if (IS_ERR(scst_event_sysfs_class)) {
-		PRINT_ERROR("%s", "Unable create sysfs class for SCST event");
+		PRINT_ERROR("Unable create sysfs class for SCST event");
 		res = PTR_ERR(scst_event_sysfs_class);
-		goto out;
+		goto out_wq;
 	}
 
 	scst_event_major = register_chrdev(0, SCST_EVENT_NAME, &scst_event_fops);
@@ -1140,12 +1149,15 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 
-
 out_chrdev:
 	unregister_chrdev(scst_event_major, SCST_EVENT_NAME);
 
 out_class:
 	class_destroy(scst_event_sysfs_class);
+
+out_wq:
+	destroy_workqueue(scst_event_wq);
+
 	goto out;
 }
 
@@ -1162,8 +1174,8 @@ void scst_event_exit(void)
 	device_destroy(scst_event_sysfs_class, MKDEV(scst_event_major, 0));
 	class_destroy(scst_event_sysfs_class);
 
-	/* Wait for all pending being queued events to process */
-	flush_scheduled_work();
+	/* All pending works will be drained by destroy_workqueue() */
+	destroy_workqueue(scst_event_wq);
 
 	TRACE_EXIT();
 	return;
