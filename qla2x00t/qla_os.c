@@ -450,7 +450,7 @@ static int qla25xx_setup_mode(struct scsi_qla_host *vha)
 			    "Failed to create request queue.\n");
 			goto fail;
 		}
-		ha->wq = create_workqueue("qla2xxx_wq");
+		ha->wq = alloc_workqueue("qla2xxx_wq", WQ_MEM_RECLAIM, 0);
 		vha->req = ha->req_q_map[req];
 		options |= BIT_1;
 		for (ques = 1; ques < ha->max_rsp_queues; ques++) {
