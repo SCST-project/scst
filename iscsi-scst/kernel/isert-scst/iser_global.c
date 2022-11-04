@@ -138,7 +138,7 @@ int isert_global_init(void)
 	spin_lock_init(&isert_glob.portal_lock);
 	init_waitqueue_head(&isert_glob.portal_wq);
 
-	isert_glob.conn_wq = create_workqueue("isert_conn_wq");
+	isert_glob.conn_wq = alloc_workqueue("isert_conn_wq", WQ_MEM_RECLAIM, 0);
 	if (!isert_glob.conn_wq) {
 		PRINT_ERROR("Failed to alloc iser conn work queue");
 		return -ENOMEM;
@@ -148,21 +148,26 @@ int isert_global_init(void)
 						SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN,
 						iscsi);
 	if (!isert_cmnd_cache) {
-		destroy_workqueue(isert_glob.conn_wq);
 		PRINT_ERROR("Failed to alloc iser command cache");
-		return -ENOMEM;
+		goto free_wq;
 	}
 
 	isert_conn_cache = KMEM_CACHE(isert_conn,
 				     SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
 	if (!isert_conn_cache) {
-		destroy_workqueue(isert_glob.conn_wq);
-		kmem_cache_destroy(isert_cmnd_cache);
 		PRINT_ERROR("Failed to alloc iser connection cache");
-		return -ENOMEM;
+		goto free_cmnd_cache;
 	}
 
 	return 0;
+
+free_cmnd_cache:
+	kmem_cache_destroy(isert_cmnd_cache);
+
+free_wq:
+	destroy_workqueue(isert_glob.conn_wq);
+
+	return -ENOMEM;
 }
 
 void isert_global_cleanup(void)
