@@ -4345,8 +4345,7 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 		}
 
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
-		atomic_inc(&dev->dev_cmd_count);
-		cnt = atomic_read(&dev->dev_cmd_count);
+		cnt = atomic_inc_return(&dev->dev_cmd_count);
 		if (unlikely(cnt > SCST_MAX_DEV_COMMANDS)) {
 			if (!failure) {
 				TRACE(TRACE_FLOW_CONTROL,
