@@ -163,11 +163,10 @@ struct scst_tgt_template
 
 	int threads_num;
 
-	int (*detect) (struct scst_tgt_template *tgt_template);
 	int (*release)(struct scst_tgt *tgt);
 
 	int (*xmit_response)(struct scst_cmd *cmd);
-	int (* rdy_to_xfer)(struct scst_cmd *cmd);
+	int (*rdy_to_xfer)(struct scst_cmd *cmd);
 
 	void (*on_hw_pending_cmd_timeout) (struct scst_cmd *cmd);
 
@@ -229,13 +228,6 @@ max_hw_pending_time <= t < 2*max_hw_pending_time.
 dedicated threads. Used if xmit_response() or rdy_to_xfer() is blocking.
 It is the target driver's duty to ensure that not more, than that number
 of threads, are blocked in those functions at any time.
-
-<item><bf/int (*detect) (struct scst_tgt_template *tgt_template)/ - this
-function is intended to detect the target adapters that are present in
-the system. Each found adapter should be registered by calling
-<it/scst_register_target()/. The function should return a value >= 0 to
-signify the number of detected target adapters. A negative value should
-be returned whenever there is an error. Must be defined.
 
 <item><bf/int (*release)(struct scst_tgt *tgt)/ - this function is
 intended to free up resources allocated to the device. The function
