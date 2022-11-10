@@ -221,10 +221,6 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 		goto out;
 	}
 
-	if (vtt->detect)
-		PRINT_WARNING("detect() method is obsolete and scheduled for "
-			"removal (target driver %s)", vtt->name);
-
 	if (!vtt->release) {
 		PRINT_ERROR("Target driver %s must have "
 			"release() method.", vtt->name);
@@ -292,29 +288,11 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 	mutex_unlock(&scst_mutex2);
 	mutex_unlock(&scst_mutex);
 
-	TRACE_DBG("%s", "Calling target driver's detect()");
-	res = vtt->detect ? vtt->detect(vtt) : 0;
-	TRACE_DBG("Target driver's detect() returned %d", res);
-	if (res < 0) {
-		PRINT_ERROR("%s", "The detect() routine failed");
-		res = -EINVAL;
-		goto out_del;
-	}
-
 	PRINT_INFO("Target template %s registered successfully", vtt->name);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_del:
-	scst_tgtt_sysfs_del(vtt);
-
-	mutex_lock(&scst_mutex);
-
-	mutex_lock(&scst_mutex2);
-	list_del(&vtt->scst_template_list_entry);
-	mutex_unlock(&scst_mutex2);
 
 out_unlock:
 	mutex_unlock(&scst_mutex);
