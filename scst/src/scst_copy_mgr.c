@@ -2623,6 +2623,8 @@ static void scst_cm_dev_unregister(struct scst_device *dev, bool del_lun)
 
 	TRACE_DBG("dev %s, del_lun %d", dev->virt_name, del_lun);
 
+	mutex_lock(&scst_cm_mutex);
+
 	list_for_each_entry_safe(des, t, &scst_cm_desig_list, cm_desig_list_entry) {
 		if (des->desig_tgt_dev->dev == dev) {
 			TRACE_DBG("Deleting des %p", des);
@@ -2630,6 +2632,8 @@ static void scst_cm_dev_unregister(struct scst_device *dev, bool del_lun)
 			kfree(des);
 		}
 	}
+
+	mutex_unlock(&scst_cm_mutex);
 
 	if (!del_lun)
 		goto out;
