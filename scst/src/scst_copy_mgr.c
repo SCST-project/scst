@@ -2541,11 +2541,28 @@ out:
 	return res;
 }
 
+static uint64_t scst_cm_get_free_lun(void)
+{
+	uint64_t lun;
+
+	while (1) {
+		lun = scst_cm_next_lun++;
+		if (lun == SCST_MAX_LUN) {
+			scst_cm_next_lun = 0;
+			continue;
+		}
+
+		if (scst_cm_is_lun_free(lun))
+			break;
+	}
+
+	return lun;
+}
+
 static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 {
 	int res;
 	struct scst_acg_dev *acg_dev;
-	bool add_lun;
 
 	TRACE_ENTRY();
 
@@ -2561,20 +2578,8 @@ static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 			goto out;
 		}
 
-		add_lun = true;
-		while (1) {
-			lun = scst_cm_next_lun++;
-			if (lun == SCST_MAX_LUN) {
-				scst_cm_next_lun = 0;
-				continue;
-			}
-			if (scst_cm_is_lun_free(lun))
-				break;
-		}
-	} else
-		add_lun = false;
+		lun = scst_cm_get_free_lun();
 
-	if (add_lun) {
 		res = scst_acg_add_lun(scst_cm_tgt->default_acg,
 			scst_cm_tgt->tgt_luns_kobj, dev, lun, SCST_ADD_LUN_CM,
 			&acg_dev);
