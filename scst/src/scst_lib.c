@@ -4215,6 +4215,7 @@ int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev)
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 	atomic_set(&dev->dev_cmd_count, 0);
 #endif
+	atomic_set(&dev->cm_update_req_cnt, 0);
 	scst_init_mem_lim(&dev->dev_mem_lim);
 	spin_lock_init(&dev->dev_lock);
 	lockdep_register_key(&dev->dev_lock_key);

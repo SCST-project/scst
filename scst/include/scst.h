@@ -2828,6 +2828,9 @@ struct scst_device {
 	atomic_t dev_cmd_count;
 #endif
 
+	/* Number of copy manager designators update requests. */
+	atomic_t cm_update_req_cnt;
+
 	/*
 	 * One more than the number of commands associated with this device
 	 * and the number of SCST data structures holding a reference on this
