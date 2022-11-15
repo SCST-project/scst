@@ -2611,17 +2611,11 @@ out_err:
 	goto out;
 }
 
-/* scst_mutex supposed to be held */
-static void scst_cm_dev_unregister(struct scst_device *dev, bool del_lun)
+static void scst_cm_dev_free_designators(struct scst_device *dev)
 {
 	struct scst_cm_desig *des, *t;
-	u32 lun;
 
 	TRACE_ENTRY();
-
-	lockdep_assert_held(&scst_mutex);
-
-	TRACE_DBG("dev %s, del_lun %d", dev->virt_name, del_lun);
 
 	mutex_lock(&scst_cm_mutex);
 
@@ -2635,15 +2629,30 @@ static void scst_cm_dev_unregister(struct scst_device *dev, bool del_lun)
 
 	mutex_unlock(&scst_cm_mutex);
 
-	if (!del_lun)
-		goto out;
+	TRACE_EXIT();
+
+	return;
+}
+
+/* scst_mutex supposed to be held */
+static void scst_cm_dev_unregister(struct scst_device *dev)
+{
+	u32 lun;
+
+	TRACE_ENTRY();
+
+	lockdep_assert_held(&scst_mutex);
+
+	TRACE_DBG("Unregister CM dev %s", dev->virt_name);
+
+	scst_cm_dev_free_designators(dev);
 
 	lun = scst_cm_get_lun(dev);
 	if (lun != SCST_MAX_LUN)
 		scst_acg_del_lun(scst_cm_tgt->default_acg, lun, false);
 
-out:
 	TRACE_EXIT();
+
 	return;
 }
 
@@ -2662,20 +2671,20 @@ void scst_cm_update_dev(struct scst_device *dev)
 
 	mutex_lock(&scst_mutex);
 
-	scst_cm_dev_unregister(dev, false);
-
-	spin_lock_bh(&dev->dev_lock);
-	scst_block_dev(dev);
-	spin_unlock_bh(&dev->dev_lock);
-
 	lun = scst_cm_get_lun(dev);
 	if (lun == SCST_MAX_LUN) {
 		/*
 		 * Verify that scst_unregister_virtual_device() is in progress.
 		 */
 		WARN_ON_ONCE(!dev->remove_completion);
-		goto out_unblock;
+		goto out_unlock;
 	}
+
+	scst_cm_dev_free_designators(dev);
+
+	spin_lock_bh(&dev->dev_lock);
+	scst_block_dev(dev);
+	spin_unlock_bh(&dev->dev_lock);
 
 	rc = scst_cm_send_init_inquiry(dev, lun, NULL);
 	if (rc != 0)
@@ -2719,7 +2728,7 @@ void scst_cm_on_dev_unregister(struct scst_device *dev)
 
 	lockdep_assert_held(&scst_mutex);
 
-	scst_cm_dev_unregister(dev, true);
+	scst_cm_dev_unregister(dev);
 
 	TRACE_EXIT();
 	return;
@@ -2799,7 +2808,7 @@ bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev, bool gen_report_luns_chang
 	if (acg_dev->acg != scst_cm_tgt->default_acg)
 		goto out;
 
-	scst_cm_dev_unregister(acg_dev->dev, false);
+	scst_cm_dev_free_designators(acg_dev->dev);
 
 	res = false;
 
