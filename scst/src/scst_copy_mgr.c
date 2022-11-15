@@ -2307,6 +2307,8 @@ static void scst_cm_inq_retry_fn(struct scst_cmd *cmd)
 	return;
 }
 
+static void scst_cm_update_dev_fini(struct scst_device *dev);
+
 static void scst_cm_init_inq_finish(struct scst_cmd *cmd)
 {
 	int length, page_len, off, rc;
@@ -2428,6 +2430,7 @@ out_put:
 out_put_ref:
 	percpu_ref_put(&dev->refcnt);
 
+	scst_cm_update_dev_fini(dev);
 out:
 	TRACE_EXIT();
 	return;
@@ -2591,6 +2594,8 @@ static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 	scst_block_dev(dev);
 	spin_unlock_bh(&dev->dev_lock);
 
+	atomic_set(&dev->cm_update_req_cnt, 1);
+
 	res = scst_cm_send_init_inquiry(dev, lun, NULL);
 	if (res != 0)
 		goto out_unblock;
@@ -2603,6 +2608,8 @@ out_unblock:
 	spin_lock_bh(&dev->dev_lock);
 	scst_unblock_dev(dev);
 	spin_unlock_bh(&dev->dev_lock);
+
+	atomic_set(&dev->cm_update_req_cnt, 0);
 
 	scst_acg_del_lun(scst_cm_tgt->default_acg, lun, false);
 
@@ -2656,18 +2663,14 @@ static void scst_cm_dev_unregister(struct scst_device *dev)
 	return;
 }
 
-void scst_cm_update_dev(struct scst_device *dev)
+static int __scst_cm_update_dev(struct scst_device *dev)
 {
 	unsigned int lun;
-	int rc;
+	int rc = 0;
 
 	TRACE_ENTRY();
 
 	TRACE_MGMT_DBG("copy manager: updating device %s", dev->virt_name);
-
-	if (!scst_auto_cm_assignment ||
-	    !dev->handler->auto_cm_assignment_possible)
-		goto out;
 
 	mutex_lock(&scst_mutex);
 
@@ -2677,6 +2680,7 @@ void scst_cm_update_dev(struct scst_device *dev)
 		 * Verify that scst_unregister_virtual_device() is in progress.
 		 */
 		WARN_ON_ONCE(!dev->remove_completion);
+		rc = -EINVAL;
 		goto out_unlock;
 	}
 
@@ -2693,15 +2697,72 @@ void scst_cm_update_dev(struct scst_device *dev)
 out_unlock:
 	mutex_unlock(&scst_mutex);
 
-out:
 	TRACE_EXIT();
-	return;
+
+	return rc;
 
 out_unblock:
 	spin_lock_bh(&dev->dev_lock);
 	scst_unblock_dev(dev);
 	spin_unlock_bh(&dev->dev_lock);
+
 	goto out_unlock;
+}
+
+static void
+scst_cm_update_dev_start(struct scst_device *dev)
+{
+	int update_req_cnt, rc;
+
+	update_req_cnt = atomic_inc_return(&dev->cm_update_req_cnt);
+	if (update_req_cnt > 1)
+		return;
+
+	rc = __scst_cm_update_dev(dev);
+	if (rc)
+		atomic_set(&dev->cm_update_req_cnt, 0);
+}
+
+static void
+scst_cm_update_dev_fini(struct scst_device *dev)
+{
+	int update_req_cnt, rc;
+
+	update_req_cnt = atomic_dec_return(&dev->cm_update_req_cnt);
+
+	WARN_ON_ONCE(update_req_cnt < 0);
+
+	if (update_req_cnt == 0)
+		return;
+
+	/*
+	 * If we have received at least one update, we must re-update the
+	 * designators information. We don't care about the exact number of
+	 * updates we've received since the inquiry was submitted, as only the
+	 * last one is indicative. So set dev->cm_update_req_cnt to 1 to avoid
+	 * unnecessary __scst_cm_update_dev() calls.
+	 */
+	atomic_set(&dev->cm_update_req_cnt, 1);
+
+	rc = __scst_cm_update_dev(dev);
+	if (rc)
+		atomic_set(&dev->cm_update_req_cnt, 0);
+}
+
+void scst_cm_update_dev(struct scst_device *dev)
+{
+	TRACE_ENTRY();
+
+	if (!scst_auto_cm_assignment ||
+	    !dev->handler->auto_cm_assignment_possible)
+		goto out;
+
+	scst_cm_update_dev_start(dev);
+
+out:
+	TRACE_EXIT();
+
+	return;
 }
 
 int scst_cm_on_dev_register(struct scst_device *dev)
