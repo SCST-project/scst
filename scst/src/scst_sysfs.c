@@ -1522,7 +1522,7 @@ static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
 		"\n"
 		"where parameters are one or more "
 		"param_name=value pairs separated by ';'\n"
-		"\nThe following parameters available: read_only.\n";
+		"\nThe following parameters available: read_only\n";
 
 	return sprintf(buf, "%s", help);
 }
