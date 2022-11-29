@@ -8072,12 +8072,51 @@ scst_alloc_passthrough_request(struct request_queue *q, int rw, gfp_t gfp_mask)
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
 	return blk_get_request(q, rw == READ ? REQ_OP_SCSI_IN : REQ_OP_SCSI_OUT,
 			       gfp_mask);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
 	return blk_get_request(q, rw == READ ? REQ_OP_SCSI_IN : REQ_OP_SCSI_OUT,
 			       scst_gfp_mask_to_flags(gfp_mask));
 #else
 	return blk_mq_alloc_request(q, rw == READ ? REQ_OP_DRV_IN : REQ_OP_DRV_OUT,
 				    scst_gfp_mask_to_flags(gfp_mask));
+#endif
+}
+
+/**
+ * scst_init_passthrough_request - Init a SCSI pass-through request.
+ * @rq: Request pointer.
+ */
+static void
+scst_init_passthrough_request(struct request *rq)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0) ||	\
+	defined(CONFIG_SUSE_KERNEL)
+	scsi_req_init(scsi_req(rq));
+#else
+	scsi_req_init(rq);
+#endif
+
+#endif
+}
+
+/**
+ * scst_free_passthrough_request - Free a SCSI pass-through request.
+ * @rq: Request pointer.
+ */
+static void
+scst_free_passthrough_request(struct request *rq)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+	blk_put_request(rq);
+#else
+	blk_mq_free_request(rq);
 #endif
 }
 
@@ -8093,14 +8132,7 @@ static struct request *blk_make_request(struct request_queue *q,
 	if (IS_ERR_OR_NULL(rq))
 		return rq;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0) ||	\
-	defined(CONFIG_SUSE_KERNEL)
-	scsi_req_init(scsi_req(rq));
-#else
-	scsi_req_init(rq);
-#endif
-#endif
+	scst_init_passthrough_request(rq);
 
 	for_each_bio(bio) {
 		int ret;
@@ -8125,11 +8157,7 @@ static struct request *blk_make_request(struct request_queue *q,
 		ret = blk_rq_append_bio(rq, bio);
 #endif
 		if (unlikely(ret)) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
-			blk_put_request(rq);
-#else
-			blk_mq_free_request(rq);
-#endif
+			scst_free_passthrough_request(rq);
 			return ERR_PTR(ret);
 		}
 	}
@@ -8314,14 +8342,7 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 		if (IS_ERR_OR_NULL(rq))
 			return ERR_PTR(-ENOMEM);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0) ||	\
-	defined(CONFIG_SUSE_KERNEL)
-		scsi_req_init(scsi_req(rq));
-#else
-		scsi_req_init(rq);
-#endif
-#endif
+		scst_init_passthrough_request(rq);
 		goto out;
 	}
 
@@ -8537,10 +8558,8 @@ static RQ_END_IO_RET scsi_end_async(struct request *req, blk_status_t error)
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8)
 	/* See also commit 92bc5a24844a ("block: remove __blk_put_request()") */
 	__blk_put_request(req->q, req);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
-	blk_put_request(req);
 #else
-	blk_mq_free_request(req);
+	scst_free_passthrough_request(req);
 #endif
 	return;
 #else
@@ -8677,7 +8696,7 @@ out_free_unmap:
 	}
 	rq->bio = NULL;
 
-	blk_put_request(rq);
+	scst_free_passthrough_request(rq);
 #endif
 
 out_free_sioc:

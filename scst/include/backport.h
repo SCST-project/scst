@@ -109,7 +109,9 @@ static inline void bio_set_dev(struct bio *bio, struct block_device *bdev)
 #define BIO_MAX_VECS BIO_MAX_PAGES
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 18, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 18, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
 /*
  * See also commit 609be1066731 ("block: pass a block_device and opf to
  * bio_alloc_bioset") # v5.18
@@ -178,7 +180,9 @@ static inline unsigned int scst_blk_rq_cpu(struct request *rq)
 #endif
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
 /*
  * See also commit e2e530867245 ("blk-mq: remove the done argument to
  * blk_execute_rq_nowait") # v5.19.
@@ -208,7 +212,9 @@ void blk_execute_rq_nowait_backport(struct request *rq, bool at_head)
 
 /* <linux/blkdev.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
 /*
  * See also commit 44abff2c0b97 ("block: decouple REQ_OP_SECURE_ERASE
  * from REQ_OP_DISCARD") # v5.19.
@@ -1446,7 +1452,9 @@ static inline void scsi_build_sense(struct scsi_cmnd *scmd, int desc,
 }
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
 
 #if (!defined(RHEL_RELEASE_CODE) || \
 	RHEL_RELEASE_CODE -0 != RHEL_RELEASE_VERSION(8, 7))
@@ -1495,7 +1503,9 @@ static inline u32 scsi_prot_ref_tag(struct scsi_cmnd *scmd)
 #endif
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
 /*
  * See also commit 11b68e36b167 ("scsi: core: Call scsi_done directly"; v5.16)
  */

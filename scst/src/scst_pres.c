@@ -41,11 +41,6 @@
 #endif
 #include <linux/vmalloc.h>
 #include <asm/unaligned.h>
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
-#include <stdarg.h>
-#else
-#include <linux/stdarg.h>
-#endif
 
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>
@@ -56,6 +51,14 @@
 #endif
 #include "scst_priv.h"
 #include "scst_pres.h"
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+#include <stdarg.h>
+#else
+#include <linux/stdarg.h>
+#endif
 
 #define SCST_PR_ROOT_ENTRY	"pr"
 #define SCST_PR_FILE_SIGN	0xBBEEEEAAEEBBDD77LLU
