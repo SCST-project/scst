@@ -563,12 +563,14 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 	fd_open = true;
 
 	if (virt_dev->blockio) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
-		virt_dev->dev_thin_provisioned =
-			!!bdev_max_discard_sectors(bdev);
-#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
 		virt_dev->dev_thin_provisioned =
 			blk_queue_discard(bdev_get_queue(bdev));
+#else
+		virt_dev->dev_thin_provisioned =
+			!!bdev_max_discard_sectors(bdev);
 #endif
 	} else {
 		virt_dev->dev_thin_provisioned = (fd->f_op->fallocate != NULL);
