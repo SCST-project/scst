@@ -113,7 +113,7 @@ function specialize_patch {
   local releasevermajor="$1"
   local releaseverminor="$2"
   case "$distro" in
-      CentOS)
+      CentOS|AlmaLinux)
 	  if [ -n "$releasevermajor" ]; then
 	      ao=(
 		  -v "RHEL_MAJOR=$releasevermajor"
