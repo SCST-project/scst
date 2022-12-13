@@ -832,7 +832,7 @@ function download_and_extract_distro_rpm {
 			      tr '\n' ' ')"
 	for url in "${urls[@]}"; do
 	    case "$distro" in
-		CentOS)
+		CentOS|AlmaLinux)
 		    wget -q -nc "${url}/kernel-${kver}.src.rpm" && break
 		    ;;
 		UEK)
@@ -847,7 +847,7 @@ function download_and_extract_distro_rpm {
     (
 	cd "${tmpdir}" &&
 	    case "$distro" in
-		CentOS)
+		CentOS|AlmaLinux)
 		    rpm2cpio "${kernel_downloads}/kernel-${kver}.src.rpm" |
 			cpio -i --make-directories --quiet &&
 			tar xaf "linux-${kver}"*.tar.* &&

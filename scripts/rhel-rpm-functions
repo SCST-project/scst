@@ -35,6 +35,12 @@ function get_srpm_urls() {
 		    echo "http://ftp.redhat.com/redhat/rhel/rc/7/Server/source/tree/Packages";;
 	    esac
 	    ;;
+	"AlmaLinux")
+	    case $releasever in
+		[89]*)
+		    echo "https://repo.almalinux.org/vault/${releasever}/BaseOS/Source/Packages/";;
+	    esac
+	    ;;
 	"Oracle Linux Server"|"UEK")
 	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/${releaseverminor}/base/${arch}/getPackageSource"
 	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/latest/${arch}/getPackageSource"
@@ -89,6 +95,12 @@ function get_rpm_urls() {
 	    ;;
 	"Red Hat Enterprise Linux"*)
 	    echo "";;
+	"AlmaLinux")
+	    case $releasever in
+		[89]*)
+		    echo "https://mirror.yandex.ru/almalinux/${releasever}/BaseOS/${arch}/os/Packages/";;
+	    esac
+	    ;;
 	"Oracle Linux Server"|"UEK")
 	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/${releaseverminor}/base/${arch}/getPackageSource"
 	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/latest/${arch}/getPackageSource"
