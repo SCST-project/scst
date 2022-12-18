@@ -5476,7 +5476,7 @@ unlock:
 /* No locks. Returns 0, if mcmd should be processed further. */
 static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 {
-	int res;
+	int res = 0;
 
 	spin_lock_irq(&scst_mcmd_lock);
 
@@ -5485,7 +5485,6 @@ static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 	case SCST_MCMD_STATE_EXEC:
 		if (mcmd->cmd_done_wait_count == 0) {
 			mcmd->state = SCST_MCMD_STATE_AFFECTED_CMDS_DONE;
-			res = 0;
 		} else {
 			TRACE(TRACE_SCSI|TRACE_MGMT_DEBUG,
 				"cmd_done_wait_count(%d) not 0, "
@@ -5498,7 +5497,6 @@ static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 	case SCST_MCMD_STATE_AFFECTED_CMDS_DONE:
 		if (mcmd->cmd_finish_wait_count == 0) {
 			mcmd->state = SCST_MCMD_STATE_DONE;
-			res = 0;
 		} else {
 			TRACE(TRACE_SCSI|TRACE_MGMT_DEBUG,
 				"cmd_finish_wait_count(%d) not 0, "
@@ -5511,7 +5509,6 @@ static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 
 	case SCST_MCMD_STATE_DONE:
 		mcmd->state = SCST_MCMD_STATE_FINISHED;
-		res = 0;
 		break;
 
 	default:
@@ -6497,21 +6494,21 @@ static int scst_mgmt_cmd_exec(struct scst_mgmt_cmd *mcmd)
 
 	case SCST_CLEAR_ACA:
 		res = scst_clear_aca_mcmd(mcmd);
-		goto out_done;
+		if (unlikely(res))
+			break;
+
+		res = scst_set_mcmd_next_state(mcmd);
+		break;
 
 	default:
 		PRINT_ERROR("Unknown task management function %d", mcmd->fn);
 		scst_mgmt_cmd_set_status(mcmd, SCST_MGMT_STATUS_REJECTED);
-		goto out_done;
+		res = scst_set_mcmd_next_state(mcmd);
+		break;
 	}
 
-out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_done:
-	res = scst_set_mcmd_next_state(mcmd);
-	goto out;
 }
 
 static void scst_call_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *mcmd)
