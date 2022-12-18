@@ -1,3 +1,34 @@
+Summary of changes between versions 3.6 and 3.7
+-----------------------------------------------
+- The SCST event subsystem works again reliably.
+- Fixed a race condition when replacing a LUN under load.
+- Fixed handling of INQUIRY/SENSE commands that comes with buffer size 0.
+- The behavior of the on_alua_state_change_*() callback functions has been
+  fixed such that these are also invoked for devices that are not in any
+  target.
+- Error handling for iscsi-scst has been improved such that data sending
+  failure no longer crashes the system.
+- An improvement has been added to iscsi-scstd to allow multiple addresses to
+  be specified for the server to listen on.
+- Fixed a hang when unregistering a SCST device due to incorrect device
+  reference counter management in copy manager.
+- Fixed copy manager device update (for auto_cm_assignment=1) such that it no
+  longer corrupts the designator list.
+- Support for scst_tgt_template detect() method has been dropped. This method
+  was declared obsolete in 2015.
+- The scst_user device handler has been made compatible with the
+  qla2x00t-32gbit driver.
+- qla2x00t-32gbit driver: NPIV support has been improved.
+- qla2x00t-32gbit driver: Target mode usage has been simplified by changing
+  the default qlini_mode to exclusive.
+- qla2x00t-32gbit driver: Updated from Linux kernel version v5.15 to v6.1.
+
+The kernel versions supported by this release are:
+* Kernel.org kernel versions v3.10..v6.1.
+* Debian / Ubuntu kernels based on upstream kernel versions v3.10..v6.1.
+* RHEL / CentOS / AlmaLinux 7.x, 8.0..8.7 and 9.0..9.1 kernels.
+* UEK version 4, 5, 6 and 7 kernels.
+
 Summary of changes between versions 3.5 and 3.6
 -----------------------------------------------
 - Made the command processing path slightly faster by removing two atomic
