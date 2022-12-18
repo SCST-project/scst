@@ -1819,7 +1819,7 @@ qla2x00_send_sns(scsi_qla_host_t *vha, dma_addr_t sns_phys_address,
     uint16_t cmd_size, size_t buf_size)
 {
 	int rval;
-	mbx_cmd_t mc;
+	mbx_cmd_t mc = {};
 	mbx_cmd_t *mcp = &mc;
 
 	ql_dbg(ql_dbg_mbx + ql_dbg_verbose, vha, 0x105d,
