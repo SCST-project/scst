@@ -544,10 +544,10 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 	if (virt_dev->blockio) {
 		bdev = blkdev_get_by_path(virt_dev->filename, FMODE_READ,
 					  (void *)__func__);
-		res = IS_ERR(bdev) ? PTR_ERR(bdev) : 0;
+		res = PTR_ERR_OR_ZERO(bdev);
 	} else {
 		fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
-		res = IS_ERR(fd) ? PTR_ERR(fd) : 0;
+		res = PTR_ERR_OR_ZERO(fd);
 	}
 	if (res) {
 		if (res == -EMEDIUMTYPE && virt_dev->blockio)
@@ -1312,11 +1312,11 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 			virt_dev->bdev_mode |= FMODE_WRITE;
 		virt_dev->bdev = blkdev_get_by_path(virt_dev->filename,
 					virt_dev->bdev_mode, (void *)__func__);
-		res = IS_ERR(virt_dev->bdev) ? PTR_ERR(virt_dev->bdev) : 0;
+		res = PTR_ERR_OR_ZERO(virt_dev->bdev);
 	} else {
 		virt_dev->fd = vdev_open_fd(virt_dev, virt_dev->filename,
 					    read_only);
-		res = IS_ERR(virt_dev->fd) ? PTR_ERR(virt_dev->fd) : 0;
+		res = PTR_ERR_OR_ZERO(virt_dev->fd);
 	}
 	if (res) {
 		virt_dev->bdev = NULL;

@@ -1322,8 +1322,7 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 #else
 	sqa_tgt->tag_num = tag_num;
 	sqa_tgt->tgt_tag_pool = kzalloc(BITS_TO_LONGS(tag_num), GFP_KERNEL);
-	res = IS_ERR(sqa_tgt->tgt_tag_pool) ? PTR_ERR(sqa_tgt->tgt_tag_pool) :
-		0;
+	res = PTR_ERR_OR_ZERO(sqa_tgt->tgt_tag_pool);
 #endif
 	if (res < 0) {
 		pr_err("Unable to init se_sess->tgt_tag_pool, tag_num: %u\n",
