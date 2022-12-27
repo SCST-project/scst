@@ -77,6 +77,15 @@ static __always_inline unsigned long long rdtsc(void)
 #define tsc_khz 1000
 #endif
 
+/* <linux/err.h> */
+
+/*
+ * See also commit 6e8b8726ad50 ("PTR_RET is now PTR_ERR_OR_ZERO") # v3.12
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0) && !defined(RHEL_RELEASE_CODE)
+#define PTR_ERR_OR_ZERO(p) PTR_RET(p)
+#endif
+
 /* <linux/bio.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&	\
