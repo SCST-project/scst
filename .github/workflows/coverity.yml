@@ -15,7 +15,11 @@ jobs:
       - name: Get version
         id: get_version
         run: |
-          echo ::set-output name=version::"3.7-pre-$(git rev-parse --short HEAD)"
+          version_without_revesion="$(sed -n 's/^\#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^-]*\).*\"/\1/p' scst/include/scst_const.h)"
+          revision="$(git rev-parse --short HEAD)"
+          version="$version_without_revesion-$revision"
+
+          echo ::set-output name=version::"$version"
 
       - name: Run Coverity Build
         uses: vapier/coverity-scan-action@v1
