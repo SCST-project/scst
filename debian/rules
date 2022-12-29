@@ -20,6 +20,7 @@ export KDIR=$(DEB_KDIR_SET)
 export CC=$(DEB_CC_SET)
 export QLA_DIR=$(DEB_QLA_DIR_SET)
 export QLA_INI_DIR=$(DEB_QLA_INI_DIR_SET)
+export DEBUG_MODE_LEVEL=$(DEB_DEBUG_MODE_LEVEL)
 
 SUBDIRS=scst $(shell grep -qw '^CONFIG_LIBFC' /boot/config-$(KVER) && echo fcst) iscsi-scst $(QLA_DIR) scst_local scstadmin srpt
 DESTDIR=$(CURDIR)/debian/tmp
@@ -37,7 +38,7 @@ clean:
 
 build:
 	[ -n "$(QLA_INI_DIR)" ] &&					\
-	make 2release &&						\
+	make $(DEBUG_MODE_LEVEL) &&					\
 	export BUILD_2X_MODULE=y &&					\
 	export CONFIG_SCSI_QLA_FC=y &&					\
 	export CONFIG_SCSI_QLA2XXX_TARGET=y &&				\
@@ -70,11 +71,12 @@ install:
 		    break;						\
 	    fi;								\
 	done &&								\
-	make 2debug &&							\
+	make $(DEBUG_MODE_LEVEL) &&					\
 	rm -f "$(DESTDIR)"/lib/modules/*/[Mm]odule* &&			\
 	mkdir -p $(DESTDIR)/usr/src/scst-$(VERSION) &&			\
 	for f in scst.dkms scst-dkms.postinst scst-dkms.prerm; do	\
-		sed "s/\$${PACKAGE_VERSION}/$(VERSION)/"		\
+		sed "s/\$${PACKAGE_VERSION}/$(VERSION)/;		\
+		     s/\$${DEBUG_MODE_LEVEL}/$(DEBUG_MODE_LEVEL)/"	\
 			< debian/$$f.in >debian/$$f || exit $?;	 	\
 	done &&								\
 	cp debian/scst.dkms						\
