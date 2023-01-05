@@ -204,15 +204,15 @@ void blk_execute_rq_nowait_backport(struct request *rq, bool at_head)
 	 * See also commit 8eeed0b554b9 ("block: remove unnecessary argument from
 	 * blk_execute_rq_nowait") # v5.12.
 	 */
-	blk_execute_rq_nowait(rq->q, NULL, rq, at_head, NULL);
+	blk_execute_rq_nowait(rq->q, NULL, rq, at_head, rq->end_io);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0)
 	/*
 	 * See also commit b84ba30b6c7a ("block: remove the gendisk argument to
 	 * blk_execute_rq") # v5.17.
 	 */
-	blk_execute_rq_nowait(NULL, rq, at_head, NULL);
+	blk_execute_rq_nowait(NULL, rq, at_head, rq->end_io);
 #else
-	blk_execute_rq_nowait(rq, at_head, NULL);
+	blk_execute_rq_nowait(rq, at_head, rq->end_io);
 #endif
 }
 
