@@ -450,7 +450,7 @@ static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 		 * 28a8f0d317bf ("block, drivers, fs: rename REQ_FLUSH to
 		 * REQ_PREFLUSH") # v4.8.
 		 */
-		bio_set_op_attrs(bio, REQ_OP_WRITE, REQ_PREFLUSH);
+		bio->bi_opf = REQ_OP_WRITE | REQ_PREFLUSH;
 		submit_bio(bio);
 #else
 		/*
@@ -2889,7 +2889,7 @@ static ssize_t blockio_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 	bio->bi_rw = READ_SYNC;
 #else
-	bio_set_op_attrs(bio, REQ_OP_READ, REQ_SYNC);
+	bio->bi_opf = REQ_OP_READ | REQ_SYNC;
 #endif
 	bio_set_dev(bio, bdev);
 	bio->bi_end_io = blockio_end_sync_io;
@@ -6027,7 +6027,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 					bio->bi_rw |= REQ_WRITE;
 #else
-					bio_set_op_attrs(bio, REQ_OP_WRITE, 0);
+					bio->bi_opf = REQ_OP_WRITE;
 #endif
 				/*
 				 * Better to fail fast w/o any local recovery

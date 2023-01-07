@@ -8244,7 +8244,7 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 					bio->bi_rw |= REQ_WRITE;
 #else
-					bio_set_op_attrs(bio, REQ_OP_WRITE, 0);
+					bio->bi_opf = REQ_OP_WRITE;
 #endif
 				bios++;
 				bio->bi_private = bw;
