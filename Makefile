@@ -355,6 +355,7 @@ scst-rpm:
 	MAKE="$(MAKE)" rpmbuild --define="%_topdir $${rpmtopdir}"	\
 	    $(if $(KVER),--define="%kversion $(KVER)")			\
 	    $(if $(KDIR),--define="%kdir $(KDIR)")			\
+	    --define="%pkg_build_mode $(PKG_BUILD_MODE)"		\
 	    -ba $${name}.spec &&					\
 	rm -f $${name}-$(VERSION).tar.bz2
 
@@ -371,6 +372,7 @@ scst-dkms-rpm:
 	MAKE="$(MAKE)" rpmbuild --define="%_topdir $${rpmtopdir}"	\
 	    $(if $(KVER),--define="%kversion $(KVER)")			\
 	    $(if $(KDIR),--define="%kdir $(KDIR)")			\
+	    --define="%pkg_build_mode $(PKG_BUILD_MODE)"		\
 	    -ba $${name}.spec &&					\
 	rm -f $${name}-$(VERSION).tar.bz2
 
