@@ -70,12 +70,7 @@ EMULEX_DIR=emulex
 
 ISCSI_DIR=iscsi-scst
 
-REVISION ?= $(shell if [ -e .svn ]; then				\
-		      svn info | sed -n 's/^Revision:[[:blank:]]*/./p';	\
-		    elif [ -e .git ]; then				\
-                      echo -n .;					\
-		      git log | grep -c ^commit;			\
-		    fi)
+REVISION ?= $(shell if [ -e .git ]; then echo -n .; git rev-parse --short HEAD 2>/dev/null; fi)
 VERSION_WITHOUT_REVISION := $(shell echo -n "$$(sed -n 's/^\#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^-]*\).*\"/\1/p' scst/include/scst_const.h)")
 VERSION := $(VERSION_WITHOUT_REVISION)$(REVISION)
 DEBIAN_REVISION=1.1
