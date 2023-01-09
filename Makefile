@@ -42,7 +42,7 @@ else
      KDIR=/lib/modules/$(KVER)/build
 endif
 
-DEBUG_MODE_LEVEL ?= 2release
+PKG_BUILD_MODE ?= 2release
 
 OLD_QLA_INI_DIR=qla2x00t
 OLD_QLA_DIR=$(OLD_QLA_INI_DIR)/qla2x00-target
@@ -442,7 +442,7 @@ dpkg: ../scst_$(VERSION).orig.tar.gz
 	  buildopts+=(-j4);						\
 	fi &&								\
 	DEB_CC_SET="$(CC)" DEB_KVER_SET=$(KVER) DEB_KDIR_SET=$(KDIR) DEB_QLA_DIR_SET=$(QLA_DIR) \
-	   DEB_QLA_INI_DIR_SET=$(QLA_INI_DIR) DEB_DEBUG_MODE_LEVEL=$(DEBUG_MODE_LEVEL) \
+	   DEB_QLA_INI_DIR_SET=$(QLA_INI_DIR) DEB_PKG_BUILD_MODE=$(PKG_BUILD_MODE) \
 	   debuild "$${buildopts[@]}" --lintian-opts --profile debian && \
 	mkdir -p dpkg &&						\
 	for f in "$${output_files[@]}" ../scst_$(VERSION).orig.tar.[gx]z; do\
