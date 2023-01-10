@@ -352,7 +352,7 @@ scst-rpm:
 	    $(if $(KDIR),--define="%kdir $(KDIR)")			\
 	    --define="%pkg_build_mode $(PKG_BUILD_MODE)"		\
 	    -ba $${name}.spec &&					\
-	rm -f $${name}-$(VERSION).tar.bz2
+	rm -f scst-$(VERSION).tar.bz2
 
 scst-dkms-rpm:
 	name=scst-dkms &&						\
@@ -369,7 +369,7 @@ scst-dkms-rpm:
 	    $(if $(KDIR),--define="%kdir $(KDIR)")			\
 	    --define="%pkg_build_mode $(PKG_BUILD_MODE)"		\
 	    -ba $${name}.spec &&					\
-	rm -f $${name}-$(VERSION).tar.bz2
+	rm -f scst-$(VERSION).tar.bz2
 
 rpm:
 	$(MAKE) scst-rpm
