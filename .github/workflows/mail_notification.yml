@@ -16,7 +16,7 @@ jobs:
         commit: ${{github.event.commits}}
     steps:
       - name: Checkout Project
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           ref: ${{matrix.commit.id}}
           fetch-depth: 2
