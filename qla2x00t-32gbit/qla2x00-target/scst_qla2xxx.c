@@ -537,7 +537,7 @@ static void sqa_qla2xxx_handle_data(struct qla_tgt_cmd *cmd)
 		case DIF_ERR_NONE:
 		default:
 			scst_set_cmd_error(scst_cmd,
-				SCST_LOAD_SENSE(scst_sense_write_error));
+				SCST_LOAD_SENSE(scst_sense_aborted_command));
 			break;
 		}
 	}
