@@ -1141,9 +1141,9 @@ cache. The following parameters possible for vdisk_fileio:
  - opt_trans_len - specifies the optimal transfer length data in the block
    limits VPD page. Value is in bytes, and must be a multiple of the block
    size. Default is 524288. Setting this parameter to a multiple of the
-   optimal transfer length below 4 MB may improve performance. Setting this
-   parameter to a value above 4 MB hurts performance because the SGV cache
-   only supports buffers up to 4 MB.
+   block size that is less than 4194304 (4 MB) may improve performance.
+   Setting this parameter to a value greater than 4194304 hurts performance
+   because the SGV cache only supports buffers up to 4 MB.
 
  - write_through - disables write back caching. Note, this option
    has sense only if you also *manually* disable write-back cache in
