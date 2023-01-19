@@ -119,10 +119,70 @@ static int disk_attach(struct scst_device *dev)
 	}
 	dev->block_size = 1 << dev->block_shift;
 
+	/*
+	 * Now read the Unit Serial Number to be used as the cl_dev_id when
+	 * cluster_mode is enabled.  However, do not error if we are unable
+	 * to read it.
+	 */
+	memset(cmd, 0, sizeof(cmd));
+	cmd[0] = INQUIRY;
+	cmd[1] = 1;	/* Set EVPD */
+	cmd[2] = 0x80;	/* Unit Serial Number VPD page */
+	put_unaligned_be16(buffer_size, &cmd[3]);
+	retries = SCST_DEV_RETRIES_ON_UA;
+	while (1) {
+		memset(buffer, 0, buffer_size);
+		memset(sense_buffer, 0, sizeof(sense_buffer));
+
+		TRACE_DBG("%s", "Doing INQUIRY (Unit Serial Number VPD)");
+		rc = scst_scsi_execute(dev->scsi_dev, cmd, DMA_FROM_DEVICE,
+				       buffer, buffer_size, sense_buffer,
+				       SCST_GENERIC_DISK_REG_TIMEOUT, 3, 0);
+
+		TRACE_DBG("INQUIRY (Unit Serial Number VPD) done: %x", rc);
+
+		if ((rc == 0) ||
+		    !scst_analyze_sense(sense_buffer,
+				sizeof(sense_buffer), SCST_SENSE_KEY_VALID,
+				UNIT_ATTENTION, 0, 0))
+			break;
+		if (!--retries) {
+			PRINT_WARNING("UA not clear after %d retries",
+				SCST_DEV_RETRIES_ON_UA);
+			goto no_serial;
+		}
+	}
+	if (rc == 0) {
+		int32_t serial_length;
+		serial_length = get_unaligned_be16(&buffer[2]);
+
+		/*
+		 * Since we only need the serial number we'll
+		 * store directly in dh_priv.  Failure is OK.
+		 */
+		dev->dh_priv = kzalloc(serial_length+1, GFP_KERNEL);
+		if (!dev->dh_priv) {
+			PRINT_ERROR("Buffer memory allocation (size %d) failure",
+				serial_length+1);
+		} else {
+			memcpy(dev->dh_priv, &buffer[4], serial_length);
+			PRINT_INFO("%s: Obtained serial number: %s",
+				   dev->virt_name, (char *)dev->dh_priv);
+		}
+	} else {
+		PRINT_WARNING("Failed to obtain serial number for device "
+			"%s", dev->virt_name);
+	}
+
+no_serial:
 	res = scst_obtain_device_parameters(dev, NULL);
 	if (res != 0) {
 		PRINT_ERROR("Failed to obtain control parameters for device "
 			"%s", dev->virt_name);
+		if (dev->dh_priv) {
+			kfree(dev->dh_priv);
+			dev->dh_priv = NULL;
+		}
 		goto out_free_buf;
 	}
 
@@ -136,7 +196,10 @@ out:
 
 static void disk_detach(struct scst_device *dev)
 {
-	/* Nothing to do */
+	if (dev->dh_priv) {
+		scst_pr_set_cluster_mode(dev, false, dev->dh_priv);
+		kfree(dev->dh_priv);
+	}
 	return;
 }
 
@@ -505,6 +568,111 @@ out_complete:
 	goto out;
 }
 
+static ssize_t disk_sysfs_cluster_mode_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_device *dev = container_of(kobj, struct scst_device,
+					       dev_kobj);
+
+	return sprintf(buf, "%d\n%s", dev->cluster_mode,
+		       dev->cluster_mode ?
+		       SCST_SYSFS_KEY_MARK "\n" : "");
+}
+
+static int disk_sysfs_process_cluster_mode_store(
+	struct scst_sysfs_work_item *work)
+{
+	struct scst_device *dev = work->dev;
+	long clm;
+	int res;
+
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
+	if (res)
+		goto out;
+
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
+		goto resume;
+
+	/*
+	 * This is safe since we hold a reference on dev_kobj and since
+	 * scst_assign_dev_handler() waits until all dev_kobj references
+	 * have been dropped before invoking .detach().
+	 */
+	res = kstrtol(work->buf, 0, &clm);
+	if (res)
+		goto unlock;
+	res = -EINVAL;
+	if (clm < 0 || clm > 1)
+		goto unlock;
+	if (clm != dev->cluster_mode) {
+		/* dev->dh_priv contains the serial number string */
+		res = scst_pr_set_cluster_mode(dev, clm, dev->dh_priv);
+		if (res)
+			goto unlock;
+		dev->cluster_mode = clm;
+	} else {
+		res = 0;
+	}
+
+unlock:
+	mutex_unlock(&scst_mutex);
+
+resume:
+	scst_resume_activity();
+
+out:
+	kobject_put(&dev->dev_kobj);
+
+	return res;
+}
+
+static ssize_t disk_sysfs_cluster_mode_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_device *dev = container_of(kobj, struct scst_device,
+					       dev_kobj);
+	struct scst_sysfs_work_item *work;
+	char *arg;
+	int res;
+
+	TRACE_ENTRY();
+
+	res = -ENOMEM;
+	/* Must have a serial number to enable cluster_mode */
+	if (count && !dev->dh_priv)
+		goto out;
+	arg = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
+	if (!arg)
+		goto out;
+
+	res = scst_alloc_sysfs_work(disk_sysfs_process_cluster_mode_store,
+				    false, &work);
+	if (res)
+		goto out;
+	work->dev = dev;
+	swap(work->buf, arg);
+	kobject_get(&dev->dev_kobj);
+	res = scst_sysfs_queue_wait_work(work);
+	if (res)
+		goto out;
+	res = count;
+
+out:
+	kfree(arg);
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute disk_cluster_mode_attr =
+        __ATTR(cluster_mode, S_IWUSR|S_IRUGO, disk_sysfs_cluster_mode_show,
+               disk_sysfs_cluster_mode_store);
+
+static const struct attribute *disk_attrs[] = {
+	&disk_cluster_mode_attr.attr,
+	NULL,
+};
+
 static struct scst_dev_type disk_devtype = {
 	.name =			DISK_NAME,
 	.type =			TYPE_DISK,
@@ -517,6 +685,7 @@ static struct scst_dev_type disk_devtype = {
 	.exec =			disk_exec,
 	.on_sg_tablesize_low = disk_on_sg_tablesize_low,
 	.dev_done =		disk_done,
+	.dev_attrs =		disk_attrs,
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags = SCST_DEFAULT_DEV_LOG_FLAGS,
 	.trace_flags = &trace_flag,

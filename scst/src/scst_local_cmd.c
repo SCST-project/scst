@@ -809,7 +809,7 @@ enum scst_exec_res scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 		goto out_done;
 	}
 
-	if (cmd->tgt->tgt_forward_src && dev->scsi_dev) {
+	if (cmd->tgt->tgt_forward_src && dev->scsi_dev && !dev->cluster_mode) {
 		PRINT_WARNING("PR commands for pass-through devices not "
 			"supported (device %s)", dev->virt_name);
 		scst_set_cmd_error(cmd,
