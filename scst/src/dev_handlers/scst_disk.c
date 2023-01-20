@@ -633,34 +633,42 @@ static ssize_t disk_sysfs_cluster_mode_store(struct kobject *kobj,
 	struct scst_device *dev = container_of(kobj, struct scst_device,
 					       dev_kobj);
 	struct scst_sysfs_work_item *work;
-	char *arg;
+	char *arg = NULL;
 	int res;
 
 	TRACE_ENTRY();
 
-	res = -ENOMEM;
 	/* Must have a serial number to enable cluster_mode */
-	if (count && !dev->dh_priv)
+	if (count && !dev->dh_priv) {
+		res = -ENOENT;
 		goto out;
+	}
+
 	arg = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
-	if (!arg)
+	if (!arg) {
+		res = -ENOMEM;
 		goto out;
+	}
 
 	res = scst_alloc_sysfs_work(disk_sysfs_process_cluster_mode_store,
 				    false, &work);
 	if (res)
 		goto out;
+
 	work->dev = dev;
 	swap(work->buf, arg);
 	kobject_get(&dev->dev_kobj);
+
 	res = scst_sysfs_queue_wait_work(work);
 	if (res)
 		goto out;
+
 	res = count;
 
 out:
 	kfree(arg);
 	TRACE_EXIT_RES(res);
+
 	return res;
 }
 
