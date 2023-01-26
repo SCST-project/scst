@@ -76,7 +76,17 @@ static void scst_free_acn(struct scst_acn *acn, bool reassign);
 struct scsi_io_context {
 	void *data;
 	void (*done)(void *data, char *sense, int result, int resid);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+	/*
+	 * See commit 772c8f6f3bbd ("Merge tag 'for-4.11/linus-merge-signed'
+	 * of git://git.kernel.dk/linux-block")
+	 *
+	 * Both scsi_init_rq and scsi_init_request (later renamed to
+	 * scsi_mq_init_request in e7008ff5c61a) initialize the scsi_request
+	 * sense buffer, so we don't need to (nor should) provide our own.
+	 */
 	char sense[SCST_SENSE_BUFFERSIZE];
+#endif
 };
 static struct kmem_cache *scsi_io_context_cache;
 static struct workqueue_struct *scst_release_acg_wq;
@@ -8530,6 +8540,7 @@ static RQ_END_IO_RET scsi_end_async(struct request *req, blk_status_t error)
 	if (sioc->done) {
 		int resid_len;
 		long result;
+		char *sense;
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
 		result = scsi_req(req)->result;
@@ -8544,11 +8555,13 @@ static RQ_END_IO_RET scsi_end_async(struct request *req, blk_status_t error)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 		resid_len = scsi_req(req)->resid_len;
+		sense = SREQ_SENSE(scsi_req(req));
 #else
 		resid_len = req->resid_len;
+		sense = sioc->sense;
 #endif
 
-		sioc->done(sioc->data, sioc->sense, result, resid_len);
+		sioc->done(sioc->data, sense, result, resid_len);
 	}
 
 	kmem_cache_free(scsi_io_context_cache, sioc);
@@ -8655,8 +8668,19 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	memset(SREQ_CP(req), 0, MAX_COMMAND_SIZE); /* ATAPI hates garbage after CDB */
 	memcpy(SREQ_CP(req), cmd->cdb, cmd->cdb_len);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
+	/*
+	 * See commit 772c8f6f3bbd ("Merge tag 'for-4.11/linus-merge-signed'
+	 * of git://git.kernel.dk/linux-block")
+	 *
+	 * Both scsi_init_rq and scsi_init_request (later renamed to
+	 * scsi_mq_init_request in e7008ff5c61a) initialize the scsi_request
+	 * sense buffer, so we don't need to (nor should) provide our own.
+	 */
 	SREQ_SENSE(req) = sioc->sense;
 	req->sense_len = sizeof(sioc->sense);
+#endif
+
 	rq->timeout = cmd->timeout;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 12, 0)
 	req->retries = cmd->retries;
