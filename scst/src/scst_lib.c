@@ -7968,7 +7968,16 @@ static void blk_bio_map_kern_endio(struct bio *bio)
 		}
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+	/*
+	 * See commit 066ff571011d ("block: turn bio_kmalloc into a simple
+	 * kmalloc wrapper").
+	 */
+	bio_uninit(bio);
+	kfree(bio);
+#else
 	bio_put(bio);
+#endif
 	return;
 }
 
@@ -8242,11 +8251,22 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 			int rc;
 
 			if (need_new_bio) {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+				/*
+				 * See commit 066ff571011d ("block: turn
+				 * bio_kmalloc into a simple kmalloc wrapper").
+				 */
+				bio = bio_kmalloc(max_nr_vecs, gfp_mask);
+#else
 				bio = bio_kmalloc(gfp_mask, max_nr_vecs);
+#endif
 				if (bio == NULL) {
 					rq = ERR_PTR(-ENOMEM);
 					goto out_free_bios;
 				}
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+				bio_init(bio, NULL, bio->bi_inline_vecs, max_nr_vecs, 0);
+#endif
 
 				if (!reading)
 #if (!defined(CONFIG_SUSE_KERNEL) && \
@@ -8325,7 +8345,16 @@ out_free_bios:
 	while (hbio != NULL) {
 		bio = hbio;
 		hbio = hbio->bi_next;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
+		/*
+		 * See commit 066ff571011d ("block: turn bio_kmalloc into a
+		 * simple kmalloc wrapper").
+		 */
+		bio_uninit(bio);
+		kfree(bio);
+#else
 		bio_put(bio);
+#endif
 	}
 	goto out;
 }
