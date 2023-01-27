@@ -37,6 +37,9 @@
 
 #include "scst_itf_ver.h"
 
+#define SCST_STRINGIFY_x(x...)	#x
+#define SCST_STRINGIFY(x...)	SCST_STRINGIFY_x(x)
+
 /*
  * Version numbers, the same as for the kernel.
  *
@@ -45,9 +48,16 @@
  */
 #define SCST_VERSION(a, b, c, d)    (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
 #define SCST_VERSION_CODE	    SCST_VERSION(3, 8, 0, 0)
+
+#ifdef SCST_VERSION_REVISION
+#define SCST_VERSION_REVISION_SUFFIX "." SCST_STRINGIFY(SCST_VERSION_REVISION)
+#else
+#define SCST_VERSION_REVISION_SUFFIX ""
+#endif
+
 #define SCST_VERSION_STRING_SUFFIX
 #define SCST_VERSION_NAME	    "3.8.0-pre"
-#define SCST_VERSION_STRING	    SCST_VERSION_NAME SCST_VERSION_STRING_SUFFIX
+#define SCST_VERSION_STRING	    SCST_VERSION_NAME SCST_VERSION_STRING_SUFFIX SCST_VERSION_REVISION_SUFFIX
 
 #define SCST_CONST_VERSION SCST_CONST_INTF_VER
 
