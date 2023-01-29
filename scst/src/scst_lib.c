@@ -7938,6 +7938,8 @@ static void blk_free_kern_sg_work(struct blk_kern_sg_work *bw)
 	return;
 }
 
+static inline void scst_free_bio(struct bio *bio);
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
 static void blk_bio_map_kern_endio(struct bio *bio, int err)
 {
@@ -7968,16 +7970,7 @@ static void blk_bio_map_kern_endio(struct bio *bio)
 		}
 	}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
-	/*
-	 * See commit 066ff571011d ("block: turn bio_kmalloc into a simple
-	 * kmalloc wrapper").
-	 */
-	bio_uninit(bio);
-	kfree(bio);
-#else
-	bio_put(bio);
-#endif
+	scst_free_bio(bio);
 	return;
 }
 
@@ -8139,6 +8132,57 @@ scst_free_passthrough_request(struct request *rq)
 #endif
 }
 
+/**
+ * scst_alloc_bio - Allocate a bio.
+ * @nr_vecs: Number of bio_vecs to allocate.
+ * @gfp_mask: The GFP_* mask given to the slab allocator.
+ *
+ * Returns
+ * Pointer to new bio on success, NULL on failure.
+ */
+static inline struct bio *
+scst_alloc_bio(unsigned short nr_vecs, gfp_t gfp_mask)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+	return bio_kmalloc(gfp_mask, nr_vecs);
+#else
+	/*
+	 * See also commit 066ff571011d ("block: turn bio_kmalloc into a
+	 * simple kmalloc wrapper").
+	 */
+	struct bio *bio;
+
+	bio = bio_kmalloc(nr_vecs, gfp_mask);
+	if (bio)
+		bio_init(bio, NULL, bio->bi_inline_vecs, nr_vecs, 0);
+
+	return bio;
+#endif
+}
+
+/**
+ * scst_free_bio - Free a bio that was allocated with scst_alloc_bio().
+ * @bio: bio pointer.
+ */
+static inline void
+scst_free_bio(struct bio *bio)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+	bio_put(bio);
+#else
+	/*
+	 * See also commit 066ff571011d ("block: turn bio_kmalloc into a
+	 * simple kmalloc wrapper").
+	 */
+	bio_uninit(bio);
+	kfree(bio);
+#endif
+}
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0) ||			\
 (defined(CONFIG_SUSE_KERNEL) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 static struct request *blk_make_request(struct request_queue *q,
@@ -8251,22 +8295,11 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 			int rc;
 
 			if (need_new_bio) {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
-				/*
-				 * See commit 066ff571011d ("block: turn
-				 * bio_kmalloc into a simple kmalloc wrapper").
-				 */
-				bio = bio_kmalloc(max_nr_vecs, gfp_mask);
-#else
-				bio = bio_kmalloc(gfp_mask, max_nr_vecs);
-#endif
+				bio = scst_alloc_bio(max_nr_vecs, gfp_mask);
 				if (bio == NULL) {
 					rq = ERR_PTR(-ENOMEM);
 					goto out_free_bios;
 				}
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
-				bio_init(bio, NULL, bio->bi_inline_vecs, max_nr_vecs, 0);
-#endif
 
 				if (!reading)
 #if (!defined(CONFIG_SUSE_KERNEL) && \
@@ -8345,16 +8378,7 @@ out_free_bios:
 	while (hbio != NULL) {
 		bio = hbio;
 		hbio = hbio->bi_next;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 19, 0)
-		/*
-		 * See commit 066ff571011d ("block: turn bio_kmalloc into a
-		 * simple kmalloc wrapper").
-		 */
-		bio_uninit(bio);
-		kfree(bio);
-#else
-		bio_put(bio);
-#endif
+		scst_free_bio(bio);
 	}
 	goto out;
 }
