@@ -1510,4 +1510,6 @@ const struct scst_cl_ops scst_dlm_cl_ops = {
 	.reserve		= scst_dlm_reserve,
 };
 
+char *scst_dlm_cluster_name;
+
 #endif

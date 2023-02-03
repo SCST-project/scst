@@ -176,6 +176,7 @@ extern wait_queue_head_t scst_dev_cmd_waitQ;
 
 extern const struct scst_cl_ops scst_no_dlm_cl_ops;
 extern const struct scst_cl_ops scst_dlm_cl_ops;
+extern char *scst_dlm_cluster_name;
 
 extern unsigned int scst_setup_id;
 
@@ -417,8 +418,8 @@ static inline int scst_dlm_new_lockspace(const char *name, int namelen,
 					 uint32_t flags,
 					 int lvblen)
 {
-	return dlm_new_lockspace(name, NULL, flags, lvblen, NULL, NULL, NULL,
-				 lockspace);
+	return dlm_new_lockspace(name, scst_dlm_cluster_name, flags, lvblen,
+				 NULL, NULL, NULL, lockspace);
 }
 
 int scst_alloc_space(struct scst_cmd *cmd);
