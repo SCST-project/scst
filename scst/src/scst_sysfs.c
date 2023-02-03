@@ -7594,6 +7594,70 @@ static struct kobj_attribute scst_last_sysfs_mgmt_res_attr =
 	__ATTR(last_sysfs_mgmt_res, S_IRUGO,
 		scst_last_sysfs_mgmt_res_show, NULL);
 
+static ssize_t scst_cluster_name_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	int res = 0;
+
+	TRACE_ENTRY();
+
+	if (scst_dlm_cluster_name != NULL)
+		res = sprintf(buf, "%s\n%s", scst_dlm_cluster_name,
+			SCST_SYSFS_KEY_MARK "\n");
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_cluster_name_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res = 0;
+	int len;
+
+	TRACE_ENTRY();
+
+	if ((buf == NULL) || (count == 0)) {
+		goto out;
+	}
+
+	len = strnlen(buf, count);
+	if (buf[count-1] == '\n')
+		len--;
+
+	if (len == 0) {
+		kfree(scst_dlm_cluster_name);
+		scst_dlm_cluster_name = NULL;
+		goto out_done;
+	}
+
+	if (len >= DLM_LOCKSPACE_LEN) {
+		PRINT_ERROR("cluster_name string too long (len %d)", len);
+		res = -EINVAL;
+		goto out;
+	}
+
+	kfree(scst_dlm_cluster_name);
+	scst_dlm_cluster_name = kstrndup(buf, len, GFP_KERNEL);
+	if (!scst_dlm_cluster_name) {
+		PRINT_ERROR("Unable to alloc cluster_name string (len %d)",
+			len+1);
+		res = -ENOMEM;
+		goto out;
+	}
+
+out_done:
+	res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_cluster_name_attr =
+	__ATTR(cluster_name, S_IRUGO | S_IWUSR, scst_cluster_name_show,
+	       scst_cluster_name_store);
+
 static struct attribute *scst_sysfs_root_def_attrs[] = {
 	&scst_measure_latency_attr.attr,
 	&scst_threads_attr.attr,
@@ -7609,6 +7673,7 @@ static struct attribute *scst_sysfs_root_def_attrs[] = {
 	&scst_trace_mcmds_attr.attr,
 	&scst_version_attr.attr,
 	&scst_last_sysfs_mgmt_res_attr.attr,
+	&scst_cluster_name_attr.attr,
 	NULL,
 };
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
@@ -7932,6 +7997,7 @@ void scst_sysfs_cleanup(void)
 	TRACE_ENTRY();
 
 	PRINT_INFO("%s", "Exiting SCST sysfs hierarchy...");
+	kfree(scst_dlm_cluster_name);
 
 	scst_del_put_sgv_kobj();
 
