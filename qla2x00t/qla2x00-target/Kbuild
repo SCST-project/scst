@@ -1,6 +1,7 @@
 KBUILD_EXTRA_SYMBOLS = $(src)/../../scst/src/Module.symvers \
 			$(src)/../Module.symvers
-ccflags-y += -I$(src)/../../scst/include -I$(src)/..
+ccflags-y += -I$(src)/../../scst/include -I$(src)/.. \
+	$(shell [ -n "${REVISION}" ] && echo -DSCST_VERSION_REVISION=${REVISION})
 #ccflags-y += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
 #ccflags-y += -DCONFIG_QLA_TGT_DEBUG_SRR
 

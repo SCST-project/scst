@@ -1,4 +1,5 @@
 KBUILD_EXTRA_SYMBOLS=$(src)/../scst/src/Module.symvers
-ccflags-y	+= -I$(src)/../scst/include
+ccflags-y	+= -I$(src)/../scst/include	\
+	$(shell [ -n "${REVISION}" ] && echo -DSCST_VERSION_REVISION=${REVISION})
 
 obj-m	:= scst_local.o

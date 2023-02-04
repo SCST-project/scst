@@ -1,4 +1,5 @@
-ccflags-y += -I$(src)/../scst/include -DDEFAULT_SYMBOL_NAMESPACE=QLA16GB
+ccflags-y += -I$(src)/../scst/include -DDEFAULT_SYMBOL_NAMESPACE=QLA16GB \
+	$(shell [ -n "${REVISION}" ] && echo -DSCST_VERSION_REVISION=${REVISION})
 
 ifneq ($(CONFIG_SCSI_QLA2XXX_TARGET),)
 ccflags-y += -DCONFIG_SCSI_QLA2XXX_TARGET=$(CONFIG_SCSI_QLA2XXX_TARGET)

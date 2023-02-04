@@ -1,5 +1,6 @@
 KBUILD_EXTRA_SYMBOLS=$(src)/../scst/src/Module.symvers
-ccflags-y += -I$(src)/../scst/include $(shell if [ -e include/scsi ]; then header_dir=.; else header_dir=$$(sed -n 's/^include[[:blank:]]\+\(.*\)\/Makefile$$/\1/p;s/^MAKEARGS := -C \([^ ]*\) .*/\1/p' Makefile); fi; if false; then echo "header_dir=$${header_dir}" >&2; fi; grep -qw fc_fill_fc_hdr "$${header_dir}/include/scsi/fc_encode.h" 2>/dev/null && echo -DFC_FILL_FC_HDR_IN_SCSI_FC_ENCODE_H)
+ccflags-y += -I$(src)/../scst/include $(shell if [ -e include/scsi ]; then header_dir=.; else header_dir=$$(sed -n 's/^include[[:blank:]]\+\(.*\)\/Makefile$$/\1/p;s/^MAKEARGS := -C \([^ ]*\) .*/\1/p' Makefile); fi; if false; then echo "header_dir=$${header_dir}" >&2; fi; grep -qw fc_fill_fc_hdr "$${header_dir}/include/scsi/fc_encode.h" 2>/dev/null && echo -DFC_FILL_FC_HDR_IN_SCSI_FC_ENCODE_H) \
+	$(shell [ -n "${REVISION}" ] && echo -DSCST_VERSION_REVISION=${REVISION})
 
 obj-$(CONFIG_FCST) += fcst.o
 

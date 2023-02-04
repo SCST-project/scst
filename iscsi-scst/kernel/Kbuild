@@ -17,7 +17,8 @@
 KBUILD_EXTRA_SYMBOLS = $(src)/../../scst/src/Module.symvers
 
 ccflags-y += -I$(src)/../include -I$(src)/../../scst/include
-ccflags-y += $(CONFTEST_CFLAGS)
+ccflags-y += $(CONFTEST_CFLAGS)	\
+	$(shell [ -n "${REVISION}" ] && echo -DSCST_VERSION_REVISION=${REVISION})
 #ccflags-y += -DCONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES
 
 obj-m		+= iscsi-scst.o

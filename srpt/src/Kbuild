@@ -3,6 +3,7 @@ KBUILD_EXTRA_SYMBOLS=$(src)/../../scst/src/Module.symvers \
 		$(shell for d in /usr/src/ofa_kernel/default/Module.symvers; do\
 			[ -e $$d ] || continue; echo $$d; break; done)
 
-ccflags-y	+= -I$(src)/../../scst/include
+ccflags-y	+= -I$(src)/../../scst/include \
+	$(shell [ -n "${REVISION}" ] && echo -DSCST_VERSION_REVISION=${REVISION})
 
 obj-m		+= ib_srpt.o
