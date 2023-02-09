@@ -2490,12 +2490,11 @@ static int __init init_scst(void)
 		goto out_thread_free;
 
 #ifdef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
-	PRINT_INFO("SCST version %s loaded successfully (global max mem for commands "
-		"ignored, per device %dMB)", SCST_VERSION_STRING, scst_max_dev_cmd_mem);
+	PRINT_INFO("SCST version %s (revision=%s) loaded successfully (global max mem for commands ignored, per device %dMB)",
+		   SCST_VERSION_STRING, SCST_REVISION_STRING, scst_max_dev_cmd_mem);
 #else
-	PRINT_INFO("SCST version %s loaded successfully (max mem for "
-		"commands %dMB, per device %dMB)", SCST_VERSION_STRING,
-		scst_max_cmd_mem, scst_max_dev_cmd_mem);
+	PRINT_INFO("SCST version %s (revision=%s) loaded successfully (max mem for commands %dMB, per device %dMB)",
+		   SCST_VERSION_STRING, SCST_REVISION_STRING, scst_max_cmd_mem, scst_max_dev_cmd_mem);
 #endif
 
 	scst_print_config();
@@ -2652,3 +2651,4 @@ MODULE_AUTHOR("Vladislav Bolkhovitin");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("SCSI target core");
 MODULE_VERSION(SCST_VERSION_STRING);
+MODULE_INFO(revision, SCST_REVISION_STRING);
