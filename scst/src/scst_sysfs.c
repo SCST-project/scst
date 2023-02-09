@@ -7517,7 +7517,8 @@ static ssize_t scst_version_show(struct kobject *kobj,
 {
 	TRACE_ENTRY();
 
-	sprintf(buf, "%s\n", SCST_VERSION_STRING);
+	sprintf(buf, "%s (revision=%s)\n",
+		SCST_VERSION_STRING, SCST_REVISION_STRING);
 
 #ifdef CONFIG_SCST_STRICT_SERIALIZING
 	strcat(buf, "STRICT_SERIALIZING\n");
