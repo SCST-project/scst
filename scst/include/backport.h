@@ -576,8 +576,9 @@ static inline long get_user_pages_backport(unsigned long start,
 
 /* <linux/kobject_ns.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0) && 	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0) && 		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(7, 6))
 /*
  * See also commit 5f256becd868 ("[NET]: Basic network namespace
  * infrastructure."; v2.6.24). a685e08987d1 ("Delay struct net freeing while
