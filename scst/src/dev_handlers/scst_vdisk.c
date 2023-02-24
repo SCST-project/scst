@@ -6988,6 +6988,33 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 			continue;
 		}
 
+		if (!strcasecmp("t10_dev_id", p)) {
+			/* Handle in a fashion similar to vdev_sysfs_t10_dev_id_store */
+			int i, length = strlen(pp);
+
+			if (length >= sizeof(virt_dev->t10_dev_id)) {
+				PRINT_ERROR("T10 device id is too long (max %zd "
+					"characters)", sizeof(virt_dev->t10_dev_id)-1);
+				res = -EINVAL;
+				goto out;
+			}
+
+			memset(virt_dev->t10_dev_id, 0, sizeof(virt_dev->t10_dev_id));
+			memcpy(virt_dev->t10_dev_id, pp, length);
+
+			i = 0;
+			while (i < sizeof(virt_dev->t10_dev_id)) {
+				if (virt_dev->t10_dev_id[i] == '\n') {
+					virt_dev->t10_dev_id[i] = '\0';
+					break;
+				}
+				i++;
+			}
+
+			virt_dev->t10_dev_id_set = 1;
+			continue;
+		}
+
 		res = kstrtoll(pp, 0, &ll_val);
 		if (res != 0) {
 			PRINT_ERROR("strtoll() for %s failed: %d (device %s)",
@@ -9558,6 +9585,7 @@ static const char *const fileio_add_dev_params[] = {
 	"rotational",
 	"thin_provisioned",
 	"tst",
+	"t10_dev_id",
 	"write_through",
 	NULL
 };
@@ -9648,6 +9676,7 @@ static const char *const blockio_add_dev_params[] = {
 	"rotational",
 	"thin_provisioned",
 	"tst",
+	"t10_dev_id",
 	"write_through",
 	NULL
 };
@@ -9721,6 +9750,7 @@ static const char *const nullio_add_dev_params[] = {
 	"size",
 	"size_mb",
 	"tst",
+	"t10_dev_id",
 	NULL
 };
 

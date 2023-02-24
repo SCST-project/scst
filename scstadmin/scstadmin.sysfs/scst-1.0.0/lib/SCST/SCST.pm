@@ -3911,10 +3911,17 @@ sub openDevice {
 	    if (!valid($handler, $device, $attributes));
 
 	my $o_string = "";
+	## Special case cluster_mode as we want to set it after t10_dev_id
+	my $cm_string = "";
 	foreach my $attribute (keys %{$attributes}) {
 		my $value = $$attributes{$attribute};
-		$o_string .= "$attribute=$value;";
+		if ($attribute eq "cluster_mode") {
+			$cm_string = "$attribute=$value;";
+		} else {
+			$o_string .= "$attribute=$value;";
+		}
 	}
+	$o_string .= $cm_string;
 
 	$o_string =~ s/\s$//;
 
