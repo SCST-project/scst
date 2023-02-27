@@ -112,6 +112,7 @@
 #define DEF_EXPL_ALUA			0
 #define DEF_DEV_ACTIVE			1
 #define DEF_BIND_ALUA_STATE		1
+#define DEF_LB_PER_PB_EXP		1
 
 #define VDISK_NULLIO_SIZE		(5LL*1024*1024*1024*1024/2)
 
@@ -185,6 +186,7 @@ struct scst_vdisk_dev {
 	unsigned int reexam_pending:1;
 	unsigned int size_key:1;
 	unsigned int opt_trans_len_set:1;
+	unsigned int lb_per_pb_exp:1;
 
 	struct file *fd;
 	struct file *dif_fd;
@@ -4943,7 +4945,7 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 	struct scst_vdisk_dev *virt_dev;
 	struct block_device *bdev;
 	struct request_queue *q;
-	uint32_t blocksize, physical_blocksize;
+	uint32_t blocksize;
 	uint64_t nblocks;
 	uint8_t buffer[32];
 
@@ -4988,8 +4990,10 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 	}
 
 	/* LOGICAL BLOCKS PER PHYSICAL BLOCK EXPONENT */
-	physical_blocksize = q ? queue_physical_block_size(q) : 4096;
-	buffer[13] = max(ilog2(physical_blocksize) - ilog2(blocksize), 0);
+	if (virt_dev->lb_per_pb_exp) {
+		uint32_t physical_blocksize = q ? queue_physical_block_size(q) : 4096;
+		buffer[13] = max(ilog2(physical_blocksize) - ilog2(blocksize), 0);
+	}
 
 	if (virt_dev->thin_provisioned) {
 		buffer[14] |= 0x80;     /* LBPME */
@@ -6740,6 +6744,7 @@ static int vdev_create_node(struct scst_dev_type *devt,
 	virt_dev->numa_node_id = NUMA_NO_NODE;
 	virt_dev->dev_active = DEF_DEV_ACTIVE;
 	virt_dev->bind_alua_state = DEF_BIND_ALUA_STATE;
+	virt_dev->lb_per_pb_exp = DEF_LB_PER_PB_EXP;
 
 	if (strlen(name) >= sizeof(virt_dev->name)) {
 		PRINT_ERROR("Name %s is too long (max allowed %zd)", name,
@@ -7085,6 +7090,10 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 			virt_dev->dif_static_app_tag_combined = cpu_to_be64(ull_val);
 			TRACE_DBG("DIF static app tag %llx",
 				(long long)be64_to_cpu(virt_dev->dif_static_app_tag_combined));
+		} else if (!strcasecmp("lb_per_pb_exp", p)) {
+			virt_dev->lb_per_pb_exp = ull_val;
+			TRACE_DBG("LB_PER_PB_EXP %d",
+				  virt_dev->lb_per_pb_exp);
 		} else {
 			PRINT_ERROR("Unknown parameter %s (device %s)", p,
 				virt_dev->name);
@@ -9403,6 +9412,40 @@ static ssize_t vdev_dif_filename_show(struct kobject *kobj,
 	return pos;
 }
 
+static ssize_t vdev_lb_per_pb_exp_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	struct scst_device *dev =
+		container_of(kobj, struct scst_device, dev_kobj);
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	long val;
+	int res;
+
+	res = kstrtol(buf, 0, &val);
+	if (res)
+		return res;
+	if (val != !!val)
+		return -EINVAL;
+
+	spin_lock(&virt_dev->flags_lock);
+	virt_dev->lb_per_pb_exp = val;
+	spin_unlock(&virt_dev->flags_lock);
+
+	return count;
+}
+
+static ssize_t vdev_lb_per_pb_exp_show(struct kobject *kobj,
+			       struct kobj_attribute *attr, char *buf)
+{
+	struct scst_device *dev =
+		container_of(kobj, struct scst_device, dev_kobj);
+	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+
+	return sprintf(buf, "%d\n%s", virt_dev->lb_per_pb_exp,
+		      (virt_dev->lb_per_pb_exp == DEF_LB_PER_PB_EXP)
+			? "" : SCST_SYSFS_KEY_MARK "\n");
+}
+
 
 static struct kobj_attribute vdev_active_attr =
 	__ATTR(active, S_IWUSR|S_IRUGO, vdev_sysfs_active_show,
@@ -9493,6 +9536,8 @@ static struct kobj_attribute vdev_inq_vend_specific_attr =
 	       vdev_sysfs_inq_vend_specific_store);
 static struct kobj_attribute vdev_async_attr =
 	__ATTR(async, S_IWUSR|S_IRUGO, vdev_async_show, vdev_async_store);
+static struct kobj_attribute vdev_lb_per_pb_exp_attr =
+	__ATTR(lb_per_pb_exp, S_IWUSR|S_IRUGO, vdev_lb_per_pb_exp_show, vdev_lb_per_pb_exp_store);
 
 static struct kobj_attribute vcdrom_filename_attr =
 	__ATTR(filename, S_IRUGO|S_IWUSR, vdev_sysfs_filename_show,
@@ -9538,6 +9583,7 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 	&vdev_usn_attr.attr,
 	&vdev_inq_vend_specific_attr.attr,
 	&vdev_async_attr.attr,
+	&vdev_lb_per_pb_exp_attr.attr,
 	NULL,
 };
 
@@ -9628,6 +9674,7 @@ static const struct attribute *vdisk_blockio_attrs[] = {
 	&vdev_usn_attr.attr,
 	&vdev_inq_vend_specific_attr.attr,
 	&vdisk_tp_attr.attr,
+	&vdev_lb_per_pb_exp_attr.attr,
 	NULL,
 };
 
