@@ -1242,6 +1242,12 @@ cache. The following parameters possible for vdisk_fileio:
  - dif_filename - specifies full path to filename, where DIF tags will
    be stored.
 
+ - lb_per_pb_exp - allows READ CAPACITY 16 to return LOGICAL BLOCKS
+   PER PHYSICAL BLOCK EXPONENT.  Possible values are: 0 - the exponent
+   is not returned (zero is returned instead) and 1 - the device value is
+   returned. Default - 1.  There are some initiators (like MS SQL) that
+   do not like large physical block sizes, even if they are true.
+
 Handler vdisk_blockio provides BLOCKIO mode to create virtual devices.
 This mode performs direct block I/O with a block device, bypassing the
 page cache for all operations. This mode works ideally with high-end
