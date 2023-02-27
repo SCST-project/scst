@@ -15063,8 +15063,11 @@ void scst_vfs_unlink_and_put(struct path *path)
 	vfs_unlink(path->dentry->d_parent->d_inode, path->dentry);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 12, 0)
 	vfs_unlink(path->dentry->d_parent->d_inode, path->dentry, NULL);
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
 	vfs_unlink(&init_user_ns, path->dentry->d_parent->d_inode, path->dentry,
+		   NULL);
+#else
+	vfs_unlink(&nop_mnt_idmap, path->dentry->d_parent->d_inode, path->dentry,
 		   NULL);
 #endif
 	path_put(path);
