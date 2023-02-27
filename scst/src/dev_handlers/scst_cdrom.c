@@ -94,9 +94,9 @@ static int cdrom_attach(struct scst_device *dev)
 		memset(sense_buffer, 0, sizeof(sense_buffer));
 
 		TRACE_DBG("%s", "Doing READ_CAPACITY");
-		rc = scst_scsi_execute(dev->scsi_dev, cmd, DMA_FROM_DEVICE,
-				       buffer, buffer_size, sense_buffer,
-				       SCST_GENERIC_CDROM_REG_TIMEOUT, 3, 0);
+		rc = scst_scsi_execute_cmd(dev->scsi_dev, cmd, DMA_FROM_DEVICE,
+					   buffer, buffer_size, sense_buffer,
+					   SCST_GENERIC_CDROM_REG_TIMEOUT, 3, 0);
 
 		TRACE_DBG("READ_CAPACITY done: %x", rc);
 

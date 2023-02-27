@@ -177,6 +177,13 @@ enum {
 };
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
+/*
+ * See also commit 342a72a33407 ("block: Introduce the type blk_opf_t") # v6.0
+ */
+typedef unsigned int blk_opf_t;
+#endif
+
 /* <linux/blk-mq.h> */
 
 static inline unsigned int scst_blk_rq_cpu(struct request *rq)
