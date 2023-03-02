@@ -388,7 +388,7 @@ qla2xxx_get_fc4_priority(struct scsi_qla_host *vha)
 
 enum {
 	RESOURCE_NONE,
-	RESOURCE_IOCB  = BIT_0,
+	RESOURCE_IOCB = BIT_0,
 	RESOURCE_EXCH = BIT_1,  /* exchange */
 	RESOURCE_FORCE = BIT_2,
 };
@@ -404,6 +404,8 @@ qla_get_fw_resources(struct qla_qpair *qp, struct iocb_resource *iores)
 		iores->res_type = RESOURCE_NONE;
 		return 0;
 	}
+	if (iores->res_type & RESOURCE_FORCE)
+		goto force;
 
 	if ((iores->iocb_cnt + qp->fwres.iocbs_used) >= qp->fwres.iocbs_qp_limit) {
 		/* no need to acquire qpair lock. It's just rough calculation */
@@ -431,6 +433,7 @@ qla_get_fw_resources(struct qla_qpair *qp, struct iocb_resource *iores)
 			return -ENOSPC;
 		}
 	}
+force:
 	qp->fwres.iocbs_used += iores->iocb_cnt;
 	qp->fwres.exch_used += iores->exch_cnt;
 	return 0;
