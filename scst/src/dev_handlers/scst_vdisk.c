@@ -3238,8 +3238,8 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 
 	WARN_ON_ONCE(sg_cnt != cmd->sg_cnt);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0) || 	\
-		(defined(RHEL_RELEASE_CODE) && 		\
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0) ||	\
+		(defined(RHEL_RELEASE_CODE) &&		\
 		 RHEL_RELEASE_CODE -0 >= RHEL_RELEASE_VERSION(8, 2))
 	iov_iter_bvec(&iter, dir, p->async.bvec, sg_cnt, total);
 #else
