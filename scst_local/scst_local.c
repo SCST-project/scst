@@ -907,7 +907,7 @@ static int scst_local_queuecommand(struct Scsi_Host *host,
 	sgl_count = scsi_sg_count(scmd);
 
 	if (scsi_bidi_cmnd(scmd)) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0) && 		\
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
 	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 3))
 		/* Some of these symbols are only defined after 2.6.24 */
