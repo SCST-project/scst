@@ -1642,17 +1642,29 @@ enum {
 #define wwn_to_u64(wwn) get_unaligned_be64(wwn)
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
 /*
- * See also commit c39e0af64bce ("scsi: scsi_transport_fc: Add FPIN fc event
- * codes") # v5.2
+ * See also commit 64fd2ba977b1 ("scsi: scsi_transport_fc: Add an additional
+ * flag to fc_host_fpin_rcv()") # v6.3
  */
+static inline void
+fc_host_fpin_rcv_backport(struct Scsi_Host *shost, u32 fpin_len, char *fpin_buf,
+			  u8 event_acknowledge)
+{
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0) && \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
 	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 2)
-static inline void
-fc_host_fpin_rcv(struct Scsi_Host *shost, u32 fpin_len, char *fpin_buf)
-{
+	/*
+	 * See also commit c39e0af64bce ("scsi: scsi_transport_fc: Add FPIN fc event
+	 * codes") # v5.2
+	 */
+	return;
+#else
+	return fc_host_fpin_rcv(shost, fpin_len, fpin_buf);
+#endif
 }
+
+#define fc_host_fpin_rcv fc_host_fpin_rcv_backport
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0)
