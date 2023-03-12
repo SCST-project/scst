@@ -792,7 +792,9 @@ void *main_loop(void *arg)
 		struct scst_user_reply_cmd replies[MULTI_CMDS_CNT];
 		struct scst_user_get_multi multi_cmd;
 		struct scst_user_get_cmd cmds[MULTI_CMDS_CNT];
-	} multi = {};
+	} multi;
+
+	memset(&multi, 0, sizeof(multi));
 
 	TRACE_ENTRY();
 
