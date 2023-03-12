@@ -3793,7 +3793,6 @@ void qla24xx_process_response_queue(struct scsi_qla_host *vha,
 	if (rsp->qpair->cpuid != raw_smp_processor_id() ||
 	    !rsp->qpair->rcv_intr) {
 		rsp->qpair->rcv_intr = 1;
-		qla_cpu_update(rsp->qpair, raw_smp_processor_id());
 	}
 
 #define __update_rsp_in(_is_shadow_hba, _rsp, _rsp_in)			\
@@ -4480,6 +4479,7 @@ msix_failed:
 		qentry->vector = entries[i].vector;
 		qentry->entry = entries[i].entry;
 #endif
+		qentry->vector_base0 = i;
 		qentry->have_irq = 0;
 		qentry->in_use = 0;
 		qentry->handle = NULL;
@@ -4737,5 +4737,6 @@ int qla25xx_request_irq(struct qla_hw_data *ha, struct qla_qpair *qpair,
 	}
 	msix->have_irq = 1;
 	msix->handle = qpair;
+	qla_mapq_init_qp_cpu_map(ha, msix, qpair);
 	return ret;
 }
