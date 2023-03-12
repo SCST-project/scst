@@ -541,6 +541,9 @@ qla_mapq_init_qp_cpu_map(struct qla_hw_data *ha,
 			 struct qla_msix_entry *msix,
 			 struct qla_qpair *qpair)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0) ||	\
+	(defined(RHEL_RELEASE_CODE) &&			\
+	 RHEL_RELEASE_CODE -0 >= RHEL_RELEASE_VERSION(7, 5))
 	const struct cpumask *mask;
 	unsigned int cpu;
 
@@ -552,6 +555,7 @@ qla_mapq_init_qp_cpu_map(struct qla_hw_data *ha,
 		ha->qp_cpu_map[cpu] = qpair;
 	}
 	msix->cpuid = qpair->cpuid;
+#endif
 }
 
 static inline void

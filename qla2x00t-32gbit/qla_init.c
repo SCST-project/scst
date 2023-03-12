@@ -9429,6 +9429,12 @@ struct qla_qpair *qla2xxx_create_qpair(struct scsi_qla_host *vha, int qos,
 		qpair->req = ha->req_q_map[req_id];
 		qpair->rsp->req = qpair->req;
 		qpair->rsp->qpair = qpair;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0) &&	\
+	(!defined(RHEL_RELEASE_CODE) ||			\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(7, 5))
+		/* init qpair to this cpu. Will adjust at run time. */
+		qla_cpu_update(qpair, raw_smp_processor_id());
+#endif
 
 		if (IS_T10_PI_CAPABLE(ha) && ql2xenabledif) {
 			if (ha->fw_attributes & BIT_4)

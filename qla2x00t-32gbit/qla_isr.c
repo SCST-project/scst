@@ -3793,6 +3793,11 @@ void qla24xx_process_response_queue(struct scsi_qla_host *vha,
 	if (rsp->qpair->cpuid != raw_smp_processor_id() ||
 	    !rsp->qpair->rcv_intr) {
 		rsp->qpair->rcv_intr = 1;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0) &&	\
+	(!defined(RHEL_RELEASE_CODE) ||			\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(7, 5))
+		qla_cpu_update(rsp->qpair, raw_smp_processor_id());
+#endif
 	}
 
 #define __update_rsp_in(_is_shadow_hba, _rsp, _rsp_in)			\
