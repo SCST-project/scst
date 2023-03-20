@@ -6852,6 +6852,35 @@ out:
 	return;
 }
 
+static int vdev_set_t10_dev_id(struct scst_vdisk_dev *virt_dev,
+			       const char *buf, size_t count)
+{
+	size_t t10_dev_id_size, i;
+
+	t10_dev_id_size = sizeof(virt_dev->t10_dev_id);
+
+	if (count > t10_dev_id_size ||
+			(count == t10_dev_id_size && buf[count - 1] != '\n')) {
+		PRINT_ERROR("T10 device id is too long (max %zu characters)",
+			    t10_dev_id_size - 1);
+		return -EINVAL;
+	}
+
+	memset(virt_dev->t10_dev_id, 0, t10_dev_id_size);
+	memcpy(virt_dev->t10_dev_id, buf, count);
+
+	for (i = 0; i < t10_dev_id_size; i++) {
+		if (virt_dev->t10_dev_id[i] == '\n') {
+			virt_dev->t10_dev_id[i] = '\0';
+			break;
+		}
+	}
+
+	virt_dev->t10_dev_id_set = 1;
+
+	return 0;
+}
+
 /*
  * Parse the add_device parameters. @allowed_params restricts which
  * parameters can be specified at device creation time.
@@ -6994,29 +7023,12 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		}
 
 		if (!strcasecmp("t10_dev_id", p)) {
-			/* Handle in a fashion similar to vdev_sysfs_t10_dev_id_store */
-			int i, length = strlen(pp);
-
-			if (length >= sizeof(virt_dev->t10_dev_id)) {
-				PRINT_ERROR("T10 device id is too long (max %zd "
-					"characters)", sizeof(virt_dev->t10_dev_id)-1);
-				res = -EINVAL;
+			res = vdev_set_t10_dev_id(virt_dev, pp, strlen(pp));
+			if (unlikely(res)) {
+				PRINT_ERROR("Failed to set %s t10_dev_id", pp);
 				goto out;
 			}
 
-			memset(virt_dev->t10_dev_id, 0, sizeof(virt_dev->t10_dev_id));
-			memcpy(virt_dev->t10_dev_id, pp, length);
-
-			i = 0;
-			while (i < sizeof(virt_dev->t10_dev_id)) {
-				if (virt_dev->t10_dev_id[i] == '\n') {
-					virt_dev->t10_dev_id[i] = '\0';
-					break;
-				}
-				i++;
-			}
-
-			virt_dev->t10_dev_id_set = 1;
 			continue;
 		}
 
@@ -8875,9 +8887,9 @@ static ssize_t vdev_sysfs_scsi_device_name_show(struct kobject *kobj,
 static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
 	struct kobj_attribute *attr, const char *buf, size_t count)
 {
-	int res, i;
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
+	int res;
 
 	TRACE_ENTRY();
 
@@ -8890,28 +8902,9 @@ static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
 
 	write_lock(&vdisk_serial_rwlock);
 
-	if ((count > sizeof(virt_dev->t10_dev_id)) ||
-	    ((count == sizeof(virt_dev->t10_dev_id)) &&
-	     (buf[count-1] != '\n'))) {
-		PRINT_ERROR("T10 device id is too long (max %zd "
-			"characters)", sizeof(virt_dev->t10_dev_id)-1);
-		res = -EINVAL;
+	res = vdev_set_t10_dev_id(virt_dev, buf, count);
+	if (unlikely(res))
 		goto out_unlock;
-	}
-
-	memset(virt_dev->t10_dev_id, 0, sizeof(virt_dev->t10_dev_id));
-	memcpy(virt_dev->t10_dev_id, buf, count);
-
-	i = 0;
-	while (i < sizeof(virt_dev->t10_dev_id)) {
-		if (virt_dev->t10_dev_id[i] == '\n') {
-			virt_dev->t10_dev_id[i] = '\0';
-			break;
-		}
-		i++;
-	}
-
-	virt_dev->t10_dev_id_set = 1;
 
 	schedule_work(&virt_dev->vdev_inq_changed_work);
 
