@@ -2511,6 +2511,15 @@ void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
 	    sess->shut_phase != SCST_SESS_SPH_READY)
 		goto out;
 
+	if (unlikely(test_bit(SCST_TGT_DEV_AEN_DISABLED,
+			      &tgt_dev->tgt_dev_flags))) {
+		/*
+		 * We have decided not to generate an AEN
+		 * even if supported by the transport.
+		 */
+		goto queue_ua;
+	}
+
 	if (tgtt->report_aen != NULL) {
 		struct scst_aen *aen;
 		int rc;
@@ -5300,6 +5309,10 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 		set_bit(SCST_TGT_DEV_FORWARD_DST, &tgt_dev->tgt_dev_flags);
 	else
 		clear_bit(SCST_TGT_DEV_FORWARD_DST, &tgt_dev->tgt_dev_flags);
+	if (sess->tgt->tgt_aen_disabled)
+		set_bit(SCST_TGT_DEV_AEN_DISABLED, &tgt_dev->tgt_dev_flags);
+	else
+		clear_bit(SCST_TGT_DEV_AEN_DISABLED, &tgt_dev->tgt_dev_flags);
 	tgt_dev->hw_dif_same_sg_layout_required = sess->tgt->tgt_hw_dif_same_sg_layout_required;
 	tgt_dev->tgt_dev_dif_guard_format = acg_dev->acg_dev_dif_guard_format;
 	if (tgt_dev->tgt_dev_dif_guard_format == SCST_DIF_GUARD_FORMAT_IP)

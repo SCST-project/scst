@@ -481,6 +481,9 @@ enum scst_exec_res {
 /* Cache of tgt->tgt_forward_dst */
 #define SCST_TGT_DEV_FORWARD_DST	5
 
+/* Cache of tgt->tgt_aen_disabled */
+#define SCST_TGT_DEV_AEN_DISABLED	6
+
 /*************************************************************
  ** I/O grouping types. Changing them don't forget to change
  ** the corresponding *_STR values in scst_const.h!
@@ -1693,6 +1696,12 @@ struct scst_tgt {
 	 * supposed to be checked at the side of the forwarding source.
 	 */
 	unsigned tgt_forward_dst:1;
+
+	/*
+	 * Set if do not to wish to send AEN from this target port, even if
+	 * supported by the transport.  Send a UA instead.
+	 */
+	unsigned int tgt_aen_disabled:1;
 
 	/* Per target analog of the corresponding driver's fields */
 	unsigned tgt_dif_supported:1;
