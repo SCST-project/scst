@@ -825,6 +825,13 @@ Every target should have at least the following entries:
 
    For instance, read_unaligned_cmd_count means number of 4K unaligned IOs.
 
+ - aen_disabled - if set this target port is not to send AEN (Asynchronous
+   Event Notification), but rather generate a Unit Attention - even if the
+   underlying transport does support AEN.
+
+   This could prove useful in different situations including when the target
+   is also a forward_dst.
+
 A target driver may have also the following entries:
 
  - "hw_target" - if the target driver supports both hardware and virtual

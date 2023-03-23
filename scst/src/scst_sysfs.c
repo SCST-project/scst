@@ -2601,6 +2601,103 @@ static struct kobj_attribute scst_tgt_forwarding =
 	__ATTR(forwarding, S_IRUGO | S_IWUSR, scst_tgt_forward_dst_show,
 	       scst_tgt_forward_dst_store);
 
+static ssize_t scst_tgt_aen_disabled_show(struct kobject *kobj,
+	struct kobj_attribute *attr, char *buf)
+{
+	struct scst_tgt *tgt;
+	int res;
+
+	TRACE_ENTRY();
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+
+	res = sprintf(buf, "%d\n%s", tgt->tgt_aen_disabled,
+			tgt->tgt_aen_disabled ? SCST_SYSFS_KEY_MARK "\n" : "");
+
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static ssize_t scst_tgt_aen_disabled_store(struct kobject *kobj,
+	struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int res = 0;
+	struct scst_tgt *tgt;
+	struct scst_session *sess;
+	int old;
+
+	TRACE_ENTRY();
+
+	if ((buf == NULL) || (count == 0)) {
+		res = 0;
+		goto out;
+	}
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+
+	mutex_lock(&scst_mutex);
+
+	old = tgt->tgt_aen_disabled;
+
+	switch (buf[0]) {
+	case '0':
+		tgt->tgt_aen_disabled = 0;
+		break;
+	case '1':
+		tgt->tgt_aen_disabled = 1;
+		break;
+	default:
+		PRINT_ERROR("%s: Requested action not understood: %s",
+		       __func__, buf);
+		res = -EINVAL;
+		goto out_unlock;
+	}
+
+	if (tgt->tgt_aen_disabled == old)
+		goto out_unlock;
+
+	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
+		int i;
+
+		rcu_read_lock();
+		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
+			struct list_head *head = &sess->sess_tgt_dev_list[i];
+			struct scst_tgt_dev *tgt_dev;
+
+			list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry) {
+				if (tgt->tgt_aen_disabled)
+					set_bit(SCST_TGT_DEV_AEN_DISABLED,
+						&tgt_dev->tgt_dev_flags);
+				else
+					clear_bit(SCST_TGT_DEV_AEN_DISABLED,
+						  &tgt_dev->tgt_dev_flags);
+			}
+		}
+		rcu_read_unlock();
+	}
+
+	if (tgt->tgt_aen_disabled)
+		PRINT_INFO("Set AEN disabled for target %s",
+			   tgt->tgt_name);
+	else
+		PRINT_INFO("Clear AEN disabled for target %s",
+			   tgt->tgt_name);
+
+out_unlock:
+	mutex_unlock(&scst_mutex);
+
+	if (res == 0)
+		res = count;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
+}
+
+static struct kobj_attribute scst_tgt_aen_disabled =
+	__ATTR(aen_disabled, 0644, scst_tgt_aen_disabled_show,
+	       scst_tgt_aen_disabled_store);
+
 static ssize_t scst_tgt_comment_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)
 {
@@ -2875,6 +2972,7 @@ static struct attribute *scst_tgt_attrs[] = {
 	&scst_rel_tgt_id.attr,
 	&scst_tgt_forward_src.attr,
 	&scst_tgt_forward_dst.attr,
+	&scst_tgt_aen_disabled.attr,
 	&scst_tgt_forwarding.attr,
 	&scst_tgt_comment.attr,
 	&scst_tgt_addr_method.attr,
