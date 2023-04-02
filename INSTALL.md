@@ -46,7 +46,7 @@ scst-dkms package instead of the scst package.
 For example, if you want to have dkms support for your SCST rpm install, then
 you would use the following command to make your SCST packages:
 
-    make rpm-dkms 
+    make rpm-dkms
 
 or
 
