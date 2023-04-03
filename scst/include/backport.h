@@ -1467,7 +1467,7 @@ static inline void scsi_build_sense(struct scsi_cmnd *scmd, int desc,
 	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
 
 #if (!defined(RHEL_RELEASE_CODE) || \
-	RHEL_RELEASE_CODE -0 != RHEL_RELEASE_VERSION(8, 7))
+	RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 7))
 /*
  * See also 51f3a4788928 ("scsi: core: Introduce the scsi_cmd_to_rq()
  * function").
@@ -1498,7 +1498,7 @@ static inline unsigned int scsi_prot_interval(struct scsi_cmnd *scmd)
  */
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) || \
 	(defined(RHEL_RELEASE_CODE) && \
-	 RHEL_RELEASE_CODE -0 != RHEL_RELEASE_VERSION(8, 7)))
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 7)))
 static inline u32 scsi_prot_ref_tag(struct scsi_cmnd *scmd)
 {
 #if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 7
