@@ -1462,7 +1462,7 @@ out:
 	return ret;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 14, 0)
 /* See also commit fc7a6209d571 ("bus: Make remove callback return void") */
 #define DRIVER_REMOVE_RET int
 #else

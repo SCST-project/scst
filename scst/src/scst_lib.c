@@ -8560,7 +8560,9 @@ out:
 static void scsi_end_async(struct request *req, int error)
 #else
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0) ||      \
+     (defined(RHEL_RELEASE_CODE) &&                        \
+      RHEL_RELEASE_CODE -0 >= RHEL_RELEASE_VERSION(9, 2)))
 /*
  * See also commit de671d6116b5 ("block: change request end_io handler to pass
  * back a return value") # v6.1.
@@ -8619,8 +8621,10 @@ static RQ_END_IO_RET scsi_end_async(struct request *req, blk_status_t error)
 
 	kmem_cache_free(scsi_io_context_cache, sioc);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0) &&	\
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0) &&      \
+     (!defined(RHEL_RELEASE_CODE) ||                      \
+      RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 2)))
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0) &&      \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8)
 	/* See also commit 92bc5a24844a ("block: remove __blk_put_request()") */
 	__blk_put_request(req->q, req);

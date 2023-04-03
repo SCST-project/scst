@@ -19,6 +19,9 @@
 #ifdef __KERNEL__
 #include <linux/uaccess.h>  /* mm_segment_t */
 #include <linux/version.h>
+#ifndef RHEL_RELEASE_VERSION
+#define RHEL_RELEASE_VERSION(a, b) (((a) << 8) + (b))
+#endif
 
 /* <asm/uaccess.h> */
 
@@ -33,7 +36,9 @@
  * to write kernel code that is compatible with all kernel versions.
  */
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)
+#if (LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0) ||     \
+     (defined(RHEL_RELEASE_CODE) &&                        \
+      RHEL_RELEASE_CODE -0 == RHEL_RELEASE_VERSION(9, 2)))
 /*
  * Backport mm_segment_t to save compatibility with older kernel versions.
  *
