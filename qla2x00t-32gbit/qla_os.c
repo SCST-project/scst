@@ -375,14 +375,16 @@ static void qla2x00_clear_drv_active(struct qla_hw_data *);
 static void qla2x00_free_device(scsi_qla_host_t *);
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)
 /*
  * See also commit a4e1d0b76e7b ("block: Change the return type of
  * blk_mq_map_queues() into void") # v6.1.
  */
-#define MAP_QUEUES_RET void
-#else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 2))
 #define MAP_QUEUES_RET int
+#else
+#define MAP_QUEUES_RET void
 #endif
 
 static MAP_QUEUES_RET qla2xxx_map_queues(struct Scsi_Host *shost);
