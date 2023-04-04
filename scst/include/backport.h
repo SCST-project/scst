@@ -1471,10 +1471,8 @@ static inline void scsi_build_sense(struct scsi_cmnd *scmd, int desc,
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
-
-#if (!defined(RHEL_RELEASE_CODE) || \
-	RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 7))
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 7) ||	\
+	 RHEL_RELEASE_CODE -0 == RHEL_RELEASE_VERSION(9, 0))
 /*
  * See also 51f3a4788928 ("scsi: core: Introduce the scsi_cmd_to_rq()
  * function").
@@ -1483,6 +1481,32 @@ static inline struct request *scsi_cmd_to_rq(struct scsi_cmnd *scmd)
 {
 	return scmd->request;
 }
+#endif
+
+/*
+ * See also commits 7ba46799d346 ("scsi: core: Add scsi_prot_ref_tag()
+ * helper") and ddd0bc756983 ("block: move ref_tag calculation func to the
+ * block layer"; v4.19).
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) ||		\
+	(defined(RHEL_RELEASE_CODE) &&				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 7))
+static inline u32 scsi_prot_ref_tag(struct scsi_cmnd *scmd)
+{
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 7
+	WARN_ON_ONCE(true);
+	return 0;
+#else
+	struct request *rq = blk_mq_rq_from_pdu(scmd);
+
+	return t10_pi_ref_tag(rq);
+#endif
+}
+#endif
 #endif
 
 /*
@@ -1496,28 +1520,6 @@ static inline unsigned int scsi_prot_interval(struct scsi_cmnd *scmd)
 	WARN_ON_ONCE(true);
 	return 512;
 }
-#endif
-
-/*
- * See also commits 7ba46799d346 ("scsi: core: Add scsi_prot_ref_tag()
- * helper") and ddd0bc756983 ("block: move ref_tag calculation func to the
- * block layer"; v4.19).
- */
-#if (LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) || \
-	(defined(RHEL_RELEASE_CODE) && \
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 7)))
-static inline u32 scsi_prot_ref_tag(struct scsi_cmnd *scmd)
-{
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 7
-	WARN_ON_ONCE(true);
-	return 0;
-#else
-	struct request *rq = blk_mq_rq_from_pdu(scmd);
-
-	return t10_pi_ref_tag(rq);
-#endif
-}
-#endif
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0) &&		\
