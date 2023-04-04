@@ -3157,7 +3157,9 @@ struct bio_vec *vdisk_map_pages_to_bvec(struct bio_vec *bvec, struct page *page,
 }
 
 static void fileio_async_complete(struct kiocb *iocb, long ret
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 2))
 				  , long ret2
 #endif
 				  )
@@ -3267,7 +3269,9 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 	if (p->async.bvec != p->async.small_bvec)
 		kfree(p->async.bvec);
 	if (ret != -EIOCBQUEUED) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 2))
 		fileio_async_complete(iocb, ret, 0);
 #else
 		fileio_async_complete(iocb, ret);
