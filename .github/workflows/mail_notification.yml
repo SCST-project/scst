@@ -9,6 +9,7 @@ on:
 
 jobs:
   send_mails:
+    name: ${{matrix.commit.message}}
     runs-on: ubuntu-latest
     strategy:
       max-parallel: 1
