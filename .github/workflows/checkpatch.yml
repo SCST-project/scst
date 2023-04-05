@@ -1,0 +1,42 @@
+name: Checkpatch
+
+on: [push]
+
+jobs:
+  checkpatch:
+    name: ${{matrix.commit.message}}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        commit: ${{github.event.commits}}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          ref: ${{matrix.commit.id}}
+          fetch-depth: 2
+
+      - name: Download checkpatch.pl
+        run: |
+          curl https://raw.githubusercontent.com/torvalds/linux/master/scripts/checkpatch.pl -o checkpatch.pl
+          curl https://raw.githubusercontent.com/torvalds/linux/master/scripts/spelling.txt -o spelling.txt
+          curl https://raw.githubusercontent.com/torvalds/linux/master/scripts/const_structs.checkpatch -o const_structs.checkpatch
+          chmod +x checkpatch.pl
+
+      - name: Run checkpatch.pl
+        run: |
+          ignore=(
+            MISSING_SIGN_OFF
+            EMAIL_SUBJECT
+            UNKNOWN_COMMIT_ID
+            NO_AUTHOR_SIGN_OFF
+            FILE_PATH_CHANGES
+            SPDX_LICENSE_TAG
+            LINUX_VERSION_CODE
+            CONSTANT_COMPARISON
+            SPACING
+          )
+          ignore_str=${ignore[*]}
+
+          git format-patch -1 --stdout | ./checkpatch.pl --no-tree --show-types --ignore=$(echo "${ignore_str// /,}") -
