@@ -19,7 +19,7 @@ jobs:
           revision="$(git rev-parse --short HEAD)"
           version="$version_without_revesion-$revision"
 
-          echo ::set-output name=version::"$version"
+          echo "version=$version" >> $GITHUB_OUTPUT
 
       - name: Run Coverity Build
         uses: vapier/coverity-scan-action@v1
