@@ -24,40 +24,36 @@ jobs:
       - name: Get short ref
         id: get_short_ref
         run: |
-          echo ::set-output name=short_ref::${GITHUB_REF#refs/*/}
+          echo "short_ref=${GITHUB_REF#refs/*/}" >> $GITHUB_OUTPUT
 
       - name: Get commit id
-        id: get_comm_id
+        id: get_commit_id
         run: |
-          echo ::set-output name=comm_id::$(git rev-parse --short HEAD)
+          echo "commit_id=$(git rev-parse --short HEAD)" >> $GITHUB_OUTPUT
 
       - name: Get commit message
-        id: get_comm_message
+        id: get_commit_message
         run: |
-          echo ::set-output name=comm_message::$(git log --format=%s -n 1 HEAD)
+          echo "commit_message=$(git log --format=%s -n 1 HEAD)" >> $GITHUB_OUTPUT
 
       - name: Get list of files
         id: get_list_files
         run: |
-          files="$(git diff-tree --no-commit-id --stat --stat-name-width=60 --stat-graph-width=15 -r HEAD)"
+          EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
 
-          files="${files//'%'/'%25'}"
-          files="${files//$'\n'/'%0A'}"
-          files="${files//$'\r'/'%0D'}"
-
-          echo ::set-output name=files::"$files"
+          echo "files<<$EOF" >> $GITHUB_OUTPUT
+          echo "$(git diff-tree --no-commit-id --stat --stat-name-width=60 --stat-graph-width=15 -r HEAD)" >> $GITHUB_OUTPUT
+          echo "$EOF" >> $GITHUB_OUTPUT
 
       - name: Get commit diff
-        id: get_comm_diff
+        id: get_commit_diff
         run: |
           if [ $(git show --no-patch --format="%P" | wc -w) -eq 1 ]; then
-            diff="$(git --no-pager diff -p HEAD^1)"
+            EOF=$(dd if=/dev/urandom bs=15 count=1 status=none | base64)
 
-            diff="${diff//'%'/'%25'}"
-            diff="${diff//$'\n'/'%0A'}"
-            diff="${diff//$'\r'/'%0D'}"
-
-            echo ::set-output name=comm_diff::"$diff"
+            echo "commit_diff<<$EOF" >> $GITHUB_OUTPUT
+            echo "$(git --no-pager diff -p HEAD^1)" >> $GITHUB_OUTPUT
+            echo "$EOF" >> $GITHUB_OUTPUT
           fi
 
       - name: Send mail
@@ -73,7 +69,7 @@ jobs:
           password: ${{secrets.MAIL_SERVER_PASSWORD}}
           # Required mail subject:
           subject: |
-            [${{steps.get_short_ref.outputs.short_ref}}] ${{steps.get_comm_message.outputs.comm_message}}
+            [${{steps.get_short_ref.outputs.short_ref}}] ${{steps.get_commit_message.outputs.commit_message}}
           # Required recipients' addresses:
           to: scst-svn@lists.sourceforge.net
           # Required sender full name (address can be skipped):
@@ -83,7 +79,7 @@ jobs:
 
           # Optional plain body:
           body: |
-            Commit: ${{steps.get_comm_id.outputs.comm_id}}
+            Commit: ${{steps.get_commit_id.outputs.commit_id}}
             GitHub URL: ${{matrix.commit.url}}
             Author: ${{matrix.commit.author.name}}
             Date: ${{matrix.commit.timestamp}}
@@ -96,7 +92,7 @@ jobs:
             ${{steps.get_list_files.outputs.files}}
 
             ===================================================================
-            ${{steps.get_comm_diff.outputs.comm_diff}}
+            ${{steps.get_commit_diff.outputs.commit_diff}}
 
           # Optional unsigned/invalid certificates allowance:
           ignore_cert: true
