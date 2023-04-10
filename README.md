@@ -1,4 +1,9 @@
+<h1 align="center">
+  <img src="./www/images/logo.png" alt="SCST" width="250" />
+</h1>
+
 [![Coverity](https://img.shields.io/coverity/scan/25131.svg)](https://scan.coverity.com/projects/scst-project)
+[![Downloads](https://img.shields.io/github/downloads/SCST-project/scst/total.svg)](https://github.com/SCST-project/scst/releases)
 
 # Overview
 
