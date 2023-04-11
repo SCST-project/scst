@@ -1,21 +1,19 @@
-name: Checkpatch
+name: Checkpatch upon pull
 
-on: [push]
+on:
+  pull_request:
+    branches:
+      - master
 
 jobs:
   checkpatch:
-    name: ${{matrix.commit.message}}
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        commit: ${{github.event.commits}}
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
         with:
-          ref: ${{matrix.commit.id}}
-          fetch-depth: 2
+          ref: ${{github.event.pull_request.head.sha}}
+          fetch-depth: 0
 
       - name: Download checkpatch.pl
         run: |
@@ -39,4 +37,11 @@ jobs:
           )
           ignore_str=${ignore[*]}
 
-          git format-patch -1 --stdout | ./checkpatch.pl --no-tree --show-types --ignore="${ignore_str// /,}" -
+          base_commit=${{github.event.pull_request.base.sha}}
+          commits=$(git log --pretty=format:"%h" $base_commit..HEAD)
+
+          for commit in $commits; do
+            echo "Running checkpatch.pl for commit $commit"
+            git format-patch -1 --stdout $commit | ./checkpatch.pl --no-tree --show-types --ignore="${ignore_str// /,}" -
+            echo
+          done
