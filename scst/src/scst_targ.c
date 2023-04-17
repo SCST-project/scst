@@ -6153,7 +6153,6 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 	int res;
 	int i;
 	struct scst_session *sess = mcmd->sess;
-	struct scst_tgt_dev *tgt_dev;
 
 	TRACE_ENTRY();
 
@@ -6168,6 +6167,7 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct list_head *head = &sess->sess_tgt_dev_list[i];
+		struct scst_tgt_dev *tgt_dev;
 
 		list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
@@ -6175,8 +6175,8 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 
 			scst_call_dev_task_mgmt_fn_received(mcmd, tgt_dev);
 
-			tm_dbg_task_mgmt(tgt_dev->dev, "NEXUS LOSS SESS or "
-				"ABORT ALL SESS or UNREG SESS",
+			tm_dbg_task_mgmt(tgt_dev->dev,
+				"NEXUS LOSS SESS or ABORT ALL SESS or UNREG SESS",
 				(mcmd->fn == SCST_UNREG_SESS_TM));
 		}
 		if (nexus_loss_unreg_sess) {
@@ -6184,7 +6184,8 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd,
 			 * We need at first abort all affected commands and
 			 * only then release them as part of clearing ACA
 			 */
-			list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+			list_for_each_entry_rcu(tgt_dev, head,
+						sess_tgt_dev_list_entry) {
 				scst_clear_aca(tgt_dev,
 					(tgt_dev != mcmd->mcmd_tgt_dev));
 			}
@@ -6253,22 +6254,23 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd,
 			struct scst_tgt_dev *tgt_dev;
 
 			list_for_each_entry_rcu(tgt_dev, head,
-					sess_tgt_dev_list_entry) {
+						sess_tgt_dev_list_entry) {
 				__scst_abort_task_set(mcmd, tgt_dev);
 
 				if (mcmd->sess == tgt_dev->sess)
 					scst_call_dev_task_mgmt_fn_received(
 						mcmd, tgt_dev);
 
-				tm_dbg_task_mgmt(tgt_dev->dev, "NEXUS LOSS or "
-					"ABORT ALL", 0);
+				tm_dbg_task_mgmt(tgt_dev->dev,
+						"NEXUS LOSS or ABORT ALL", 0);
 			}
 			if (nexus_loss) {
 				/*
 				 * We need at first abort all affected commands and
 				 * only then release them as part of clearing ACA
 				 */
-				list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+				list_for_each_entry_rcu(tgt_dev, head,
+							sess_tgt_dev_list_entry) {
 					scst_clear_aca(tgt_dev,
 						(tgt_dev != mcmd->mcmd_tgt_dev));
 				}
