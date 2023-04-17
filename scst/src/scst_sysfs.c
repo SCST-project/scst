@@ -2557,11 +2557,12 @@ static ssize_t scst_tgt_forward_dst_store(struct kobject *kobj,
 	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
 		int i;
 
+		rcu_read_lock();
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
 
-			list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+			list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry) {
 				if (tgt->tgt_forward_dst)
 					set_bit(SCST_TGT_DEV_FORWARD_DST,
 						&tgt_dev->tgt_dev_flags);
@@ -2570,6 +2571,7 @@ static ssize_t scst_tgt_forward_dst_store(struct kobject *kobj,
 						  &tgt_dev->tgt_dev_flags);
 			}
 		}
+		rcu_read_unlock();
 	}
 
 	if (tgt->tgt_forward_dst)

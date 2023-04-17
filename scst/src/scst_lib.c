@@ -14101,31 +14101,37 @@ int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun)
 	}
 
 	if (lun != NO_SUCH_LUN) {
-		struct list_head *head =
-			&sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(lun)];
+		struct list_head *head;
 		struct scst_tgt_dev *tgt_dev;
 
-		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+		rcu_read_lock();
+		head = &sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(lun)];
+
+		list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry) {
 			if (tgt_dev->lun == lun) {
 				res = tgt_dev->dev->max_tgt_dev_commands;
-				TRACE_DBG("tgt_dev %p, dev %s, max_tgt_dev_commands "
-					"%d (res %d)", tgt_dev, tgt_dev->dev->virt_name,
-					tgt_dev->dev->max_tgt_dev_commands, res);
+				TRACE_DBG("tgt_dev %p, dev %s, max_tgt_dev_commands %d (res %d)",
+					  tgt_dev, tgt_dev->dev->virt_name,
+					  tgt_dev->dev->max_tgt_dev_commands, res);
 				break;
 			}
 		}
+		rcu_read_unlock();
+
 		goto out_unlock;
 	}
 
+	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 		struct list_head *head = &sess->sess_tgt_dev_list[i];
 		struct scst_tgt_dev *tgt_dev;
 
-		list_for_each_entry(tgt_dev, head, sess_tgt_dev_list_entry) {
+		list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry) {
 			if (res > tgt_dev->dev->max_tgt_dev_commands)
 				res = tgt_dev->dev->max_tgt_dev_commands;
 		}
 	}
+	rcu_read_unlock();
 
 out_unlock:
 	mutex_unlock(&scst_mutex);
