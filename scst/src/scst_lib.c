@@ -14084,10 +14084,10 @@ int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun)
 
 	TRACE_ENTRY();
 
-	mutex_lock(&scst_mutex);
-
 	if (sess == NULL) {
 		struct scst_device *dev;
+
+		mutex_lock(&scst_mutex);
 
 		list_for_each_entry(dev, &scst_dev_list, dev_list_entry) {
 			if (dev->handler == &scst_null_devtype)
@@ -14097,7 +14097,10 @@ int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun)
 			if (res > dev->max_tgt_dev_commands)
 				res = dev->max_tgt_dev_commands;
 		}
-		goto out_unlock;
+
+		mutex_unlock(&scst_mutex);
+
+		goto out;
 	}
 
 	if (lun != NO_SUCH_LUN) {
@@ -14118,7 +14121,7 @@ int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun)
 		}
 		rcu_read_unlock();
 
-		goto out_unlock;
+		goto out;
 	}
 
 	rcu_read_lock();
@@ -14133,10 +14136,9 @@ int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun)
 	}
 	rcu_read_unlock();
 
-out_unlock:
-	mutex_unlock(&scst_mutex);
-
+out:
 	TRACE_EXIT_RES(res);
+
 	return res;
 }
 EXPORT_SYMBOL(scst_get_max_lun_commands);
