@@ -539,7 +539,7 @@ static void scst_pr_remove_registrants(struct scst_device *dev)
 }
 
 /* Must be called under dev_pr_mutex */
-static void scst_pr_send_ua_reg(struct scst_device *dev,
+void scst_pr_send_ua_reg(struct scst_device *dev,
 	struct scst_dev_registrant *reg,
 	int key, int asc, int ascq)
 {
@@ -558,6 +558,8 @@ static void scst_pr_send_ua_reg(struct scst_device *dev,
 
 	if (reg->tgt_dev)
 		scst_check_set_UA(reg->tgt_dev, ua, sizeof(ua), 0);
+	else
+		dev->cl_ops->pr_reg_queue_rem_ua(dev, reg, key, asc, ascq);
 
 	TRACE_EXIT();
 	return;

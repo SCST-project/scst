@@ -33,17 +33,48 @@
 #if (defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE)) && \
 	!defined(CONFIG_SCST_NO_DLM)
 
+/*
+ * UNIT ATTENTION that is to be delivered thru DLM to another (remote) node.
+ */
+struct scst_dlm_rem_ua {
+	int key;
+	int asc;
+	int ascq;
+
+	struct scst_lksb lksb;
+	char lvb[PR_DLM_LVB_LEN];
+
+	/*
+	 * Keep the list entry name generic as expect to reuse the struct
+	 * definition in multiple contexts, e.g. pending_rem_ua_list and
+	 * sent_rem_ua_list in struct scst_dev_registrant
+	 */
+	struct list_head rem_ua_list_entry;
+};
+
 static void scst_pr_dlm_cleanup(struct scst_device *dev);
 static void scst_dlm_pre_bast(void *bastarg, int mode);
 static void scst_dlm_post_bast(void *bastarg, int mode);
 static void scst_dlm_post_ast(void *astarg);
+static struct scst_dlm_rem_ua *scst_dlm_alloc_rem_ua(void);
+static void scst_dlm_free_rem_ua(struct scst_dlm_rem_ua *ua);
+static void scst_dlm_pr_reg_release_rem_ua(struct scst_dlm_rem_ua *ua);
+static void scst_dlm_pr_reg_send_rem_ua(struct scst_device *dev,
+					dlm_lockspace_t *ls,
+					struct scst_dev_registrant *reg,
+					struct scst_dlm_rem_ua *ua);
+static void scst_dlm_rm_rem_ua_ls(dlm_lockspace_t *ls, struct scst_dlm_rem_ua *ua);
+static struct scst_dlm_rem_ua *scst_dlm_pr_reg_recv_rem_ua(struct scst_device *dev,
+							   dlm_lockspace_t *ls,
+							   struct scst_dev_registrant *reg,
+							   int index);
 
 static inline void compile_time_size_checks(void)
 {
 	BUILD_BUG_ON(sizeof(struct pr_lvb) > PR_DLM_LVB_LEN);
 	BUILD_BUG_ON(sizeof(struct pr_lvb) != 20);
 	BUILD_BUG_ON(sizeof(struct pr_reg_lvb) > PR_DLM_LVB_LEN);
-	BUILD_BUG_ON(sizeof(struct pr_reg_lvb) != 240);
+	BUILD_BUG_ON(sizeof(struct pr_reg_lvb) != 248);
 }
 
 static void scst_dlm_ast(void *astarg)
@@ -157,12 +188,32 @@ static void scst_dlm_pr_init_reg(struct scst_device *dev,
 	reg->lksb.lksb.sb_lvbptr = (void *)reg->lvb;
 	reg->lksb.lksb.sb_lkid = 0;
 	reg->dlm_idx = -1;
+	reg->registered_by_nodeid = -1;
+	INIT_LIST_HEAD(&reg->pending_rem_ua_list);
+	INIT_LIST_HEAD(&reg->sent_rem_ua_list);
 }
 
 static void scst_dlm_pr_rm_reg_ls(dlm_lockspace_t *ls,
-				  struct scst_dev_registrant *reg)
+				  struct scst_dev_registrant *reg,
+				  bool include_rem_ua)
 {
 	int res;
+
+	if (include_rem_ua) {
+		struct scst_dlm_rem_ua *ua, *tmp;
+
+		/* Drop the items on the pending list */
+		list_for_each_entry_safe(ua, tmp, &reg->pending_rem_ua_list, rem_ua_list_entry) {
+			scst_dlm_pr_reg_release_rem_ua(ua);
+		}
+		reg->next_rem_ua_idx = 0;
+
+		/* Drop the items on the sent list */
+		list_for_each_entry_safe(ua, tmp, &reg->sent_rem_ua_list, rem_ua_list_entry) {
+			scst_dlm_rm_rem_ua_ls(ls, ua);
+			scst_dlm_pr_reg_release_rem_ua(ua);
+		}
+	}
 
 	if (!reg->lksb.lksb.sb_lkid)
 		return;
@@ -178,7 +229,7 @@ static void scst_dlm_pr_rm_reg(struct scst_device *dev,
 			       struct scst_dev_registrant *reg)
 {
 	lockdep_assert_pr_write_lock_held(dev);
-	scst_dlm_pr_rm_reg_ls(dev->pr_dlm->ls, reg);
+	scst_dlm_pr_rm_reg_ls(dev->pr_dlm->ls, reg, true);
 }
 
 /* Copy SPC-2 reservation state from the DLM LVB into @dev. */
@@ -306,7 +357,7 @@ static int scst_copy_from_dlm(struct scst_device *dev, dlm_lockspace_t *ls,
 
 	list_for_each_entry(reg, &dev->dev_registrants_list,
 			    dev_registrants_list_entry)
-		scst_dlm_pr_rm_reg_ls(ls, reg);
+		scst_dlm_pr_rm_reg_ls(ls, reg, false);
 
 	for (i = 0; i < nr_registrants; i++) {
 		struct pr_reg_lvb *reg_lvb;
@@ -330,10 +381,12 @@ static int scst_copy_from_dlm(struct scst_device *dev, dlm_lockspace_t *ls,
 						     rel_tgt_id, reg_lvb->key,
 						     false);
 		if (reg) {
-			scst_dlm_pr_rm_reg_ls(ls, reg);
+			scst_dlm_pr_rm_reg_ls(ls, reg, false);
 			reg->lksb.lksb.sb_lkid = reg_lksb[i].lksb.sb_lkid;
 			reg->dlm_idx = i;
-			memcpy(reg->lvb, reg_lvb_content, sizeof(reg->lvb));
+			reg->registered_by_nodeid = be32_to_cpu(reg_lvb->registered_by_nodeid);
+			reg->next_rem_ua_idx = be16_to_cpu(reg_lvb->next_rem_ua_idx);
+			memcpy(reg->lvb, reg_lvb, sizeof(reg->lvb));
 			if (reg_lvb->is_holder) {
 				if (dev->pr_is_set)
 					scst_pr_clear_holder(dev);
@@ -346,6 +399,29 @@ static int scst_copy_from_dlm(struct scst_device *dev, dlm_lockspace_t *ls,
 			scst_dlm_unlock_wait(ls, &reg_lksb[i]);
 			continue;
 		}
+
+		/* Does the registrant have UAs that need to be delivered here? */
+		if (unlikely((reg->registered_by_nodeid == pr_dlm->local_nodeid) &&
+			     (reg->next_rem_ua_idx))) {
+			struct scst_dlm_rem_ua *ua;
+			int j;
+
+			for (j = 0; j < reg->next_rem_ua_idx; j++) {
+				ua = scst_dlm_pr_reg_recv_rem_ua(dev, ls, reg, j);
+				if (ua) {
+					if (reg->tgt_dev)
+						scst_pr_send_ua_reg(dev, reg, ua->key,
+								    ua->asc, ua->ascq);
+					scst_dlm_free_rem_ua(ua);
+				}
+			}
+			/* Reset the incoming queue and tell other nodes to re-read */
+			reg->next_rem_ua_idx = 0;
+			reg_lvb->next_rem_ua_idx = cpu_to_be16(reg->next_rem_ua_idx);
+			memcpy(reg->lvb, reg_lvb, sizeof(reg->lvb));
+			*modified_lvb = true;
+		}
+
 		scst_dlm_lock_wait(ls, DLM_LOCK_CR, &reg->lksb,
 				   DLM_LKF_CONVERT | DLM_LKF_VALBLK, NULL,
 				   NULL);
@@ -422,6 +498,7 @@ static void scst_copy_to_dlm(struct scst_device *dev, dlm_lockspace_t *ls)
 	struct pr_lvb *lvb = (void *)pr_dlm->lvb;
 	struct pr_reg_lvb *reg_lvb;
 	struct scst_dev_registrant *reg;
+	struct scst_dlm_rem_ua *ua;
 	int i;
 	char reg_name[32];
 	uint32_t nr_registrants, tid_size;
@@ -444,14 +521,17 @@ static void scst_copy_to_dlm(struct scst_device *dev, dlm_lockspace_t *ls)
 	list_for_each_entry(reg, &dev->dev_registrants_list,
 			    dev_registrants_list_entry) {
 		if (reg->dlm_idx >= nr_registrants)
-			scst_dlm_pr_rm_reg_ls(ls, reg);
+			scst_dlm_pr_rm_reg_ls(ls, reg, false);
 		if (reg->dlm_idx < 0) {
 			i = scst_get_available_dlm_idx(dev);
 			snprintf(reg_name, sizeof(reg_name), PR_REG_LOCK, i);
 			if (scst_dlm_lock_wait(ls, DLM_LOCK_NL,
 					       &reg->lksb, 0, reg_name, NULL)
-			    >= 0)
+			    >= 0) {
 				reg->dlm_idx = i;
+				reg->registered_by_nodeid = pr_dlm->local_nodeid;
+				reg->next_rem_ua_idx = 0;
+			}
 		}
 	}
 
@@ -469,6 +549,8 @@ static void scst_copy_to_dlm(struct scst_device *dev, dlm_lockspace_t *ls)
 			reg_lvb->rel_tgt_id = cpu_to_be16(reg->rel_tgt_id);
 			reg_lvb->version = 1;
 			reg_lvb->is_holder = dev->pr_holder == reg;
+			reg_lvb->registered_by_nodeid = cpu_to_be32(reg->registered_by_nodeid);
+			reg_lvb->next_rem_ua_idx = cpu_to_be16(reg->next_rem_ua_idx);
 			tid_size = scst_tid_size(reg->transport_id);
 #if 0
 			PRINT_INFO("Copying transport ID into %s." PR_REG_LOCK
@@ -482,6 +564,45 @@ static void scst_copy_to_dlm(struct scst_device *dev, dlm_lockspace_t *ls)
 				 sizeof(reg_lvb->tid)))
 				tid_size = sizeof(reg_lvb->tid);
 			memcpy(reg_lvb->tid, reg->transport_id, tid_size);
+
+			/*
+			 * If the destination has consumed all the UAs, then
+			 * remove any that we sent and recorded.
+			 */
+			if (reg->next_rem_ua_idx == 0) {
+				while (!list_empty(&reg->sent_rem_ua_list)) {
+					ua = list_first_entry(&reg->sent_rem_ua_list,
+							      struct scst_dlm_rem_ua,
+							      rem_ua_list_entry);
+					scst_dlm_rm_rem_ua_ls(ls, ua);
+					scst_dlm_pr_reg_release_rem_ua(ua);
+				}
+			}
+
+			/*
+			 * Do we have UA's to deliver for this registrant?
+			 *
+			 * If so, generate a lock and keep a record of it.
+			 */
+			while (!list_empty(&reg->pending_rem_ua_list)) {
+				ua = list_first_entry(&reg->pending_rem_ua_list,
+						      struct scst_dlm_rem_ua, rem_ua_list_entry);
+
+				list_del_init(&ua->rem_ua_list_entry);
+
+				/*
+				 * Create new lock, add the entry to sent_rem_ua_list and increment
+				 * next_rem_ua_idx.
+				 */
+				scst_dlm_pr_reg_send_rem_ua(dev, ls, reg, ua);
+			}
+
+			/*
+			 * We may have just increased next_rem_ua_idx in the above loop
+			 * (scst_dlm_pr_reg_send_rem_ua)
+			 */
+			reg_lvb->next_rem_ua_idx = cpu_to_be16(reg->next_rem_ua_idx);
+
 			scst_dlm_lock_wait(ls, DLM_LOCK_CR, &reg->lksb,
 					   DLM_LKF_CONVERT | DLM_LKF_VALBLK,
 					   reg_name, NULL);
@@ -720,7 +841,7 @@ static void scst_dlm_remove_locks(struct scst_pr_dlm_data *pr_dlm,
 	scst_pr_write_lock(dev);
 	list_for_each_entry(reg, &dev->dev_registrants_list,
 			    dev_registrants_list_entry)
-		scst_dlm_pr_rm_reg_ls(ls, reg);
+		scst_dlm_pr_rm_reg_ls(ls, reg, true);
 	scst_pr_write_unlock(dev);
 
 	scst_dlm_remove_lock(ls, &pr_dlm->pre_join_lksb, NULL);
@@ -1494,6 +1615,205 @@ static void scst_pr_dlm_cleanup(struct scst_device *dev)
 	dev->pr_dlm = NULL;
 }
 
+static struct scst_dlm_rem_ua *scst_dlm_alloc_rem_ua(void)
+{
+	struct scst_dlm_rem_ua *ua = NULL;
+
+	ua = kzalloc(sizeof(struct scst_dlm_rem_ua), GFP_KERNEL);
+	if (ua == NULL) {
+		PRINT_ERROR("Unable to allocate unit attention");
+		goto out;
+	}
+
+	TRACE_MEM("Allocated dlm ua %p", ua);
+
+	ua->lksb.lksb.sb_lvbptr = (void *)ua->lvb;
+	ua->lksb.lksb.sb_lkid = 0;
+
+out:
+	return ua;
+}
+
+static void scst_dlm_free_rem_ua(struct scst_dlm_rem_ua *ua)
+{
+	TRACE_MEM("Freeing dlm ua %p", ua);
+	kfree(ua);
+}
+
+/*
+ * scst_dlm_pr_reg_queue_rem_ua - queue a remote unit attention for transmition to the remote node
+ */
+static void scst_dlm_pr_reg_queue_rem_ua(struct scst_device *dev,
+					 struct scst_dev_registrant *reg,
+					 int key, int asc, int ascq)
+{
+	struct scst_dlm_rem_ua *ua = NULL;
+	struct scst_pr_dlm_data *const pr_dlm = dev->pr_dlm;
+
+	TRACE_ENTRY();
+
+	ua = scst_dlm_alloc_rem_ua();
+	if (ua == NULL) {
+		PRINT_ERROR("Unable to allocate unit attention for dlm registrant");
+		return;
+	}
+
+	ua->key = key;
+	ua->asc = asc;
+	ua->ascq = ascq;
+
+	/*
+	 * Lock to ensure we are not currently doing a scst_copy_to_dlm or
+	 * scst_copy_from_dlm.
+	 */
+	mutex_lock(&pr_dlm->ls_mutex);
+	list_add_tail(&ua->rem_ua_list_entry, &reg->pending_rem_ua_list);
+	mutex_unlock(&pr_dlm->ls_mutex);
+
+	TRACE_EXIT();
+}
+
+/*
+ * scst_dlm_pr_reg_release_rem_ua - remove from list and free remote unit attention data structure
+ */
+static void scst_dlm_pr_reg_release_rem_ua(struct scst_dlm_rem_ua *ua)
+{
+	TRACE_ENTRY();
+
+	TRACE_DBG("Releasing dlm ua %p", ua);
+	list_del(&ua->rem_ua_list_entry);
+	scst_dlm_free_rem_ua(ua);
+
+	TRACE_EXIT();
+}
+
+/*
+ * scst_dlm_pr_reg_send_rem_ua - send a unit attention to the registrant on a remote node
+ *
+ * This will create a lock containing the necessary UA information, increment next_rem_ua_idx and
+ * add the struct scst_dlm_rem_ua to the registrant's sent_rem_ua_list.
+ */
+static void scst_dlm_pr_reg_send_rem_ua(struct scst_device *dev, dlm_lockspace_t *ls,
+					struct scst_dev_registrant *reg, struct scst_dlm_rem_ua *ua)
+{
+	char reg_ua_name[32];
+	struct dlm_ua_lvb *ua_lvb;
+
+	TRACE_ENTRY();
+
+	snprintf(reg_ua_name, sizeof(reg_ua_name), PR_REG_UA_LOCK, reg->dlm_idx,
+		 reg->next_rem_ua_idx);
+
+	/* Always create a new lock. */
+	if (scst_dlm_lock_wait(ls, DLM_LOCK_NL, &ua->lksb, 0, reg_ua_name, NULL) < 0) {
+		PRINT_ERROR("Failed to lock (NL) %s.%s", dev->virt_name, reg_ua_name);
+		goto out;
+	}
+
+	if (scst_dlm_lock_wait(ls, DLM_LOCK_PW, &ua->lksb,
+			       DLM_LKF_VALBLK | DLM_LKF_CONVERT,
+			       reg_ua_name, NULL) < 0) {
+		PRINT_ERROR("Failed to lock %s.%s", dev->virt_name, reg_ua_name);
+		goto out;
+	}
+
+	ua_lvb = (void *)ua->lksb.lksb.sb_lvbptr;
+
+	memset(ua->lvb, 0, sizeof(ua->lvb));
+	ua_lvb->version = 1;
+	ua_lvb->key = ua->key;
+	ua_lvb->asc = ua->asc;
+	ua_lvb->ascq = ua->ascq;
+
+	scst_dlm_lock_wait(ls, DLM_LOCK_CR, &ua->lksb,
+			   DLM_LKF_CONVERT | DLM_LKF_VALBLK,
+			   reg_ua_name, NULL);
+	reg->next_rem_ua_idx++;
+	list_add_tail(&ua->rem_ua_list_entry, &reg->sent_rem_ua_list);
+
+out:
+	TRACE_EXIT();
+}
+
+/*
+ * scst_dlm_rm_rem_ua_ls - Unlock the lock associated with a remote unit attention
+ */
+static void scst_dlm_rm_rem_ua_ls(dlm_lockspace_t *ls, struct scst_dlm_rem_ua *ua)
+{
+	int res;
+
+	if (!ua->lksb.lksb.sb_lkid)
+		return;
+	res = scst_dlm_unlock_wait(ls, &ua->lksb);
+	WARN(res < 0, "scst_dlm_unlock_wait(%08x) failed (%d)",
+	     ua->lksb.lksb.sb_lkid, res);
+	ua->lksb.lksb.sb_lkid = 0;
+}
+
+/*
+ * scst_dlm_pr_reg_recv_rem_ua - receive a remotely generated UNIT ATTENTION for this registrant
+ *
+ * This will read unit attention that was 'published' by another node as a lock.  The resultant
+ * struct scst_dlm_rem_ua will NOT be inserted into a list on this node.
+ */
+static struct scst_dlm_rem_ua *scst_dlm_pr_reg_recv_rem_ua(struct scst_device *dev,
+							   dlm_lockspace_t *ls,
+							   struct scst_dev_registrant *reg,
+							   int index)
+{
+	char reg_ua_name[32];
+	struct scst_dlm_rem_ua *ua;
+	struct dlm_ua_lvb *ua_lvb;
+	int res;
+
+	ua = scst_dlm_alloc_rem_ua();
+	if (!ua)
+		return NULL;
+
+	ua_lvb = (void *)ua->lksb.lksb.sb_lvbptr;
+	snprintf(reg_ua_name, sizeof(reg_ua_name), PR_REG_UA_LOCK, reg->dlm_idx, index);
+
+	res = scst_dlm_lock_wait(ls, DLM_LOCK_PW, &ua->lksb,
+				 DLM_LKF_VALBLK, reg_ua_name, NULL);
+	if (res < 0) {
+		res = -EFAULT;
+		PRINT_ERROR("locking %s.%s failed", dev->virt_name,
+			    reg_ua_name);
+		goto cancel;
+	} else if (ua->lksb.lksb.sb_flags & DLM_SBF_VALNOTVALID) {
+		res = -EINVAL;
+		PRINT_WARNING("%s.%s has an invalid lock value block",
+			      dev->virt_name, reg_ua_name);
+		goto unlock_cancel;
+	} else if (ua_lvb->version != 1) {
+		res = -EPROTONOSUPPORT;
+		PRINT_ERROR("%s.%s.version = %d instead of 1",
+			    dev->virt_name, reg_ua_name,
+			    ua_lvb->version);
+		goto unlock_cancel;
+	}
+
+	ua->key = ua_lvb->key;
+	ua->asc = ua_lvb->asc;
+	ua->ascq = ua_lvb->ascq;
+
+	/*
+	 * Now unlock again, we're done reading this from the DLM and have no
+	 * further interest in this lock object.
+	 */
+	scst_dlm_rm_rem_ua_ls(ls, ua);
+
+	return ua;
+
+unlock_cancel:
+	if (ua->lksb.lksb.sb_lkid)
+		scst_dlm_unlock_wait(ls, &ua->lksb);
+
+cancel:
+	scst_dlm_free_rem_ua(ua);
+	return NULL;
+}
+
 const struct scst_cl_ops scst_dlm_cl_ops = {
 	.pr_init		= scst_pr_dlm_init,
 	.pr_cleanup		= scst_pr_dlm_cleanup,
@@ -1508,6 +1828,7 @@ const struct scst_cl_ops scst_dlm_cl_ops = {
 	.is_rsv_holder		= scst_dlm_is_rsv_holder,
 	.is_not_rsv_holder	= scst_dlm_is_not_rsv_holder,
 	.reserve		= scst_dlm_reserve,
+	.pr_reg_queue_rem_ua	= scst_dlm_pr_reg_queue_rem_ua,
 };
 
 char *scst_dlm_cluster_name;

@@ -34,6 +34,7 @@
 #define PR_PRE_UPDATE_LOCK	"pr_pre_%d"
 #define PR_POST_UPDATE_LOCK	"pr_post_%d"
 #define PR_REG_LOCK		"pr_reg_%02d"
+#define PR_REG_UA_LOCK		"pr_reg_%02d_ua_%02d"
 
 /*
  * Data members needed for managing PR data via the DLM.
@@ -142,6 +143,10 @@ struct pr_lvb {
  * @version:	version of this structure
  * @is_holder:	whether or not holding the reservation
  * @tid:	transport ID - up to 228 bytes for iSCSI
+ * @registered_by_nodeid: Corosync node ID of the node holding that
+ *		made the registration.
+ * @next_rem_ua_idx: Index to be used when publishing the next UA
+ * @pad:	Ensure this struct is a multiple of 8 bytes
  */
 struct pr_reg_lvb {
 	__be64	key;
@@ -149,6 +154,22 @@ struct pr_reg_lvb {
 	u8	version;
 	u8	is_holder;
 	u8	tid[228];
+	__be32  registered_by_nodeid;
+	__be16	next_rem_ua_idx;
+	u8	pad[2];
+};
+
+/**
+ * struct dlm_ua_lvb - PR_REG_UA_LOCK LVB data format
+ * @key:	sense key
+ * @asc:	additional sense code
+ * @ascq:	additional sense code qualifier
+ */
+struct dlm_ua_lvb {
+	u8	version;
+	u8	key;
+	u8	asc;
+	u8	ascq;
 };
 
 #endif /* __SCST_PRES_DLM_H */

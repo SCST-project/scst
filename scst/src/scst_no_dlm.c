@@ -101,6 +101,12 @@ static void scst_no_dlm_reserve(struct scst_device *dev,
 	dev->reserved_by = sess;
 }
 
+static void scst_no_dlm_pr_reg_queue_rem_ua(struct scst_device *dev,
+					    struct scst_dev_registrant *reg,
+					    int key, int asc, int ascq)
+{
+}
+
 const struct scst_cl_ops scst_no_dlm_cl_ops = {
 	.pr_init		= scst_no_dlm_pr_init,
 	.pr_cleanup		= scst_no_dlm_pr_cleanup,
@@ -115,4 +121,5 @@ const struct scst_cl_ops scst_no_dlm_cl_ops = {
 	.is_rsv_holder		= scst_no_dlm_is_rsv_holder,
 	.is_not_rsv_holder	= scst_no_dlm_is_not_rsv_holder,
 	.reserve		= scst_no_dlm_reserve,
+	.pr_reg_queue_rem_ua	= scst_no_dlm_pr_reg_queue_rem_ua,
 };

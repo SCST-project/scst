@@ -2637,6 +2637,26 @@ struct scst_dev_registrant {
 	int dlm_idx;
 	struct scst_lksb lksb;
 	char lvb[PR_DLM_LVB_LEN];
+	uint32_t registered_by_nodeid;
+
+	/* List of UNIT ATTENTIONs to be sent by this node to this registrant on a remote node */
+	struct list_head pending_rem_ua_list;
+
+	/*
+	 * List of UNIT ATTENTIONs already sent by this node to this registrant on a remote node
+	 *
+	 * Once the remote node clears next_rem_ua_idx, we can discard the entries.
+	 */
+	struct list_head sent_rem_ua_list;
+
+	/*
+	 * Index to indicate the tail of a 'queue' of incoming UNIT ATTENTIONs from remote nodes
+	 * to this node, implemented as PR_REG_UA_LOCK locks.
+	 *
+	 * It will be incremented by the sender of each UA, and cleared by the recipiant node when
+	 * it reads all the UNIT ATTENTIONs directed to it.
+	 */
+	uint16_t next_rem_ua_idx;
 };
 
 /**
@@ -2657,6 +2677,7 @@ struct scst_dev_registrant {
  *                   reservation on @dev.
  * @reserve:         Apply an SPC-2 reservation for session @sess on @dev if
  *                   @sess != NULL or clear that reservation if @ses == NULL.
+ * @pr_reg_queue_rem_ua  Queue a UNIT ATTENTION to a remote registrant.
  */
 struct scst_cl_ops {
 	int  (*pr_init)(struct scst_device *dev, const char *cl_dev_id);
@@ -2679,6 +2700,9 @@ struct scst_cl_ops {
 	bool (*is_not_rsv_holder)(struct scst_device *dev,
 				  struct scst_session *sess);
 	void (*reserve)(struct scst_device *dev, struct scst_session *sess);
+	void (*pr_reg_queue_rem_ua)(struct scst_device *dev,
+				    struct scst_dev_registrant *reg,
+				    int key, int asc, int ascq);
 };
 
 /*
