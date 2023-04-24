@@ -142,6 +142,9 @@ struct scst_dev_registrant *scst_pr_add_registrant(struct scst_device *dev,
 						   bool dev_lock_locked);
 void scst_pr_remove_registrant(struct scst_device *dev,
 			       struct scst_dev_registrant *reg);
+void scst_pr_send_ua_reg(struct scst_device *dev,
+			 struct scst_dev_registrant *reg,
+			 int key, int asc, int ascq);
 void scst_pr_set_holder(struct scst_device *dev,
 			struct scst_dev_registrant *holder, uint8_t scope,
 			uint8_t type);
