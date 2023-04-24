@@ -1,5 +1,8 @@
 %define rpm_version @rpm_version@
 %define make %{expand:%%(echo ${MAKE:-make})}
+%define perl_vendorlib %(eval "`perl -V:installvendorlib`"; echo $installvendorlib)
+%define perl_vendorarch %(eval "`perl -V:installvendorarch`"; echo $installvendorarch)
+%define perl_archlib %(eval "`perl -V:installarchlib`"; echo $installarchlib)
 
 Name:		scstadmin
 Version:        %{rpm_version}
@@ -26,19 +29,21 @@ Authors:
 --------
     Mark R. Buechler, Bart Van Assche and others
 
-%define scstadmin_perl_installvendorman3dir \
+%define scstadmin_perl_installvendorman3dir			\
   %(perl -V:installvendorman3dir | sed "s|.*='||;s|'.*||")
-%define scstadmin_perl_process_packlist \
-set -x;\
-if test -n "$RPM_BUILD_ROOT" -a -d $RPM_BUILD_ROOT%perl_vendorarch/auto; then \
-  find $RPM_BUILD_ROOT%perl_vendorarch/auto -name .packlist -print0 | \
-  xargs -0 -r rm; \
-  if [ %{_target_cpu} == noarch ]; then \
-      find $RPM_BUILD_ROOT%perl_vendorarch/auto -depth -type d -print0 | \
-      xargs -0 -r rmdir; \
-    fi; \
-  fi; \
-  rm -f $RPM_BUILD_ROOT%{perl_archlib}/perllocal.pod; set +x
+
+%define scstadmin_perl_process_packlist						\
+set -x;										\
+if test -n "$RPM_BUILD_ROOT" -a -d $RPM_BUILD_ROOT%perl_vendorarch/auto; then	\
+  find $RPM_BUILD_ROOT%perl_vendorarch/auto -name .packlist -print0 |		\
+  xargs -0 -r rm;								\
+  if [ %{_target_cpu} == noarch ]; then						\
+      find $RPM_BUILD_ROOT%perl_vendorarch/auto -depth -type d -print0 |	\
+      xargs -0 -r rmdir;							\
+  fi;										\
+fi;										\
+rm -f $RPM_BUILD_ROOT%{perl_archlib}/perllocal.pod;				\
+set +x
 
 %global debug_package %{nil}
 
