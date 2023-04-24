@@ -16,7 +16,7 @@ URL:		http://scst.sourceforge.net/
 Source:		%{name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-build
 AutoReqProv:	yes
-Requires:	%{expand:%%(for c in killall rm; do echo -n "$(which $c) "; done)}
+Requires:	psmisc, coreutils
 
 %description
 A tool for configuring SCST via the SCST sysfs interface. Allows to save,
