@@ -1375,7 +1375,7 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 #endif
 };
 
-static struct scsi_host_template scst_lcl_ini_driver_template = {
+static const struct scsi_host_template scst_lcl_ini_driver_template = {
 	.name				= SCST_LOCAL_NAME,
 	.queuecommand			= scst_local_queuecommand,
 	.change_queue_depth		= scst_local_change_queue_depth,
