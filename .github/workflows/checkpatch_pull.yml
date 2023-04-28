@@ -29,6 +29,7 @@ jobs:
             EMAIL_SUBJECT
             UNKNOWN_COMMIT_ID
             NO_AUTHOR_SIGN_OFF
+            COMMIT_LOG_USE_LINK
             FILE_PATH_CHANGES
             SPDX_LICENSE_TAG
             LINUX_VERSION_CODE
@@ -39,9 +40,13 @@ jobs:
 
           base_commit=${{github.event.pull_request.base.sha}}
           commits=$(git log --pretty=format:"%h" $base_commit..HEAD)
+          err=0
 
           for commit in $commits; do
             echo "Running checkpatch.pl for commit $commit"
-            git format-patch -1 --stdout $commit | ./checkpatch.pl --no-tree --show-types --ignore="${ignore_str// /,}" -
+            echo "========================================"
+            git format-patch -1 --stdout $commit | ./checkpatch.pl --no-tree --show-types --ignore="${ignore_str// /,}" - || err=1
             echo
           done
+
+          exit $err
