@@ -225,7 +225,6 @@ Files: scst/Makefile
        scst/src/scst_main.c
        scst/src/scst_mem.c
        scst/src/scst_mem.h
-       scst/src/scst_module.c
        scst/src/scst_no_dlm.c
        scst/src/scst_pres.c
        scst/src/scst_pres.h
