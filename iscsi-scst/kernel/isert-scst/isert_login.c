@@ -1000,7 +1000,11 @@ int __init isert_init_login_devs(unsigned int ndevs)
 		goto fail;  /* Make this more graceful */
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
 	isert_class = class_create(THIS_MODULE, "isert_scst");
+#else
+	isert_class = class_create("isert_scst");
+#endif
 
 	isert_setup_listener_cdev(&isert_listen_dev);
 

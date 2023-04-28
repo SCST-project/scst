@@ -1118,7 +1118,11 @@ int scst_event_init(void)
 		goto out;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
 	scst_event_sysfs_class = class_create(THIS_MODULE, SCST_EVENT_NAME);
+#else
+	scst_event_sysfs_class = class_create(SCST_EVENT_NAME);
+#endif
 	if (IS_ERR(scst_event_sysfs_class)) {
 		PRINT_ERROR("Unable create sysfs class for SCST event");
 		res = PTR_ERR(scst_event_sysfs_class);
