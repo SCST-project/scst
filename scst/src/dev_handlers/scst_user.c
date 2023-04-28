@@ -4154,8 +4154,11 @@ static int __init init_scst_user(void)
 	if (res < 0)
 		goto out_cache;
 
-
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
 	dev_user_sysfs_class = class_create(THIS_MODULE, DEV_USER_NAME);
+#else
+	dev_user_sysfs_class = class_create(DEV_USER_NAME);
+#endif
 	if (IS_ERR(dev_user_sysfs_class)) {
 		PRINT_ERROR("%s", "Unable create sysfs class for SCST user "
 			"space handler");
