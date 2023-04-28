@@ -306,7 +306,7 @@ scst_io_context=0
 
 scst_03_public_headers="scst/include/scst.h scst/include/scst_const.h \
 scst/include/scst_event.h scst/include/backport.h"
-scst_04_main="scst/src/scst_main.c scst/src/scst_module.c scst/src/scst_priv.h \
+scst_04_main="scst/src/scst_main.c scst/src/scst_priv.h \
 scst/src/scst_copy_mgr.c scst/src/scst_dlm.c scst/src/scst_dlm.h \
 scst/src/scst_event.c scst/src/scst_no_dlm.c"
 scst_05_targ="scst/src/scst_targ.c scst/src/scst_local_cmd.c \
