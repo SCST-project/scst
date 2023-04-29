@@ -70,6 +70,7 @@ static inline void set_fs(mm_segment_t seg) { }
 #include "iscsi_scst_itf_ver.h"
 
 /* The maximum length of 223 bytes in the RFC. */
+#define ISCSI_NAME_CHECK_LEN	223	/* Checked during LOGIN */
 #define ISCSI_NAME_LEN		256
 
 #define ISCSI_PORTAL_LEN	64
