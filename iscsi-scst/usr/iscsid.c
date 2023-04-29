@@ -498,6 +498,292 @@ out:
 	return res;
 }
 
+static bool valid_ascii_name_char(char ch)
+{
+
+	/*
+	 * From rtf3722
+	 *
+	 * For those using only ASCII characters (U+0000 to U+007F), the
+	 *   following characters are allowed:
+	 *
+	 *   -  ASCII dash character ('-' = U+002d)
+	 *   -  ASCII dot character ('.' = U+002e)
+	 *   -  ASCII colon character (':' = U+003a)
+	 *   -  ASCII lower-case characters ('a'..'z' = U+0061..U+007a)
+	 *   -  ASCII digit characters ('0'..'9' = U+0030..U+0039)
+	 */
+
+	if ((ch == '-') || (ch == '.') || (ch == ':') ||
+	    ((ch >= 'a') && (ch <= 'z')) ||
+	    ((ch >= '0') && (ch <= '9')))
+		return true;
+
+	log_error("Name contains invalid character: %c", ch);
+	return false;
+}
+
+static bool valid_utf8_name_char(long ch)
+{
+	/*
+	 * From rfc3722 6.  Prohibited Output
+	 *
+	 *   This profile specifies prohibiting using the following tables from
+	 *   [RFC3454].  Characters appearing within these tables MUST NOT be used
+	 *   within an iSCSI name.
+	 *
+	 *      Table C.1.1
+	 *      Table C.1.2
+	 *      Table C.2.1
+	 *      Table C.2.2
+	 *      Table C.3
+	 *      Table C.4
+	 *      Table C.5
+	 *      Table C.6
+	 *      Table C.7
+	 *      Table C.8
+	 *      Table C.9
+	 */
+
+	/* C.1.1 ASCII space characters */
+	if (ch == 0x0020) {
+		log_error("Invalid UTF-8: %lX (ASCII space characters)", ch);
+		return false;
+	}
+
+	/* C.1.2 Non-ASCII space characters */
+	switch (ch) {
+	case 0x00A0:					/* NO-BREAK SPACE */
+	case 0x1680:					/* OGHAM SPACE MARK */
+	case 0x2000:					/* EN QUAD */
+	case 0x2001:					/* EM QUAD */
+	case 0x2002:					/* EN SPACE */
+	case 0x2003:					/* EM SPACE */
+	case 0x2004:					/* THREE-PER-EM SPACE */
+	case 0x2005:					/* FOUR-PER-EM SPACE */
+	case 0x2006:					/* SIX-PER-EM SPACE */
+	case 0x2007:					/* FIGURE SPACE */
+	case 0x2008:					/* PUNCTUATION SPACE */
+	case 0x2009:					/* THIN SPACE */
+	case 0x200A:					/* HAIR SPACE */
+	case 0x200B:					/* ZERO WIDTH SPACE */
+	case 0x202F:					/* NARROW NO-BREAK SPACE */
+	case 0x205F:					/* MEDIUM MATHEMATICAL SPACE */
+	case 0x3000:					/* IDEOGRAPHIC SPACE */
+		log_error("Invalid UTF-8: %lX (Non-ASCII space characters)", ch);
+		return false;
+	}
+
+	/* C.2.1 ASCII control characters */
+	if ((ch >= 0x0000 && ch <= 0x001F) ||		/* CONTROL CHARACTERS */
+	    (ch == 0x007F)) {				/* DELETE */
+		log_error("Invalid UTF-8: %lX (ASCII control characters)", ch);
+		return false;
+	}
+
+	/* C.2.2 Non-ASCII control characters */
+	if ((ch >= 0x0080 && ch <= 0x009F) ||		/* CONTROL CHARACTERS */
+	    (ch == 0x06DD) ||				/* ARABIC END OF AYAH */
+	    (ch == 0x070F) ||				/* SYRIAC ABBREVIATION MARK */
+	    (ch == 0x180E) ||				/* MONGOLIAN VOWEL SEPARATOR */
+	    (ch == 0x200C) ||				/* ZERO WIDTH NON-JOINER */
+	    (ch == 0x200D) ||				/* ZERO WIDTH JOINER */
+	    (ch == 0x2028) ||				/* LINE SEPARATOR */
+	    (ch == 0x2029) ||				/* PARAGRAPH SEPARATOR */
+	    (ch == 0x2060) ||				/* WORD JOINER */
+	    (ch == 0x2061) ||				/* FUNCTION APPLICATION */
+	    (ch == 0x2062) ||				/* INVISIBLE TIMES */
+	    (ch == 0x2063) ||				/* INVISIBLE SEPARATOR */
+	    (ch >= 0x206A && (ch <= 0x206F)) ||		/* [CONTROL CHARACTERS] */
+	    (ch == 0xFEFF) ||				/* ZERO WIDTH NO-BREAK SPACE */
+	    (ch >= 0xFFF9 && ch <= 0xFFFC) ||		/* [CONTROL CHARACTERS] */
+	    (ch >= 0x1D173 && ch <= 0x1D17A)) {		/* [MUSICAL CONTROL CHARACTERS] */
+		log_error("Invalid UTF-8: %lX (Non-ASCII control characters)", ch);
+		return false;
+	}
+
+	/* C.3 Private use */
+	if ((ch >= 0xE000 && ch <= 0xF8FF) ||		/* [PRIVATE USE, PLANE 0] */
+	    (ch >= 0xF0000 && ch <= 0xFFFFD) ||		/* [PRIVATE USE, PLANE 15] */
+	    (ch >= 0x100000 && ch <= 0x10FFFD)) {	/* [PRIVATE USE, PLANE 16] */
+		log_error("Invalid UTF-8: %lX (Private use)", ch);
+		return false;
+	}
+
+	/* C.4 Non-character code points */
+	if ((ch >= 0xFDD0 && ch <= 0xFDEF) ||		/* [NONCHARACTER CODE POINTS] */
+	    (ch >= 0xFFFE && ch <= 0xFFFF) ||		/* [NONCHARACTER CODE POINTS] */
+	    (ch >= 0x1FFFE && ch <= 0x1FFFF) ||		/* [NONCHARACTER CODE POINTS] */
+	    (ch >= 0x2FFFE && ch <= 0x2FFFF) ||		/* [NONCHARACTER CODE POINTS] */
+	    (ch >= 0x3FFFE && ch <= 0x3FFFF) ||		/* [NONCHARACTER CODE POINTS] */
+	    (ch >= 0x4FFFE && ch <= 0x4FFFF) ||		/* [NONCHARACTER CODE POINTS] */
+	    (ch >= 0x5FFFE && ch <= 0x5FFFF) ||		/* [NONCHARACTER CODE POINTS] */
+	    (ch >= 0x6FFFE && ch <= 0x6FFFF) ||		/* [NONCHARACTER CODE POINTS] */
+	    (ch >= 0x7FFFE && ch <= 0x7FFFF) ||		/* [NONCHARACTER CODE POINTS] */
+	    (ch >= 0x8FFFE && ch <= 0x8FFFF) ||		/* [NONCHARACTER CODE POINTS] */
+	    (ch >= 0x9FFFE && ch <= 0x9FFFF) ||		/* [NONCHARACTER CODE POINTS] */
+	    (ch >= 0xAFFFE && ch <= 0xAFFFF) ||		/* [NONCHARACTER CODE POINTS] */
+	    (ch >= 0xBFFFE && ch <= 0xBFFFF) ||		/* [NONCHARACTER CODE POINTS] */
+	    (ch >= 0xCFFFE && ch <= 0xCFFFF) ||		/* [NONCHARACTER CODE POINTS] */
+	    (ch >= 0xDFFFE && ch <= 0xDFFFF) ||		/* [NONCHARACTER CODE POINTS] */
+	    (ch >= 0xEFFFE && ch <= 0xEFFFF) ||		/* [NONCHARACTER CODE POINTS] */
+	    (ch >= 0xFFFFE && ch <= 0xFFFFF) ||		/* [NONCHARACTER CODE POINTS] */
+	    (ch >= 0x10FFFE && ch <= 0x10FFFF)) {	/* [NONCHARACTER CODE POINTS] */
+		log_error("Invalid UTF-8: %lX (Non-character code points)", ch);
+		return false;
+	}
+
+	/* C.5 Surrogate codes */
+	if (ch >= 0xD800 && ch <= 0xDFFF) {		/* [SURROGATE CODES] */
+		log_error("Invalid UTF-8: %lX (Surrogate codes)", ch);
+		return false;
+	}
+
+	/* C.6 Inappropriate for plain text */
+	if ((ch == 0xFFF9) ||				/* INTERLINEAR ANNOTATION ANCHOR */
+	    (ch == 0xFFFA) ||				/* INTERLINEAR ANNOTATION SEPARATOR */
+	    (ch == 0xFFFB) ||				/* INTERLINEAR ANNOTATION TERMINATOR */
+	    (ch == 0xFFFC) ||				/* OBJECT REPLACEMENT CHARACTER */
+	    (ch == 0xFFFD)) {				/* REPLACEMENT CHARACTER */
+		log_error("Invalid UTF-8: %lX (Inappropriate for plain text)", ch);
+		return false;
+	}
+
+	/* C.7 Inappropriate for canonical representation */
+	if (ch >= 0x2FF0 && ch <= 0x2FFB) {		/* [IDEOGRAPHIC DESCRIPTION CHARACTERS] */
+		log_error("Invalid UTF-8: %lX (Inappropriate for canonical representation)", ch);
+		return false;
+	}
+
+	/* C.8 Change display properties or are deprecated */
+	switch (ch) {
+	case 0x0340:					/* COMBINING GRAVE TONE MARK */
+	case 0x0341:					/* COMBINING ACUTE TONE MARK */
+	case 0x200E:					/* LEFT-TO-RIGHT MARK */
+	case 0x200F:					/* RIGHT-TO-LEFT MARK */
+	case 0x202A:					/* LEFT-TO-RIGHT EMBEDDING */
+	case 0x202B:					/* RIGHT-TO-LEFT EMBEDDING */
+	case 0x202C:					/* POP DIRECTIONAL FORMATTING */
+	case 0x202D:					/* LEFT-TO-RIGHT OVERRIDE */
+	case 0x202E:					/* RIGHT-TO-LEFT OVERRIDE */
+	case 0x206A:					/* INHIBIT SYMMETRIC SWAPPING */
+	case 0x206B:					/* ACTIVATE SYMMETRIC SWAPPING */
+	case 0x206C:					/* INHIBIT ARABIC FORM SHAPING */
+	case 0x206D:					/* ACTIVATE ARABIC FORM SHAPING */
+	case 0x206E:					/* NATIONAL DIGIT SHAPES */
+	case 0x206F:					/* NOMINAL DIGIT SHAPES */
+		log_error("Invalid UTF-8: %lX (Change display properties or are deprecated)", ch);
+		return false;
+	}
+
+	/* C.9 Tagging characters */
+	if ((ch == 0xE0001) ||				/* LANGUAGE TAG */
+	    (ch >= 0xE0020 && ch <= 0xE007F)) {		/* [TAGGING CHARACTERS] */
+		log_error("Invalid UTF-8: %lX (Tagging characters)", ch);
+		return false;
+	}
+
+	return true;
+}
+
+/*
+ * Checks whether the supplied name contains valid characters per RFC, returns true if so.
+ *
+ * It does NOT perform other formatting checks, e.g. that string starts with "iqn.",
+ * "naa." or "eui." ... along with subsequent formatting.
+ */
+static bool name_chars_are_valid(const char *name)
+{
+	const unsigned char *bytes = (const unsigned char *)name;
+
+	if (!name)
+		return false;
+
+	/*
+	 * rfc7143 4.2.7.1.  iSCSI Name Properties
+	 *
+	 * Initiators and targets MUST support the receipt of iSCSI names of up
+	 * to the maximum length of 223 bytes.
+	 */
+	if (strlen(name) > ISCSI_NAME_CHECK_LEN) {
+		log_error("Name is too long: %s (%zu)", name, strlen(name));
+		return false;
+	}
+
+	/*
+	 * Iterate over each character in the string, validating that it is
+	 * an accepable character.  This is complicated somewhat as UTF-8
+	 * encoding is supported.
+	 *
+	 * From rtf3629
+	 *    Char. number range  |        UTF-8 octet sequence
+	 *      (hexadecimal)    |              (binary)
+	 *   --------------------+---------------------------------------------
+	 *   0000 0000-0000 007F | 0xxxxxxx
+	 *   0000 0080-0000 07FF | 110xxxxx 10xxxxxx
+	 *   0000 0800-0000 FFFF | 1110xxxx 10xxxxxx 10xxxxxx
+	 *   0001 0000-0010 FFFF | 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx
+	 */
+	while (*bytes) {
+		long code;
+
+		if ((bytes[0] & 0x80) == 0x00) {
+			/* Regular ASCII */
+			if (!valid_ascii_name_char(bytes[0]))
+				return false;
+			bytes += 1;
+			continue;
+
+		} else if ((bytes[0] & 0xe0) == 0xc0) {
+			/* 110xxxxx 10xxxxxx */
+			if ((bytes[1] & 0xc0) != 0x80) {
+				log_error("Invalid UTF-8: %02hhX %02hhX", bytes[0], bytes[1]);
+				return false;
+			}
+			code = ((long)(bytes[0] & 0x1f) <<  6) |
+				((long)(bytes[1] & 0x3f) <<  0);
+			bytes += 2;
+		} else if ((bytes[0] & 0xf0) == 0xe0) {
+			/* 1110xxxx 10xxxxxx 10xxxxxx */
+			if (((bytes[1] & 0xc0) != 0x80) ||
+			    ((bytes[2] & 0xc0) != 0x80)) {
+				log_error("Invalid UTF-8: %02hhX %02hhX %02hhX",
+					  bytes[0], bytes[1], bytes[2]);
+				return false;
+			}
+			code = ((long)(bytes[0] & 0x0f) << 12) |
+			((long)(bytes[1] & 0x3f) <<  6) |
+			((long)(bytes[2] & 0x3f) <<  0);
+			bytes += 3;
+		} else if ((bytes[0] & 0xf8) == 0xf0 && (bytes[0] <= 0xf4)) {
+			/* 11110xxx 10xxxxxx 10xxxxxx 10xxxxxx */
+			if (((bytes[1] & 0xc0) != 0x80) ||
+			    ((bytes[2] & 0xc0) != 0x80) ||
+			    ((bytes[3] & 0xc0) != 0x80)) {
+				log_error("Invalid UTF-8: %02hhX %02hhX %02hhX %02hhX",
+					  bytes[0], bytes[1], bytes[2], bytes[3]);
+				return false;
+			}
+			code = ((long)(bytes[0] & 0x07) << 18) |
+				((long)(bytes[1] & 0x3f) << 12) |
+				((long)(bytes[2] & 0x3f) <<  6) |
+				((long)(bytes[3] & 0x3f) <<  0);
+			bytes += 4;
+		} else {
+			log_error("Invalid UTF-8: %02hhX", bytes[0]);
+			return false;
+		}
+
+		/*
+		 * If we got here we have a valid UTF-8 character.  Check it.
+		 */
+		if (!valid_utf8_name_char(code))
+			return false;
+	}
+
+	return true;
+}
+
 static void login_start(struct connection *conn)
 {
 	struct iscsi_login_req_hdr *req = (struct iscsi_login_req_hdr *)&conn->req.bhs;
@@ -509,6 +795,11 @@ static void login_start(struct connection *conn)
 	name = text_key_find(conn, "InitiatorName");
 	if (!name) {
 		login_rsp_ini_err(conn, ISCSI_STATUS_MISSING_FIELDS);
+		return;
+	}
+
+	if (!name_chars_are_valid(name)) {
+		login_rsp_ini_err(conn, ISCSI_STATUS_INIT_ERR);
 		return;
 	}
 
