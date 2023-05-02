@@ -3625,7 +3625,7 @@ struct scsi_qla_host *qla2x00_create_host(const struct scsi_host_template *sht,
 	struct Scsi_Host *host;
 	struct scsi_qla_host *vha = NULL;
 
-	host = scsi_host_alloc(sht, sizeof(scsi_qla_host_t));
+	host = scsi_host_alloc((struct scsi_host_template *) sht, sizeof(scsi_qla_host_t));
 	if (host == NULL) {
 		ql_log_pci(ql_log_fatal, ha->pdev, 0x0107,
 		    "Failed to allocate host from the scsi layer, aborting.\n");

@@ -1425,7 +1425,8 @@ static int scst_local_driver_probe(struct device *dev)
 
 	TRACE_DBG("sess %p", sess);
 
-	hpnt = scsi_host_alloc(&scst_lcl_ini_driver_template, sizeof(*sess));
+	hpnt = scsi_host_alloc((struct scsi_host_template *) &scst_lcl_ini_driver_template,
+				sizeof(*sess));
 	if (hpnt == NULL) {
 		PRINT_ERROR("%s", "scsi_register() failed");
 		ret = -ENODEV;
