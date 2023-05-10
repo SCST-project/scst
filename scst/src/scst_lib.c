@@ -3118,10 +3118,6 @@ int scst_get_cmd_abnormal_done_state(struct scst_cmd *cmd)
 		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %s)",
 			cmd->state, cmd, scst_get_opcode_name(cmd));
 		sBUG();
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 < 6
-		/* Invalid state to suppress a compiler warning */
-		res = SCST_CMD_STATE_LAST_ACTIVE;
-#endif
 	}
 
 	if (trace) {
