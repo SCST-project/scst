@@ -6,6 +6,9 @@
 #ifndef __QLA_DEF_H
 #define __QLA_DEF_H
 
+#ifndef INSIDE_KERNEL_TREE
+#include <linux/version.h>
+#endif
 #include <linux/kernel.h>
 #include <linux/init.h>
 #include <linux/types.h>
@@ -22,6 +25,9 @@
 #include <linux/interrupt.h>
 #include <linux/workqueue.h>
 #include <linux/firmware.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
+#include <linux/aer.h>
+#endif
 #include <linux/mutex.h>
 #include <linux/btree.h>
 #include <linux/version.h>
