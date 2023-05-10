@@ -4726,14 +4726,9 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 			break;
 
 		default:
-			PRINT_CRIT_ERROR("cmd (%p) in state %d, but shouldn't "
-				"be", cmd, cmd->state);
+			PRINT_CRIT_ERROR("cmd (%p) in state %d, but shouldn't be",
+					cmd, cmd->state);
 			sBUG();
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 < 6
-			/* For suppressing a gcc compiler warning */
-			res = SCST_CMD_STATE_RES_CONT_NEXT;
-			break;
-#endif
 		}
 	} while (res == SCST_CMD_STATE_RES_CONT_SAME);
 
