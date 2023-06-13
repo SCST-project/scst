@@ -798,13 +798,15 @@ static inline void kvfree(void *addr)
 
 /* <linux/shrinker.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 3))
 /*
  * See also commit e33c267ab70d ("mm: shrinkers: provide shrinkers with
  * names") # v6.0.
  */
-static inline
-int register_shrinker_backport(struct shrinker *shrinker, const char *fmt, ...)
+static inline int
+register_shrinker_backport(struct shrinker *shrinker, const char *fmt, ...)
 {
 /*
  * See also commit 1d3d4437eae1 ("vmscan: per-node deferred work") # v3.12
