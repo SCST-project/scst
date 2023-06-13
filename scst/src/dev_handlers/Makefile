@@ -68,6 +68,7 @@ install: all
 
 uninstall:
 	rm -f $(INSTALL_DIR)/dev_handlers/scst_*.ko
+	-rmdir $(INSTALL_DIR)/dev_handlers 2>/dev/null
 
 clean:
 	$(MAKE) -C $(KDIR) M=$(shell pwd) $@

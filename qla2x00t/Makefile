@@ -69,7 +69,7 @@ clean:
 extraclean: clean
 	rm -f *.orig *.rej
 
-.PHONY: all tgt install uninstall clean extraclean
+.PHONY: all install uninstall clean extraclean
 
 endif
 

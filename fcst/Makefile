@@ -87,4 +87,4 @@ extraclean: clean
 release-archive:
 	../scripts/generate-release-archive fcst "$$(sed -n 's/^#define[[:blank:]]FT_VERSION[[:blank:]]*\"\([^\"]*\)\".*/\1/p' fcst.h)"
 
-.PHONY: all tgt install uninstall clean extraclean release-archive
+.PHONY: all install uninstall clean extraclean release-archive
