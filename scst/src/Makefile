@@ -35,6 +35,9 @@ SHELL=/bin/bash
 
 DEV_HANDLERS_DIR = dev_handlers
 
+SCST_MOD_DIR := $(shell pwd)
+SCST_DH_MOD_DIR := $(shell pwd)/$(DEV_HANDLERS_DIR)
+
 ifeq ($(KVER),)
   ifeq ($(KDIR),)
     KVER := $(shell uname -r)
@@ -73,13 +76,13 @@ $(SCST_INTF_VER_FILE): $(SCST_INC_DIR)/scst.h $(SCST_INC_DIR)/scst_const.h $(SCS
 all: $(SCST_INTF_VER_FILE)
 	$(MAKE) -C certs KDIR=$(KDIR)					\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")
-	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
+	$(MAKE) -C $(KDIR) M=$(SCST_MOD_DIR)				\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")
-	$(MAKE) -C $(KDIR) M=$(shell pwd)/dev_handlers			\
+	$(MAKE) -C $(KDIR) M=$(SCST_DH_MOD_DIR)				\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")
 
 scst:
-	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
+	$(MAKE) -C $(KDIR) M=$(SCST_MOD_DIR)				\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")
 
 install: all
@@ -89,12 +92,12 @@ install: all
 	false; fi
 	-rm -f $(INSTALL_DIR)/scsi_tgt.ko
 	KDIR=$(KDIR) ../../scripts/sign-modules
-	$(MAKE) -C $(KDIR) M=$(shell pwd)/dev_handlers			\
+	$(MAKE) -C $(KDIR) M=$(SCST_DH_MOD_DIR)				\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  INSTALL_MOD_DIR=extra/dev_handlers				\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
 	  CONFIG_MODULE_SIG_ALL= modules_install
-	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
+	$(MAKE) -C $(KDIR) M=$(SCST_MOD_DIR)				\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
 	  CONFIG_MODULE_SIG_ALL= modules_install
@@ -135,7 +138,7 @@ INSTALL_DIR_H := $(DESTDIR)$(PREFIX)/include/scst
 
 clean:
 	rm -f $(SCST_INTF_VER_FILE)
-	$(MAKE) -C $(KDIR) M=$(shell pwd) $@
+	$(MAKE) -C $(KDIR) M=$(SCST_MOD_DIR) $@
 	$(MAKE) -C $(DEV_HANDLERS_DIR) $@
 
 extraclean: clean

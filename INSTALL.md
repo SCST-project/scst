@@ -22,7 +22,7 @@ If the following packages have not yet been installed, install these now:
 The next step is to build and install SCST. How to do that depends on whether
 or not your Linux distribution supports a package manager:
 
-    make release
+    make 2release
     if rpm -q glibc >/dev/null 2>&1; then
         rm -rf {,scstadmin/}rpmbuilddir
         make rpm

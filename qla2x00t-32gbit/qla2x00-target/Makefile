@@ -102,4 +102,4 @@ endif
 extraclean: clean
 	rm -f *.orig *.rej
 
-.PHONY: all tgt install uninstall clean extraclean qla2xxx_scst
+.PHONY: all install uninstall clean extraclean qla2xxx_scst
