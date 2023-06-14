@@ -97,14 +97,15 @@ install: all
 	false; fi
 	-rm -f $(INSTALL_DIR)/scsi_tgt.ko
 	KDIR=$(KDIR) ../../scripts/sign-modules
-	$(MAKE) -C $(KDIR) M=$(SCST_DH_MOD_DIR)				\
-	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
-	  INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)/dev_handlers		\
-	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
-	  CONFIG_MODULE_SIG_ALL= modules_install
 	$(MAKE) -C $(KDIR) M=$(SCST_MOD_DIR)				\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)				\
+	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
+	  CONFIG_MODULE_SIG_ALL= modules_install
+	(cd $(SCST_DH_MOD_DIR) && KDIR=$(KDIR) ../../../scripts/sign-modules)
+	$(MAKE) -C $(KDIR) M=$(SCST_DH_MOD_DIR)				\
+	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
+	  INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)/dev_handlers		\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
 	  CONFIG_MODULE_SIG_ALL= modules_install
 	install -d $(INSTALL_DIR_H)
@@ -140,12 +141,11 @@ uninstall:
 	rm -rf $(INSTALL_DIR_H)
 
 clean:
+	$(MAKE) -C $(DEV_HANDLERS_DIR) $@
 	rm -f $(SCST_INTF_VER_FILE)
 	$(MAKE) -C $(KDIR) M=$(SCST_MOD_DIR) $@
-	$(MAKE) -C $(DEV_HANDLERS_DIR) $@
 
 extraclean: clean
-	rm -f $(SCST_INTF_VER_FILE)
 	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
 	rm -f *.orig *.rej
 
