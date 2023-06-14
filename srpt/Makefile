@@ -31,7 +31,9 @@ ifeq ($(INSTALL_MOD_PATH),)
   export INSTALL_MOD_PATH := $(DESTDIR)
 endif
 
-INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
+INSTALL_MOD_DIR=extra
+
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/$(INSTALL_MOD_DIR)
 
 SRC_FILES=$(wildcard */*.[ch])
 
@@ -125,6 +127,7 @@ install: all
 	$(MAKE) -C $(KDIR) M=$(shell pwd)/src				\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  CONFTEST_CFLAGS="$(CONFTEST_CFLAGS)"				\
+	  INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)				\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
 	  CONFIG_MODULE_SIG_ALL= modules_install
 
