@@ -45,7 +45,9 @@ ifeq ($(INSTALL_MOD_PATH),)
   export INSTALL_MOD_PATH := $(DESTDIR)
 endif
 
-INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/extra
+INSTALL_MOD_DIR=extra
+
+INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/$(INSTALL_MOD_DIR)
 
 all:
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
@@ -56,6 +58,7 @@ install: all
 	KDIR=$(KDIR) ../scripts/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
+	  INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)				\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
 	  CONFIG_MODULE_SIG_ALL= modules_install
 
