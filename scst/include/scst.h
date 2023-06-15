@@ -36,6 +36,9 @@
 #endif
 #include <linux/blkdev.h>
 #include <linux/interrupt.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+#include <linux/sched/signal.h>
+#endif
 #include <linux/wait.h>
 #include <linux/cpumask.h>
 #include <linux/dlm.h>
@@ -5382,59 +5385,142 @@ void scst_dev_inquiry_data_changed(struct scst_device *dev);
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&			\
 	!defined(CONFIG_SUSE_KERNEL)
-static inline void
+static inline long
 prepare_to_wait_exclusive_head(wait_queue_head_t *wq_head,
 			       wait_queue_t *wq_entry, int state)
 {
 	unsigned long flags;
+	long ret = 0;
 
 	wq_entry->flags |= WQ_FLAG_EXCLUSIVE;
+
 	spin_lock_irqsave(&wq_head->lock, flags);
-	if (list_empty(&wq_entry->task_list))
-		__add_wait_queue(wq_head, wq_entry);
-	set_current_state(state);
+	if (signal_pending_state(state, current)) {
+		/*
+		 * Exclusive waiter must not fail if it was selected by wakeup,
+		 * it should "consume" the condition we were waiting for.
+		 *
+		 * The caller will recheck the condition and return success if
+		 * we were already woken up, we can not miss the event because
+		 * wakeup locks/unlocks the same wq_head->lock.
+		 *
+		 * But we need to ensure that set-condition + wakeup after that
+		 * can't see us, it should wake up another exclusive waiter if
+		 * we fail.
+		 */
+		list_del_init(&wq_entry->task_list);
+		ret = -ERESTARTSYS;
+	} else {
+		if (list_empty(&wq_entry->task_list))
+			__add_wait_queue(wq_head, wq_entry);
+		set_current_state(state);
+	}
 	spin_unlock_irqrestore(&wq_head->lock, flags);
+
+	return ret;
 }
 #else
-static inline void
+static inline long
 prepare_to_wait_exclusive_head(struct wait_queue_head *wq_head,
 			       struct wait_queue_entry *wq_entry, int state)
 {
 	unsigned long flags;
+	long ret = 0;
 
 	wq_entry->flags |= WQ_FLAG_EXCLUSIVE;
+
 	spin_lock_irqsave(&wq_head->lock, flags);
-	if (list_empty(&wq_entry->entry))
-		__add_wait_queue(wq_head, wq_entry);
-	set_current_state(state);
+	if (signal_pending_state(state, current)) {
+		/*
+		 * Exclusive waiter must not fail if it was selected by wakeup,
+		 * it should "consume" the condition we were waiting for.
+		 *
+		 * The caller will recheck the condition and return success if
+		 * we were already woken up, we can not miss the event because
+		 * wakeup locks/unlocks the same wq_head->lock.
+		 *
+		 * But we need to ensure that set-condition + wakeup after that
+		 * can't see us, it should wake up another exclusive waiter if
+		 * we fail.
+		 */
+		list_del_init(&wq_entry->entry);
+		ret = -ERESTARTSYS;
+	} else {
+		if (list_empty(&wq_entry->entry))
+			__add_wait_queue(wq_head, wq_entry);
+		set_current_state(state);
+	}
 	spin_unlock_irqrestore(&wq_head->lock, flags);
+
+	return ret;
 }
 #endif
 
-/**
- * wait_event_locked() - Wait until a condition becomes true.
- * @wq: Wait queue to wait on if @condition is false.
- * @condition: Condition to wait for. Can be any C expression.
- * @lock_type: One of lock, lock_bh or lock_irq.
- * @lock: A spinlock.
- *
- * Caller must hold lock of type @lock_type on @lock.
- */
-#define wait_event_locked(wq, condition, lock_type, lock) do {		\
-if (!(condition)) {							\
-	DEFINE_WAIT(__wait);						\
-									\
-	do {								\
-		prepare_to_wait_exclusive_head(&(wq), &__wait,		\
-					       TASK_INTERRUPTIBLE);	\
-		if (condition)						\
-			break;						\
-		spin_un ## lock_type(&(lock));				\
-		schedule();						\
-		spin_ ## lock_type(&(lock));				\
-	} while (!(condition));						\
-	finish_wait(&(wq), &__wait);					\
-}									\
+#define ___scst_wait_is_interruptible(state)					\
+	(!__builtin_constant_p(state) ||					\
+	 (state & (TASK_INTERRUPTIBLE | TASK_WAKEKILL)))
+
+#define ___scst_wait_event(wq_head, condition, state, ret, cmd)			\
+({										\
+	__label__ __out;							\
+	DEFINE_WAIT(__wq_entry);						\
+	long __ret = ret;	/* explicit shadow */				\
+										\
+	for (;;) {								\
+		long __int = prepare_to_wait_exclusive_head(&wq_head, &__wq_entry,\
+							    state);		\
+										\
+		if (condition)							\
+			break;							\
+										\
+		if (___scst_wait_is_interruptible(state) && __int) {		\
+			__ret = __int;						\
+			goto __out;						\
+		}								\
+										\
+		cmd;								\
+	}									\
+	finish_wait(&wq_head, &__wq_entry);					\
+__out:	__ret;									\
+})
+
+#define __scst_wait_event_lock(wq_head, condition, lock)			\
+	(void)___scst_wait_event(wq_head, condition, TASK_UNINTERRUPTIBLE, 0,	\
+				 spin_unlock(&lock);				\
+				 schedule();					\
+				 spin_lock(&lock))
+
+#define scst_wait_event_lock(wq_head, condition, lock)				\
+do {										\
+	if (condition)								\
+		break;								\
+	__scst_wait_event_lock(wq_head, condition, lock);			\
+} while (0)
+
+#define __scst_wait_event_lock_bh(wq_head, condition, lock)			\
+	(void)___scst_wait_event(wq_head, condition, TASK_UNINTERRUPTIBLE, 0,	\
+				 spin_unlock_bh(&lock);				\
+				 schedule();					\
+				 spin_lock_bh(&lock))
+
+#define scst_wait_event_lock_bh(wq_head, condition, lock)			\
+do {										\
+	if (condition)								\
+		break;								\
+	__scst_wait_event_lock_bh(wq_head, condition, lock);			\
+} while (0)
+
+#define __scst_wait_event_lock_irq(wq_head, condition, lock)			\
+	(void)___scst_wait_event(wq_head, condition, TASK_UNINTERRUPTIBLE, 0,	\
+				 spin_unlock_irq(&lock);			\
+				 schedule();					\
+				 spin_lock_irq(&lock))
+
+#define scst_wait_event_lock_irq(wq_head, condition, lock)			\
+do {										\
+	if (condition)								\
+		break;								\
+	__scst_wait_event_lock_irq(wq_head, condition, lock);			\
 } while (0)
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
