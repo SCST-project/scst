@@ -611,10 +611,9 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd);
 void __scst_check_unblock_dev(struct scst_cmd *cmd);
 void scst_check_unblock_dev(struct scst_cmd *cmd);
 
-#define SCST_EXT_BLOCK_SYNC	1
-#define SCST_EXT_BLOCK_STPG	2
+int scst_sync_ext_block_dev(struct scst_device *dev);
 int scst_ext_block_dev(struct scst_device *dev, ext_blocker_done_fn_t done_fn,
-	const uint8_t *priv, int priv_len, int flags);
+		       const void *priv, size_t priv_len, bool block_stpg);
 void scst_ext_unblock_dev(struct scst_device *dev, bool stpg);
 void __scst_ext_blocking_done(struct scst_device *dev);
 void scst_ext_blocking_done(struct scst_device *dev);

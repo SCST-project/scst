@@ -1820,8 +1820,7 @@ static int scst_emit_stpg_event(struct scst_cmd *cmd, struct scst_dev_group *dg,
 
 		rc = scst_ext_block_dev(dgd->dev,
 					scst_stpg_ext_blocking_done,
-					(uint8_t *)&wait, sizeof(wait),
-					SCST_EXT_BLOCK_STPG);
+					&wait, sizeof(wait), true);
 		if (rc != 0) {
 			TRACE_DBG("scst_ext_block_dev() failed "
 				  "with %d, reverting (cmd %p)", rc, cmd);
