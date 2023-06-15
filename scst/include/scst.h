@@ -5382,21 +5382,23 @@ void scst_dev_inquiry_data_changed(struct scst_device *dev);
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&			\
 	!defined(CONFIG_SUSE_KERNEL)
-static inline void prepare_to_wait_exclusive_head(wait_queue_head_t *q,
-						  wait_queue_t *wait, int state)
+static inline void
+prepare_to_wait_exclusive_head(wait_queue_head_t *wq_head,
+			       wait_queue_t *wq_entry, int state)
 {
 	unsigned long flags;
 
-	wait->flags |= WQ_FLAG_EXCLUSIVE;
-	spin_lock_irqsave(&q->lock, flags);
-	if (list_empty(&wait->task_list))
-		__add_wait_queue(q, wait);
+	wq_entry->flags |= WQ_FLAG_EXCLUSIVE;
+	spin_lock_irqsave(&wq_head->lock, flags);
+	if (list_empty(&wq_entry->task_list))
+		__add_wait_queue(wq_head, wq_entry);
 	set_current_state(state);
-	spin_unlock_irqrestore(&q->lock, flags);
+	spin_unlock_irqrestore(&wq_head->lock, flags);
 }
 #else
-static inline void prepare_to_wait_exclusive_head(struct wait_queue_head *wq_head,
-				struct wait_queue_entry *wq_entry, int state)
+static inline void
+prepare_to_wait_exclusive_head(struct wait_queue_head *wq_head,
+			       struct wait_queue_entry *wq_entry, int state)
 {
 	unsigned long flags;
 
