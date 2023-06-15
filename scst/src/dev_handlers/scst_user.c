@@ -2233,9 +2233,9 @@ static int dev_user_get_next_cmd(struct scst_user_dev *dev,
 	TRACE_ENTRY();
 
 	while (1) {
-		wait_event_locked(dev->udev_cmd_threads.cmd_list_waitQ,
-				  test_cmd_threads(dev, can_block), lock_irq,
-				  dev->udev_cmd_threads.cmd_list_lock);
+		scst_wait_event_lock_irq(dev->udev_cmd_threads.cmd_list_waitQ,
+					 test_cmd_threads(dev, can_block),
+					 dev->udev_cmd_threads.cmd_list_lock);
 
 		dev_user_process_scst_commands(dev);
 
@@ -4053,8 +4053,8 @@ static int dev_user_cleanup_thread(void *arg)
 
 	spin_lock(&cleanup_lock);
 	while (!kthread_should_stop()) {
-		wait_event_locked(cleanup_list_waitQ, test_cleanup_list(),
-				  lock, cleanup_lock);
+		scst_wait_event_lock(cleanup_list_waitQ, test_cleanup_list(),
+				     cleanup_lock);
 
 		/*
 		 * We have to poll devices, because commands can go from SCST

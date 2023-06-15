@@ -960,8 +960,7 @@ int istrd(void *arg)
 
 	spin_lock_bh(&p->rd_lock);
 	while (!kthread_should_stop()) {
-		wait_event_locked(p->rd_waitQ, test_rd_list(p), lock_bh,
-				  p->rd_lock);
+		scst_wait_event_lock_bh(p->rd_waitQ, test_rd_list(p), p->rd_lock);
 		scst_do_job_rd(p);
 	}
 	spin_unlock_bh(&p->rd_lock);
@@ -1613,8 +1612,7 @@ int istwr(void *arg)
 
 	spin_lock_bh(&p->wr_lock);
 	while (!kthread_should_stop()) {
-		wait_event_locked(p->wr_waitQ, test_wr_list(p), lock_bh,
-				  p->wr_lock);
+		scst_wait_event_lock_bh(p->wr_waitQ, test_wr_list(p), p->wr_lock);
 		scst_do_job_wr(p);
 	}
 	spin_unlock_bh(&p->wr_lock);

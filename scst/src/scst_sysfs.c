@@ -470,8 +470,8 @@ static int sysfs_work_thread_fn(void *arg)
 	while (!kthread_should_stop()) {
 		if (one_time_only && !test_sysfs_work_list())
 			break;
-		wait_event_locked(sysfs_work_waitQ, test_sysfs_work_list(),
-				  lock, sysfs_work_lock);
+		scst_wait_event_lock(sysfs_work_waitQ, test_sysfs_work_list(),
+				     sysfs_work_lock);
 		scst_process_sysfs_works();
 	}
 	spin_unlock(&sysfs_work_lock);

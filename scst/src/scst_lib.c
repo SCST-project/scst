@@ -14978,8 +14978,7 @@ int scst_ext_block_dev(struct scst_device *dev, ext_blocker_done_fn_t done_fn,
 		b->ext_blocker_done_fn = scst_sync_ext_blocking_done;
 		*((void **)&b->ext_blocker_data[0]) = &w;
 
-		wait_event_locked(w, (dev->on_dev_cmd_count == 0),
-			lock_bh, dev->dev_lock);
+		scst_wait_event_lock_bh(w, dev->on_dev_cmd_count == 0, dev->dev_lock);
 
 		spin_unlock_bh(&dev->dev_lock);
 	} else {
