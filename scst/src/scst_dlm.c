@@ -1831,6 +1831,4 @@ const struct scst_cl_ops scst_dlm_cl_ops = {
 	.pr_reg_queue_rem_ua	= scst_dlm_pr_reg_queue_rem_ua,
 };
 
-char *scst_dlm_cluster_name;
-
 #endif
