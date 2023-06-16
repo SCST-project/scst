@@ -93,6 +93,8 @@ struct kmem_cache *scst_sess_cachep;
 struct kmem_cache *scst_acgd_cachep;
 static struct kmem_cache *scst_thr_cachep;
 
+char *scst_cluster_name;
+
 unsigned int scst_setup_id;
 
 spinlock_t scst_init_lock;
@@ -2599,7 +2601,6 @@ static void __exit exit_scst(void)
 
 	scst_cm_exit();
 
-
 	scst_stop_global_threads();
 
 	scst_deinit_threads(&scst_main_cmd_threads);
@@ -2609,12 +2610,13 @@ static void __exit exit_scst(void)
 
 	scsi_unregister_interface(&scst_interface);
 
-
 	scst_sgv_pools_deinit();
 
 	scst_tg_cleanup();
 
 	scst_sysfs_cleanup();
+
+	kfree(scst_cluster_name);
 
 	scst_event_exit();
 
