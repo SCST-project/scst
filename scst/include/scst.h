@@ -2716,6 +2716,7 @@ typedef void (*ext_blocker_done_fn_t) (struct scst_device *dev,
 
 struct scst_ext_blocker {
 	struct list_head ext_blockers_list_entry;
+	struct kref refcount;
 
 	ext_blocker_done_fn_t ext_blocker_done_fn;
 	int ext_blocker_data_len;
@@ -5509,6 +5510,22 @@ do {										\
 		break;								\
 	__scst_wait_event_lock_bh(wq_head, condition, lock);			\
 } while (0)
+
+#define __scst_wait_event_interruptible_lock_bh(wq_head, condition, lock)	\
+	___scst_wait_event(wq_head, condition, TASK_INTERRUPTIBLE, 0,		\
+			   spin_unlock_bh(&lock);				\
+			   schedule();						\
+			   spin_lock_bh(&lock))
+
+#define scst_wait_event_interruptible_lock_bh(wq_head, condition, lock)		\
+({										\
+	int __ret = 0;								\
+	if (!(condition))							\
+		__ret = __scst_wait_event_interruptible_lock_bh(wq_head,	\
+								condition, lock);\
+	__ret;									\
+})
+
 
 #define __scst_wait_event_lock_irq(wq_head, condition, lock)			\
 	(void)___scst_wait_event(wq_head, condition, TASK_UNINTERRUPTIBLE, 0,	\
