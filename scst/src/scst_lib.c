@@ -14820,6 +14820,39 @@ out_too_many:
 }
 EXPORT_SYMBOL_GPL(scst_restore_global_mode_pages);
 
+static inline struct scst_ext_blocker *scst_ext_blocker_create(size_t size)
+{
+	struct scst_ext_blocker *b;
+
+	b = kzalloc(size, GFP_KERNEL);
+	if (unlikely(!b)) {
+		PRINT_ERROR("Unable to alloc struct scst_ext_blocker with data (size %zd)",
+			    size);
+		return NULL;
+	}
+
+	kref_init(&b->refcount);
+
+	return b;
+}
+
+static inline void scst_ext_blocker_get(struct scst_ext_blocker *b)
+{
+	kref_get(&b->refcount);
+}
+
+static inline void scst_ext_blocker_release(struct kref *kref)
+{
+	struct scst_ext_blocker *b = container_of(kref, struct scst_ext_blocker, refcount);
+
+	kfree(b);
+}
+
+static inline void scst_ext_blocker_put(struct scst_ext_blocker *b)
+{
+	kref_put(&b->refcount, scst_ext_blocker_release);
+}
+
 /* Must be called under dev_lock and BHs off. Might release it, then reacquire. */
 void __scst_ext_blocking_done(struct scst_device *dev)
 {
@@ -14851,7 +14884,7 @@ void __scst_ext_blocking_done(struct scst_device *dev)
 		b->ext_blocker_done_fn(dev, b->ext_blocker_data,
 			b->ext_blocker_data_len);
 
-		kfree(b);
+		scst_ext_blocker_put(b);
 
 		spin_lock_bh(&dev->dev_lock);
 	}
@@ -14911,7 +14944,7 @@ static void scst_sync_ext_blocking_done(struct scst_device *dev,
 
 	TRACE_ENTRY();
 
-	w = (void *)*((unsigned long *)data);
+	w = (void *) data;
 	wake_up_all(w);
 
 	TRACE_EXIT();
@@ -14951,18 +14984,19 @@ static void scst_dev_ext_block(struct scst_device *dev, bool block_stpg)
 int scst_sync_ext_block_dev(struct scst_device *dev)
 {
 	struct scst_ext_blocker *b;
-	DECLARE_WAIT_QUEUE_HEAD_ONSTACK(w);
+	wait_queue_head_t *w;
 	int res = 0;
 
 	TRACE_ENTRY();
 
-	b = kzalloc(sizeof(*b) + sizeof(void *), GFP_KERNEL);
+	b = scst_ext_blocker_create(sizeof(*b) + sizeof(wait_queue_head_t));
 	if (unlikely(!b)) {
-		PRINT_ERROR("Unable to alloc struct scst_ext_blocker with data (size %zd)",
-			    sizeof(*b) + sizeof(void *));
 		res = -ENOMEM;
 		goto out;
 	}
+
+	w = (void *)b->ext_blocker_data;
+	init_waitqueue_head(w);
 
 	TRACE_MGMT_DBG("New %d sync ext blocker %p for dev %s",
 		       dev->ext_blocks_cnt + 1, b, dev->virt_name);
@@ -14975,26 +15009,25 @@ int scst_sync_ext_block_dev(struct scst_device *dev)
 		TRACE_DBG("No commands to wait for sync blocking (dev %s)",
 			  dev->virt_name);
 		spin_unlock_bh(&dev->dev_lock);
-		goto out_free;
+		goto put_blocker;
 	}
 
 	list_add_tail(&b->ext_blockers_list_entry, &dev->ext_blockers_list);
 	dev->ext_blocking_pending = 1;
 
 	b->ext_blocker_done_fn = scst_sync_ext_blocking_done;
-	*((void **)&b->ext_blocker_data[0]) = &w;
+	scst_ext_blocker_get(b);
 
-	scst_wait_event_lock_bh(w, dev->on_dev_cmd_count == 0, dev->dev_lock);
+	res = scst_wait_event_interruptible_lock_bh(*w, dev->on_dev_cmd_count == 0, dev->dev_lock);
 
 	spin_unlock_bh(&dev->dev_lock);
+
+put_blocker:
+	scst_ext_blocker_put(b);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_free:
-	kfree(b);
-	goto out;
 }
 
 int scst_ext_block_dev(struct scst_device *dev, ext_blocker_done_fn_t done_fn,
@@ -15005,10 +15038,8 @@ int scst_ext_block_dev(struct scst_device *dev, ext_blocker_done_fn_t done_fn,
 
 	TRACE_ENTRY();
 
-	b = kzalloc(sizeof(*b) + priv_len, GFP_KERNEL);
+	b = scst_ext_blocker_create(sizeof(*b) + priv_len);
 	if (unlikely(!b)) {
-		PRINT_ERROR("Unable to alloc struct scst_ext_blocker with data (size %zd)",
-			    sizeof(*b) + priv_len);
 		res = -ENOMEM;
 		goto out;
 	}
