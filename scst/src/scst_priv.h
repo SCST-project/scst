@@ -615,7 +615,6 @@ int scst_sync_ext_block_dev(struct scst_device *dev);
 int scst_ext_block_dev(struct scst_device *dev, ext_blocker_done_fn_t done_fn,
 		       const void *priv, size_t priv_len, bool block_stpg);
 void scst_ext_unblock_dev(struct scst_device *dev, bool stpg);
-void __scst_ext_blocking_done(struct scst_device *dev);
 void scst_ext_blocking_done(struct scst_device *dev);
 
 int scst_get_suspend_count(void);
