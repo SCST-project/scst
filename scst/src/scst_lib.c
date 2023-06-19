@@ -14854,14 +14854,18 @@ static inline void scst_ext_blocker_put(struct scst_ext_blocker *b)
 }
 
 /* Must be called under dev_lock and BHs off. Might release it, then reacquire. */
-void __scst_ext_blocking_done(struct scst_device *dev)
+static void __scst_ext_blocking_done(struct scst_device *dev)
+	__releases(&dev->dev_lock)
+	__acquires(&dev->dev_lock)
 {
 	bool stop;
 
 	TRACE_ENTRY();
 
+	lockdep_assert_held(&dev->dev_lock);
+
 	TRACE_BLOCK("Notifying ext blockers for dev %s (ext_blocks_cnt %d)",
-		dev->virt_name, dev->ext_blocks_cnt);
+		    dev->virt_name, dev->ext_blocks_cnt);
 
 	stop = list_empty(&dev->ext_blockers_list);
 	while (!stop) {
@@ -14870,8 +14874,8 @@ void __scst_ext_blocking_done(struct scst_device *dev)
 		b = list_first_entry(&dev->ext_blockers_list, typeof(*b),
 			ext_blockers_list_entry);
 
-		TRACE_DBG("Notifying async ext blocker %p (cnt %d)", b,
-			dev->ext_blocks_cnt);
+		TRACE_DBG("Notifying async ext blocker %p (cnt %d)",
+			  b, dev->ext_blocks_cnt);
 
 		list_del(&b->ext_blockers_list_entry);
 
@@ -14890,7 +14894,6 @@ void __scst_ext_blocking_done(struct scst_device *dev)
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_ext_blocking_done_fn(struct work_struct *work)
