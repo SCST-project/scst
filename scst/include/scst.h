@@ -5485,31 +5485,20 @@ prepare_to_wait_exclusive_head(struct wait_queue_head *wq_head,
 __out:	__ret;									\
 })
 
-#define __scst_wait_event_lock(wq_head, condition, lock)			\
-	(void)___scst_wait_event(wq_head, condition, TASK_UNINTERRUPTIBLE, 0,	\
-				 spin_unlock(&lock);				\
-				 schedule();					\
-				 spin_lock(&lock))
+#define __scst_wait_event_interruptible_lock(wq_head, condition, lock)		\
+	___scst_wait_event(wq_head, condition, TASK_INTERRUPTIBLE, 0,		\
+			   spin_unlock(&lock);					\
+			   schedule();						\
+			   spin_lock(&lock))
 
-#define scst_wait_event_lock(wq_head, condition, lock)				\
-do {										\
-	if (condition)								\
-		break;								\
-	__scst_wait_event_lock(wq_head, condition, lock);			\
-} while (0)
-
-#define __scst_wait_event_lock_bh(wq_head, condition, lock)			\
-	(void)___scst_wait_event(wq_head, condition, TASK_UNINTERRUPTIBLE, 0,	\
-				 spin_unlock_bh(&lock);				\
-				 schedule();					\
-				 spin_lock_bh(&lock))
-
-#define scst_wait_event_lock_bh(wq_head, condition, lock)			\
-do {										\
-	if (condition)								\
-		break;								\
-	__scst_wait_event_lock_bh(wq_head, condition, lock);			\
-} while (0)
+#define scst_wait_event_interruptible_lock(wq_head, condition, lock)		\
+({										\
+	int __ret = 0;								\
+	if (!(condition))							\
+		__ret = __scst_wait_event_interruptible_lock(wq_head,		\
+							     condition, lock);	\
+	__ret;									\
+})
 
 #define __scst_wait_event_interruptible_lock_bh(wq_head, condition, lock)	\
 	___scst_wait_event(wq_head, condition, TASK_INTERRUPTIBLE, 0,		\
@@ -5526,19 +5515,20 @@ do {										\
 	__ret;									\
 })
 
+#define __scst_wait_event_interruptible_lock_irq(wq_head, condition, lock)	\
+	___scst_wait_event(wq_head, condition, TASK_INTERRUPTIBLE, 0,		\
+			   spin_unlock_irq(&lock);				\
+			   schedule();						\
+			   spin_lock_irq(&lock))
 
-#define __scst_wait_event_lock_irq(wq_head, condition, lock)			\
-	(void)___scst_wait_event(wq_head, condition, TASK_UNINTERRUPTIBLE, 0,	\
-				 spin_unlock_irq(&lock);			\
-				 schedule();					\
-				 spin_lock_irq(&lock))
-
-#define scst_wait_event_lock_irq(wq_head, condition, lock)			\
-do {										\
-	if (condition)								\
-		break;								\
-	__scst_wait_event_lock_irq(wq_head, condition, lock);			\
-} while (0)
+#define scst_wait_event_interruptible_lock_irq(wq_head, condition, lock)	\
+({										\
+	int __ret = 0;								\
+	if (!(condition))							\
+		__ret = __scst_wait_event_interruptible_lock_irq(wq_head,	\
+								condition, lock);\
+	__ret;									\
+})
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 const char *scst_get_opcode_name(struct scst_cmd *cmd);
