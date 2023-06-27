@@ -4510,9 +4510,9 @@ int scst_init_thread(void *arg)
 
 	spin_lock_irq(&scst_init_lock);
 	while (!kthread_should_stop()) {
-		scst_wait_event_lock_irq(scst_init_cmd_list_waitQ,
-					 test_init_cmd_list(),
-					 scst_init_lock);
+		scst_wait_event_interruptible_lock_irq(scst_init_cmd_list_waitQ,
+						       test_init_cmd_list(),
+						       scst_init_lock);
 		scst_do_job_init();
 	}
 	spin_unlock_irq(&scst_init_lock);
@@ -6794,9 +6794,9 @@ int scst_tm_thread(void *arg)
 
 	spin_lock_irq(&scst_mcmd_lock);
 	while (!kthread_should_stop()) {
-		scst_wait_event_lock_irq(scst_mgmt_cmd_list_waitQ,
-					 test_mgmt_cmd_list(),
-					 scst_mcmd_lock);
+		scst_wait_event_interruptible_lock_irq(scst_mgmt_cmd_list_waitQ,
+						       test_mgmt_cmd_list(),
+						       scst_mcmd_lock);
 
 		while (!list_empty(&scst_active_mgmt_cmd_list)) {
 			int rc;
@@ -7610,8 +7610,8 @@ int scst_global_mgmt_thread(void *arg)
 
 	spin_lock_irq(&scst_mgmt_lock);
 	while (!kthread_should_stop()) {
-		scst_wait_event_lock_irq(scst_mgmt_waitQ, test_mgmt_list(),
-					 scst_mgmt_lock);
+		scst_wait_event_interruptible_lock_irq(scst_mgmt_waitQ, test_mgmt_list(),
+						       scst_mgmt_lock);
 
 		while (!list_empty(&scst_sess_init_list)) {
 			sess = list_first_entry(&scst_sess_init_list,
