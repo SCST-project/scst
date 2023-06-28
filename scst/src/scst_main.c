@@ -129,7 +129,8 @@ spinlock_t scst_mgmt_lock;
 struct list_head scst_sess_init_list;
 struct list_head scst_sess_shut_list;
 
-wait_queue_head_t scst_dev_cmd_waitQ;
+static wait_queue_head_t scst_dev_cmd_waitQ;
+static struct completion scst_confirm_done;
 
 static struct mutex scst_cmd_threads_mutex;
 /* protected by scst_cmd_threads_mutex */
@@ -792,7 +793,7 @@ static int scst_susp_wait(unsigned long timeout)
 		t = min(timeout, SCST_SUSP_WAIT_REPORT_TIMEOUT);
 
 	res = wait_event_interruptible_timeout(scst_dev_cmd_waitQ,
-			percpu_ref_killed, t);
+					       percpu_ref_killed, t);
 	if (res > 0) {
 		res = 0;
 		goto out;
@@ -800,15 +801,16 @@ static int scst_susp_wait(unsigned long timeout)
 		goto out;
 
 	if (res == 0) {
-		PRINT_INFO("%d active commands to still not completed. See "
-			"README for possible reasons.", scst_get_cmd_counter());
+		PRINT_INFO(
+	"%d active commands to still not completed. See README for possible reasons.",
+			   scst_get_cmd_counter());
 		scst_trace_cmds(scst_to_syslog, &hp);
 		scst_trace_mcmds(scst_to_syslog, &hp);
 	}
 
 	if (timeout != SCST_SUSPEND_TIMEOUT_UNLIMITED) {
 		res = wait_event_interruptible_timeout(scst_dev_cmd_waitQ,
-			percpu_ref_killed, timeout - t);
+						       percpu_ref_killed, timeout - t);
 		if (res == 0)
 			res = -EBUSY;
 		else if (res > 0)
@@ -824,6 +826,11 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 #undef SCST_SUSP_WAIT_REPORT_TIMEOUT
+}
+
+static void scst_suspend_counter_confirm(struct percpu_ref *ref)
+{
+	complete(&scst_confirm_done);
 }
 
 /*
@@ -864,8 +871,12 @@ int scst_suspend_activity(unsigned long timeout)
 		goto out_up;
 
 	/* Cause scst_get_cmd() to fail. */
+	init_completion(&scst_confirm_done);
+
 	percpu_ref_killed = false;
-	percpu_ref_kill(&scst_cmd_count);
+	percpu_ref_kill_and_confirm(&scst_cmd_count, scst_suspend_counter_confirm);
+
+	wait_for_completion(&scst_confirm_done);
 
 	/*
 	 * See comment in scst_user.c::dev_user_task_mgmt_fn() for more
@@ -878,7 +889,7 @@ int scst_suspend_activity(unsigned long timeout)
 
 	if (scst_get_cmd_counter() != 0) {
 		PRINT_INFO("Waiting for %d active commands to complete...",
-			scst_get_cmd_counter());
+			   scst_get_cmd_counter());
 		rep = true;
 
 		lock_contended(&scst_suspend_dep_map, _RET_IP_);
@@ -887,15 +898,19 @@ int scst_suspend_activity(unsigned long timeout)
 	res = scst_susp_wait(timeout);
 
 	/* Cause scst_get_mcmd() to fail. */
+	init_completion(&scst_confirm_done);
+
 	percpu_ref_killed = false;
-	percpu_ref_kill(&scst_mcmd_count);
+	percpu_ref_kill_and_confirm(&scst_mcmd_count, scst_suspend_counter_confirm);
+
+	wait_for_completion(&scst_confirm_done);
 
 	if (res != 0)
 		goto out_resume;
 
 	if (scst_get_cmd_counter() != 0)
-		TRACE_MGMT_DBG("Waiting for %d active commands finally to "
-			"complete", scst_get_cmd_counter());
+		TRACE_MGMT_DBG("Waiting for %d active commands finally to complete",
+			       scst_get_cmd_counter());
 
 	if (timeout != SCST_SUSPEND_TIMEOUT_UNLIMITED) {
 		wait_time = jiffies - cur_time;
@@ -913,7 +928,7 @@ int scst_suspend_activity(unsigned long timeout)
 		goto out_resume;
 
 	if (rep)
-		PRINT_INFO("%s", "All active commands completed");
+		PRINT_INFO("All active commands completed");
 
 out_up:
 	mutex_unlock(&scst_suspend_mutex);
@@ -973,8 +988,9 @@ static void __scst_resume_activity(void)
 	spin_lock_irq(&scst_mcmd_lock);
 	list_for_each_entry(m, &scst_delayed_mgmt_cmd_list,
 			    mgmt_cmd_list_entry) {
-		TRACE_MGMT_DBG("Moving delayed mgmt cmd %p to head of active "
-			"mgmt cmd list", m);
+		TRACE_MGMT_DBG(
+		"Moving delayed mgmt cmd %p to head of active mgmt cmd list",
+			       m);
 	}
 	list_splice_init(&scst_delayed_mgmt_cmd_list,
 			 &scst_active_mgmt_cmd_list);
