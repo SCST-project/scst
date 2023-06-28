@@ -1098,11 +1098,19 @@ static inline void percpu_ref_put(struct percpu_ref *ref)
 		ref->release(ref);
 }
 
-static inline void percpu_ref_kill(struct percpu_ref *ref)
+static inline void
+percpu_ref_kill_and_confirm(struct percpu_ref *ref, percpu_ref_func_t *confirm_kill)
 {
 	WARN_ON_ONCE(ref->dead);
 	ref->dead = true;
+	if (confirm_kill)
+		confirm_kill(ref);
 	percpu_ref_put(ref);
+}
+
+static inline void percpu_ref_kill(struct percpu_ref *ref)
+{
+	percpu_ref_kill_and_confirm(ref, NULL);
 }
 
 static inline void percpu_ref_resurrect(struct percpu_ref *ref)

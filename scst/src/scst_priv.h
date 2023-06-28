@@ -172,7 +172,6 @@ extern struct list_head scst_template_list;
 extern struct list_head scst_dev_list;
 extern struct list_head scst_dev_type_list;
 extern struct list_head scst_virtual_dev_type_list;
-extern wait_queue_head_t scst_dev_cmd_waitQ;
 
 extern const struct scst_cl_ops scst_no_dlm_cl_ops;
 extern const struct scst_cl_ops scst_dlm_cl_ops;

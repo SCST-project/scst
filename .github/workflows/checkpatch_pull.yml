@@ -30,6 +30,7 @@ jobs:
             UNKNOWN_COMMIT_ID
             NO_AUTHOR_SIGN_OFF
             COMMIT_LOG_USE_LINK
+            BAD_REPORTED_BY_LINK
             FILE_PATH_CHANGES
             SPDX_LICENSE_TAG
             LINUX_VERSION_CODE
