@@ -4800,6 +4800,39 @@ static inline int test_cmd_threads(struct scst_cmd_thread_t *thr)
 	return res;
 }
 
+static inline int
+scst_wait_for_cmd(struct scst_cmd_threads *p_cmd_threads, struct scst_cmd_thread_t *thr)
+{
+	DEFINE_WAIT(wq_entry);
+	int ret = 0;
+
+	if (test_cmd_threads(thr))
+		return 0;
+
+	for (;;) {
+		long __int = prepare_to_wait_exclusive_head(&p_cmd_threads->cmd_list_waitQ,
+							    &wq_entry, TASK_INTERRUPTIBLE);
+
+		if (test_cmd_threads(thr))
+			break;
+
+		if (__int) {
+			ret = __int;
+			goto out;
+		}
+
+		spin_unlock(&thr->thr_cmd_list_lock);
+		spin_unlock_irq(&p_cmd_threads->cmd_list_lock);
+		schedule();
+		spin_lock_irq(&p_cmd_threads->cmd_list_lock);
+		spin_lock(&thr->thr_cmd_list_lock);
+	}
+	finish_wait(&p_cmd_threads->cmd_list_waitQ, &wq_entry);
+
+out:
+	return ret;
+}
+
 int scst_cmd_thread(void *arg)
 {
 	struct scst_cmd_thread_t *thr = arg;
@@ -4822,23 +4855,7 @@ int scst_cmd_thread(void *arg)
 	spin_lock_irq(&p_cmd_threads->cmd_list_lock);
 	spin_lock(&thr->thr_cmd_list_lock);
 	while (!kthread_should_stop()) {
-		if (!test_cmd_threads(thr)) {
-			DEFINE_WAIT(wait);
-
-			do {
-				prepare_to_wait_exclusive_head(
-					&p_cmd_threads->cmd_list_waitQ,
-					&wait, TASK_INTERRUPTIBLE);
-				if (test_cmd_threads(thr))
-					break;
-				spin_unlock(&thr->thr_cmd_list_lock);
-				spin_unlock_irq(&p_cmd_threads->cmd_list_lock);
-				schedule();
-				spin_lock_irq(&p_cmd_threads->cmd_list_lock);
-				spin_lock(&thr->thr_cmd_list_lock);
-			} while (!test_cmd_threads(thr));
-			finish_wait(&p_cmd_threads->cmd_list_waitQ, &wait);
-		}
+		scst_wait_for_cmd(p_cmd_threads, thr);
 
 		if (tm_dbg_is_release()) {
 			spin_unlock_irq(&p_cmd_threads->cmd_list_lock);
