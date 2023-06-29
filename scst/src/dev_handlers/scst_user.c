@@ -36,10 +36,6 @@
 #endif
 #include "scst_dev_handler.h"
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
-#include <linux/sched/signal.h>
-#endif
-
 #ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
 #warning HIGHMEM kernel configurations are not supported by this module, \
@@ -2219,8 +2215,7 @@ static inline int test_cmd_threads(struct scst_user_dev *dev, bool can_block)
 {
 	int res = !list_empty(&dev->udev_cmd_threads.active_cmd_list) ||
 		  !list_empty(&dev->ready_cmd_list) ||
-		  !can_block || !dev->blocking || dev->cleanup_done ||
-		  signal_pending(current);
+		  !can_block || !dev->blocking || dev->cleanup_done;
 	return res;
 }
 
@@ -2233,9 +2228,11 @@ static int dev_user_get_next_cmd(struct scst_user_dev *dev,
 	TRACE_ENTRY();
 
 	while (1) {
-		scst_wait_event_interruptible_lock_irq(dev->udev_cmd_threads.cmd_list_waitQ,
-						       test_cmd_threads(dev, can_block),
-						       dev->udev_cmd_threads.cmd_list_lock);
+		res = scst_wait_event_interruptible_lock_irq(dev->udev_cmd_threads.cmd_list_waitQ,
+							     test_cmd_threads(dev, can_block),
+							     dev->udev_cmd_threads.cmd_list_lock);
+		if (res)
+			break;
 
 		dev_user_process_scst_commands(dev);
 
@@ -2246,12 +2243,6 @@ static int dev_user_get_next_cmd(struct scst_user_dev *dev,
 		if (!can_block || !dev->blocking || dev->cleanup_done) {
 			res = -EAGAIN;
 			TRACE_DBG("No ready commands, returning %d", res);
-			break;
-		}
-
-		if (signal_pending(current)) {
-			res = -EINTR;
-			TRACE_DBG("Signal pending, returning %d", res);
 			break;
 		}
 	}
