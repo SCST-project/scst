@@ -191,7 +191,6 @@ struct scst_vdisk_dev {
 	struct file *fd;
 	struct file *dif_fd;
 	struct block_device *bdev;
-	fmode_t bdev_mode;
 	struct bio_set *vdisk_bioset;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
 	struct bio_set vdisk_bioset_struct;
@@ -503,7 +502,7 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 	    virt_dev->wt_flag || !virt_dev->dev_active)
 		goto out;
 
-	bdev = blkdev_get_by_path(virt_dev->filename, FMODE_READ, NULL);
+	bdev = blkdev_get_by_path(virt_dev->filename, BLK_OPEN_READ, NULL, NULL);
 	if (IS_ERR(bdev)) {
 		if (PTR_ERR(bdev) == -EMEDIUMTYPE)
 			TRACE(TRACE_MINOR,
@@ -522,7 +521,7 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 		virt_dev->nv_cache = 1;
 	}
 
-	blkdev_put(bdev, FMODE_READ);
+	blkdev_put(bdev, NULL);
 
 out:
 	TRACE_EXIT();
@@ -544,7 +543,7 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 		goto check;
 
 	if (virt_dev->blockio) {
-		bdev = blkdev_get_by_path(virt_dev->filename, FMODE_READ, NULL);
+		bdev = blkdev_get_by_path(virt_dev->filename, BLK_OPEN_READ, NULL, NULL);
 		res = PTR_ERR_OR_ZERO(bdev);
 	} else {
 		fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
@@ -640,7 +639,7 @@ check:
 
 	if (fd_open) {
 		if (virt_dev->blockio)
-			blkdev_put(bdev, FMODE_READ);
+			blkdev_put(bdev, NULL);
 		else
 			filp_close(fd, NULL);
 	}
@@ -965,7 +964,7 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 
 	TRACE_ENTRY();
 
-	bdev = blkdev_get_by_path(virt_dev->filename, FMODE_READ, NULL);
+	bdev = blkdev_get_by_path(virt_dev->filename, BLK_OPEN_READ, NULL, NULL);
 	if (IS_ERR(bdev)) {
 		res = PTR_ERR(bdev);
 		goto out;
@@ -1043,7 +1042,7 @@ out_no_bi:
 	res = 0;
 
 out_close:
-	blkdev_put(bdev, FMODE_READ);
+	blkdev_put(bdev, NULL);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1307,13 +1306,12 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 			       virt_dev->dev->virt_name);
 		res = -EMEDIUMTYPE;
 	} else if (virt_dev->blockio) {
-		virt_dev->bdev_mode = FMODE_READ | FMODE_EXCL;
+		blk_mode_t bdev_mode = BLK_OPEN_READ;
 
 		if (!read_only)
-			virt_dev->bdev_mode |= FMODE_WRITE;
+			bdev_mode |= BLK_OPEN_WRITE;
 
-		virt_dev->bdev = blkdev_get_by_path(virt_dev->filename,
-						    virt_dev->bdev_mode, virt_dev);
+		virt_dev->bdev = blkdev_get_by_path(virt_dev->filename, bdev_mode, virt_dev, NULL);
 		res = PTR_ERR_OR_ZERO(virt_dev->bdev);
 	} else {
 		virt_dev->fd = vdev_open_fd(virt_dev, virt_dev->filename,
@@ -1352,7 +1350,7 @@ out:
 
 out_close_fd:
 	if (virt_dev->blockio) {
-		blkdev_put(virt_dev->bdev, virt_dev->bdev_mode);
+		blkdev_put(virt_dev->bdev, virt_dev);
 		virt_dev->bdev = NULL;
 	} else {
 		filp_close(virt_dev->fd, NULL);
@@ -1367,7 +1365,7 @@ static void vdisk_close_fd(struct scst_vdisk_dev *virt_dev)
 		  virt_dev->fd, virt_dev->bdev, virt_dev->dif_fd);
 
 	if (virt_dev->bdev) {
-		blkdev_put(virt_dev->bdev, virt_dev->bdev_mode);
+		blkdev_put(virt_dev->bdev, virt_dev);
 		virt_dev->bdev = NULL;
 	} else if (virt_dev->fd) {
 		filp_close(virt_dev->fd, NULL);

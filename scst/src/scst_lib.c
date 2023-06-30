@@ -5983,11 +5983,11 @@ loff_t scst_bdev_size(const char *path)
 	struct block_device *bdev;
 	loff_t res;
 
-	bdev = blkdev_get_by_path(path, FMODE_READ, NULL);
+	bdev = blkdev_get_by_path(path, BLK_OPEN_READ, NULL, NULL);
 	if (IS_ERR(bdev))
 		return PTR_ERR(bdev);
 	res = i_size_read(bdev->bd_inode);
-	blkdev_put(bdev, FMODE_READ);
+	blkdev_put(bdev, NULL);
 	return res;
 }
 EXPORT_SYMBOL(scst_bdev_size);
