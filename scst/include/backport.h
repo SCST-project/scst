@@ -228,6 +228,55 @@ void blk_execute_rq_nowait_backport(struct request *rq, bool at_head)
 
 /* <linux/blkdev.h> */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0)
+/*
+ * See also commit 05bdb9965305 ("block: replace fmode_t with a block-specific
+ * type for block open flags") # v6.5.
+ */
+typedef fmode_t blk_mode_t;
+
+#define BLK_OPEN_READ ((__force blk_mode_t)FMODE_READ)
+#define BLK_OPEN_WRITE ((__force blk_mode_t)FMODE_WRITE)
+#define BLK_OPEN_EXCL ((__force blk_mode_t)FMODE_EXCL)
+
+/*
+ * See also commit 0718afd47f70 ("block: introduce holder ops") # v6.5.
+ */
+struct blk_holder_ops {
+	/* empty dummy */
+};
+
+static inline struct block_device *
+blkdev_get_by_path_backport(const char *path, blk_mode_t mode,
+		void *holder, const struct blk_holder_ops *hops)
+{
+	WARN_ON_ONCE(hops);
+
+	/*
+	 * See also commit 2736e8eeb0cc ("block: use the holder as
+	 * indication for exclusive opens") # v6.5.
+	 */
+	if (holder)
+		mode |= BLK_OPEN_EXCL;
+
+	return blkdev_get_by_path(path, mode, holder);
+}
+
+#define blkdev_get_by_path blkdev_get_by_path_backport
+
+/*
+ * See also commit 2736e8eeb0cc ("block: use the holder as indication for
+ * exclusive opens") # v6.5.
+ */
+static inline void blkdev_put_backport(struct block_device *bdev, void *holder)
+{
+	blkdev_put(bdev, holder ? BLK_OPEN_EXCL : 0);
+}
+
+#define blkdev_put blkdev_put_backport
+
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
 	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
@@ -235,8 +284,8 @@ void blk_execute_rq_nowait_backport(struct request *rq, bool at_head)
  * See also commit 44abff2c0b97 ("block: decouple REQ_OP_SECURE_ERASE
  * from REQ_OP_DISCARD") # v5.19.
  */
-static inline
-int blkdev_issue_discard_backport(struct block_device *bdev, sector_t sector,
+static inline int
+blkdev_issue_discard_backport(struct block_device *bdev, sector_t sector,
 		sector_t nr_sects, gfp_t gfp_mask)
 {
 	return blkdev_issue_discard(bdev, sector, nr_sects, gfp_mask, 0);

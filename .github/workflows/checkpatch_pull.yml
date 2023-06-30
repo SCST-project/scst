@@ -35,6 +35,7 @@ jobs:
             SPDX_LICENSE_TAG
             LINUX_VERSION_CODE
             CONSTANT_COMPARISON
+            NEW_TYPEDEFS
             SPACING
           )
           ignore_str=${ignore[*]}
