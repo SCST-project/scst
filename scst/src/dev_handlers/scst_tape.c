@@ -171,12 +171,15 @@ static int tape_attach(struct scst_device *dev)
 
 	TRACE_DBG("%s", "Doing MODE_SENSE");
 	rc = scsi_mode_sense(dev->scsi_dev,
-			      ((dev->scsi_dev->scsi_level <= SCSI_2) ?
-			       ((dev->scsi_dev->lun << 5) & 0xe0) : 0),
-			      0 /* Mode Page 0 */,
-			      buffer, buffer_size,
-			      SCST_GENERIC_TAPE_SMALL_TIMEOUT, TAPE_RETRIES,
-			      &data, NULL);
+			     ((dev->scsi_dev->scsi_level <= SCSI_2) ?
+			      ((dev->scsi_dev->lun << 5) & 0xe0) : 0),
+			     0 /* Mode Page 0 */,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
+			     0 /* Sub Page */,
+#endif
+			     buffer, buffer_size,
+			     SCST_GENERIC_TAPE_SMALL_TIMEOUT, TAPE_RETRIES,
+			     &data, NULL);
 	TRACE_DBG("MODE_SENSE done: %x", rc);
 
 	if (rc == 0) {
