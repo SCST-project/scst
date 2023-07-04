@@ -503,12 +503,12 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 	    virt_dev->wt_flag || !virt_dev->dev_active)
 		goto out;
 
-	bdev = blkdev_get_by_path(virt_dev->filename, FMODE_READ,
-				  (void *)__func__);
+	bdev = blkdev_get_by_path(virt_dev->filename, FMODE_READ, NULL);
 	if (IS_ERR(bdev)) {
 		if (PTR_ERR(bdev) == -EMEDIUMTYPE)
-			TRACE(TRACE_MINOR, "Unable to open %s with EMEDIUMTYPE, "
-				"DRBD passive?", virt_dev->filename);
+			TRACE(TRACE_MINOR,
+			      "Unable to open %s with EMEDIUMTYPE, DRBD passive?",
+			      virt_dev->filename);
 		else
 			PRINT_ERROR("blkdev_get_by_path(%s) failed: %ld",
 				virt_dev->filename, PTR_ERR(bdev));
@@ -516,9 +516,9 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 	}
 
 	if (vdisk_blockio_flush(bdev, GFP_KERNEL, false, NULL, false) != 0) {
-		PRINT_WARNING("Device %s doesn't support barriers, switching "
-			"to NV_CACHE mode. Read README for more details.",
-			virt_dev->filename);
+		PRINT_WARNING(
+"Device %s doesn't support barriers, switching to NV_CACHE mode. Read README for more details.",
+			      virt_dev->filename);
 		virt_dev->nv_cache = 1;
 	}
 
@@ -544,8 +544,7 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 		goto check;
 
 	if (virt_dev->blockio) {
-		bdev = blkdev_get_by_path(virt_dev->filename, FMODE_READ,
-					  (void *)__func__);
+		bdev = blkdev_get_by_path(virt_dev->filename, FMODE_READ, NULL);
 		res = PTR_ERR_OR_ZERO(bdev);
 	} else {
 		fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
@@ -966,8 +965,7 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 
 	TRACE_ENTRY();
 
-	bdev = blkdev_get_by_path(virt_dev->filename, FMODE_READ,
-				  (void *)__func__);
+	bdev = blkdev_get_by_path(virt_dev->filename, FMODE_READ, NULL);
 	if (IS_ERR(bdev)) {
 		res = PTR_ERR(bdev);
 		goto out;
@@ -1309,11 +1307,13 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 			       virt_dev->dev->virt_name);
 		res = -EMEDIUMTYPE;
 	} else if (virt_dev->blockio) {
-		virt_dev->bdev_mode = FMODE_READ;
+		virt_dev->bdev_mode = FMODE_READ | FMODE_EXCL;
+
 		if (!read_only)
 			virt_dev->bdev_mode |= FMODE_WRITE;
+
 		virt_dev->bdev = blkdev_get_by_path(virt_dev->filename,
-					virt_dev->bdev_mode, (void *)__func__);
+						    virt_dev->bdev_mode, virt_dev);
 		res = PTR_ERR_OR_ZERO(virt_dev->bdev);
 	} else {
 		virt_dev->fd = vdev_open_fd(virt_dev, virt_dev->filename,
