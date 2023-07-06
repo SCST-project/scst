@@ -1185,15 +1185,15 @@ static int write_data(struct iscsi_conn *conn)
 	}
 
 	sock = conn->sock;
-
-	if (parent_req->scst_cmd &&
-	    parent_req->scst_state != ISCSI_CMD_STATE_AEN &&
-	    scst_cmd_get_dh_data_buff_alloced(parent_req->scst_cmd))
-		sock_sendpage = sock_no_sendpage;
-	else
-		sock_sendpage = sock->ops->sendpage;
-
 	flags = MSG_DONTWAIT;
+
+	if (sg != write_cmnd->rsp_sg &&
+	    (!parent_req->scst_cmd || parent_req->scst_state == ISCSI_CMD_STATE_AEN ||
+	     !scst_cmd_get_dh_data_buff_alloced(parent_req->scst_cmd)))
+		sock_sendpage = sock->ops->sendpage;
+	else
+		sock_sendpage = sock_no_sendpage;
+
 	sg_size = size;
 
 	if (sg != write_cmnd->rsp_sg) {
@@ -1222,7 +1222,6 @@ static int write_data(struct iscsi_conn *conn)
 		}
 		length = sg[idx].length - offset;
 		offset += sg[idx].offset;
-		sock_sendpage = sock_no_sendpage;
 		TRACE_WRITE("rsp_sg: write_offset %d, sg_size %lu, idx %d, offset %d, length %lu",
 			    conn->write_offset, sg_size, idx, offset, length);
 	}
@@ -1230,83 +1229,58 @@ static int write_data(struct iscsi_conn *conn)
 
 	while (true) {
 		sendsize = min_t(size_t, size, length);
-		if (size <= sendsize) {
-retry2:
-			res = sock_sendpage(sock, page, offset, size, flags);
+
+		if (sendsize == size)
+			flags &= ~MSG_MORE;
+		else
+			flags |= MSG_MORE;
+
+		while (sendsize) {
+			res = sock_sendpage(sock, page, offset, sendsize, flags);
 			TRACE_WRITE(
-		"Final %s sid %#Lx, cid %u, res %d (page index %lu, offset %u, size %lu, cmd %p, page %p)",
+	"%s sid %#Lx, cid %u, res %d (page index %lu, offset %u, sendsize %lu, size %lu, cmd %p, page %p)",
 				    (sock_sendpage != sock_no_sendpage) ?
 				    "sendpage" : "sock_no_sendpage",
-				    (unsigned long long)conn->session->sid,
-				    conn->cid, res, page->index,
-				    offset, size, write_cmnd, page);
+				    (unsigned long long)conn->session->sid, conn->cid,
+				    res, page->index, offset, sendsize, size,
+				    write_cmnd, page);
+
 			if (unlikely(res <= 0)) {
 				if (res == -EINTR)
-					goto retry2;
-				else
-					goto out_res;
+					continue;
+
+				if (res == -EAGAIN) {
+					conn->write_offset += sg_size - size;
+					goto out_iov;
+				}
+
+				goto out_err;
 			}
 
-			if (res == size) {
-				conn->write_size = 0;
-				res = saved_size;
-				goto out;
-			}
-
-			offset += res;
-			size -= res;
-			goto retry2;
-		}
-
-retry1:
-		res = sock_sendpage(sock, page, offset, sendsize, flags | MSG_MORE);
-		TRACE_WRITE(
-	"%s sid %#Lx, cid %u, res %d (page index %lu, offset %u, sendsize %lu, size %lu, cmd %p, page %p)",
-			    (sock_sendpage != sock_no_sendpage) ?
-			    "sendpage" : "sock_no_sendpage",
-			    (unsigned long long)conn->session->sid, conn->cid,
-			    res, page->index, offset, sendsize, size,
-			    write_cmnd, page);
-		if (unlikely(res <= 0)) {
-			if (res == -EINTR)
-				goto retry1;
-			else
-				goto out_res;
-		}
-
-		size -= res;
-
-		if (res == sendsize) {
-			idx++;
-			EXTRACHECKS_BUG_ON(idx >= ref_cmd->sg_cnt);
-			page = sg_page(&sg[idx]);
-			length = sg[idx].length;
-			offset = sg[idx].offset;
-		} else {
 			offset += res;
 			sendsize -= res;
-			goto retry1;
+			size -= res;
 		}
-	}
 
-out_off:
-	conn->write_offset += sg_size - size;
+		if (size == 0)
+			goto out_iov;
+
+		idx++;
+		EXTRACHECKS_BUG_ON(idx >= ref_cmd->sg_cnt);
+		page = sg_page(&sg[idx]);
+		length = sg[idx].length;
+		offset = sg[idx].offset;
+	}
 
 out_iov:
 	conn->write_size = size;
-	if ((saved_size == size) && res == -EAGAIN)
-		goto out;
 
-	res = saved_size - size;
+	if (res != -EAGAIN || saved_size != size)
+		res = saved_size - size;
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_res:
-	if (res == -EAGAIN)
-		goto out_off;
-	/* else go through */
 
 out_err:
 #ifndef CONFIG_SCST_DEBUG
