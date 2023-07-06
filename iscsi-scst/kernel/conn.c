@@ -741,7 +741,6 @@ int conn_activate(struct iscsi_conn *conn)
 
 static int conn_setup_sock(struct iscsi_conn *conn)
 {
-	int res = 0;
 	int opt = 1;
 	mm_segment_t oldfs;
 	struct iscsi_session *session = conn->session;
@@ -750,12 +749,13 @@ static int conn_setup_sock(struct iscsi_conn *conn)
 
 	conn->sock = SOCKET_I(file_inode(conn->file));
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0)
 	if (conn->sock->ops->sendpage == NULL) {
 		PRINT_ERROR("Socket for sid %llx doesn't support sendpage()",
 			    (unsigned long long)session->sid);
-		res = -EINVAL;
-		goto out;
+		return -EINVAL;
 	}
+#endif
 
 #if 0
 	conn->sock->sk->sk_allocation = GFP_NOIO;
@@ -768,8 +768,7 @@ static int conn_setup_sock(struct iscsi_conn *conn)
 				    KERNEL_SOCKPTR(&opt), sizeof(opt));
 	set_fs(oldfs);
 
-out:
-	return res;
+	return 0;
 }
 
 void iscsi_tcp_conn_free(struct iscsi_conn *conn)

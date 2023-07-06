@@ -1096,8 +1096,13 @@ out:
 static int write_data(struct iscsi_conn *conn)
 {
 	struct socket *sock;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0)
 	ssize_t (*sock_sendpage)(struct socket *sock, struct page *page,
 				 int offset, size_t size, int flags);
+#else
+	struct msghdr msg = {};
+	struct bio_vec bvec;
+#endif
 	struct iscsi_cmnd *write_cmnd, *parent_req;
 	struct iscsi_cmnd *ref_cmd;
 	struct page *page;
@@ -1190,9 +1195,13 @@ static int write_data(struct iscsi_conn *conn)
 	if (sg != write_cmnd->rsp_sg &&
 	    (!parent_req->scst_cmd || parent_req->scst_state == ISCSI_CMD_STATE_AEN ||
 	     !scst_cmd_get_dh_data_buff_alloced(parent_req->scst_cmd)))
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
+		flags |= MSG_SPLICE_PAGES;
+#else
 		sock_sendpage = sock->ops->sendpage;
 	else
 		sock_sendpage = sock_no_sendpage;
+#endif
 
 	sg_size = size;
 
@@ -1236,14 +1245,21 @@ static int write_data(struct iscsi_conn *conn)
 			flags |= MSG_MORE;
 
 		while (sendsize) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0)
 			res = sock_sendpage(sock, page, offset, sendsize, flags);
+#else
+			memset(&msg, 0, sizeof(struct msghdr));
+			msg.msg_flags = flags;
+
+			bvec_set_page(&bvec, page, sendsize, offset);
+			iov_iter_bvec(&msg.msg_iter, ITER_SOURCE, &bvec, 1, sendsize);
+			res = sock_sendmsg(sock, &msg);
+#endif
 			TRACE_WRITE(
-	"%s sid %#Lx, cid %u, res %d (page index %lu, offset %u, sendsize %lu, size %lu, cmd %p, page %p)",
-				    (sock_sendpage != sock_no_sendpage) ?
-				    "sendpage" : "sock_no_sendpage",
+	"sid %#Lx cid %u: res %d (page[%p] index %lu, offset %u, sendsize %lu, size %lu, cmd %p)",
 				    (unsigned long long)conn->session->sid, conn->cid,
-				    res, page->index, offset, sendsize, size,
-				    write_cmnd, page);
+				    res, page, page->index, offset, sendsize, size,
+				    write_cmnd);
 
 			if (unlikely(res <= 0)) {
 				if (res == -EINTR)
