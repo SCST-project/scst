@@ -1095,8 +1095,6 @@ out:
 
 static int write_data(struct iscsi_conn *conn)
 {
-	struct file *file;
-	struct kvec *iop;
 	struct socket *sock;
 	ssize_t (*sock_sendpage)(struct socket *sock, struct page *page,
 				 int offset, size_t size, int flags);
@@ -1106,7 +1104,7 @@ static int write_data(struct iscsi_conn *conn)
 	struct scatterlist *sg;
 	size_t saved_size, size, sg_size;
 	size_t sendsize, length;
-	int offset, idx, flags, res = 0, count;
+	int offset, idx, flags, res = 0;
 	bool ref_cmd_to_parent;
 
 	TRACE_ENTRY();
@@ -1126,40 +1124,45 @@ static int write_data(struct iscsi_conn *conn)
 
 	req_add_to_write_timeout_list(parent_req);
 
-	file = conn->file;
-	size = conn->write_size;
-	saved_size = size;
-	iop = conn->write_iop;
-	count = conn->write_iop_used;
+	saved_size = size = conn->write_size;
 
-	if (iop) {
+	if (conn->write_iop) {
+		struct file *file = conn->file;
+		struct kvec *iop = conn->write_iop;
+		int count = conn->write_iop_used;
+		loff_t off;
+
+		sBUG_ON(count > ARRAY_SIZE(conn->write_iov));
+
 		while (true) {
-			loff_t off = 0;
-			int rest;
+			off = 0;
 
-			sBUG_ON(count > ARRAY_SIZE(conn->write_iov));
-retry:
 			res = scst_writev(file, iop, count, &off);
 			TRACE_WRITE("sid %#Lx, cid %u, res %d, iov_len %zd",
 				    (unsigned long long)conn->session->sid,
 				    conn->cid, res, iop->iov_len);
+
 			if (unlikely(res <= 0)) {
+				if (res == -EINTR)
+					continue;
+
 				if (res == -EAGAIN) {
 					conn->write_iop = iop;
 					conn->write_iop_used = count;
 					goto out_iov;
-				} else if (res == -EINTR)
-					goto retry;
+				}
+
 				goto out_err;
 			}
 
-			rest = res;
 			size -= res;
-			while ((typeof(rest))iop->iov_len <= rest && rest) {
-				rest -= iop->iov_len;
+
+			while ((typeof(res))iop->iov_len <= res && res) {
+				res -= iop->iov_len;
 				iop++;
 				count--;
 			}
+
 			if (count == 0) {
 				conn->write_iop = NULL;
 				conn->write_iop_used = 0;
@@ -1169,8 +1172,8 @@ retry:
 			}
 			sBUG_ON(iop >
 				conn->write_iov + ARRAY_SIZE(conn->write_iov));
-			iop->iov_base += rest;
-			iop->iov_len -= rest;
+			iop->iov_base += res;
+			iop->iov_len -= res;
 		}
 	}
 
