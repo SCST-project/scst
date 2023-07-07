@@ -1098,31 +1098,33 @@ static int write_data(struct iscsi_conn *conn)
 	struct file *file;
 	struct kvec *iop;
 	struct socket *sock;
-	ssize_t (*sock_sendpage)(struct socket *, struct page *, int, size_t,
-				 int);
-	ssize_t (*sendpage)(struct socket *, struct page *, int, size_t, int);
-	struct iscsi_cmnd *write_cmnd = conn->write_cmnd;
+	ssize_t (*sock_sendpage)(struct socket *sock, struct page *page,
+				 int offset, size_t size, int flags);
+	struct iscsi_cmnd *write_cmnd, *parent_req;
 	struct iscsi_cmnd *ref_cmd;
 	struct page *page;
 	struct scatterlist *sg;
-	int saved_size, size, sendsize;
-	int length, offset, idx;
-	int flags, res, count, sg_size;
+	size_t saved_size, size, sg_size;
+	size_t sendsize, length;
+	int offset, idx, flags, res = 0, count;
 	bool ref_cmd_to_parent;
 
 	TRACE_ENTRY();
 
+	write_cmnd = conn->write_cmnd;
+	parent_req = write_cmnd->parent_req;
+
 	iscsi_extracheck_is_wr_thread(conn);
 
 	if (!write_cmnd->own_sg) {
-		ref_cmd = write_cmnd->parent_req;
+		ref_cmd = parent_req;
 		ref_cmd_to_parent = true;
 	} else {
 		ref_cmd = write_cmnd;
 		ref_cmd_to_parent = false;
 	}
 
-	req_add_to_write_timeout_list(write_cmnd->parent_req);
+	req_add_to_write_timeout_list(parent_req);
 
 	file = conn->file;
 	size = conn->write_size;
@@ -1131,7 +1133,7 @@ static int write_data(struct iscsi_conn *conn)
 	count = conn->write_iop_used;
 
 	if (iop) {
-		while (1) {
+		while (true) {
 			loff_t off = 0;
 			int rest;
 
@@ -1181,9 +1183,9 @@ retry:
 
 	sock = conn->sock;
 
-	if (write_cmnd->parent_req->scst_cmd &&
-	    write_cmnd->parent_req->scst_state != ISCSI_CMD_STATE_AEN &&
-	    scst_cmd_get_dh_data_buff_alloced(write_cmnd->parent_req->scst_cmd))
+	if (parent_req->scst_cmd &&
+	    parent_req->scst_state != ISCSI_CMD_STATE_AEN &&
+	    scst_cmd_get_dh_data_buff_alloced(parent_req->scst_cmd))
 		sock_sendpage = sock_no_sendpage;
 	else
 		sock_sendpage = sock->ops->sendpage;
@@ -1201,8 +1203,8 @@ retry:
 		offset = conn->write_offset + sg[0].offset;
 		idx = offset >> PAGE_SHIFT;
 		offset &= ~PAGE_MASK;
-		length = min(size, (int)PAGE_SIZE - offset);
-		TRACE_WRITE("write_offset %d, sg_size %d, idx %d, offset %d, length %d",
+		length = min_t(size_t, size, PAGE_SIZE - offset);
+		TRACE_WRITE("write_offset %d, sg_size %lu, idx %d, offset %d, length %lu",
 			    conn->write_offset, sg_size, idx, offset, length);
 	} else {
 		/*
@@ -1218,25 +1220,23 @@ retry:
 		length = sg[idx].length - offset;
 		offset += sg[idx].offset;
 		sock_sendpage = sock_no_sendpage;
-		TRACE_WRITE("rsp_sg: write_offset %d, sg_size %d, idx %d, "
-			"offset %d, length %d", conn->write_offset, sg_size,
-			idx, offset, length);
+		TRACE_WRITE("rsp_sg: write_offset %d, sg_size %lu, idx %d, offset %d, length %lu",
+			    conn->write_offset, sg_size, idx, offset, length);
 	}
 	page = sg_page(&sg[idx]);
 
-	while (1) {
-		sendpage = sock_sendpage;
-
-		sendsize = min(size, length);
+	while (true) {
+		sendsize = min_t(size_t, size, length);
 		if (size <= sendsize) {
 retry2:
-			res = sendpage(sock, page, offset, size, flags);
-			TRACE_WRITE("Final %s sid %#Lx, cid %u, res %d (page index %lu, offset %u, size %u, cmd %p, page %p)",
-				(sendpage != sock_no_sendpage) ?
-				"sendpage" : "sock_no_sendpage",
-				(unsigned long long)conn->session->sid,
-				conn->cid, res, page->index,
-				offset, size, write_cmnd, page);
+			res = sock_sendpage(sock, page, offset, size, flags);
+			TRACE_WRITE(
+		"Final %s sid %#Lx, cid %u, res %d (page index %lu, offset %u, size %lu, cmd %p, page %p)",
+				    (sock_sendpage != sock_no_sendpage) ?
+				    "sendpage" : "sock_no_sendpage",
+				    (unsigned long long)conn->session->sid,
+				    conn->cid, res, page->index,
+				    offset, size, write_cmnd, page);
 			if (unlikely(res <= 0)) {
 				if (res == -EINTR)
 					goto retry2;
@@ -1256,13 +1256,14 @@ retry2:
 		}
 
 retry1:
-		res = sendpage(sock, page, offset, sendsize, flags | MSG_MORE);
-		TRACE_WRITE("%s sid %#Lx, cid %u, res %d (page index %lu, offset %u, sendsize %u, size %u, cmd %p, page %p)",
-			(sendpage != sock_no_sendpage) ? "sendpage" :
-							 "sock_no_sendpage",
-			(unsigned long long)conn->session->sid, conn->cid,
-			res, page->index, offset, sendsize, size,
-			write_cmnd, page);
+		res = sock_sendpage(sock, page, offset, sendsize, flags | MSG_MORE);
+		TRACE_WRITE(
+	"%s sid %#Lx, cid %u, res %d (page index %lu, offset %u, sendsize %lu, size %lu, cmd %p, page %p)",
+			    (sock_sendpage != sock_no_sendpage) ?
+			    "sendpage" : "sock_no_sendpage",
+			    (unsigned long long)conn->session->sid, conn->cid,
+			    res, page->index, offset, sendsize, size,
+			    write_cmnd, page);
 		if (unlikely(res <= 0)) {
 			if (res == -EINTR)
 				goto retry1;
