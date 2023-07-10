@@ -687,6 +687,19 @@ static inline bool list_entry_in_list(const struct list_head *entry)
 	return !list_empty(entry);
 }
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 1))
+/*
+ * See also commit 70b44595eafe ("mm, compaction: use free lists to quickly
+ * locate a migration source") # v5.1.
+ */
+static inline int list_is_first(const struct list_head *list, const struct list_head *head)
+{
+	return list->prev == head;
+}
+#endif
+
 /* <linux/lockdep.h> */
 
 /*
