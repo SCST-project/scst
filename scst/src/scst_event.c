@@ -278,7 +278,7 @@ void scst_event_queue(uint32_t event_code, const char *issuer_name,
 	TRACE_DBG("Scheduling event entry %p", e);
 
 	e->event.event_code = event_code;
-	strlcpy(e->event.issuer_name, issuer_name, sizeof(e->event.issuer_name));
+	strscpy(e->event.issuer_name, issuer_name, sizeof(e->event.issuer_name));
 
 	queue_work(scst_event_wq, &e->scst_event_queue_work);
 
@@ -317,9 +317,9 @@ int scst_event_queue_lun_not_found(const struct scst_cmd *cmd)
 	payload = (struct scst_event_lun_not_found_payload *)event->payload;
 
 	payload->lun = cmd->lun;
-	strlcpy(payload->initiator_name, cmd->sess->initiator_name,
+	strscpy(payload->initiator_name, cmd->sess->initiator_name,
 		sizeof(payload->initiator_name));
-	strlcpy(payload->target_name, cmd->tgt->tgt_name,
+	strscpy(payload->target_name, cmd->tgt->tgt_name,
 		sizeof(payload->target_name));
 
 	scst_event_queue(SCST_EVENT_LUN_NOT_FOUND,
@@ -358,9 +358,9 @@ int scst_event_queue_negative_luns_inquiry(const struct scst_tgt *tgt,
 	event->payload_len = sizeof(*payload);
 	payload = (struct scst_event_negative_luns_inquiry_payload *)event->payload;
 
-	strlcpy(payload->initiator_name, initiator_name,
+	strscpy(payload->initiator_name, initiator_name,
 		sizeof(payload->initiator_name));
-	strlcpy(payload->target_name, tgt->tgt_name,
+	strscpy(payload->target_name, tgt->tgt_name,
 		sizeof(payload->target_name));
 
 	scst_event_queue(SCST_EVENT_NEGATIVE_LUNS_INQUIRY,
@@ -399,7 +399,7 @@ int scst_event_queue_ext_blocking_done(struct scst_device *dev, void *data, int 
 	event->payload_len = sizeof(*payload) + len;
 	payload = (struct scst_event_ext_blocking_done_payload *)event->payload;
 
-	strlcpy(payload->device_name, dev->virt_name, sizeof(payload->device_name));
+	strscpy(payload->device_name, dev->virt_name, sizeof(payload->device_name));
 	if (len > 0)
 		memcpy(payload->data, data, len);
 
@@ -442,13 +442,13 @@ int scst_event_queue_tm_fn_received(struct scst_mgmt_cmd *mcmd)
 	payload->fn = mcmd->fn;
 	payload->lun = mcmd->lun;
 	if (mcmd->mcmd_tgt_dev != NULL)
-		strlcpy(payload->device_name, mcmd->mcmd_tgt_dev->dev->virt_name,
+		strscpy(payload->device_name, mcmd->mcmd_tgt_dev->dev->virt_name,
 			sizeof(payload->device_name));
-	strlcpy(payload->initiator_name, mcmd->sess->initiator_name,
+	strscpy(payload->initiator_name, mcmd->sess->initiator_name,
 		sizeof(payload->initiator_name));
-	strlcpy(payload->target_name, mcmd->sess->tgt->tgt_name,
+	strscpy(payload->target_name, mcmd->sess->tgt->tgt_name,
 		sizeof(payload->target_name));
-	strlcpy(payload->session_sysfs_name, mcmd->sess->sess_name,
+	strscpy(payload->session_sysfs_name, mcmd->sess->sess_name,
 		sizeof(payload->session_sysfs_name));
 	if (mcmd->cmd_to_abort != NULL) {
 		payload->cmd_to_abort_tag = mcmd->cmd_to_abort->tag;
@@ -493,7 +493,7 @@ int scst_event_queue_reg_vdev(const char *dev_name)
 	event->payload_len = sizeof(*payload);
 	payload = (struct scst_event_reg_vdev_payload *)event->payload;
 
-	strlcpy(payload->device_name, dev_name,
+	strscpy(payload->device_name, dev_name,
 		sizeof(payload->device_name));
 
 	scst_event_queue(SCST_EVENT_REG_VIRT_DEV,

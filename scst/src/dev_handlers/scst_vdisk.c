@@ -9366,7 +9366,7 @@ static ssize_t vdev_sysfs_bind_alua_state_store(struct kobject *kobj,
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
-	strlcpy(ch, buf, 16);
+	strscpy(ch, buf, 16);
 	res = kstrtoul(ch, 0, &bind_alua_state);
 	if (res < 0)
 		goto out;

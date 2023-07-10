@@ -89,7 +89,7 @@ static int iscsi_target_create(struct iscsi_kern_target_info *info, u32 tid,
 
 	target->tid = info->tid = tid;
 
-	strlcpy(target->name, name, sizeof(target->name));
+	strscpy(target->name, name, sizeof(target->name));
 
 	mutex_init(&target->target_mutex);
 	INIT_LIST_HEAD(&target->session_list);

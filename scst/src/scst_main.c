@@ -625,7 +625,7 @@ char *scst_get_cmd_state_name(char *name, int len, unsigned int state)
 {
 	if (state < ARRAY_SIZE(scst_cmd_state_name) &&
 	    scst_cmd_state_name[state])
-		strlcpy(name, scst_cmd_state_name[state], len);
+		strscpy(name, scst_cmd_state_name[state], len);
 	else
 		snprintf(name, len, "%d", state);
 	return name;
@@ -703,7 +703,7 @@ static const char *const scst_tm_fn_name[] = {
 char *scst_get_tm_fn_name(char *name, int len, unsigned int fn)
 {
 	if (fn < ARRAY_SIZE(scst_tm_fn_name) && scst_tm_fn_name[fn])
-		strlcpy(name, scst_tm_fn_name[fn], len);
+		strscpy(name, scst_tm_fn_name[fn], len);
 	else
 		snprintf(name, len, "%d", fn);
 	return name;
@@ -723,7 +723,7 @@ char *scst_get_mcmd_state_name(char *name, int len, unsigned int state)
 {
 	if (state < ARRAY_SIZE(scst_mcmd_state_name) &&
 	    scst_mcmd_state_name[state])
-		strlcpy(name, scst_mcmd_state_name[state], len);
+		strscpy(name, scst_mcmd_state_name[state], len);
 	else
 		snprintf(name, len, "%d", state);
 	return name;

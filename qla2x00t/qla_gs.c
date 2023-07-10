@@ -1353,7 +1353,7 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 	/* Model name. */
 	eiter = (struct ct_fdmi_hba_attr *) (entries + size);
 	eiter->type = cpu_to_be16(FDMI_HBA_MODEL);
-	strlcpy(eiter->a.model, ha->model_number, sizeof(eiter->a.model));
+	strscpy(eiter->a.model, ha->model_number, sizeof(eiter->a.model));
 	alen = strlen(eiter->a.model);
 	alen += (alen & 3) ? (4 - (alen & 3)) : 4;
 	eiter->len = cpu_to_be16(4 + alen);
@@ -1365,7 +1365,7 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 	/* Model description. */
 	eiter = (struct ct_fdmi_hba_attr *) (entries + size);
 	eiter->type = cpu_to_be16(FDMI_HBA_MODEL_DESCRIPTION);
-	strlcpy(eiter->a.model_desc, ha->model_desc,
+	strscpy(eiter->a.model_desc, ha->model_desc,
 		sizeof(eiter->a.model_desc));
 	alen = strlen(eiter->a.model_desc);
 	alen += (alen & 3) ? (4 - (alen & 3)) : 4;
@@ -1378,7 +1378,7 @@ qla2x00_fdmi_rhba(scsi_qla_host_t *vha)
 	/* Hardware version. */
 	eiter = (struct ct_fdmi_hba_attr *) (entries + size);
 	eiter->type = cpu_to_be16(FDMI_HBA_HARDWARE_VERSION);
-	strlcpy(eiter->a.hw_version, ha->adapter_id,
+	strscpy(eiter->a.hw_version, ha->adapter_id,
 		sizeof(eiter->a.hw_version));
 	alen = strlen(eiter->a.hw_version);
 	alen += (alen & 3) ? (4 - (alen & 3)) : 4;
@@ -1654,7 +1654,7 @@ qla2x00_fdmi_rpa(scsi_qla_host_t *vha)
 		ct_req->req.rpa.attrs.count = cpu_to_be32(FDMI_PORT_ATTR_COUNT);
 		eiter = (struct ct_fdmi_port_attr *) (entries + size);
 		eiter->type = cpu_to_be16(FDMI_PORT_HOST_NAME);
-		strlcpy(eiter->a.host_name, fc_host_system_hostname(vha->host),
+		strscpy(eiter->a.host_name, fc_host_system_hostname(vha->host),
 			sizeof(eiter->a.host_name));
 		alen = strlen(eiter->a.host_name);
 		alen += (alen & 3) ? (4 - (alen & 3)) : 4;

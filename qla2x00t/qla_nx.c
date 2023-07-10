@@ -1599,7 +1599,7 @@ qla82xx_pci_info_str(struct scsi_qla_host *vha, char *str, int str_len)
 	pci_read_config_word(ha->pdev, pcie_reg + PCI_EXP_LNKSTA, &lnk);
 	ha->link_width = (lnk >> 4) & 0x3f;
 
-	strlcpy(str, "PCIe (", str_len);
+	strscpy(str, "PCIe (", str_len);
 	strncat(str, "2.5Gb/s ", str_len - (strlen(str)+1));
 	snprintf(lwstr, sizeof(lwstr), "x%d)", ha->link_width);
 	strncat(str, lwstr, str_len - (strlen(str)+1));
