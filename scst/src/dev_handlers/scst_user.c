@@ -3119,10 +3119,10 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	if (tgtt->get_scsi_transport_version != NULL)
 		ucmd->user_cmd.sess.scsi_transport_version =
 			tgtt->get_scsi_transport_version(tgt);
-	strlcpy(ucmd->user_cmd.sess.initiator_name,
+	strscpy(ucmd->user_cmd.sess.initiator_name,
 		tgt_dev->sess->initiator_name,
 		sizeof(ucmd->user_cmd.sess.initiator_name)-1);
-	strlcpy(ucmd->user_cmd.sess.target_name,
+	strscpy(ucmd->user_cmd.sess.target_name,
 		tgt_dev->sess->tgt->tgt_name,
 		sizeof(ucmd->user_cmd.sess.target_name)-1);
 
@@ -3369,7 +3369,7 @@ static int dev_user_register_dev(struct file *file,
 
 	scst_init_threads(&dev->udev_cmd_threads);
 
-	strlcpy(dev->name, dev_desc->name, sizeof(dev->name)-1);
+	strscpy(dev->name, dev_desc->name, sizeof(dev->name)-1);
 
 	scst_init_mem_lim(&dev->udev_mem_lim);
 

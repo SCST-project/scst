@@ -1322,6 +1322,29 @@ static inline void *memdup_user_nul(const void __user *src, size_t len)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) &&			\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(3, 16, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 60)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(3, 18, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 64)) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||					\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(7, 7))
+/*
+ * See also commit 30035e45753b ("string: provide strscpy()") # v4.3, v3.16.60, v3.18.64.
+ */
+static inline ssize_t strscpy(char *dest, const char *src, size_t count)
+{
+	size_t ret;
+
+	if (count == 0)
+		return -E2BIG;
+
+	ret = strlcpy(dest, src, count);
+
+	return ret >= count ? -E2BIG : ret;
+}
+#endif
+
 /* <linux/sysfs.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0) &&	\

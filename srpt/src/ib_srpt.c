@@ -451,7 +451,7 @@ static void srpt_get_ioc(struct srpt_port *sport, u32 slot,
 
 	memset(iocp, 0, sizeof(*iocp));
 	mutex_lock(&sport->mutex);
-	strlcpy(iocp->id_string, sport->port_id, sizeof(iocp->id_string));
+	strscpy(iocp->id_string, sport->port_id, sizeof(iocp->id_string));
 	mutex_unlock(&sport->mutex);
 	iocp->guid = cpu_to_be64(srpt_service_guid);
 	iocp->vendor_id = cpu_to_be32(sdev->dev_attr.vendor_id);
@@ -2707,7 +2707,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		goto free_recv_ring;
 	}
 
-	strlcpy(ch->sess_name, src_addr, sizeof(ch->sess_name));
+	strscpy(ch->sess_name, src_addr, sizeof(ch->sess_name));
 	pr_debug("registering session %s\n", ch->sess_name);
 
 	BUG_ON(!sport->scst_tgt);
@@ -4258,7 +4258,7 @@ static void srpt_init_sport(struct srpt_port *sport, struct ib_device *ib_dev)
 	INIT_LIST_HEAD(&sport->nexus_list);
 	init_waitqueue_head(&sport->ch_releaseQ);
 	mutex_init(&sport->mutex);
-	strlcpy(sport->port_id, DEFAULT_SRPT_ID_STRING,
+	strscpy(sport->port_id, DEFAULT_SRPT_ID_STRING,
 		sizeof(sport->port_id));
 	for (i = 0; i < ib_dev->num_comp_vectors; i++)
 		cpumask_set_cpu(i, &sport->comp_v_mask);

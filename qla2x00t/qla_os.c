@@ -494,7 +494,7 @@ qla2x00_pci_info_str(struct scsi_qla_host *vha, char *str, int str_len)
 	};
 	uint16_t pci_bus;
 
-	strlcpy(str, "PCI", str_len);
+	strscpy(str, "PCI", str_len);
 	pci_bus = (ha->pci_attr & (BIT_9 | BIT_10)) >> 9;
 	if (pci_bus) {
 		strncat(str, "-X (", str_len - (strlen(str)+1));

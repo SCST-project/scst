@@ -1739,9 +1739,8 @@ static int scst_emit_stpg_event(struct scst_cmd *cmd, struct scst_dev_group *dg,
 
 	res = 1;
 
-	if (strlcpy(payload->device_name, dev->virt_name,
-		    sizeof(payload->device_name)) >=
-	    sizeof(payload->device_name)) {
+	if (strscpy(payload->device_name, dev->virt_name,
+		    sizeof(payload->device_name)) < 0) {
 		PRINT_ERROR("Device name %s too long", dev->virt_name);
 		goto out_too_long;
 	}
@@ -1752,19 +1751,18 @@ static int scst_emit_stpg_event(struct scst_cmd *cmd, struct scst_dev_group *dg,
 		if (osi[j].prev_state == osi[j].new_state)
 			continue;
 
-		if (strlcpy(descr->prev_state,
+		if (strscpy(descr->prev_state,
 			    scst_alua_state_name(osi[j].prev_state),
-			    sizeof(descr->prev_state)) >=
-		    sizeof(descr->prev_state) ||
-		    strlcpy(descr->new_state,
+			    sizeof(descr->prev_state)) < 0 ||
+		    strscpy(descr->new_state,
 			    scst_alua_state_name(osi[j].new_state),
-			    sizeof(descr->new_state)) >=
-		    sizeof(descr->new_state) ||
-		    strlcpy(descr->dg_name, dg->name, sizeof(descr->dg_name))
-		    >= sizeof(descr->dg_name) ||
-		    strlcpy(descr->tg_name, osi[j].tg->name,
-			    sizeof(descr->tg_name)) >=
-		    sizeof(descr->tg_name))
+			    sizeof(descr->new_state)) < 0 ||
+		    strscpy(descr->dg_name,
+			    dg->name,
+			    sizeof(descr->dg_name)) < 0 ||
+		    strscpy(descr->tg_name,
+			    osi[j].tg->name,
+			    sizeof(descr->tg_name)) < 0)
 			goto out_too_long;
 
 		descr->group_id = osi[j].group_id;

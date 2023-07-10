@@ -67,7 +67,7 @@ int debug_print_with_prefix(unsigned long trace_flag, const char *severity,
 
 	spin_lock_irqsave(&trace_buf_lock, flags);
 
-	strlcpy(trace_buf, severity, TRACE_BUF_SIZE);
+	strscpy(trace_buf, severity, TRACE_BUF_SIZE);
 	i = strlen(trace_buf);
 
 	if (trace_flag & TRACE_PID)
