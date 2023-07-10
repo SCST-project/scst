@@ -1314,6 +1314,14 @@ static inline void __user *KERNEL_SOCKPTR(void *p)
 #define sizeof_field(TYPE, MEMBER) sizeof((((TYPE *)0)->MEMBER))
 #endif
 
+#ifndef DECLARE_FLEX_ARRAY
+#define DECLARE_FLEX_ARRAY(TYPE, NAME)	\
+	struct { \
+		struct { } __empty_ ## NAME; \
+		TYPE NAME[]; \
+	}
+#endif
+
 /* <linux/string.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0) &&	\
