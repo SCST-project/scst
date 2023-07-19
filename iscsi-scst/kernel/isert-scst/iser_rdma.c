@@ -938,8 +938,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 		goto free_isert_dev;
 	}
 
-	isert_dev->cq_desc = vmalloc(sizeof(*isert_dev->cq_desc) *
-				     isert_dev->num_cqs);
+	isert_dev->cq_desc = vmalloc_array(isert_dev->num_cqs, sizeof(*isert_dev->cq_desc));
 	if (unlikely(isert_dev->cq_desc == NULL)) {
 		PRINT_ERROR("Failed to allocate %zd bytes for iser cq_desc",
 			    sizeof(*isert_dev->cq_desc) * isert_dev->num_cqs);
