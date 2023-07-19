@@ -70,7 +70,6 @@
 static DEFINE_SPINLOCK(scst_global_stpg_list_lock);
 static LIST_HEAD(scst_global_stpg_list);
 
-static void scst_put_acg_work(struct work_struct *work);
 static void scst_free_acn(struct scst_acn *acn, bool reassign);
 
 struct scsi_io_context {
@@ -4826,49 +4825,47 @@ static void scst_free_acg(struct scst_acg *acg)
 	kobject_put(&tgt->tgt_kobj);
 }
 
-static void scst_release_acg(struct kref *kref)
-{
-	struct scst_acg *acg = container_of(kref, struct scst_acg, acg_kref);
-
-	scst_free_acg(acg);
-}
-
-struct scst_acg_put_work {
+struct scst_acg_release_work {
 	struct work_struct	work;
 	struct scst_acg		*acg;
 };
 
-static void scst_put_acg_work(struct work_struct *work)
+static void scst_release_acg_work(struct work_struct *work)
 {
-	struct scst_acg_put_work *put_work =
-		container_of(work, typeof(*put_work), work);
-	struct scst_acg *acg = put_work->acg;
+	struct scst_acg_release_work *release_work =
+		container_of(work, typeof(*release_work), work);
+	struct scst_acg *acg = release_work->acg;
 
-	kfree(put_work);
-	kref_put(&acg->acg_kref, scst_release_acg);
+	kfree(release_work);
+	scst_free_acg(acg);
 }
 
-void scst_put_acg(struct scst_acg *acg)
+static void scst_release_acg(struct kref *kref)
 {
-	struct scst_acg_put_work *put_work;
+	struct scst_acg *acg = container_of(kref, struct scst_acg, acg_kref);
+	struct scst_acg_release_work *release_work;
 	bool rc;
 
-	put_work = kmalloc(sizeof(*put_work), GFP_KERNEL | __GFP_NOFAIL);
-	if (WARN_ON_ONCE(!put_work)) {
-		kref_put(&acg->acg_kref, scst_release_acg);
+	release_work = kmalloc(sizeof(*release_work), GFP_KERNEL | __GFP_NOFAIL);
+	if (WARN_ON_ONCE(!release_work)) {
+		scst_free_acg(acg);
 		return;
 	}
 
-	INIT_WORK(&put_work->work, scst_put_acg_work);
-	put_work->acg = acg;
+	INIT_WORK(&release_work->work, scst_release_acg_work);
+	release_work->acg = acg;
 
 	/*
 	 * Schedule the kref_put() call instead of invoking it directly to
 	 * avoid deep recursion and a stack overflow.
 	 */
-	rc = queue_work(scst_release_acg_wq, &put_work->work);
+	rc = queue_work(scst_release_acg_wq, &release_work->work);
 	WARN_ON_ONCE(!rc);
-	return;
+}
+
+void scst_put_acg(struct scst_acg *acg)
+{
+	kref_put(&acg->acg_kref, scst_release_acg);
 }
 
 void scst_get_acg(struct scst_acg *acg)
