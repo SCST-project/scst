@@ -1793,7 +1793,7 @@ struct isert_portal *isert_portal_create(struct sockaddr *sa, size_t addr_len)
 		goto err_alloc;
 	}
 
-	portal->reinit_id_wq = alloc_ordered_workqueue("isert_reinit_id_wq", WQ_MEM_RECLAIM);
+	portal->reinit_id_wq = alloc_ordered_workqueue("isert_reinit_id_wq", 0);
 	if (unlikely(!portal->reinit_id_wq)) {
 		PRINT_ERROR("Unable to allocate reinit workqueue");
 		err = -ENOMEM;
