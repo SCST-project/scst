@@ -138,7 +138,7 @@ int isert_global_init(void)
 	spin_lock_init(&isert_glob.portal_lock);
 	init_waitqueue_head(&isert_glob.portal_wq);
 
-	isert_glob.conn_wq = alloc_workqueue("isert_conn_wq", WQ_MEM_RECLAIM, 0);
+	isert_glob.conn_wq = alloc_workqueue("isert_conn_wq", WQ_MEM_RECLAIM, 1);
 	if (!isert_glob.conn_wq) {
 		PRINT_ERROR("Failed to alloc iser conn work queue");
 		return -ENOMEM;
