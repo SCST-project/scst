@@ -921,6 +921,8 @@ static void login_start(struct connection *conn)
 				return;
 			}
 		}
+		if (target->alias)
+			text_key_add(conn, "TargetAlias", target->alias);
 		log_debug(1, "target %s, sessions_count %d", target_name,
 			target->sessions_count);
 	}

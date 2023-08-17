@@ -25,6 +25,7 @@
 #define ISCSI_TARGET_REDIRECTION_ATTR_NAME	"redirect"
 #define ISCSI_TARGET_REDIRECTION_VALUE_TEMP	"temp"
 #define ISCSI_TARGET_REDIRECTION_VALUE_PERM	"perm"
+#define ISCSI_TARGET_ALIAS_ATTR_NAME		"alias"
 
 struct iscsi_key;
 

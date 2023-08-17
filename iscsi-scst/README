@@ -283,6 +283,10 @@ Each target subdirectory contains the following entries:
 
  - tid - TID of this target.
 
+ - alias - TargetAlias of this target.  If not set, it will default to the
+   empty string and no TargetAlias will be reported in LOGIN RESPONSE or iSNS
+   for this target.
+
 The "sessions" subdirectory contains the following attribute:
 
  - thread_pid - the process identifiers (PIDs) of the iscsird and iscsiwr
@@ -559,6 +563,7 @@ both iSCSI-SCST targets will look like:
 |       |   |-- NopInInterval
 |       |   |-- QueuedCommands
 |       |   |-- RspTimeout
+|       |   |-- alias
 |       |   |-- enabled
 |       |   |-- ini_groups
 |       |   |   `-- mgmt

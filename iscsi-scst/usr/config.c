@@ -265,6 +265,32 @@ char *config_sep_string(char **pp)
 	return p;
 }
 
+/*
+ * Strip leading and trailing whitespace.
+ *
+ * Modifies the contents of the parameter string.
+ */
+char *config_strip_string(char *s)
+{
+	size_t size;
+	char *end;
+
+	size = strlen(s);
+
+	if (!size)
+		return s;
+
+	end = s + size - 1;
+	while (end >= s && isspace(*end))
+		end--;
+	*(end + 1) = '\0';
+
+	while (*s && isspace(*s))
+		s++;
+
+	return s;
+}
+
 static char *config_gets(char *buf, int size, const char *data, int *offset)
 {
 	int offs = *offset, i = 0;

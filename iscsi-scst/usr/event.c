@@ -611,6 +611,17 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 			add_key_mark(res_str, sizeof(res_str), 0);
 		} else
 			*res_str = '\0';
+	} else if (strcasecmp(ISCSI_TARGET_ALIAS_ATTR_NAME, pp) == 0) {
+		if (target == NULL) {
+			log_error("Target expected for attr %s", pp);
+			res = -EINVAL;
+			goto out_free;
+		}
+		if (target->alias) {
+			snprintf(res_str, sizeof(res_str), "%s\n", target->alias);
+			add_key_mark(res_str, sizeof(res_str), 0);
+		} else
+			*res_str = '\0';
 	} else if (strcasecmp(ISCSI_ISNS_SERVER_ATTR_NAME, pp) == 0) {
 		if (target != NULL) {
 			log_error("Not NULL target %s for global attribute %s",
@@ -955,6 +966,48 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		res = handle_target_redirect(target, p);
 		if (res != 0)
 			goto out_free;
+	} else if (strcasecmp(ISCSI_TARGET_ALIAS_ATTR_NAME, pp) == 0) {
+		bool alias_changed = false;
+
+		if (target == NULL) {
+			log_error("Target expected for attr %s", pp);
+			res = -EINVAL;
+			goto out_free;
+		}
+		p = config_strip_string(p);
+		if (*p == '\0') {
+			if (target->alias) {
+				free(target->alias);
+				target->alias = NULL;
+				alias_changed = true;
+			}
+		} else {
+			char *newval = strdup(p);
+
+			if (newval == NULL) {
+				log_error("Unable to duplicate alias name %s", p);
+				res = -ENOMEM;
+				goto out_free;
+			}
+			if (target->alias)
+				free(target->alias);
+			target->alias = newval;
+			alias_changed = true;
+		}
+		/* If we previously registered an alias and we need to update it */
+		if (alias_changed && target->isns_registered) {
+			if (target->alias) {
+				isns_target_register(target->name);
+			} else {
+				/*
+				 * We have cleared a previously set alias.
+				 * Work-around to make change visible in
+				 * open-isns server.
+				 */
+				isns_target_deregister(target->name);
+				isns_target_register(target->name);
+			}
+		}
 	} else if (strcasecmp(ISCSI_ISNS_SERVER_ATTR_NAME, pp) == 0) {
 		if (target != NULL) {
 			log_error("Not NULL target %s for global attribute %s",

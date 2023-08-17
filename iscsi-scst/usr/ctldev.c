@@ -78,7 +78,12 @@ int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 	info.tid = (tid != NULL) ? *tid : 0;
 	info.cookie = cookie;
 
-	info.attrs_num = 2;
+	/*
+	 * ISCSI_PER_PORTAL_ACL_ATTR_NAME
+	 * ISCSI_TARGET_REDIRECTION_ATTR_NAME
+	 * ISCSI_TARGET_ALIAS_ATTR_NAME
+	 */
+	info.attrs_num = 3;
 
 	for (j = 0; j < session_key_last; j++) {
 		if (session_keys[j].show_in_sysfs)
@@ -115,6 +120,11 @@ int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 	kern_attrs[i].mode = 0644;
 	strlcpy(kern_attrs[i].name, ISCSI_TARGET_REDIRECTION_ATTR_NAME,
 		sizeof(ISCSI_TARGET_REDIRECTION_ATTR_NAME));
+	i++;
+
+	kern_attrs[i].mode = 0644;
+	strlcpy(kern_attrs[i].name, ISCSI_TARGET_ALIAS_ATTR_NAME,
+		sizeof(ISCSI_TARGET_ALIAS_ATTR_NAME));
 	i++;
 
 	for (j = 0; j < session_key_last; j++) {

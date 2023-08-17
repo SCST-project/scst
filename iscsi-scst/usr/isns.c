@@ -482,7 +482,7 @@ int isns_target_register(char *name)
 	uint32_t port = htonl(server_port);
 	uint32_t node = htonl(ISNS_NODE_TARGET);
 	uint32_t type = htonl(2);
-	struct target *target;
+	struct target *target, *alias_target;
 	int err, initial = list_length_is_one(&targets_list);
 	int max_buf;
 
@@ -499,6 +499,7 @@ int isns_target_register(char *name)
 	tlv = (struct isns_tlv *)hdr->pdu;
 	max_buf = sizeof(buf) - offsetof(struct isns_hdr, pdu);
 
+	alias_target = target_find_by_name(name);
 	if (strlen(isns_entity_target_name) < 1) {
 		target = list_entry(targets_list.q_forw, struct target, tlist);
 		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
@@ -566,6 +567,14 @@ int isns_target_register(char *name)
 		goto out;
 	length += err;
 
+	if (alias_target && alias_target->alias) {
+		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_ALIAS,
+					strlen(alias_target->alias) + 1, alias_target->alias);
+		if (err < 0)
+			goto out;
+		length += err;
+	}
+
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NODE_TYPE,
 				sizeof(node), &node);
 	if (err < 0)
@@ -579,6 +588,8 @@ int isns_target_register(char *name)
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
 		log_error("%s %d: %s", __func__, __LINE__, strerror(errno));
+	else if (alias_target)
+		alias_target->isns_registered = 1;
 
 	if (scn_listen_port)
 		isns_scn_register();
@@ -661,6 +672,9 @@ int isns_target_deregister(char *name)
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
 		log_error("%s %d: %s", __func__, __LINE__, strerror(errno));
+
+	if (target)
+		target->isns_registered = 0;
 
 out:
 	return err;
