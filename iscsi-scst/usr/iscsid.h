@@ -198,6 +198,7 @@ struct target {
 
 	unsigned int tgt_enabled:1;
 	unsigned int per_portal_acl:1;
+	unsigned int isns_registered:1;
 
 	unsigned int target_params[target_key_last];
 	unsigned int session_params[session_key_last];
@@ -353,6 +354,7 @@ extern int nl_open(void);
 
 /* config.c */
 extern char *config_sep_string(char **pp);
+extern char *config_strip_string(char *s);
 extern int config_parse_main(const char *data, u32 cookie);
 extern int config_load(const char *config_name);
 extern int config_target_create(u32 *tid, char *name);
