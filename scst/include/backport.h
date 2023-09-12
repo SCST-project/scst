@@ -1765,9 +1765,7 @@ enum {
  * See also commit 64fd2ba977b1 ("scsi: scsi_transport_fc: Add an additional
  * flag to fc_host_fpin_rcv()") # v6.3
  */
-static inline void
-fc_host_fpin_rcv_backport(struct Scsi_Host *shost, u32 fpin_len, char *fpin_buf,
-			  u8 event_acknowledge)
+static inline void fc_host_fpin_rcv_backport(struct Scsi_Host *shost, u32 fpin_len, char *fpin_buf, u8 event_acknowledge)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0) && \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
@@ -1778,7 +1776,7 @@ fc_host_fpin_rcv_backport(struct Scsi_Host *shost, u32 fpin_len, char *fpin_buf,
 	 */
 	return;
 #else
-	return fc_host_fpin_rcv(shost, fpin_len, fpin_buf);
+	return fc_host_fpin_rcv(shost, fpin_len, fpin_buf, event_acknowledge);
 #endif
 }
 
