@@ -597,8 +597,6 @@ qla24xx_build_scsi_type_6_iocbs(srb_t *sp, struct cmd_type_6 *cmd_pkt,
 	uint16_t tot_dsds)
 {
 	struct dsd64 *cur_dsd = NULL, *next_dsd;
-	scsi_qla_host_t	*vha;
-	struct qla_hw_data *ha;
 	struct scsi_cmnd *cmd;
 	struct	scatterlist *cur_seg;
 	uint8_t avail_dsds;
@@ -619,9 +617,6 @@ qla24xx_build_scsi_type_6_iocbs(srb_t *sp, struct cmd_type_6 *cmd_pkt,
 		cmd_pkt->byte_count = cpu_to_le32(0);
 		return 0;
 	}
-
-	vha = sp->vha;
-	ha = vha->hw;
 
 	/* Set transfer direction */
 	if (cmd->sc_data_direction == DMA_TO_DEVICE) {
