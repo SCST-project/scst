@@ -1680,7 +1680,7 @@ static void q2t_target_stop(struct scst_tgt *scst_tgt)
 	spin_lock_irq(&tgt->sess_work_lock);
 	while (!list_empty(&tgt->sess_works_list)) {
 		spin_unlock_irq(&tgt->sess_work_lock);
-		flush_scheduled_work();
+		flush_work(&tgt->sess_work);
 		spin_lock_irq(&tgt->sess_work_lock);
 	}
 	spin_unlock_irq(&tgt->sess_work_lock);
