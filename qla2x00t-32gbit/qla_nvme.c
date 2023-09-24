@@ -17,6 +17,7 @@
 #include <linux/blk-mq.h>
 
 static struct nvme_fc_port_template qla_nvme_fc_transport;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 static int qla_nvme_ls_reject_iocb(struct scsi_qla_host *vha,
 				   struct qla_qpair *qp,
 				   struct qla_nvme_lsrjt_pt_arg *a,
@@ -37,6 +38,7 @@ struct qla_nvme_unsol_ctx {
 	int comp_status;
 	spinlock_t cmd_lock;
 };
+#endif
 
 int qla_nvme_register_remote(struct scsi_qla_host *vha, struct fc_port *fcport)
 {
@@ -251,6 +253,7 @@ static void qla_nvme_sp_ls_done(srb_t *sp, int res)
 	schedule_work(&priv->ls_work);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 static void qla_nvme_release_lsrsp_cmd_kref(struct kref *kref)
 {
 	struct srb *sp = container_of(kref, struct srb, cmd_kref);
@@ -299,6 +302,7 @@ static void qla_nvme_sp_lsrsp_done(srb_t *sp, int res)
 	INIT_WORK(&uctx->lsrsp_work, qla_nvme_lsrsp_complete);
 	schedule_work(&uctx->lsrsp_work);
 }
+#endif
 
 /* it assumed that QPair lock is held. */
 static void qla_nvme_sp_done(srb_t *sp, int res)
@@ -372,6 +376,7 @@ out:
 	kref_put(&sp->cmd_kref, sp->put_fn);
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 static int qla_nvme_xmt_ls_rsp(struct nvme_fc_local_port *lport,
 			       struct nvme_fc_remote_port *rport,
 			       struct nvmefc_ls_rsp *fd_resp)
@@ -457,6 +462,7 @@ out:
 	kfree(uctx);
 	return rval;
 }
+#endif
 
 static void qla_nvme_ls_abort(struct nvme_fc_local_port *lport,
     struct nvme_fc_remote_port *rport, struct nvmefc_ls_req *fd)
@@ -896,7 +902,9 @@ static struct nvme_fc_port_template qla_nvme_fc_transport = {
 	.ls_abort	= qla_nvme_ls_abort,
 	.fcp_io		= qla_nvme_post_cmd,
 	.fcp_abort	= qla_nvme_fcp_abort,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 	.xmt_ls_rsp	= qla_nvme_xmt_ls_rsp,
+#endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0)
 	.map_queues	= qla_nvme_map_queues,
 #endif
@@ -1024,6 +1032,7 @@ int qla_nvme_register_hba(struct scsi_qla_host *vha)
 	return ret;
 }
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 static void qla_nvme_fc_format_rjt(void *buf, u8 ls_cmd, u8 reason,
 				   u8 explanation, u8 vendor)
 {
@@ -1266,6 +1275,7 @@ out:
 		__qla_consume_iocb(vha, pkt, rsp);
 	}
 }
+#endif
 
 #else
 

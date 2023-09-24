@@ -3981,7 +3981,9 @@ void qla24xx_process_response_queue(struct scsi_qla_host *vha,
 	struct qla_hw_data *ha = vha->hw;
 	struct purex_entry_24xx *purex_entry;
 	struct purex_item *pure_item;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 	struct pt_ls4_rx_unsol *p;
+#endif
 	u16 rsp_in = 0, cur_ring_index;
 	int is_shadow_hba;
 
@@ -4154,6 +4156,7 @@ process_err:
 			qla28xx_sa_update_iocb_entry(vha, rsp->req,
 				(struct sa_update_28xx *)pkt);
 			break;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 		case PT_LS4_UNSOL:
 			p = (void *)pkt;
 			if (qla_chk_cont_iocb_avail(vha, rsp, (response_t *)pkt, rsp_in)) {
@@ -4167,6 +4170,7 @@ process_err:
 			}
 			qla2xxx_process_purls_iocb((void **)&pkt, &rsp);
 			break;
+#endif
 		default:
 			/* Type Not Supported. */
 			ql_dbg(ql_dbg_async, vha, 0x5042,
