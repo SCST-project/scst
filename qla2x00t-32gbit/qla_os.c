@@ -4538,6 +4538,7 @@ qla2x00_mem_alloc(struct qla_hw_data *ha, uint16_t req_len, uint16_t rsp_len,
 	ha->elsrej.c->er_reason = ELS_RJT_LOGIC;
 	ha->elsrej.c->er_explan = ELS_EXPL_UNAB_DATA;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 	ha->lsrjt.size = sizeof(struct fcnvme_ls_rjt);
 	ha->lsrjt.c = dma_alloc_coherent(&ha->pdev->dev, ha->lsrjt.size,
 			&ha->lsrjt.cdma, GFP_KERNEL);
@@ -4546,12 +4547,15 @@ qla2x00_mem_alloc(struct qla_hw_data *ha, uint16_t req_len, uint16_t rsp_len,
 			   "Alloc failed for nvme fc reject cmd.\n");
 		goto fail_lsrjt;
 	}
+#endif
 
 	return 0;
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 fail_lsrjt:
 	dma_free_coherent(&ha->pdev->dev, ha->elsrej.size,
 			  ha->elsrej.c, ha->elsrej.cdma);
+#endif
 fail_elsrej:
 	dma_pool_destroy(ha->purex_dma_pool);
 fail_flt:
@@ -5081,11 +5085,13 @@ qla2x00_mem_free(struct qla_hw_data *ha)
 		ha->elsrej.c = NULL;
 	}
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 	if (ha->lsrjt.c) {
 		dma_free_coherent(&ha->pdev->dev, ha->lsrjt.size, ha->lsrjt.c,
 				  ha->lsrjt.cdma);
 		ha->lsrjt.c = NULL;
 	}
+#endif
 
 	ha->init_cb = NULL;
 	ha->init_cb_dma = 0;

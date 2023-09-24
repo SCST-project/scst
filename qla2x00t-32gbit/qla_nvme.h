@@ -24,7 +24,9 @@
 #define Q2T_NVME_NUM_TAGS 2048
 #define QLA_MAX_FC_SEGMENTS 64
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 struct qla_nvme_unsol_ctx;
+#endif
 struct scsi_qla_host;
 struct qla_hw_data;
 struct req_que;
@@ -41,7 +43,9 @@ struct nvme_private {
 
 struct qla_nvme_rport {
 	struct fc_port *fcport;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 	struct qla_nvme_unsol_ctx *uctx;
+#endif
 };
 
 #define COMMAND_NVME    0x88            /* Command Type FC-NVMe IOCB */

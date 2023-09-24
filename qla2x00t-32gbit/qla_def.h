@@ -389,11 +389,13 @@ struct name_list_extended {
 	u8			sent;
 };
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 struct qla_nvme_fc_rjt {
 	struct fcnvme_ls_rjt *c;
 	dma_addr_t  cdma;
 	u16 size;
 };
+#endif
 
 struct els_reject {
 	struct fc_els_ls_rjt *c;
@@ -552,6 +554,7 @@ struct ct_arg {
 	port_id_t	id;
 };
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 struct qla_nvme_lsrjt_pt_arg {
 	struct fc_port *fcport;
 	u8 opcode;
@@ -565,6 +568,7 @@ struct qla_nvme_lsrjt_pt_arg {
 	u32 tx_byte_count, rx_byte_count;
 	dma_addr_t tx_addr, rx_addr;
 };
+#endif
 
 /*
  * SRB extensions.
@@ -4890,7 +4894,9 @@ struct qla_hw_data {
 	struct els_reject elsrej;
 	u8 edif_post_stop_cnt_down;
 	struct qla_vp_map *vp_map;
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 	struct qla_nvme_fc_rjt lsrjt;
+#endif
 	struct qla_fw_res fwres ____cacheline_aligned;
 };
 

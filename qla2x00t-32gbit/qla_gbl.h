@@ -613,7 +613,7 @@ void qla24xx_queue_purex_item(scsi_qla_host_t *, struct purex_item *,
 			      void (*process_item)(struct scsi_qla_host *,
 			      struct purex_item *));
 void __qla_consume_iocb(struct scsi_qla_host *, void **, struct rsp_que **);
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 10, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
 void qla2xxx_process_purls_iocb(void **pkt, struct rsp_que **rsp);
 #endif
 
