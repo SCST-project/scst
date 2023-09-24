@@ -1760,7 +1760,9 @@ enum {
 #define wwn_to_u64(wwn) get_unaligned_be64(wwn)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 3))
 /*
  * See also commit 64fd2ba977b1 ("scsi: scsi_transport_fc: Add an additional
  * flag to fc_host_fpin_rcv()") # v6.3
