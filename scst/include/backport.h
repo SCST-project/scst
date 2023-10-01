@@ -31,6 +31,7 @@
 #include <linux/blk-mq.h>
 #endif
 #include <linux/bsg-lib.h>	/* struct bsg_job */
+#include <linux/debugfs.h>
 #include <linux/dmapool.h>
 #include <linux/eventpoll.h>
 #include <linux/iocontext.h>
@@ -383,6 +384,39 @@ static inline ssize_t debugfs_attr_write(struct file *file,
 {
 	return -ENOENT;
 }
+#endif
+
+/*
+ * See also commit ff9fb72bc077 ("debugfs: return error values,
+ * not NULL") # v5.0.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 0, 0)
+static inline struct dentry *debugfs_create_dir_backport(const char *name, struct dentry *parent)
+{
+	struct dentry *dentry;
+
+	dentry = debugfs_create_dir(name, parent);
+	if (!dentry)
+		return ERR_PTR(-ENOMEM);
+
+	return dentry;
+}
+
+static inline struct dentry *debugfs_create_file_backport(const char *name, umode_t mode,
+							  struct dentry *parent, void *data,
+							  const struct file_operations *fops)
+{
+	struct dentry *dentry;
+
+	dentry = debugfs_create_file(name, mode, parent, data, fops);
+	if (!dentry)
+		return ERR_PTR(-ENOMEM);
+
+	return dentry;
+}
+
+#define debugfs_create_dir debugfs_create_dir_backport
+#define debugfs_create_file debugfs_create_file_backport
 #endif
 
 /* <linux/device.h> */
