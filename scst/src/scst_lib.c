@@ -4505,15 +4505,18 @@ out_on_del:
 		scst_cm_on_del_lun(acg_dev, false);
 
 out_free:
-	/*
-	 * synchronize_rcu() does not have to be called here because the
-	 * tgt_devs that will be freed have never been on any of the
-	 * sess->sess_tgt_dev_list[] lists.
-	 */
 	list_for_each_entry_safe(tgt_dev, tt, &tmp_tgt_dev_list,
 			 extra_tgt_dev_list_entry) {
+		sess = tgt_dev->sess;
+
+		mutex_lock(&sess->tgt_dev_list_mutex);
+		scst_del_tgt_dev(tgt_dev);
+		mutex_unlock(&sess->tgt_dev_list_mutex);
+
+		synchronize_rcu();
 		scst_free_tgt_dev(tgt_dev);
 	}
+
 	scst_del_free_acg_dev(acg_dev, false);
 	goto out;
 }
