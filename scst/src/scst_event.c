@@ -1118,7 +1118,9 @@ int scst_event_init(void)
 		goto out;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 4))
 	scst_event_sysfs_class = class_create(THIS_MODULE, SCST_EVENT_NAME);
 #else
 	scst_event_sysfs_class = class_create(SCST_EVENT_NAME);

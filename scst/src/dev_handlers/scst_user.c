@@ -4145,7 +4145,9 @@ static int __init init_scst_user(void)
 	if (res < 0)
 		goto out_cache;
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 4))
 	dev_user_sysfs_class = class_create(THIS_MODULE, DEV_USER_NAME);
 #else
 	dev_user_sysfs_class = class_create(DEV_USER_NAME);
