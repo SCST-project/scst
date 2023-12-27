@@ -78,7 +78,11 @@ static atomic_t sgv_releases_on_hiwmk_failed = ATOMIC_INIT(0);
 static atomic_t sgv_other_total_alloc = ATOMIC_INIT(0);
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 7, 0)
 static struct shrinker sgv_shrinker;
+#else
+static struct shrinker *sgv_shrinker;
+#endif
 
 static struct kmem_cache *sgv_pool_cachep;
 
@@ -1711,8 +1715,43 @@ void sgv_pool_del(struct sgv_pool *pool)
 }
 EXPORT_SYMBOL_GPL(sgv_pool_del);
 
+static int __init scst_sgv_shrinker_init(void)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 7, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+	sgv_shrinker.count_objects = sgv_can_be_shrunk;
+	sgv_shrinker.scan_objects = sgv_scan_shrink;
+#else
+	sgv_shrinker.shrink = sgv_shrink;
+#endif
+	sgv_shrinker.seeks = DEFAULT_SEEKS;
+
+	return register_shrinker(&sgv_shrinker, "scst-sgv");
+#else
+	sgv_shrinker = shrinker_alloc(0, "scst-sgv");
+	if (unlikely(!sgv_shrinker))
+		return -ENOMEM;
+
+	sgv_shrinker->count_objects = sgv_can_be_shrunk;
+	sgv_shrinker->scan_objects = sgv_scan_shrink;
+
+	shrinker_register(sgv_shrinker);
+
+	return 0;
+#endif
+}
+
+static void scst_sgv_shrinker_exit(void)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 7, 0)
+	unregister_shrinker(&sgv_shrinker);
+#else
+	shrinker_free(sgv_shrinker);
+#endif
+}
+
 /* Both parameters in pages */
-int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
+int __init scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 {
 	int res = 0, i;
 
@@ -1791,15 +1830,7 @@ int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark)
 			goto out_free_per_cpu_dma;
 	}
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
-	sgv_shrinker.count_objects = sgv_can_be_shrunk;
-	sgv_shrinker.scan_objects = sgv_scan_shrink;
-#else
-	sgv_shrinker.shrink = sgv_shrink;
-#endif
-	sgv_shrinker.seeks = DEFAULT_SEEKS;
-
-	res = register_shrinker(&sgv_shrinker, "scst-sgv");
+	res = scst_sgv_shrinker_init();
 	if (unlikely(res))
 		goto out_free_per_cpu_dma;
 
@@ -1841,7 +1872,7 @@ void scst_sgv_pools_deinit(void)
 
 	TRACE_ENTRY();
 
-	unregister_shrinker(&sgv_shrinker);
+	scst_sgv_shrinker_exit();
 
 	sgv_pool_destroy(sgv_dma_pool_main);
 	for (i = 0; i < nr_cpu_ids; i++)
@@ -1869,7 +1900,6 @@ void scst_sgv_pools_deinit(void)
 	TRACE_EXIT();
 	return;
 }
-
 
 static ssize_t sgv_sysfs_stat_show(struct kobject *kobj,
 	struct kobj_attribute *attr, char *buf)

@@ -138,7 +138,7 @@ static inline struct scatterlist *sgv_pool_sg(struct sgv_pool_obj *obj)
 	return obj->sg_entries;
 }
 
-int scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark);
+int __init scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark);
 void scst_sgv_pools_deinit(void);
 
 
