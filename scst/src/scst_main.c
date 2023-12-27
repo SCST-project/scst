@@ -2157,7 +2157,9 @@ unsigned int scst_get_setup_id(void)
 }
 EXPORT_SYMBOL_GPL(scst_get_setup_id);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 4))
 static int scst_add(struct device *cdev, struct class_interface *intf)
 #else
 static int scst_add(struct device *cdev)
@@ -2178,7 +2180,9 @@ static int scst_add(struct device *cdev)
 	return res;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 4))
 static void scst_remove(struct device *cdev, struct class_interface *intf)
 #else
 static void scst_remove(struct device *cdev)

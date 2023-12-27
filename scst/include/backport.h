@@ -231,7 +231,9 @@ void blk_execute_rq_nowait_backport(struct request *rq, bool at_head)
 
 /* <linux/blkdev.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 4))
 /*
  * See also commit 05bdb9965305 ("block: replace fmode_t with a block-specific
  * type for block open flags") # v6.5.
