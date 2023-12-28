@@ -3852,8 +3852,6 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 	int res;
 	struct scst_session *sess = cmd->sess;
 	struct scst_io_stat_entry *stat;
-	int block_shift, align_len;
-	uint64_t lba;
 
 	TRACE_ENTRY();
 
@@ -3898,20 +3896,15 @@ static int scst_finish_cmd(struct scst_cmd *cmd)
 	stat = &sess->io_stats[cmd->data_direction];
 	stat->cmd_count++;
 	stat->io_byte_count += cmd->bufflen + cmd->out_bufflen;
-	if (likely(cmd->dev != NULL)) {
-		block_shift = cmd->dev->block_shift;
-		/* Let's track only 4K unaligned cmds at the moment */
-		align_len = (block_shift != 0) ? 4095 : 0;
-		lba = cmd->lba;
-	} else {
-		block_shift = 0;
-		align_len = 0;
-		lba = 0;
-	}
 
-	if (unlikely(((lba << block_shift) & align_len) != 0) ||
-	    unlikely(((cmd->bufflen + cmd->out_bufflen) & align_len) != 0))
-		stat->unaligned_cmd_count++;
+	if (likely(cmd->dev && cmd->dev->block_shift > 0)) {
+		/* Let's track only 4K unaligned cmds at the moment */
+		int align_len = 4095;
+
+		if (unlikely(((cmd->lba << cmd->dev->block_shift) & align_len) != 0) ||
+		    unlikely(((cmd->bufflen + cmd->out_bufflen) & align_len) != 0))
+			stat->unaligned_cmd_count++;
+	}
 
 	list_del(&cmd->sess_cmd_list_entry);
 
