@@ -1799,7 +1799,8 @@ enum {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0) &&		\
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||		\
 	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 9 ||		\
-	 RHEL_MAJOR -0 == 9 && RHEL_MINOR -0 < 3)
+	 RHEL_MAJOR -0 == 9 && RHEL_MINOR -0 < 3) &&		\
+	!defined(UEK_KABI_RENAME)
 /*
  * See also commit 64fd2ba977b1 ("scsi: scsi_transport_fc: Add an additional
  * flag to fc_host_fpin_rcv()") # v6.3
