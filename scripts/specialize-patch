@@ -101,7 +101,9 @@ function evaluate(stmnt, pattern, arg, op, result) {
        "RHEL_RELEASE_CODE -0 < 7 * 256 + 5)", stmnt)
 
   gsub("defined\\(IB_CM_LISTEN_TAKES_THIRD_ARG\\)",
-       "(LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0))", stmnt)
+       "(LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0) \\&\\& "	\
+       "!(RHEL_MAJOR -0 == 8 \\&\\& RHEL_MINOR -0 >= 9 || "	\
+       "RHEL_MAJOR -0 == 9 \\&\\& RHEL_MINOR -0 >= 3))", stmnt)
 
   gsub("IB_CLIENT_ADD_ONE_RETURNS_INT",
        "(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0) || " \
