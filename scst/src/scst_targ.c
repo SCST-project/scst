@@ -2227,8 +2227,7 @@ static void scst_replace_port_info(struct scst_cmd *cmd)
 	uint8_t *buf, *end, *p, designator_length;
 	int32_t length, page_length;
 
-	if (cmd->cdb[0] != INQUIRY || (cmd->cdb[1] & 0x01/*EVPD*/) == 0 ||
-	    cmd->cdb[2] != 0x83/*device identification*/)
+	if (!scst_cmd_inquired_dev_ident(cmd))
 		return;
 
 	length = scst_get_buf_full_sense(cmd, &buf);
@@ -2242,7 +2241,6 @@ static void scst_replace_port_info(struct scst_cmd *cmd)
 		const uint8_t code_set = p[0] & 0xf;
 		const uint8_t association = (p[1] & 0x30) >> 4;
 		const uint8_t designator_type = p[1] & 0xf;
-		uint16_t tg_id;
 
 		designator_length = p[3];
 
@@ -2259,9 +2257,7 @@ static void scst_replace_port_info(struct scst_cmd *cmd)
 			break;
 		case 5:
 			/* target port group */
-			tg_id = scst_lookup_tg_id(cmd->dev, cmd->tgt);
-			if (tg_id)
-				put_unaligned_be16(tg_id, p + 6);
+			put_unaligned_be16(cmd->tg_id, p + 6);
 			break;
 		}
 	}
@@ -2621,6 +2617,9 @@ static enum scst_exec_res scst_do_real_exec(struct scst_cmd *cmd)
 	TRACE_DBG("Sending cmd %p to SCSI mid-level dev %d:%d:%d:%lld", cmd,
 		  scsi_dev->host->host_no, scsi_dev->channel, scsi_dev->id,
 		  (u64)scsi_dev->lun);
+
+	if (unlikely(scst_cmd_inquired_dev_ident(cmd)))
+		cmd->tg_id = scst_lookup_tg_id(dev, cmd->tgt);
 
 	rc = scst_scsi_exec_async(cmd, cmd, scst_pass_through_cmd_done);
 	if (unlikely(rc != 0)) {

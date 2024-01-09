@@ -2318,6 +2318,8 @@ struct scst_cmd {
 
 	uint32_t tgt_sn; /* SN set by target driver (for TM purposes) */
 
+	uint16_t tg_id; /* Only used during TYPE_DISK INQUIRY EVPD=0x83 */
+
 	uint8_t *cdb; /* Pointer on CDB. Points on cdb_buf for small CDBs. */
 	unsigned short cdb_len;
 	uint8_t cdb_buf[SCST_MAX_CDB_SIZE];
@@ -4522,6 +4524,13 @@ static inline bool scst_cmd_aborted_on_xmit(struct scst_cmd *cmd)
 static inline bool scst_get_cmd_dev_d_sense(struct scst_cmd *cmd)
 {
 	return (cmd->dev != NULL) ? cmd->dev->d_sense : 0;
+}
+
+/* Returns if command is INQUIRY EVPD=0x83 (device identification) */
+static inline bool scst_cmd_inquired_dev_ident(struct scst_cmd *cmd)
+{
+	return (cmd->cdb[0] == INQUIRY) && ((cmd->cdb[1] & 0x01/*EVPD*/) == 0x01) &&
+		(cmd->cdb[2] == 0x83/*device identification*/);
 }
 
 /*
