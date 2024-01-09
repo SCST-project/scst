@@ -124,7 +124,7 @@ function specialize_patch {
 	  fi
 	  ;;
       UEK)
-	  ao=(-v UEK_KABI_RENAME=1 -v UEK_RELEASE=${releasevermajor})
+	  ao=(-v UEK_KABI_RENAME=1)
 	  ;;
   esac
   local kver3
