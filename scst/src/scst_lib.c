@@ -4223,7 +4223,7 @@ int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev)
 	memset(dev, 0, sizeof(*dev));
 
 	dev->handler = &scst_null_devtype;
-	res = percpu_ref_init(&dev->refcnt, scst_release_device, 0, GFP_KERNEL);
+	res = percpu_ref_init(&dev->refcnt, scst_release_device, 0, gfp_mask);
 	if (res < 0)
 		goto free_dev;
 #ifdef CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
