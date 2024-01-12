@@ -1,3 +1,31 @@
+Summary of changes between versions 3.7 and 3.8
+-----------------------------------------------
+- Fixed depmod warnings during the installation process.
+- Resolved RPM build issues for Fedora and CentOS Stream kernels.
+- Introduced selectable debug mode levels during package building by passing
+  PKG_BUILD_MODE=2[release, debug, perf] as an argument to make.
+- scst_disk: Implemented cluster mode support.
+- scst_vdisk: Introduced the lb_per_pb_exp attribute, allowing control over
+  whether READ CAPACITY 16 returns LOGICAL BLOCKS PER PHYSICAL BLOCK EXPONENT.
+- scst_vdisk: Enabled exclusive opening of block devices to prevent
+  concurrent usage.
+- iscsi-scst: Implemented iSCSI TargetAlias support.
+- iscsi-scstd: Added initiator name validation during login.
+- Added the aen_disabled attribute, enabling forcible UA sending instead of
+  AEN from the target port.
+- Fixed UNIT ATTENTION for remote PR registrants.
+- Enhanced device blocking to ensure signal-induced waiting cancellation does
+  not crash the system.
+- Corrected the display of the number of active commands during suspending.
+- qla2x00t-32gbit driver: Rectified ABORT_TASK_SET processing.
+- qla2x00t-32gbit driver: Updated from Linux kernel version v5.15 to v6.7.
+
+The kernel versions supported by this release are:
+* Kernel.org kernel versions v3.10..v6.7.
+* Debian / Ubuntu kernels based on upstream kernel versions v3.10..v6.7.
+* RHEL / CentOS / AlmaLinux 7.x, 8.0..8.9 and 9.0..9.3 kernels.
+* UEK version 4, 5, 6 and 7 kernels.
+
 Summary of changes between versions 3.6 and 3.7
 -----------------------------------------------
 - The SCST event subsystem works again reliably.
