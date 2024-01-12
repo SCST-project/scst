@@ -38,7 +38,7 @@
 #define NEW_LIBFC_API
 #endif
 
-#define FT_VERSION	"3.8.0-pre"
+#define FT_VERSION	"3.8.0"
 #define FT_MODULE	"fcst"
 
 #define FT_MAX_HW_PENDING_TIME	20	/* max I/O time in seconds */
