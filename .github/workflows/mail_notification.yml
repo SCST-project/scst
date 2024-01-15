@@ -4,7 +4,7 @@ name: Mailing list
 on:
   push:
     branches:
-      - 3.7.x
+      - 3.8.x
       - master
 
 jobs:
