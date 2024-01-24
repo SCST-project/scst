@@ -2831,10 +2831,17 @@ sub applyConfigEnableTargets {
 				my $t_attributes;
 				($t_attributes, $errorString) = $SCST->targetAttributes($driver, $target);
 
-				if (defined($$t_attributes{'enabled'}) &&
-				    ($$t_attributes{'enabled'}->{'value'} != $$attributes{'enabled'})) {
-					setTargetAttribute($driver, $target, 'enabled', $$attributes{'enabled'});
-					$changes++;
+				if (defined($$attributes{'enabled'})) {
+					if (defined($$t_attributes{'enabled'}) &&
+					    ($$t_attributes{'enabled'}->{'value'} != $$attributes{'enabled'})) {
+						setTargetAttribute($driver, $target, 'enabled', $$attributes{'enabled'});
+						$changes++;
+					}
+				} else {
+					if ($driver ne 'copy_manager') {
+						setTargetAttribute($driver, $target, 'enabled', 0);
+						$changes++;
+					}
 				}
 			}
 		}
