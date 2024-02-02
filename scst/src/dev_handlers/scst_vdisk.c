@@ -528,6 +528,12 @@ out:
 	return;
 }
 
+static bool vdisk_supports_active(const struct scst_vdisk_dev *virt_dev)
+{
+	/* Both blockio and fileio support active attribute */
+	return !virt_dev->nullio;
+}
+
 static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 {
 	struct block_device *bdev = NULL;
@@ -550,7 +556,7 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 		res = PTR_ERR_OR_ZERO(fd);
 	}
 	if (res) {
-		if (res == -EMEDIUMTYPE && virt_dev->blockio)
+		if (res == -EMEDIUMTYPE && vdisk_supports_active(virt_dev))
 			TRACE(TRACE_MINOR,
 			      "Unable to open %s with EMEDIUMTYPE, DRBD passive?",
 			      virt_dev->filename);
@@ -666,7 +672,7 @@ static int vdisk_get_file_size(const struct scst_vdisk_dev *virt_dev,
 	}
 
 	res = scst_file_or_bdev_size(virt_dev->filename);
-	if (res == -EMEDIUMTYPE && virt_dev->blockio) {
+	if (res == -EMEDIUMTYPE && vdisk_supports_active(virt_dev)) {
 		TRACE(TRACE_MINOR,
 		      "Unable to open %s with EMEDIUMTYPE, DRBD passive?",
 		      virt_dev->filename);
@@ -1070,7 +1076,7 @@ static int vdisk_reexamine(struct scst_vdisk_dev *virt_dev)
 
 		res = vdisk_get_file_size(virt_dev, &file_size);
 		if (res < 0) {
-			if ((res == -EMEDIUMTYPE) && virt_dev->blockio) {
+			if ((res == -EMEDIUMTYPE) && vdisk_supports_active(virt_dev)) {
 				TRACE_DBG("Reexam pending (dev %s)", virt_dev->name);
 				virt_dev->reexam_pending = 1;
 				res = 0;
@@ -1442,7 +1448,7 @@ static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	if (!virt_dev->nullio && !virt_dev->cdrom_empty) {
 		res = vdisk_open_fd(virt_dev, tgt_dev->dev->dev_rd_only);
 		if (res != 0) {
-			if ((res == -EMEDIUMTYPE) && virt_dev->blockio) {
+			if ((res == -EMEDIUMTYPE) && vdisk_supports_active(virt_dev)) {
 				/* It's OK, it will be reopen on exec */
 				res = 0;
 			} else {
@@ -9577,6 +9583,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 #endif
 
 static const struct attribute *vdisk_fileio_attrs[] = {
+	&vdev_active_attr.attr,
 	&vdev_size_ro_attr.attr,
 	&vdev_size_mb_ro_attr.attr,
 	&vdisk_blocksize_attr.attr,
@@ -9610,6 +9617,7 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 };
 
 static const char *const fileio_add_dev_params[] = {
+	"active",
 	"async",
 	"blocksize",
 	"cluster_mode",
