@@ -2971,6 +2971,7 @@ struct scst_cm_tgt_descr {
 	int param_offs;
 };
 
+/* Parse the copy source or copy destination (CSCD) descriptors. */
 static int scst_cm_parse_id_tgt_descr(struct scst_cmd *cmd, const uint8_t *seg,
 	int offs, struct scst_cm_tgt_descr *tgt_descr)
 {
@@ -3015,10 +3016,13 @@ static int scst_cm_parse_id_tgt_descr(struct scst_cmd *cmd, const uint8_t *seg,
 	list_for_each_entry(des, &scst_cm_desig_list, cm_desig_list_entry) {
 		TRACE_DBG("des %p (tgt_dev %p, lun %lld)", des, des->desig_tgt_dev,
 			(unsigned long long)des->desig_tgt_dev->lun);
+		/* Check the code set field. */
 		if (seg[4] != des->desig[0])
 			continue;
+		/* Check the association and designator type fields. */
 		if (seg[5] != des->desig[1])
 			continue;
+		/* Check the designator length. */
 		if (seg[7] > 20) {
 			PRINT_WARNING("Initiator sent non-compliant identification descriptor (len %u > 20)",
 				      seg[7]);
@@ -3410,6 +3414,7 @@ static void scst_cm_free_ec_priv(struct scst_cmd *ec_cmd, bool unblock_dev)
 	return;
 }
 
+/* Parse the EXTENDED COPY parameter list. */
 int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd)
 {
 	int res = 0, rc;
@@ -3425,6 +3430,18 @@ int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd)
 	TRACE_ENTRY();
 
 	EXTRACHECKS_BUG_ON(ec_cmd->cmd_data_descriptors != NULL);
+
+	if (ec_cmd->cdb[1] != 0) {
+		/*
+		 * SCST only supports the EXTENDED COPY(LID1) command.
+		 * Reject EXTENDED COPY(LID4) commands since these have a
+		 * completely different parameter format. Definitions for both
+		 * commands are available in SPC-4 while the LID1 variant has
+		 * been removed from SPC-5 and SPC-6.
+		 */
+		scst_set_invalid_field_in_cdb(ec_cmd, 1, 0);
+		goto out_abn;
+	}
 
 	length = scst_get_buf_full_sense(ec_cmd, &buf);
 	if (unlikely(length <= 0)) {
