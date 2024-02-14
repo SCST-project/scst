@@ -8940,8 +8940,6 @@ out_unmap:
  * @nents_to_cmp: maximum number of entries to compare
  * @cmp_len:	maximum amount of data to compare. If 0, then compare all.
  * @miscompare_offs: offset of the first miscompare. Can be NULL.
- * @d_km_type:	kmap_atomic type for SG 1
- * @s_km_type:	kmap_atomic type for SG 2
  *
  * Description:
  *    Data from the first SG vector will be compired with the second SG
