@@ -190,7 +190,7 @@ struct scst_vdisk_dev {
 
 	struct file *fd;
 	struct file *dif_fd;
-	struct block_device *bdev;
+	struct bdev_handle *bdev_handle;
 	struct bio_set *vdisk_bioset;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
 	struct bio_set vdisk_bioset_struct;
@@ -494,7 +494,7 @@ out:
 
 static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 {
-	struct block_device *bdev;
+	struct bdev_handle *bdev_handle;
 
 	TRACE_ENTRY();
 
@@ -502,26 +502,26 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 	    virt_dev->wt_flag || !virt_dev->dev_active)
 		goto out;
 
-	bdev = blkdev_get_by_path(virt_dev->filename, BLK_OPEN_READ, NULL, NULL);
-	if (IS_ERR(bdev)) {
-		if (PTR_ERR(bdev) == -EMEDIUMTYPE)
+	bdev_handle = bdev_open_by_path(virt_dev->filename, BLK_OPEN_READ, NULL, NULL);
+	if (IS_ERR(bdev_handle)) {
+		if (PTR_ERR(bdev_handle) == -EMEDIUMTYPE)
 			TRACE(TRACE_MINOR,
 			      "Unable to open %s with EMEDIUMTYPE, DRBD passive?",
 			      virt_dev->filename);
 		else
 			PRINT_ERROR("blkdev_get_by_path(%s) failed: %ld",
-				virt_dev->filename, PTR_ERR(bdev));
+				virt_dev->filename, PTR_ERR(bdev_handle));
 		goto out;
 	}
 
-	if (vdisk_blockio_flush(bdev, GFP_KERNEL, false, NULL, false) != 0) {
+	if (vdisk_blockio_flush(bdev_handle->bdev, GFP_KERNEL, false, NULL, false) != 0) {
 		PRINT_WARNING(
 "Device %s doesn't support barriers, switching to NV_CACHE mode. Read README for more details.",
 			      virt_dev->filename);
 		virt_dev->nv_cache = 1;
 	}
 
-	blkdev_put(bdev, NULL);
+	bdev_release(bdev_handle);
 
 out:
 	TRACE_EXIT();
@@ -536,7 +536,7 @@ static bool vdisk_supports_active(const struct scst_vdisk_dev *virt_dev)
 
 static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 {
-	struct block_device *bdev = NULL;
+	struct bdev_handle *bdev_handle = NULL;
 	struct file *fd = NULL;
 	bool fd_open = false;
 	int res;
@@ -549,8 +549,8 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 		goto check;
 
 	if (virt_dev->blockio) {
-		bdev = blkdev_get_by_path(virt_dev->filename, BLK_OPEN_READ, NULL, NULL);
-		res = PTR_ERR_OR_ZERO(bdev);
+		bdev_handle = bdev_open_by_path(virt_dev->filename, BLK_OPEN_READ, NULL, NULL);
+		res = PTR_ERR_OR_ZERO(bdev_handle);
 	} else {
 		fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
 		res = PTR_ERR_OR_ZERO(fd);
@@ -573,10 +573,10 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 	(!defined(RHEL_RELEASE_CODE) ||				\
 	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
 		virt_dev->dev_thin_provisioned =
-			blk_queue_discard(bdev_get_queue(bdev));
+			blk_queue_discard(bdev_get_queue(bdev_handle->bdev));
 #else
 		virt_dev->dev_thin_provisioned =
-			!!bdev_max_discard_sectors(bdev);
+			!!bdev_max_discard_sectors(bdev_handle->bdev);
 #endif
 	} else {
 		virt_dev->dev_thin_provisioned = (fd->f_op->fallocate != NULL);
@@ -613,7 +613,7 @@ check:
 			struct request_queue *q;
 
 			sBUG_ON(!fd_open);
-			q = bdev_get_queue(bdev);
+			q = bdev_get_queue(bdev_handle->bdev);
 			virt_dev->unmap_opt_gran = q->limits.discard_granularity >> block_shift;
 			virt_dev->unmap_align = q->limits.discard_alignment >> block_shift;
 			if (virt_dev->unmap_opt_gran == virt_dev->unmap_align)
@@ -645,7 +645,7 @@ check:
 
 	if (fd_open) {
 		if (virt_dev->blockio)
-			blkdev_put(bdev, NULL);
+			bdev_release(bdev_handle);
 		else
 			filp_close(fd, NULL);
 	}
@@ -964,19 +964,19 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 {
 	int res;
 	struct scst_device *dev = virt_dev->dev;
-	struct block_device *bdev;
+	struct bdev_handle *bdev_handle;
 	struct blk_integrity *bi;
 	const char *bi_profile_name;
 
 	TRACE_ENTRY();
 
-	bdev = blkdev_get_by_path(virt_dev->filename, BLK_OPEN_READ, NULL, NULL);
-	if (IS_ERR(bdev)) {
-		res = PTR_ERR(bdev);
+	bdev_handle = bdev_open_by_path(virt_dev->filename, BLK_OPEN_READ, NULL, NULL);
+	if (IS_ERR(bdev_handle)) {
+		res = PTR_ERR(bdev_handle);
 		goto out;
 	}
 
-	bi = bdev_get_integrity(bdev);
+	bi = bdev_get_integrity(bdev_handle->bdev);
 	if (bi == NULL) {
 		TRACE_DBG("Block integrity not supported");
 		goto out_no_bi;
@@ -1048,7 +1048,7 @@ out_no_bi:
 	res = 0;
 
 out_close:
-	blkdev_put(bdev, NULL);
+	bdev_release(bdev_handle);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1297,7 +1297,7 @@ static void vdisk_detach(struct scst_device *dev)
 
 static bool vdisk_is_open(const struct scst_vdisk_dev *virt_dev)
 {
-	return virt_dev->fd || virt_dev->bdev;
+	return virt_dev->fd || virt_dev->bdev_handle;
 }
 
 static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
@@ -1317,15 +1317,16 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 		if (!read_only)
 			bdev_mode |= BLK_OPEN_WRITE;
 
-		virt_dev->bdev = blkdev_get_by_path(virt_dev->filename, bdev_mode, virt_dev, NULL);
-		res = PTR_ERR_OR_ZERO(virt_dev->bdev);
+		virt_dev->bdev_handle = bdev_open_by_path(virt_dev->filename, bdev_mode, virt_dev,
+							  NULL);
+		res = PTR_ERR_OR_ZERO(virt_dev->bdev_handle);
 	} else {
 		virt_dev->fd = vdev_open_fd(virt_dev, virt_dev->filename,
 					    read_only);
 		res = PTR_ERR_OR_ZERO(virt_dev->fd);
 	}
 	if (res) {
-		virt_dev->bdev = NULL;
+		virt_dev->bdev_handle = NULL;
 		virt_dev->fd = NULL;
 		goto out;
 	}
@@ -1334,8 +1335,8 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 	 * For block devices, get the optimal I/O size from the block device
 	 * characteristics.
 	 */
-	if (virt_dev->bdev && !virt_dev->opt_trans_len_set)
-		virt_dev->opt_trans_len = bdev_io_opt(virt_dev->bdev) ? :
+	if (virt_dev->bdev_handle && !virt_dev->opt_trans_len_set)
+		virt_dev->opt_trans_len = bdev_io_opt(virt_dev->bdev_handle->bdev) ? :
 					  virt_dev->opt_trans_len;
 
 	if (virt_dev->dif_filename != NULL) {
@@ -1349,15 +1350,15 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 	}
 
 	TRACE_DBG("virt_dev %s: fd %p %p open (dif_fd %p)", virt_dev->name,
-		  virt_dev->fd, virt_dev->bdev, virt_dev->dif_fd);
+		  virt_dev->fd, virt_dev->bdev_handle, virt_dev->dif_fd);
 
 out:
 	return res;
 
 out_close_fd:
 	if (virt_dev->blockio) {
-		blkdev_put(virt_dev->bdev, virt_dev);
-		virt_dev->bdev = NULL;
+		bdev_release(virt_dev->bdev_handle);
+		virt_dev->bdev_handle = NULL;
 	} else {
 		filp_close(virt_dev->fd, NULL);
 		virt_dev->fd = NULL;
@@ -1368,11 +1369,11 @@ out_close_fd:
 static void vdisk_close_fd(struct scst_vdisk_dev *virt_dev)
 {
 	TRACE_DBG("virt_dev %s: closing fd %p %p (dif_fd %p)", virt_dev->name,
-		  virt_dev->fd, virt_dev->bdev, virt_dev->dif_fd);
+		  virt_dev->fd, virt_dev->bdev_handle, virt_dev->dif_fd);
 
-	if (virt_dev->bdev) {
-		blkdev_put(virt_dev->bdev, virt_dev);
-		virt_dev->bdev = NULL;
+	if (virt_dev->bdev_handle) {
+		bdev_release(virt_dev->bdev_handle);
+		virt_dev->bdev_handle = NULL;
 	} else if (virt_dev->fd) {
 		filp_close(virt_dev->fd, NULL);
 		virt_dev->fd = NULL;
@@ -1458,7 +1459,7 @@ static int vdisk_attach_tgt(struct scst_tgt_dev *tgt_dev)
 		}
 	} else {
 		virt_dev->fd = NULL;
-		virt_dev->bdev = NULL;
+		virt_dev->bdev_handle = NULL;
 		virt_dev->dif_fd = NULL;
 	}
 
@@ -1544,7 +1545,7 @@ static int vdisk_fsync_blockio(loff_t loff,
 			goto out;
 	}
 
-	res = vdisk_blockio_flush(virt_dev->bdev, gfp_flags, true,
+	res = vdisk_blockio_flush(virt_dev->bdev_handle->bdev, gfp_flags, true,
 		cmd, async);
 
 out:
@@ -1856,7 +1857,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 		  (unsigned long long)start_lba, blocks);
 
 	if (virt_dev->blockio) {
-		struct block_device *bdev = virt_dev->bdev;
+		struct block_device *bdev = virt_dev->bdev_handle->bdev;
 		sector_t start_sector = start_lba << (cmd->dev->block_shift - 9);
 		sector_t nr_sects = blocks << (cmd->dev->block_shift - 9);
 		gfp_t gfp = cmd->cmd_gfp_mask;
@@ -2870,7 +2871,7 @@ static ssize_t blockio_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	struct bio_priv_sync s = {
 		COMPLETION_INITIALIZER_ONSTACK(s.c), 0,
 	};
-	struct block_device *bdev = virt_dev->bdev;
+	struct block_device *bdev = virt_dev->bdev_handle->bdev;
 	const bool is_vmalloc = is_vmalloc_addr(buf);
 	struct bio *bio;
 	void *p;
@@ -3406,7 +3407,7 @@ static enum scst_exec_res blockio_exec(struct scst_cmd *cmd)
 	if (unlikely(!vdisk_parse_offset(&p, cmd)))
 		goto err;
 
-	if (unlikely(virt_dev->bdev == NULL)) {
+	if (unlikely(virt_dev->bdev_handle == NULL)) {
 		if (!vdisk_no_fd_allowed_commands(cmd)) {
 			/*
 			 * We should not get here, unless the user space
@@ -4960,7 +4961,7 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 	TRACE_ENTRY();
 
 	virt_dev = cmd->dev->dh_priv;
-	bdev = virt_dev->bdev;
+	bdev = virt_dev->bdev_handle->bdev;
 	q = bdev ? bdev_get_queue(bdev) : NULL;
 	blocksize = cmd->dev->block_size;
 	nblocks = virt_dev->nblocks - 1;
@@ -5927,7 +5928,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	int block_shift = dev->block_shift;
-	struct block_device *bdev = virt_dev->bdev;
+	struct block_device *bdev = virt_dev->bdev_handle->bdev;
 	struct bio_set *bs = virt_dev->vdisk_bioset;
 	struct request_queue *q = bdev_get_queue(bdev);
 	int length, max_nr_vecs = 0, offset;
@@ -6598,7 +6599,7 @@ static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 	sBUG_ON(virt_dev->nullio);
 	sBUG_ON(!virt_dev->filename);
 
-	if ((!virt_dev->fd && !virt_dev->bdev) || !virt_dev->dev_active) {
+	if ((!virt_dev->fd && !virt_dev->bdev_handle) || !virt_dev->dev_active) {
 		res = -EMEDIUMTYPE;
 		goto out;
 	}
@@ -7646,7 +7647,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev, char *buffer)
 		err = 0;
 		virt_dev->filename = NULL;
 		virt_dev->fd = NULL;
-		virt_dev->bdev = NULL;
+		virt_dev->bdev_handle = NULL;
 	}
 
 	virt_dev->file_size = err;
@@ -7706,7 +7707,7 @@ static ssize_t vdisk_sysfs_sync_store(struct kobject *kobj,
 	if (virt_dev->nullio)
 		res = 0;
 	else if (virt_dev->blockio)
-		res = vdisk_blockio_flush(virt_dev->bdev, GFP_KERNEL, false,
+		res = vdisk_blockio_flush(virt_dev->bdev_handle->bdev, GFP_KERNEL, false,
 					  NULL, false);
 	else
 		res = __vdisk_fsync_fileio(0, i_size_read(file_inode(virt_dev->fd)),
