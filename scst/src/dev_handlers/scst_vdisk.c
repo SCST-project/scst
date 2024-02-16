@@ -1335,7 +1335,7 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 	 * For block devices, get the optimal I/O size from the block device
 	 * characteristics.
 	 */
-	if (virt_dev->bdev_handle && !virt_dev->opt_trans_len_set)
+	if (virt_dev->blockio && !virt_dev->opt_trans_len_set)
 		virt_dev->opt_trans_len = bdev_io_opt(virt_dev->bdev_handle->bdev) ? :
 					  virt_dev->opt_trans_len;
 
