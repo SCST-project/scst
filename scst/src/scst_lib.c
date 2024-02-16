@@ -5980,14 +5980,14 @@ EXPORT_SYMBOL(scst_file_size);
  */
 loff_t scst_bdev_size(const char *path)
 {
-	struct block_device *bdev;
+	struct bdev_handle *bdev_handle;
 	loff_t res;
 
-	bdev = blkdev_get_by_path(path, BLK_OPEN_READ, NULL, NULL);
-	if (IS_ERR(bdev))
-		return PTR_ERR(bdev);
-	res = i_size_read(bdev->bd_inode);
-	blkdev_put(bdev, NULL);
+	bdev_handle = bdev_open_by_path(path, BLK_OPEN_READ, NULL, NULL);
+	if (IS_ERR(bdev_handle))
+		return PTR_ERR(bdev_handle);
+	res = i_size_read(bdev_handle->bdev->bd_inode);
+	bdev_release(bdev_handle);
 	return res;
 }
 EXPORT_SYMBOL(scst_bdev_size);

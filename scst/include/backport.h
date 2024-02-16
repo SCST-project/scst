@@ -282,6 +282,51 @@ static inline void blkdev_put_backport(struct block_device *bdev, void *holder)
 
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 7, 0)
+/*
+ * See also commit e719b4d15674 ("block: Provide bdev_open_* functions") # v6.7.
+ */
+struct bdev_handle {
+	struct block_device *bdev;
+	void *holder;
+	blk_mode_t mode;
+};
+
+static inline struct bdev_handle *
+bdev_open_by_path_backport(const char *path, blk_mode_t mode, void *holder,
+			   const struct blk_holder_ops *hops)
+{
+	struct bdev_handle *handle = kmalloc(sizeof(*handle), GFP_KERNEL);
+	struct block_device *bdev;
+
+	if (!handle)
+		return ERR_PTR(-ENOMEM);
+
+	bdev = blkdev_get_by_path(path, mode, holder, hops);
+	if (IS_ERR(bdev)) {
+		kfree(handle);
+		return ERR_CAST(bdev);
+	}
+
+	handle->bdev = bdev;
+	handle->holder = holder;
+	handle->mode = mode;
+
+	return handle;
+}
+
+#define bdev_open_by_path bdev_open_by_path_backport
+
+static inline void bdev_release_backport(struct bdev_handle *handle)
+{
+	blkdev_put(handle->bdev, handle->holder);
+	kfree(handle);
+}
+
+#define bdev_release bdev_release_backport
+
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
 	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
