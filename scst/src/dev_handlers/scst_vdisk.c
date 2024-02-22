@@ -509,7 +509,7 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 			      "Unable to open %s with EMEDIUMTYPE, DRBD passive?",
 			      virt_dev->filename);
 		else
-			PRINT_ERROR("blkdev_get_by_path(%s) failed: %ld",
+			PRINT_ERROR("bdev_open_by_path(%s) failed: %ld",
 				virt_dev->filename, PTR_ERR(bdev_handle));
 		goto out;
 	}
@@ -4961,7 +4961,7 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 	TRACE_ENTRY();
 
 	virt_dev = cmd->dev->dh_priv;
-	bdev = virt_dev->bdev_handle->bdev;
+	bdev = virt_dev->bdev_handle ? virt_dev->bdev_handle->bdev : NULL;
 	q = bdev ? bdev_get_queue(bdev) : NULL;
 	blocksize = cmd->dev->block_size;
 	nblocks = virt_dev->nblocks - 1;
