@@ -57,6 +57,9 @@
 #include "scst_mem.h"
 #include "scst_pres.h"
 
+/* 8 byte ASCII Vendor */
+#define SCST_NOLUN_VENDOR		"SCST    "
+
 /*
  * List and IRQ lock to globally serialize all STPG commands. Needed to
  * prevent deadlock, if (1) a device group contains multiple devices and
@@ -1919,7 +1922,145 @@ go:
 	buf[2] = 6; /* Device complies to SPC-4 */
 	buf[4] = len - 4;
 
+	/* Set T10 Vendor identification */
+	if (len >= 16)
+		memcpy(&(buf[8]), SCST_NOLUN_VENDOR, 8);
+
 	TRACE_BUFFER("INQUIRY for not supported LUN set", buf, len);
+
+	cmd->data_direction = SCST_DATA_READ;
+	scst_set_resp_data_len(cmd, len);
+
+	cmd->completed = 1;
+	cmd->resid_possible = 1;
+
+out:
+	TRACE_EXIT_RES(res);
+
+	return res;
+}
+
+static int scst_set_lun_not_supported_report_luns(struct scst_cmd *cmd)
+{
+	uint8_t *buf;
+	int dev_cnt = 0;
+	struct scatterlist *sg;
+	struct scst_tgt_dev *tgt_dev = NULL;
+	int i, len;
+	int res = 0;
+	int offs, overflow = 0;
+
+	TRACE_ENTRY();
+
+	if (cmd->status != 0) {
+		TRACE_MGMT_DBG("cmd %p already has status %x set",
+				cmd, cmd->status);
+		res = -EEXIST;
+		goto out;
+	}
+
+	if ((cmd->cdb[2] != 0) && (cmd->cdb[2] != 2)) {
+		TRACE(TRACE_MINOR,
+			"Unsupported SELECT REPORT value %#x in REPORT LUNS command",
+			cmd->cdb[2]);
+		scst_set_invalid_field_in_cdb(cmd, 2, 0);
+		goto out;
+	}
+
+	if (cmd->sg == NULL) {
+		if (cmd->bufflen == 0) {
+			int bufflen = get_unaligned_be32(&cmd->cdb[6]);
+
+			cmd->bufflen = bufflen ? max_t(int, 8, bufflen) : 8;
+		}
+
+		/*
+		 * If target driver preparing data buffer using tgt_alloc_data_buf()
+		 * callback, it is responsible to copy the sense to its buffer
+		 * in xmit_response().
+		 */
+		if (cmd->tgt_i_data_buf_alloced && (cmd->tgt_i_sg != NULL)) {
+			cmd->sg = cmd->tgt_i_sg;
+			cmd->sg_cnt = cmd->tgt_i_sg_cnt;
+			TRACE_MEM("Tgt used for REPORTS LUNS (not supported LUN): cmd %p",
+				cmd);
+			goto go;
+		}
+
+		cmd->sg = scst_alloc_sg(cmd->bufflen, GFP_ATOMIC, &cmd->sg_cnt);
+		if (cmd->sg == NULL) {
+			PRINT_ERROR("Unable to alloc sg for REPORTS LUNS (not supported LUN)");
+			res = 1;
+			goto out;
+		}
+
+		TRACE_MEM(
+			"sg %p (cnt %d, len %d) allocated for REPORTS LUNS (not supported LUN): cmd %p",
+			cmd->sg, cmd->sg_cnt, cmd->bufflen, cmd);
+	}
+
+go:
+	sg = cmd->sg;
+	len = sg->length;
+
+	TRACE_MEM("sg %p (len %d) for REPORTS LUNS for cmd %p", sg, len, cmd);
+
+	buf = sg_virt(sg);
+	len = max_t(int, 8, len);
+
+	memset(buf, 0, len);
+	offs = 8;
+
+	rcu_read_lock();
+	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
+		struct list_head *head = &cmd->sess->sess_tgt_dev_list[i];
+
+		list_for_each_entry_rcu(tgt_dev, head,
+					sess_tgt_dev_list_entry) {
+			struct scst_tgt_dev_UA *ua;
+
+			if (!overflow) {
+				if ((len - offs) < 8) {
+					overflow = 1;
+					goto inc_dev_cnt;
+				}
+				*(__force __be64 *)&buf[offs]
+					= scst_pack_lun(tgt_dev->lun,
+						cmd->sess->acg->addr_method);
+				offs += 8;
+			}
+inc_dev_cnt:
+			dev_cnt++;
+
+			/* Clear sense_reported_luns_data_changed UA. */
+			spin_lock_bh(&tgt_dev->tgt_dev_lock);
+			list_for_each_entry(ua, &tgt_dev->UA_list,
+						UA_list_entry) {
+				if (scst_analyze_sense(ua->UA_sense_buffer,
+					ua->UA_valid_sense_len,
+					SCST_SENSE_ALL_VALID,
+					SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed))) {
+					TRACE_DBG(
+					  "Freeing not needed REPORTED LUNS DATA CHANGED UA %p",
+					  ua);
+					scst_tgt_dev_del_free_UA(tgt_dev, ua);
+					break;
+				}
+			}
+			spin_unlock_bh(&tgt_dev->tgt_dev_lock);
+		}
+	}
+	rcu_read_unlock();
+
+	/* Set the response header */
+	dev_cnt *= 8;
+	put_unaligned_be32(dev_cnt, buf);
+
+	dev_cnt += 8;
+	if (dev_cnt < len)
+		len = dev_cnt;
+
+	TRACE_BUFFER("REPORTS LUNS for not supported LUN set", buf, len);
 
 	cmd->data_direction = SCST_DATA_READ;
 	scst_set_resp_data_len(cmd, len);
@@ -1955,6 +2096,8 @@ int scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq)
 				key, asc, ascq);
 		else if (cmd->cdb[0] == INQUIRY)
 			res = scst_set_lun_not_supported_inquiry(cmd);
+		else if (cmd->cdb[0] == REPORT_LUNS)
+			res = scst_set_lun_not_supported_report_luns(cmd);
 		else
 			goto do_sense;
 
