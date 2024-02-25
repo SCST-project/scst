@@ -4952,8 +4952,6 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 	int32_t length;
 	uint8_t *address;
 	struct scst_vdisk_dev *virt_dev;
-	struct block_device *bdev;
-	struct request_queue *q;
 	uint32_t blocksize;
 	uint64_t nblocks;
 	uint8_t buffer[32];
@@ -4961,8 +4959,6 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 	TRACE_ENTRY();
 
 	virt_dev = cmd->dev->dh_priv;
-	bdev = virt_dev->bdev_handle ? virt_dev->bdev_handle->bdev : NULL;
-	q = bdev ? bdev_get_queue(bdev) : NULL;
 	blocksize = cmd->dev->block_size;
 	nblocks = virt_dev->nblocks - 1;
 
@@ -5000,6 +4996,8 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 
 	/* LOGICAL BLOCKS PER PHYSICAL BLOCK EXPONENT */
 	if (virt_dev->lb_per_pb_exp) {
+		struct request_queue *q = virt_dev->bdev_handle ?
+			bdev_get_queue(virt_dev->bdev_handle->bdev) : NULL;
 		uint32_t physical_blocksize = q ? queue_physical_block_size(q) : 4096;
 		buffer[13] = max(ilog2(physical_blocksize) - ilog2(blocksize), 0);
 	}
