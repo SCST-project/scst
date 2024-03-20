@@ -644,6 +644,16 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 			goto out_free;
 		}
 		snprintf(res_str, sizeof(res_str), "%s", isns_entity_target_name);
+	} else if (strcasecmp(ISCSI_LINK_LOCAL_ATTR_NAME, pp) == 0)	{
+		if (target != NULL) {
+			log_error("Not NULL target %s for global attribute %s",
+				target->name, pp);
+			res = -EINVAL;
+			goto out_free;
+		}
+		snprintf(res_str, sizeof(res_str), "%d\n", send_targets_link_local);
+		if (send_targets_link_local != DEFAULT_SEND_TARGETS_LINK_LOCAL)
+			add_key_mark(res_str, sizeof(res_str), 0);
 	} else	{
 		log_error("Unknown attribute %s", pp);
 		res = -EINVAL;
@@ -1067,6 +1077,23 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 	} else if (strcasecmp(ISCSI_ISNS_ENTITY_ATTR_NAME, pp) == 0) {
 		pp = config_sep_string(&p);
 		strlcpy(isns_entity_target_name, pp, sizeof(isns_entity_target_name));
+	} else if (strcasecmp(ISCSI_LINK_LOCAL_ATTR_NAME, pp) == 0) {
+		if (target != NULL) {
+			log_error("Not NULL target %s for global attribute %s",
+				target->name, pp);
+			res = -EINVAL;
+			goto out_free;
+		}
+		pp = config_sep_string(&p);
+		if (strcmp(pp, "1") == 0)
+			send_targets_link_local = 1;
+		else if (strcmp(pp, "0") == 0)
+			send_targets_link_local = 0;
+		else {
+			log_error("Unknown value %s", pp);
+			res = -EINVAL;
+			goto out_free;
+		}
 	} else	{
 		log_error("Unknown attribute %s", pp);
 		res = -EINVAL;

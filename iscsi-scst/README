@@ -200,6 +200,9 @@ is /sys/kernel/scst_tgt/targets/iscsi. It has the following entries:
    iSCSI-SCST attributes before it starts accepting new connections. 0
    by default.
 
+ - link_local - if set, makes the response to an IPv6 SendTargets include
+   any link local addresses. Default is set.
+
  - open_state - read-only attribute, which allows to see if the user
    space part of iSCSI-SCST connected to the kernel part.
 
@@ -663,6 +666,7 @@ both iSCSI-SCST targets will look like:
 |       |   |       |-- reinstating
 |       |   |       `-- sid
 |       |   `-- tid
+|       |-- link_local
 |       |-- mgmt
 |       |-- open_state
 |       |-- trace_level
