@@ -307,6 +307,8 @@ extern void session_free(struct session *session);
 extern struct connection *conn_find(struct session *session, u16 cid);
 
 /* target.c */
+#define DEFAULT_SEND_TARGETS_LINK_LOCAL 1
+extern int send_targets_link_local;
 extern struct __qelem targets_list;
 extern int target_create(const char *name, struct target **out_target);
 extern void target_free(struct target *target);

@@ -33,6 +33,8 @@
 
 struct __qelem targets_list = LIST_HEAD_INIT(targets_list);
 
+int send_targets_link_local = DEFAULT_SEND_TARGETS_LINK_LOCAL;
+
 const char *iscsi_make_full_initiator_name(int per_portal_acl,
 	const char *initiator_name, const char *target_portal,
 	char *buf, int size)
@@ -203,6 +205,10 @@ static int is_addr_unspecified(char *addr)
 static void target_print_addr(struct connection *conn, char *addr, int family)
 {
 	char taddr[NI_MAXHOST + NI_MAXSERV + 5];
+
+	/* Maybe skip IPv6 link local addresses */
+	if (family == AF_INET6 && !send_targets_link_local && (strncasecmp(addr, "fe80:", 5) == 0))
+		return;
 
 	snprintf(taddr, sizeof(taddr),
 		(family == AF_INET) ? "%s:%d,1" : "[%s]:%d,1",

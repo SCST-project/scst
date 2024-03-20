@@ -961,6 +961,9 @@ int main(int argc, char **argv)
 			S_IRUSR|S_IRGRP|S_IROTH|S_IWUSR, 0);
 	if (err != 0)
 		exit(err);
+	err = kernel_attr_add(NULL, ISCSI_LINK_LOCAL_ATTR_NAME, 0644, 0);
+	if (err != 0)
+		exit(err);
 
 	if ((ipc_fd = iscsi_adm_request_listen()) < 0) {
 		perror("Opening AF_LOCAL socket failed");
