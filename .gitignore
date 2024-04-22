@@ -12,6 +12,7 @@
 *.orig
 *.sdtinfo.c
 *.sdtstub.S
+*.out
 *~
 .cache.mk
 .cache/

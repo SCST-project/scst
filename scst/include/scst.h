@@ -5675,6 +5675,16 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 int scst_get_file_mode(const char *path);
 bool scst_parent_dir_exists(const char *path);
 
+struct scst_bdev_descriptor {
+	struct block_device *bdev;
+	void *priv;
+};
+
+int scst_open_bdev_by_path(const char *path, blk_mode_t mode, void *holder,
+			   const struct blk_holder_ops *hops,
+			   struct scst_bdev_descriptor *bdev_desc);
+void scst_release_bdev(struct scst_bdev_descriptor *bdev_desc);
+
 struct scst_data_descriptor {
 	uint64_t sdd_lba;
 	uint64_t sdd_blocks;
