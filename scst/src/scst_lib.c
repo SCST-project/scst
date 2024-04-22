@@ -5937,6 +5937,53 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 	return;
 }
 
+int scst_open_bdev_by_path(const char *path, blk_mode_t mode, void *holder,
+			   const struct blk_holder_ops *hops,
+			   struct scst_bdev_descriptor *bdev_desc)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0)
+	struct bdev_handle *bdev_handle;
+
+	bdev_handle = bdev_open_by_path(path, mode, holder, hops);
+	if (IS_ERR(bdev_handle))
+		return PTR_ERR(bdev_handle);
+
+	bdev_desc->bdev = bdev_handle->bdev;
+	bdev_desc->priv = bdev_handle;
+#else
+	struct file *bdev_file;
+
+	bdev_file = bdev_file_open_by_path(path, mode, holder, hops);
+	if (IS_ERR(bdev_file))
+		return PTR_ERR(bdev_file);
+
+	bdev_desc->bdev = file_bdev(bdev_file);
+	bdev_desc->priv = bdev_file;
+#endif
+
+	return 0;
+}
+EXPORT_SYMBOL(scst_open_bdev_by_path);
+
+void scst_release_bdev(struct scst_bdev_descriptor *bdev_desc)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0)
+	struct bdev_handle *bdev_handle = bdev_desc->priv;
+
+	if (bdev_handle)
+		bdev_release(bdev_handle);
+#else
+	struct file *bdev_file = bdev_desc->priv;
+
+	if (bdev_file)
+		fput(bdev_file);
+#endif
+
+	bdev_desc->bdev = NULL;
+	bdev_desc->priv = NULL;
+}
+EXPORT_SYMBOL(scst_release_bdev);
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 static int scst_cmp_fs_ds(void)
 {
@@ -5980,14 +6027,17 @@ EXPORT_SYMBOL(scst_file_size);
  */
 loff_t scst_bdev_size(const char *path)
 {
-	struct bdev_handle *bdev_handle;
+	struct scst_bdev_descriptor bdev_desc;
 	loff_t res;
+	int rc;
 
-	bdev_handle = bdev_open_by_path(path, BLK_OPEN_READ, NULL, NULL);
-	if (IS_ERR(bdev_handle))
-		return PTR_ERR(bdev_handle);
-	res = i_size_read(bdev_handle->bdev->bd_inode);
-	bdev_release(bdev_handle);
+	rc = scst_open_bdev_by_path(path, BLK_OPEN_READ, NULL, NULL, &bdev_desc);
+	if (rc)
+		return rc;
+
+	res = i_size_read(bdev_desc.bdev->bd_inode);
+
+	scst_release_bdev(&bdev_desc);
 	return res;
 }
 EXPORT_SYMBOL(scst_bdev_size);
