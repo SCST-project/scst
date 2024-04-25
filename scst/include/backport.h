@@ -1354,6 +1354,27 @@ static const struct file_operations __name ## _fops = {			\
 }
 #endif
 
+/*
+ * See also commit 9cba82bba500 ("seq_file: add helper macro to define
+ * attribute for rw file") # v6.7.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 7, 0)
+#define DEFINE_SHOW_STORE_ATTRIBUTE(__name)				\
+static int __name ## _open(struct inode *inode, struct file *file)	\
+{									\
+	return single_open(file, __name ## _show, inode->i_private);	\
+}									\
+									\
+static const struct file_operations __name ## _fops = {			\
+	.owner		= THIS_MODULE,					\
+	.open		= __name ## _open,				\
+	.read		= seq_read,					\
+	.write		= __name ## _write,				\
+	.llseek		= seq_lseek,					\
+	.release	= single_release,				\
+}
+#endif
+
 /* <linux/slab.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) &&	\
