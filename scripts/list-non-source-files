@@ -18,11 +18,7 @@ prefix_matches() {
 for d in "${@-.}"; do
 (
   cd "$d" &&
-  if [ -e .svn ]; then
-    svn status --no-ignore |
-      grep '^[I?] ' |
-      cut -c8-
-  elif git branch >&/dev/null; then
+  if git branch >&/dev/null; then
     exec 3< <(find . -type f | cut -c3- | grep -v '^\.git/' | sort)
     git ls-tree -r HEAD | cut -f2 -d'	' | sort |
       while read -r f; do
