@@ -48,16 +48,7 @@ done
 for d in "${@-.}"; do
   (
     if cd "$d"; then
-      if [ -e .svn ]; then
-        if ! type -p svn >&/dev/null; then
-          echo "$0: svn: not found."
-          exit 0
-        fi
-        "$(dirname "$0")"/list-non-source-files |
-          while read -r f; do
-	    if ! word_in_list "$f" "${exclude[@]}"; then rm -rf -- "$f"; fi;
-	  done
-      elif [ -e .git ] || [ -e ../.git ]; then
+      if [ -e .git ] || [ -e ../.git ]; then
         if ! type -p git >&/dev/null; then
           echo "$0: git: not found."
           exit 0

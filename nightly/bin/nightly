@@ -12,11 +12,7 @@
 
 # Returns the revision number of the source files with date $1.
 get_revision() {
-  if svn info . >/dev/null 2>&1; then
-    svn info -r "{$1}" "${scst_repo}" | sed -n 's/^Revision: //p'
-  else
-    git log --before="$1" | head -n 1 | cut -f2 -d ' '
-  fi
+  git log --before="$1" | head -n 1 | cut -f2 -d ' '
 }
 
 runcmd () {
@@ -54,11 +50,7 @@ usage () {
 #----------------------------------------------------------------------------
 
 scst_rootdir="$(dirname "$(dirname "$(cd "$(dirname "$0")" && echo "$PWD")")")"
-if svn info . >/dev/null 2>&1; then
-  scst_repo="$(svn info "$scst_rootdir" | sed -n -e 's|\+ssh://[^@]*@|://|' -e 's/^URL: //p')"
-else
-  scst_repo="$scst_rootdir"
-fi
+scst_repo="$scst_rootdir"
 sendmail_opts=""
 run_if_unchanged="false"
 
@@ -151,13 +143,10 @@ for logfile in old new ; do
    # Check out and run the tests.
    runcmd ${logfile}							\
           "Checking out SCST source tree"				\
-          "if svn info . >/dev/null 2>&1; then				\
-             svn co -q -r {${date}} ${scst_repo} ${ABT_TMPDIR}/scst;	\
-           else								\
-             ( rmdir ${ABT_TMPDIR}/scst &&				\
-               git clone -q ${scst_repo} ${ABT_TMPDIR}/scst &&		\
-               cd ${ABT_TMPDIR}/scst && git reset --hard ${rev} );	\
-           fi" &&
+          "( rmdir ${ABT_TMPDIR}/scst &&				\
+             git clone -q ${scst_repo} ${ABT_TMPDIR}/scst &&		\
+             cd ${ABT_TMPDIR}/scst && git reset --hard ${rev} );	\
+          " &&
    runcmd ${logfile}							\
           "Running regression tests"					\
           "cd ${ABT_TMPDIR}/scst &&					\
