@@ -279,7 +279,10 @@ int params_val_to_str(const struct iscsi_key *keys, int idx, unsigned int val,
 int params_str_to_val(const struct iscsi_key *keys, int idx, const char *str,
 		      unsigned int *val)
 {
-	if (keys[idx].ops->str_to_val)
+	if (!strcmp(":default:", str)) {
+		*val = keys[idx].local_def;
+		return 0;
+	} else if (keys[idx].ops->str_to_val)
 		return keys[idx].ops->str_to_val(str, val);
 	else
 		return 0;
