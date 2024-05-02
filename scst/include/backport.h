@@ -933,13 +933,15 @@ static inline void kvfree(void *addr)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 18, 0) &&			\
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 15, 0) >> 8 ||	\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 54)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 10, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 210)) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||					\
 	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 0)) &&		\
 	(!defined(UEK_KABI_RENAME) ||					\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 /*
  * See also commit a8749a35c3990 ("mm: vmalloc: introduce array allocation functions") # v5.18,
- * v5.15.54.
+ * v5.15.54, v5.10.210.
  */
 static inline void *vmalloc_array(size_t n, size_t size)
 {
