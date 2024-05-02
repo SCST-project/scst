@@ -1675,7 +1675,8 @@ static inline void scsi_build_sense(struct scsi_cmnd *scmd, int desc,
 	  LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 203)) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||					\
 	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 7) ||		\
-	 RHEL_RELEASE_CODE -0 == RHEL_RELEASE_VERSION(9, 0))
+	 RHEL_RELEASE_CODE -0 == RHEL_RELEASE_VERSION(9, 0)) &&		\
+	!defined(UEK_KABI_RENAME)
 /*
  * See also 51f3a4788928 ("scsi: core: Introduce the scsi_cmd_to_rq()
  * function") # v5.15.
@@ -1733,7 +1734,9 @@ static inline unsigned int scsi_prot_interval(struct scsi_cmnd *scmd)
 	!(LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(5, 15, 0) >> 8 &&	\
 	  LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 136)) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||					\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1)) &&		\
+	(!defined(UEK_KABI_RENAME) ||					\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 /*
  * See also commit 11b68e36b167 ("scsi: core: Call scsi_done directly") # v5.16.
  * See also commit d2746cdfd5e5 ("scsi: core: Rename scsi_mq_done() into scsi_done() and export
