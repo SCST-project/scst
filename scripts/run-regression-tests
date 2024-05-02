@@ -387,7 +387,7 @@ function compile_kernel {
   if (cd "${outputdir}/linux-$k" \
       && make -s modules_prepare \
       && make -s scripts \
-      && for subdir; do LC_ALL=C make -j$(nproc) -k M="${subdir}"; done
+      && for subdir; do LC_ALL=C KBUILD_MODPOST_WARN=1 make -j$(nproc) -k M="${subdir}"; done
      ) &> "${outputfile}"
   then
     local errors warnings
@@ -417,9 +417,9 @@ function run_sparse {
   if (cd "${outputdir}/linux-$k" \
       && make -s modules_prepare \
       && make -s scripts \
-      && if grep -q '^CONFIG_PPC=y$' .config; then LC_ALL=C make -k M=arch/powerpc/lib; fi \
+      && if grep -q '^CONFIG_PPC=y$' .config; then LC_ALL=C KBUILD_MODPOST_WARN=1 make -k M=arch/powerpc/lib; fi \
       && for subdir; do
-	  LC_ALL=C make -k C=2 CF="-D__CHECK_ENDIAN__ -DCONFIG_SPARSE_RCU_POINTER" M="${subdir}"
+	  LC_ALL=C KBUILD_MODPOST_WARN=1 make -k C=2 CF="-D__CHECK_ENDIAN__ -DCONFIG_SPARSE_RCU_POINTER" M="${subdir}"
       done
     ) &> "${outputfile}"
   then
@@ -458,9 +458,9 @@ function run_smatch {
       make -s oldconfig </dev/null &&
       make -s modules_prepare &&
       make -s scripts &&
-      if grep -q '^CONFIG_PPC=y$' .config; then LC_ALL=C make -k M=arch/powerpc/lib; fi &&
+      if grep -q '^CONFIG_PPC=y$' .config; then LC_ALL=C KBUILD_MODPOST_WARN=1 make -k M=arch/powerpc/lib; fi &&
       for subdir; do
-	LC_ALL=C make -k CHECK="smatch -p=kernel" C=2 CF=-D__CHECK_ENDIAN__ M="${subdir}"
+	LC_ALL=C KBUILD_MODPOST_WARN=1 make -k CHECK="smatch -p=kernel" C=2 CF=-D__CHECK_ENDIAN__ M="${subdir}"
       done
     ) &> "${outputfile}"
   then
@@ -490,7 +490,7 @@ function run_checkstack {
     cd "${outputdir}/linux-$1" \
     && make -s modules_prepare \
     && make -s scripts \
-    && LC_ALL=C make -k checkstack
+    && LC_ALL=C KBUILD_MODPOST_WARN=1 make -k checkstack
   ) &> "${outputfile}"
   echo "See also ${outputfile}."
   return 0
@@ -507,7 +507,7 @@ function run_namespacecheck {
     cd "${outputdir}/linux-$1" \
     && make -s modules_prepare \
     && make -s scripts \
-    && LC_ALL=C make -k namespacecheck
+    && LC_ALL=C KBUILD_MODPOST_WARN=1 make -k namespacecheck
   ) &> "${outputfile}"
   echo "See also ${outputfile}."
   return 0
@@ -524,7 +524,7 @@ function run_headers_check {
     cd "${outputdir}/linux-$1" \
     && make -s modules_prepare \
     && make -s scripts \
-    && LC_ALL=C make -k headers_check
+    && LC_ALL=C KBUILD_MODPOST_WARN=1 make -k headers_check
   ) &> "${outputfile}"
   local errors
   errors=$(grep -c '^[^ ]' "${outputfile}")
@@ -544,7 +544,7 @@ function run_make_htmldocs {
     cd "${outputdir}/linux-$1" \
     && make -s modules_prepare \
     && make -s scripts \
-    && LC_ALL=C make -k htmldocs
+    && LC_ALL=C KBUILD_MODPOST_WARN=1 make -k htmldocs
   ) &> "${outputfile}"
   echo "See also ${outputfile}."
   return 0
