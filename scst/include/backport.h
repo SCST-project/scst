@@ -282,9 +282,10 @@ static inline void blkdev_put_backport(struct block_device *bdev, void *holder)
 
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 7, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 23)
 /*
  * See also commit e719b4d15674 ("block: Provide bdev_open_* functions") # v6.7.
+ * Also backported to 6.6.23 in commit dd0bd4291250
  */
 struct bdev_handle {
 	struct block_device *bdev;
