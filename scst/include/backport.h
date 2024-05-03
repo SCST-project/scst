@@ -1678,7 +1678,9 @@ static inline void scsi_build_sense(struct scsi_cmnd *scmd, int desc,
 	(!defined(RHEL_RELEASE_CODE) ||					\
 	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 7) ||		\
 	 RHEL_RELEASE_CODE -0 == RHEL_RELEASE_VERSION(9, 0)) &&		\
-	!defined(UEK_KABI_RENAME)
+	(!defined(UEK_KABI_RENAME) ||					\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 17) ||		\
+	 !defined(SB_I_SKIP_SYNC))
 /*
  * See also 51f3a4788928 ("scsi: core: Introduce the scsi_cmd_to_rq()
  * function") # v5.15.
