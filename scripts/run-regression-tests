@@ -466,9 +466,9 @@ function run_smatch {
   then
     local errors warnings
     errors=$(grep -c ' error:' "${outputfile}")
-    warnings=$(grep -c ' warning:' "${outputfile}")
+    warnings=$(grep -c ' warn:' "${outputfile}")
     echo "${errors} errors / ${warnings} warnings."
-    grep -E ' info:| warning:| error:' < "${outputfile}" |
+    grep -E ' info:| warn:| error:' < "${outputfile}" |
       sed 's/^\([^:]*\):[0-9:]* /\1: /;s/\((see line \)[0-9]*\()\)/\1...\2/' |
       sort |
       uniq -c
