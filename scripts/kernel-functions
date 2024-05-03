@@ -60,7 +60,9 @@ function download_kernel {
       [12].*) series="${series:0:3}";;
       *)      series="${series/.*/}.x";;
   esac
+
   mkdir -p "${kernel_downloads}" || return $?
+
   test -w "${kernel_downloads}" || return $?
   (
     cd "${kernel_downloads}" || return $?
@@ -826,6 +828,9 @@ function download_and_extract_distro_rpm {
     local kver=$1
     local distro=$2
     local release=$3
+
+    mkdir -p "${kernel_downloads}" || return $?
+
     (
 	cd "${kernel_downloads}" || exit $?
 	read -a urls -r <<<"$(get_srpm_urls "$distro" "$release" x86_64 |

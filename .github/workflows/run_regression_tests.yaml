@@ -1,0 +1,66 @@
+name: Regression tests upon push
+
+on:
+  push:
+    branches:
+      - master
+
+jobs:
+  regression_tests:
+    name: ${{matrix.version}}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        version: [
+                  '6.8.7',
+                  '6.7.12',
+                  '6.6.28',
+                  '6.1.87',
+                  '5.15.156',
+                  '5.10.215',
+                  '5.4.274',
+                  '4.19.312',
+                  '4.14.336',
+                  '4.9.337',
+                  '3.18.140',
+                  '3.10.108',
+                  '5.14.0-284.30.1.el9_2^AlmaLinux^9.2',
+                  '4.18.0-513.24.1.el8_9^AlmaLinux^8.9',
+                  '4.18.0-477.13.1.el8_8^AlmaLinux^8.8',
+                  '3.10.0-1160.108.1.el7^CentOS^7.9.2009',
+                  '5.15.0-205.149.5.1.el9uek^UEK^9',
+                  '5.4.17-2136.330.7.1.el8uek^UEK^8',
+                  '5.4.17-2102.206.1.el7uek^UEK^7',
+                  '4.1.12-124.48.6.el6uek^UEK^6'
+                 ]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+
+      - name: Install libelf-dev
+        run: |
+          sudo apt-get install -y libelf-dev
+
+      - name: Install sparse
+        run: |
+          sudo apt-get install sparse
+
+      - name: Install smatch
+        run: |
+          git clone https://github.com/error27/smatch.git
+          cd smatch
+          make -j
+          sudo BINDIR=/bin SHAREDIR=/home/runner/share make install
+
+      - name: Run regression tests
+        run: |
+          err=0
+
+          ./scripts/run-regression-tests -l -q -k -d /tmp/scst-${{matrix.version}} ${{matrix.version}}-nc-ns-nm | tee output.txt
+
+          cat output.txt | grep -A1 "Compiling the patched kernel" | grep -e "FAILED" -e "[^0] errors" > /dev/null 2>&1 && err=1
+
+          rm -f output.txt
+
+          exit $err
