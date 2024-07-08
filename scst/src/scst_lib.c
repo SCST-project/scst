@@ -6178,7 +6178,7 @@ loff_t scst_bdev_size(const char *path)
 	if (rc)
 		return rc;
 
-	res = i_size_read(bdev_desc.bdev->bd_inode);
+	res = bdev_nr_bytes(bdev_desc.bdev);
 
 	scst_release_bdev(&bdev_desc);
 	return res;

@@ -329,6 +329,18 @@ static inline void bdev_release_backport(struct bdev_handle *handle)
 
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
+/*
+ * See also commit 6436bd90f76e ("block: add a bdev_nr_bytes helper") # v5.16.
+ */
+static inline loff_t bdev_nr_bytes_backport(struct block_device *bdev)
+{
+	return i_size_read(bdev->bd_inode);
+}
+
+#define bdev_nr_bytes bdev_nr_bytes_backport
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
 	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
