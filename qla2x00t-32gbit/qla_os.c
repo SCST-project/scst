@@ -2002,8 +2002,10 @@ qla2xxx_slave_configure(struct scsi_device *sdev)
 	scsi_qla_host_t *vha = shost_priv(sdev->host);
 	struct req_que *req = vha->req;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
 	if (IS_T10_PI_CAPABLE(vha->hw))
 		blk_queue_update_dma_alignment(sdev->request_queue, 0x7);
+#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 	scsi_adjust_queue_depth(sdev, 0, req->max_q_depth);
@@ -3636,6 +3638,11 @@ skip_dpc:
 		host->sg_tablesize = (ha->mr.extended_io_enabled) ?
 		    QLA_SG_ALL : 128;
 	}
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+	if (IS_T10_PI_CAPABLE(base_vha->hw))
+		host->dma_alignment = 0x7;
+#endif
 
 	ret = scsi_add_host(host, &pdev->dev);
 	if (ret)
