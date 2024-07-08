@@ -1048,12 +1048,14 @@ static int scst_local_slave_alloc(struct scsi_device *sdev)
 #endif
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
 	/*
 	 * vdisk_blockio requires that data buffers have block_size alignment
 	 * and supports block sizes from 512 up to 4096. See also
 	 * https://github.com/sahlberg/libiscsi/issues/302.
 	 */
-	blk_queue_dma_alignment(q, 4095);
+	blk_queue_dma_alignment(q, (4096 - 1));
+#endif
 
 	return 0;
 }
@@ -1379,6 +1381,9 @@ static const struct scsi_host_template scst_lcl_ini_driver_template = {
 	.name				= SCST_LOCAL_NAME,
 	.queuecommand			= scst_local_queuecommand,
 	.change_queue_depth		= scst_local_change_queue_depth,
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 10, 0)
+	.dma_alignment			= (4096 - 1),
+#endif
 	.slave_alloc			= scst_local_slave_alloc,
 	.slave_configure		= scst_local_slave_configure,
 	.eh_abort_handler		= scst_local_abort,
