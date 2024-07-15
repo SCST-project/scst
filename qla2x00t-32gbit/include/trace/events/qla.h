@@ -2,6 +2,9 @@
 #if !defined(_TRACE_QLA_H_) || defined(TRACE_HEADER_MULTI_READ)
 #define _TRACE_QLA_H_
 
+#ifndef INSIDE_KERNEL_TREE
+#include <linux/version.h>
+#endif
 #include <linux/tracepoint.h>
 
 #undef TRACE_SYSTEM
@@ -22,11 +25,23 @@ DECLARE_EVENT_CLASS(qla_log_event,
 
 	TP_STRUCT__entry(
 		__string(buf, buf)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
 		__dynamic_array(char, msg, QLA_MSG_MAX)
+#else
+		__vstring(msg, vaf->fmt, vaf->va)
+#endif
 	),
 	TP_fast_assign(
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
 		__assign_str(buf, buf);
+#else
+		__assign_str(buf);
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0)
 		vsnprintf(__get_str(msg), QLA_MSG_MAX, vaf->fmt, *vaf->va);
+#else
+		__assign_vstr(msg, vaf->fmt, vaf->va);
+#endif
 	),
 
 	TP_printk("%s %s", __get_str(buf), __get_str(msg))
