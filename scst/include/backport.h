@@ -1510,6 +1510,25 @@ static inline ssize_t strscpy(char *dest, const char *src, size_t count)
 }
 #endif
 
+#ifndef memtostr
+/*
+ * See also commit 0efc5990bca5 ("string.h: Introduce memtostr() and memtostr_pad()") # v6.10.
+ */
+#define memtostr(dest, src)	do {					\
+	const size_t _dest_len = __builtin_object_size(dest, 1);	\
+	const size_t _src_len = __builtin_object_size(src, 1);		\
+	const size_t _src_chars = strnlen(src, _src_len);		\
+	const size_t _copy_len = min(_dest_len - 1, _src_chars);	\
+									\
+	BUILD_BUG_ON(!__builtin_constant_p(_dest_len) ||		\
+		     !__builtin_constant_p(_src_len) ||			\
+		     _dest_len == 0 || _dest_len == (size_t)-1 ||	\
+		     _src_len == 0 || _src_len == (size_t)-1);		\
+	memcpy(dest, src, _copy_len);					\
+	dest[_copy_len] = '\0';						\
+} while (0)
+#endif
+
 /* <linux/sysfs.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0) &&	\
