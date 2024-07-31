@@ -654,6 +654,18 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 		snprintf(res_str, sizeof(res_str), "%d\n", send_targets_link_local);
 		if (send_targets_link_local != DEFAULT_SEND_TARGETS_LINK_LOCAL)
 			add_key_mark(res_str, sizeof(res_str), 0);
+	} else if (strcasecmp(ISCSI_INTERNAL_PORTAL_ATTR_NAME, pp) == 0)	{
+		if (target != NULL) {
+			log_error("Not NULL target %s for global attribute %s",
+				target->name, pp);
+			res = -EINVAL;
+			goto out_free;
+		}
+		if (internal_portal) {
+			snprintf(res_str, sizeof(res_str), "%s\n", internal_portal);
+			add_key_mark(res_str, sizeof(res_str), 0);
+		} else
+			snprintf(res_str, sizeof(res_str), "\n");
 	} else	{
 		log_error("Unknown attribute %s", pp);
 		res = -EINVAL;
@@ -667,6 +679,14 @@ out_free:
 
 out:
 	return res;
+}
+
+static bool is_addr(char *addr)
+{
+	struct in_addr ia;
+	struct in6_addr ia6;
+
+	return (inet_pton(AF_INET, addr, &ia) == 1) || inet_pton(AF_INET6, addr, &ia6);
 }
 
 static int handle_target_redirect(struct target *target, char *p)
@@ -1093,6 +1113,51 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			log_error("Unknown value %s", pp);
 			res = -EINVAL;
 			goto out_free;
+		}
+	} else if (strcasecmp(ISCSI_INTERNAL_PORTAL_ATTR_NAME, pp) == 0) {
+		if (target != NULL) {
+			log_error("Not NULL target %s for global attribute %s",
+				target->name, pp);
+			res = -EINVAL;
+			goto out_free;
+		}
+		p = config_strip_string(p);
+		if (!p || *p == '\0') {
+			free(internal_portal);
+			internal_portal = NULL;
+		} else {
+			/* We have been provided with a string, check the contents. */
+			if (strchr(p, ' ')) {
+				char *portals = strdup(p);
+				char *portal;
+
+				if (!portals) {
+					log_error("Memory error (internal_portal)");
+					res = -ENOMEM;
+					goto out_free;
+				}
+
+				portal = strtok(portals, " ");
+				while (portal != NULL) {
+					if (!is_addr(portal)) {
+						free(portals);
+						log_error("Invalid address supplied %s", portal);
+						res = -EINVAL;
+						goto out_free;
+					}
+					portal = strtok(NULL, " ");
+				}
+				free(portals);
+			} else {
+				/* No spaces */
+				if (!is_addr(p)) {
+					log_error("Invalid address supplied %s", p);
+					res = -EINVAL;
+					goto out_free;
+				}
+			}
+			free(internal_portal);
+			internal_portal = strdup(p);
 		}
 	} else	{
 		log_error("Unknown attribute %s", pp);

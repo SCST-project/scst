@@ -200,6 +200,13 @@ is /sys/kernel/scst_tgt/targets/iscsi. It has the following entries:
    iSCSI-SCST attributes before it starts accepting new connections. 0
    by default.
 
+ - internal_portal - May designate one or more existing portals as being
+   internal.  This will eliminate the need to supply a CHAP user/secret
+   during discovery or target login to any targets configured on those
+   portals.  This is particularly useful for internal targets used as
+   part of ALUA configuration.  Multiple addresses may be supplied,
+   separated by space characters.  Empty by default.
+
  - link_local - if set, makes the response to an IPv6 SendTargets include
    any link local addresses. Default is set.
 
@@ -552,6 +559,7 @@ both iSCSI-SCST targets will look like:
 |       |-- IncomingUser
 |       |-- OutgoingUser
 |       |-- enabled
+|       |-- internal_portal
 |       |-- iSNSServer
 |       |-- iqn.2006-10.net.vlnb:tgt
 |       |   |-- DataDigest
