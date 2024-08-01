@@ -265,6 +265,7 @@ extern const char *get_error_str(int error);
 
 /* iscsid.c */
 extern int iscsi_enabled;
+extern char *internal_portal;
 
 extern int cmnd_execute(struct connection *conn);
 extern void cmnd_finish(struct connection *conn);

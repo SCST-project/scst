@@ -27,6 +27,7 @@
 #include "iscsid.h"
 
 int iscsi_enabled;
+char *internal_portal;
 
 static u32 ttt;
 
@@ -1011,6 +1012,32 @@ static int cmnd_exec_auth(struct connection *conn)
 	return res;
 }
 
+static bool on_internal_portal(struct connection *conn)
+{
+	if (!internal_portal)
+		return false;
+
+	if (strchr(internal_portal, ' ')) {
+		char *portals = strdup(internal_portal);
+
+		if (portals) {
+			char *portal = strtok(portals, " ");
+
+			while(portal != NULL) {
+				if (!strcmp(portal, conn->target_portal)) {
+					free(portals);
+					return true;
+				}
+				portal = strtok(NULL, " ");
+			}
+			free(portals);
+		}
+		return false;
+	} else {
+		return !strcmp(internal_portal, conn->target_portal);
+	}
+}
+
 static void cmnd_exec_login(struct connection *conn)
 {
 	struct iscsi_login_req_hdr *req = (struct iscsi_login_req_hdr *)&conn->req.bhs;
@@ -1084,7 +1111,8 @@ static void cmnd_exec_login(struct connection *conn)
 			if (rsp->status_class)
 				return;
 			if (!accounts_empty(conn->tid, ISCSI_USER_DIR_INCOMING))
-				goto auth_err;
+				if (!on_internal_portal(conn))
+					goto auth_err;
 			if (rsp->status_class)
 				return;
 			text_scan_login(conn);
