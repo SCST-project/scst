@@ -2094,7 +2094,7 @@ int scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq)
 		if (cmd->cdb[0] == REQUEST_SENSE)
 			res = scst_set_lun_not_supported_request_sense(cmd,
 				key, asc, ascq);
-		else if (cmd->cdb[0] == INQUIRY)
+		else if (cmd->cdb[0] == INQUIRY && !(cmd->cdb[1] & 0x01/*EVPD*/))
 			res = scst_set_lun_not_supported_inquiry(cmd);
 		else if (cmd->cdb[0] == REPORT_LUNS)
 			res = scst_set_lun_not_supported_report_luns(cmd);
