@@ -8431,6 +8431,16 @@ static struct request *blk_make_request(struct request_queue *q,
 }
 #endif
 
+static inline unsigned int
+queue_dma_pad_mask(const struct request_queue *q)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
+	return q->dma_pad_mask;
+#else
+	return q->limits.dma_pad_mask;
+#endif
+}
+
 /* __blk_map_kern_sg - map kernel data to a request for REQ_TYPE_BLOCK_PC */
 static struct request *__blk_map_kern_sg(struct request_queue *q,
 	struct scatterlist *sgl, int nents, struct blk_kern_sg_work *bw,
@@ -8553,7 +8563,7 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 	}
 
 	/* Total length must satisfy DMA padding alignment */
-	if ((tot_len & q->dma_pad_mask) && bw != NULL) {
+	if (bw && (tot_len & queue_dma_pad_mask(q))) {
 		rq = ERR_PTR(-EINVAL);
 		goto out_free_bios;
 	}
