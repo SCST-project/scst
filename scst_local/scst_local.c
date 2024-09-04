@@ -1500,8 +1500,11 @@ static DRIVER_REMOVE_RET scst_local_driver_remove(struct device *dev)
 	return (DRIVER_REMOVE_RET)0;
 }
 
-static int scst_local_bus_match(struct device *dev,
-	struct device_driver *dev_driver)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
+static int scst_local_bus_match(struct device *dev, struct device_driver *drv)
+#else
+static int scst_local_bus_match(struct device *dev, const struct device_driver *drv)
+#endif
 {
 	TRACE_ENTRY();
 
