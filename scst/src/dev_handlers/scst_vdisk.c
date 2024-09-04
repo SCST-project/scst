@@ -983,48 +983,51 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 	bi_profile_name = bi->name;
-#else
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
 	bi_profile_name = bi->profile->name;
+#else
+	bi_profile_name = blk_integrity_profile_name(bi);
 #endif
+
 	TRACE_DBG("BI name %s", bi_profile_name);
 
 	if (!strcmp(bi_profile_name, "T10-DIF-TYPE1-CRC")) {
 		dev->dev_dif_ip_not_supported = 1;
 		if (virt_dev->dif_type != 1) {
-			PRINT_ERROR("Integrity type mismatch, %d expected, "
-				"but block device has 1 (dev %s)",
-				virt_dev->dif_type, dev->virt_name);
+			PRINT_ERROR(
+			"Integrity type mismatch, %d expected, but block device has 1 (dev %s)",
+				    virt_dev->dif_type, dev->virt_name);
 			res = -EINVAL;
 			goto out_close;
 		}
 	} else if (!strcmp(bi_profile_name, "T10-DIF-TYPE1-IP")) {
 		if (virt_dev->dif_type != 1) {
-			PRINT_ERROR("Integrity type mismatch, %d expected, "
-				"but block device has 1 (dev %s)",
-				virt_dev->dif_type, dev->virt_name);
+			PRINT_ERROR(
+			"Integrity type mismatch, %d expected, but block device has 1 (dev %s)",
+				    virt_dev->dif_type, dev->virt_name);
 			res = -EINVAL;
 			goto out_close;
 		}
 	} else if (!strcmp(bi_profile_name, "T10-DIF-TYPE3-CRC")) {
 		dev->dev_dif_ip_not_supported = 1;
 		if (virt_dev->dif_type != 3) {
-			PRINT_ERROR("Integrity type mismatch, %d expected, "
-				"but block device has 1 (dev %s)",
-				virt_dev->dif_type, dev->virt_name);
+			PRINT_ERROR(
+			"Integrity type mismatch, %d expected, but block device has 1 (dev %s)",
+				    virt_dev->dif_type, dev->virt_name);
 			res = -EINVAL;
 			goto out_close;
 		}
 	} else if (!strcmp(bi_profile_name, "T10-DIF-TYPE3-IP")) {
 		if (virt_dev->dif_type != 3) {
-			PRINT_ERROR("Integrity type mismatch, %d expected, "
-				"but block device has 3 (dev %s)",
-				virt_dev->dif_type, dev->virt_name);
+			PRINT_ERROR(
+			"Integrity type mismatch, %d expected, but block device has 3 (dev %s)",
+				    virt_dev->dif_type, dev->virt_name);
 			res = -EINVAL;
 			goto out_close;
 		}
 	} else {
-		PRINT_ERROR("Unable to understand integrity name %s"
-			"(dev %s)", bi_profile_name, dev->virt_name);
+		PRINT_ERROR("Unable to understand integrity name %s (dev %s)",
+			    bi_profile_name, dev->virt_name);
 		res = -EINVAL;
 		goto out_close;
 	}
@@ -1033,15 +1036,15 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 
 	if ((virt_dev->dif_mode & SCST_DIF_MODE_DEV_CHECK) &&
 	    !(virt_dev->dif_mode & SCST_DIF_MODE_DEV_STORE)) {
-		PRINT_ERROR("Blockio dev_check is not possible without "
-			"dev_store (dev %s)", dev->virt_name);
+		PRINT_ERROR("Blockio dev_check is not possible without dev_store (dev %s)",
+			    dev->virt_name);
 		res = -EINVAL;
 		goto out_close;
 	}
 
 	if (!(virt_dev->dif_mode & SCST_DIF_MODE_DEV_CHECK))
 		PRINT_WARNING("Blk integrity implies dev_check (dev %s)",
-			dev->virt_name);
+			      dev->virt_name);
 
 out_no_bi:
 	res = 0;
