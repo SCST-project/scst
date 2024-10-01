@@ -45,4 +45,4 @@ jobs:
           )
           ignore_str=${ignore[*]}
 
-          git format-patch -1 --stdout | ./checkpatch.pl --no-tree --show-types --ignore="${ignore_str// /,}" -
+          git format-patch -1 --stdout | ./checkpatch.pl --no-tree --show-types --strict --ignore="${ignore_str// /,}" -

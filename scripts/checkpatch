@@ -1,13 +1,17 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 ignore=(
-    CONSTANT_COMPARISON
-    LINUX_VERSION_CODE
-    LONG_LINE
-    LONG_LINE_COMMENT
-    LONG_LINE_STRING
-    RETURN_VOID
-    SPDX_LICENSE_TAG
-    SYMBOLIC_PERMS
+	CONSTANT_COMPARISON
+	LINUX_VERSION_CODE
+	LONG_LINE
+	LONG_LINE_COMMENT
+	LONG_LINE_STRING
+	RETURN_VOID
+	SPDX_LICENSE_TAG
+	SYMBOLIC_PERMS
 )
-../linux-kernel/scripts/checkpatch.pl -f --show-types --ignore="$(echo "${ignore[@]}" | sed 's/ /,/g')" $(list-source-files | grep -vE '^debian/|^fcst/linux-patches|patch$|pdf$|png$|^iscsi-scst/usr|^qla|^scripts/|^scstadmin/|^usr/|^www/') | sed 's/^#[0-9]*: FILE: \(.*\):/\1:1:/'
+ignore_str=${ignore[*]}
+
+src_files=$(list-source-files | grep -vE '^debian/|^fcst/linux-patches|patch$|pdf$|png$|^iscsi-scst/usr|^qla|^scripts/|^scstadmin/|^usr/|^www/')
+
+../linux-kernel/scripts/checkpatch.pl -f --show-types --strict --ignore="${ignore_str// /,}" $src_files | sed 's/^#[0-9]*: FILE: \(.*\):/\1:1:/'
