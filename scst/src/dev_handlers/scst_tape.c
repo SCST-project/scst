@@ -174,7 +174,9 @@ static int tape_attach(struct scst_device *dev)
 			     ((dev->scsi_dev->scsi_level <= SCSI_2) ?
 			      ((dev->scsi_dev->lun << 5) & 0xe0) : 0),
 			     0 /* Mode Page 0 */,
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0) ||            \
+       (!defined(RHEL_RELEASE_CODE) ||                          \
+        RHEL_RELEASE_CODE -0 >= RHEL_RELEASE_VERSION(9, 5))
 			     0 /* Sub Page */,
 #endif
 			     buffer, buffer_size,
