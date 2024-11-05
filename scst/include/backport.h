@@ -288,7 +288,9 @@ static inline void blkdev_put_backport(struct block_device *bdev, void *holder)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 7, 0) &&			\
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 6, 0) >> 8 ||	\
-	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 23))
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 23)) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||					\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 5))
 /*
  * See also commit e719b4d15674 ("block: Provide bdev_open_* functions") # v6.7, v6.6.23.
  */

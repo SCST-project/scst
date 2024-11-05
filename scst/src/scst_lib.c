@@ -6083,7 +6083,9 @@ int scst_open_bdev_by_path(const char *path, blk_mode_t mode, void *holder,
 			   const struct blk_holder_ops *hops,
 			   struct scst_bdev_descriptor *bdev_desc)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 5))
 	struct bdev_handle *bdev_handle;
 
 	bdev_handle = bdev_open_by_path(path, mode, holder, hops);
@@ -6109,7 +6111,9 @@ EXPORT_SYMBOL(scst_open_bdev_by_path);
 
 void scst_release_bdev(struct scst_bdev_descriptor *bdev_desc)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 5))
 	struct bdev_handle *bdev_handle = bdev_desc->priv;
 
 	if (bdev_handle)
