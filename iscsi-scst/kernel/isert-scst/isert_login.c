@@ -889,7 +889,9 @@ static dev_t devno;
 
 static const struct file_operations listener_fops = {
 	.owner		= THIS_MODULE,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)
 	.llseek		= no_llseek,
+#endif
 	.read		= isert_listen_read,
 	.unlocked_ioctl	= isert_listen_ioctl,
 	.compat_ioctl	= isert_listen_ioctl,
@@ -900,7 +902,9 @@ static const struct file_operations listener_fops = {
 
 static const struct file_operations conn_fops = {
 	.owner		= THIS_MODULE,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)
 	.llseek		= no_llseek,
+#endif
 	.read		= isert_read,
 	.write		= isert_write,
 	.unlocked_ioctl	= isert_ioctl,

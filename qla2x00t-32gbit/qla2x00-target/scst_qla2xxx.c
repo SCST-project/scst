@@ -43,7 +43,6 @@
 #include <linux/types.h>
 #include <linux/delay.h>
 #include <linux/list.h>
-#include <asm/unaligned.h>
 #include <linux/vmalloc.h>
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>

@@ -66,4 +66,3 @@ extern void iscsit_unreg_transport(struct iscsit_transport *t);
 extern struct iscsit_transport *iscsit_get_transport(enum iscsit_transport_type type);
 
 #endif /* __ISCSI_TRANSPORT_H__ */
-

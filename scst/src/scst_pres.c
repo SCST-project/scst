@@ -40,7 +40,6 @@
 #include <linux/version.h>
 #endif
 #include <linux/vmalloc.h>
-#include <asm/unaligned.h>
 
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>

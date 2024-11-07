@@ -49,7 +49,11 @@
 #include <scsi/scsi_eh.h>	/* scsi_build_sense_buffer() */
 struct scsi_target;
 #include <scsi/scsi_transport_fc.h> /* struct bsg_job */
-#include <asm/unaligned.h>	/* get_unaligned_be64() */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)
+#include <asm/unaligned.h>
+#else
+#include <linux/unaligned.h>
+#endif
 
 /* <asm-generic/barrier.h> */
 
