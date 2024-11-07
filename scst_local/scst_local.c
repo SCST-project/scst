@@ -1791,7 +1791,7 @@ static int __init scst_local_init(void)
 	 * We don't expect much work on this queue, so only create a
 	 * single thread workqueue rather than one on each core.
 	 */
-	aen_workqueue = create_singlethread_workqueue("scstlclaen");
+	aen_workqueue = alloc_ordered_workqueue("scstlclaen", WQ_MEM_RECLAIM);
 	if (!aen_workqueue) {
 		PRINT_ERROR("%s", "Unable to create scst_local workqueue");
 		goto tgt_templ_unreg;
