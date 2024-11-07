@@ -979,8 +979,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 
 		snprintf(wq_name, sizeof(wq_name), "isert_cq_%p", cq_desc);
 		cq_desc->cq_workqueue = alloc_workqueue(wq_name,
-							WQ_CPU_INTENSIVE|
-							WQ_MEM_RECLAIM, 1);
+							WQ_CPU_INTENSIVE | WQ_MEM_RECLAIM, 1);
 		if (unlikely(!cq_desc->cq_workqueue)) {
 			PRINT_ERROR("Failed to alloc iser cq work queue for dev:%s",
 				    ib_dev->name);

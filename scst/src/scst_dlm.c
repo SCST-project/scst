@@ -1480,7 +1480,7 @@ create_st_wq(const char *fmt, ...)
 	name = kvasprintf(GFP_KERNEL, fmt, ap);
 	va_end(ap);
 	if (name)
-		wq = create_singlethread_workqueue(name);
+		wq = alloc_ordered_workqueue("%s", WQ_MEM_RECLAIM, name);
 	kfree(name);
 	return wq;
 }
