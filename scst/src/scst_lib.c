@@ -6113,7 +6113,7 @@ EXPORT_SYMBOL(scst_open_bdev_by_path);
 void scst_release_bdev(struct scst_bdev_descriptor *bdev_desc)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0) &&            \
-       (!defined(RHEL_RELEASE_CODE) ||                         \
+        (!defined(RHEL_RELEASE_CODE) ||                         \
         RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 5))
 	struct bdev_handle *bdev_handle = bdev_desc->priv;
 
