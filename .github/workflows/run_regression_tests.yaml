@@ -1,10 +1,13 @@
-name: Regression tests upon push
+name: Run regression tests
 
 on:
   push:
     branches:
       - master
       - nightly/update
+  pull_request:
+    branches:
+      - master
 
 jobs:
   regression_tests:

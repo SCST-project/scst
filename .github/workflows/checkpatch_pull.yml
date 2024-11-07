@@ -1,4 +1,4 @@
-name: Checkpatch upon pull
+name: Checkpatch upon pull request
 
 on:
   pull_request:
