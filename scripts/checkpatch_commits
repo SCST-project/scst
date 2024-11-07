@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+
+set -e
+
+rootdir=$(readlink -f $(dirname $0)/..)
+scriptsdir=${rootdir}/scripts
+base_commit=${1:-master}
+
+commits=$(cd ${rootdir} && git log --pretty=format:"%h" ${base_commit}..HEAD)
+err=0
+
+for commit in $commits; do
+	echo "Running checkpatch for commit $commit"
+	echo -e "========================================\n"
+
+	(cd ${rootdir} &&
+		git format-patch -1 --stdout $commit | ${scriptsdir}/checkpatch -) || err=1
+	echo -e "\n"
+done
+
+exit $err

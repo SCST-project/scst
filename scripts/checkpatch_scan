@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+
+set -e
+
+rootdir=$(readlink -f $(dirname $0)/..)
+scriptsdir=${rootdir}/scripts
+outputfile=checkpatch.out
+
+src_files=$(${scriptsdir}/list-source-files ${rootdir} | \
+	grep -vE '^debian/|^fcst/linux-patches|patch$|pdf$|png$|^iscsi-scst/usr|^qla|^scripts/|^scstadmin/|^usr/|^www/' | \
+	while read -r filename; do echo "${rootdir}/$filename"; done)
+
+${scriptsdir}/checkpatch -f $src_files 1> ${outputfile} || true
+
+errors=$(grep -c '^ERROR' "${outputfile}")
+warnings=$(grep -c '^WARNING' "${outputfile}")
+checks=$(grep -c '^CHECK' "${outputfile}")
+
+echo "${errors} errors / ${warnings} warnings / ${checks} checks."
+
+grep -E '^WARNING|^ERROR|^CHECK' "${outputfile}" |
+	sort |
+	sed 's/^CHECK:CAMELCASE: Avoid CamelCase:.*/CHECK:CAMELCASE Avoid CamelCase/' |
+	uniq -c

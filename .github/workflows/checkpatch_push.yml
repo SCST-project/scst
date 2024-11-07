@@ -29,20 +29,4 @@ jobs:
 
       - name: Run checkpatch.pl
         run: |
-          ignore=(
-            MISSING_SIGN_OFF
-            EMAIL_SUBJECT
-            UNKNOWN_COMMIT_ID
-            NO_AUTHOR_SIGN_OFF
-            COMMIT_LOG_USE_LINK
-            BAD_REPORTED_BY_LINK
-            FILE_PATH_CHANGES
-            SPDX_LICENSE_TAG
-            LINUX_VERSION_CODE
-            CONSTANT_COMPARISON
-            NEW_TYPEDEFS
-            SPACING
-          )
-          ignore_str=${ignore[*]}
-
-          git format-patch -1 --stdout | ./checkpatch.pl --no-tree --show-types --strict --ignore="${ignore_str// /,}" -
+          git format-patch -1 --stdout | CHECKPATCH_PATH=. ./scripts/checkpatch
