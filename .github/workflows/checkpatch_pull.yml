@@ -24,31 +24,4 @@ jobs:
 
       - name: Run checkpatch.pl
         run: |
-          ignore=(
-            MISSING_SIGN_OFF
-            EMAIL_SUBJECT
-            UNKNOWN_COMMIT_ID
-            NO_AUTHOR_SIGN_OFF
-            COMMIT_LOG_USE_LINK
-            BAD_REPORTED_BY_LINK
-            FILE_PATH_CHANGES
-            SPDX_LICENSE_TAG
-            LINUX_VERSION_CODE
-            CONSTANT_COMPARISON
-            NEW_TYPEDEFS
-            SPACING
-          )
-          ignore_str=${ignore[*]}
-
-          base_commit=${{github.event.pull_request.base.sha}}
-          commits=$(git log --pretty=format:"%h" $base_commit..HEAD)
-          err=0
-
-          for commit in $commits; do
-            echo "Running checkpatch.pl for commit $commit"
-            echo "========================================"
-            git format-patch -1 --stdout $commit | ./checkpatch.pl --no-tree --show-types --strict --ignore="${ignore_str// /,}" - || err=1
-            echo
-          done
-
-          exit $err
+          CHECKPATCH_PATH=. ./scripts/checkpatch_commits ${{github.event.pull_request.base.sha}}

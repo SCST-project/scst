@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -e
+
+rootdir=$(readlink -f $(dirname $0)/..)
+scriptsdir=${rootdir}/scripts
+base_commit=${1:-master}
+
+err=0
+
+(cd ${rootdir} && git diff ${base_commit} | ${scriptsdir}/checkpatch -) || err=1
+
+exit $err
