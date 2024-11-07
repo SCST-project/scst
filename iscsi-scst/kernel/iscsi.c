@@ -22,7 +22,6 @@
 #include <net/tcp.h>
 #include <scsi/scsi.h>
 #include <asm/byteorder.h>
-#include <asm/unaligned.h>
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/iscsit_transport.h>
 #else

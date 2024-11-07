@@ -39,10 +39,14 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
 #include <linux/sched/signal.h>
 #endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)
+#include <asm/unaligned.h>
+#else
+#include <linux/unaligned.h>
+#endif
 #include <linux/wait.h>
 #include <linux/cpumask.h>
 #include <linux/dlm.h>
-#include <asm/unaligned.h>
 
 #if 0 /* Let's disable it for now to see if users will complain about it */
 #define CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT

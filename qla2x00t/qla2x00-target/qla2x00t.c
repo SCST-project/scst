@@ -32,7 +32,6 @@
 #include <linux/delay.h>
 #include <linux/list.h>
 #include <linux/workqueue.h>
-#include <asm/unaligned.h>
 
 #ifdef INSIDE_KERNEL_TREE
 #include <scst/scst.h>

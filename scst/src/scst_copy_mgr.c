@@ -8,7 +8,6 @@
 #include <linux/types.h>
 #include <linux/init.h>
 #include <linux/slab.h>
-#include <asm/unaligned.h>
 #include <linux/delay.h>
 
 #ifdef INSIDE_KERNEL_TREE
@@ -3898,4 +3897,3 @@ void __exit scst_cm_exit(void)
 	TRACE_EXIT();
 	return;
 }
-

@@ -1,7 +1,14 @@
 #ifndef _QLA_DSD_H_
 #define _QLA_DSD_H_
 
+#ifndef INSIDE_KERNEL_TREE
+#include <linux/version.h>
+#endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0)
 #include <asm/unaligned.h>
+#else
+#include <linux/unaligned.h>
+#endif
 
 /* 32-bit data segment descriptor (8 bytes) */
 struct dsd32 {
