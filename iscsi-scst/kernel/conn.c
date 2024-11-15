@@ -71,7 +71,6 @@ out:
 	return pos;
 }
 
-
 static void iscsi_conn_release(struct kobject *kobj)
 {
 	struct iscsi_conn *conn;
@@ -79,25 +78,22 @@ static void iscsi_conn_release(struct kobject *kobj)
 	TRACE_ENTRY();
 
 	conn = container_of(kobj, struct iscsi_conn, conn_kobj);
-	if (conn->conn_kobj_release_cmpl != NULL)
+	if (conn->conn_kobj_release_cmpl)
 		complete_all(conn->conn_kobj_release_cmpl);
 
 	TRACE_EXIT();
-	return;
 }
 
 struct kobj_type iscsi_conn_ktype = {
 	.release = iscsi_conn_release,
 };
 
-static ssize_t iscsi_get_initiator_ip(struct iscsi_conn *conn,
-	char *buf, int size)
+static ssize_t iscsi_get_initiator_ip(struct iscsi_conn *conn, char *buf, int size)
 {
 	return conn->transport->iscsit_get_initiator_ip(conn, buf, size);
 }
 
-static ssize_t iscsi_conn_ip_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t iscsi_conn_ip_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	int pos;
 	struct iscsi_conn *conn;
@@ -113,10 +109,9 @@ static ssize_t iscsi_conn_ip_show(struct kobject *kobj,
 }
 
 static struct kobj_attribute iscsi_conn_ip_attr =
-	__ATTR(ip, S_IRUGO, iscsi_conn_ip_show, NULL);
+	__ATTR(ip, 0444, iscsi_conn_ip_show, NULL);
 
-static ssize_t iscsi_get_target_ip(struct iscsi_conn *conn,
-	char *buf, int size)
+static ssize_t iscsi_get_target_ip(struct iscsi_conn *conn, char *buf, int size)
 {
 	int pos;
 	struct sock *sk;
@@ -129,8 +124,7 @@ static ssize_t iscsi_get_target_ip(struct iscsi_conn *conn,
 	sk = conn->sock->sk;
 	switch (sk->sk_family) {
 	case AF_INET:
-		pos = scnprintf(buf, size,
-			"%pI4", &inet_sk(sk)->inet_saddr);
+		pos = scnprintf(buf, size, "%pI4", &inet_sk(sk)->inet_saddr);
 		break;
 #ifdef CONFIG_IPV6
 	case AF_INET6:
@@ -142,8 +136,7 @@ static ssize_t iscsi_get_target_ip(struct iscsi_conn *conn,
 #endif
 		break;
 	default:
-		pos = scnprintf(buf, size, "Unknown family %d",
-			sk->sk_family);
+		pos = scnprintf(buf, size, "Unknown family %d", sk->sk_family);
 		break;
 	}
 
@@ -151,8 +144,8 @@ static ssize_t iscsi_get_target_ip(struct iscsi_conn *conn,
 	return pos;
 }
 
-static ssize_t iscsi_conn_target_ip_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t iscsi_conn_target_ip_show(struct kobject *kobj, struct kobj_attribute *attr,
+					 char *buf)
 {
 	int pos;
 	struct iscsi_conn *conn;
@@ -168,10 +161,9 @@ static ssize_t iscsi_conn_target_ip_show(struct kobject *kobj,
 }
 
 static struct kobj_attribute iscsi_conn_target_ip_attr =
-	__ATTR(target_ip, S_IRUGO, iscsi_conn_target_ip_show, NULL);
+	__ATTR(target_ip, 0444, iscsi_conn_target_ip_show, NULL);
 
-static ssize_t iscsi_conn_cid_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t iscsi_conn_cid_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	int pos;
 	struct iscsi_conn *conn;
@@ -187,10 +179,9 @@ static ssize_t iscsi_conn_cid_show(struct kobject *kobj,
 }
 
 static struct kobj_attribute iscsi_conn_cid_attr =
-	__ATTR(cid, S_IRUGO, iscsi_conn_cid_show, NULL);
+	__ATTR(cid, 0444, iscsi_conn_cid_show, NULL);
 
-static ssize_t iscsi_conn_state_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t iscsi_conn_state_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	int pos;
 	struct iscsi_conn *conn;
@@ -206,7 +197,7 @@ static ssize_t iscsi_conn_state_show(struct kobject *kobj,
 }
 
 static struct kobj_attribute iscsi_conn_state_attr =
-	__ATTR(state, S_IRUGO, iscsi_conn_state_show, NULL);
+	__ATTR(state, 0444, iscsi_conn_state_show, NULL);
 
 static void conn_sysfs_del(struct iscsi_conn *conn)
 {
@@ -223,7 +214,6 @@ static void conn_sysfs_del(struct iscsi_conn *conn)
 				  &scst_conn_dep_map);
 
 	TRACE_EXIT();
-	return;
 }
 
 int conn_sysfs_add(struct iscsi_conn *conn)
@@ -257,44 +247,40 @@ restart:
 	}
 
 	res = kobject_init_and_add(&conn->conn_kobj, &iscsi_conn_ktype,
-		scst_sysfs_get_sess_kobj(session->scst_sess), addr);
+				   scst_sysfs_get_sess_kobj(session->scst_sess), addr);
 	if (res != 0) {
 		PRINT_ERROR("Unable create sysfs entries for conn %s",
-			addr);
+			    addr);
 		goto out;
 	}
 
 	TRACE_DBG("conn %p, conn_kobj %p", conn, &conn->conn_kobj);
 
-	res = sysfs_create_file(&conn->conn_kobj,
-			&iscsi_conn_state_attr.attr);
+	res = sysfs_create_file(&conn->conn_kobj, &iscsi_conn_state_attr.attr);
 	if (res != 0) {
 		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
-			iscsi_conn_state_attr.attr.name, addr);
+			    iscsi_conn_state_attr.attr.name, addr);
 		goto out_err;
 	}
 
-	res = sysfs_create_file(&conn->conn_kobj,
-			&iscsi_conn_cid_attr.attr);
+	res = sysfs_create_file(&conn->conn_kobj, &iscsi_conn_cid_attr.attr);
 	if (res != 0) {
 		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
-			iscsi_conn_cid_attr.attr.name, addr);
+			    iscsi_conn_cid_attr.attr.name, addr);
 		goto out_err;
 	}
 
-	res = sysfs_create_file(&conn->conn_kobj,
-			&iscsi_conn_ip_attr.attr);
+	res = sysfs_create_file(&conn->conn_kobj, &iscsi_conn_ip_attr.attr);
 	if (res != 0) {
 		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
-			iscsi_conn_ip_attr.attr.name, addr);
+			    iscsi_conn_ip_attr.attr.name, addr);
 		goto out_err;
 	}
 
-	res = sysfs_create_file(&conn->conn_kobj,
-			&iscsi_conn_target_ip_attr.attr);
+	res = sysfs_create_file(&conn->conn_kobj, &iscsi_conn_target_ip_attr.attr);
 	if (res != 0) {
 		PRINT_ERROR("Unable create sysfs attribute %s for conn %s",
-			iscsi_conn_target_ip_attr.attr.name, addr);
+			    iscsi_conn_target_ip_attr.attr.name, addr);
 		goto out_err;
 	}
 
@@ -308,7 +294,6 @@ out_err:
 }
 EXPORT_SYMBOL(conn_sysfs_add);
 
-
 /* target_mutex supposed to be locked */
 struct iscsi_conn *conn_lookup(struct iscsi_session *session, u16 cid)
 {
@@ -320,8 +305,7 @@ struct iscsi_conn *conn_lookup(struct iscsi_session *session, u16 cid)
 	 * We need to find the latest conn to correctly handle
 	 * multi-reinstatements
 	 */
-	list_for_each_entry_reverse(conn, &session->conn_list,
-					conn_list_entry) {
+	list_for_each_entry_reverse(conn, &session->conn_list, conn_list_entry) {
 		if (conn->cid == cid && !conn->closing)
 			return conn;
 	}
@@ -336,8 +320,8 @@ void iscsi_make_conn_rd_active(struct iscsi_conn *conn)
 
 	spin_lock_bh(&p->rd_lock);
 
-	TRACE_DBG("conn %p, rd_state %x, rd_data_ready %d", conn,
-		conn->rd_state, conn->rd_data_ready);
+	TRACE_DBG("conn %p, rd_state %x, rd_data_ready %d",
+		  conn, conn->rd_state, conn->rd_data_ready);
 
 	/*
 	 * Let's start processing ASAP not waiting for all the being waited
@@ -357,7 +341,6 @@ void iscsi_make_conn_rd_active(struct iscsi_conn *conn)
 	spin_unlock_bh(&p->rd_lock);
 
 	TRACE_EXIT();
-	return;
 }
 
 void iscsi_make_conn_wr_active(struct iscsi_conn *conn)
@@ -369,7 +352,7 @@ void iscsi_make_conn_wr_active(struct iscsi_conn *conn)
 	spin_lock_bh(&p->wr_lock);
 
 	TRACE_DBG("conn %p, wr_state %x, wr_space_ready %d", conn,
-		conn->wr_state, conn->wr_space_ready);
+		  conn->wr_state, conn->wr_space_ready);
 
 	/*
 	 * Let's start sending waiting to be sent data ASAP, even if there's
@@ -387,7 +370,6 @@ void iscsi_make_conn_wr_active(struct iscsi_conn *conn)
 	spin_unlock_bh(&p->wr_lock);
 
 	TRACE_EXIT();
-	return;
 }
 
 void iscsi_tcp_mark_conn_closed(struct iscsi_conn *conn, int flags)
@@ -424,15 +406,15 @@ static void __iscsi_state_change(struct sock *sk)
 		if (!conn->closing) {
 			PRINT_ERROR("Connection %p with initiator %s unexpectedly closed!",
 				    conn, conn->session->initiator_name);
-			TRACE_MGMT_DBG("conn %p, sk state %d", conn,
-				sk->sk_state);
+			TRACE_MGMT_DBG("conn %p, sk state %d",
+				       conn, sk->sk_state);
 			__mark_conn_closed(conn, 0);
 		}
-	} else
+	} else {
 		iscsi_make_conn_rd_active(conn);
+	}
 
 	TRACE_EXIT();
-	return;
 }
 
 static void iscsi_state_change(struct sock *sk)
@@ -441,8 +423,6 @@ static void iscsi_state_change(struct sock *sk)
 
 	__iscsi_state_change(sk);
 	conn->old_state_change(sk);
-
-	return;
 }
 
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0))
@@ -464,7 +444,6 @@ static void iscsi_data_ready(struct sock *sk, int len)
 #endif
 
 	TRACE_EXIT();
-	return;
 }
 
 void __iscsi_write_space_ready(struct iscsi_conn *conn)
@@ -484,7 +463,6 @@ void __iscsi_write_space_ready(struct iscsi_conn *conn)
 	spin_unlock_bh(&p->wr_lock);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void iscsi_write_space_ready(struct sock *sk)
@@ -500,7 +478,6 @@ static void iscsi_write_space_ready(struct sock *sk)
 	conn->old_write_space(sk);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void conn_rsp_timer_fn(struct timer_list *timer)
@@ -518,19 +495,18 @@ static void conn_rsp_timer_fn(struct timer_list *timer)
 	if (!list_empty(&conn->write_timeout_list)) {
 		unsigned long timeout_time;
 
-		cmnd = list_first_entry(&conn->write_timeout_list,
-				struct iscsi_cmnd, write_timeout_list_entry);
+		cmnd = list_first_entry(&conn->write_timeout_list, struct iscsi_cmnd,
+					write_timeout_list_entry);
 
-		timeout_time = iscsi_get_timeout_time(cmnd) +
-				ISCSI_ADD_SCHED_TIME;
+		timeout_time = iscsi_get_timeout_time(cmnd) + ISCSI_ADD_SCHED_TIME;
 
 		if (unlikely(time_after_eq(j, iscsi_get_timeout_time(cmnd)))) {
 			if (!conn->closing) {
 				PRINT_ERROR("Timeout %ld sec sending data/waiting for reply to/from initiator %s (SID %llx), closing connection %p",
-					iscsi_get_timeout(cmnd)/HZ,
-					conn->session->initiator_name,
-					(unsigned long long)conn->session->sid,
-					conn);
+					    iscsi_get_timeout(cmnd) / HZ,
+					    conn->session->initiator_name,
+					    (unsigned long long)conn->session->sid,
+					    conn);
 				/*
 				 * We must call mark_conn_closed() outside of
 				 * write_list_lock or we will have a circular
@@ -543,7 +519,7 @@ static void conn_rsp_timer_fn(struct timer_list *timer)
 		} else if (!timer_pending(&conn->rsp_timer) ||
 			    time_after(conn->rsp_timer.expires, timeout_time)) {
 			TRACE_DBG("Restarting timer on %ld (conn %p)",
-				timeout_time, conn);
+				  timeout_time, conn);
 			/*
 			 * Timer might have been restarted while we were
 			 * entering here.
@@ -565,7 +541,6 @@ static void conn_rsp_timer_fn(struct timer_list *timer)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 static void conn_nop_in_delayed_work_fn(struct work_struct *work)
@@ -583,8 +558,7 @@ static void conn_nop_in_delayed_work_fn(struct work_struct *work)
 		next_timeout = conn->nop_in_interval;
 	}
 
-	if ((conn->nop_in_interval > 0) &&
-	    !test_bit(ISCSI_CONN_SHUTTINGDOWN, &conn->conn_aflags)) {
+	if (conn->nop_in_interval > 0 && !test_bit(ISCSI_CONN_SHUTTINGDOWN, &conn->conn_aflags)) {
 		if (next_timeout == 0)
 			next_timeout = conn->nop_in_interval -
 						(jiffies - conn->last_rcv_time);
@@ -595,7 +569,6 @@ static void conn_nop_in_delayed_work_fn(struct work_struct *work)
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 /* Must be called from rd thread only */
@@ -610,9 +583,9 @@ void iscsi_check_tm_data_wait_timeouts(struct iscsi_conn *conn, bool force)
 	TRACE_ENTRY();
 
 	TRACE_DBG_FLAG(TRACE_MGMT_DEBUG,
-		"conn %p, read_cmnd %p, read_state %d, j %ld (TIMEOUT %d, force %d)",
-		conn, conn->read_cmnd, conn->read_state, j,
-		ISCSI_TM_DATA_WAIT_TIMEOUT + ISCSI_ADD_SCHED_TIME, force);
+		       "conn %p, read_cmnd %p, read_state %d, j %ld (TIMEOUT %d, force %d)",
+		       conn, conn->read_cmnd, conn->read_state, j,
+		       ISCSI_TM_DATA_WAIT_TIMEOUT + ISCSI_ADD_SCHED_TIME, force);
 
 	iscsi_extracheck_is_rd_thread(conn);
 
@@ -621,21 +594,19 @@ again:
 	spin_lock(&conn->write_list_lock);
 
 	aborted_cmds_pending = false;
-	list_for_each_entry(cmnd, &conn->write_timeout_list,
-				write_timeout_list_entry) {
+	list_for_each_entry(cmnd, &conn->write_timeout_list, write_timeout_list_entry) {
 		/*
 		 * This should not happen, because DATA OUT commands can't get
 		 * into write_timeout_list.
 		 */
-		sBUG_ON(cmnd->cmd_req != NULL);
+		sBUG_ON(cmnd->cmd_req);
 
 		if (test_bit(ISCSI_CMD_ABORTED, &cmnd->prelim_compl_flags)) {
 			TRACE_MGMT_DBG("Checking aborted cmnd %p (scst_state %d, on_write_timeout_list %d, write_start %ld, r2t_len_to_receive %d)",
-				cmnd,
-				cmnd->scst_state, cmnd->on_write_timeout_list,
-				cmnd->write_start, cmnd->r2t_len_to_receive);
-			if ((cmnd == conn->read_cmnd) ||
-			    cmnd->data_out_in_data_receiving) {
+				       cmnd,
+				       cmnd->scst_state, cmnd->on_write_timeout_list,
+				       cmnd->write_start, cmnd->r2t_len_to_receive);
+			if (cmnd == conn->read_cmnd || cmnd->data_out_in_data_receiving) {
 				sBUG_ON((cmnd == conn->read_cmnd) && force);
 				/*
 				 * We can't abort command waiting for data from
@@ -645,14 +616,13 @@ again:
 				 * action and close this connection.
 				 */
 				TRACE_MGMT_DBG("Aborted cmnd %p is %s, keep waiting",
-					cmnd,
-					(cmnd == conn->read_cmnd) ? "RX cmnd" :
-						"waiting for DATA OUT data");
+					       cmnd,
+					       cmnd == conn->read_cmnd ? "RX cmnd" :
+					       "waiting for DATA OUT data");
 				goto cont;
 			}
-			if ((cmnd->r2t_len_to_receive != 0) &&
-			    (time_after_eq(j, cmnd->write_start +
-					   ISCSI_TM_DATA_WAIT_TIMEOUT) ||
+			if (cmnd->r2t_len_to_receive != 0 &&
+			    (time_after_eq(j, cmnd->write_start + ISCSI_TM_DATA_WAIT_TIMEOUT) ||
 			     force)) {
 				spin_unlock(&conn->write_list_lock);
 				spin_unlock_bh(&conn->conn_thr_pool->rd_lock);
@@ -669,7 +639,7 @@ cont:
 		    (!timer_pending(&conn->rsp_timer) ||
 		     time_after(conn->rsp_timer.expires, timeout_time))) {
 			TRACE_MGMT_DBG("Mod timer on %ld (conn %p)",
-				timeout_time, conn);
+				       timeout_time, conn);
 			mod_timer(&conn->rsp_timer, timeout_time);
 		}
 	} else {
@@ -681,7 +651,6 @@ cont:
 	spin_unlock_bh(&conn->conn_thr_pool->rd_lock);
 
 	TRACE_EXIT();
-	return;
 }
 
 /* target_mutex supposed to be locked */
@@ -694,9 +663,9 @@ void conn_reinst_finished(struct iscsi_conn *conn)
 	clear_bit(ISCSI_CONN_REINSTATING, &conn->conn_aflags);
 
 	list_for_each_entry_safe(cmnd, t, &conn->reinst_pending_cmd_list,
-					reinst_pending_cmd_list_entry) {
+				 reinst_pending_cmd_list_entry) {
 		TRACE_MGMT_DBG("Restarting reinst pending cmnd %p",
-			cmnd);
+			       cmnd);
 
 		list_del(&cmnd->reinst_pending_cmd_list_entry);
 
@@ -707,7 +676,6 @@ void conn_reinst_finished(struct iscsi_conn *conn)
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 int conn_activate(struct iscsi_conn *conn)
@@ -750,7 +718,7 @@ static int conn_setup_sock(struct iscsi_conn *conn)
 	conn->sock = SOCKET_I(file_inode(conn->file));
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0)
-	if (conn->sock->ops->sendpage == NULL) {
+	if (!conn->sock->ops->sendpage) {
 		PRINT_ERROR("Socket for sid %llx doesn't support sendpage()",
 			    (unsigned long long)session->sid);
 		return -EINVAL;
@@ -790,8 +758,8 @@ void conn_free(struct iscsi_conn *conn)
 	TRACE_ENTRY();
 
 	TRACE(TRACE_MGMT, "Freeing conn %p (sess=%p, %#Lx %u, initiator %s)",
-		conn, session, (unsigned long long)session->sid, conn->cid,
-		session->scst_sess->initiator_name);
+	      conn, session, (unsigned long long)session->sid, conn->cid,
+	      session->scst_sess->initiator_name);
 
 	lockdep_assert_held(&conn->target->target_mutex);
 
@@ -803,7 +771,7 @@ void conn_free(struct iscsi_conn *conn)
 	sBUG_ON(!list_empty(&conn->cmd_list));
 	sBUG_ON(!list_empty(&conn->write_list));
 	sBUG_ON(!list_empty(&conn->write_timeout_list));
-	sBUG_ON(conn->conn_reinst_successor != NULL);
+	sBUG_ON(conn->conn_reinst_successor);
 	sBUG_ON(!test_bit(ISCSI_CONN_SHUTTINGDOWN, &conn->conn_aflags));
 
 	/* Just in case if new conn gets freed before the old one */
@@ -811,8 +779,7 @@ void conn_free(struct iscsi_conn *conn)
 		struct iscsi_conn *c;
 
 		TRACE_MGMT_DBG("Freeing being reinstated conn %p", conn);
-		list_for_each_entry(c, &session->conn_list,
-					conn_list_entry) {
+		list_for_each_entry(c, &session->conn_list, conn_list_entry) {
 			if (c->conn_reinst_successor == conn) {
 				c->conn_reinst_successor = NULL;
 				break;
@@ -825,7 +792,7 @@ void conn_free(struct iscsi_conn *conn)
 	conn->transport->iscsit_conn_free(conn);
 
 	if (list_empty(&session->conn_list)) {
-		sBUG_ON(session->sess_reinst_successor != NULL);
+		sBUG_ON(session->sess_reinst_successor);
 		session_free(session, true);
 	}
 }
@@ -877,7 +844,7 @@ int iscsi_init_conn(struct iscsi_session *session,
 	if (conn->nop_in_interval > 0) {
 		TRACE_DBG("Schedule Nop-In work for conn %p", conn);
 		schedule_delayed_work(&conn->nop_in_delayed_work,
-			conn->nop_in_interval + ISCSI_ADD_SCHED_TIME);
+				      conn->nop_in_interval + ISCSI_ADD_SCHED_TIME);
 	}
 
 	return 0;
@@ -885,9 +852,8 @@ int iscsi_init_conn(struct iscsi_session *session,
 EXPORT_SYMBOL(iscsi_init_conn);
 
 /* target_mutex supposed to be locked */
-int iscsi_conn_alloc(struct iscsi_session *session,
-	struct iscsi_kern_conn_info *info, struct iscsi_conn **new_conn,
-	struct iscsit_transport *t)
+int iscsi_conn_alloc(struct iscsi_session *session, struct iscsi_kern_conn_info *info,
+		     struct iscsi_conn **new_conn, struct iscsit_transport *t)
 {
 	struct iscsi_conn *conn;
 	int res = 0;
@@ -909,7 +875,7 @@ int iscsi_conn_alloc(struct iscsi_session *session,
 
 	/* Changing it, change ISCSI_CONN_IOV_MAX as well !! */
 	conn->read_iov = (void *)get_zeroed_page(GFP_KERNEL);
-	if (conn->read_iov == NULL) {
+	if (!conn->read_iov) {
 		res = -ENOMEM;
 		goto out_err_free_conn;
 	}
@@ -959,8 +925,7 @@ int __add_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 	lockdep_assert_held(&session->target->target_mutex);
 
 	conn = conn_lookup(session, info->cid);
-	if ((conn != NULL) &&
-	    !test_bit(ISCSI_CONN_SHUTTINGDOWN, &conn->conn_aflags)) {
+	if (conn && !test_bit(ISCSI_CONN_SHUTTINGDOWN, &conn->conn_aflags)) {
 		/* conn reinstatement */
 		reinstatement = true;
 	} else if (!list_empty(&session->conn_list)) {
@@ -982,8 +947,8 @@ int __add_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 		goto out;
 
 	if (reinstatement) {
-		TRACE(TRACE_MGMT, "Reinstating conn (old %p, new %p)", conn,
-			new_conn);
+		TRACE(TRACE_MGMT, "Reinstating conn (old %p, new %p)",
+		      conn, new_conn);
 		conn->conn_reinst_successor = new_conn;
 		__set_bit(ISCSI_CONN_REINSTATING, &new_conn->conn_aflags);
 		__mark_conn_closed(conn, 0);
@@ -1008,9 +973,9 @@ int __del_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 	}
 
 	PRINT_INFO("Deleting connection with initiator %s (%p)",
-		conn->session->initiator_name, conn);
+		   conn->session->initiator_name, conn);
 
-	__mark_conn_closed(conn, ISCSI_CONN_ACTIVE_CLOSE|ISCSI_CONN_DELETING);
+	__mark_conn_closed(conn, ISCSI_CONN_ACTIVE_CLOSE | ISCSI_CONN_DELETING);
 
 	return 0;
 }

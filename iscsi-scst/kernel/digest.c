@@ -54,8 +54,7 @@ int digest_init(struct iscsi_conn *conn)
 	return 0;
 }
 
-static __be32 evaluate_crc32_from_sg(struct scatterlist *sg, int nbytes,
-	uint32_t padding)
+static __be32 evaluate_crc32_from_sg(struct scatterlist *sg, int nbytes, uint32_t padding)
 {
 	u32 crc = ~0;
 
@@ -103,8 +102,7 @@ static __be32 digest_header(struct iscsi_pdu *pdu)
 	return evaluate_crc32_from_sg(sg, nbytes, 0);
 }
 
-static __be32 digest_data(struct iscsi_cmnd *cmd, u32 size, u32 offset,
-	uint32_t padding)
+static __be32 digest_data(struct iscsi_cmnd *cmd, u32 size, u32 offset, uint32_t padding)
 {
 	struct scatterlist *sg = cmd->sg;
 	int idx, count;
@@ -163,7 +161,7 @@ int digest_rx_data(struct iscsi_cmnd *cmnd)
 	switch (cmnd_opcode(cmnd)) {
 	case ISCSI_OP_SCSI_DATA_OUT:
 		req = cmnd->cmd_req;
-		if (unlikely(req == NULL)) {
+		if (unlikely(!req)) {
 			/* It can be for prelim completed commands */
 			req = cmnd;
 			goto out;
@@ -197,22 +195,22 @@ int digest_rx_data(struct iscsi_cmnd *cmnd)
 	 */
 	if (unlikely(offset + cmnd->pdu.datasize > req->bufflen)) {
 		PRINT_WARNING("Skipping RX data digest check for residual overflow command op %x (data size %d, buffer size %d)",
-			cmnd_hdr(req)->scb[0], offset + cmnd->pdu.datasize,
-			req->bufflen);
+			      cmnd_hdr(req)->scb[0], offset + cmnd->pdu.datasize,
+			      req->bufflen);
 		goto out;
 	}
 
-	crc = digest_data(req, cmnd->pdu.datasize, offset,
-			cmnd->conn->rpadding);
+	crc = digest_data(req, cmnd->pdu.datasize, offset, cmnd->conn->rpadding);
 
 	if (unlikely(crc != cmnd->ddigest)) {
 		PRINT_ERROR("RX data digest failed, stable pages disabled?");
 		TRACE_MGMT_DBG("Calculated crc %x, ddigest %x, offset %d", crc,
-			cmnd->ddigest, offset);
+			       cmnd->ddigest, offset);
 		iscsi_dump_pdu(&cmnd->pdu);
 		res = -EIO;
-	} else
+	} else {
 		TRACE_DBG("RX data digest OK for cmd %p", cmnd);
+	}
 
 out:
 	return res;
@@ -240,5 +238,5 @@ void digest_tx_data(struct iscsi_cmnd *cmnd)
 
 	cmnd->ddigest = digest_data(cmnd, cmnd->pdu.datasize, offset, 0);
 	TRACE_DBG("TX data digest for cmd %p: %x (offset %d, opcode %x)", cmnd,
-		cmnd->ddigest, offset, cmnd_opcode(cmnd));
+		  cmnd->ddigest, offset, cmnd_opcode(cmnd));
 }
