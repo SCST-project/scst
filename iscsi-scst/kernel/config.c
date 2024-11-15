@@ -20,12 +20,10 @@
 /* Protected by target_mgmt_mutex */
 int ctr_open_state;
 
-
 /* Protected by target_mgmt_mutex */
 static LIST_HEAD(iscsi_attrs_list);
 
-static ssize_t iscsi_version_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t iscsi_version_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	TRACE_ENTRY();
 
@@ -52,10 +50,9 @@ static ssize_t iscsi_version_show(struct kobject *kobj,
 }
 
 static struct kobj_attribute iscsi_version_attr =
-	__ATTR(version, S_IRUGO, iscsi_version_show, NULL);
+	__ATTR(version, 0444, iscsi_version_show, NULL);
 
-static ssize_t iscsi_open_state_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t iscsi_open_state_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	switch (ctr_open_state) {
 	case ISCSI_CTR_OPEN_STATE_CLOSED:
@@ -76,14 +73,13 @@ static ssize_t iscsi_open_state_show(struct kobject *kobj,
 }
 
 static struct kobj_attribute iscsi_open_state_attr =
-	__ATTR(open_state, S_IRUGO, iscsi_open_state_show, NULL);
+	__ATTR(open_state, 0444, iscsi_open_state_show, NULL);
 
 const struct attribute *iscsi_attrs[] = {
 	&iscsi_version_attr.attr,
 	&iscsi_open_state_attr.attr,
 	NULL,
 };
-
 
 /* target_mgmt_mutex supposed to be locked */
 static int add_conn(void __user *ptr)
@@ -103,7 +99,7 @@ static int add_conn(void __user *ptr)
 	}
 
 	target = target_lookup_by_id(info.tid);
-	if (target == NULL) {
+	if (!target) {
 		PRINT_ERROR("Target %d not found", info.tid);
 		err = -ENOENT;
 		goto out;
@@ -114,7 +110,7 @@ static int add_conn(void __user *ptr)
 	session = session_lookup(target, info.sid);
 	if (!session) {
 		PRINT_ERROR("Session %lld not found",
-			(unsigned long long)info.tid);
+			    (unsigned long long)info.tid);
 		err = -ENOENT;
 		goto out_unlock;
 	}
@@ -147,7 +143,7 @@ static int del_conn(void __user *ptr)
 	}
 
 	target = target_lookup_by_id(info.tid);
-	if (target == NULL) {
+	if (!target) {
 		PRINT_ERROR("Target %d not found", info.tid);
 		err = -ENOENT;
 		goto out;
@@ -158,7 +154,7 @@ static int del_conn(void __user *ptr)
 	session = session_lookup(target, info.sid);
 	if (!session) {
 		PRINT_ERROR("Session %llx not found",
-			(unsigned long long)info.sid);
+			    (unsigned long long)info.sid);
 		err = -ENOENT;
 		goto out_unlock;
 	}
@@ -185,7 +181,7 @@ static int add_session(void __user *ptr)
 	lockdep_assert_held(&target_mgmt_mutex);
 
 	info = kzalloc(sizeof(*info), GFP_KERNEL);
-	if (info == NULL) {
+	if (!info) {
 		PRINT_ERROR("Can't alloc info (size %zd)", sizeof(*info));
 		err = -ENOMEM;
 		goto out;
@@ -198,11 +194,11 @@ static int add_session(void __user *ptr)
 		goto out_free;
 	}
 
-	info->initiator_name[sizeof(info->initiator_name)-1] = '\0';
-	info->full_initiator_name[sizeof(info->full_initiator_name)-1] = '\0';
+	info->initiator_name[sizeof(info->initiator_name) - 1] = '\0';
+	info->full_initiator_name[sizeof(info->full_initiator_name) - 1] = '\0';
 
 	target = target_lookup_by_id(info->tid);
-	if (target == NULL) {
+	if (!target) {
 		PRINT_ERROR("Target %d not found", info->tid);
 		err = -ENOENT;
 		goto out_free;
@@ -228,7 +224,7 @@ static int del_session(void __user *ptr)
 	TRACE_ENTRY();
 
 	info = kzalloc(sizeof(*info), GFP_KERNEL);
-	if (info == NULL) {
+	if (!info) {
 		PRINT_ERROR("Can't alloc info (size %zd)", sizeof(*info));
 		err = -ENOMEM;
 		goto out;
@@ -249,10 +245,10 @@ static int del_session(void __user *ptr)
 	}
 #endif
 
-	info->initiator_name[sizeof(info->initiator_name)-1] = '\0';
+	info->initiator_name[sizeof(info->initiator_name) - 1] = '\0';
 
 	target = target_lookup_by_id(info->tid);
-	if (target == NULL) {
+	if (!target) {
 		PRINT_ERROR("Target %d not found", info->tid);
 		err = -ENOENT;
 		goto out_free;
@@ -287,7 +283,7 @@ static int iscsi_params_config(void __user *ptr, int set)
 	}
 
 	target = target_lookup_by_id(info.tid);
-	if (target == NULL) {
+	if (!target) {
 		PRINT_ERROR("Target %d not found", info.tid);
 		err = -ENOENT;
 		goto out;
@@ -338,23 +334,21 @@ static int iscsi_initiator_allowed(void __user *ptr)
 	}
 #endif
 
-	cinfo.full_initiator_name[sizeof(cinfo.full_initiator_name)-1] = '\0';
+	cinfo.full_initiator_name[sizeof(cinfo.full_initiator_name) - 1] = '\0';
 
 	target = target_lookup_by_id(cinfo.tid);
-	if (target == NULL) {
+	if (!target) {
 		PRINT_ERROR("Target %d not found", cinfo.tid);
 		err = -ENOENT;
 		goto out;
 	}
 
-	err = scst_initiator_has_luns(target->scst_tgt,
-		cinfo.full_initiator_name);
+	err = scst_initiator_has_luns(target->scst_tgt, cinfo.full_initiator_name);
 
 out:
 	TRACE_EXIT_RES(err);
 	return err;
 }
-
 
 /* target_mgmt_mutex supposed to be locked */
 static int mgmt_cmd_callback(void __user *ptr)
@@ -372,12 +366,12 @@ static int mgmt_cmd_callback(void __user *ptr)
 		goto out;
 	}
 
-	cinfo.value[sizeof(cinfo.value)-1] = '\0';
+	cinfo.value[sizeof(cinfo.value) - 1] = '\0';
 
 	info = scst_sysfs_user_get_info(cinfo.cookie);
-	TRACE_DBG("cookie %u, info %p, result %d", cinfo.cookie, info,
-		cinfo.result);
-	if (info == NULL) {
+	TRACE_DBG("cookie %u, info %p, result %d",
+		  cinfo.cookie, info, cinfo.result);
+	if (!info) {
 		err = -EINVAL;
 		goto out;
 	}
@@ -396,7 +390,7 @@ static int mgmt_cmd_callback(void __user *ptr)
 		struct iscsi_target *target;
 
 		target = target_lookup_by_id(cinfo.tid);
-		if (target == NULL) {
+		if (!target) {
 			PRINT_ERROR("Target %d not found", cinfo.tid);
 			err = -ENOENT;
 			goto out_status;
@@ -408,7 +402,7 @@ static int mgmt_cmd_callback(void __user *ptr)
 
 	case E_GET_ATTR_VALUE:
 		info->data = kstrdup(cinfo.value, GFP_KERNEL);
-		if (info->data == NULL) {
+		if (!info->data) {
 			PRINT_ERROR("Can't duplicate value %s", cinfo.value);
 			info->info_status = -ENOMEM;
 			goto out_complete;
@@ -428,8 +422,7 @@ out_status:
 	goto out_complete;
 }
 
-static ssize_t iscsi_attr_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t iscsi_attr_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	int pos;
 	struct iscsi_attr *tgt_attr;
@@ -439,9 +432,8 @@ static ssize_t iscsi_attr_show(struct kobject *kobj,
 
 	tgt_attr = container_of(attr, struct iscsi_attr, attr);
 
-	pos = iscsi_sysfs_send_event(
-		(tgt_attr->target != NULL) ? tgt_attr->target->tid : 0,
-		E_GET_ATTR_VALUE, tgt_attr->name, NULL, &value);
+	pos = iscsi_sysfs_send_event(tgt_attr->target ? tgt_attr->target->tid : 0,
+				     E_GET_ATTR_VALUE, tgt_attr->name, NULL, &value);
 
 	if (pos != 0)
 		goto out;
@@ -455,8 +447,8 @@ out:
 	return pos;
 }
 
-static ssize_t iscsi_attr_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t iscsi_attr_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf,
+				size_t count)
 {
 	int res;
 	char *buffer;
@@ -464,8 +456,8 @@ static ssize_t iscsi_attr_store(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-	buffer = kzalloc(count+1, GFP_KERNEL);
-	if (buffer == NULL) {
+	buffer = kzalloc(count + 1, GFP_KERNEL);
+	if (!buffer) {
 		res = -ENOMEM;
 		goto out;
 	}
@@ -476,9 +468,8 @@ static ssize_t iscsi_attr_store(struct kobject *kobj,
 
 	TRACE_DBG("attr %s, buffer %s", tgt_attr->attr.attr.name, buffer);
 
-	res = iscsi_sysfs_send_event(
-		(tgt_attr->target != NULL) ? tgt_attr->target->tid : 0,
-		E_SET_ATTR_VALUE, tgt_attr->name, buffer, NULL);
+	res = iscsi_sysfs_send_event(tgt_attr->target ? tgt_attr->target->tid : 0,
+				     E_SET_ATTR_VALUE, tgt_attr->name, buffer, NULL);
 
 	kfree(buffer);
 
@@ -494,8 +485,7 @@ out:
  * target_mgmt_mutex supposed to be locked. If target != 0, target_mutex
  * supposed to be locked as well.
  */
-int iscsi_add_attr(struct iscsi_target *target,
-	const struct iscsi_kern_attr *attr_info)
+int iscsi_add_attr(struct iscsi_target *target, const struct iscsi_kern_attr *attr_info)
 {
 	int res = 0;
 	struct iscsi_attr *tgt_attr;
@@ -507,7 +497,7 @@ int iscsi_add_attr(struct iscsi_target *target,
 
 	TRACE_ENTRY();
 
-	if (target != NULL) {
+	if (target) {
 		attrs_list = &target->attrs_list;
 		name = target->name;
 	} else {
@@ -519,19 +509,19 @@ int iscsi_add_attr(struct iscsi_target *target,
 		/* Both for sure NULL-terminated */
 		if (strcmp(tgt_attr->name, attr_info->name) == 0) {
 			PRINT_ERROR("Attribute %s for %s already exist",
-				attr_info->name, name);
+				    attr_info->name, name);
 			res = -EEXIST;
 			goto out;
 		}
 	}
 
 	TRACE_DBG("Adding %s's attr %s with mode %x", name,
-		attr_info->name, attr_info->mode);
+		  attr_info->name, attr_info->mode);
 
 	tgt_attr = kzalloc(sizeof(*tgt_attr), GFP_KERNEL);
-	if (tgt_attr == NULL) {
+	if (!tgt_attr) {
 		PRINT_ERROR("Unable to allocate user (size %zd)",
-			sizeof(*tgt_attr));
+			    sizeof(*tgt_attr));
 		res = -ENOMEM;
 		goto out;
 	}
@@ -539,9 +529,9 @@ int iscsi_add_attr(struct iscsi_target *target,
 	tgt_attr->target = target;
 
 	tgt_attr->name = kstrdup(attr_info->name, GFP_KERNEL);
-	if (tgt_attr->name == NULL) {
+	if (!tgt_attr->name) {
 		PRINT_ERROR("Unable to allocate attr %s name/value (target %s)",
-			attr_info->name, name);
+			    attr_info->name, name);
 		res = -ENOMEM;
 		goto out_free;
 	}
@@ -552,19 +542,18 @@ int iscsi_add_attr(struct iscsi_target *target,
 #ifdef CONFIG_DEBUG_LOCK_ALLOC
 	tgt_attr->attr.attr.key = &__key;
 #endif
-	tgt_attr->attr.attr.mode = attr_info->mode & (S_IRUGO | S_IWUGO);
+	tgt_attr->attr.attr.mode = attr_info->mode & 0666;
 	tgt_attr->attr.show = iscsi_attr_show;
 	tgt_attr->attr.store = iscsi_attr_store;
 
 	TRACE_DBG("tgt_attr %p, attr %p", tgt_attr, &tgt_attr->attr.attr);
 
-	res = sysfs_create_file(
-		(target != NULL) ? scst_sysfs_get_tgt_kobj(target->scst_tgt) :
+	res = sysfs_create_file(target ? scst_sysfs_get_tgt_kobj(target->scst_tgt) :
 				scst_sysfs_get_tgtt_kobj(&iscsi_template),
 		&tgt_attr->attr.attr);
 	if (res != 0) {
 		PRINT_ERROR("Unable to create file '%s' for target '%s'",
-			tgt_attr->attr.attr.name, name);
+			    tgt_attr->attr.attr.name, name);
 		goto out_del;
 	}
 
@@ -581,35 +570,30 @@ out_free:
 	goto out;
 }
 
-void __iscsi_del_attr(struct iscsi_target *target,
-	struct iscsi_attr *tgt_attr)
+void __iscsi_del_attr(struct iscsi_target *target, struct iscsi_attr *tgt_attr)
 {
 	TRACE_ENTRY();
 
 	TRACE_DBG("Deleting attr %s (target %s, tgt_attr %p, attr %p)",
-		tgt_attr->name, (target != NULL) ? target->name : "global",
-		tgt_attr, &tgt_attr->attr.attr);
+		  tgt_attr->name, target ? target->name : "global",
+		  tgt_attr, &tgt_attr->attr.attr);
 
 	list_del(&tgt_attr->attrs_list_entry);
 
-	sysfs_remove_file((target != NULL) ?
-			scst_sysfs_get_tgt_kobj(target->scst_tgt) :
-			scst_sysfs_get_tgtt_kobj(&iscsi_template),
-		&tgt_attr->attr.attr);
+	sysfs_remove_file(target ? scst_sysfs_get_tgt_kobj(target->scst_tgt) :
+			  scst_sysfs_get_tgtt_kobj(&iscsi_template), &tgt_attr->attr.attr);
 
 	kfree(tgt_attr->name);
 	kfree(tgt_attr);
 
 	TRACE_EXIT();
-	return;
 }
 
 /*
  * target_mgmt_mutex supposed to be locked. If target != 0, target_mutex
  * supposed to be locked as well.
  */
-static int iscsi_del_attr(struct iscsi_target *target,
-	const char *attr_name)
+static int iscsi_del_attr(struct iscsi_target *target, const char *attr_name)
 {
 	int res = 0;
 	struct iscsi_attr *tgt_attr, *a;
@@ -617,7 +601,7 @@ static int iscsi_del_attr(struct iscsi_target *target,
 
 	TRACE_ENTRY();
 
-	if (target != NULL)
+	if (target)
 		attrs_list = &target->attrs_list;
 	else
 		attrs_list = &iscsi_attrs_list;
@@ -631,9 +615,9 @@ static int iscsi_del_attr(struct iscsi_target *target,
 		}
 	}
 
-	if (tgt_attr == NULL) {
-		PRINT_ERROR("attr %s not found (target %s)", attr_name,
-			(target != NULL) ? target->name : "global");
+	if (!tgt_attr) {
+		PRINT_ERROR("attr %s not found (target %s)",
+			    attr_name, target ? target->name : "global");
 		res = -ENOENT;
 		goto out;
 	}
@@ -662,12 +646,12 @@ static int iscsi_attr_cmd(void __user *ptr, unsigned int cmd)
 		goto out;
 	}
 
-	info.attr.name[sizeof(info.attr.name)-1] = '\0';
+	info.attr.name[sizeof(info.attr.name) - 1] = '\0';
 
 	if (info.cookie != 0) {
 		i = scst_sysfs_user_get_info(info.cookie);
 		TRACE_DBG("cookie %u, uinfo %p", info.cookie, i);
-		if (i == NULL) {
+		if (!i) {
 			err = -EINVAL;
 			goto out;
 		}
@@ -675,7 +659,7 @@ static int iscsi_attr_cmd(void __user *ptr, unsigned int cmd)
 
 	target = target_lookup_by_id(info.tid);
 
-	if (target != NULL)
+	if (target)
 		mutex_lock(&target->target_mutex);
 
 	switch (cmd) {
@@ -689,10 +673,10 @@ static int iscsi_attr_cmd(void __user *ptr, unsigned int cmd)
 		sBUG();
 	}
 
-	if (target != NULL)
+	if (target)
 		mutex_unlock(&target->target_mutex);
 
-	if (i != NULL) {
+	if (i) {
 		i->info_status = err;
 		complete(&i->info_completion);
 	}
@@ -701,7 +685,6 @@ out:
 	TRACE_EXIT_RES(err);
 	return err;
 }
-
 
 /* target_mgmt_mutex supposed to be locked */
 static int add_target(void __user *ptr)
@@ -713,7 +696,7 @@ static int add_target(void __user *ptr)
 	TRACE_ENTRY();
 
 	info = kzalloc(sizeof(*info), GFP_KERNEL);
-	if (info == NULL) {
+	if (!info) {
 		PRINT_ERROR("Can't alloc info (size %zd)", sizeof(*info));
 		err = -ENOMEM;
 		goto out;
@@ -726,23 +709,24 @@ static int add_target(void __user *ptr)
 		goto out_free;
 	}
 
-	if (target_lookup_by_id(info->tid) != NULL) {
+	if (target_lookup_by_id(info->tid)) {
 		PRINT_ERROR("Target %u already exist!", info->tid);
 		err = -EEXIST;
 		goto out_free;
 	}
 
-	info->name[sizeof(info->name)-1] = '\0';
+	info->name[sizeof(info->name) - 1] = '\0';
 
 	if (info->cookie != 0) {
 		uinfo = scst_sysfs_user_get_info(info->cookie);
 		TRACE_DBG("cookie %u, uinfo %p", info->cookie, uinfo);
-		if (uinfo == NULL) {
+		if (!uinfo) {
 			err = -EINVAL;
 			goto out_free;
 		}
-	} else
+	} else {
 		uinfo = NULL;
+	}
 
 #ifdef __COVERITY__
 	/* To suppress a Coverity "tainted scalar" complaint (CID 344743). */
@@ -754,7 +738,7 @@ static int add_target(void __user *ptr)
 
 	err = __add_target(info);
 
-	if (uinfo != NULL) {
+	if (uinfo) {
 		uinfo->info_status = err;
 		complete(&uinfo->info_completion);
 	}
@@ -783,21 +767,22 @@ static int del_target(void __user *ptr)
 		goto out;
 	}
 
-	info.name[sizeof(info.name)-1] = '\0';
+	info.name[sizeof(info.name) - 1] = '\0';
 
 	if (info.cookie != 0) {
 		uinfo = scst_sysfs_user_get_info(info.cookie);
 		TRACE_DBG("cookie %u, uinfo %p", info.cookie, uinfo);
-		if (uinfo == NULL) {
+		if (!uinfo) {
 			err = -EINVAL;
 			goto out;
 		}
-	} else
+	} else {
 		uinfo = NULL;
+	}
 
 	err = __del_target(info.tid);
 
-	if (uinfo != NULL) {
+	if (uinfo) {
 		uinfo->info_status = err;
 		complete(&uinfo->info_completion);
 	}
@@ -810,7 +795,7 @@ out:
 static int iscsi_register(void __user *arg)
 {
 	struct iscsi_kern_register_info reg;
-	char ver[sizeof(ISCSI_SCST_INTERFACE_VERSION)+1];
+	char ver[sizeof(ISCSI_SCST_INTERFACE_VERSION) + 1];
 	int res, rc;
 
 	TRACE_ENTRY();
@@ -822,18 +807,17 @@ static int iscsi_register(void __user *arg)
 		goto out;
 	}
 
-	rc = copy_from_user(ver, (void __user *)(unsigned long)reg.version,
-				sizeof(ver));
+	rc = copy_from_user(ver, (void __user *)(unsigned long)reg.version, sizeof(ver));
 	if (rc != 0) {
 		PRINT_ERROR("%s", "Unable to get version string");
 		res = -EFAULT;
 		goto out;
 	}
-	ver[sizeof(ver)-1] = '\0';
+	ver[sizeof(ver) - 1] = '\0';
 
 	if (strcmp(ver, ISCSI_SCST_INTERFACE_VERSION) != 0) {
 		PRINT_ERROR("Incorrect version of user space %s (expected %s)",
-			ver, ISCSI_SCST_INTERFACE_VERSION);
+			    ver, ISCSI_SCST_INTERFACE_VERSION);
 		res = -EINVAL;
 		goto out;
 	}
@@ -954,8 +938,9 @@ static int iscsi_open(struct inode *inode, struct file *file)
 	if (already) {
 		PRINT_WARNING("Attempt to second open the control device!");
 		return -EBUSY;
-	} else
-		return 0;
+	}
+
+	return 0;
 }
 
 static int iscsi_release(struct inode *inode, struct file *filp)
@@ -972,10 +957,8 @@ static int iscsi_release(struct inode *inode, struct file *filp)
 
 	mutex_lock(&target_mgmt_mutex);
 
-	list_for_each_entry_safe(attr, t, &iscsi_attrs_list,
-					attrs_list_entry) {
+	list_for_each_entry_safe(attr, t, &iscsi_attrs_list, attrs_list_entry)
 		__iscsi_del_attr(NULL, attr);
-	}
 
 	ctr_open_state = ISCSI_CTR_OPEN_STATE_CLOSED;
 
@@ -1017,12 +1000,12 @@ static void iscsi_dump_char(int ch, unsigned char *text, int *pos)
 	if ((i % 16) == 0) {
 		pr_cont(" | %.16s |\n", text);
 		i = 0;
-	} else if ((i % 4) == 0)
+	} else if ((i % 4) == 0) {
 		pr_cont(" |");
+	}
 
 out:
 	*pos = i;
-	return;
 }
 
 void iscsi_dump_pdu(struct iscsi_pdu *pdu)
@@ -1054,16 +1037,15 @@ unsigned long iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(struct iscsi_cmnd *cmnd)
 {
 	unsigned long flag;
 
-	if (cmnd->cmd_req != NULL)
+	if (cmnd->cmd_req)
 		cmnd = cmnd->cmd_req;
 
-	if (cmnd->scst_cmd == NULL)
+	if (!cmnd->scst_cmd) {
 		flag = TRACE_MGMT_DEBUG;
-	else {
+	} else {
 		int status = scst_cmd_get_status(cmnd->scst_cmd);
 
-		if ((status == SAM_STAT_TASK_SET_FULL) ||
-		    (status == SAM_STAT_BUSY))
+		if (status == SAM_STAT_TASK_SET_FULL || status == SAM_STAT_BUSY)
 			flag = TRACE_FLOW_CONTROL;
 		else
 			flag = TRACE_MGMT_DEBUG;
