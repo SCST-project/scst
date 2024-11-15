@@ -39,6 +39,7 @@ static inline void netlink_ack_backport(struct sk_buff *in_skb,
 	WARN_ON_ONCE(extack);
 	netlink_ack(in_skb, nlh, err);
 }
+
 #define netlink_ack netlink_ack_backport
 #endif
 
@@ -98,7 +99,7 @@ static int __event_send(const void *buf, int buf_len)
 	len = NLMSG_SPACE(buf_len);
 
 	skb = alloc_skb(len, GFP_KERNEL);
-	if (skb == NULL) {
+	if (!skb) {
 		PRINT_ERROR("alloc_skb() failed (len %d)", len);
 		res =  -ENOMEM;
 		goto out;
@@ -123,17 +124,16 @@ out:
 	return res;
 }
 
-int event_send(u32 tid, u64 sid, u32 cid, u32 cookie,
-	enum iscsi_kern_event_code code,
-	const char *param1, const char *param2)
+int event_send(u32 tid, u64 sid, u32 cid, u32 cookie, enum iscsi_kern_event_code code,
+	       const char *param1, const char *param2)
 {
 	int err;
 	static DEFINE_MUTEX(event_mutex);
 	struct iscsi_kern_event event = {};
 	int param1_size, param2_size;
 
-	param1_size = (param1 != NULL) ? strlen(param1) : 0;
-	param2_size = (param2 != NULL) ? strlen(param2) : 0;
+	param1_size = param1 ? strlen(param1) : 0;
+	param2_size = param2 ? strlen(param2) : 0;
 
 	event.tid = tid;
 	event.sid = sid;
