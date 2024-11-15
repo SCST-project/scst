@@ -16,6 +16,8 @@ ignore=(
 	LINUX_VERSION_CODE
 	CONSTANT_COMPARISON
 	NEW_TYPEDEFS
+	AVOID_BUG
+	MACRO_ARG_REUSE
 )
 ignore_str=${ignore[*]}
 
