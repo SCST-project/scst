@@ -509,7 +509,6 @@ enum scst_exec_res {
 /* Each initiator connected to this group will have own IO context */
 #define SCST_IO_GROUPING_NEVER			-2
 
-
 /*************************************************************
  ** Valid_mask constants for scst_analyze_sense()
  *************************************************************/
@@ -548,7 +547,8 @@ enum scst_dif_mode {
 	/* Backend device storing tags, creating them on writes, if needed */
 	SCST_DIF_MODE_DEV_STORE = 8,
 };
-#define SCST_DIF_MODE_DEV		(SCST_DIF_MODE_DEV_CHECK|SCST_DIF_MODE_DEV_STORE)
+
+#define SCST_DIF_MODE_DEV		(SCST_DIF_MODE_DEV_CHECK | SCST_DIF_MODE_DEV_STORE)
 
 #define SCST_DIF_MODE_TGT_STR		"tgt"
 #define SCST_DIF_MODE_SCST_STR		"scst"
@@ -568,7 +568,7 @@ enum scst_dif_actions {
 	SCST_DIF_CHECK_GUARD_TAG = 1,
 	SCST_DIF_CHECK_APP_TAG = 2,
 	SCST_DIF_CHECK_REF_TAG = 4,
-#define SCST_DIF_CHECKS_MASK	(SCST_DIF_CHECK_GUARD_TAG|SCST_DIF_CHECK_APP_TAG| \
+#define SCST_DIF_CHECKS_MASK	(SCST_DIF_CHECK_GUARD_TAG | SCST_DIF_CHECK_APP_TAG | \
 				 SCST_DIF_CHECK_REF_TAG)
 
 #define SCST_DIF_ACTION_SHIFT	4
@@ -578,18 +578,18 @@ enum scst_dif_actions {
 	SCST_DIF_ACTION_PASS_CHECK = (3 << SCST_DIF_ACTION_SHIFT), /* check then pass, if OK */
 	SCST_DIF_ACTION_PASS = (4 << SCST_DIF_ACTION_SHIFT), /* just pass, no check */
 
-#define SCST_DIF_ACTION_MASK	(SCST_DIF_ACTION_STRIP|SCST_DIF_ACTION_INSERT| \
-				 SCST_DIF_ACTION_PASS_CHECK|SCST_DIF_ACTION_PASS)
+#define SCST_DIF_ACTION_MASK	(SCST_DIF_ACTION_STRIP | SCST_DIF_ACTION_INSERT | \
+				 SCST_DIF_ACTION_PASS_CHECK | SCST_DIF_ACTION_PASS)
 };
 
 /* Shift for target driver DIF actions */
 #define SCST_DIF_TGT_ACTION_SHIFT	0
 
 /* Shift for SCST DIF actions */
-#define SCST_DIF_SCST_ACTION_SHIFT	(SCST_DIF_TGT_ACTION_SHIFT+4)
+#define SCST_DIF_SCST_ACTION_SHIFT	(SCST_DIF_TGT_ACTION_SHIFT + 4)
 
 /* Shift for dev handler DIF actions */
-#define SCST_DIF_DEV_ACTION_SHIFT	(SCST_DIF_SCST_ACTION_SHIFT+4)
+#define SCST_DIF_DEV_ACTION_SHIFT	(SCST_DIF_SCST_ACTION_SHIFT + 4)
 
 /* Returns DIF checks by stripping the action part from a */
 static inline enum scst_dif_actions scst_get_dif_checks(enum scst_dif_actions a)
@@ -598,12 +598,10 @@ static inline enum scst_dif_actions scst_get_dif_checks(enum scst_dif_actions a)
 }
 
 /* Sets the DIF checks part in a */
-static inline void scst_set_dif_checks(enum scst_dif_actions *a,
-	enum scst_dif_actions checks)
+static inline void scst_set_dif_checks(enum scst_dif_actions *a, enum scst_dif_actions checks)
 {
 	checks &= ~SCST_DIF_CHECKS_MASK;
 	*a |= checks << SCST_DIF_CHECKS_SHIFT;
-	return;
 }
 
 /* Returns DIF action by stripping the checks part from a */
@@ -613,12 +611,10 @@ static inline enum scst_dif_actions scst_get_dif_action(enum scst_dif_actions a)
 }
 
 /* Sets the DIF action part in a */
-static inline void scst_set_dif_action(enum scst_dif_actions *a,
-	enum scst_dif_actions action)
+static inline void scst_set_dif_action(enum scst_dif_actions *a, enum scst_dif_actions action)
 {
 	action &= ~SCST_DIF_ACTION_MASK;
 	*a |= action;
-	return;
 }
 
 /* Returns TGT DIF actions from a, including checks */
@@ -630,12 +626,10 @@ static inline enum scst_dif_actions scst_get_tgt_dif_actions(enum scst_dif_actio
 }
 
 /* Sets TGT DIF action in a. DIF checks in a are not affected by this function. */
-static inline void scst_set_tgt_dif_action(enum scst_dif_actions *a,
-	enum scst_dif_actions tgt_a)
+static inline void scst_set_tgt_dif_action(enum scst_dif_actions *a, enum scst_dif_actions tgt_a)
 {
 	tgt_a &= SCST_DIF_ACTION_MASK;
 	*a |= tgt_a << SCST_DIF_TGT_ACTION_SHIFT;
-	return;
 }
 
 /* Returns SCST DIF actions from a, including checks */
@@ -647,12 +641,10 @@ static inline enum scst_dif_actions scst_get_scst_dif_actions(enum scst_dif_acti
 }
 
 /* Sets SCST DIF action in a. DIF checks in a are not affected by this function. */
-static inline void scst_set_scst_dif_action(enum scst_dif_actions *a,
-	enum scst_dif_actions scst_a)
+static inline void scst_set_scst_dif_action(enum scst_dif_actions *a, enum scst_dif_actions scst_a)
 {
 	scst_a &= SCST_DIF_ACTION_MASK;
 	*a |= scst_a << SCST_DIF_SCST_ACTION_SHIFT;
-	return;
 }
 
 /* Returns DEV DIF actions from a, including checks */
@@ -664,12 +656,10 @@ static inline enum scst_dif_actions scst_get_dev_dif_actions(enum scst_dif_actio
 }
 
 /* Sets SCST DIF action in a. DIF checks in a are not affected by this function. */
-static inline void scst_set_dev_dif_action(enum scst_dif_actions *a,
-	enum scst_dif_actions dev_a)
+static inline void scst_set_dev_dif_action(enum scst_dif_actions *a, enum scst_dif_actions dev_a)
 {
 	dev_a &= SCST_DIF_ACTION_MASK;
 	*a |= dev_a << SCST_DIF_DEV_ACTION_SHIFT;
-	return;
 }
 
 /*************************************************************
@@ -1044,7 +1034,6 @@ struct scst_tgt_template {
 	 */
 	int (*report_aen)(struct scst_aen *aen);
 
-
 	/*
 	 * This function returns in tr_id the corresponding to sess initiator
 	 * port TransportID in the form as it's used by PR commands, see
@@ -1059,8 +1048,8 @@ struct scst_tgt_template {
 	 *
 	 * SHOULD HAVE, because it's required for Persistent Reservations.
 	 */
-	int (*get_initiator_port_transport_id)(struct scst_tgt *tgt,
-		struct scst_session *sess, uint8_t **transport_id);
+	int (*get_initiator_port_transport_id)(struct scst_tgt *tgt, struct scst_session *sess,
+					       uint8_t **transport_id);
 
 	/*
 	 * This function allows to enable or disable particular target.
@@ -1272,7 +1261,6 @@ struct scst_dev_type {
 	unsigned dev_alloc_data_buf_atomic:1;
 	unsigned dev_done_atomic:1;
 
-
 	/*
 	 * Should be set if the device wants to receive notification of
 	 * Persistent Reservation commands (PR OUT only)
@@ -1397,8 +1385,7 @@ struct scst_dev_type {
 	 *
 	 * OPTIONAL
 	 */
-	void (*ext_copy_remap)(struct scst_cmd *cmd,
-		struct scst_ext_copy_seg_descr *descr);
+	void (*ext_copy_remap)(struct scst_cmd *cmd, struct scst_ext_copy_seg_descr *descr);
 
 	/*
 	 * Called to notify dev handler that a ALUA state change is about to
@@ -1411,8 +1398,8 @@ struct scst_dev_type {
 	 *
 	 * OPTIONAL
 	 */
-	void (*on_alua_state_change_start)(struct scst_device *dev,
-		enum scst_tg_state old_state, enum scst_tg_state new_state);
+	void (*on_alua_state_change_start)(struct scst_device *dev, enum scst_tg_state old_state,
+					   enum scst_tg_state new_state);
 
 	/*
 	 * Called to notify dev handler that a ALUA state change is about to
@@ -1425,8 +1412,8 @@ struct scst_dev_type {
 	 *
 	 * OPTIONAL
 	 */
-	void (*on_alua_state_change_finish)(struct scst_device *dev,
-		enum scst_tg_state old_state, enum scst_tg_state new_state);
+	void (*on_alua_state_change_finish)(struct scst_device *dev, enum scst_tg_state old_state,
+					    enum scst_tg_state new_state);
 
 	/*
 	 * Called to notify dev handler that a task management command received
@@ -1442,7 +1429,7 @@ struct scst_dev_type {
 	 * OPTIONAL
 	 */
 	void (*task_mgmt_fn_received)(struct scst_mgmt_cmd *mgmt_cmd,
-		struct scst_tgt_dev *tgt_dev);
+				      struct scst_tgt_dev *tgt_dev);
 
 	/*
 	 * Called to execute a task management command. On any problem, error
@@ -1459,8 +1446,7 @@ struct scst_dev_type {
 	 *
 	 * OPTIONAL
 	 */
-	void (*task_mgmt_fn_done)(struct scst_mgmt_cmd *mgmt_cmd,
-		struct scst_tgt_dev *tgt_dev);
+	void (*task_mgmt_fn_done)(struct scst_mgmt_cmd *mgmt_cmd, struct scst_tgt_dev *tgt_dev);
 
 	/*
 	 * Called to reassign retained states (mode pages, etc.) from
@@ -1472,7 +1458,7 @@ struct scst_dev_type {
 	 * OPTIONAL
 	 */
 	void (*reassign_retained_states)(struct scst_tgt_dev *new_tgt_dev,
-		struct scst_tgt_dev *old_tgt_dev);
+					 struct scst_tgt_dev *old_tgt_dev);
 
 	/*
 	 * Called to notify dev handler that its sg_tablesize is too low to
@@ -1496,8 +1482,8 @@ struct scst_dev_type {
 	 * OPTIONAL
 	 */
 	int (*get_supported_opcodes)(struct scst_cmd *cmd,
-		const struct scst_opcode_descriptor ***out_supp_opcodes,
-		int *out_supp_opcodes_cnt);
+				     const struct scst_opcode_descriptor ***out_supp_opcodes,
+				     int *out_supp_opcodes_cnt);
 
 	/*
 	 * Called to put (release) array of supported opcodes returned
@@ -1506,8 +1492,8 @@ struct scst_dev_type {
 	 * OPTIONAL
 	 */
 	void (*put_supported_opcodes)(struct scst_cmd *cmd,
-		const struct scst_opcode_descriptor **supp_opcodes,
-		int supp_opcodes_cnt);
+				      const struct scst_opcode_descriptor **supp_opcodes,
+				      int supp_opcodes_cnt);
 
 	/*
 	 * Called when new device is attaching to the dev handler
@@ -1744,7 +1730,6 @@ struct scst_tgt {
 	/* Used to wait until session finished to unregister */
 	wait_queue_head_t unreg_waitQ;
 
-
 	/* Name of the target */
 	char *tgt_name;
 
@@ -1940,8 +1925,7 @@ struct scst_session {
 	 * and scst_unregister_session()
 	 */
 	void *reg_sess_data;
-	void (*init_result_fn)(struct scst_session *sess, void *data,
-				int result);
+	void (*init_result_fn)(struct scst_session *sess, void *data, int result);
 	void (*unreg_done_fn)(struct scst_session *sess);
 
 	/*
@@ -1963,7 +1947,7 @@ struct scst_pr_abort_all_pending_mgmt_cmds_counter {
 
 	/* Saved completion routine */
 	void (*saved_cmd_done)(struct scst_cmd *cmd, int next_state,
-		enum scst_exec_context pref_context);
+			       enum scst_exec_context pref_context);
 
 	/*
 	 * How many there are pending for this cmd SCST_PR_ABORT_ALL TM
@@ -2373,7 +2357,7 @@ struct scst_cmd {
 
 	/* Completion routine */
 	void (*scst_cmd_done)(struct scst_cmd *cmd, int next_state,
-		enum scst_exec_context pref_context);
+			      enum scst_exec_context pref_context);
 
 	struct sgv_pool_obj *sgv;	/* data sgv object */
 	int bufflen;			/* cmd buffer length */
@@ -3203,9 +3187,17 @@ struct scst_tgt_dev {
 	unsigned int inq_changed_ua_needed:1;
 
 	/* How many DIF failures detected on this tgt_dev on the corresponding stage */
-	atomic_t tgt_dev_dif_app_failed_tgt, tgt_dev_dif_ref_failed_tgt, tgt_dev_dif_guard_failed_tgt;
-	atomic_t tgt_dev_dif_app_failed_scst, tgt_dev_dif_ref_failed_scst, tgt_dev_dif_guard_failed_scst;
-	atomic_t tgt_dev_dif_app_failed_dev, tgt_dev_dif_ref_failed_dev, tgt_dev_dif_guard_failed_dev;
+	atomic_t tgt_dev_dif_app_failed_tgt;
+	atomic_t tgt_dev_dif_ref_failed_tgt;
+	atomic_t tgt_dev_dif_guard_failed_tgt;
+
+	atomic_t tgt_dev_dif_app_failed_scst;
+	atomic_t tgt_dev_dif_ref_failed_scst;
+	atomic_t tgt_dev_dif_guard_failed_scst;
+
+	atomic_t tgt_dev_dif_app_failed_dev;
+	atomic_t tgt_dev_dif_ref_failed_dev;
+	atomic_t tgt_dev_dif_guard_failed_dev;
 
 	/*
 	 * Stored Unit Attention sense and its length for possible
@@ -3286,7 +3278,6 @@ struct scst_acg {
 
 	/* Name of this acg */
 	const char *acg_name;
-
 
 	/* Type of I/O initiators grouping */
 	int acg_io_grouping_type;
@@ -3527,8 +3518,7 @@ extern const struct scst_opcode_descriptor scst_op_descr_report_supp_opcodes;
  * Registers target template.
  * Returns 0 on success or appropriate error code otherwise.
  */
-int __scst_register_target_template(struct scst_tgt_template *vtt,
-	const char *version);
+int __scst_register_target_template(struct scst_tgt_template *vtt, const char *version);
 static inline int scst_register_target_template(struct scst_tgt_template *vtt)
 {
 	return __scst_register_target_template(vtt, SCST_INTERFACE_VERSION);
@@ -3540,67 +3530,61 @@ static inline int scst_register_target_template(struct scst_tgt_template *vtt)
  *
  * Note: *vtt must be static!
  */
-int __scst_register_target_template_non_gpl(struct scst_tgt_template *vtt,
-	const char *version);
-static inline int scst_register_target_template_non_gpl(
-	struct scst_tgt_template *vtt)
+int __scst_register_target_template_non_gpl(struct scst_tgt_template *vtt, const char *version);
+static inline int scst_register_target_template_non_gpl(struct scst_tgt_template *vtt)
 {
-	return __scst_register_target_template_non_gpl(vtt,
-		SCST_INTERFACE_VERSION);
+	return __scst_register_target_template_non_gpl(vtt, SCST_INTERFACE_VERSION);
 }
 
 void scst_unregister_target_template(struct scst_tgt_template *vtt);
 
-struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
-	const char *target_name);
+struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt, const char *target_name);
 void scst_unregister_target(struct scst_tgt *tgt);
 
 struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
-	const char *initiator_name, void *tgt_priv, void *result_fn_data,
-	void (*result_fn)(struct scst_session *sess, void *data, int result));
+					   const char *initiator_name, void *tgt_priv,
+					   void *result_fn_data,
+					   void (*result_fn)(struct scst_session *sess, void *data,
+							     int result));
 struct scst_session *scst_register_session_mq(struct scst_tgt *tgt, int atomic,
-	const char *initiator_name, void *tgt_priv, void *result_fn_data,
-	void (*result_fn)(struct scst_session *sess, void *data, int result));
+					      const char *initiator_name, void *tgt_priv,
+					      void *result_fn_data,
+					      void (*result_fn)(struct scst_session *sess,
+								void *data, int result));
 struct scst_session *scst_register_session_non_gpl(struct scst_tgt *tgt,
-	const char *initiator_name, void *tgt_priv);
+						   const char *initiator_name, void *tgt_priv);
 void scst_unregister_session(struct scst_session *sess, int wait,
-	void (*unreg_done_fn)(struct scst_session *sess));
+			     void (*unreg_done_fn)(struct scst_session *sess));
 
 void scst_unregister_session_non_gpl(struct scst_session *sess);
 
-int __scst_register_dev_driver(struct scst_dev_type *dev_type,
-	const char *version);
+int __scst_register_dev_driver(struct scst_dev_type *dev_type, const char *version);
 static inline int scst_register_dev_driver(struct scst_dev_type *dev_type)
 {
 	return __scst_register_dev_driver(dev_type, SCST_INTERFACE_VERSION);
 }
+
 void scst_unregister_dev_driver(struct scst_dev_type *dev_type);
 
-int __scst_register_virtual_dev_driver(struct scst_dev_type *dev_type,
-	const char *version);
+int __scst_register_virtual_dev_driver(struct scst_dev_type *dev_type, const char *version);
 /*
  * Registers dev handler driver for virtual devices (eg VDISK).
  * Returns 0 on success or appropriate error code otherwise.
  */
-static inline int scst_register_virtual_dev_driver(
-	struct scst_dev_type *dev_type)
+static inline int scst_register_virtual_dev_driver(struct scst_dev_type *dev_type)
 {
-	return __scst_register_virtual_dev_driver(dev_type,
-		SCST_INTERFACE_VERSION);
+	return __scst_register_virtual_dev_driver(dev_type, SCST_INTERFACE_VERSION);
 }
 
 void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type);
 
 bool scst_initiator_has_luns(struct scst_tgt *tgt, const char *initiator_name);
 
-struct scst_cmd *scst_rx_cmd(struct scst_session *sess,
-	const uint8_t *lun, int lun_len, const uint8_t *cdb,
-	unsigned int cdb_len, bool atomic);
-int scst_rx_cmd_prealloced(struct scst_cmd *cmd, struct scst_session *sess,
-	const uint8_t *lun, int lun_len, const uint8_t *cdb,
-	unsigned int cdb_len, bool atomic);
-void scst_cmd_init_done(struct scst_cmd *cmd,
-	enum scst_exec_context pref_context);
+struct scst_cmd *scst_rx_cmd(struct scst_session *sess, const uint8_t *lun, int lun_len,
+			     const uint8_t *cdb, unsigned int cdb_len, bool atomic);
+int scst_rx_cmd_prealloced(struct scst_cmd *cmd, struct scst_session *sess, const uint8_t *lun,
+			   int lun_len, const uint8_t *cdb, unsigned int cdb_len, bool atomic);
+void scst_cmd_init_done(struct scst_cmd *cmd, enum scst_exec_context pref_context);
 
 /*
  * Notifies SCST that the driver finished the first stage of the command
@@ -3612,27 +3596,19 @@ void scst_cmd_init_done(struct scst_cmd *cmd,
  * See comment for scst_cmd_init_done() for the serialization requirements.
  */
 static inline void scst_cmd_init_stage1_done(struct scst_cmd *cmd,
-	enum scst_exec_context pref_context, int set_sn)
+					     enum scst_exec_context pref_context, int set_sn)
 {
 	cmd->preprocessing_only = 1;
 	cmd->set_sn_on_restart_cmd = !set_sn;
 	scst_cmd_init_done(cmd, pref_context);
 }
 
-void scst_restart_cmd(struct scst_cmd *cmd, int status,
-	enum scst_exec_context pref_context);
+void scst_restart_cmd(struct scst_cmd *cmd, int status, enum scst_exec_context pref_context);
+void scst_rx_data(struct scst_cmd *cmd, int status, enum scst_exec_context pref_context);
+void scst_tgt_cmd_done(struct scst_cmd *cmd, enum scst_exec_context pref_context);
+int scst_rx_mgmt_fn(struct scst_session *sess, const struct scst_rx_mgmt_params *params);
 
-void scst_rx_data(struct scst_cmd *cmd, int status,
-	enum scst_exec_context pref_context);
-
-void scst_tgt_cmd_done(struct scst_cmd *cmd,
-	enum scst_exec_context pref_context);
-
-int scst_rx_mgmt_fn(struct scst_session *sess,
-	const struct scst_rx_mgmt_params *params);
-
-static inline void scst_rx_mgmt_params_init(
-		struct scst_rx_mgmt_params *params)
+static inline void scst_rx_mgmt_params_init(struct scst_rx_mgmt_params *params)
 {
 	memset(params, 0, sizeof(*params));
 }
@@ -3645,8 +3621,8 @@ static inline void scst_rx_mgmt_params_init(
  *
  * Obsolete in favor of scst_rx_mgmt_fn()
  */
-static inline int scst_rx_mgmt_fn_tag(struct scst_session *sess, int fn,
-	uint64_t tag, int atomic, void *tgt_priv)
+static inline int scst_rx_mgmt_fn_tag(struct scst_session *sess, int fn, uint64_t tag, int atomic,
+				      void *tgt_priv)
 {
 	struct scst_rx_mgmt_params params;
 
@@ -3670,8 +3646,8 @@ static inline int scst_rx_mgmt_fn_tag(struct scst_session *sess, int fn,
  *
  * Obsolete in favor of scst_rx_mgmt_fn()
  */
-static inline int scst_rx_mgmt_fn_lun(struct scst_session *sess, int fn,
-	const void *lun, int lun_len, int atomic, void *tgt_priv)
+static inline int scst_rx_mgmt_fn_lun(struct scst_session *sess, int fn, const void *lun,
+				      int lun_len, int atomic, void *tgt_priv)
 {
 	struct scst_rx_mgmt_params params;
 
@@ -3692,8 +3668,8 @@ int scst_get_cdb_info(struct scst_cmd *cmd);
 
 int scst_set_cmd_error_status(struct scst_cmd *cmd, int status);
 int scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq);
-int scst_set_cmd_error_and_inf(struct scst_cmd *cmd, int key, int asc,
-			       int ascq, uint64_t information);
+int scst_set_cmd_error_and_inf(struct scst_cmd *cmd, int key, int asc, int ascq,
+			       uint64_t information);
 void scst_set_busy(struct scst_cmd *cmd);
 
 void scst_check_convert_sense(struct scst_cmd *cmd);
@@ -3710,23 +3686,21 @@ struct scst_cmd *scst_find_cmd(struct scst_session *sess, void *data,
 enum dma_data_direction scst_to_dma_dir(int scst_dir);
 enum dma_data_direction scst_to_tgt_dma_dir(int scst_dir);
 
-int scst_register_virtual_device_node(struct scst_dev_type *dev_handler,
-	const char *dev_name, int nodeid);
+int scst_register_virtual_device_node(struct scst_dev_type *dev_handler, const char *dev_name,
+				      int nodeid);
 static inline int scst_register_virtual_device(struct scst_dev_type *dev_handler,
-	const char *dev_name)
+					       const char *dev_name)
 {
-	return scst_register_virtual_device_node(dev_handler, dev_name,
-		NUMA_NO_NODE);
+	return scst_register_virtual_device_node(dev_handler, dev_name, NUMA_NO_NODE);
 }
-void scst_unregister_virtual_device(int id,
-				    void (*on_free)(struct scst_device *dev,
-						    void *arg),
+
+void scst_unregister_virtual_device(int id, void (*on_free)(struct scst_device *dev, void *arg),
 				    void *arg);
 
 /*
  * Get/Set functions for tgt's sg_tablesize
  */
-static inline int scst_tgt_get_sg_tablesize(struct scst_tgt *tgt)
+static inline int scst_tgt_get_sg_tablesize(const struct scst_tgt *tgt)
 {
 	return tgt->sg_tablesize;
 }
@@ -3739,7 +3713,7 @@ static inline void scst_tgt_set_sg_tablesize(struct scst_tgt *tgt, int val)
 /*
  * Get/Set functions for tgt's target private data
  */
-static inline void *scst_tgt_get_tgt_priv(struct scst_tgt *tgt)
+static inline void *scst_tgt_get_tgt_priv(const struct scst_tgt *tgt)
 {
 	return tgt->tgt_priv;
 }
@@ -3752,7 +3726,7 @@ static inline void scst_tgt_set_tgt_priv(struct scst_tgt *tgt, void *val)
 /*
  * Get/Set functions for tgt's tgt_dif_supported
  */
-static inline bool scst_tgt_get_dif_supported(struct scst_tgt *tgt)
+static inline bool scst_tgt_get_dif_supported(const struct scst_tgt *tgt)
 {
 	return tgt->tgt_dif_supported;
 }
@@ -3765,7 +3739,7 @@ static inline void scst_tgt_set_dif_supported(struct scst_tgt *tgt, bool val)
 /*
  * Get/Set functions for tgt's tgt_hw_dif_type1_supported
  */
-static inline bool scst_tgt_get_hw_dif_type1_supported(struct scst_tgt *tgt)
+static inline bool scst_tgt_get_hw_dif_type1_supported(const struct scst_tgt *tgt)
 {
 	return tgt->tgt_hw_dif_type1_supported;
 }
@@ -3778,7 +3752,7 @@ static inline void scst_tgt_set_hw_dif_type1_supported(struct scst_tgt *tgt, boo
 /*
  * Get/Set functions for tgt's tgt_hw_dif_type2_supported
  */
-static inline bool scst_tgt_get_hw_dif_type2_supported(struct scst_tgt *tgt)
+static inline bool scst_tgt_get_hw_dif_type2_supported(const struct scst_tgt *tgt)
 {
 	return tgt->tgt_hw_dif_type2_supported;
 }
@@ -3791,7 +3765,7 @@ static inline void scst_tgt_set_hw_dif_type2_supported(struct scst_tgt *tgt, boo
 /*
  * Get/Set functions for tgt's tgt_hw_dif_type3_supported
  */
-static inline bool scst_tgt_get_hw_dif_type3_supported(struct scst_tgt *tgt)
+static inline bool scst_tgt_get_hw_dif_type3_supported(const struct scst_tgt *tgt)
 {
 	return tgt->tgt_hw_dif_type3_supported;
 }
@@ -3804,7 +3778,7 @@ static inline void scst_tgt_set_hw_dif_type3_supported(struct scst_tgt *tgt, boo
 /*
  * Get/Set functions for tgt's tgt_hw_dif_ip_supported
  */
-static inline bool scst_tgt_get_hw_dif_ip_supported(struct scst_tgt *tgt)
+static inline bool scst_tgt_get_hw_dif_ip_supported(const struct scst_tgt *tgt)
 {
 	return tgt->tgt_hw_dif_ip_supported;
 }
@@ -3817,7 +3791,7 @@ static inline void scst_tgt_set_hw_dif_ip_supported(struct scst_tgt *tgt, bool v
 /*
  * Get/Set functions for tgt's tgt_hw_dif_same_sg_layout_required
  */
-static inline bool scst_tgt_get_hw_dif_same_sg_layout_required(struct scst_tgt *tgt)
+static inline bool scst_tgt_get_hw_dif_same_sg_layout_required(const struct scst_tgt *tgt)
 {
 	return tgt->tgt_hw_dif_same_sg_layout_required;
 }
@@ -3830,14 +3804,13 @@ static inline void scst_tgt_set_hw_dif_same_sg_layout_required(struct scst_tgt *
 /*
  * Get/Set functions for tgt's tgt_supported_dif_block_sizes
  */
-static inline const int *scst_tgt_get_supported_dif_block_sizes(
-	struct scst_tgt *tgt)
+static inline const int *scst_tgt_get_supported_dif_block_sizes(const struct scst_tgt *tgt)
 {
 	return tgt->tgt_supported_dif_block_sizes;
 }
 
 static inline void scst_tgt_set_supported_dif_block_sizes(struct scst_tgt *tgt,
-	const int *const val)
+							  const int *const val)
 {
 	tgt->tgt_supported_dif_block_sizes = val;
 }
@@ -3847,13 +3820,12 @@ void scst_update_hw_pending_start(struct scst_cmd *cmd);
 /*
  * Get/Set functions for session's target private data
  */
-static inline void *scst_sess_get_tgt_priv(struct scst_session *sess)
+static inline void *scst_sess_get_tgt_priv(const struct scst_session *sess)
 {
 	return sess->sess_tgt_priv;
 }
 
-static inline void scst_sess_set_tgt_priv(struct scst_session *sess,
-					      void *val)
+static inline void scst_sess_set_tgt_priv(struct scst_session *sess, void *val)
 {
 	sess->sess_tgt_priv = val;
 }
@@ -3870,37 +3842,34 @@ void scst_stpg_del_unblock_next(struct scst_cmd *cmd);
 /*
  * Get/set functions for dev's static DIF APP TAG
  */
-static inline __be16 scst_dev_get_dif_static_app_tag(struct scst_device *dev)
+static inline __be16 scst_dev_get_dif_static_app_tag(const struct scst_device *dev)
 {
 	return dev->dev_dif_static_app_tag;
 }
 
-static inline __be32 scst_dev_get_dif_static_app_ref_tag(struct scst_device *dev)
+static inline __be32 scst_dev_get_dif_static_app_ref_tag(const struct scst_device *dev)
 {
 	return dev->dev_dif_static_app_ref_tag;
 }
 
-static inline __be64 scst_dev_get_dif_static_app_tag_combined(
-	struct scst_device *dev)
+static inline __be64 scst_dev_get_dif_static_app_tag_combined(struct scst_device *dev)
 {
 	uint64_t a = (((uint64_t)be32_to_cpu(dev->dev_dif_static_app_ref_tag)) << 16) |
 			be16_to_cpu(dev->dev_dif_static_app_tag);
 	return cpu_to_be64(a);
 }
 
-void scst_dev_set_dif_static_app_tag_combined(struct scst_device *dev,
-	__be64 app_tag);
+void scst_dev_set_dif_static_app_tag_combined(struct scst_device *dev, __be64 app_tag);
 
 /*
  * Get/set functions for dev's DIF APP TAG checking
  */
-static inline bool scst_dev_get_dif_app_tag_check(struct scst_device *dev)
+static inline bool scst_dev_get_dif_app_tag_check(const struct scst_device *dev)
 {
 	return dev->dif_app_chk == SCST_DIF_CHECK_APP_TAG;
 }
 
-int scst_set_dif_params(struct scst_device *dev,
-	enum scst_dif_mode dif_mode, int dif_type);
+int scst_set_dif_params(struct scst_device *dev, enum scst_dif_mode dif_mode, int dif_type);
 
 /*
  * Functions to account detected DIF errors on the corresponding stages
@@ -3971,6 +3940,7 @@ static inline int scst_dif_process_read(struct scst_cmd *cmd)
 {
 	return cmd->dev->dev_dif_fn(cmd);
 }
+
 static inline int scst_dif_process_write(struct scst_cmd *cmd)
 {
 	return cmd->dev->dev_dif_fn(cmd);
@@ -4003,7 +3973,7 @@ static inline bool scst_cmd_atomic(struct scst_cmd *cmd)
 }
 
 /* Returns TRUE if cmd completed with SAM_STAT_GOOD */
-static inline bool scst_cmd_completed_good(struct scst_cmd *cmd)
+static inline bool scst_cmd_completed_good(const struct scst_cmd *cmd)
 {
 	return cmd->completed && (cmd->status == SAM_STAT_GOOD);
 }
@@ -4051,13 +4021,13 @@ static inline enum scst_exec_context scst_estimate_context_atomic(void)
 }
 
 /* Returns cmd's CDB */
-static inline const uint8_t *scst_cmd_get_cdb(struct scst_cmd *cmd)
+static inline const uint8_t *scst_cmd_get_cdb(const struct scst_cmd *cmd)
 {
 	return cmd->cdb;
 }
 
 /* Returns cmd's CDB length */
-static inline unsigned int scst_cmd_get_cdb_len(struct scst_cmd *cmd)
+static inline unsigned int scst_cmd_get_cdb_len(const struct scst_cmd *cmd)
 {
 	return cmd->cdb_len;
 }
@@ -4066,25 +4036,25 @@ void scst_cmd_set_ext_cdb(struct scst_cmd *cmd,
 	uint8_t *ext_cdb, unsigned int ext_cdb_len, gfp_t gfp_mask);
 
 /* Returns cmd's session */
-static inline struct scst_session *scst_cmd_get_session(struct scst_cmd *cmd)
+static inline struct scst_session *scst_cmd_get_session(const struct scst_cmd *cmd)
 {
 	return cmd->sess;
 }
 
 /* Returns cmd's response data length */
-static inline int scst_cmd_get_resp_data_len(struct scst_cmd *cmd)
+static inline int scst_cmd_get_resp_data_len(const struct scst_cmd *cmd)
 {
 	return cmd->resp_data_len;
 }
 
 /* Returns cmd's adjusted response data length */
-static inline int scst_cmd_get_adjusted_resp_data_len(struct scst_cmd *cmd)
+static inline int scst_cmd_get_adjusted_resp_data_len(const struct scst_cmd *cmd)
 {
 	return cmd->adjusted_resp_data_len;
 }
 
 /* Returns if status should be sent for cmd */
-static inline int scst_cmd_get_is_send_status(struct scst_cmd *cmd)
+static inline int scst_cmd_get_is_send_status(const struct scst_cmd *cmd)
 {
 	return cmd->is_send_status;
 }
@@ -4095,7 +4065,7 @@ static inline int scst_cmd_get_is_send_status(struct scst_cmd *cmd)
  * Usage of this function is not recommended, use scst_get_buf_*()
  * family of functions instead.
  */
-static inline struct scatterlist *scst_cmd_get_sg(struct scst_cmd *cmd)
+static inline struct scatterlist *scst_cmd_get_sg(const struct scst_cmd *cmd)
 {
 	return cmd->sg;
 }
@@ -4106,7 +4076,7 @@ static inline struct scatterlist *scst_cmd_get_sg(struct scst_cmd *cmd)
  * Usage of this function is not recommended, use scst_get_buf_*()
  * family of functions instead.
  */
-static inline int scst_cmd_get_sg_cnt(struct scst_cmd *cmd)
+static inline int scst_cmd_get_sg_cnt(const struct scst_cmd *cmd)
 {
 	return cmd->sg_cnt;
 }
@@ -4117,7 +4087,7 @@ static inline int scst_cmd_get_sg_cnt(struct scst_cmd *cmd)
  * Usage of this function is not recommended, use scst_get_dif_buf()
  * function instead.
  */
-static inline struct scatterlist *scst_cmd_get_dif_sg(struct scst_cmd *cmd)
+static inline struct scatterlist *scst_cmd_get_dif_sg(const struct scst_cmd *cmd)
 {
 	return cmd->dif_sg;
 }
@@ -4128,13 +4098,13 @@ static inline struct scatterlist *scst_cmd_get_dif_sg(struct scst_cmd *cmd)
  * Usage of this function is not recommended, use scst_get_dif_buf()
  * function instead.
  */
-static inline int scst_cmd_get_dif_sg_cnt(struct scst_cmd *cmd)
+static inline int scst_cmd_get_dif_sg_cnt(const struct scst_cmd *cmd)
 {
 	return cmd->dif_sg_cnt;
 }
 
 /* Returns cmd's LBA */
-static inline int64_t scst_cmd_get_lba(struct scst_cmd *cmd)
+static inline int64_t scst_cmd_get_lba(const struct scst_cmd *cmd)
 {
 	return cmd->lba;
 }
@@ -4146,7 +4116,7 @@ static inline int64_t scst_cmd_get_lba(struct scst_cmd *cmd)
  * this function is not recommended, use scst_get_buf_*()
  * family of functions instead.
  */
-static inline int scst_cmd_get_bufflen(struct scst_cmd *cmd)
+static inline int scst_cmd_get_bufflen(const struct scst_cmd *cmd)
 {
 	return cmd->bufflen;
 }
@@ -4155,13 +4125,13 @@ static inline int scst_cmd_get_bufflen(struct scst_cmd *cmd)
  * Returns cmd's data_len. See the corresponding field's description in
  * struct scst_cmd above.
  */
-static inline int64_t scst_cmd_get_data_len(struct scst_cmd *cmd)
+static inline int64_t scst_cmd_get_data_len(const struct scst_cmd *cmd)
 {
 	return cmd->data_len;
 }
 
 /* Returns true, if cmd needs DIF buffer */
-static inline bool scst_cmd_needs_dif_buf(struct scst_cmd *cmd)
+static inline bool scst_cmd_needs_dif_buf(const struct scst_cmd *cmd)
 {
 	return (scst_get_dif_action(scst_get_scst_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE) ||
 	       (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE);
@@ -4187,7 +4157,7 @@ static inline int scst_cmd_get_bufflen_dif(struct scst_cmd *cmd)
  * Usage of this function is not recommended, use scst_get_out_buf_*()
  * family of functions instead.
  */
-static inline struct scatterlist *scst_cmd_get_out_sg(struct scst_cmd *cmd)
+static inline struct scatterlist *scst_cmd_get_out_sg(const struct scst_cmd *cmd)
 {
 	return cmd->out_sg;
 }
@@ -4198,7 +4168,7 @@ static inline struct scatterlist *scst_cmd_get_out_sg(struct scst_cmd *cmd)
  * Usage of this function is not recommended, use scst_get_out_buf_*()
  * family of functions instead.
  */
-static inline int scst_cmd_get_out_sg_cnt(struct scst_cmd *cmd)
+static inline int scst_cmd_get_out_sg_cnt(const struct scst_cmd *cmd)
 {
 	return cmd->out_sg_cnt;
 }
@@ -4219,7 +4189,7 @@ static inline void scst_check_restore_sg_buff(struct scst_cmd *cmd)
  * this function is not recommended, use scst_get_out_buf_*()
  * family of functions instead.
  */
-static inline unsigned int scst_cmd_get_out_bufflen(struct scst_cmd *cmd)
+static inline unsigned int scst_cmd_get_out_bufflen(const struct scst_cmd *cmd)
 {
 	return cmd->out_bufflen;
 }
@@ -4228,7 +4198,7 @@ static inline unsigned int scst_cmd_get_out_bufflen(struct scst_cmd *cmd)
  * Returns pointer to cmd's target's SG data buffer. Since it's for target
  * drivers, the "_i_" part is omitted.
  */
-static inline struct scatterlist *scst_cmd_get_tgt_sg(struct scst_cmd *cmd)
+static inline struct scatterlist *scst_cmd_get_tgt_sg(const struct scst_cmd *cmd)
 {
 	return cmd->tgt_i_sg;
 }
@@ -4237,7 +4207,7 @@ static inline struct scatterlist *scst_cmd_get_tgt_sg(struct scst_cmd *cmd)
  * Returns cmd's target's sg_cnt. Since it's for target
  * drivers, the "_i_" part is omitted.
  */
-static inline int scst_cmd_get_tgt_sg_cnt(struct scst_cmd *cmd)
+static inline int scst_cmd_get_tgt_sg_cnt(const struct scst_cmd *cmd)
 {
 	return cmd->tgt_i_sg_cnt;
 }
@@ -4246,8 +4216,7 @@ static inline int scst_cmd_get_tgt_sg_cnt(struct scst_cmd *cmd)
  * Sets cmd's target's SG data buffer. Since it's for target
  * drivers, the "_i_" part is omitted.
  */
-static inline void scst_cmd_set_tgt_sg(struct scst_cmd *cmd,
-	struct scatterlist *sg, int sg_cnt)
+static inline void scst_cmd_set_tgt_sg(struct scst_cmd *cmd, struct scatterlist *sg, int sg_cnt)
 {
 	cmd->tgt_i_sg = sg;
 	cmd->tgt_i_sg_cnt = sg_cnt;
@@ -4258,7 +4227,7 @@ static inline void scst_cmd_set_tgt_sg(struct scst_cmd *cmd,
  * Returns pointer to cmd's target's DIF tags SG data buffer. Since it's
  * for target drivers, the "_i_" part is omitted.
  */
-static inline struct scatterlist *scst_cmd_get_tgt_dif_sg(struct scst_cmd *cmd)
+static inline struct scatterlist *scst_cmd_get_tgt_dif_sg(const struct scst_cmd *cmd)
 {
 	return cmd->tgt_i_dif_sg;
 }
@@ -4267,7 +4236,7 @@ static inline struct scatterlist *scst_cmd_get_tgt_dif_sg(struct scst_cmd *cmd)
  * Returns cmd's target's DIF tags SG data buffer elements count. Since it's
  * for target drivers, the "_i_" part is omitted.
  */
-static inline int scst_cmd_get_tgt_dif_sg_cnt(struct scst_cmd *cmd)
+static inline int scst_cmd_get_tgt_dif_sg_cnt(const struct scst_cmd *cmd)
 {
 	return cmd->tgt_i_dif_sg_cnt;
 }
@@ -4276,28 +4245,28 @@ static inline int scst_cmd_get_tgt_dif_sg_cnt(struct scst_cmd *cmd)
  * Sets cmd's target's DIF tags SG data buffer. Since it's for target
  * drivers, the "_i_" part is omitted.
  */
-static inline void scst_cmd_set_tgt_dif_sg(struct scst_cmd *cmd,
-	struct scatterlist *dif_sg, int cnt)
+static inline void scst_cmd_set_tgt_dif_sg(struct scst_cmd *cmd, struct scatterlist *dif_sg,
+					   int cnt)
 {
 	cmd->tgt_i_dif_sg = dif_sg;
 	cmd->tgt_i_dif_sg_cnt = cnt;
 }
 
 /* Returns pointer to cmd's target's OUT SG data buffer */
-static inline struct scatterlist *scst_cmd_get_out_tgt_sg(struct scst_cmd *cmd)
+static inline struct scatterlist *scst_cmd_get_out_tgt_sg(const struct scst_cmd *cmd)
 {
 	return cmd->tgt_out_sg;
 }
 
 /* Returns cmd's target's OUT sg_cnt */
-static inline int scst_cmd_get_tgt_out_sg_cnt(struct scst_cmd *cmd)
+static inline int scst_cmd_get_tgt_out_sg_cnt(const struct scst_cmd *cmd)
 {
 	return cmd->tgt_out_sg_cnt;
 }
 
 /* Sets cmd's target's OUT SG data buffer */
-static inline void scst_cmd_set_tgt_out_sg(struct scst_cmd *cmd,
-	struct scatterlist *sg, int sg_cnt)
+static inline void scst_cmd_set_tgt_out_sg(struct scst_cmd *cmd, struct scatterlist *sg,
+					   int sg_cnt)
 {
 	WARN_ON(!cmd->tgt_i_data_buf_alloced);
 
@@ -4306,23 +4275,21 @@ static inline void scst_cmd_set_tgt_out_sg(struct scst_cmd *cmd,
 }
 
 /* Returns cmd's data direction */
-static inline scst_data_direction scst_cmd_get_data_direction(
-	struct scst_cmd *cmd)
+static inline scst_data_direction scst_cmd_get_data_direction(const struct scst_cmd *cmd)
 {
 	return cmd->data_direction;
 }
 
 /* Returns cmd's write len as well as write SG and sg_cnt */
-static inline int scst_cmd_get_write_fields(struct scst_cmd *cmd,
-	struct scatterlist **sg, int *sg_cnt)
+static inline int scst_cmd_get_write_fields(struct scst_cmd *cmd, struct scatterlist **sg,
+					    int *sg_cnt)
 {
 	*sg = *cmd->write_sg;
 	*sg_cnt = *cmd->write_sg_cnt;
 	return cmd->write_len;
 }
 
-void scst_cmd_set_write_not_received_data_len(struct scst_cmd *cmd,
-	int not_received);
+void scst_cmd_set_write_not_received_data_len(struct scst_cmd *cmd, int not_received);
 
 bool __scst_get_resid(struct scst_cmd *cmd, int *resid, int *bidi_out_resid);
 
@@ -4330,8 +4297,7 @@ bool __scst_get_resid(struct scst_cmd *cmd, int *resid, int *bidi_out_resid);
  * Returns true if cmd has residual(s) and returns them in the corresponding
  * parameters(s).
  */
-static inline bool scst_get_resid(struct scst_cmd *cmd,
-	int *resid, int *bidi_out_resid)
+static inline bool scst_get_resid(struct scst_cmd *cmd, int *resid, int *bidi_out_resid)
 {
 	if (likely(!cmd->resid_possible))
 		return false;
@@ -4339,37 +4305,37 @@ static inline bool scst_get_resid(struct scst_cmd *cmd,
 }
 
 /* Returns cmd's status byte from host device */
-static inline uint8_t scst_cmd_get_status(struct scst_cmd *cmd)
+static inline uint8_t scst_cmd_get_status(const struct scst_cmd *cmd)
 {
 	return cmd->status;
 }
 
 /* Returns cmd's status from host adapter itself */
-static inline uint8_t scst_cmd_get_msg_status(struct scst_cmd *cmd)
+static inline uint8_t scst_cmd_get_msg_status(const struct scst_cmd *cmd)
 {
 	return cmd->msg_status;
 }
 
 /* Returns cmd's status set by low-level driver to indicate its status */
-static inline uint8_t scst_cmd_get_host_status(struct scst_cmd *cmd)
+static inline uint8_t scst_cmd_get_host_status(const struct scst_cmd *cmd)
 {
 	return cmd->host_status;
 }
 
 /* Returns cmd's status set by SCSI mid-level */
-static inline uint8_t scst_cmd_get_driver_status(struct scst_cmd *cmd)
+static inline uint8_t scst_cmd_get_driver_status(const struct scst_cmd *cmd)
 {
 	return cmd->driver_status;
 }
 
 /* Returns pointer to cmd's sense buffer */
-static inline uint8_t *scst_cmd_get_sense_buffer(struct scst_cmd *cmd)
+static inline uint8_t *scst_cmd_get_sense_buffer(const struct scst_cmd *cmd)
 {
 	return cmd->sense;
 }
 
 /* Returns cmd's valid sense length */
-static inline int scst_cmd_get_sense_buffer_len(struct scst_cmd *cmd)
+static inline int scst_cmd_get_sense_buffer_len(const struct scst_cmd *cmd)
 {
 	return cmd->sense_valid_len;
 }
@@ -4377,14 +4343,13 @@ static inline int scst_cmd_get_sense_buffer_len(struct scst_cmd *cmd)
 /*
  * Get/Set functions for cmd's queue_type
  */
-static inline enum scst_cmd_queue_type scst_cmd_get_queue_type(
-	struct scst_cmd *cmd)
+static inline enum scst_cmd_queue_type scst_cmd_get_queue_type(const struct scst_cmd *cmd)
 {
 	return cmd->queue_type;
 }
 
 static inline void scst_cmd_set_queue_type(struct scst_cmd *cmd,
-	enum scst_cmd_queue_type queue_type)
+					   enum scst_cmd_queue_type queue_type)
 {
 	cmd->queue_type = queue_type;
 }
@@ -4392,7 +4357,7 @@ static inline void scst_cmd_set_queue_type(struct scst_cmd *cmd,
 /*
  * Get/Set functions for cmd's target SN
  */
-static inline uint64_t scst_cmd_get_tag(struct scst_cmd *cmd)
+static inline uint64_t scst_cmd_get_tag(const struct scst_cmd *cmd)
 {
 	return cmd->tag;
 }
@@ -4408,7 +4373,7 @@ static inline void scst_cmd_set_tag(struct scst_cmd *cmd, uint64_t tag)
  * scst_find_cmd() to avoid race with it, except inside scst_find_cmd()'s
  * callback, where lock is already taken.
  */
-static inline void *scst_cmd_get_tgt_priv(struct scst_cmd *cmd)
+static inline void *scst_cmd_get_tgt_priv(const struct scst_cmd *cmd)
 {
 	return cmd->tgt_i_priv;
 }
@@ -4421,7 +4386,7 @@ static inline void scst_cmd_set_tgt_priv(struct scst_cmd *cmd, void *val)
 /*
  * Get/Set functions for tgt_need_alloc_data_buf flag
  */
-static inline int scst_cmd_get_tgt_need_alloc_data_buf(struct scst_cmd *cmd)
+static inline int scst_cmd_get_tgt_need_alloc_data_buf(const struct scst_cmd *cmd)
 {
 	return cmd->tgt_need_alloc_data_buf;
 }
@@ -4435,7 +4400,7 @@ static inline void scst_cmd_set_tgt_need_alloc_data_buf(struct scst_cmd *cmd)
  * Get/Set functions for tgt_i_data_buf_alloced flag. Since they are for target
  * drivers, the "_i_" part is omitted.
  */
-static inline int scst_cmd_get_tgt_data_buff_alloced(struct scst_cmd *cmd)
+static inline int scst_cmd_get_tgt_data_buff_alloced(const struct scst_cmd *cmd)
 {
 	return cmd->tgt_i_data_buf_alloced;
 }
@@ -4448,7 +4413,7 @@ static inline void scst_cmd_set_tgt_data_buff_alloced(struct scst_cmd *cmd)
 /*
  * Get/Set functions for dh_data_buf_alloced flag
  */
-static inline int scst_cmd_get_dh_data_buff_alloced(struct scst_cmd *cmd)
+static inline int scst_cmd_get_dh_data_buff_alloced(const struct scst_cmd *cmd)
 {
 	return cmd->dh_data_buf_alloced;
 }
@@ -4461,7 +4426,7 @@ static inline void scst_cmd_set_dh_data_buff_alloced(struct scst_cmd *cmd)
 /*
  * Get/Set functions for no_sgv flag
  */
-static inline int scst_cmd_get_no_sgv(struct scst_cmd *cmd)
+static inline int scst_cmd_get_no_sgv(const struct scst_cmd *cmd)
 {
 	return cmd->no_sgv;
 }
@@ -4474,7 +4439,7 @@ static inline void scst_cmd_set_no_sgv(struct scst_cmd *cmd)
 /*
  * Get/Set functions for tgt_sn
  */
-static inline int scst_cmd_get_tgt_sn(struct scst_cmd *cmd)
+static inline int scst_cmd_get_tgt_sn(const struct scst_cmd *cmd)
 {
 	BUG_ON(!cmd->tgt_sn_set);
 	return cmd->tgt_sn;
@@ -4527,7 +4492,7 @@ static inline bool scst_cmd_aborted_on_xmit(struct scst_cmd *cmd)
 /* Returns sense data format for cmd's dev */
 static inline bool scst_get_cmd_dev_d_sense(struct scst_cmd *cmd)
 {
-	return (cmd->dev != NULL) ? cmd->dev->d_sense : 0;
+	return cmd->dev ? cmd->dev->d_sense : 0;
 }
 
 /* Returns if command is INQUIRY EVPD=0x83 (device identification) */
@@ -4541,13 +4506,12 @@ static inline bool scst_cmd_inquired_dev_ident(struct scst_cmd *cmd)
  * Get/Set functions for expected data direction, transfer length
  * and its validity flag
  */
-static inline int scst_cmd_is_expected_set(struct scst_cmd *cmd)
+static inline int scst_cmd_is_expected_set(const struct scst_cmd *cmd)
 {
 	return cmd->expected_values_set;
 }
 
-static inline scst_data_direction scst_cmd_get_expected_data_direction(
-	struct scst_cmd *cmd)
+static inline scst_data_direction scst_cmd_get_expected_data_direction(const struct scst_cmd *cmd)
 {
 	return cmd->expected_data_direction;
 }
@@ -4556,8 +4520,7 @@ static inline scst_data_direction scst_cmd_get_expected_data_direction(
  * Returns full expected transfer length, i.e. including both data and
  * DIF tags, if any.
  */
-static inline int scst_cmd_get_expected_transfer_len_full(
-	struct scst_cmd *cmd)
+static inline int scst_cmd_get_expected_transfer_len_full(const struct scst_cmd *cmd)
 {
 	return cmd->expected_transfer_len_full;
 }
@@ -4565,15 +4528,14 @@ static inline int scst_cmd_get_expected_transfer_len_full(
 int scst_cmd_get_expected_transfer_len_data(struct scst_cmd *cmd);
 int scst_cmd_get_expected_transfer_len_dif(struct scst_cmd *cmd);
 
-static inline int scst_cmd_get_expected_out_transfer_len(
-	struct scst_cmd *cmd)
+static inline int scst_cmd_get_expected_out_transfer_len(const struct scst_cmd *cmd)
 {
 	return cmd->expected_out_transfer_len;
 }
 
 static inline void scst_cmd_set_expected(struct scst_cmd *cmd,
-	scst_data_direction expected_data_direction,
-	int expected_transfer_len_full)
+					 scst_data_direction expected_data_direction,
+					 int expected_transfer_len_full)
 {
 	cmd->expected_data_direction = expected_data_direction;
 	cmd->expected_transfer_len_full = expected_transfer_len_full;
@@ -4581,7 +4543,7 @@ static inline void scst_cmd_set_expected(struct scst_cmd *cmd,
 }
 
 static inline void scst_cmd_set_expected_out_transfer_len(struct scst_cmd *cmd,
-	int expected_out_transfer_len)
+							  int expected_out_transfer_len)
 {
 	WARN_ON(!cmd->expected_values_set);
 	cmd->expected_out_transfer_len = expected_out_transfer_len;
@@ -4590,7 +4552,7 @@ static inline void scst_cmd_set_expected_out_transfer_len(struct scst_cmd *cmd,
 /*
  * Get/clear functions for cmd's may_need_dma_sync
  */
-static inline int scst_get_may_need_dma_sync(struct scst_cmd *cmd)
+static inline int scst_get_may_need_dma_sync(const struct scst_cmd *cmd)
 {
 	return cmd->may_need_dma_sync;
 }
@@ -4605,13 +4567,12 @@ static inline void scst_clear_may_need_dma_sync(struct scst_cmd *cmd)
  * SCST_CMD_DELIVERY_* constants. It specifies the status of the
  * command's delivery to initiator.
  */
-static inline int scst_get_delivery_status(struct scst_cmd *cmd)
+static inline int scst_get_delivery_status(const struct scst_cmd *cmd)
 {
 	return cmd->delivery_status;
 }
 
-static inline void scst_set_delivery_status(struct scst_cmd *cmd,
-	int delivery_status)
+static inline void scst_set_delivery_status(struct scst_cmd *cmd, int delivery_status)
 {
 	cmd->delivery_status = delivery_status;
 }
@@ -4621,8 +4582,7 @@ static inline void scst_set_delivery_status(struct scst_cmd *cmd,
  * with this command on READ direction transfers (xmit_response()). Might
  * be different from WRITE direction for BIDI commands.
  */
-static inline enum scst_dif_actions scst_get_read_dif_tgt_actions(
-	struct scst_cmd *cmd)
+static inline enum scst_dif_actions scst_get_read_dif_tgt_actions(const struct scst_cmd *cmd)
 {
 	return scst_get_tgt_dif_actions(cmd->cmd_dif_actions);
 }
@@ -4632,8 +4592,7 @@ static inline enum scst_dif_actions scst_get_read_dif_tgt_actions(
  * with this command on WRITE direction transfers (rdy_to_xfer()). Might
  * be different from READ direction for BIDI commands.
  */
-static inline enum scst_dif_actions scst_get_write_dif_tgt_actions(
-	struct scst_cmd *cmd)
+static inline enum scst_dif_actions scst_get_write_dif_tgt_actions(const struct scst_cmd *cmd)
 {
 	return scst_get_tgt_dif_actions(cmd->cmd_dif_actions);
 }
@@ -4643,8 +4602,7 @@ static inline enum scst_dif_actions scst_get_write_dif_tgt_actions(
  * with this command on READ direction transfers. Might be different
  * from WRITE direction for BIDI commands.
  */
-static inline enum scst_dif_actions scst_get_read_dif_dev_actions(
-	struct scst_cmd *cmd)
+static inline enum scst_dif_actions scst_get_read_dif_dev_actions(const struct scst_cmd *cmd)
 {
 	return scst_get_dev_dif_actions(cmd->cmd_dif_actions);
 }
@@ -4654,8 +4612,7 @@ static inline enum scst_dif_actions scst_get_read_dif_dev_actions(
  * with this command on WRITE direction transfers. Might be different
  * from READ direction for BIDI commands.
  */
-static inline enum scst_dif_actions scst_get_write_dif_dev_actions(
-	struct scst_cmd *cmd)
+static inline enum scst_dif_actions scst_get_write_dif_dev_actions(const struct scst_cmd *cmd)
 {
 	return scst_get_dev_dif_actions(cmd->cmd_dif_actions);
 }
@@ -4681,7 +4638,7 @@ static inline int scst_cmd_get_dif_prot_type(struct scst_cmd *cmd)
  * support Application Tag mode page. ToDo, not implemented yet.
  */
 static inline __be16 scst_cmd_get_dif_app_tag(struct scst_cmd *cmd,
-	uint64_t lba_start/*, uint64_t *out_lba_end*/)
+					      uint64_t lba_start/*, uint64_t *out_lba_end*/)
 {
 #ifdef CONFIG_SCST_EXTRACHECKS
 	WARN_ON(!(scst_get_dif_checks(cmd->cmd_dif_actions) & SCST_DIF_CHECK_APP_TAG));
@@ -4778,7 +4735,7 @@ static inline int scst_cmd_get_block_size(struct scst_cmd *cmd)
 
 static inline unsigned int scst_get_active_cmd_count(struct scst_cmd *cmd)
 {
-	if (likely(cmd->tgt_dev != NULL))
+	if (likely(cmd->tgt_dev))
 		return atomic_read(&cmd->tgt_dev->tgt_dev_cmd_count);
 	else
 		return (unsigned int)-1;
@@ -4790,40 +4747,38 @@ int scst_set_cdb_transf_len(struct scst_cmd *cmd, int len);
 /*
  * Get/Set function for mgmt cmd's target private data
  */
-static inline void *scst_mgmt_cmd_get_tgt_priv(struct scst_mgmt_cmd *mcmd)
+static inline void *scst_mgmt_cmd_get_tgt_priv(const struct scst_mgmt_cmd *mcmd)
 {
 	return mcmd->tgt_priv;
 }
 
-static inline void scst_mgmt_cmd_set_tgt_priv(struct scst_mgmt_cmd *mcmd,
-	void *val)
+static inline void scst_mgmt_cmd_set_tgt_priv(struct scst_mgmt_cmd *mcmd, void *val)
 {
 	mcmd->tgt_priv = val;
 }
 
 /* Returns mgmt cmd's completion status (SCST_MGMT_STATUS_* constants) */
-static inline int scst_mgmt_cmd_get_status(struct scst_mgmt_cmd *mcmd)
+static inline int scst_mgmt_cmd_get_status(const struct scst_mgmt_cmd *mcmd)
 {
 	return mcmd->status;
 }
 
-static inline void scst_mgmt_cmd_set_status(struct scst_mgmt_cmd *mcmd,
-	int status)
+static inline void scst_mgmt_cmd_set_status(struct scst_mgmt_cmd *mcmd, int status)
 {
 	/* Don't replace existing, i.e. the first, not success status */
-	if ((mcmd->status == SCST_MGMT_STATUS_SUCCESS) &&
-	    (status != SCST_MGMT_STATUS_RECEIVED_STAGE_COMPLETED))
+	if (mcmd->status == SCST_MGMT_STATUS_SUCCESS &&
+	    status != SCST_MGMT_STATUS_RECEIVED_STAGE_COMPLETED)
 		mcmd->status = status;
 }
 
 /* Returns mgmt cmd's TM fn */
-static inline int scst_mgmt_cmd_get_fn(struct scst_mgmt_cmd *mcmd)
+static inline int scst_mgmt_cmd_get_fn(const struct scst_mgmt_cmd *mcmd)
 {
 	return mcmd->fn;
 }
 
 /* Returns true if mgmt cmd should be dropped, i.e. response not sent */
-static inline bool scst_mgmt_cmd_dropped(struct scst_mgmt_cmd *mcmd)
+static inline bool scst_mgmt_cmd_dropped(const struct scst_mgmt_cmd *mcmd)
 {
 	return mcmd->mcmd_dropped;
 }
@@ -4841,31 +4796,31 @@ void scst_prepare_async_mcmd(struct scst_mgmt_cmd *mcmd);
 void scst_async_mcmd_completed(struct scst_mgmt_cmd *mcmd, int status);
 
 /* Returns AEN's fn */
-static inline int scst_aen_get_event_fn(struct scst_aen *aen)
+static inline int scst_aen_get_event_fn(const struct scst_aen *aen)
 {
 	return aen->event_fn;
 }
 
 /* Returns AEN's session */
-static inline struct scst_session *scst_aen_get_sess(struct scst_aen *aen)
+static inline struct scst_session *scst_aen_get_sess(const struct scst_aen *aen)
 {
 	return aen->sess;
 }
 
 /* Returns AEN's LUN */
-static inline __be64 scst_aen_get_lun(struct scst_aen *aen)
+static inline __be64 scst_aen_get_lun(const struct scst_aen *aen)
 {
 	return aen->lun;
 }
 
 /* Returns SCSI AEN's sense */
-static inline const uint8_t *scst_aen_get_sense(struct scst_aen *aen)
+static inline const uint8_t *scst_aen_get_sense(const struct scst_aen *aen)
 {
 	return aen->aen_sense;
 }
 
 /* Returns SCSI AEN's sense length */
-static inline int scst_aen_get_sense_len(struct scst_aen *aen)
+static inline int scst_aen_get_sense_len(const struct scst_aen *aen)
 {
 	return aen->aen_sense_len;
 }
@@ -4875,13 +4830,12 @@ static inline int scst_aen_get_sense_len(struct scst_aen *aen)
  * SCST_AEN_RES_* constants. It specifies the status of the
  * command's delivery to initiator.
  */
-static inline int scst_get_aen_delivery_status(struct scst_aen *aen)
+static inline int scst_get_aen_delivery_status(const struct scst_aen *aen)
 {
 	return aen->delivery_status;
 }
 
-static inline void scst_set_aen_delivery_status(struct scst_aen *aen,
-	int status)
+static inline void scst_set_aen_delivery_status(struct scst_aen *aen, int status)
 {
 	aen->delivery_status = status;
 }
@@ -4889,7 +4843,7 @@ static inline void scst_set_aen_delivery_status(struct scst_aen *aen,
 /*
  * Get/Set functions for tgt's target private data
  */
-static inline void *scst_get_acg_tgt_priv(struct scst_acg *acg)
+static inline void *scst_get_acg_tgt_priv(const struct scst_acg *acg)
 {
 	return acg->acg_tgt_priv;
 }
@@ -4953,8 +4907,7 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir);
  *
  * The "put" function unmaps the buffer.
  */
-static inline int __scst_get_buf(struct scst_cmd *cmd, int sg_cnt,
-	uint8_t **buf)
+static inline int __scst_get_buf(struct scst_cmd *cmd, int sg_cnt, uint8_t **buf)
 {
 	int res = 0;
 	struct scatterlist *sg = cmd->get_sg_buf_cur_sg_entry;
@@ -4976,7 +4929,7 @@ out:
 
 static inline int scst_get_buf_first(struct scst_cmd *cmd, uint8_t **buf)
 {
-	if (unlikely(cmd->sg == NULL)) {
+	if (unlikely(!cmd->sg)) {
 		*buf = NULL;
 		return 0;
 	}
@@ -5010,13 +4963,13 @@ static inline void scst_put_buf(struct scst_cmd *cmd, void *buf)
  * !!! NOTE: this function does not check DIF SG cnt, hence must be used !!!
  * !!! only inside code bound to the corresponding data SG cnt!		 !!!
  */
-static inline uint8_t *scst_get_dif_buf(struct scst_cmd *cmd,
-	struct scatterlist **psg, int *length)
+static inline uint8_t *scst_get_dif_buf(struct scst_cmd *cmd, struct scatterlist **psg,
+					int *length)
 {
 	uint8_t *buf;
 	struct scatterlist *sg;
 
-	if (*psg == NULL)
+	if (!*psg)
 		sg = cmd->dif_sg;
 	else
 		sg = __sg_next_inline(*psg);
@@ -5037,7 +4990,7 @@ static inline void scst_put_dif_buf(struct scst_cmd *cmd, void *buf)
 
 static inline int scst_get_out_buf_first(struct scst_cmd *cmd, uint8_t **buf)
 {
-	if (unlikely(cmd->out_sg == NULL)) {
+	if (unlikely(!cmd->out_sg)) {
 		*buf = NULL;
 		return 0;
 	}
@@ -5058,9 +5011,9 @@ static inline void scst_put_out_buf(struct scst_cmd *cmd, void *buf)
 }
 
 static inline int scst_get_sg_buf_first(struct scst_cmd *cmd, uint8_t **buf,
-	struct scatterlist *sg, int sg_cnt)
+					struct scatterlist *sg, int sg_cnt)
 {
-	if (unlikely(sg == NULL)) {
+	if (unlikely(!sg)) {
 		*buf = NULL;
 		return 0;
 	}
@@ -5076,8 +5029,8 @@ static inline int scst_get_sg_buf_next(struct scst_cmd *cmd, uint8_t **buf,
 	return __scst_get_buf(cmd, sg_cnt, buf);
 }
 
-static inline void scst_put_sg_buf(struct scst_cmd *cmd, void *buf,
-	struct scatterlist *sg, int sg_cnt)
+static inline void scst_put_sg_buf(struct scst_cmd *cmd, void *buf, struct scatterlist *sg,
+				   int sg_cnt)
 {
 	/* Nothing to do */
 }
@@ -5089,8 +5042,8 @@ static inline void scst_put_sg_buf(struct scst_cmd *cmd, void *buf,
  *
  * "Page" argument returns the starting page, "offset" - offset in it.
  */
-static inline int __scst_get_sg_page(struct scst_cmd *cmd, int sg_cnt,
-	struct page **page, int *offset)
+static inline int __scst_get_sg_page(struct scst_cmd *cmd, int sg_cnt, struct page **page,
+				     int *offset)
 {
 	int res = 0;
 	struct scatterlist *sg = cmd->get_sg_buf_cur_sg_entry;
@@ -5112,10 +5065,9 @@ out:
 	return res;
 }
 
-static inline int scst_get_sg_page_first(struct scst_cmd *cmd,
-	struct page **page, int *offset)
+static inline int scst_get_sg_page_first(struct scst_cmd *cmd, struct page **page, int *offset)
 {
-	if (unlikely(cmd->sg == NULL)) {
+	if (unlikely(!cmd->sg)) {
 		*page = NULL;
 		*offset = 0;
 		return 0;
@@ -5125,16 +5077,14 @@ static inline int scst_get_sg_page_first(struct scst_cmd *cmd,
 	return __scst_get_sg_page(cmd, cmd->sg_cnt, page, offset);
 }
 
-static inline int scst_get_sg_page_next(struct scst_cmd *cmd,
-	struct page **page, int *offset)
+static inline int scst_get_sg_page_next(struct scst_cmd *cmd, struct page **page, int *offset)
 {
 	return __scst_get_sg_page(cmd, cmd->sg_cnt, page, offset);
 }
 
-static inline int scst_get_out_sg_page_first(struct scst_cmd *cmd,
-	struct page **page, int *offset)
+static inline int scst_get_out_sg_page_first(struct scst_cmd *cmd, struct page **page, int *offset)
 {
-	if (unlikely(cmd->out_sg == NULL)) {
+	if (unlikely(!cmd->out_sg)) {
 		*page = NULL;
 		*offset = 0;
 		return 0;
@@ -5144,14 +5094,12 @@ static inline int scst_get_out_sg_page_first(struct scst_cmd *cmd,
 	return __scst_get_sg_page(cmd, cmd->out_sg_cnt, page, offset);
 }
 
-static inline int scst_get_out_sg_page_next(struct scst_cmd *cmd,
-	struct page **page, int *offset)
+static inline int scst_get_out_sg_page_next(struct scst_cmd *cmd, struct page **page, int *offset)
 {
 	return __scst_get_sg_page(cmd, cmd->out_sg_cnt, page, offset);
 }
 
-static inline void scst_put_out_sg_page(struct scst_cmd *cmd,
-	struct page *page, int offset)
+static inline void scst_put_out_sg_page(struct scst_cmd *cmd, struct page *page, int offset)
 {
 	/* Nothing to do */
 }
@@ -5195,11 +5143,10 @@ int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf, bool always_copy);
 int scst_get_buf_full_sense(struct scst_cmd *cmd, uint8_t **buf);
 void scst_put_buf_full(struct scst_cmd *cmd, uint8_t *buf);
 
-static inline gfp_t scst_cmd_get_gfp_mask(struct scst_cmd *cmd)
+static inline gfp_t scst_cmd_get_gfp_mask(const struct scst_cmd *cmd)
 {
 	return cmd->cmd_gfp_mask;
 }
-
 
 #if defined(CONFIG_LOCKDEP)
 extern struct lockdep_map scst_suspend_dep_map;
@@ -5253,7 +5200,6 @@ struct scst_trace_log {
 
 extern struct mutex scst_mutex;
 
-
 const struct sysfs_ops *scst_sysfs_get_sysfs_ops(void);
 
 #if defined(CONFIG_LOCKDEP)
@@ -5267,72 +5213,61 @@ void scst_kobject_put_and_wait(struct kobject *kobj, const char *category,
 #define SCST_SET_DEP_MAP(work, dm) do { } while (0)
 #define SCST_KOBJECT_PUT_AND_WAIT(kobj, category, c, dep_map) \
 	scst_kobject_put_and_wait(kobj, category, c)
-void scst_kobject_put_and_wait(struct kobject *kobj, const char *category,
-			       struct completion *c);
+void scst_kobject_put_and_wait(struct kobject *kobj, const char *category, struct completion *c);
 #endif
 
 /*
  * Returns target driver's root sysfs kobject.
  * The driver can create own files/directories/links here.
  */
-static inline struct kobject *scst_sysfs_get_tgtt_kobj(
-	struct scst_tgt_template *tgtt)
+static inline struct kobject *scst_sysfs_get_tgtt_kobj(struct scst_tgt_template *tgtt)
 {
 	return &tgtt->tgtt_kobj;
 }
 
-int scst_create_tgtt_attr(struct scst_tgt_template *tgtt,
-	struct kobj_attribute *attribute);
+int scst_create_tgtt_attr(struct scst_tgt_template *tgtt, struct kobj_attribute *attribute);
 
 /*
  * Returns target's root sysfs kobject.
  * The driver can create own files/directories/links here.
  */
-static inline struct kobject *scst_sysfs_get_tgt_kobj(
-	struct scst_tgt *tgt)
+static inline struct kobject *scst_sysfs_get_tgt_kobj(struct scst_tgt *tgt)
 {
 	return &tgt->tgt_kobj;
 }
 
-int scst_create_tgt_attr(struct scst_tgt *tgt,
-	struct kobj_attribute *attribute);
+int scst_create_tgt_attr(struct scst_tgt *tgt, struct kobj_attribute *attribute);
 
 /*
  * Returns device handler's root sysfs kobject.
  * The driver can create own files/directories/links here.
  */
-static inline struct kobject *scst_sysfs_get_devt_kobj(
-	struct scst_dev_type *devt)
+static inline struct kobject *scst_sysfs_get_devt_kobj(struct scst_dev_type *devt)
 {
 	return &devt->devt_kobj;
 }
 
-int scst_create_devt_attr(struct scst_dev_type *devt,
-	struct kobj_attribute *attribute);
+int scst_create_devt_attr(struct scst_dev_type *devt, struct kobj_attribute *attribute);
 
 /*
  * Returns device's root sysfs kobject.
  * The driver can create own files/directories/links here.
  */
-static inline struct kobject *scst_sysfs_get_dev_kobj(
-	struct scst_device *dev)
+static inline struct kobject *scst_sysfs_get_dev_kobj(struct scst_device *dev)
 {
 	return &dev->dev_kobj;
 }
 
-int scst_create_dev_attr(struct scst_device *dev,
-	struct kobj_attribute *attribute);
+int scst_create_dev_attr(struct scst_device *dev, struct kobj_attribute *attribute);
 
 /*
  * Returns session's root sysfs kobject.
  * The driver can create own files/directories/links here.
  */
-static inline struct kobject *scst_sysfs_get_sess_kobj(
-	struct scst_session *sess)
+static inline struct kobject *scst_sysfs_get_sess_kobj(struct scst_session *sess)
 {
 	return &sess->sess_kobj;
 }
-
 
 /* Returns target name */
 static inline const char *scst_get_tgt_name(const struct scst_tgt *tgt)
@@ -5341,22 +5276,18 @@ static inline const char *scst_get_tgt_name(const struct scst_tgt *tgt)
 }
 
 int scst_alloc_sense(struct scst_cmd *cmd, int atomic);
-int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
-	const uint8_t *sense, unsigned int len);
+int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic, const uint8_t *sense, unsigned int len);
 
-int scst_set_sense(uint8_t *buffer, int len, bool d_sense,
-	int key, int asc, int ascq);
+int scst_set_sense(uint8_t *buffer, int len, bool d_sense, int key, int asc, int ascq);
 
 #define SCST_INVAL_FIELD_BIT_OFFS_VALID		0x8000
-int scst_set_invalid_field_in_cdb(struct scst_cmd *cmd, int field_offs,
-	int bit_offs);
-int scst_set_invalid_field_in_parm_list(struct scst_cmd *cmd, int field_offs,
-	int bit_offs);
+int scst_set_invalid_field_in_cdb(struct scst_cmd *cmd, int field_offs, int bit_offs);
+int scst_set_invalid_field_in_parm_list(struct scst_cmd *cmd, int field_offs, int bit_offs);
 
 bool scst_is_ua_sense(const uint8_t *sense, int len);
 
-bool scst_analyze_sense(const uint8_t *sense, int len,
-	unsigned int valid_mask, int key, int asc, int ascq);
+bool scst_analyze_sense(const uint8_t *sense, int len, unsigned int valid_mask, int key, int asc,
+			int ascq);
 
 unsigned long scst_random(void);
 
@@ -5378,15 +5309,14 @@ int scst_processor_generic_parse(struct scst_cmd *cmd);
 int scst_raid_generic_parse(struct scst_cmd *cmd);
 
 int scst_block_generic_dev_done(struct scst_cmd *cmd,
-	void (*set_block_shift)(struct scst_cmd *cmd, int block_shift));
+				void (*set_block_shift)(struct scst_cmd *cmd, int block_shift));
 int scst_tape_generic_dev_done(struct scst_cmd *cmd,
-	void (*set_block_size)(struct scst_cmd *cmd, int block_size));
+			       void (*set_block_size)(struct scst_cmd *cmd, int block_size));
 
-int scst_obtain_device_parameters(struct scst_device *dev,
-	const uint8_t *mode_select_cdb);
+int scst_obtain_device_parameters(struct scst_device *dev, const uint8_t *mode_select_cdb);
 
 void scst_reassign_retained_sess_states(struct scst_session *new_sess,
-	struct scst_session *old_sess);
+					struct scst_session *old_sess);
 
 int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun);
 
@@ -5472,7 +5402,7 @@ prepare_to_wait_exclusive_head(struct wait_queue_head *wq_head,
 
 #define ___scst_wait_is_interruptible(state)					\
 	(!__builtin_constant_p(state) ||					\
-	 (state & (TASK_INTERRUPTIBLE | TASK_WAKEKILL)))
+	 ((state) & (TASK_INTERRUPTIBLE | TASK_WAKEKILL)))
 
 #define ___scst_wait_event(wq_head, condition, state, ret, cmd)			\
 ({										\
@@ -5481,7 +5411,7 @@ prepare_to_wait_exclusive_head(struct wait_queue_head *wq_head,
 	long __ret = ret;	/* explicit shadow */				\
 										\
 	for (;;) {								\
-		long __int = prepare_to_wait_exclusive_head(&wq_head, &__wq_entry,\
+		long __int = prepare_to_wait_exclusive_head(&(wq_head), &__wq_entry,\
 							    state);		\
 										\
 		if (condition)							\
@@ -5494,15 +5424,15 @@ prepare_to_wait_exclusive_head(struct wait_queue_head *wq_head,
 										\
 		cmd;								\
 	}									\
-	finish_wait(&wq_head, &__wq_entry);					\
+	finish_wait(&(wq_head), &__wq_entry);					\
 __out:	__ret;									\
 })
 
 #define __scst_wait_event_interruptible_lock(wq_head, condition, lock)		\
 	___scst_wait_event(wq_head, condition, TASK_INTERRUPTIBLE, 0,		\
-			   spin_unlock(&lock);					\
+			   spin_unlock(&(lock));				\
 			   schedule();						\
-			   spin_lock(&lock))
+			   spin_lock(&(lock)))
 
 #define scst_wait_event_interruptible_lock(wq_head, condition, lock)		\
 ({										\
@@ -5515,9 +5445,9 @@ __out:	__ret;									\
 
 #define __scst_wait_event_interruptible_lock_bh(wq_head, condition, lock)	\
 	___scst_wait_event(wq_head, condition, TASK_INTERRUPTIBLE, 0,		\
-			   spin_unlock_bh(&lock);				\
+			   spin_unlock_bh(&(lock));				\
 			   schedule();						\
-			   spin_lock_bh(&lock))
+			   spin_lock_bh(&(lock)))
 
 #define scst_wait_event_interruptible_lock_bh(wq_head, condition, lock)		\
 ({										\
@@ -5530,16 +5460,16 @@ __out:	__ret;									\
 
 #define __scst_wait_event_interruptible_lock_irq(wq_head, condition, lock)	\
 	___scst_wait_event(wq_head, condition, TASK_INTERRUPTIBLE, 0,		\
-			   spin_unlock_irq(&lock);				\
+			   spin_unlock_irq(&(lock));				\
 			   schedule();						\
-			   spin_lock_irq(&lock))
+			   spin_lock_irq(&(lock)))
 
 #define scst_wait_event_interruptible_lock_irq(wq_head, condition, lock)	\
 ({										\
 	int __ret = 0;								\
 	if (!(condition))							\
 		__ret = __scst_wait_event_interruptible_lock_irq(wq_head,	\
-								condition, lock);\
+								 condition, lock);\
 	__ret;									\
 })
 
@@ -5551,7 +5481,6 @@ static inline const char *scst_get_opcode_name(struct scst_cmd *cmd)
 	return cmd->op_name;
 }
 #endif
-
 
 /*
  * Structure to match events to user space and replies on them
@@ -5580,11 +5509,9 @@ struct scst_sysfs_user_info {
 int scst_sysfs_user_add_info(struct scst_sysfs_user_info **out_info);
 void scst_sysfs_user_del_info(struct scst_sysfs_user_info *info);
 struct scst_sysfs_user_info *scst_sysfs_user_get_info(uint32_t cookie);
-int scst_wait_info_completion(struct scst_sysfs_user_info *info,
-	unsigned long timeout);
+int scst_wait_info_completion(struct scst_sysfs_user_info *info, unsigned long timeout);
 
 unsigned int scst_get_setup_id(void);
-
 
 /*
  * Needed to avoid potential circular locking dependency between scst_mutex
@@ -5654,7 +5581,7 @@ struct scst_sysfs_work_item {
 };
 
 int scst_alloc_sysfs_work(int (*sysfs_work_fn)(struct scst_sysfs_work_item *),
-	bool read_only_action, struct scst_sysfs_work_item **res_work);
+			  bool read_only_action, struct scst_sysfs_work_item **res_work);
 int scst_sysfs_queue_wait_work(struct scst_sysfs_work_item *work);
 void scst_sysfs_work_get(struct scst_sysfs_work_item *work);
 void scst_sysfs_work_put(struct scst_sysfs_work_item *work);
@@ -5662,7 +5589,6 @@ void scst_sysfs_work_put(struct scst_sysfs_work_item *work);
 #ifdef CONFIG_LOCKDEP
 extern struct lockdep_map scst_dev_dep_map;
 #endif
-
 
 char *scst_get_next_lexem(char **token_str);
 void scst_restore_token_str(char *prev_lexem, char *token_str);
@@ -5674,7 +5600,7 @@ void scst_deinit_threads(struct scst_cmd_threads *cmd_threads);
 void scst_pass_through_cmd_done(void *data, char *sense, int result, int resid);
 
 int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
-	void (*done)(void *data, char *sense, int result, int resid));
+			 void (*done)(void *data, char *sense, int result, int resid));
 
 int scst_get_file_mode(const char *path);
 bool scst_parent_dir_exists(const char *path);
@@ -5763,22 +5689,19 @@ __scst_scsi_execute_cmd(struct scsi_device *sdev, const unsigned char *cmd,
 __be64 scst_pack_lun(const uint64_t lun, enum scst_lun_addr_method addr_method);
 uint64_t scst_unpack_lun(const uint8_t *lun, int len);
 
-int scst_save_global_mode_pages(const struct scst_device *dev,
-	uint8_t *buf, int size);
-int scst_restore_global_mode_pages(struct scst_device *dev, char *params,
-	char **last_param);
+int scst_save_global_mode_pages(const struct scst_device *dev, uint8_t *buf, int size);
+int scst_restore_global_mode_pages(struct scst_device *dev, char *params, char **last_param);
 
-int scst_read_file_transactional(const char *name, const char *name1,
-	const char *signature, int signature_len, uint8_t *buf, int size);
-int scst_write_file_transactional(const char *name, const char *name1,
-	const char *signature, int signature_len, const uint8_t *buf, int size);
+int scst_read_file_transactional(const char *name, const char *name1, const char *signature,
+				 int signature_len, uint8_t *buf, int size);
+int scst_write_file_transactional(const char *name, const char *name1, const char *signature,
+				  int signature_len, const uint8_t *buf, int size);
 
 int scst_remove_file(const char *name);
 
 void scst_set_tp_soft_threshold_reached_UA(struct scst_tgt_dev *tgt_dev);
 
-int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode,
-	const char *cl_dev_id);
+int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode, const char *cl_dev_id);
 int scst_pr_init_dev(struct scst_device *dev);
 void scst_pr_clear_dev(struct scst_device *dev);
 
@@ -5811,8 +5734,8 @@ struct scst_ext_copy_seg_descr {
 	int tgt_descr_offs;
 };
 
-void scst_ext_copy_remap_done(struct scst_cmd *ec_cmd,
-	struct scst_ext_copy_data_descr *dds, int dds_cnt);
+void scst_ext_copy_remap_done(struct scst_cmd *ec_cmd, struct scst_ext_copy_data_descr *dds,
+			      int dds_cnt);
 int scst_ext_copy_get_cur_seg_data_len(struct scst_cmd *ec_cmd);
 
 #endif /* __SCST_H */
