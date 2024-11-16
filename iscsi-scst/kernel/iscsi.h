@@ -100,7 +100,6 @@ struct iscsi_thread_pool {
 	struct list_head threads_list; /* protected by tp_mutex */
 };
 
-
 struct iscsi_target;
 struct iscsi_cmnd;
 
@@ -180,7 +179,7 @@ struct iscsi_session {
 	u64 sid;
 };
 
-#define ISCSI_CONN_IOV_MAX			(PAGE_SIZE/sizeof(struct kvec))
+#define ISCSI_CONN_IOV_MAX			(PAGE_SIZE / sizeof(struct kvec))
 
 #define ISCSI_CONN_RD_STATE_IDLE		0
 #define ISCSI_CONN_RD_STATE_IN_LIST		1
@@ -250,13 +249,13 @@ struct iscsi_conn {
 	struct file *file;
 	struct socket *sock;
 
-	void (*old_state_change)(struct sock *);
+	void (*old_state_change)(struct sock *sk);
 #if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 15, 0))
-	void (*old_data_ready)(struct sock *);
+	void (*old_data_ready)(struct sock *sk);
 #else
-	void (*old_data_ready)(struct sock *, int);
+	void (*old_data_ready)(struct sock *sk, int len);
 #endif
-	void (*old_write_space)(struct sock *);
+	void (*old_write_space)(struct sock *sk);
 
 	/* Both read only. Stay here for better CPU cache locality. */
 	int hdigest_type;
@@ -545,22 +544,20 @@ extern void conn_abort(struct iscsi_conn *conn);
 extern void iscsi_restart_cmnd(struct iscsi_cmnd *cmnd);
 extern void iscsi_fail_data_waiting_cmnd(struct iscsi_cmnd *cmnd);
 extern void iscsi_send_nop_in(struct iscsi_conn *conn);
-extern int iscsi_preliminary_complete(struct iscsi_cmnd *req,
-	struct iscsi_cmnd *orig_req, bool get_data);
-extern int set_scst_preliminary_status_rsp(struct iscsi_cmnd *req,
-	bool get_data, int key, int asc, int ascq);
+extern int iscsi_preliminary_complete(struct iscsi_cmnd *req, struct iscsi_cmnd *orig_req,
+				      bool get_data);
+extern int set_scst_preliminary_status_rsp(struct iscsi_cmnd *req, bool get_data, int key, int asc,
+					   int ascq);
 extern int iscsi_threads_pool_get(bool dedicated, const cpumask_t *cpu_mask,
-	struct iscsi_thread_pool **out_pool);
+				  struct iscsi_thread_pool **out_pool);
 extern void iscsi_threads_pool_put(struct iscsi_thread_pool *p);
 
 /* conn.c */
 extern struct kobj_type iscsi_conn_ktype;
 extern struct iscsi_conn *conn_lookup(struct iscsi_session *session, u16 cid);
 extern void conn_reinst_finished(struct iscsi_conn *conn);
-extern int __add_conn(struct iscsi_session *session,
-		      struct iscsi_kern_conn_info *info);
-extern int __del_conn(struct iscsi_session *session,
-		      struct iscsi_kern_conn_info *info);
+extern int __add_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info);
+extern int __del_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info);
 extern void conn_free(struct iscsi_conn *conn);
 extern void iscsi_make_conn_rd_active(struct iscsi_conn *conn);
 #define ISCSI_CONN_ACTIVE_CLOSE		1
@@ -568,8 +565,7 @@ extern void iscsi_make_conn_rd_active(struct iscsi_conn *conn);
 extern void __mark_conn_closed(struct iscsi_conn *conn, int flags);
 extern void mark_conn_closed(struct iscsi_conn *conn);
 extern void iscsi_make_conn_wr_active(struct iscsi_conn *conn);
-extern void iscsi_check_tm_data_wait_timeouts(struct iscsi_conn *conn,
-	bool force);
+extern void iscsi_check_tm_data_wait_timeouts(struct iscsi_conn *conn, bool force);
 extern void __iscsi_write_space_ready(struct iscsi_conn *conn);
 
 /* nthread.c */
@@ -583,27 +579,24 @@ extern void req_add_to_write_timeout_list(struct iscsi_cmnd *req);
 extern const struct attribute *iscsi_tgt_attrs[];
 extern int iscsi_enable_target(struct scst_tgt *scst_tgt, bool enable);
 extern bool iscsi_is_target_enabled(struct scst_tgt *scst_tgt);
-extern ssize_t iscsi_sysfs_send_event(uint32_t tid,
-	enum iscsi_kern_event_code code,
-	const char *param1, const char *param2, void **data);
+extern ssize_t iscsi_sysfs_send_event(uint32_t tid, enum iscsi_kern_event_code code,
+				      const char *param1, const char *param2, void **data);
 extern struct iscsi_target *target_lookup_by_id(u32 id);
 extern int __add_target(struct iscsi_kern_target_info *info);
 extern int __del_target(u32 id);
 extern ssize_t iscsi_sysfs_add_target(const char *target_name, char *params);
 extern ssize_t iscsi_sysfs_del_target(const char *target_name);
 extern ssize_t iscsi_sysfs_mgmt_cmd(char *cmd);
-extern void target_del_session(struct iscsi_target *target,
-	struct iscsi_session *session, int flags);
+extern void target_del_session(struct iscsi_target *target, struct iscsi_session *session,
+			       int flags);
 extern void target_del_all_sess(struct iscsi_target *target, int flags);
 extern void target_del_all(void);
 
 /* config.c */
 extern int conn_sysfs_add(struct iscsi_conn *conn);
 extern const struct attribute *iscsi_attrs[];
-extern int iscsi_add_attr(struct iscsi_target *target,
-	const struct iscsi_kern_attr *user_info);
-extern void __iscsi_del_attr(struct iscsi_target *target,
-	struct iscsi_attr *tgt_attr);
+extern int iscsi_add_attr(struct iscsi_target *target, const struct iscsi_kern_attr *user_info);
+extern void __iscsi_del_attr(struct iscsi_target *target, struct iscsi_attr *tgt_attr);
 
 /* session.c */
 extern const struct attribute *iscsi_sess_attrs[];
@@ -612,8 +605,7 @@ extern const struct file_operations session_seq_fops;
 extern struct iscsi_session *session_lookup(struct iscsi_target *target,
 					    u64 sid);
 extern void sess_reinst_finished(struct iscsi_session *session);
-extern int __add_session(struct iscsi_target *target,
-			 struct iscsi_kern_session_info *info);
+extern int __add_session(struct iscsi_target *target, struct iscsi_kern_session_info *info);
 extern int __del_session(struct iscsi_target *target, u64 sid);
 extern int session_free(struct iscsi_session *session, bool del);
 extern void iscsi_sess_force_close(struct iscsi_session *sess);
@@ -621,12 +613,11 @@ extern void iscsi_sess_force_close(struct iscsi_session *sess);
 /* params.c */
 extern const char *iscsi_get_digest_name(int val, char *res);
 extern const char *iscsi_get_bool_value(int val);
-extern int iscsi_params_set(struct iscsi_target *target,
-			    struct iscsi_kern_params_info *info, int set);
+extern int iscsi_params_set(struct iscsi_target *target, struct iscsi_kern_params_info *info,
+			    int set);
 
 /* event.c */
-extern int event_send(u32 tid, u64 sid, u32 cid, u32 cookie,
-		      enum iscsi_kern_event_code code,
+extern int event_send(u32 tid, u64 sid, u32 cid, u32 cookie, enum iscsi_kern_event_code code,
 		      const char *param1, const char *param2);
 extern int event_init(void);
 extern void event_exit(void);
@@ -677,8 +668,8 @@ static inline bool cmnd_get_check(struct iscsi_cmnd *cmnd)
 		res = 1;
 		/* Necessary code is serialized by locks in cmnd_done() */
 	} else {
-		TRACE_DBG("cmnd %p, new ref_cnt %d", cmnd,
-			atomic_read(&cmnd->ref_cnt));
+		TRACE_DBG("cmnd %p, new ref_cnt %d",
+			  cmnd, atomic_read(&cmnd->ref_cnt));
 		res = 0;
 	}
 	return res;
@@ -687,8 +678,8 @@ static inline bool cmnd_get_check(struct iscsi_cmnd *cmnd)
 static inline void cmnd_get(struct iscsi_cmnd *cmnd)
 {
 	atomic_inc(&cmnd->ref_cnt);
-	TRACE_DBG("cmnd %p, new cmnd->ref_cnt %d", cmnd,
-		atomic_read(&cmnd->ref_cnt));
+	TRACE_DBG("cmnd %p, new cmnd->ref_cnt %d",
+		  cmnd, atomic_read(&cmnd->ref_cnt));
 	/*
 	 * For the same reason as in kref_get(). Let's be safe and
 	 * always do it.
@@ -698,8 +689,8 @@ static inline void cmnd_get(struct iscsi_cmnd *cmnd)
 
 static inline void cmnd_put(struct iscsi_cmnd *cmnd)
 {
-	TRACE_DBG("cmnd %p, new ref_cnt %d", cmnd,
-		atomic_read(&cmnd->ref_cnt)-1);
+	TRACE_DBG("cmnd %p, new ref_cnt %d",
+		  cmnd, atomic_read(&cmnd->ref_cnt) - 1);
 
 	EXTRACHECKS_BUG_ON(atomic_read(&cmnd->ref_cnt) == 0);
 
@@ -708,21 +699,19 @@ static inline void cmnd_put(struct iscsi_cmnd *cmnd)
 }
 
 /* conn->write_list_lock supposed to be locked and BHs off */
-static inline void cmd_add_on_write_list(struct iscsi_conn *conn,
-	struct iscsi_cmnd *cmnd)
+static inline void cmd_add_on_write_list(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd)
 {
 	struct iscsi_cmnd *parent = cmnd->parent_req;
 
 	TRACE_DBG("cmnd %p", cmnd);
 	/* See comment in iscsi_restart_cmnd() */
-	EXTRACHECKS_BUG_ON(cmnd->parent_req->hashed &&
-		(cmnd_opcode(cmnd) != ISCSI_OP_R2T));
+	EXTRACHECKS_BUG_ON(cmnd->parent_req->hashed && (cmnd_opcode(cmnd) != ISCSI_OP_R2T));
 	list_add_tail(&cmnd->write_list_entry, &conn->write_list);
 	cmnd->on_write_list = 1;
 
 	parent->not_processed_rsp_cnt++;
 	TRACE_DBG("not processed rsp cnt %d (parent %p)",
-		parent->not_processed_rsp_cnt, parent);
+		  parent->not_processed_rsp_cnt, parent);
 }
 
 /* conn->write_list_lock supposed to be locked and BHs off */
@@ -736,17 +725,15 @@ static inline void cmd_del_from_write_list(struct iscsi_cmnd *cmnd)
 
 	parent->not_processed_rsp_cnt--;
 	TRACE_DBG("not processed rsp cnt %d (parent %p)",
-		parent->not_processed_rsp_cnt, parent);
+		  parent->not_processed_rsp_cnt, parent);
 	EXTRACHECKS_BUG_ON(parent->not_processed_rsp_cnt < 0);
 }
 
-static inline void cmd_add_on_rx_ddigest_list(struct iscsi_cmnd *req,
-	struct iscsi_cmnd *cmnd)
+static inline void cmd_add_on_rx_ddigest_list(struct iscsi_cmnd *req, struct iscsi_cmnd *cmnd)
 {
-	TRACE_DBG("Adding RX ddigest cmd %p to digest list of req %p", cmnd,
-		  req);
-	list_add_tail(&cmnd->rx_ddigest_cmd_list_entry,
-			&req->rx_ddigest_cmd_list);
+	TRACE_DBG("Adding RX ddigest cmd %p to digest list of req %p",
+		  cmnd, req);
+	list_add_tail(&cmnd->rx_ddigest_cmd_list_entry, &req->rx_ddigest_cmd_list);
 #ifdef CONFIG_SCST_EXTRACHECKS
 	cmnd->on_rx_digest_list = 1;
 #endif
@@ -765,7 +752,7 @@ static inline unsigned long iscsi_get_timeout(struct iscsi_cmnd *req)
 {
 	unsigned long res;
 
-	res = (cmnd_opcode(req) == ISCSI_OP_NOP_OUT) ?
+	res = cmnd_opcode(req) == ISCSI_OP_NOP_OUT ?
 			req->conn->nop_in_timeout : req->conn->data_rsp_timeout;
 
 	if (unlikely(test_bit(ISCSI_CMD_ABORTED, &req->prelim_compl_flags)))
@@ -791,8 +778,8 @@ static inline int test_write_ready(struct iscsi_conn *conn)
 static inline void conn_get(struct iscsi_conn *conn)
 {
 	atomic_inc(&conn->conn_ref_cnt);
-	TRACE_DBG("conn %p, new conn_ref_cnt %d", conn,
-		atomic_read(&conn->conn_ref_cnt));
+	TRACE_DBG("conn %p, new conn_ref_cnt %d",
+		  conn, atomic_read(&conn->conn_ref_cnt));
 	/*
 	 * For the same reason as in kref_get(). Let's be safe and
 	 * always do it.
@@ -802,8 +789,8 @@ static inline void conn_get(struct iscsi_conn *conn)
 
 static inline void conn_put(struct iscsi_conn *conn)
 {
-	TRACE_DBG("conn %p, new conn_ref_cnt %d", conn,
-		atomic_read(&conn->conn_ref_cnt)-1);
+	TRACE_DBG("conn %p, new conn_ref_cnt %d",
+		  conn, atomic_read(&conn->conn_ref_cnt) - 1);
 	sBUG_ON(atomic_read(&conn->conn_ref_cnt) == 0);
 
 	/*
@@ -823,23 +810,22 @@ static inline void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn) {}
 static inline void iscsi_extracheck_is_wr_thread(struct iscsi_conn *conn) {}
 #endif
 
-extern int iscsi_conn_alloc(struct iscsi_session *session,
-	struct iscsi_kern_conn_info *info, struct iscsi_conn **new_conn,
-	struct iscsit_transport *t);
+extern int iscsi_conn_alloc(struct iscsi_session *session, struct iscsi_kern_conn_info *info,
+			    struct iscsi_conn **new_conn, struct iscsit_transport *t);
 
 extern int conn_activate(struct iscsi_conn *conn);
 extern void iscsi_tcp_mark_conn_closed(struct iscsi_conn *conn, int flags);
 extern void iscsi_tcp_conn_free(struct iscsi_conn *conn);
 extern void iscsi_cmnd_init(struct iscsi_conn *conn, struct iscsi_cmnd *cmnd,
-		struct iscsi_cmnd *parent);
+			    struct iscsi_cmnd *parent);
 extern struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn);
 extern void start_close_conn(struct iscsi_conn *conn);
 extern __be32 cmnd_set_sn(struct iscsi_cmnd *cmnd, int set_stat_sn);
 extern void iscsi_set_resid(struct iscsi_cmnd *rsp);
-extern int iscsi_init_conn(struct iscsi_session *session,
-	struct iscsi_kern_conn_info *info, struct iscsi_conn *conn);
+extern int iscsi_init_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info,
+			   struct iscsi_conn *conn);
 extern void req_cmnd_pre_release(struct iscsi_cmnd *req);
-extern struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req,
-	int status, const u8 *sense_buf, int sense_len);
+extern struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req, int status,
+					    const u8 *sense_buf, int sense_len);
 extern int iscsi_cmnd_set_write_buf(struct iscsi_cmnd *req);
 #endif	/* __ISCSI_H__ */

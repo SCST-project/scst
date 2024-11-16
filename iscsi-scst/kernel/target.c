@@ -60,7 +60,7 @@ static struct iscsi_target *target_lookup_by_name(const char *name)
 
 /* target_mgmt_mutex supposed to be locked */
 static int iscsi_target_create(struct iscsi_kern_target_info *info, u32 tid,
-	struct iscsi_target **out_target)
+			       struct iscsi_target **out_target)
 {
 	int err = -EINVAL, len;
 	char *name = info->name;
@@ -87,7 +87,8 @@ static int iscsi_target_create(struct iscsi_kern_target_info *info, u32 tid,
 		goto out_put;
 	}
 
-	target->tid = info->tid = tid;
+	info->tid = tid;
+	target->tid = info->tid;
 
 	strscpy(target->name, name, sizeof(target->name));
 
@@ -154,9 +155,9 @@ int __add_target(struct iscsi_kern_target_info *info)
 	}
 
 	add_info = kmalloc(sizeof(*add_info), GFP_KERNEL);
-	if (add_info == NULL) {
+	if (!add_info) {
 		PRINT_ERROR("Unable to allocate additional info (size %zd)",
-			sizeof(*add_info));
+			    sizeof(*add_info));
 		err = -ENOMEM;
 		goto out;
 	}
@@ -194,7 +195,7 @@ int __add_target(struct iscsi_kern_target_info *info)
 			goto out_del_unlock;
 		}
 
-		attr_info->name[sizeof(attr_info->name)-1] = '\0';
+		attr_info->name[sizeof(attr_info->name) - 1] = '\0';
 
 		err = iscsi_add_attr(target, attr_info);
 		if (err != 0)
@@ -226,17 +227,14 @@ static void target_destroy(struct iscsi_target *target)
 
 	TRACE_MGMT_DBG("Destroying target tid %u", target->tid);
 
-	list_for_each_entry_safe(attr, t, &target->attrs_list,
-				attrs_list_entry) {
+	list_for_each_entry_safe(attr, t, &target->attrs_list, attrs_list_entry)
 		__iscsi_del_attr(target, attr);
-	}
 
 	scst_unregister_target(target->scst_tgt);
 
 	kfree(target);
 
 	module_put(THIS_MODULE);
-	return;
 }
 
 /* target_mgmt_mutex supposed to be locked */
@@ -276,13 +274,12 @@ out:
 }
 
 /* target_mutex supposed to be locked */
-void target_del_session(struct iscsi_target *target,
-	struct iscsi_session *session, int flags)
+void target_del_session(struct iscsi_target *target, struct iscsi_session *session, int flags)
 {
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MGMT, "Deleting session %p (initiator %s)", session,
-		session->scst_sess->initiator_name);
+	TRACE(TRACE_MGMT, "Deleting session %p (initiator %s)",
+	      session, session->scst_sess->initiator_name);
 
 	lockdep_assert_held(&target->target_mutex);
 
@@ -301,7 +298,6 @@ void target_del_session(struct iscsi_target *target,
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 /* target_mutex supposed to be locked */
@@ -315,14 +311,12 @@ void target_del_all_sess(struct iscsi_target *target, int flags)
 
 	if (!list_empty(&target->session_list)) {
 		TRACE_MGMT_DBG("Deleting all sessions from target %p", target);
-		list_for_each_entry_safe(session, ts, &target->session_list,
-						session_list_entry) {
+
+		list_for_each_entry_safe(session, ts, &target->session_list, session_list_entry)
 			target_del_session(target, session, flags);
-		}
 	}
 
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL(target_del_all_sess);
 
@@ -363,14 +357,13 @@ void target_del_all(void)
 		 * theyself, but act in advance.
 		 */
 
-		list_for_each_entry_safe(target, t, &target_list,
-					 target_list_entry) {
+		list_for_each_entry_safe(target, t, &target_list, target_list_entry) {
 			mutex_lock(&target->target_mutex);
 
 			if (!list_empty(&target->session_list)) {
 				target_del_all_sess(target,
-					ISCSI_CONN_ACTIVE_CLOSE |
-					ISCSI_CONN_DELETING);
+						    ISCSI_CONN_ACTIVE_CLOSE |
+						    ISCSI_CONN_DELETING);
 			} else if (!first) {
 				TRACE_MGMT_DBG("Deleting target %p", target);
 				list_del(&target->target_list_entry);
@@ -393,12 +386,9 @@ void target_del_all(void)
 	TRACE_MGMT_DBG("%s", "Deleting all targets finished");
 
 	TRACE_EXIT();
-	return;
 }
 
-
-static ssize_t iscsi_tgt_tid_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t iscsi_tgt_tid_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	int res = -E_TGT_PRIV_NOT_YET_SET;
 	struct scst_tgt *scst_tgt;
@@ -419,15 +409,15 @@ out:
 }
 
 static struct kobj_attribute iscsi_tgt_attr_tid =
-	__ATTR(tid, S_IRUGO, iscsi_tgt_tid_show, NULL);
+	__ATTR(tid, 0444, iscsi_tgt_tid_show, NULL);
 
 const struct attribute *iscsi_tgt_attrs[] = {
 	&iscsi_tgt_attr_tid.attr,
 	NULL,
 };
 
-ssize_t iscsi_sysfs_send_event(uint32_t tid, enum iscsi_kern_event_code code,
-	const char *param1, const char *param2, void **data)
+ssize_t iscsi_sysfs_send_event(uint32_t tid, enum iscsi_kern_event_code code, const char *param1,
+			       const char *param2, void **data)
 {
 	int res;
 	struct scst_sysfs_user_info *info;
@@ -461,7 +451,7 @@ ssize_t iscsi_sysfs_send_event(uint32_t tid, enum iscsi_kern_event_code code,
 	 */
 	res = scst_wait_info_completion(info, 31 * HZ);
 
-	if (data != NULL)
+	if (data)
 		*data = info->data;
 
 out_free:
@@ -481,7 +471,7 @@ int iscsi_enable_target(struct scst_tgt *scst_tgt, bool enable)
 
 	TRACE_ENTRY();
 
-	if (tgt == NULL) {
+	if (!tgt) {
 		res = -E_TGT_PRIV_NOT_YET_SET;
 		goto out;
 	}
@@ -505,7 +495,7 @@ bool iscsi_is_target_enabled(struct scst_tgt *scst_tgt)
 	struct iscsi_target *tgt =
 		(struct iscsi_target *)scst_tgt_get_tgt_priv(scst_tgt);
 
-	if (tgt != NULL)
+	if (tgt)
 		return tgt->tgt_enabled;
 	else
 		return false;
@@ -517,8 +507,7 @@ ssize_t iscsi_sysfs_add_target(const char *target_name, char *params)
 
 	TRACE_ENTRY();
 
-	res = iscsi_sysfs_send_event(0, E_ADD_TARGET, target_name,
-			params, NULL);
+	res = iscsi_sysfs_send_event(0, E_ADD_TARGET, target_name, params, NULL);
 	if (res > 0) {
 		/* It's tid */
 		res = 0;
@@ -540,7 +529,7 @@ ssize_t iscsi_sysfs_del_target(const char *target_name)
 
 		mutex_lock(&target_mgmt_mutex);
 		tgt = target_lookup_by_name(target_name);
-		if (tgt == NULL) {
+		if (!tgt) {
 			PRINT_ERROR("Target %s not found", target_name);
 			mutex_unlock(&target_mgmt_mutex);
 			res = -ENOENT;
@@ -574,7 +563,7 @@ ssize_t iscsi_sysfs_mgmt_cmd(char *cmd)
 }
 
 static ssize_t iscsi_acg_sess_dedicated_threads_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+						     struct kobj_attribute *attr, char *buf)
 {
 	int pos;
 	struct scst_acg *acg;
@@ -583,17 +572,17 @@ static ssize_t iscsi_acg_sess_dedicated_threads_show(struct kobject *kobj,
 	TRACE_ENTRY();
 
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
-	dedicated = scst_get_acg_tgt_priv(acg) != NULL;
+	dedicated = scst_get_acg_tgt_priv(acg);
 
-	pos = sprintf(buf, "%d\n%s", dedicated,
-		dedicated ? SCST_SYSFS_KEY_MARK "\n" : "");
+	pos = sprintf(buf, "%d\n%s", dedicated, dedicated ? SCST_SYSFS_KEY_MARK "\n" : "");
 
 	TRACE_EXIT_RES(pos);
 	return pos;
 }
 
 static ssize_t iscsi_acg_sess_dedicated_threads_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+						      struct kobj_attribute *attr, const char *buf,
+						      size_t count)
 {
 	int res;
 	struct scst_acg *acg;
@@ -619,9 +608,9 @@ out:
 }
 
 static struct kobj_attribute iscsi_acg_attr_sess_dedicated_threads =
-	__ATTR(per_sess_dedicated_tgt_threads, S_IRUGO | S_IWUSR,
-		iscsi_acg_sess_dedicated_threads_show,
-		iscsi_acg_sess_dedicated_threads_store);
+	__ATTR(per_sess_dedicated_tgt_threads, 0644,
+	       iscsi_acg_sess_dedicated_threads_show,
+	       iscsi_acg_sess_dedicated_threads_store);
 
 const struct attribute *iscsi_acg_attrs[] = {
 	&iscsi_acg_attr_sess_dedicated_threads.attr,
