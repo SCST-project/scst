@@ -43,23 +43,21 @@
 #include "iser_datamover.h"
 
 static inline int isert_pdu_rx_buf_init(struct isert_cmnd *isert_pdu,
-				 struct isert_conn *isert_conn)
+					struct isert_conn *isert_conn)
 {
 	struct isert_buf *isert_buf = &isert_pdu->buf;
 
-	return isert_wr_init(&isert_pdu->wr[0], ISER_WR_RECV, isert_buf,
-			   isert_conn, isert_pdu, isert_pdu->sg_pool,
-			   0, isert_buf->sg_cnt, 0);
+	return isert_wr_init(&isert_pdu->wr[0], ISER_WR_RECV, isert_buf, isert_conn, isert_pdu,
+			     isert_pdu->sg_pool, 0, isert_buf->sg_cnt, 0);
 }
 
 static inline int isert_pdu_tx_buf_init(struct isert_cmnd *isert_pdu,
-				 struct isert_conn *isert_conn)
+					struct isert_conn *isert_conn)
 {
 	struct isert_buf *isert_buf = &isert_pdu->buf;
 
-	return isert_wr_init(&isert_pdu->wr[0], ISER_WR_SEND, isert_buf,
-			   isert_conn, isert_pdu, isert_pdu->sg_pool,
-			   0, isert_buf->sg_cnt, 0);
+	return isert_wr_init(&isert_pdu->wr[0], ISER_WR_SEND, isert_buf, isert_conn, isert_pdu,
+			     isert_pdu->sg_pool, 0, isert_buf->sg_cnt, 0);
 }
 
 static inline void isert_pdu_set_hdr_plain(struct isert_cmnd *isert_pdu)
@@ -139,11 +137,9 @@ void isert_tx_pdu_convert_from_iscsi(struct isert_cmnd *isert_cmnd,
 #endif
 
 	TRACE_EXIT();
-	return;
 }
 
-static inline int isert_pdu_prepare_send(struct isert_conn *isert_conn,
-					  struct isert_cmnd *tx_pdu)
+static inline int isert_pdu_prepare_send(struct isert_conn *isert_conn, struct isert_cmnd *tx_pdu)
 {
 	struct isert_device *isert_dev = isert_conn->isert_dev;
 	struct ib_sge *sge = tx_pdu->wr[0].sge_list;
@@ -176,14 +172,14 @@ static int isert_alloc_for_rdma(struct isert_cmnd *pdu, int sge_cnt,
 	int wr_cnt;
 
 	sg_pool = kmalloc_array(sge_cnt, sizeof(*sg_pool), GFP_KERNEL);
-	if (unlikely(sg_pool == NULL)) {
+	if (unlikely(!sg_pool)) {
 		ret = -ENOMEM;
 		goto out;
 	}
 
 	wr_cnt = DIV_ROUND_UP(sge_cnt, isert_conn->max_sge);
 	wr = kmalloc_array(wr_cnt, sizeof(*wr), GFP_KERNEL);
-	if (unlikely(wr == NULL)) {
+	if (unlikely(!wr)) {
 		ret = -ENOMEM;
 		goto out_free_sg_pool;
 	}
@@ -465,7 +461,7 @@ int isert_alloc_conn_resources(struct isert_conn *isert_conn)
 			goto clean_pdus;
 		}
 
-		if (unlikely(first_pdu == NULL))
+		if (unlikely(!first_pdu))
 			first_pdu = pdu;
 		else
 			isert_link_recv_pdu_wrs(prev_pdu, pdu);
@@ -529,7 +525,7 @@ int isert_rx_pdu_done(struct isert_cmnd *pdu)
 
 	if (++isert_conn->to_post_recv > isert_conn->repost_threshold) {
 		err = isert_post_recv(isert_conn, isert_conn->post_recv_first,
-				     isert_conn->to_post_recv);
+				      isert_conn->to_post_recv);
 		isert_conn->to_post_recv = 0;
 	}
 	spin_unlock(&isert_conn->post_recv_lock);
@@ -650,4 +646,3 @@ int isert_pdu_post_rdma_read(struct isert_conn *isert_conn,
 	TRACE_EXIT_RES(err);
 	return err;
 }
-

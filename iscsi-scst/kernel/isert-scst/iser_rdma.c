@@ -63,7 +63,7 @@ static int isert_num_recv_posted_on_err(struct ib_recv_wr *first_ib_wr,
 	struct ib_recv_wr *wr;
 	int num_posted = 0;
 
-	for (wr = first_ib_wr; wr != NULL && wr != bad_wr; wr = wr->next)
+	for (wr = first_ib_wr; wr && wr != bad_wr; wr = wr->next)
 		num_posted++;
 
 	return num_posted;
@@ -106,7 +106,7 @@ static int isert_num_send_posted_on_err(struct ib_send_wr *first_ib_wr,
 	struct ib_send_wr *wr;
 	int num_posted = 0;
 
-	for (wr = first_ib_wr; wr != NULL && wr != bad_wr; wr = wr->next)
+	for (wr = first_ib_wr; wr && wr != bad_wr; wr = wr->next)
 		num_posted++;
 
 	return num_posted;
@@ -428,7 +428,6 @@ static void isert_send_completion_handler(struct isert_wr *wr)
 	struct iscsi_cmnd *iscsi_req_pdu = iscsi_pdu->parent_req;
 	struct isert_cmnd *isert_req_pdu = container_of(iscsi_req_pdu,
 						    struct isert_cmnd, iscsi);
-
 
 	TRACE_ENTRY();
 
@@ -764,7 +763,6 @@ static void isert_cq_comp_work_cb(struct work_struct *work)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 static void isert_cq_comp_handler(struct ib_cq *cq, void *context)
@@ -909,7 +907,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 	TRACE_ENTRY();
 
 	isert_dev = kzalloc(sizeof(*isert_dev), GFP_KERNEL);
-	if (unlikely(isert_dev == NULL)) {
+	if (unlikely(!isert_dev)) {
 		PRINT_ERROR("Failed to allocate iser dev");
 		err = -ENOMEM;
 		goto out;
@@ -931,7 +929,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 	isert_dev->cq_qps = kcalloc(isert_dev->num_cqs,
 				    sizeof(*isert_dev->cq_qps),
 				    GFP_KERNEL);
-	if (unlikely(isert_dev->cq_qps == NULL)) {
+	if (unlikely(!isert_dev->cq_qps)) {
 		PRINT_ERROR("Failed to allocate %d iser cq_qps",
 			    isert_dev->num_cqs);
 		err = -ENOMEM;
@@ -939,7 +937,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 	}
 
 	isert_dev->cq_desc = vmalloc_array(isert_dev->num_cqs, sizeof(*isert_dev->cq_desc));
-	if (unlikely(isert_dev->cq_desc == NULL)) {
+	if (unlikely(!isert_dev->cq_desc)) {
 		PRINT_ERROR("Failed to allocate %zd bytes for iser cq_desc",
 			    sizeof(*isert_dev->cq_desc) * isert_dev->num_cqs);
 		err = -ENOMEM;
@@ -1196,7 +1194,7 @@ isert_init_conn(struct isert_conn *isert_conn)
 }
 
 static struct isert_conn *isert_conn_create(struct rdma_cm_id *cm_id,
-						struct isert_device *isert_dev)
+					    struct isert_device *isert_dev)
 {
 	struct isert_conn *isert_conn;
 	int err;
@@ -1332,7 +1330,6 @@ static void isert_release_kref(struct kref *kref)
 	if (unlikely(isert_conn->portal->state == ISERT_PORTAL_INACTIVE))
 		isert_portal_free(isert_conn->portal);
 	mutex_unlock(&dev_list_mutex);
-
 
 	if (atomic_read(&isert_conn->dev_removed)) {
 		atomic_set(&isert_conn->dev_removed, 0);
@@ -1572,7 +1569,7 @@ static void isert_portal_reinit_id_work(struct work_struct *w)
 	portal->cm_id = isert_setup_id(portal);
 	if (IS_ERR(portal->cm_id)) {
 		PRINT_ERROR("Failed to create rdma id, err:%ld\n",
-				PTR_ERR(portal->cm_id));
+			    PTR_ERR(portal->cm_id));
 		portal->cm_id = NULL;
 	}
 }
@@ -1725,11 +1722,9 @@ isert_setup_id(struct isert_portal *portal)
 	sa = (struct sockaddr *)&portal->addr;
 
 #if !RDMA_CREATE_ID_TAKES_NET_ARG
-	id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP,
-			       IB_QPT_RC);
+	id = rdma_create_id(isert_cm_evt_handler, portal, RDMA_PS_TCP, IB_QPT_RC);
 #else
-	id = rdma_create_id(iscsi_net_ns, isert_cm_evt_handler, portal,
-			       RDMA_PS_TCP, IB_QPT_RC);
+	id = rdma_create_id(iscsi_net_ns, isert_cm_evt_handler, portal, RDMA_PS_TCP, IB_QPT_RC);
 #endif
 	if (IS_ERR(id)) {
 		ret = PTR_ERR(id);

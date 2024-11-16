@@ -1,8 +1,7 @@
-* Add suppport for immediate data in iSER
-* Add suppport for data-out in iSER
+* Add support for immediate data in iSER
+* Add support for data-out in iSER
 * Look into separating between RX pdu and TX pdu
 * Do not signal every "response sent" notification
 * Make the code NUMA aware
 * Add support for AHS
 * Add support for bidi commands
-

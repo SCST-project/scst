@@ -54,7 +54,7 @@ unsigned long isert_trace_flag = ISERT_DEFAULT_LOG_FLAGS;
 #endif
 
 static unsigned int isert_nr_devs = ISERT_NR_DEVS;
-module_param(isert_nr_devs, uint, S_IRUGO);
+module_param(isert_nr_devs, uint, 0444);
 MODULE_PARM_DESC(isert_nr_devs,
 		 "Maximum concurrent number of connection requests to handle (up to 999).");
 
@@ -206,10 +206,10 @@ static void isert_cmnd_free(struct iscsi_cmnd *cmnd)
 		struct iscsi_scsi_cmd_hdr *req = cmnd_hdr(cmnd);
 
 		PRINT_CRIT_ERROR("cmnd %p still on some list?, %x, %x, %x, %x, %x, %x, %x",
-			cmnd, req->opcode, req->scb[0],
-			req->flags, req->itt, be32_to_cpu(req->data_length),
-			req->cmd_sn,
-			be32_to_cpu((__force __be32)(cmnd->pdu.datasize)));
+				 cmnd, req->opcode, req->scb[0],
+				 req->flags, req->itt, be32_to_cpu(req->data_length),
+				 req->cmd_sn,
+				 be32_to_cpu((__force __be32)(cmnd->pdu.datasize)));
 
 		if (unlikely(cmnd->parent_req)) {
 			struct iscsi_scsi_cmd_hdr *preq =
@@ -233,8 +233,7 @@ static void isert_preprocessing_done(struct iscsi_cmnd *req)
 	req->scst_state = ISCSI_CMD_STATE_AFTER_PREPROC;
 }
 
-static void isert_set_sense_data(struct iscsi_cmnd *rsp,
-	const u8 *sense_buf, int sense_len)
+static void isert_set_sense_data(struct iscsi_cmnd *rsp, const u8 *sense_buf, int sense_len)
 {
 	u8 *buf;
 
@@ -432,18 +431,15 @@ static ssize_t isert_get_initiator_ip(struct iscsi_conn *conn,
 
 	switch (ss.ss_family) {
 	case AF_INET:
-		pos = scnprintf(buf, size,
-			"%pI4", &((struct sockaddr_in *)&ss)->sin_addr.s_addr);
+		pos = scnprintf(buf, size, "%pI4", &((struct sockaddr_in *)&ss)->sin_addr.s_addr);
 		break;
 #if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	case AF_INET6:
-		pos = scnprintf(buf, size, "[%pI6]",
-			&((struct sockaddr_in6 *)&ss)->sin6_addr);
+		pos = scnprintf(buf, size, "[%pI6]", &((struct sockaddr_in6 *)&ss)->sin6_addr);
 		break;
 #endif
 	default:
-		pos = scnprintf(buf, size, "Unknown family %d",
-			ss.ss_family);
+		pos = scnprintf(buf, size, "Unknown family %d", ss.ss_family);
 		break;
 	}
 
@@ -505,7 +501,6 @@ MODULE_LICENSE("Dual BSD/GPL");
 MODULE_IMPORT_NS(SCST);
 #define DRV_VERSION		"3.9.0-pre" "#" __stringify(OFED_FLAVOR)
 #define DRV_RELDATE		"15 January 2024"
-MODULE_DESCRIPTION("iSER target transport driver "
-		   "v" DRV_VERSION " (" DRV_RELDATE ")");
+MODULE_DESCRIPTION("iSER target transport driver v" DRV_VERSION " (" DRV_RELDATE ")");
 module_init(isert_init_module);
 module_exit(isert_cleanup_module);
