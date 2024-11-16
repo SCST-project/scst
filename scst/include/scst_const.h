@@ -46,7 +46,7 @@
  * Changing it don't forget to change SCST_FIO_REV in scst_vdisk.c
  * and FIO_REV in usr/fileio/common.h as well.
  */
-#define SCST_VERSION(a, b, c, d)    (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
+#define SCST_VERSION(a, b, c, d)    (((a) << 24) + ((b) << 16) + ((c) << 8) + (d))
 #define SCST_VERSION_CODE	    SCST_VERSION(3, 9, 0, 0)
 
 #define SCST_VERSION_STRING_SUFFIX
@@ -76,7 +76,7 @@
 #define SCST_MAX_EXTERNAL_NAME	     256
 
 /* Max LUN. 2 bits are used for addressing method. */
-#define SCST_MAX_LUN		     ((1 << (16-2)) - 1)
+#define SCST_MAX_LUN		     ((1 << (16 - 2)) - 1)
 
 /*
  * Size of sense sufficient to carry standard sense data.
@@ -239,7 +239,7 @@ enum scst_cdb_flags {
 	SCST_TEST_IO_IN_SIRQ_ALLOWED =		0x8000,
 #endif
 	SCST_SERIALIZED =		        0x10000,
-	SCST_STRICTLY_SERIALIZED =	        0x20000|SCST_SERIALIZED,
+	SCST_STRICTLY_SERIALIZED =	        0x20000 | SCST_SERIALIZED,
 	SCST_CAN_GEN_3PARTY_COMMANDS =	        0x40000,
 	SCST_DESCRIPTORS_BASED =	        0x80000,
 	SCST_SCSI_ATOMIC =		        0x100000,
@@ -257,8 +257,7 @@ typedef enum scst_data_direction {
 	SCST_DATA_NONE		= 4,
 } scst_data_direction;
 
-#define SCST_DATA_DIR_MAX		(SCST_DATA_NONE+1)
-
+#define SCST_DATA_DIR_MAX		(SCST_DATA_NONE + 1)
 
 /*************************************************************
  ** Default suffix for targets with NULL names
@@ -272,12 +271,12 @@ typedef enum scst_data_direction {
 
 static inline int scst_sense_valid(const uint8_t *sense)
 {
-	return (sense != NULL) && ((sense[0] & 0x70) == 0x70);
+	return sense && ((sense[0] & 0x70) == 0x70);
 }
 
 static inline int scst_no_sense(const uint8_t *sense)
 {
-	return (sense != NULL) && (sense[2] == 0);
+	return sense && (sense[2] == 0);
 }
 
 static inline int scst_sense_response_code(const uint8_t *sense)
@@ -358,7 +357,6 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 
 /* MISCOMPARE is 0xe */
 #define scst_sense_miscompare_error		MISCOMPARE,      0x1D, 0
-
 
 /*************************************************************
  * SCSI opcodes not listed anywhere else
@@ -717,6 +715,5 @@ enum {
 
 /* Size of the lock value block in the DLM PR lockspace */
 #define PR_DLM_LVB_LEN 256
-
 
 #endif /* __SCST_CONST_H */
