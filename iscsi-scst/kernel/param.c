@@ -83,25 +83,25 @@ static void log_params(struct iscsi_sess_params *params)
 	char hdigest_name[64], ddigest_name[64];
 
 	PRINT_INFO("Negotiated parameters: InitialR2T %s, ImmediateData %s, MaxConnections %d, MaxRecvDataSegmentLength %d, MaxXmitDataSegmentLength %d, ",
-		iscsi_get_bool_value(params->initial_r2t),
-		iscsi_get_bool_value(params->immediate_data),
-		params->max_connections,
-		params->max_recv_data_length, params->max_xmit_data_length);
+		   iscsi_get_bool_value(params->initial_r2t),
+		   iscsi_get_bool_value(params->immediate_data),
+		   params->max_connections,
+		   params->max_recv_data_length, params->max_xmit_data_length);
 	PRINT_INFO("    MaxBurstLength %d, FirstBurstLength %d, DefaultTime2Wait %d, DefaultTime2Retain %d, ",
-		params->max_burst_length, params->first_burst_length,
-		params->default_wait_time, params->default_retain_time);
+		   params->max_burst_length, params->first_burst_length,
+		   params->default_wait_time, params->default_retain_time);
 	PRINT_INFO("    MaxOutstandingR2T %d, DataPDUInOrder %s, DataSequenceInOrder %s, ErrorRecoveryLevel %d, ",
-		params->max_outstanding_r2t,
-		iscsi_get_bool_value(params->data_pdu_inorder),
-		iscsi_get_bool_value(params->data_sequence_inorder),
-		params->error_recovery_level);
+		   params->max_outstanding_r2t,
+		   iscsi_get_bool_value(params->data_pdu_inorder),
+		   iscsi_get_bool_value(params->data_sequence_inorder),
+		   params->error_recovery_level);
 	PRINT_INFO("    HeaderDigest %s, DataDigest %s, OFMarker %s, IFMarker %s, OFMarkInt %d, IFMarkInt %d, RDMAExtensions %s",
-		iscsi_get_digest_name(params->header_digest, hdigest_name),
-		iscsi_get_digest_name(params->data_digest, ddigest_name),
-		iscsi_get_bool_value(params->ofmarker),
-		iscsi_get_bool_value(params->ifmarker),
-		params->ofmarkint, params->ifmarkint,
-		iscsi_get_bool_value(params->rdma_extensions));
+		   iscsi_get_digest_name(params->header_digest, hdigest_name),
+		   iscsi_get_digest_name(params->data_digest, ddigest_name),
+		   iscsi_get_bool_value(params->ofmarker),
+		   iscsi_get_bool_value(params->ifmarker),
+		   params->ofmarkint, params->ifmarkint,
+		   iscsi_get_bool_value(params->rdma_extensions));
 }
 
 /* target_mutex supposed to be locked */
@@ -137,13 +137,10 @@ static void sess_params_check(struct iscsi_kern_params_info *info)
 	CHECK_PARAM(info, iparams, rdma_extensions, 0, 1);
 	CHECK_PARAM(info, iparams, target_recv_data_length, 512, max_len);
 	CHECK_PARAM(info, iparams, initiator_recv_data_length, 512, max_len);
-
-	return;
 }
 
 /* target_mutex supposed to be locked */
-static void sess_params_set(struct iscsi_sess_params *params,
-			   struct iscsi_kern_params_info *info)
+static void sess_params_set(struct iscsi_sess_params *params, struct iscsi_kern_params_info *info)
 {
 	int32_t *iparams = info->session_params;
 
@@ -171,11 +168,9 @@ static void sess_params_set(struct iscsi_sess_params *params,
 	SET_PARAM(params, info, iparams, rdma_extensions);
 	SET_PARAM(params, info, iparams, target_recv_data_length);
 	SET_PARAM(params, info, iparams, initiator_recv_data_length);
-	return;
 }
 
-static void sess_params_get(struct iscsi_sess_params *params,
-			   struct iscsi_kern_params_info *info)
+static void sess_params_get(struct iscsi_sess_params *params, struct iscsi_kern_params_info *info)
 {
 	int32_t *iparams = info->session_params;
 
@@ -203,12 +198,10 @@ static void sess_params_get(struct iscsi_sess_params *params,
 	GET_PARAM(params, info, iparams, rdma_extensions);
 	GET_PARAM(params, info, iparams, target_recv_data_length);
 	GET_PARAM(params, info, iparams, initiator_recv_data_length);
-	return;
 }
 
 /* target_mutex supposed to be locked */
-static void tgt_params_check(struct iscsi_session *session,
-	struct iscsi_kern_params_info *info)
+static void tgt_params_check(struct iscsi_session *session, struct iscsi_kern_params_info *info)
 {
 	int32_t *iparams = info->target_params;
 	unsigned int rsp_timeout, nop_in_timeout;
@@ -218,14 +211,10 @@ static void tgt_params_check(struct iscsi_session *session,
 	 * performed in the user space.
 	 */
 
-	CHECK_PARAM(info, iparams, queued_cmnds, MIN_NR_QUEUED_CMNDS,
-		MAX_NR_QUEUED_CMNDS);
-	CHECK_PARAM(info, iparams, rsp_timeout, MIN_RSP_TIMEOUT,
-		MAX_RSP_TIMEOUT);
-	CHECK_PARAM(info, iparams, nop_in_interval, MIN_NOP_IN_INTERVAL,
-		MAX_NOP_IN_INTERVAL);
-	CHECK_PARAM(info, iparams, nop_in_timeout, MIN_NOP_IN_TIMEOUT,
-		MAX_NOP_IN_TIMEOUT);
+	CHECK_PARAM(info, iparams, queued_cmnds, MIN_NR_QUEUED_CMNDS, MAX_NR_QUEUED_CMNDS);
+	CHECK_PARAM(info, iparams, rsp_timeout, MIN_RSP_TIMEOUT, MAX_RSP_TIMEOUT);
+	CHECK_PARAM(info, iparams, nop_in_interval, MIN_NOP_IN_INTERVAL, MAX_NOP_IN_INTERVAL);
+	CHECK_PARAM(info, iparams, nop_in_timeout, MIN_NOP_IN_TIMEOUT, MAX_NOP_IN_TIMEOUT);
 
 	/*
 	 * We adjust too long timeout in req_add_to_write_timeout_list()
@@ -240,14 +229,12 @@ static void tgt_params_check(struct iscsi_session *session,
 	else
 		nop_in_timeout = session->tgt_params.nop_in_timeout;
 	if (nop_in_timeout > rsp_timeout)
-		PRINT_WARNING("%s", "RspTimeout should be >= NopInTimeout, otherwise data transfer failure could take up to NopInTimeout long to detect");
-
-	return;
+		PRINT_WARNING("RspTimeout should be >= NopInTimeout, otherwise data transfer failure could take up to NopInTimeout long to detect");
 }
 
 /* target_mutex supposed to be locked */
-static int iscsi_tgt_params_set(struct iscsi_session *session,
-		      struct iscsi_kern_params_info *info, int set)
+static int iscsi_tgt_params_set(struct iscsi_session *session, struct iscsi_kern_params_info *info,
+				int set)
 {
 	struct iscsi_tgt_params *params = &session->tgt_params;
 	int32_t *iparams = info->target_params;
@@ -264,12 +251,12 @@ static int iscsi_tgt_params_set(struct iscsi_session *session,
 		SET_PARAM(params, info, iparams, nop_in_interval);
 		SET_PARAM(params, info, iparams, nop_in_timeout);
 
-		PRINT_INFO("Target parameters set for session %llx: QueuedCommands %d, Response timeout %d, Nop-In interval %d, Nop-In timeout %d", session->sid,
-			params->queued_cmnds, params->rsp_timeout,
-			params->nop_in_interval, params->nop_in_timeout);
+		PRINT_INFO("Target parameters set for session %llx: QueuedCommands %d, Response timeout %d, Nop-In interval %d, Nop-In timeout %d",
+			   session->sid,
+			   params->queued_cmnds, params->rsp_timeout,
+			   params->nop_in_interval, params->nop_in_timeout);
 
-		list_for_each_entry(conn, &session->conn_list,
-					conn_list_entry) {
+		list_for_each_entry(conn, &session->conn_list, conn_list_entry) {
 			conn->data_rsp_timeout =
 				session->tgt_params.rsp_timeout * HZ;
 			conn->nop_in_interval =
@@ -277,11 +264,11 @@ static int iscsi_tgt_params_set(struct iscsi_session *session,
 			conn->nop_in_timeout =
 				session->tgt_params.nop_in_timeout * HZ;
 			spin_lock_bh(&conn->conn_thr_pool->rd_lock);
-			if (!conn->closing && (conn->nop_in_interval > 0)) {
+			if (!conn->closing && conn->nop_in_interval > 0) {
 				TRACE_DBG("Schedule Nop-In work for conn %p",
 					  conn);
 				schedule_delayed_work(&conn->nop_in_delayed_work,
-					conn->nop_in_interval + ISCSI_ADD_SCHED_TIME);
+						conn->nop_in_interval + ISCSI_ADD_SCHED_TIME);
 			}
 			spin_unlock_bh(&conn->conn_thr_pool->rd_lock);
 		}
@@ -297,7 +284,7 @@ static int iscsi_tgt_params_set(struct iscsi_session *session,
 
 /* target_mutex supposed to be locked */
 static int iscsi_sess_params_set(struct iscsi_session *session,
-	struct iscsi_kern_params_info *info, int set)
+				 struct iscsi_kern_params_info *info, int set)
 {
 	struct iscsi_sess_params *params;
 
@@ -309,15 +296,15 @@ static int iscsi_sess_params_set(struct iscsi_session *session,
 	if (set) {
 		sess_params_set(params, info);
 		log_params(params);
-	} else
+	} else {
 		sess_params_get(params, info);
+	}
 
 	return 0;
 }
 
 /* target_mutex supposed to be locked */
-int iscsi_params_set(struct iscsi_target *target,
-	struct iscsi_kern_params_info *info, int set)
+int iscsi_params_set(struct iscsi_target *target, struct iscsi_kern_params_info *info, int set)
 {
 	int err;
 	struct iscsi_session *session;
@@ -331,14 +318,13 @@ int iscsi_params_set(struct iscsi_target *target,
 	}
 
 	session = session_lookup(target, info->sid);
-	if (session == NULL) {
+	if (!session) {
 		PRINT_ERROR("Session for sid %llx not found", info->sid);
 		err = -ENOENT;
 		goto out;
 	}
 
-	if (set && !list_empty(&session->conn_list) &&
-	    (info->params_type != key_target)) {
+	if (set && !list_empty(&session->conn_list) && info->params_type != key_target) {
 		err = -EBUSY;
 		goto out;
 	}

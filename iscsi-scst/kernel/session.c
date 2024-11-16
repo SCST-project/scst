@@ -29,8 +29,7 @@ struct iscsi_session *session_lookup(struct iscsi_target *target, u64 sid)
 
 	lockdep_assert_held(&target->target_mutex);
 
-	list_for_each_entry(session, &target->session_list,
-			session_list_entry) {
+	list_for_each_entry(session, &target->session_list, session_list_entry) {
 		if (session->sid == sid)
 			return session;
 	}
@@ -38,8 +37,8 @@ struct iscsi_session *session_lookup(struct iscsi_target *target, u64 sid)
 }
 
 /* target_mgmt_mutex supposed to be locked */
-static int iscsi_session_alloc(struct iscsi_target *target,
-	struct iscsi_kern_session_info *info, struct iscsi_session **result)
+static int iscsi_session_alloc(struct iscsi_target *target, struct iscsi_kern_session_info *info,
+			       struct iscsi_session **result)
 {
 	int err;
 	unsigned int i;
@@ -76,27 +75,24 @@ static int iscsi_session_alloc(struct iscsi_target *target,
 
 	session->next_ttt = 1;
 
-	session->scst_sess = scst_register_session(target->scst_tgt, 0,
-		name, session, NULL, NULL);
-	if (session->scst_sess == NULL) {
+	session->scst_sess = scst_register_session(target->scst_tgt, 0, name, session, NULL, NULL);
+	if (!session->scst_sess) {
 		PRINT_ERROR("%s", "scst_register_session() failed");
 		err = -ENOMEM;
 		goto err;
 	}
 
 	if (!session->sess_params.rdma_extensions) {
-		err = iscsi_threads_pool_get(
-			scst_get_acg_tgt_priv(session->scst_sess->acg) != NULL,
-			&session->scst_sess->acg->acg_cpu_mask,
-			&session->sess_thr_pool);
+		err = iscsi_threads_pool_get((bool)scst_get_acg_tgt_priv(session->scst_sess->acg),
+					     &session->scst_sess->acg->acg_cpu_mask,
+					     &session->sess_thr_pool);
 		if (err != 0)
 			goto err_unreg;
 	}
 
-
 	TRACE(TRACE_MGMT, "Session %p created: target %p, tid %u, sid %#Lx, initiator %s",
-		session, target, target->tid, info->sid,
-		session->scst_sess->initiator_name);
+	      session, target, target->tid, info->sid,
+	      session->scst_sess->initiator_name);
 
 	*result = session;
 	return 0;
@@ -131,12 +127,10 @@ void sess_reinst_finished(struct iscsi_session *sess)
 	sess->sess_reinstating = 0;
 
 	TRACE_EXIT();
-	return;
 }
 
 /* target_mgmt_mutex supposed to be locked */
-int __add_session(struct iscsi_target *target,
-	struct iscsi_kern_session_info *info)
+int __add_session(struct iscsi_target *target, struct iscsi_kern_session_info *info)
 {
 	struct iscsi_session *new_sess = NULL, *sess, *old_sess;
 	int err = 0, i;
@@ -155,17 +149,17 @@ int __add_session(struct iscsi_target *target,
 	mutex_lock(&target->target_mutex);
 
 	sess = session_lookup(target, info->sid);
-	if (sess != NULL) {
+	if (sess) {
 		PRINT_ERROR("Attempt to add session with existing SID %llx",
-			info->sid);
+			    info->sid);
 		err = -EEXIST;
 		goto out_err_unlock;
 	}
 
 	params_info = kmalloc(sizeof(*params_info), GFP_KERNEL);
-	if (params_info == NULL) {
+	if (!params_info) {
 		PRINT_ERROR("Unable to allocate params info (size %zd)",
-			sizeof(*params_info));
+			    sizeof(*params_info));
 		err = -ENOMEM;
 		goto out_err_unlock;
 	}
@@ -178,13 +172,12 @@ int __add_session(struct iscsi_target *target,
 	 * We need to find the latest session to correctly handle
 	 * multi-reinstatements
 	 */
-	list_for_each_entry_reverse(sess, &target->session_list,
-			session_list_entry) {
+	list_for_each_entry_reverse(sess, &target->session_list, session_list_entry) {
 		union iscsi_sid s = *(union iscsi_sid *)&sess->sid;
 
 		s.id.tsih = 0;
-		if ((sid.id64 == s.id64) &&
-		    (strcmp(info->initiator_name, sess->initiator_name) == 0)) {
+		if (sid.id64 == s.id64 &&
+		    strcmp(info->initiator_name, sess->initiator_name) == 0) {
 			if (!sess->sess_shutting_down) {
 				/* session reinstatement */
 				old_sess = sess;
@@ -221,11 +214,11 @@ int __add_session(struct iscsi_target *target,
 	kfree(params_info);
 	params_info = NULL;
 
-	if (old_sess != NULL) {
+	if (old_sess) {
 		reinstatement = true;
 
 		TRACE_MGMT_DBG("Reinstating sess %p with SID %llx (old %p, SID %llx)",
-			new_sess, new_sess->sid, old_sess, old_sess->sid);
+			       new_sess, new_sess->sid, old_sess, old_sess->sid);
 
 		new_sess->sess_reinstating = 1;
 		old_sess->sess_reinst_successor = new_sess;
@@ -246,7 +239,7 @@ int __add_session(struct iscsi_target *target,
 		 * SCST core under scst_mutex).
 		 */
 		scst_set_initial_UA(new_sess->scst_sess,
-			SCST_LOAD_SENSE(scst_sense_nexus_loss_UA));
+				    SCST_LOAD_SENSE(scst_sense_nexus_loss_UA));
 	}
 
 out:
@@ -288,7 +281,6 @@ static void iscsi_unreg_sess_done(struct scst_session *scst_sess)
 	__session_free(session);
 
 	TRACE_EXIT();
-	return;
 }
 
 /* target_mutex supposed to be locked */
@@ -297,29 +289,28 @@ int session_free(struct iscsi_session *session, bool del)
 	unsigned int i;
 
 	TRACE(TRACE_MGMT, "Freeing session %p (SID %llx)",
-		session, session->sid);
+	      session, session->sid);
 
 	lockdep_assert_held(&session->target->target_mutex);
 
 	sBUG_ON(!list_empty(&session->conn_list));
 	if (unlikely(atomic_read(&session->active_cmds) != 0)) {
 		PRINT_CRIT_ERROR("active_cmds not 0 (%d)!!",
-			atomic_read(&session->active_cmds));
+				 atomic_read(&session->active_cmds));
 		sBUG();
 	}
 
 	for (i = 0; i < ARRAY_SIZE(session->cmnd_data_wait_hash); i++)
 		sBUG_ON(!list_empty(&session->cmnd_data_wait_hash[i]));
 
-	if (session->sess_reinst_successor != NULL)
+	if (session->sess_reinst_successor)
 		sess_reinst_finished(session->sess_reinst_successor);
 
 	if (session->sess_reinstating) {
 		struct iscsi_session *s;
 
 		TRACE_MGMT_DBG("Freeing being reinstated sess %p", session);
-		list_for_each_entry(s, &session->target->session_list,
-						session_list_entry) {
+		list_for_each_entry(s, &session->target->session_list, session_list_entry) {
 			if (s->sess_reinst_successor == session) {
 				s->sess_reinst_successor = NULL;
 				break;
@@ -330,7 +321,7 @@ int session_free(struct iscsi_session *session, bool del)
 	if (del)
 		list_del(&session->session_list_entry);
 
-	if (session->scst_sess != NULL) {
+	if (session->scst_sess) {
 		/*
 		 * We must NOT call scst_unregister_session() in the waiting
 		 * mode, since we are under target_mutex. Otherwise we can
@@ -338,10 +329,10 @@ int session_free(struct iscsi_session *session, bool del)
 		 * and scst_mutex in SCST core (iscsi_report_aen() called by
 		 * SCST core under scst_mutex).
 		 */
-		scst_unregister_session(session->scst_sess, 0,
-			iscsi_unreg_sess_done);
-	} else
+		scst_unregister_session(session->scst_sess, 0, iscsi_unreg_sess_done);
+	} else {
 		__session_free(session);
+	}
 
 	return 0;
 }
@@ -376,18 +367,16 @@ void iscsi_sess_force_close(struct iscsi_session *sess)
 	lockdep_assert_held(&sess->target->target_mutex);
 
 	PRINT_INFO("Force closing session %llx with initiator %s (%p)",
-		(unsigned long long)sess->sid, sess->initiator_name, sess);
+		   (unsigned long long)sess->sid, sess->initiator_name, sess);
 
 	list_for_each_entry(conn, &sess->conn_list, conn_list_entry) {
 		TRACE(TRACE_MGMT, "Force closing connection %p", conn);
 		__mark_conn_closed(conn,
-				   ISCSI_CONN_ACTIVE_CLOSE|ISCSI_CONN_DELETING);
+				   ISCSI_CONN_ACTIVE_CLOSE | ISCSI_CONN_DELETING);
 	}
 
 	TRACE_EXIT();
-	return;
 }
-
 
 #define ISCSI_SESS_BOOL_PARAM_ATTR(name, exported_name)				\
 static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
@@ -407,7 +396,7 @@ static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
 }										\
 										\
 static struct kobj_attribute iscsi_sess_attr_##name =				\
-	__ATTR(exported_name, S_IRUGO, iscsi_sess_show_##name, NULL)
+	__ATTR(exported_name, 0444, iscsi_sess_show_##name, NULL)
 
 #define ISCSI_SESS_INT_PARAM_ATTR(name, exported_name)				\
 static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
@@ -426,7 +415,7 @@ static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
 }										\
 										\
 static struct kobj_attribute iscsi_sess_attr_##name =				\
-	__ATTR(exported_name, S_IRUGO, iscsi_sess_show_##name, NULL)
+	__ATTR(exported_name, 0444, iscsi_sess_show_##name, NULL)
 
 #define ISCSI_SESS_DIGEST_PARAM_ATTR(name, exported_name)			\
 static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
@@ -447,7 +436,7 @@ static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
 }										\
 										\
 static struct kobj_attribute iscsi_sess_attr_##name =				\
-	__ATTR(exported_name, S_IRUGO, iscsi_sess_show_##name, NULL)
+	__ATTR(exported_name, 0444, iscsi_sess_show_##name, NULL)
 
 ISCSI_SESS_BOOL_PARAM_ATTR(initial_r2t, InitialR2T);
 ISCSI_SESS_BOOL_PARAM_ATTR(immediate_data, ImmediateData);
@@ -459,8 +448,7 @@ ISCSI_SESS_INT_PARAM_ATTR(max_outstanding_r2t, MaxOutstandingR2T);
 ISCSI_SESS_DIGEST_PARAM_ATTR(header_digest, HeaderDigest);
 ISCSI_SESS_DIGEST_PARAM_ATTR(data_digest, DataDigest);
 
-static ssize_t iscsi_sess_sid_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t iscsi_sess_sid_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	int pos;
 	struct scst_session *scst_sess;
@@ -478,10 +466,10 @@ static ssize_t iscsi_sess_sid_show(struct kobject *kobj,
 }
 
 static struct kobj_attribute iscsi_attr_sess_sid =
-	__ATTR(sid, S_IRUGO, iscsi_sess_sid_show, NULL);
+	__ATTR(sid, 0444, iscsi_sess_sid_show, NULL);
 
-static ssize_t iscsi_sess_reinstating_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t iscsi_sess_reinstating_show(struct kobject *kobj, struct kobj_attribute *attr,
+					   char *buf)
 {
 	int pos;
 	struct scst_session *scst_sess;
@@ -499,13 +487,12 @@ static ssize_t iscsi_sess_reinstating_show(struct kobject *kobj,
 }
 
 static struct kobj_attribute iscsi_sess_attr_reinstating =
-	__ATTR(reinstating, S_IRUGO, iscsi_sess_reinstating_show, NULL);
+	__ATTR(reinstating, 0444, iscsi_sess_reinstating_show, NULL);
 
-static ssize_t iscsi_sess_thread_pid_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t iscsi_sess_thread_pid_show(struct kobject *kobj, struct kobj_attribute *attr,
+					  char *buf)
 {
-	struct scst_session *scst_sess = container_of(kobj, struct scst_session,
-						      sess_kobj);
+	struct scst_session *scst_sess = container_of(kobj, struct scst_session, sess_kobj);
 	struct iscsi_session *sess = scst_sess_get_tgt_priv(scst_sess);
 	struct iscsi_thread_pool *thr_pool = sess->sess_thr_pool;
 	struct iscsi_thread *t;
@@ -530,7 +517,7 @@ out:
 }
 
 static struct kobj_attribute iscsi_sess_thread_pid =
-	__ATTR(thread_pid, S_IRUGO, iscsi_sess_thread_pid_show, NULL);
+	__ATTR(thread_pid, 0444, iscsi_sess_thread_pid_show, NULL);
 
 const struct attribute *iscsi_sess_attrs[] = {
 	&iscsi_sess_attr_initial_r2t.attr,
@@ -547,4 +534,3 @@ const struct attribute *iscsi_sess_attrs[] = {
 	&iscsi_sess_thread_pid.attr,
 	NULL,
 };
-

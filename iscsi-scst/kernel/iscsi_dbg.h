@@ -48,16 +48,15 @@
 struct iscsi_pdu;
 struct iscsi_cmnd;
 extern void iscsi_dump_pdu(struct iscsi_pdu *pdu);
-extern unsigned long iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(
-	struct iscsi_cmnd *cmnd);
+extern unsigned long iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(struct iscsi_cmnd *cmnd);
 #else
 #define iscsi_dump_pdu(x) do {} while (0)
 #define iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(x) 0
 #endif
 
-#define TRACE_CONN_CLOSE(args...)	TRACE_DBG_FLAG(TRACE_DEBUG|TRACE_CONN_OC, args)
+#define TRACE_CONN_CLOSE(args...)	TRACE_DBG_FLAG(TRACE_DEBUG | TRACE_CONN_OC, args)
 #define TRACE_CONN_CLOSE_DBG(args...)	TRACE(TRACE_CONN_OC_DBG, args)
 #define TRACE_NET_PAGE(args...)		TRACE_DBG_FLAG(TRACE_NET_PG, args)
-#define TRACE_WRITE(args...)		TRACE_DBG_FLAG(TRACE_DEBUG|TRACE_D_WRITE, args)
+#define TRACE_WRITE(args...)		TRACE_DBG_FLAG(TRACE_DEBUG | TRACE_D_WRITE, args)
 
 #endif

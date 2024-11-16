@@ -125,7 +125,7 @@ struct iscsi_cdb_ahdr {
 	__be16 ahslength;
 	u8  ahstype;
 	u8  reserved;
-	u8  cdb[0];
+	u8  cdb[];
 } __packed;
 
 struct iscsi_rlength_ahdr {
@@ -163,7 +163,7 @@ struct iscsi_scsi_rsp_hdr {
 
 struct iscsi_sense_data {
 	__be16 length;
-	u8  data[0];
+	u8  data[];
 } __packed;
 
 struct iscsi_task_mgt_hdr {
@@ -518,7 +518,7 @@ struct iscsi_nop_in_hdr {
 #define ISCSI_RESERVED_TAG_CPU32 (0xffffffffU)
 #define ISCSI_RESERVED_TAG (cpu_to_be32(ISCSI_RESERVED_TAG_CPU32))
 
-#define cmnd_hdr(cmnd) ((struct iscsi_scsi_cmd_hdr *) (&((cmnd)->pdu.bhs)))
+#define cmnd_hdr(cmnd) ((struct iscsi_scsi_cmd_hdr *)(&((cmnd)->pdu.bhs)))
 #define cmnd_opcode(cmnd) ((cmnd)->pdu.bhs.opcode & ISCSI_OPCODE_MASK)
 #define cmnd_scsicode(cmnd) (cmnd_hdr((cmnd))->scb[0])
 
