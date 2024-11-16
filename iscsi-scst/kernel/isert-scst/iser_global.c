@@ -144,16 +144,14 @@ int isert_global_init(void)
 		return -ENOMEM;
 	}
 
-	isert_cmnd_cache = KMEM_CACHE_USERCOPY(isert_cmnd,
-						SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN,
-						iscsi);
+	isert_cmnd_cache = KMEM_CACHE_USERCOPY(isert_cmnd, SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN,
+					       iscsi);
 	if (!isert_cmnd_cache) {
 		PRINT_ERROR("Failed to alloc iser command cache");
 		goto free_wq;
 	}
 
-	isert_conn_cache = KMEM_CACHE(isert_conn,
-				     SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
+	isert_conn_cache = KMEM_CACHE(isert_conn, SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN);
 	if (!isert_conn_cache) {
 		PRINT_ERROR("Failed to alloc iser connection cache");
 		goto free_cmnd_cache;

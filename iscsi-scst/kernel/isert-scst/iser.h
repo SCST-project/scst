@@ -173,7 +173,6 @@ struct isert_conn {
 
 	spinlock_t		post_recv_lock;
 
-
 	spinlock_t		tx_lock ____cacheline_aligned;
 
 	/* Following two protected by tx_lock */

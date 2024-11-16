@@ -212,7 +212,7 @@ int isert_conn_alloc(struct iscsi_session *session,
 
 	cmnd = dev->login_rsp;
 
-	sBUG_ON(cmnd == NULL);
+	sBUG_ON(!cmnd);
 	dev->login_rsp = NULL;
 
 	*new_conn = dev->conn;
@@ -340,8 +340,7 @@ static ssize_t isert_listen_read(struct file *filp, char __user *buf,
 wait_for_connection:
 		if (filp->f_flags & O_NONBLOCK)
 			return -EAGAIN;
-		res = wait_event_freezable(dev->waitqueue,
-			!have_new_connection(dev));
+		res = wait_event_freezable(dev->waitqueue, !have_new_connection(dev));
 		if (res < 0)
 			goto out;
 	}
@@ -358,7 +357,7 @@ wait_for_connection:
 	mutex_unlock(&dev->conn_lock);
 
 	to_write = min_t(size_t, sizeof(k_buff), count);
-	res = scnprintf(k_buff, to_write, "/dev/"ISER_CONN_DEV_PREFIX"%d",
+	res = scnprintf(k_buff, to_write, "/dev/" ISER_CONN_DEV_PREFIX "%d",
 			conn_dev->idx);
 	++res; /* copy trailing \0 as well */
 
@@ -494,7 +493,7 @@ static bool will_read_block(struct isert_conn_dev *dev)
 	bool res = true;
 
 	spin_lock(&dev->pdu_lock);
-	if (dev->login_req != NULL) {
+	if (dev->login_req) {
 		switch (dev->state) {
 		case CS_REQ_BHS:
 		case CS_REQ_DATA:
@@ -596,8 +595,7 @@ static ssize_t isert_read(struct file *filp, char __user *buf, size_t count,
 			mutex_unlock(&conn_mgmt_mutex);
 			return -EAGAIN;
 		}
-		ret = wait_event_freezable(dev->waitqueue,
-			!will_read_block(dev));
+		ret = wait_event_freezable(dev->waitqueue, !will_read_block(dev));
 		if (ret < 0) {
 			mutex_unlock(&conn_mgmt_mutex);
 			return ret;
@@ -767,9 +765,7 @@ static long isert_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				spin_lock(&dev->pdu_lock);
 				dev->login_req = NULL;
 				spin_unlock(&dev->pdu_lock);
-				res = isert_login_rsp_tx(dev->login_rsp,
-							last,
-							dev->is_discovery);
+				res = isert_login_rsp_tx(dev->login_rsp, last, dev->is_discovery);
 				vunmap(dev->sg_virt);
 				dev->sg_virt = NULL;
 				dev->login_rsp = NULL;
@@ -781,9 +777,8 @@ static long isert_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 		{
 			struct isert_addr_info addr;
 
-			res = isert_get_target_addr(dev->conn,
-						  (struct sockaddr *)&addr.addr,
-						  &addr.addr_len);
+			res = isert_get_target_addr(dev->conn, (struct sockaddr *)&addr.addr,
+						    &addr.addr_len);
 			if (unlikely(res))
 				goto out;
 
@@ -850,7 +845,7 @@ int isert_login_req_rx(struct iscsi_cmnd *login_req)
 	switch (dev->state) {
 	case CS_INIT:
 	case CS_RSP_FINISHED:
-		if (unlikely(dev->login_req != NULL))
+		if (unlikely(dev->login_req))
 			sBUG();
 		break;
 
@@ -869,7 +864,6 @@ int isert_login_req_rx(struct iscsi_cmnd *login_req)
 	default:
 		sBUG();
 	}
-
 
 	spin_lock(&dev->pdu_lock);
 	dev->login_req = login_req;
@@ -937,12 +931,12 @@ static void __init isert_setup_cdev(struct isert_conn_dev *dev,
 	err = cdev_add(&dev->cdev, dev->devno, 1);
 	/* Fail gracefully if need be */
 	if (unlikely(err))
-		PRINT_ERROR("Error %d adding "ISER_CONN_DEV_PREFIX"%d", err,
+		PRINT_ERROR("Error %d adding " ISER_CONN_DEV_PREFIX "%d", err,
 			    index);
 
 	dev->dev = device_create(isert_class, NULL, dev->devno,
 				 NULL,
-				 ISER_CONN_DEV_PREFIX"%d", index);
+				 ISER_CONN_DEV_PREFIX "%d", index);
 
 	TRACE_EXIT();
 }
@@ -984,8 +978,7 @@ int __init isert_init_login_devs(unsigned int ndevs)
 
 	n_devs = ndevs;
 
-	res = alloc_chrdev_region(&devno, 0, n_devs,
-			"isert_scst");
+	res = alloc_chrdev_region(&devno, 0, n_devs, "isert_scst");
 	isert_major = MAJOR(devno);
 
 	if (unlikely(res < 0)) {
