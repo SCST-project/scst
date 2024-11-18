@@ -365,7 +365,6 @@ struct scst_acg *scst_find_acg(const struct scst_session *sess);
 void scst_check_reassign_sessions(void);
 
 int scst_sess_alloc_tgt_devs(struct scst_session *sess);
-void scst_sess_free_tgt_devs(struct scst_session *sess);
 struct scst_tgt_dev *scst_lookup_tgt_dev(struct scst_session *sess, u64 lun);
 void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA);
 
