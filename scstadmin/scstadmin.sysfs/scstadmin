@@ -3676,7 +3676,7 @@ sub listAttributes {
 
 				next;
 			}
-			$l_value = length($value) if ($l_value < length($value));
+			$l_value = length($value) if (defined($value) && $l_value < length($value));
 		}
 	}
 
