@@ -71,19 +71,21 @@ enum sgv_clustering_types {
 	sgv_full_clustering,
 };
 
-struct sgv_pool *sgv_pool_create_node(const char *name,
-	enum sgv_clustering_types clustered, int single_alloc_pages,
-	bool shared, int purge_interval, int nodeid);
+struct sgv_pool *sgv_pool_create_node(const char *name, enum sgv_clustering_types clustered,
+				      int single_alloc_pages, bool shared, int purge_interval,
+				      int nodeid);
+
 static inline struct sgv_pool *sgv_pool_create(const char *name,
-	enum sgv_clustering_types clustered, int single_alloc_pages,
-	bool shared, int purge_interval)
+					       enum sgv_clustering_types clustered,
+					       int single_alloc_pages, bool shared,
+					       int purge_interval)
 {
-	return sgv_pool_create_node(name, clustered, single_alloc_pages,
-		shared, purge_interval, NUMA_NO_NODE);
+	return sgv_pool_create_node(name, clustered, single_alloc_pages, shared, purge_interval,
+				    NUMA_NO_NODE);
 }
-struct sgv_pool *sgv_pool_create(const char *name,
-	enum sgv_clustering_types clustered, int single_alloc_pages,
-	bool shared, int purge_interval);
+
+struct sgv_pool *sgv_pool_create(const char *name, enum sgv_clustering_types clustered,
+				 int single_alloc_pages, bool shared, int purge_interval);
 void sgv_pool_del(struct sgv_pool *pool);
 
 void sgv_pool_get(struct sgv_pool *pool);
@@ -92,12 +94,12 @@ void sgv_pool_put(struct sgv_pool *pool);
 void sgv_pool_flush(struct sgv_pool *pool);
 
 void sgv_pool_set_allocator(struct sgv_pool *pool,
-	struct page *(*alloc_pages_fn)(struct scatterlist *, gfp_t, void *),
-	void (*free_pages_fn)(struct scatterlist *, int, void *));
+			    struct page *(*alloc_pages_fn)(struct scatterlist *, gfp_t, void *),
+			    void (*free_pages_fn)(struct scatterlist *, int, void *));
 
-struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
-	gfp_t gfp_mask, int flags, int *count,
-	struct sgv_pool_obj **sgv, struct scst_mem_lim *mem_lim, void *priv);
+struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size, gfp_t gfp_mask,
+				   int flags, int *count, struct sgv_pool_obj **sgv,
+				   struct scst_mem_lim *mem_lim, void *priv);
 void sgv_pool_free(struct sgv_pool_obj *sgv, struct scst_mem_lim *mem_lim);
 
 void *sgv_get_priv(struct sgv_pool_obj *sgv);
