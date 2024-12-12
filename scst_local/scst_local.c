@@ -80,9 +80,9 @@ static atomic_t num_dev_resets = ATOMIC_INIT(0);
 static atomic_t num_target_resets = ATOMIC_INIT(0);
 
 static bool scst_local_add_default_tgt = true;
-module_param_named(add_default_tgt, scst_local_add_default_tgt, bool, S_IRUGO);
-MODULE_PARM_DESC(add_default_tgt, "add (default) or not on start default "
-	"target scst_local_tgt with default session scst_local_host");
+module_param_named(add_default_tgt, scst_local_add_default_tgt, bool, 0444);
+MODULE_PARM_DESC(add_default_tgt,
+		 "add (default) or not on start default target scst_local_tgt with default session scst_local_host");
 
 static struct workqueue_struct *aen_workqueue;
 
@@ -128,15 +128,13 @@ struct scst_local_sess {
 #define to_scst_lcl_sess(d) \
 	container_of(d, struct scst_local_sess, dev)
 
-static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
-	const char *initiator_name, bool locked);
-static int scst_local_add_adapter(struct scst_local_tgt *tgt,
-	const char *initiator_name);
+static int __scst_local_add_adapter(struct scst_local_tgt *tgt, const char *initiator_name,
+				    bool locked);
+static int scst_local_add_adapter(struct scst_local_tgt *tgt, const char *initiator_name);
 static void scst_local_close_session_impl(struct scst_local_sess *sess,
 					  bool async);
 static void scst_local_remove_adapter(struct scst_local_sess *sess);
-static int scst_local_add_target(const char *target_name,
-	struct scst_local_tgt **out_tgt);
+static int scst_local_add_target(const char *target_name, struct scst_local_tgt **out_tgt);
 static void __scst_local_remove_target(struct scst_local_tgt *tgt);
 static void scst_local_remove_target(struct scst_local_tgt *tgt);
 
@@ -153,8 +151,8 @@ MODULE_LICENSE("GPL");
 MODULE_VERSION(SCST_LOCAL_VERSION);
 MODULE_IMPORT_NS(SCST);
 
-static int scst_local_get_sas_transport_id(struct scst_local_sess *sess,
-	uint8_t **transport_id, int *len)
+static int scst_local_get_sas_transport_id(struct scst_local_sess *sess, uint8_t **transport_id,
+					   int *len)
 {
 	int res = 0;
 	int tr_id_size = 0;
@@ -165,9 +163,9 @@ static int scst_local_get_sas_transport_id(struct scst_local_sess *sess,
 	tr_id_size = 24;  /* A SAS TransportID */
 
 	tr_id = kzalloc(tr_id_size, GFP_KERNEL);
-	if (tr_id == NULL) {
+	if (!tr_id) {
 		PRINT_ERROR("Allocation of TransportID (size %d) failed",
-			tr_id_size);
+			    tr_id_size);
 		res = -ENOMEM;
 		goto out;
 	}
@@ -193,24 +191,24 @@ static int scst_local_get_sas_transport_id(struct scst_local_sess *sess,
 		*len = tr_id_size;
 
 	TRACE_DBG("Created tid '%02X:%02X:%02X:%02X:%02X:%02X:%02X:%02X'",
-		tr_id[4], tr_id[5], tr_id[6], tr_id[7],
-		tr_id[8], tr_id[9], tr_id[10], tr_id[11]);
+		  tr_id[4], tr_id[5], tr_id[6], tr_id[7],
+		  tr_id[8], tr_id[9], tr_id[10], tr_id[11]);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
-static int scst_local_get_initiator_port_transport_id(
-	struct scst_tgt *tgt, struct scst_session *scst_sess,
-	uint8_t **transport_id)
+static int scst_local_get_initiator_port_transport_id(struct scst_tgt *tgt,
+						      struct scst_session *scst_sess,
+						      uint8_t **transport_id)
 {
 	int res = 0;
 	struct scst_local_sess *sess;
 
 	TRACE_ENTRY();
 
-	if (scst_sess == NULL) {
+	if (!scst_sess) {
 		res = SCSI_TRANSPORTID_PROTOCOLID_SAS;
 		goto out;
 	}
@@ -219,13 +217,13 @@ static int scst_local_get_initiator_port_transport_id(
 
 	mutex_lock(&sess->tr_id_mutex);
 
-	if (sess->transport_id == NULL)
+	if (!sess->transport_id) {
 		res = scst_local_get_sas_transport_id(sess, transport_id, NULL);
-	else {
+	} else {
 		*transport_id = kmemdup(sess->transport_id,
 					sess->transport_id_len,
 					GFP_KERNEL);
-		if (*transport_id == NULL) {
+		if (!*transport_id) {
 			PRINT_ERROR("Allocation of TransportID (size %d) failed",
 				    sess->transport_id_len);
 			res = -ENOMEM;
@@ -239,13 +237,12 @@ out:
 	return res;
 }
 
-
 /*
  ** Tgtt attributes
  **/
 
-static ssize_t scst_local_version_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t scst_local_version_show(struct kobject *kobj, struct kobj_attribute *attr,
+				       char *buf)
 {
 	sprintf(buf, "%s/%s\n", SCST_LOCAL_VERSION, scst_local_version_date);
 
@@ -266,11 +263,9 @@ static ssize_t scst_local_version_show(struct kobject *kobj,
 }
 
 static struct kobj_attribute scst_local_version_attr =
-	__ATTR(version, S_IRUGO, scst_local_version_show, NULL);
+	__ATTR(version, 0444, scst_local_version_show, NULL);
 
-static ssize_t scst_local_stats_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
-
+static ssize_t scst_local_stats_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	return sprintf(buf,
 		       "Aborts: %d, Device Resets: %d, Target Resets: %d\n",
@@ -279,7 +274,7 @@ static ssize_t scst_local_stats_show(struct kobject *kobj,
 }
 
 static struct kobj_attribute scst_local_stats_attr =
-	__ATTR(stats, S_IRUGO, scst_local_stats_show, NULL);
+	__ATTR(stats, 0444, scst_local_stats_show, NULL);
 
 static const struct attribute *scst_local_tgtt_attrs[] = {
 	&scst_local_version_attr.attr,
@@ -292,7 +287,7 @@ static const struct attribute *scst_local_tgtt_attrs[] = {
  **/
 
 static ssize_t scst_local_scsi_transport_version_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+						      struct kobj_attribute *attr, char *buf)
 {
 	struct scst_tgt *scst_tgt;
 	struct scst_local_tgt *tgt;
@@ -310,7 +305,7 @@ static ssize_t scst_local_scsi_transport_version_show(struct kobject *kobj,
 
 	if (tgt->scsi_transport_version != 0)
 		res = sprintf(buf, "0x%x\n%s", tgt->scsi_transport_version,
-			SCST_SYSFS_KEY_MARK "\n");
+			      SCST_SYSFS_KEY_MARK "\n");
 	else
 		res = sprintf(buf, "0x%x\n", 0x0BE0); /* SAS */
 
@@ -321,7 +316,8 @@ out:
 }
 
 static ssize_t scst_local_scsi_transport_version_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buffer, size_t size)
+						       struct kobj_attribute *attr,
+						       const char *buffer, size_t size)
 {
 	ssize_t res = -ENOENT;
 	struct scst_tgt *scst_tgt;
@@ -355,12 +351,12 @@ out:
 }
 
 static struct kobj_attribute scst_local_scsi_transport_version_attr =
-	__ATTR(scsi_transport_version, S_IRUGO | S_IWUSR,
-		scst_local_scsi_transport_version_show,
-		scst_local_scsi_transport_version_store);
+	__ATTR(scsi_transport_version, 0644,
+	       scst_local_scsi_transport_version_show,
+	       scst_local_scsi_transport_version_store);
 
 static ssize_t scst_local_phys_transport_version_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+						      struct kobj_attribute *attr, char *buf)
 {
 	struct scst_tgt *scst_tgt;
 	struct scst_local_tgt *tgt;
@@ -377,8 +373,7 @@ static ssize_t scst_local_phys_transport_version_show(struct kobject *kobj,
 		goto out_up;
 
 	res = sprintf(buf, "0x%x\n%s", tgt->phys_transport_version,
-			(tgt->phys_transport_version != 0) ?
-				SCST_SYSFS_KEY_MARK "\n" : "");
+		      tgt->phys_transport_version != 0 ? SCST_SYSFS_KEY_MARK "\n" : "");
 
 out_up:
 	up_read(&scst_local_exit_rwsem);
@@ -387,7 +382,8 @@ out:
 }
 
 static ssize_t scst_local_phys_transport_version_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buffer, size_t size)
+						       struct kobj_attribute *attr,
+						       const char *buffer, size_t size)
 {
 	ssize_t res = -ENOENT;
 	struct scst_tgt *scst_tgt;
@@ -421,9 +417,9 @@ out:
 }
 
 static struct kobj_attribute scst_local_phys_transport_version_attr =
-	__ATTR(phys_transport_version, S_IRUGO | S_IWUSR,
-		scst_local_phys_transport_version_show,
-		scst_local_phys_transport_version_store);
+	__ATTR(phys_transport_version, 0644,
+	       scst_local_phys_transport_version_show,
+	       scst_local_phys_transport_version_store);
 
 static const struct attribute *scst_local_tgt_attrs[] = {
 	&scst_local_scsi_transport_version_attr.attr,
@@ -435,8 +431,7 @@ static const struct attribute *scst_local_tgt_attrs[] = {
  ** Session attributes
  **/
 
-static ssize_t host_no_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t host_no_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	struct scst_session *scst_sess =
 		container_of(kobj, struct scst_session, sess_kobj);
@@ -448,8 +443,8 @@ static ssize_t host_no_show(struct kobject *kobj,
 
 static struct kobj_attribute scst_local_host_no_attr = __ATTR_RO(host_no);
 
-static ssize_t scst_local_transport_id_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t scst_local_transport_id_show(struct kobject *kobj, struct kobj_attribute *attr,
+					    char *buf)
 {
 	ssize_t res;
 	struct scst_session *scst_sess;
@@ -465,7 +460,7 @@ static ssize_t scst_local_transport_id_show(struct kobject *kobj,
 
 	mutex_lock(&sess->tr_id_mutex);
 
-	if (sess->transport_id != NULL) {
+	if (sess->transport_id) {
 		tr_id = sess->transport_id;
 		tr_id_len = sess->transport_id_len;
 	} else {
@@ -478,7 +473,7 @@ static ssize_t scst_local_transport_id_show(struct kobject *kobj,
 	for (i = 0; i < tr_id_len; i++)
 		res += sprintf(&buf[res], "%c", tr_id[i]);
 
-	if (sess->transport_id == NULL)
+	if (!sess->transport_id)
 		kfree(tr_id);
 
 out_unlock:
@@ -487,8 +482,8 @@ out_unlock:
 	return res;
 }
 
-static ssize_t scst_local_transport_id_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buffer, size_t size)
+static ssize_t scst_local_transport_id_store(struct kobject *kobj, struct kobj_attribute *attr,
+					     const char *buffer, size_t size)
 {
 	ssize_t res;
 	struct scst_session *scst_sess;
@@ -510,9 +505,9 @@ static ssize_t scst_local_transport_id_store(struct kobject *kobj,
 		goto out_res;
 
 	sess->transport_id = kzalloc(size, GFP_KERNEL);
-	if (sess->transport_id == NULL) {
+	if (!sess->transport_id) {
 		PRINT_ERROR("Allocation of transport_id (size %zd) failed",
-			size);
+			    size);
 		res = -ENOMEM;
 		goto out_unlock;
 	}
@@ -531,9 +526,9 @@ out_unlock:
 }
 
 static struct kobj_attribute scst_local_transport_id_attr =
-	__ATTR(transport_id, S_IRUGO | S_IWUSR,
-		scst_local_transport_id_show,
-		scst_local_transport_id_store);
+	__ATTR(transport_id, 0644,
+	       scst_local_transport_id_show,
+	       scst_local_transport_id_store);
 
 static const struct attribute *scst_local_sess_attrs[] = {
 	&scst_local_host_no_attr.attr,
@@ -558,7 +553,7 @@ static ssize_t scst_local_sysfs_add_target(const char *target_name, char *params
 
 	while (1) {
 		param = scst_get_next_token_str(&params);
-		if (param == NULL)
+		if (!param)
 			break;
 
 		p = scst_get_next_lexem(&param);
@@ -645,7 +640,7 @@ static ssize_t scst_local_sysfs_mgmt_cmd(char *buf)
 
 	target_name = scst_get_next_lexem(&buf);
 	if (*target_name == '\0') {
-		PRINT_ERROR("%s", "Target name required");
+		PRINT_ERROR("Target name required");
 		res = -EINVAL;
 		goto out_up;
 	}
@@ -659,7 +654,7 @@ static ssize_t scst_local_sysfs_mgmt_cmd(char *buf)
 			break;
 		}
 	}
-	if (tgt == NULL) {
+	if (!tgt) {
 		PRINT_ERROR("Target %s not found", target_name);
 		res = -EINVAL;
 		goto out_unlock;
@@ -667,7 +662,7 @@ static ssize_t scst_local_sysfs_mgmt_cmd(char *buf)
 
 	session_name = scst_get_next_lexem(&buf);
 	if (*session_name == '\0') {
-		PRINT_ERROR("%s", "Session name required");
+		PRINT_ERROR("Session name required");
 		res = -EINVAL;
 		goto out_unlock;
 	}
@@ -677,16 +672,15 @@ static ssize_t scst_local_sysfs_mgmt_cmd(char *buf)
 	} else if (strcasecmp("del_session", command) == 0) {
 		struct scst_local_sess *s, *sess = NULL;
 
-		list_for_each_entry(s, &tgt->sessions_list,
-					sessions_list_entry) {
+		list_for_each_entry(s, &tgt->sessions_list, sessions_list_entry) {
 			if (strcmp(s->scst_sess->initiator_name, session_name) == 0) {
 				sess = s;
 				break;
 			}
 		}
-		if (sess == NULL) {
+		if (!sess) {
 			PRINT_ERROR("Session %s not found (target %s)",
-				session_name, target_name);
+				    session_name, target_name);
 			res = -EINVAL;
 			goto out_unlock;
 		}
@@ -702,7 +696,6 @@ out_up:
 	TRACE_EXIT_RES(res);
 	return res;
 }
-
 
 static int scst_local_abort(struct scsi_cmnd *scmd)
 {
@@ -801,7 +794,6 @@ static void scst_local_copy_sense(struct scsi_cmnd *cmnd, struct scst_cmd *scst_
 	TRACE_BUFFER("Sense set", cmnd->sense_buffer, scst_cmnd_sense_len);
 
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -875,7 +867,7 @@ static int scst_local_queuecommand(struct Scsi_Host *host,
 	scst_cmd = scst_rx_cmd(sess->scst_sess, lun.scsi_lun, sizeof(lun),
 			       scmd->cmnd, scmd->cmd_len, true);
 	if (!scst_cmd) {
-		PRINT_ERROR("%s", "scst_rx_cmd() failed");
+		PRINT_ERROR("scst_rx_cmd() failed");
 		return SCSI_MLQUEUE_HOST_BUSY;
 	}
 
@@ -913,11 +905,10 @@ static int scst_local_queuecommand(struct Scsi_Host *host,
 		/* Some of these symbols are only defined after 2.6.24 */
 		dir = SCST_DATA_BIDI;
 		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(scmd));
-		scst_cmd_set_expected_out_transfer_len(scst_cmd,
-			scsi_in(scmd)->length);
+		scst_cmd_set_expected_out_transfer_len(scst_cmd, scsi_in(scmd)->length);
 		scst_cmd_set_noio_mem_alloc(scst_cmd);
 		scst_cmd_set_tgt_sg(scst_cmd, scsi_in(scmd)->table.sgl,
-			scsi_in(scmd)->table.nents);
+				    scsi_in(scmd)->table.nents);
 		scst_cmd_set_tgt_out_sg(scst_cmd, sgl, sgl_count);
 #endif
 	} else if (scmd->sc_data_direction == DMA_TO_DEVICE) {
@@ -985,8 +976,7 @@ static int scst_local_change_queue_depth(struct scsi_device *sdev, int depth)
 
 #else
 
-static int scst_local_change_queue_depth(struct scsi_device *sdev, int depth,
-	int reason)
+static int scst_local_change_queue_depth(struct scsi_device *sdev, int depth, int reason)
 {
 	int res, mqd;
 
@@ -996,26 +986,26 @@ static int scst_local_change_queue_depth(struct scsi_device *sdev, int depth,
 	case SCSI_QDEPTH_DEFAULT:
 		mqd = scst_local_get_max_queue_depth(sdev);
 		if (mqd < depth) {
-			PRINT_INFO("Requested queue depth %d is too big "
-				"(possible max %d (sdev %p)", depth, mqd, sdev);
+			PRINT_INFO("Requested queue depth %d is too big (possible max %d (sdev %p)",
+				   depth, mqd, sdev);
 			res = -EINVAL;
 			goto out;
 		}
 
-		PRINT_INFO("Setting queue depth %d as default (sdev %p, "
-			"current %d)", depth, sdev, sdev->queue_depth);
+		PRINT_INFO("Setting queue depth %d as default (sdev %p, current %d)",
+			   depth, sdev, sdev->queue_depth);
 		scsi_adjust_queue_depth(sdev, scsi_get_tag_type(sdev), depth);
 		break;
 
 	case SCSI_QDEPTH_QFULL:
-		TRACE(TRACE_FLOW_CONTROL, "QUEUE FULL on sdev %p, setting "
-			"qdepth %d (cur %d)", sdev, depth, sdev->queue_depth);
+		TRACE(TRACE_FLOW_CONTROL, "QUEUE FULL on sdev %p, setting qdepth %d (cur %d)",
+		      sdev, depth, sdev->queue_depth);
 		scsi_track_queue_full(sdev, depth);
 		break;
 
 	case SCSI_QDEPTH_RAMP_UP:
-		TRACE(TRACE_FLOW_CONTROL, "Ramping up qdepth on sdev %p to %d "
-			"(cur %d)", sdev, depth, sdev->queue_depth);
+		TRACE(TRACE_FLOW_CONTROL, "Ramping up qdepth on sdev %p to %d (cur %d)",
+		      sdev, depth, sdev->queue_depth);
 		scsi_adjust_queue_depth(sdev, scsi_get_tag_type(sdev), depth);
 		break;
 
@@ -1069,7 +1059,7 @@ static int scst_local_slave_configure(struct scsi_device *sdev)
 	mqd = scst_local_get_max_queue_depth(sdev);
 
 	PRINT_INFO("Configuring queue depth %d on sdev %p (tagged supported %d)",
-		mqd, sdev, sdev->tagged_supported);
+		   mqd, sdev, sdev->tagged_supported);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
 	if (sdev->tagged_supported)
@@ -1083,8 +1073,7 @@ static int scst_local_slave_configure(struct scsi_device *sdev)
 }
 
 /* Must be called under sess->aen_lock. Drops then reacquires it inside. */
-static void scst_process_aens(struct scst_local_sess *sess,
-	bool cleanup_only)
+static void scst_process_aens(struct scst_local_sess *sess, bool cleanup_only)
 	__releases(&sess->aen_lock)
 	__acquires(&sess->aen_lock)
 {
@@ -1096,8 +1085,8 @@ static void scst_process_aens(struct scst_local_sess *sess,
 	TRACE_DBG("Target work sess %p", sess);
 
 	while (!list_empty(&sess->aen_work_list)) {
-		work_item = list_first_entry(&sess->aen_work_list,
-				struct scst_aen_work_item, work_list_entry);
+		work_item = list_first_entry(&sess->aen_work_list, struct scst_aen_work_item,
+					     work_list_entry);
 		list_del(&work_item->work_list_entry);
 		shost = sess->shost;
 		if (shost && !scsi_host_get(shost))
@@ -1125,7 +1114,6 @@ done:
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_aen_work_fn(struct work_struct *work)
@@ -1142,7 +1130,6 @@ static void scst_aen_work_fn(struct work_struct *work)
 	spin_unlock(&sess->aen_lock);
 
 	TRACE_EXIT();
-	return;
 }
 
 static int scst_local_report_aen(struct scst_aen *aen)
@@ -1162,8 +1149,7 @@ static int scst_local_report_aen(struct scst_aen *aen)
 		 */
 		work_item = kzalloc(sizeof(*work_item), GFP_KERNEL);
 		if (!work_item) {
-			PRINT_ERROR("%s", "Unable to allocate work item "
-				"to handle AEN!");
+			PRINT_ERROR("Unable to allocate work item to handle AEN!");
 			return -ENOMEM;
 		}
 
@@ -1176,8 +1162,7 @@ static int scst_local_report_aen(struct scst_aen *aen)
 			goto out;
 		}
 
-		list_add_tail(&work_item->work_list_entry,
-			&sess->aen_work_list);
+		list_add_tail(&work_item->work_list_entry, &sess->aen_work_list);
 		work_item->aen = aen;
 
 		spin_unlock(&sess->aen_lock);
@@ -1253,7 +1238,7 @@ static int scst_local_close_session(struct scst_session *scst_sess)
 static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 {
 	struct scsi_cmnd *scmd = NULL;
-	void (*done)(struct scsi_cmnd *);
+	void (*done)(struct scsi_cmnd *scmd);
 
 	TRACE_ENTRY();
 
@@ -1285,8 +1270,8 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 			TRACE_DBG("No residuals for request %p", scmd);
 		} else {
 			if (out_resid != 0)
-				PRINT_ERROR("Unable to return OUT residual %d "
-					"(op %02x)", out_resid, scmd->cmnd[0]);
+				PRINT_ERROR("Unable to return OUT residual %d (op %02x)",
+					    out_resid, scmd->cmnd[0]);
 		}
 
 		scsi_set_resid(scmd, resid);
@@ -1317,7 +1302,6 @@ static void scst_local_targ_task_mgmt_done(struct scst_mgmt_cmd *mgmt_cmd)
 		complete(compl);
 
 	TRACE_EXIT();
-	return;
 }
 
 static uint16_t scst_local_get_scsi_transport_version(struct scst_tgt *scst_tgt)
@@ -1431,10 +1415,10 @@ static int scst_local_driver_probe(struct device *dev)
 
 	TRACE_DBG("sess %p", sess);
 
-	hpnt = scsi_host_alloc((struct scsi_host_template *) &scst_lcl_ini_driver_template,
-				sizeof(*sess));
-	if (hpnt == NULL) {
-		PRINT_ERROR("%s", "scsi_register() failed");
+	hpnt = scsi_host_alloc((struct scsi_host_template *)&scst_lcl_ini_driver_template,
+			       sizeof(*sess));
+	if (!hpnt) {
+		PRINT_ERROR("scsi_register() failed");
 		ret = -ENODEV;
 		goto out;
 	}
@@ -1458,7 +1442,7 @@ static int scst_local_driver_probe(struct device *dev)
 
 	ret = scsi_add_host(hpnt, &sess->dev);
 	if (ret) {
-		PRINT_ERROR("%s", "scsi_add_host() failed");
+		PRINT_ERROR("scsi_add_host() failed");
 		ret = -ENODEV;
 		scsi_host_put(hpnt);
 		goto out;
@@ -1531,7 +1515,6 @@ static void scst_local_free_sess(struct scst_session *scst_sess)
 	struct scst_local_sess *sess = scst_sess_get_tgt_priv(scst_sess);
 
 	kfree(sess);
-	return;
 }
 
 static void scst_local_release_adapter(struct device *dev)
@@ -1566,11 +1549,10 @@ static void scst_local_release_adapter(struct device *dev)
 	scst_unregister_session(sess->scst_sess, false, scst_local_free_sess);
 
 	TRACE_EXIT();
-	return;
 }
 
-static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
-	const char *initiator_name, bool locked)
+static int __scst_local_add_adapter(struct scst_local_tgt *tgt, const char *initiator_name,
+				    bool locked)
 {
 	int res;
 	struct scst_local_sess *sess;
@@ -1579,9 +1561,9 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 
 	/* It's read-mostly, so cache alignment isn't needed */
 	sess = kzalloc(sizeof(*sess), GFP_KERNEL);
-	if (sess == NULL) {
+	if (!sess) {
 		PRINT_ERROR("Unable to alloc scst_lcl_host (size %zu)",
-			sizeof(*sess));
+			    sizeof(*sess));
 		res = -ENOMEM;
 		goto out;
 	}
@@ -1598,10 +1580,10 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 	spin_lock_init(&sess->aen_lock);
 	INIT_LIST_HEAD(&sess->aen_work_list);
 
-	sess->scst_sess = scst_register_session(tgt->scst_tgt, 0,
-				initiator_name, sess, NULL, NULL);
-	if (sess->scst_sess == NULL) {
-		PRINT_ERROR("%s", "scst_register_session failed");
+	sess->scst_sess = scst_register_session(tgt->scst_tgt, 0, initiator_name, sess, NULL,
+						NULL);
+	if (!sess->scst_sess) {
+		PRINT_ERROR("scst_register_session failed");
 		res = -EFAULT;
 		goto out_free;
 	}
@@ -1616,10 +1598,10 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt,
 		goto unregister_session;
 
 	res = sysfs_create_link(scst_sysfs_get_sess_kobj(sess->scst_sess),
-		&sess->shost->shost_dev.kobj, "host");
+				&sess->shost->shost_dev.kobj, "host");
 	if (res != 0) {
-		PRINT_ERROR("Unable to create \"host\" link for target "
-			"%s", scst_get_tgt_name(tgt->scst_tgt));
+		PRINT_ERROR("Unable to create \"host\" link for target %s",
+			    scst_get_tgt_name(tgt->scst_tgt));
 		goto unregister_dev;
 	}
 
@@ -1649,8 +1631,7 @@ out_free:
 	goto out;
 }
 
-static int scst_local_add_adapter(struct scst_local_tgt *tgt,
-	const char *initiator_name)
+static int scst_local_add_adapter(struct scst_local_tgt *tgt, const char *initiator_name)
 {
 	return __scst_local_add_adapter(tgt, initiator_name, false);
 }
@@ -1665,11 +1646,9 @@ static void scst_local_remove_adapter(struct scst_local_sess *sess)
 	device_unregister(&sess->dev);
 
 	TRACE_EXIT();
-	return;
 }
 
-static int scst_local_add_target(const char *target_name,
-	struct scst_local_tgt **out_tgt)
+static int scst_local_add_target(const char *target_name, struct scst_local_tgt **out_tgt)
 {
 	int res;
 	struct scst_local_tgt *tgt;
@@ -1677,7 +1656,7 @@ static int scst_local_add_target(const char *target_name,
 	TRACE_ENTRY();
 
 	tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
-	if (tgt == NULL) {
+	if (!tgt) {
 		PRINT_ERROR("Unable to alloc tgt (size %zu)", sizeof(*tgt));
 		res = -ENOMEM;
 		goto out;
@@ -1686,7 +1665,7 @@ static int scst_local_add_target(const char *target_name,
 	INIT_LIST_HEAD(&tgt->sessions_list);
 
 	tgt->scst_tgt = scst_register_target(&scst_local_targ_tmpl, target_name);
-	if (tgt->scst_tgt == NULL) {
+	if (!tgt->scst_tgt) {
 		res = -EFAULT;
 		goto out_free;
 	}
@@ -1699,7 +1678,7 @@ static int scst_local_add_target(const char *target_name,
 
 	res = 0;
 
-	if (out_tgt != NULL)
+	if (out_tgt)
 		*out_tgt = tgt;
 
 out:
@@ -1718,10 +1697,8 @@ static void __scst_local_remove_target(struct scst_local_tgt *tgt)
 
 	TRACE_ENTRY();
 
-	list_for_each_entry_safe(sess, ts, &tgt->sessions_list,
-					sessions_list_entry) {
+	list_for_each_entry_safe(sess, ts, &tgt->sessions_list, sessions_list_entry)
 		scst_local_close_session_impl(sess, false);
-	}
 
 	list_del(&tgt->tgts_list_entry);
 
@@ -1730,7 +1707,6 @@ static void __scst_local_remove_target(struct scst_local_tgt *tgt)
 	kfree(tgt);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_local_remove_target(struct scst_local_tgt *tgt)
@@ -1742,7 +1718,6 @@ static void scst_local_remove_target(struct scst_local_tgt *tgt)
 	mutex_unlock(&scst_local_mutex);
 
 	TRACE_EXIT();
-	return;
 }
 
 static int __init scst_local_init(void)
@@ -1754,10 +1729,9 @@ static int __init scst_local_init(void)
 
 #ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
-	PRINT_ERROR("%s", "HIGHMEM kernel configurations are not supported. "
-		"Consider changing VMSPLIT option or use a 64-bit "
-		"configuration instead. See SCST core README file for "
-		"details.");
+	PRINT_ERROR("HIGHMEM kernel configurations are not supported. "
+		    "Consider changing VMSPLIT option or use a 64-bit configuration instead. "
+		    "See SCST core README file for details.");
 	ret = -EINVAL;
 	goto out;
 #endif
@@ -1793,7 +1767,7 @@ static int __init scst_local_init(void)
 	 */
 	aen_workqueue = alloc_ordered_workqueue("scstlclaen", WQ_MEM_RECLAIM);
 	if (!aen_workqueue) {
-		PRINT_ERROR("%s", "Unable to create scst_local workqueue");
+		PRINT_ERROR("Unable to create scst_local workqueue");
 		goto tgt_templ_unreg;
 	}
 
@@ -1862,7 +1836,6 @@ static void __exit scst_local_exit(void)
 	up_write(&scst_local_exit_rwsem);
 
 	TRACE_EXIT();
-	return;
 }
 
 device_initcall(scst_local_init);
