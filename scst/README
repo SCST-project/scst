@@ -1010,7 +1010,7 @@ and luns as well as the following attributes: addr_method, cpu_mask and
 io_grouping_type, black_hole. See above description of them.
 
 Each "initiators" subdirectory contains list of added to this groups
-initiator as well as as well as file "mgmt". This file has the following
+initiator as well as file "mgmt". This file has the following
 commands, which you can send to it, for instance, using "echo" shell
 command. You can always get a small help about supported commands by
 looking inside this file.
@@ -2485,7 +2485,7 @@ IMPORTANT: In SCST 1.x BLOCKIO worked by default in NV_CACHE mode, when
 	   initiators as having write back caching, and synchronizes the
 	   internal device's cache on each SYNCHRONIZE_CACHE command
 	   from the initiators. It might lead to some *PERFORMANCE LOSS*,
-	   so if you are are sure in your power supply and want to
+	   so if you are sure in your power supply and want to
 	   restore the 1.x behavior, your should recreate your BLOCKIO
 	   devices in NV_CACHE mode.
 
