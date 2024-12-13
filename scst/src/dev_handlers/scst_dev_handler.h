@@ -26,8 +26,6 @@
 static unsigned long dh_trace_flag = SCST_DEFAULT_DEV_LOG_FLAGS;
 #define trace_flag dh_trace_flag
 
-
 #endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
-
 
 #endif /* __SCST_DEV_HANDLER_H */
