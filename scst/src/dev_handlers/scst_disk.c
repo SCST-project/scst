@@ -52,9 +52,8 @@ static int disk_attach(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
-	if (dev->scsi_dev == NULL ||
-	    dev->scsi_dev->type != dev->type) {
-		PRINT_ERROR("%s", "SCSI device not define or illegal type");
+	if (!dev->scsi_dev || dev->scsi_dev->type != dev->type) {
+		PRINT_ERROR("SCSI device not define or illegal type");
 		res = -ENODEV;
 		goto out;
 	}
@@ -62,7 +61,7 @@ static int disk_attach(struct scst_device *dev)
 	buffer = kmalloc(buffer_size, GFP_KERNEL);
 	if (!buffer) {
 		PRINT_ERROR("Buffer memory allocation (size %d) failure",
-			buffer_size);
+			    buffer_size);
 		res = -ENOMEM;
 		goto out;
 	}
@@ -77,21 +76,19 @@ static int disk_attach(struct scst_device *dev)
 		memset(buffer, 0, buffer_size);
 		memset(sense_buffer, 0, sizeof(sense_buffer));
 
-		TRACE_DBG("%s", "Doing READ_CAPACITY");
+		TRACE_DBG("Doing READ_CAPACITY");
 		rc = scst_scsi_execute_cmd(dev->scsi_dev, cmd, DMA_FROM_DEVICE,
 					   buffer, buffer_size, sense_buffer,
 					   SCST_GENERIC_DISK_REG_TIMEOUT, 3, 0);
 
 		TRACE_DBG("READ_CAPACITY done: %x", rc);
 
-		if ((rc == 0) ||
-		    !scst_analyze_sense(sense_buffer,
-				sizeof(sense_buffer), SCST_SENSE_KEY_VALID,
-				UNIT_ATTENTION, 0, 0))
+		if (rc == 0 || !scst_analyze_sense(sense_buffer, sizeof(sense_buffer),
+						   SCST_SENSE_KEY_VALID, UNIT_ATTENTION, 0, 0))
 			break;
 		if (!--retries) {
 			PRINT_ERROR("UA not clear after %d retries",
-				SCST_DEV_RETRIES_ON_UA);
+				    SCST_DEV_RETRIES_ON_UA);
 			res = -ENODEV;
 			goto out_free_buf;
 		}
@@ -111,10 +108,10 @@ static int disk_attach(struct scst_device *dev)
 		}
 	} else {
 		dev->block_shift = DISK_DEF_BLOCK_SHIFT;
-		TRACE(TRACE_MINOR, "Read capacity failed: %x, using default "
-			"sector size %d", rc, dev->block_shift);
-		PRINT_BUFF_FLAG(TRACE_MINOR, "Returned sense", sense_buffer,
-			sizeof(sense_buffer));
+		TRACE(TRACE_MINOR, "Read capacity failed: %x, using default sector size %d",
+		      rc, dev->block_shift);
+		PRINT_BUFF_FLAG(TRACE_MINOR, "Returned sense",
+				sense_buffer, sizeof(sense_buffer));
 	}
 	dev->block_size = 1 << dev->block_shift;
 
@@ -133,55 +130,51 @@ static int disk_attach(struct scst_device *dev)
 		memset(buffer, 0, buffer_size);
 		memset(sense_buffer, 0, sizeof(sense_buffer));
 
-		TRACE_DBG("%s", "Doing INQUIRY (Unit Serial Number VPD)");
+		TRACE_DBG("Doing INQUIRY (Unit Serial Number VPD)");
 		rc = scst_scsi_execute_cmd(dev->scsi_dev, cmd, DMA_FROM_DEVICE,
 					   buffer, buffer_size, sense_buffer,
 					   SCST_GENERIC_DISK_REG_TIMEOUT, 3, 0);
 
 		TRACE_DBG("INQUIRY (Unit Serial Number VPD) done: %x", rc);
 
-		if ((rc == 0) ||
-		    !scst_analyze_sense(sense_buffer,
-				sizeof(sense_buffer), SCST_SENSE_KEY_VALID,
-				UNIT_ATTENTION, 0, 0))
+		if (rc == 0 || !scst_analyze_sense(sense_buffer, sizeof(sense_buffer),
+						   SCST_SENSE_KEY_VALID, UNIT_ATTENTION, 0, 0))
 			break;
 		if (!--retries) {
 			PRINT_WARNING("UA not clear after %d retries",
-				SCST_DEV_RETRIES_ON_UA);
+				      SCST_DEV_RETRIES_ON_UA);
 			goto no_serial;
 		}
 	}
 	if (rc == 0) {
-		int32_t serial_length;
-		serial_length = get_unaligned_be16(&buffer[2]);
+		int32_t serial_length = get_unaligned_be16(&buffer[2]);
 
 		/*
 		 * Since we only need the serial number we'll
 		 * store directly in dh_priv.  Failure is OK.
 		 */
-		dev->dh_priv = kzalloc(serial_length+1, GFP_KERNEL);
+		dev->dh_priv = kzalloc(serial_length + 1, GFP_KERNEL);
 		if (!dev->dh_priv) {
 			PRINT_ERROR("Buffer memory allocation (size %d) failure",
-				serial_length+1);
+				    serial_length + 1);
 		} else {
 			memcpy(dev->dh_priv, &buffer[4], serial_length);
 			PRINT_INFO("%s: Obtained serial number: %s",
 				   dev->virt_name, (char *)dev->dh_priv);
 		}
 	} else {
-		PRINT_WARNING("Failed to obtain serial number for device "
-			"%s", dev->virt_name);
+		PRINT_WARNING("Failed to obtain serial number for device %s",
+			      dev->virt_name);
 	}
 
 no_serial:
 	res = scst_obtain_device_parameters(dev, NULL);
 	if (res != 0) {
-		PRINT_ERROR("Failed to obtain control parameters for device "
-			"%s", dev->virt_name);
-		if (dev->dh_priv) {
-			kfree(dev->dh_priv);
-			dev->dh_priv = NULL;
-		}
+		PRINT_ERROR("Failed to obtain control parameters for device %s",
+			    dev->virt_name);
+		kfree(dev->dh_priv);
+		dev->dh_priv = NULL;
+
 		goto out_free_buf;
 	}
 
@@ -199,7 +192,6 @@ static void disk_detach(struct scst_device *dev)
 		scst_pr_set_cluster_mode(dev, false, dev->dh_priv);
 		kfree(dev->dh_priv);
 	}
-	return;
 }
 
 static int disk_parse(struct scst_cmd *cmd)
@@ -218,8 +210,8 @@ static int disk_parse(struct scst_cmd *cmd)
 		case COMPARE_AND_WRITE:
 		case EXTENDED_COPY:
 		case RECEIVE_COPY_RESULTS:
-			TRACE_DBG("Clearing LOCAL CMD flag for cmd %p "
-				"(op %s)", cmd, cmd->op_name);
+			TRACE_DBG("Clearing LOCAL CMD flag for cmd %p (op %s)",
+				  cmd, cmd->op_name);
 			cmd->op_flags &= ~SCST_LOCAL_CMD;
 			break;
 		}
@@ -247,7 +239,6 @@ static void disk_set_block_shift(struct scst_cmd *cmd, int block_shift)
 		dev->block_shift = new_block_shift;
 		dev->block_size = 1 << dev->block_shift;
 	}
-	return;
 }
 
 static int disk_done(struct scst_cmd *cmd)
@@ -310,7 +301,6 @@ static void disk_restore_sg(struct disk_work *work)
 	scst_set_cdb_transf_len(work->cmd, work->save_len);
 	work->cmd->sg = work->save_sg;
 	work->cmd->sg_cnt = work->save_sg_cnt;
-	return;
 }
 
 static void disk_cmd_done(void *data, char *sense, int result, int resid)
@@ -320,7 +310,7 @@ static void disk_cmd_done(void *data, char *sense, int result, int resid)
 	TRACE_ENTRY();
 
 	TRACE_DBG("work %p, cmd %p, left %d, result %d, sense %p, resid %d",
-		work, work->cmd, work->left, result, sense, resid);
+		  work, work->cmd, work->left, result, sense, resid);
 
 	WARN_ON_ONCE(IS_ERR_VALUE((long)result));
 
@@ -337,7 +327,6 @@ out_complete:
 	complete_all(&work->disk_work_cmpl);
 
 	TRACE_EXIT();
-	return;
 }
 
 /* Executes command and split CDB, if necessary */
@@ -364,7 +353,7 @@ static enum scst_exec_res disk_exec(struct scst_cmd *cmd)
 		case RELEASE:
 		case RELEASE_10:
 			TRACE_DBG("Skipping LOCAL cmd %p (op %s)",
-				cmd, cmd->op_name);
+				  cmd, cmd->op_name);
 			goto out_done;
 		case PERSISTENT_RESERVE_IN:
 		case PERSISTENT_RESERVE_OUT:
@@ -396,10 +385,9 @@ static enum scst_exec_res disk_exec(struct scst_cmd *cmd)
 
 	if (unlikely((cmd->bufflen >> block_shift) > max_sectors)) {
 		if ((cmd->out_bufflen >> block_shift) > max_sectors) {
-			PRINT_ERROR("Too limited max_sectors %d for "
-				"bidirectional cmd %p (op %s, out_bufflen %d)",
-				max_sectors, cmd, scst_get_opcode_name(cmd),
-				cmd->out_bufflen);
+			PRINT_ERROR("Too limited max_sectors %d for bidirectional cmd %p (op %s, out_bufflen %d)",
+				    max_sectors, cmd, scst_get_opcode_name(cmd),
+				    cmd->out_bufflen);
 			/* Let lower level handle it */
 			res = SCST_EXEC_NOT_COMPLETED;
 			goto out;
@@ -435,11 +423,10 @@ split:
 	cmd->host_status = DID_OK;
 	cmd->driver_status = 0;
 
-	TRACE_DBG("cmd %p, save_sg %p, save_sg_cnt %d, save_lba %lld, "
-		"save_len %d (sg_tablesize %d, max_sectors %d, block_shift %d, "
-		"sizeof(*sg) 0x%zx)", cmd, work.save_sg, work.save_sg_cnt,
-		(unsigned long long)work.save_lba, work.save_len,
-		sg_tablesize, max_sectors, block_shift, sizeof(*sg));
+	TRACE_DBG("cmd %p, save_sg %p, save_sg_cnt %d, save_lba %lld, save_len %d (sg_tablesize %d, max_sectors %d, block_shift %d, sizeof(*sg) 0x%zx)",
+		  cmd, work.save_sg, work.save_sg_cnt,
+		  (unsigned long long)work.save_lba, work.save_len,
+		  sg_tablesize, max_sectors, block_shift, sizeof(*sg));
 
 	/*
 	 * If we submit all chunks async'ly, it will be very not trivial what
@@ -470,14 +457,11 @@ split:
 		cur_len += l;
 		cur_sg_cnt++;
 
-		TRACE_DBG("l %d, j %d, num %d, offset %d, cur_len %d, "
-			"cur_sg_cnt %d, start_sg %p", l, j, num, offset,
-			cur_len, cur_sg_cnt, start_sg);
+		TRACE_DBG("l %d, j %d, num %d, offset %d, cur_len %d, cur_sg_cnt %d, start_sg %p",
+			  l, j, num, offset, cur_len, cur_sg_cnt, start_sg);
 
-		if (((num % sg_tablesize) == 0) ||
-		     (num == work.save_sg_cnt) ||
-		     (cur_len >= max_sectors)) {
-			TRACE_DBG("%s", "Execing...");
+		if (num % sg_tablesize == 0 || num == work.save_sg_cnt || cur_len >= max_sectors) {
+			TRACE_DBG("Execing...");
 
 			scst_set_cdb_lba(work.cmd, work.save_lba + offset);
 			scst_set_cdb_transf_len(work.cmd, cur_len);
@@ -504,7 +488,7 @@ split:
 			offset += cur_len;
 			cur_len = 0;
 			cur_sg_cnt = 0;
-			start_sg = &sg[j+1];
+			start_sg = &sg[j + 1];
 
 			if (num == work.save_sg_cnt)
 				break;
@@ -534,7 +518,6 @@ out_error:
 	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	goto out_done;
 }
-
 
 static enum scst_exec_res disk_perf_exec(struct scst_cmd *cmd)
 {
@@ -576,8 +559,8 @@ out_complete:
 	goto out;
 }
 
-static ssize_t disk_sysfs_cluster_mode_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t disk_sysfs_cluster_mode_show(struct kobject *kobj, struct kobj_attribute *attr,
+					    char *buf)
 {
 	struct scst_device *dev = container_of(kobj, struct scst_device,
 					       dev_kobj);
@@ -587,8 +570,7 @@ static ssize_t disk_sysfs_cluster_mode_show(struct kobject *kobj,
 		       SCST_SYSFS_KEY_MARK "\n" : "");
 }
 
-static int disk_sysfs_process_cluster_mode_store(
-	struct scst_sysfs_work_item *work)
+static int disk_sysfs_process_cluster_mode_store(struct scst_sysfs_work_item *work)
 {
 	struct scst_device *dev = work->dev;
 	long clm;
@@ -635,8 +617,8 @@ out:
 	return res;
 }
 
-static ssize_t disk_sysfs_cluster_mode_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t disk_sysfs_cluster_mode_store(struct kobject *kobj, struct kobj_attribute *attr,
+					     const char *buf, size_t count)
 {
 	struct scst_device *dev = container_of(kobj, struct scst_device,
 					       dev_kobj);
@@ -681,8 +663,7 @@ out:
 }
 
 static struct kobj_attribute disk_cluster_mode_attr =
-        __ATTR(cluster_mode, S_IWUSR|S_IRUGO, disk_sysfs_cluster_mode_show,
-               disk_sysfs_cluster_mode_store);
+	__ATTR(cluster_mode, 0644, disk_sysfs_cluster_mode_show, disk_sysfs_cluster_mode_store);
 
 static const struct attribute *disk_attrs[] = {
 	&disk_cluster_mode_attr.attr,
@@ -743,11 +724,9 @@ static int __init init_scst_disk_driver(void)
 	if (res < 0)
 		goto out_unreg;
 
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
 
 out_unreg:
 	scst_unregister_dev_driver(&disk_devtype);
@@ -762,7 +741,6 @@ static void __exit exit_scst_disk_driver(void)
 	scst_unregister_dev_driver(&disk_devtype);
 
 	TRACE_EXIT();
-	return;
 }
 
 module_init(init_scst_disk_driver);

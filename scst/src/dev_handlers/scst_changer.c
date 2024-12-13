@@ -62,9 +62,8 @@ static int changer_attach(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
-	if (dev->scsi_dev == NULL ||
-	    dev->scsi_dev->type != dev->type) {
-		PRINT_ERROR("%s", "SCSI device not define or illegal type");
+	if (!dev->scsi_dev || dev->scsi_dev->type != dev->type) {
+		PRINT_ERROR("SCSI device not define or illegal type");
 		res = -ENODEV;
 		goto out;
 	}
@@ -74,16 +73,16 @@ static int changer_attach(struct scst_device *dev)
 	 * of the other stuff
 	 */
 	if (dev->scsi_dev->sdev_state == SDEV_OFFLINE) {
-		TRACE_DBG("%s", "Device is offline");
+		TRACE_DBG("Device is offline");
 		res = -ENODEV;
 		goto out;
 	}
 
 	retries = SCST_DEV_RETRIES_ON_UA;
 	do {
-		TRACE_DBG("%s", "Doing TEST_UNIT_READY");
-		rc = scsi_test_unit_ready(dev->scsi_dev,
-			SCST_GENERIC_CHANGER_TIMEOUT, CHANGER_RETRIES, NULL);
+		TRACE_DBG("Doing TEST_UNIT_READY");
+		rc = scsi_test_unit_ready(dev->scsi_dev, SCST_GENERIC_CHANGER_TIMEOUT,
+					  CHANGER_RETRIES, NULL);
 		TRACE_DBG("TEST_UNIT_READY done: %x", rc);
 	} while ((--retries > 0) && rc);
 
@@ -94,8 +93,8 @@ static int changer_attach(struct scst_device *dev)
 
 	res = scst_obtain_device_parameters(dev, NULL);
 	if (res != 0) {
-		PRINT_ERROR("Failed to obtain control parameters for device "
-			"%s", dev->virt_name);
+		PRINT_ERROR("Failed to obtain control parameters for device %s",
+			    dev->virt_name);
 		goto out;
 	}
 
@@ -110,7 +109,6 @@ void changer_detach(struct scst_device *dev)
 	TRACE_ENTRY();
 
 	TRACE_EXIT();
-	return;
 }
 #endif
 
@@ -167,7 +165,6 @@ static int __init changer_init(void)
 	if (res < 0)
 		goto out;
 
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
@@ -178,7 +175,6 @@ static void __exit changer_exit(void)
 	TRACE_ENTRY();
 	scst_unregister_dev_driver(&changer_devtype);
 	TRACE_EXIT();
-	return;
 }
 
 module_init(changer_init);
