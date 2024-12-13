@@ -67,9 +67,8 @@ static int cdrom_attach(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
-	if (dev->scsi_dev == NULL ||
-	    dev->scsi_dev->type != dev->type) {
-		PRINT_ERROR("%s", "SCSI device not define or illegal type");
+	if (!dev->scsi_dev || dev->scsi_dev->type != dev->type) {
+		PRINT_ERROR("SCSI device not define or illegal type");
 		res = -ENODEV;
 		goto out;
 	}
@@ -77,7 +76,7 @@ static int cdrom_attach(struct scst_device *dev)
 	buffer = kmalloc(buffer_size, GFP_KERNEL);
 	if (!buffer) {
 		PRINT_ERROR("Buffer memory allocation (size %d) failure",
-			buffer_size);
+			    buffer_size);
 		res = -ENOMEM;
 		goto out;
 	}
@@ -92,22 +91,20 @@ static int cdrom_attach(struct scst_device *dev)
 		memset(buffer, 0, buffer_size);
 		memset(sense_buffer, 0, sizeof(sense_buffer));
 
-		TRACE_DBG("%s", "Doing READ_CAPACITY");
+		TRACE_DBG("Doing READ_CAPACITY");
 		rc = scst_scsi_execute_cmd(dev->scsi_dev, cmd, DMA_FROM_DEVICE,
 					   buffer, buffer_size, sense_buffer,
 					   SCST_GENERIC_CDROM_REG_TIMEOUT, 3, 0);
 
 		TRACE_DBG("READ_CAPACITY done: %x", rc);
 
-		if ((rc == 0) ||
-		    !scst_analyze_sense(sense_buffer,
-				sizeof(sense_buffer), SCST_SENSE_KEY_VALID,
-				UNIT_ATTENTION, 0, 0))
+		if (rc == 0 || !scst_analyze_sense(sense_buffer, sizeof(sense_buffer),
+						   SCST_SENSE_KEY_VALID, UNIT_ATTENTION, 0, 0))
 			break;
 
 		if (!--retries) {
 			PRINT_ERROR("UA not cleared after %d retries",
-				SCST_DEV_RETRIES_ON_UA);
+				    SCST_DEV_RETRIES_ON_UA);
 			dev->block_shift = CDROM_DEF_BLOCK_SHIFT;
 			res = -ENODEV;
 			goto out_free_buf;
@@ -122,7 +119,7 @@ static int cdrom_attach(struct scst_device *dev)
 		else
 			dev->block_shift = scst_calc_block_shift(sector_size);
 		TRACE_DBG("Sector size is %i scsi_level %d(SCSI_2 %d)",
-			sector_size, dev->scsi_dev->scsi_level, SCSI_2);
+			  sector_size, dev->scsi_dev->scsi_level, SCSI_2);
 		if (dev->block_shift < 9) {
 			PRINT_ERROR("READ CAPACITY reported an invalid sector size: %d",
 				    sector_size);
@@ -131,17 +128,17 @@ static int cdrom_attach(struct scst_device *dev)
 		}
 	} else {
 		dev->block_shift = CDROM_DEF_BLOCK_SHIFT;
-		TRACE(TRACE_MINOR, "Read capacity failed: %x, using default "
-			"sector size %d", rc, dev->block_shift);
-		PRINT_BUFF_FLAG(TRACE_MINOR, "Returned sense", sense_buffer,
-			sizeof(sense_buffer));
+		TRACE(TRACE_MINOR, "Read capacity failed: %x, using default sector size %d",
+		      rc, dev->block_shift);
+		PRINT_BUFF_FLAG(TRACE_MINOR, "Returned sense",
+				sense_buffer, sizeof(sense_buffer));
 	}
 	dev->block_size = 1 << dev->block_shift;
 
 	res = scst_obtain_device_parameters(dev, NULL);
 	if (res != 0) {
-		PRINT_ERROR("Failed to obtain control parameters for device "
-			"%s", dev->virt_name);
+		PRINT_ERROR("Failed to obtain control parameters for device %s",
+			    dev->virt_name);
 		goto out_free_buf;
 	}
 
@@ -156,7 +153,6 @@ out:
 static void cdrom_detach(struct scst_device *dev)
 {
 	/* Nothing to do */
-	return;
 }
 
 static int cdrom_parse(struct scst_cmd *cmd)
@@ -191,7 +187,6 @@ static void cdrom_set_block_shift(struct scst_cmd *cmd, int block_shift)
 		dev->block_shift = new_block_shift;
 		dev->block_size = 1 << dev->block_shift;
 	}
-	return;
 }
 
 static int cdrom_done(struct scst_cmd *cmd)
@@ -218,11 +213,9 @@ static int __init cdrom_init(void)
 	if (res < 0)
 		goto out;
 
-
 out:
 	TRACE_EXIT();
 	return res;
-
 }
 
 static void __exit cdrom_exit(void)
@@ -230,7 +223,6 @@ static void __exit cdrom_exit(void)
 	TRACE_ENTRY();
 	scst_unregister_dev_driver(&cdrom_devtype);
 	TRACE_EXIT();
-	return;
 }
 
 module_init(cdrom_init);
