@@ -76,7 +76,7 @@
 /* 4 byte ASCII Product Revision Level - left aligned */
 #define SCST_FIO_REV			"390 "
 
-#define MAX_USN_LEN			(20+1) /* For '\0' */
+#define MAX_USN_LEN			(20 + 1) /* For '\0' */
 #define MAX_INQ_VEND_SPECIFIC_LEN	(INQ_BUF_SZ - 96)
 
 #define INQ_BUF_SZ			256
@@ -113,7 +113,7 @@
 #define DEF_BIND_ALUA_STATE		1
 #define DEF_LB_PER_PB_EXP		1
 
-#define VDISK_NULLIO_SIZE		(5LL*1024*1024*1024*1024/2)
+#define VDISK_NULLIO_SIZE		(5LL * 1024 * 1024 * 1024 * 1024 / 2)
 
 #define DEF_TST				SCST_TST_1_SEP_TASK_SETS
 #define DEF_TMF_ONLY			0
@@ -133,7 +133,6 @@
 #define DEF_DPICZ		SCST_DPICZ_CHECK_ON_xPROT_0
 
 #define DEF_DIF_FILENAME_TMPL	SCST_VAR_DIR "/dif_tags/%s.dif"
-
 
 struct scst_vdisk_dev {
 	uint64_t nblocks;
@@ -199,7 +198,7 @@ struct scst_vdisk_dev {
 
 	int virt_id;
 	/* Name of the virtual device, must be <= SCSI Model + 1 */
-	char name[64+1];
+	char name[64 + 1];
 	/* File name, protected by scst_mutex and suspended activities */
 	char *filename;
 	uint16_t command_set_version;
@@ -220,7 +219,7 @@ struct scst_vdisk_dev {
 	char prod_id[16 + 1];
 	char prod_rev_lvl[4 + 1];
 	char scsi_device_name[256 + 1];
-	char t10_dev_id[16+8+2]; /* T10 device ID */
+	char t10_dev_id[16 + 8 + 2]; /* T10 device ID */
 	int eui64_id_len;
 	uint8_t eui64_id[16];
 	int naa_id_len;
@@ -288,7 +287,7 @@ typedef enum compl_status_e (*vdisk_op_fn)(struct vdisk_cmd_params *p);
 #define DEF_NUM_THREADS		8
 static int num_threads = DEF_NUM_THREADS;
 
-module_param_named(num_threads, num_threads, int, S_IRUGO);
+module_param_named(num_threads, num_threads, int, 0444);
 MODULE_PARM_DESC(num_threads, "vdisk threads count");
 
 /*
@@ -297,20 +296,18 @@ MODULE_PARM_DESC(num_threads, "vdisk threads count");
  */
 static spinlock_t vdev_err_lock;
 
-
 /** SYSFS **/
 
 static ssize_t vdisk_sysfs_gen_tp_soft_threshold_reached_UA(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count);
-static ssize_t vdev_dif_filename_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf);
+							    struct kobj_attribute *attr,
+							    const char *buf, size_t count);
+static ssize_t vdev_dif_filename_show(struct kobject *kobj, struct kobj_attribute *attr,
+				      char *buf);
 static struct kobj_attribute gen_tp_soft_threshold_reached_UA_attr =
-	__ATTR(gen_tp_soft_threshold_reached_UA, S_IWUSR, NULL,
-		vdisk_sysfs_gen_tp_soft_threshold_reached_UA);
+	__ATTR(gen_tp_soft_threshold_reached_UA, 0200, NULL,
+	       vdisk_sysfs_gen_tp_soft_threshold_reached_UA);
 static struct kobj_attribute vdev_dif_filename_attr =
-	__ATTR(dif_filename, S_IRUGO, vdev_dif_filename_show, NULL);
-
-
+	__ATTR(dif_filename, 0444, vdev_dif_filename_show, NULL);
 
 /*
  * Protects vdisks addition/deletion and related activities, like search.
@@ -343,18 +340,17 @@ static struct scst_dev_type vdisk_blk_devtype;
 static struct scst_dev_type vdisk_null_devtype;
 static struct scst_dev_type vcdrom_devtype;
 
-
 static const char *vdev_get_filename(const struct scst_vdisk_dev *virt_dev)
 {
-	if (virt_dev->filename != NULL)
+	if (virt_dev->filename)
 		return virt_dev->filename;
 	else
 		return "none";
 }
 
 /* Returns fd, use IS_ERR(fd) to get error status */
-static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev,
-	const char *name, bool read_only)
+static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev, const char *name,
+				 bool read_only)
 {
 	int open_flags = 0;
 	struct file *fd;
@@ -374,8 +370,8 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev,
 	fd = filp_open(name, O_LARGEFILE | open_flags, 0600);
 	if (IS_ERR(fd)) {
 		if (PTR_ERR(fd) == -EMEDIUMTYPE)
-			TRACE(TRACE_MINOR, "Unable to open %s with EMEDIUMTYPE, "
-				"DRBD passive?", name);
+			TRACE(TRACE_MINOR, "Unable to open %s with EMEDIUMTYPE, DRBD passive?",
+			      name);
 		else
 			PRINT_ERROR("filp_open(%s) failed: %d", name, (int)PTR_ERR(fd));
 	}
@@ -403,12 +399,12 @@ static void vdev_flush_end_io(struct bio *bio)
 
 	if (unlikely(error != 0)) {
 		PRINT_ERROR("FLUSH bio failed: %d (cmd %p)",
-			error, cmd);
-		if (cmd != NULL)
+			    error, cmd);
+		if (cmd)
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
 	}
 
-	if (cmd == NULL)
+	if (!cmd)
 		goto out_put;
 
 	cmd->completed = 1;
@@ -418,11 +414,10 @@ out_put:
 	bio_put(bio);
 
 	TRACE_EXIT();
-	return;
 }
 
-static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
-	bool report_error, struct scst_cmd *cmd, bool async)
+static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask, bool report_error,
+			       struct scst_cmd *cmd, bool async)
 {
 	int res = 0;
 
@@ -432,7 +427,7 @@ static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 		struct bio *bio;
 
 		bio = bio_alloc(/*bdev=*/NULL, 0, /*opf=*/0, gfp_mask);
-		if (bio == NULL) {
+		if (!bio) {
 			res = -ENOMEM;
 			goto out_rep;
 		}
@@ -476,14 +471,13 @@ static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask,
 	}
 
 out_rep:
-	if ((res != 0) && report_error)
+	if (res && report_error)
 		PRINT_ERROR("%s() failed: %d",
-			async ? "bio_alloc" : "blkdev_issue_flush", res);
+			    async ? "bio_alloc" : "blkdev_issue_flush", res);
 
-	if (async && (cmd != NULL)) {
+	if (async && cmd) {
 		cmd->completed = 1;
-		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
-			scst_estimate_context());
+		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, scst_estimate_context());
 	}
 
 out:
@@ -515,8 +509,7 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 	}
 
 	if (vdisk_blockio_flush(bdev_desc.bdev, GFP_KERNEL, false, NULL, false) != 0) {
-		PRINT_WARNING(
-"Device %s doesn't support barriers, switching to NV_CACHE mode. Read README for more details.",
+		PRINT_WARNING("Device %s doesn't support barriers, switching to NV_CACHE mode. Read README for more details.",
 			      virt_dev->filename);
 		virt_dev->nv_cache = 1;
 	}
@@ -525,7 +518,6 @@ static void vdisk_blockio_check_flush_support(struct scst_vdisk_dev *virt_dev)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 static bool vdisk_supports_active(const struct scst_vdisk_dev *virt_dev)
@@ -579,22 +571,21 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 			!!bdev_max_discard_sectors(bdev_desc.bdev);
 #endif
 	} else {
-		virt_dev->dev_thin_provisioned = (fd->f_op->fallocate != NULL);
+		virt_dev->dev_thin_provisioned = !!fd->f_op->fallocate;
 	}
 
 check:
 	if (virt_dev->thin_provisioned_manually_set) {
 		if (virt_dev->thin_provisioned && !virt_dev->dev_thin_provisioned) {
-			PRINT_WARNING("Device %s doesn't support thin "
-				"provisioning, disabling it.",
-				virt_dev->filename);
+			PRINT_WARNING("Device %s doesn't support thin provisioning, disabling it.",
+				      virt_dev->filename);
 			virt_dev->thin_provisioned = 0;
 		}
 	} else if (virt_dev->blockio) {
 		virt_dev->thin_provisioned = virt_dev->dev_thin_provisioned;
 		if (virt_dev->thin_provisioned)
-			PRINT_INFO("Auto enable thin provisioning for device "
-				"%s", virt_dev->filename);
+			PRINT_INFO("Auto enable thin provisioning for device %s",
+				   virt_dev->filename);
 	}
 
 	if (virt_dev->thin_provisioned) {
@@ -602,12 +593,11 @@ check:
 		int rc;
 
 		rc = sysfs_create_file(&virt_dev->dev->dev_kobj,
-				&gen_tp_soft_threshold_reached_UA_attr.attr);
-		if (rc != 0) {
+				       &gen_tp_soft_threshold_reached_UA_attr.attr);
+		if (rc != 0)
 			PRINT_ERROR("Can't create attr %s for dev %s",
-				gen_tp_soft_threshold_reached_UA_attr.attr.name,
-				virt_dev->name);
-		}
+				    gen_tp_soft_threshold_reached_UA_attr.attr.name,
+				    virt_dev->name);
 
 		if (virt_dev->blockio) {
 			struct request_queue *q;
@@ -618,7 +608,8 @@ check:
 			virt_dev->unmap_align = q->limits.discard_alignment >> block_shift;
 			if (virt_dev->unmap_opt_gran == virt_dev->unmap_align)
 				virt_dev->unmap_align = 0;
-			virt_dev->unmap_max_lba_cnt = q->limits.max_discard_sectors >> (block_shift - 9);
+			virt_dev->unmap_max_lba_cnt =
+				q->limits.max_discard_sectors >> (block_shift - 9);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0)
 			virt_dev->discard_zeroes_data = q->limits.discard_zeroes_data;
 #endif
@@ -637,10 +628,10 @@ check:
 			virt_dev->discard_zeroes_data = 0;
 #endif
 		}
-		TRACE_DBG("unmap_gran %d, unmap_alignment %d, max_unmap_lba %u, "
-			"discard_zeroes_data %d", virt_dev->unmap_opt_gran,
-			virt_dev->unmap_align, virt_dev->unmap_max_lba_cnt,
-			virt_dev->discard_zeroes_data);
+		TRACE_DBG("unmap_gran %d, unmap_alignment %d, max_unmap_lba %u, discard_zeroes_data %d",
+			  virt_dev->unmap_opt_gran,
+			  virt_dev->unmap_align, virt_dev->unmap_max_lba_cnt,
+			  virt_dev->discard_zeroes_data);
 	}
 
 	if (fd_open) {
@@ -651,12 +642,10 @@ check:
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 /* Returns 0 on success and file size in *file_size, error code otherwise */
-static int vdisk_get_file_size(const struct scst_vdisk_dev *virt_dev,
-	loff_t *file_size)
+static int vdisk_get_file_size(const struct scst_vdisk_dev *virt_dev, loff_t *file_size)
 {
 	loff_t res;
 
@@ -711,11 +700,10 @@ static struct scst_vdisk_dev *vdev_find(const char *name)
 }
 
 #define VDEV_WT_LABEL			"WRITE_THROUGH"
-#define VDEV_MODE_PAGES_BUF_SIZE	(64*1024)
+#define VDEV_MODE_PAGES_BUF_SIZE	(64 * 1024)
 #define VDEV_MODE_PAGES_DIR		(SCST_VAR_DIR "/vdev_mode_pages")
 
-static int __vdev_save_mode_pages(const struct scst_vdisk_dev *virt_dev,
-	uint8_t *buf, int size)
+static int __vdev_save_mode_pages(const struct scst_vdisk_dev *virt_dev, uint8_t *buf, int size)
 {
 	int res = 0;
 
@@ -724,7 +712,7 @@ static int __vdev_save_mode_pages(const struct scst_vdisk_dev *virt_dev,
 	if (virt_dev->wt_flag != DEF_WRITE_THROUGH) {
 		res += scnprintf(&buf[res], size - res, "%s=%d\n",
 			VDEV_WT_LABEL, virt_dev->wt_flag);
-		if (res >= size-1)
+		if (res >= size - 1)
 			goto out_overflow;
 	}
 
@@ -750,24 +738,24 @@ static int vdev_save_mode_pages(const struct scst_vdisk_dev *virt_dev)
 	size = VDEV_MODE_PAGES_BUF_SIZE;
 
 	buf = vzalloc(size);
-	if (buf == NULL) {
+	if (!buf) {
 		PRINT_ERROR("Unable to alloc mode pages buffer (size %d)", size);
 		res = -ENOMEM;
 		goto out;
 	}
 
 	name = kasprintf(GFP_KERNEL, "%s/%s", VDEV_MODE_PAGES_DIR, virt_dev->name);
-	if (name == NULL) {
+	if (!name) {
 		PRINT_ERROR("Unable to create name %s/%s", VDEV_MODE_PAGES_DIR,
-			virt_dev->name);
+			    virt_dev->name);
 		res = -ENOMEM;
 		goto out_vfree;
 	}
 
 	name1 = kasprintf(GFP_KERNEL, "%s/%s1", VDEV_MODE_PAGES_DIR, virt_dev->name);
-	if (name1 == NULL) {
+	if (!name1) {
 		PRINT_ERROR("Unable to create name %s/%s1", VDEV_MODE_PAGES_DIR,
-			virt_dev->name);
+			    virt_dev->name);
 		res = -ENOMEM;
 		goto out_free_name;
 	}
@@ -792,8 +780,8 @@ static int vdev_save_mode_pages(const struct scst_vdisk_dev *virt_dev)
 		goto out_free_name1;
 	}
 
-	res = scst_write_file_transactional(name, name1,
-			virt_dev->name, strlen(virt_dev->name), buf, offs);
+	res = scst_write_file_transactional(name, name1, virt_dev->name, strlen(virt_dev->name),
+					    buf, offs);
 
 out_free_name1:
 	kfree(name1);
@@ -817,7 +805,7 @@ static int vdev_restore_wt(struct scst_vdisk_dev *virt_dev, unsigned int val)
 
 	if (val > 1) {
 		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
-			val, VDEV_WT_LABEL, virt_dev->name);
+			    val, VDEV_WT_LABEL, virt_dev->name);
 		res = -EINVAL;
 		goto out;
 	}
@@ -825,8 +813,8 @@ static int vdev_restore_wt(struct scst_vdisk_dev *virt_dev, unsigned int val)
 	virt_dev->wt_flag = val;
 	virt_dev->wt_flag_saved = val;
 
-	PRINT_INFO("WT_FLAG restored to %d for vdev %s", virt_dev->wt_flag,
-		virt_dev->name);
+	PRINT_INFO("WT_FLAG restored to %d for vdev %s",
+		   virt_dev->wt_flag, virt_dev->name);
 
 	res = 0;
 
@@ -846,7 +834,7 @@ static int __vdev_load_mode_pages(struct scst_vdisk_dev *virt_dev, char *params)
 
 	while (1) {
 		param = scst_get_next_token_str(&params);
-		if (param == NULL)
+		if (!param)
 			break;
 
 		p = scst_get_next_lexem(&param);
@@ -864,9 +852,9 @@ static int __vdev_load_mode_pages(struct scst_vdisk_dev *virt_dev, char *params)
 		if (res != 0)
 			goto out_strtoul_failed;
 
-		if (strcasecmp(VDEV_WT_LABEL, p) == 0)
+		if (strcasecmp(VDEV_WT_LABEL, p) == 0) {
 			res = vdev_restore_wt(virt_dev, val);
-		else {
+		} else {
 			TRACE_DBG("Unknown parameter %s", p);
 			res = -EINVAL;
 		}
@@ -879,8 +867,7 @@ out:
 	return res;
 
 out_strtoul_failed:
-	PRINT_ERROR("strtoul() for %s failed: %d (device %s)", pp, res,
-		virt_dev->name);
+	PRINT_ERROR("strtoul() for %s failed: %d (device %s)", pp, res, virt_dev->name);
 	goto out;
 
 out_need_param:
@@ -907,40 +894,39 @@ static int vdev_load_mode_pages(struct scst_vdisk_dev *virt_dev)
 	size = VDEV_MODE_PAGES_BUF_SIZE;
 
 	buf = vzalloc(size);
-	if (buf == NULL) {
+	if (!buf) {
 		PRINT_ERROR("Unable to alloc mode pages buffer (size %d)", size);
 		res = -ENOMEM;
 		goto out;
 	}
 
 	name = kasprintf(GFP_KERNEL, "%s/%s", VDEV_MODE_PAGES_DIR, virt_dev->name);
-	if (name == NULL) {
+	if (!name) {
 		PRINT_ERROR("Unable to create name %s/%s", VDEV_MODE_PAGES_DIR,
-			virt_dev->name);
+			    virt_dev->name);
 		res = -ENOMEM;
 		goto out_vfree;
 	}
 
 	name1 = kasprintf(GFP_KERNEL, "%s/%s1", VDEV_MODE_PAGES_DIR, virt_dev->name);
-	if (name1 == NULL) {
+	if (!name1) {
 		PRINT_ERROR("Unable to create name %s/%s1", VDEV_MODE_PAGES_DIR,
-			virt_dev->name);
+			    virt_dev->name);
 		res = -ENOMEM;
 		goto out_free_name;
 	}
 
-	size = scst_read_file_transactional(name, name1,
-			virt_dev->name, strlen(virt_dev->name), buf, size-1);
+	size = scst_read_file_transactional(name, name1, virt_dev->name, strlen(virt_dev->name),
+					    buf, size - 1);
 	if (size <= 0) {
 		res = size;
 		goto out_free_name1;
 	}
 
-	buf[size-1] = '\0';
+	buf[size - 1] = '\0';
 
-	res = scst_restore_global_mode_pages(dev, &buf[strlen(virt_dev->name)+1],
-				&params);
-	if ((res != 0) || (params == NULL))
+	res = scst_restore_global_mode_pages(dev, &buf[strlen(virt_dev->name) + 1], &params);
+	if (res || !params)
 		goto out_free_name1;
 
 	res = __vdev_load_mode_pages(virt_dev, params);
@@ -975,7 +961,7 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 		goto out;
 
 	bi = bdev_get_integrity(bdev_desc.bdev);
-	if (bi == NULL) {
+	if (!bi) {
 		TRACE_DBG("Block integrity not supported");
 		goto out_no_bi;
 	}
@@ -993,16 +979,14 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 	if (!strcmp(bi_profile_name, "T10-DIF-TYPE1-CRC")) {
 		dev->dev_dif_ip_not_supported = 1;
 		if (virt_dev->dif_type != 1) {
-			PRINT_ERROR(
-			"Integrity type mismatch, %d expected, but block device has 1 (dev %s)",
+			PRINT_ERROR("Integrity type mismatch, %d expected, but block device has 1 (dev %s)",
 				    virt_dev->dif_type, dev->virt_name);
 			res = -EINVAL;
 			goto out_close;
 		}
 	} else if (!strcmp(bi_profile_name, "T10-DIF-TYPE1-IP")) {
 		if (virt_dev->dif_type != 1) {
-			PRINT_ERROR(
-			"Integrity type mismatch, %d expected, but block device has 1 (dev %s)",
+			PRINT_ERROR("Integrity type mismatch, %d expected, but block device has 1 (dev %s)",
 				    virt_dev->dif_type, dev->virt_name);
 			res = -EINVAL;
 			goto out_close;
@@ -1010,16 +994,14 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 	} else if (!strcmp(bi_profile_name, "T10-DIF-TYPE3-CRC")) {
 		dev->dev_dif_ip_not_supported = 1;
 		if (virt_dev->dif_type != 3) {
-			PRINT_ERROR(
-			"Integrity type mismatch, %d expected, but block device has 1 (dev %s)",
+			PRINT_ERROR("Integrity type mismatch, %d expected, but block device has 1 (dev %s)",
 				    virt_dev->dif_type, dev->virt_name);
 			res = -EINVAL;
 			goto out_close;
 		}
 	} else if (!strcmp(bi_profile_name, "T10-DIF-TYPE3-IP")) {
 		if (virt_dev->dif_type != 3) {
-			PRINT_ERROR(
-			"Integrity type mismatch, %d expected, but block device has 3 (dev %s)",
+			PRINT_ERROR("Integrity type mismatch, %d expected, but block device has 3 (dev %s)",
 				    virt_dev->dif_type, dev->virt_name);
 			res = -EINVAL;
 			goto out_close;
@@ -1107,7 +1089,7 @@ static int vdisk_attach(struct scst_device *dev)
 	TRACE_DBG("virt_id %d (%s)", dev->virt_id, dev->virt_name);
 
 	if (dev->virt_id == 0) {
-		PRINT_ERROR("%s", "Not a virtual device");
+		PRINT_ERROR("Not a virtual device");
 		res = -EINVAL;
 		goto out;
 	}
@@ -1117,7 +1099,7 @@ static int vdisk_attach(struct scst_device *dev)
 	 * scst_register_virtual_device()
 	 */
 	virt_dev = vdev_find(dev->virt_name);
-	if (virt_dev == NULL) {
+	if (!virt_dev) {
 		PRINT_ERROR("Device %s not found", dev->virt_name);
 		res = -EINVAL;
 		goto out;
@@ -1129,11 +1111,10 @@ static int vdisk_attach(struct scst_device *dev)
 	dev->block_size = 1 << dev->block_shift;
 	dev->cluster_mode = virt_dev->initial_cluster_mode;
 
-	if ((virt_dev->dif_type == 0) &&
-	    ((virt_dev->dif_mode != SCST_DIF_MODE_NONE) ||
-	     (virt_dev->dif_filename != NULL))) {
-		PRINT_ERROR("Device %s cannot have DIF TYPE 0 if DIF MODE is "
-			"not NONE or DIF FILENAME is not NULL", virt_dev->name);
+	if (virt_dev->dif_type == 0 &&
+	    (virt_dev->dif_mode != SCST_DIF_MODE_NONE || virt_dev->dif_filename)) {
+		PRINT_ERROR("Device %s cannot have DIF TYPE 0 if DIF MODE is not NONE or DIF FILENAME is not NULL",
+			    virt_dev->name);
 		res = -EINVAL;
 		goto out;
 	}
@@ -1146,29 +1127,29 @@ static int vdisk_attach(struct scst_device *dev)
 		if (res != 0)
 			goto out;
 	} else if (virt_dev->dif_mode & SCST_DIF_MODE_DEV_CHECK) {
-		PRINT_ERROR("dev_check supported only for BLOCKIO devices "
-			"(dev %s)!", dev->virt_name);
+		PRINT_ERROR("dev_check supported only for BLOCKIO devices (dev %s)!",
+			    dev->virt_name);
 		res = -EINVAL;
 		goto out;
 	}
 
 next:
 	if ((virt_dev->dif_mode & SCST_DIF_MODE_DEV_STORE) &&
-	    (virt_dev->dif_filename == NULL) && !virt_dev->blk_integrity) {
-		virt_dev->dif_filename = kasprintf(GFP_KERNEL,
-				DEF_DIF_FILENAME_TMPL, dev->virt_name);
-		if (virt_dev->dif_filename == NULL) {
-			PRINT_ERROR("Allocation of default dif_filename "
-				"failed (dev %s)", dev->virt_name);
+	    !virt_dev->dif_filename && !virt_dev->blk_integrity) {
+		virt_dev->dif_filename = kasprintf(GFP_KERNEL, DEF_DIF_FILENAME_TMPL,
+						   dev->virt_name);
+		if (!virt_dev->dif_filename) {
+			PRINT_ERROR("Allocation of default dif_filename failed (dev %s)",
+				    dev->virt_name);
 			res = -ENOMEM;
 			goto out;
 		}
 	}
 
-	if (virt_dev->dev_active && virt_dev->dif_filename != NULL) {
+	if (virt_dev->dev_active && virt_dev->dif_filename) {
 		/* Check if it can be used */
 		struct file *dfd = vdev_open_fd(virt_dev, virt_dev->dif_filename,
-					virt_dev->rd_only);
+						virt_dev->rd_only);
 		if (IS_ERR(dfd)) {
 			res = PTR_ERR(dfd);
 			goto out;
@@ -1182,49 +1163,45 @@ next:
 
 	if (virt_dev->dif_type != 2)
 		scst_dev_set_dif_static_app_tag_combined(dev,
-			virt_dev->dif_static_app_tag_combined);
+							 virt_dev->dif_static_app_tag_combined);
 	else if (virt_dev->dif_static_app_tag_combined != SCST_DIF_NO_CHECK_APP_TAG)
-		PRINT_WARNING("Device %s: static app tag is ignored for DIF "
-			"mode 2", dev->virt_name);
+		PRINT_WARNING("Device %s: static app tag is ignored for DIF mode 2",
+			      dev->virt_name);
 
-	if (virt_dev->dif_filename != NULL) {
+	if (virt_dev->dif_filename) {
 		res = scst_create_dev_attr(dev, &vdev_dif_filename_attr);
 		if (res != 0) {
 			PRINT_ERROR("Can't create attr %s for dev %s",
-				vdev_dif_filename_attr.attr.name,
-				dev->virt_name);
+				    vdev_dif_filename_attr.attr.name,
+				    dev->virt_name);
 			goto out;
 		}
 	}
 
 	if (!virt_dev->async && virt_dev->o_direct_flag) {
-		PRINT_ERROR("%s: using o_direct without setting async is not"
-			    " supported", virt_dev->filename);
+		PRINT_ERROR("%s: using o_direct without setting async is not supported",
+			    virt_dev->filename);
 		res = -EINVAL;
 		goto out;
 	}
 
 	dev->dev_rd_only = virt_dev->rd_only;
 
-
 	res = vdisk_reexamine(virt_dev);
 	if (res < 0)
 		goto out;
 
 	if (!virt_dev->cdrom_empty) {
-		PRINT_INFO("Attached SCSI target virtual %s %s "
-		      "(file=\"%s\", fs=%lldMB, bs=%d, nblocks=%lld,"
-		      " cyln=%lld%s)",
-		      (dev->type == TYPE_DISK) ? "disk" : "cdrom",
-		      virt_dev->name, vdev_get_filename(virt_dev),
-		      virt_dev->file_size >> 20, dev->block_size,
-		      (unsigned long long)virt_dev->nblocks,
-		      (unsigned long long)virt_dev->nblocks/64/32,
-		      virt_dev->nblocks < 64*32
-		      ? " !WARNING! cyln less than 1" : "");
+		PRINT_INFO("Attached SCSI target virtual %s %s (file=\"%s\", fs=%lldMB, bs=%d, nblocks=%lld, cyln=%lld%s)",
+			   dev->type == TYPE_DISK ? "disk" : "cdrom",
+			   virt_dev->name, vdev_get_filename(virt_dev),
+			   virt_dev->file_size >> 20, dev->block_size,
+			   (unsigned long long)virt_dev->nblocks,
+			   (unsigned long long)virt_dev->nblocks / 64 / 32,
+			   virt_dev->nblocks < 64 * 32 ? " !WARNING! cyln less than 1" : "");
 	} else {
 		PRINT_INFO("Attached empty SCSI target virtual cdrom %s",
-			virt_dev->name);
+			   virt_dev->name);
 	}
 
 	dev->dh_priv = virt_dev;
@@ -1254,7 +1231,7 @@ next:
 	dev->dpicz = DEF_DPICZ;
 	dev->dpicz_saved = DEF_DPICZ;
 	dev->dpicz_default = DEF_DPICZ;
-	if ((virt_dev->dif_filename == NULL) && !virt_dev->blk_integrity)
+	if (!virt_dev->dif_filename && !virt_dev->blk_integrity)
 		dev->ato = SCST_ATO_0_MODIFIED_BY_STORAGE;
 	else
 		dev->ato = SCST_ATO_1_NOT_MODIFIED_BY_STORAGE;
@@ -1262,8 +1239,7 @@ next:
 	if (vdev_saved_mode_pages_enabled)
 		vdev_load_mode_pages(virt_dev);
 
-	res = scst_pr_set_cluster_mode(dev, dev->cluster_mode,
-				       virt_dev->t10_dev_id);
+	res = scst_pr_set_cluster_mode(dev, dev->cluster_mode, virt_dev->t10_dev_id);
 	if (res)
 		goto out;
 
@@ -1286,14 +1262,13 @@ static void vdisk_detach(struct scst_device *dev)
 	scst_pr_set_cluster_mode(dev, false, virt_dev->t10_dev_id);
 
 	PRINT_INFO("Detached virtual device %s (\"%s\")",
-		      virt_dev->name, vdev_get_filename(virt_dev));
+		   virt_dev->name, vdev_get_filename(virt_dev));
 
 	/* virt_dev will be freed by the caller */
 	dev->dh_priv = NULL;
 	virt_dev->dev = NULL;
 
 	TRACE_EXIT();
-	return;
 }
 
 static bool vdisk_is_open(const struct scst_vdisk_dev *virt_dev)
@@ -1338,9 +1313,8 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 		virt_dev->opt_trans_len = bdev_io_opt(virt_dev->bdev_desc.bdev) ? :
 					  virt_dev->opt_trans_len;
 
-	if (virt_dev->dif_filename != NULL) {
-		virt_dev->dif_fd = vdev_open_fd(virt_dev,
-			virt_dev->dif_filename, read_only);
+	if (virt_dev->dif_filename) {
+		virt_dev->dif_fd = vdev_open_fd(virt_dev, virt_dev->dif_filename, read_only);
 		if (IS_ERR(virt_dev->dif_fd)) {
 			res = PTR_ERR(virt_dev->dif_fd);
 			virt_dev->dif_fd = NULL;
@@ -1478,12 +1452,10 @@ static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev)
 		vdisk_close_fd(virt_dev);
 
 	TRACE_EXIT();
-	return;
 }
 
-static int __vdisk_fsync_fileio(loff_t loff,
-	loff_t len, struct scst_device *dev, struct scst_cmd *cmd,
-	struct file *file)
+static int __vdisk_fsync_fileio(loff_t loff, loff_t len, struct scst_device *dev,
+				struct scst_cmd *cmd, struct file *file)
 {
 	int res;
 
@@ -1503,12 +1475,11 @@ static int __vdisk_fsync_fileio(loff_t loff,
 #endif
 	if (unlikely(res != 0)) {
 		PRINT_ERROR("sync range failed (%d)", res);
-		if (cmd != NULL) {
+		if (cmd) {
 			if (res == -ENOMEM)
 				scst_set_busy(cmd);
 			else
-				scst_set_cmd_error(cmd,
-					SCST_LOAD_SENSE(scst_sense_write_error));
+				scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
 		}
 	}
 
@@ -1516,9 +1487,8 @@ static int __vdisk_fsync_fileio(loff_t loff,
 	return res;
 }
 
-static int vdisk_fsync_blockio(loff_t loff,
-	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
-	struct scst_cmd *cmd, bool async)
+static int vdisk_fsync_blockio(loff_t loff, loff_t len, struct scst_device *dev, gfp_t gfp_flags,
+			       struct scst_cmd *cmd, bool async)
 {
 	int res;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
@@ -1533,11 +1503,10 @@ static int vdisk_fsync_blockio(loff_t loff,
 	EXTRACHECKS_BUG_ON(!virt_dev->blockio);
 
 	/* Must be first, because vdisk_blockio_flush() can call scst_cmd_done()! */
-	if (virt_dev->dif_fd != NULL) {
+	if (virt_dev->dif_fd) {
 		loff = (loff >> dev->block_shift) << SCST_DIF_TAG_SHIFT;
 		len = (len >> dev->block_shift) << SCST_DIF_TAG_SHIFT;
-		res = __vdisk_fsync_fileio(loff, len, dev, cmd,
-			virt_dev->dif_fd);
+		res = __vdisk_fsync_fileio(loff, len, dev, cmd, virt_dev->dif_fd);
 		if (unlikely(res != 0))
 			goto out;
 	}
@@ -1549,8 +1518,8 @@ out:
 	return res;
 }
 
-static int vdisk_fsync_fileio(loff_t loff,
-	loff_t len, struct scst_device *dev, struct scst_cmd *cmd, bool async)
+static int vdisk_fsync_fileio(loff_t loff, loff_t len, struct scst_device *dev,
+			      struct scst_cmd *cmd, bool async)
 {
 	int res;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
@@ -1566,19 +1535,17 @@ static int vdisk_fsync_fileio(loff_t loff,
 	if (unlikely(res != 0))
 		goto done;
 
-	if (virt_dev->dif_fd != NULL) {
+	if (virt_dev->dif_fd) {
 		loff = (loff >> dev->block_shift) << SCST_DIF_TAG_SHIFT;
 		len = (len >> dev->block_shift) << SCST_DIF_TAG_SHIFT;
-		res = __vdisk_fsync_fileio(loff, len, dev, cmd,
-			virt_dev->dif_fd);
+		res = __vdisk_fsync_fileio(loff, len, dev, cmd, virt_dev->dif_fd);
 	}
 
 done:
 	if (async) {
-		if (cmd != NULL) {
+		if (cmd) {
 			cmd->completed = 1;
-			cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
-				scst_estimate_context());
+			cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, scst_estimate_context());
 		}
 	}
 
@@ -1586,9 +1553,8 @@ done:
 	return res;
 }
 
-static int vdisk_fsync(loff_t loff,
-	loff_t len, struct scst_device *dev, gfp_t gfp_flags,
-	struct scst_cmd *cmd, bool async)
+static int vdisk_fsync(loff_t loff, loff_t len, struct scst_device *dev, gfp_t gfp_flags,
+		       struct scst_cmd *cmd, bool async)
 {
 	int res = 0;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
@@ -1635,8 +1601,7 @@ static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: "
-	      "loff=%lld, data_len=%lld, immed=%d",
+	TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: loff=%lld, data_len=%lld, immed=%d",
 	      (unsigned long long)loff,
 	      (unsigned long long)data_len, immed);
 
@@ -1689,8 +1654,7 @@ static enum compl_status_e vdisk_exec_send_diagnostic(struct vdisk_cmd_params *p
 	return CMD_SUCCEEDED;
 }
 
-static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
-	uint64_t blocks)
+static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba, uint64_t blocks)
 {
 	int res = 0;
 	struct scst_device *dev = cmd->dev;
@@ -1707,13 +1671,13 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 
 	TRACE_ENTRY();
 
-	if (virt_dev->dif_fd == NULL)
+	if (!virt_dev->dif_fd)
 		goto out;
 
 	EXTRACHECKS_BUG_ON(!(dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE));
 
 	kvec_page = alloc_page(GFP_KERNEL);
-	if (kvec_page == NULL) {
+	if (!kvec_page) {
 		PRINT_ERROR("Unable to allocate kvec page");
 		scst_set_busy(cmd);
 		res = -ENOMEM;
@@ -1721,7 +1685,7 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 	}
 
 	data_page = alloc_page(GFP_KERNEL);
-	if (data_page == NULL) {
+	if (!data_page) {
 		PRINT_ERROR("Unable to allocate tags data page");
 		scst_set_busy(cmd);
 		res = -ENOMEM;
@@ -1732,7 +1696,7 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 	memset(data_buf, 0xFF, PAGE_SIZE);
 
 	kvec = page_address(kvec_page);
-	max_kvec_segs = min_t(int, UIO_MAXIOV, (int)PAGE_SIZE/sizeof(*kvec));
+	max_kvec_segs = min_t(int, UIO_MAXIOV, PAGE_SIZE / sizeof(*kvec));
 
 	for (i = 0; i < max_kvec_segs; i++)
 		kvec[i].iov_base = data_buf;
@@ -1759,18 +1723,17 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba,
 		}
 
 		TRACE_DBG("Formatting DIF: full_len %zd, off %lld",
-			full_len, (long long)loff);
+			  full_len, (long long)loff);
 
 		/* WRITE */
 		err = scst_writev(fd, kvec, kvec_segs, &loff);
 		if (err < 0) {
-			PRINT_ERROR("Formatting DIF write() returned %lld from "
-				"%zd", err, full_len);
+			PRINT_ERROR("Formatting DIF write() returned %lld from %zd",
+				    err, full_len);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
 			else
-				scst_set_cmd_error(cmd,
-				    SCST_LOAD_SENSE(scst_sense_write_error));
+				scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
 			res = err;
 			goto out_free_data_page;
 		} else if (err < full_len) {
@@ -1799,16 +1762,15 @@ out:
 	return res;
 }
 
-static int vdisk_unmap_file_range(struct scst_cmd *cmd,
-	struct scst_vdisk_dev *virt_dev, loff_t off, loff_t len,
-	struct file *fd)
+static int vdisk_unmap_file_range(struct scst_cmd *cmd, struct scst_vdisk_dev *virt_dev,
+				  loff_t off, loff_t len, struct file *fd)
 {
 	int res;
 
 	TRACE_ENTRY();
 
 	TRACE_DBG("Fallocating range %lld, len %lld",
-		(unsigned long long)off, (unsigned long long)len);
+		  (unsigned long long)off, (unsigned long long)len);
 
 	res = fd->f_op->fallocate(fd,
 		FALLOC_FL_PUNCH_HOLE | FALLOC_FL_KEEP_SIZE, off, len);
@@ -1817,11 +1779,9 @@ static int vdisk_unmap_file_range(struct scst_cmd *cmd,
 				   virt_dev->name, virt_dev->name);
 		res = 0;
 	} else if (unlikely(res != 0)) {
-		PRINT_WARNING_ONCE("fallocate() for %lld, len %lld "
-			"failed: %d", (unsigned long long)off,
-			(unsigned long long)len, res);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_write_error));
+		PRINT_WARNING_ONCE("fallocate() for %lld, len %lld failed: %d",
+				   (unsigned long long)off, (unsigned long long)len, res);
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
 		res = -EIO;
 	}
 
@@ -1829,8 +1789,8 @@ static int vdisk_unmap_file_range(struct scst_cmd *cmd,
 	return res;
 }
 
-static int vdisk_unmap_range(struct scst_cmd *cmd,
-	struct scst_vdisk_dev *virt_dev, uint64_t start_lba, uint64_t blocks)
+static int vdisk_unmap_range(struct scst_cmd *cmd, struct scst_vdisk_dev *virt_dev,
+			     uint64_t start_lba, uint64_t blocks)
 {
 	int res, err;
 
@@ -1839,12 +1799,10 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 	if (blocks == 0)
 		goto success;
 
-	if ((start_lba > virt_dev->nblocks) ||
-	    ((start_lba + blocks) > virt_dev->nblocks)) {
-		PRINT_ERROR("Device %s: attempt to write beyond max "
-			"size", virt_dev->name);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_block_out_range_error));
+	if (start_lba > virt_dev->nblocks || (start_lba + blocks) > virt_dev->nblocks) {
+		PRINT_ERROR("Device %s: attempt to write beyond max size",
+			    virt_dev->name);
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_block_out_range_error));
 		res = -EINVAL;
 		goto out;
 	}
@@ -1860,11 +1818,9 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 
 		err = blkdev_issue_discard(bdev, start_sector, nr_sects, gfp);
 		if (unlikely(err != 0)) {
-			PRINT_ERROR("blkdev_issue_discard() for "
-				"LBA %lld, blocks %lld failed: %d",
-				(unsigned long long)start_lba, blocks, err);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_write_error));
+			PRINT_ERROR("blkdev_issue_discard() for LBA %lld, blocks %lld failed: %d",
+				    (unsigned long long)start_lba, blocks, err);
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
 			res = -EIO;
 			goto out;
 		}
@@ -1878,7 +1834,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd,
 			goto out;
 	}
 
-	if (virt_dev->dif_fd != NULL) {
+	if (virt_dev->dif_fd) {
 		res = vdisk_format_dif(cmd, start_lba, blocks);
 		if (unlikely(res != 0))
 			goto out;
@@ -1905,10 +1861,9 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 	TRACE_ENTRY();
 
 	pinfo = (cmd->cdb[1] & 0xC0) >> 6;
-	if (((cmd->cdb[1] & 0x10) == 0) && (pinfo != 0)) {
+	if (((cmd->cdb[1] & 0x10) == 0) && pinfo != 0) {
 		/* FMTDATA zero and FMTPINFO not zero are illegal */
-		scst_set_invalid_field_in_cdb(cmd, 1,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 6);
+		scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID | 6);
 		goto out;
 	}
 
@@ -1923,10 +1878,10 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 		TRACE_BUFF_FLAG(TRACE_DEBUG, "Format buf", buf, 64);
 
 		if (length < 4) {
-			PRINT_ERROR("FORMAT UNIT: too small parameters list "
-				"header %d (dev %s)", length, dev->virt_name);
+			PRINT_ERROR("FORMAT UNIT: too small parameters list header %d (dev %s)",
+				    length, dev->virt_name);
 			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_parameter_list_length_invalid));
+					SCST_LOAD_SENSE(scst_sense_parameter_list_length_invalid));
 			goto out_put;
 		}
 
@@ -1934,35 +1889,32 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 		immed = buf[1] & 2;
 
 		if ((buf[1] & 8) != 0) {
-			PRINT_ERROR("FORMAT UNIT: initialization pattern not "
-				"supported");
+			PRINT_ERROR("FORMAT UNIT: initialization pattern not supported");
 			scst_set_invalid_field_in_parm_list(cmd, 1,
-				SCST_INVAL_FIELD_BIT_OFFS_VALID | 3);
+							    SCST_INVAL_FIELD_BIT_OFFS_VALID | 3);
 			goto out_put;
 		}
 
 		if (cmd->cdb[1] & 0x20) { /* LONGLIST */
 			if (length < 8) {
-				PRINT_ERROR("FORMAT UNIT: too small long "
-					"parameters list header %d (dev %s)",
-					length, dev->virt_name);
+				PRINT_ERROR("FORMAT UNIT: too small long parameters list header %d (dev %s)",
+					    length, dev->virt_name);
 				scst_set_invalid_field_in_cdb(cmd, 1,
-					SCST_INVAL_FIELD_BIT_OFFS_VALID | 5);
+							      SCST_INVAL_FIELD_BIT_OFFS_VALID | 5);
 				goto out_put;
 			}
 			if ((buf[3] & 0xF0) != 0) {
-				PRINT_ERROR("FORMAT UNIT: P_I_INFORMATION must "
-					"be 0 (dev %s)", dev->virt_name);
+				PRINT_ERROR("FORMAT UNIT: P_I_INFORMATION must be 0 (dev %s)",
+					    dev->virt_name);
 				scst_set_invalid_field_in_parm_list(cmd, 3,
-					SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
+							SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
 				goto out_put;
 			}
 			if ((buf[3] & 0xF) != 0) {
-				PRINT_ERROR("FORMAT UNIT: PROTECTION INTERVAL "
-					"EXPONENT %d not supported (dev %s)",
-					buf[3] & 0xF, dev->virt_name);
+				PRINT_ERROR("FORMAT UNIT: PROTECTION INTERVAL EXPONENT %d not supported (dev %s)",
+					    buf[3] & 0xF, dev->virt_name);
 				scst_set_invalid_field_in_parm_list(cmd, 3,
-					SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
+							SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
 				goto out_put;
 			}
 		} else {
@@ -2022,12 +1974,12 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 		}
 	}
 
-	TRACE_DBG("prot_type %d, pinfo %d, immed %d (cmd %p)", prot_type,
-		pinfo, immed, cmd);
+	TRACE_DBG("prot_type %d, pinfo %d, immed %d (cmd %p)",
+		  prot_type, pinfo, immed, cmd);
 
 	if (prot_type != dev->dev_dif_type) {
 		PRINT_ERROR("FORMAT UNIT: DIF type %d not supported (dev %s)",
-			prot_type, dev->virt_name);
+			    prot_type, dev->virt_name);
 		scst_set_invalid_field_in_cdb(cmd, 1,
 			SCST_INVAL_FIELD_BIT_OFFS_VALID | 6);
 		goto out;
@@ -2091,7 +2043,7 @@ static const struct scst_opcode_descriptor scst_op_descr_cwr = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 16,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { COMPARE_AND_WRITE, VDEV_DEF_WRPROTECT | 0x18,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 			       0, 0, 0, 0xFF, VDEF_DEF_GROUP_NUM,
@@ -2103,7 +2055,7 @@ static const struct scst_opcode_descriptor scst_op_descr_format_unit = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 6,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_LONG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_LONG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { FORMAT_UNIT, 0xF0, 0, 0, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 
@@ -2115,7 +2067,7 @@ static const struct scst_opcode_descriptor scst_op_descr_get_lba_status = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 16,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { SERVICE_ACTION_IN_16, SAI_GET_LBA_STATUS,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0,
@@ -2128,7 +2080,7 @@ static const struct scst_opcode_descriptor scst_op_descr_allow_medium_removal = 
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 6,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { ALLOW_MEDIUM_REMOVAL, 0, 0, 0, 3, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 
@@ -2137,7 +2089,7 @@ static const struct scst_opcode_descriptor scst_op_descr_read6 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 6,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { READ_6, 0x1F,
 			       0xFF, 0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
@@ -2147,7 +2099,7 @@ static const struct scst_opcode_descriptor scst_op_descr_read10 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 10,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { READ_10, VDEV_DEF_RDPROTECT | 0x18,
 			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
 			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
@@ -2158,7 +2110,7 @@ static const struct scst_opcode_descriptor scst_op_descr_read12 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 12,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { READ_12, VDEV_DEF_RDPROTECT | 0x18,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 			       VDEF_DEF_GROUP_NUM, SCST_OD_DEFAULT_CONTROL_BYTE },
@@ -2169,7 +2121,7 @@ static const struct scst_opcode_descriptor scst_op_descr_read16 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 16,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { READ_16, VDEV_DEF_RDPROTECT | 0x18,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
@@ -2183,7 +2135,7 @@ static const struct scst_opcode_descriptor scst_op_descr_read32 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 32,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { VARIABLE_LENGTH_CMD, SCST_OD_DEFAULT_CONTROL_BYTE,
 			       0, 0, 0, 0, VDEF_DEF_GROUP_NUM, 0x18, 0,
 			       SUBCODE_READ_32, VDEV_DEF_RDPROTECT | 0x18, 0,
@@ -2197,7 +2149,7 @@ static const struct scst_opcode_descriptor scst_op_descr_read_capacity = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 10,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { READ_CAPACITY, 0, 0, 0, 0, 0, 0,
 			       0, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
@@ -2209,7 +2161,7 @@ static const struct scst_opcode_descriptor scst_op_descr_read_capacity16 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 16,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { SERVICE_ACTION_IN_16, SAI_READ_CAPACITY_16,
 			       0, 0, 0, 0, 0, 0, 0, 0,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0,
@@ -2221,7 +2173,7 @@ static const struct scst_opcode_descriptor scst_op_descr_start_stop_unit = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 6,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { START_STOP, 1, 0, 0xF, 0xF7, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 
@@ -2230,7 +2182,7 @@ static const struct scst_opcode_descriptor scst_op_descr_sync_cache10 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 10,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { SYNCHRONIZE_CACHE, 2,
 			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
 			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
@@ -2241,7 +2193,7 @@ static const struct scst_opcode_descriptor scst_op_descr_sync_cache16 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 16,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { SYNCHRONIZE_CACHE_16, 2,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
@@ -2253,7 +2205,7 @@ static const struct scst_opcode_descriptor scst_op_descr_unmap = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 10,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { UNMAP, 0, 0, 0, 0, 0, VDEF_DEF_GROUP_NUM,
 			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
@@ -2263,7 +2215,7 @@ static const struct scst_opcode_descriptor scst_op_descr_verify10 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 10,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { VERIFY, VDEV_DEF_VRPROTECT | 0x16,
 			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
 			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
@@ -2274,7 +2226,7 @@ static const struct scst_opcode_descriptor scst_op_descr_verify12 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 12,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { VERIFY_12, VDEV_DEF_VRPROTECT | 0x16,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 			       VDEF_DEF_GROUP_NUM, SCST_OD_DEFAULT_CONTROL_BYTE },
@@ -2285,7 +2237,7 @@ static const struct scst_opcode_descriptor scst_op_descr_verify16 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 16,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { VERIFY_16, VDEV_DEF_VRPROTECT | 0x16,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
@@ -2299,7 +2251,7 @@ static const struct scst_opcode_descriptor scst_op_descr_verify32 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 32,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { VARIABLE_LENGTH_CMD, SCST_OD_DEFAULT_CONTROL_BYTE,
 			       0, 0, 0, 0, VDEF_DEF_GROUP_NUM, 0x18, 0,
 			       SUBCODE_VERIFY_32, VDEV_DEF_VRPROTECT | 0x16, 0,
@@ -2313,7 +2265,7 @@ static const struct scst_opcode_descriptor scst_op_descr_write6 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 6,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { WRITE_6, 0x1F,
 			       0xFF, 0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
@@ -2323,7 +2275,7 @@ static const struct scst_opcode_descriptor scst_op_descr_write10 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 10,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { WRITE_10, VDEV_DEF_WRPROTECT | 0x1A,
 			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
 			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
@@ -2334,7 +2286,7 @@ static const struct scst_opcode_descriptor scst_op_descr_write12 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 12,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { WRITE_12, VDEV_DEF_WRPROTECT | 0x1A,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 			       VDEF_DEF_GROUP_NUM, SCST_OD_DEFAULT_CONTROL_BYTE },
@@ -2345,7 +2297,7 @@ static const struct scst_opcode_descriptor scst_op_descr_write16 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 16,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { WRITE_16, VDEV_DEF_WRPROTECT | 0x1A,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
@@ -2359,7 +2311,7 @@ static const struct scst_opcode_descriptor scst_op_descr_write32 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 32,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { VARIABLE_LENGTH_CMD, SCST_OD_DEFAULT_CONTROL_BYTE,
 			       0, 0, 0, 0, VDEF_DEF_GROUP_NUM, 0x18, 0,
 			       SUBCODE_WRITE_32, VDEV_DEF_WRPROTECT | 0x1A, 0,
@@ -2373,7 +2325,7 @@ static const struct scst_opcode_descriptor scst_op_descr_write_verify10 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 10,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { WRITE_VERIFY, VDEV_DEF_WRPROTECT | 0x16,
 			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
 			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
@@ -2384,7 +2336,7 @@ static const struct scst_opcode_descriptor scst_op_descr_write_verify12 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 12,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { WRITE_VERIFY_12, VDEV_DEF_WRPROTECT | 0x16,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 			       VDEF_DEF_GROUP_NUM, SCST_OD_DEFAULT_CONTROL_BYTE },
@@ -2395,7 +2347,7 @@ static const struct scst_opcode_descriptor scst_op_descr_write_verify16 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 16,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { WRITE_VERIFY_16, VDEV_DEF_WRPROTECT | 0x16,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
@@ -2409,7 +2361,7 @@ static const struct scst_opcode_descriptor scst_op_descr_write_verify32 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 32,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { VARIABLE_LENGTH_CMD, SCST_OD_DEFAULT_CONTROL_BYTE,
 			       0, 0, 0, 0, VDEF_DEF_GROUP_NUM, 0x18, 0,
 			       SUBCODE_WRITE_VERIFY_32, VDEV_DEF_WRPROTECT | 0x16, 0,
@@ -2423,7 +2375,7 @@ static const struct scst_opcode_descriptor scst_op_descr_write_same10 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 10,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { WRITE_SAME, VDEV_DEF_WRPROTECT | 0x8,
 			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
 			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
@@ -2434,7 +2386,7 @@ static const struct scst_opcode_descriptor scst_op_descr_write_same16 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 16,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { WRITE_SAME_16, VDEV_DEF_WRPROTECT | 0x8,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 			       0xFF, 0xFF, 0xFF, 0xFF, VDEF_DEF_GROUP_NUM,
@@ -2448,7 +2400,7 @@ static const struct scst_opcode_descriptor scst_op_descr_write_same32 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 32,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { VARIABLE_LENGTH_CMD, SCST_OD_DEFAULT_CONTROL_BYTE,
 			       0, 0, 0, 0, VDEF_DEF_GROUP_NUM, 0x18, 0,
 			       SUBCODE_WRITE_SAME_32, VDEV_DEF_WRPROTECT | 0x8, 0,
@@ -2462,7 +2414,7 @@ static const struct scst_opcode_descriptor scst_op_descr_read_toc = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 10,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { READ_TOC, 0, 0xF, 0, 0, 0, 0xFF,
 			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
@@ -2532,8 +2484,8 @@ static const struct scst_opcode_descriptor *vcdrom_opcode_descriptors[] = {
 };
 
 static int vdisk_get_supported_opcodes(struct scst_cmd *cmd,
-	const struct scst_opcode_descriptor ***out_supp_opcodes,
-	int *out_supp_opcodes_cnt)
+				       const struct scst_opcode_descriptor ***out_supp_opcodes,
+				       int *out_supp_opcodes_cnt)
 {
 	struct scst_device *dev = cmd->dev;
 
@@ -2552,8 +2504,8 @@ static int vdisk_get_supported_opcodes(struct scst_cmd *cmd,
 }
 
 static int vcdrom_get_supported_opcodes(struct scst_cmd *cmd,
-	const struct scst_opcode_descriptor ***out_supp_opcodes,
-	int *out_supp_opcodes_cnt)
+					const struct scst_opcode_descriptor ***out_supp_opcodes,
+					int *out_supp_opcodes_cnt)
 {
 	*out_supp_opcodes = vcdrom_opcode_descriptors;
 	*out_supp_opcodes_cnt = ARRAY_SIZE(vcdrom_opcode_descriptors);
@@ -2594,12 +2546,12 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 
 	switch (cmd->queue_type) {
 	case SCST_CMD_QUEUE_ORDERED:
-		TRACE(TRACE_ORDER, "ORDERED cmd %p (op %s)", cmd,
-			scst_get_opcode_name(cmd));
+		TRACE(TRACE_ORDER, "ORDERED cmd %p (op %s)",
+		      cmd, scst_get_opcode_name(cmd));
 		break;
 	case SCST_CMD_QUEUE_HEAD_OF_QUEUE:
-		TRACE(TRACE_ORDER, "HQ cmd %p (op %s)", cmd,
-			scst_get_opcode_name(cmd));
+		TRACE(TRACE_ORDER, "HQ cmd %p (op %s)",
+		      cmd, scst_get_opcode_name(cmd));
 		break;
 	case SCST_CMD_QUEUE_ACA:
 	case SCST_CMD_QUEUE_SIMPLE:
@@ -2622,16 +2574,15 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	if (unlikely((loff + data_len) > virt_dev->file_size) &&
 	    (!(cmd->op_flags & SCST_LBA_NOT_VALID))) {
 		if (virt_dev->cdrom_empty) {
-			TRACE_DBG("%s", "CDROM empty");
+			TRACE_DBG("CDROM empty");
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_no_medium));
 		} else {
-			PRINT_INFO("Access beyond the end of device %s "
-				"(%lld of %lld, data len %lld)", virt_dev->name,
-				(unsigned long long)loff,
-				(unsigned long long)virt_dev->file_size,
-				(unsigned long long)data_len);
-			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
-					scst_sense_block_out_range_error));
+			PRINT_INFO("Access beyond the end of device %s (%lld of %lld, data len %lld)",
+				   virt_dev->name,
+				   (unsigned long long)loff,
+				   (unsigned long long)virt_dev->file_size,
+				   (unsigned long long)data_len);
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_block_out_range_error));
 		}
 		res = false;
 		goto out;
@@ -2643,7 +2594,7 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 			fua = (cdb[10] & 0x8);
 			if (fua)
 				TRACE(TRACE_ORDER, "FUA: loff=%lld, data_len=%lld",
-					loff, data_len);
+				      loff, data_len);
 		}
 		break;
 	case WRITE_10:
@@ -2651,9 +2602,8 @@ static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 	case WRITE_16:
 		fua = (cdb[1] & 0x8);
 		if (fua) {
-			TRACE(TRACE_ORDER, "FUA: loff=%lld, "
-				"data_len=%lld", (unsigned long long)loff,
-				(unsigned long long)data_len);
+			TRACE(TRACE_ORDER, "FUA: loff=%lld, data_len=%lld",
+			      (unsigned long long)loff, (unsigned long long)data_len);
 		}
 		break;
 	}
@@ -2846,8 +2796,6 @@ static void blockio_end_sync_io(struct bio *bio)
 
 	s->error = error;
 	complete(&s->c);
-
-	return;
 }
 
 /*
@@ -2968,7 +2916,6 @@ static enum compl_status_e vdev_verify(struct scst_cmd *cmd, loff_t loff)
 	struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
 	uint8_t *mem_verify = NULL;
 	int64_t data_len = scst_cmd_get_data_len(cmd);
-	enum scst_dif_actions checks = scst_get_dif_checks(cmd->cmd_dif_actions);
 
 	TRACE_ENTRY();
 
@@ -2989,9 +2936,9 @@ static enum compl_status_e vdev_verify(struct scst_cmd *cmd, loff_t loff)
 		  compare, loff, (long long)data_len);
 
 	mem_verify = vmalloc(LEN_MEM);
-	if (mem_verify == NULL) {
+	if (!mem_verify) {
 		PRINT_ERROR("Unable to allocate memory %d for verify",
-			       LEN_MEM);
+			    LEN_MEM);
 		scst_set_busy(cmd);
 		goto out;
 	}
@@ -2999,23 +2946,22 @@ static enum compl_status_e vdev_verify(struct scst_cmd *cmd, loff_t loff)
 	if (compare) {
 		length = scst_get_buf_first(cmd, &address);
 		address_sav = address;
-	} else
+	} else {
 		length = data_len;
+	}
 
 	while (length > 0) {
 		len_mem = (length > LEN_MEM) ? LEN_MEM : length;
 		TRACE_DBG("Verify: length %zd - len_mem %zd", length, len_mem);
 
 		err = vdev_read_sync(virt_dev, mem_verify, len_mem, &loff);
-		if ((err < 0) || (err < len_mem)) {
+		if (err < 0 || err < len_mem) {
 			PRINT_ERROR("verify() returned %lld from %zd",
 				    (unsigned long long)err, len_mem);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
-			else {
-				scst_set_cmd_error(cmd,
-				    SCST_LOAD_SENSE(scst_sense_read_error));
-			}
+			else
+				scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_read_error));
 			if (compare)
 				scst_put_buf(cmd, address_sav);
 			goto out_free;
@@ -3023,15 +2969,12 @@ static enum compl_status_e vdev_verify(struct scst_cmd *cmd, loff_t loff)
 
 		if (compare && memcmp(address, mem_verify, len_mem) != 0) {
 			TRACE_DBG("Verify: error memcmp length %zd", length);
-			scst_set_cmd_error(cmd,
-			    SCST_LOAD_SENSE(scst_sense_miscompare_error));
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_miscompare_error));
 			scst_put_buf(cmd, address_sav);
 			goto out_free;
 		}
 
-		if (checks != 0) {
-			/* ToDo: check DIF tags as well */
-		}
+		/* TODO: check DIF tags as well (scst_get_dif_checks(cmd->cmd_dif_actions) != 0) */
 
 		length -= len_mem;
 		if (compare)
@@ -3045,8 +2988,7 @@ static enum compl_status_e vdev_verify(struct scst_cmd *cmd, loff_t loff)
 
 	if (length < 0) {
 		PRINT_ERROR("scst_get_buf_() failed: %zd", length);
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_internal_failure));
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_internal_failure));
 	}
 
 out_free:
@@ -3115,7 +3057,7 @@ static bool vdisk_alloc_async_bvec(struct scst_cmd *cmd,
 
 	p->async.bvec = kmalloc_array(n, sizeof(*p->async.bvec),
 				      cmd->cmd_gfp_mask);
-	if (p->async.bvec == NULL) {
+	if (!p->async.bvec) {
 		PRINT_ERROR("Unable to allocate bvec (%d)", n);
 		return false;
 	}
@@ -3322,7 +3264,6 @@ static void fileio_on_free_cmd(struct scst_cmd *cmd)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -3403,7 +3344,7 @@ static enum scst_exec_res blockio_exec(struct scst_cmd *cmd)
 	if (unlikely(!vdisk_parse_offset(&p, cmd)))
 		goto err;
 
-	if (unlikely(virt_dev->bdev_desc.bdev == NULL)) {
+	if (unlikely(!virt_dev->bdev_desc.bdev)) {
 		if (!vdisk_no_fd_allowed_commands(cmd)) {
 			/*
 			 * We should not get here, unless the user space
@@ -3412,10 +3353,8 @@ static enum scst_exec_res blockio_exec(struct scst_cmd *cmd)
 			 * "DRBD and other replication/failover SW
 			 * compatibility" section in SCST README.
 			 */
-			PRINT_WARNING("Closed FD on exec. Not active ALUA state "
-				"or not blocked dev before ALUA state change? "
-				"(cmd %p, op %s, dev %s)", cmd, cmd->op_name,
-				cmd->dev->virt_name);
+			PRINT_WARNING("Closed FD on exec. Not active ALUA state or not blocked dev before ALUA state change? (cmd %p, op %s, dev %s)",
+				      cmd, cmd->op_name, cmd->dev->virt_name);
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_no_medium));
 			goto err;
 		}
@@ -3477,8 +3416,8 @@ static enum scst_exec_res vcdrom_exec(struct scst_cmd *cmd)
 	cmd->host_status = DID_OK;
 	cmd->driver_status = 0;
 
-	if (virt_dev->cdrom_empty && (opcode != INQUIRY)) {
-		TRACE_DBG("%s", "CDROM empty");
+	if (virt_dev->cdrom_empty && opcode != INQUIRY) {
+		TRACE_DBG("CDROM empty");
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_no_medium));
 		goto out_done;
 	}
@@ -3487,9 +3426,8 @@ static enum scst_exec_res vcdrom_exec(struct scst_cmd *cmd)
 		spin_lock(&virt_dev->flags_lock);
 		if (virt_dev->media_changed) {
 			virt_dev->media_changed = 0;
-			TRACE_DBG("%s", "Reporting media changed");
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_medium_changed_UA));
+			TRACE_DBG("Reporting media changed");
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_medium_changed_UA));
 			spin_unlock(&virt_dev->flags_lock);
 			goto out_done;
 		}
@@ -3511,7 +3449,7 @@ static uint64_t vdisk_gen_dev_id_num(const char *virt_dev_name)
 {
 	uint32_t dev_id_num;
 
-	dev_id_num = crc32c(0, virt_dev_name, strlen(virt_dev_name)+1);
+	dev_id_num = crc32c(0, virt_dev_name, strlen(virt_dev_name) + 1);
 
 	return ((uint64_t)scst_get_setup_id() << 32) | dev_id_num;
 }
@@ -3526,28 +3464,24 @@ static void vdisk_exec_write_same_unmap(struct vdisk_cmd_params *p)
 	TRACE_ENTRY();
 
 	if (unlikely(!virt_dev->thin_provisioned)) {
-		TRACE_DBG("%s", "Device not thin provisioned");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		TRACE_DBG("Device not thin provisioned");
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out;
 	}
 
 	if (unlikely((uint64_t)cmd->data_len > cmd->dev->max_write_same_len)) {
-		PRINT_WARNING("Invalid WRITE SAME data len %lld (max allowed "
-			"%lld)", (long long)cmd->data_len,
-			(long long)cmd->dev->max_write_same_len);
+		PRINT_WARNING("Invalid WRITE SAME data len %lld (max allowed %lld)",
+			      (long long)cmd->data_len, (long long)cmd->dev->max_write_same_len);
 		scst_set_invalid_field_in_cdb(cmd, cmd->len_off, 0);
 		goto out;
 	}
 
-	rc = vdisk_unmap_range(cmd, virt_dev, cmd->lba,
-		cmd->data_len >> dev->block_shift);
+	rc = vdisk_unmap_range(cmd, virt_dev, cmd->lba, cmd->data_len >> dev->block_shift);
 	if (rc != 0)
 		goto out;
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -3581,9 +3515,8 @@ static enum compl_status_e vdisk_exec_write_same(struct vdisk_cmd_params *p)
 	TRACE_ENTRY();
 
 	if (unlikely(cmd->cdb[ctrl_offs] & 0x10)) {
-		TRACE_DBG("%s", "ANCHOR not supported");
-		scst_set_invalid_field_in_cdb(cmd, ctrl_offs,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
+		TRACE_DBG("ANCHOR not supported");
+		scst_set_invalid_field_in_cdb(cmd, ctrl_offs, SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
 		goto out;
 	}
 
@@ -3594,9 +3527,9 @@ static enum compl_status_e vdisk_exec_write_same(struct vdisk_cmd_params *p)
 		goto out;
 	}
 
-	if (cmd->cdb[ctrl_offs] & 0x8)
+	if (cmd->cdb[ctrl_offs] & 0x8) {
 		vdisk_exec_write_same_unmap(p);
-	else {
+	} else {
 		scst_write_same(cmd, NULL);
 		res = RUNNING_ASYNC;
 	}
@@ -3617,20 +3550,18 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 	TRACE_ENTRY();
 
 	if (unlikely(!virt_dev->thin_provisioned)) {
-		TRACE_DBG("%s", "Device not thin provisioned");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		TRACE_DBG("Device not thin provisioned");
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out;
 	}
 
 	if (unlikely(cmd->cdb[1] & 1)) {
-		TRACE_DBG("%s", "ANCHOR not supported");
-		scst_set_invalid_field_in_cdb(cmd, 1,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+		TRACE_DBG("ANCHOR not supported");
+		scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 		goto out;
 	}
 
-	if (pd == NULL)
+	if (!pd)
 		goto out;
 
 	/* Sanity check to avoid too long latencies */
@@ -3638,10 +3569,10 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 	for (i = 0; i < cnt; i++) {
 		blocks_to_unmap += pd[i].sdd_blocks;
 		if (blocks_to_unmap > virt_dev->unmap_max_lba_cnt) {
-			PRINT_WARNING("Too many UNMAP LBAs %u (max allowed %u, "
-				"dev %s)", blocks_to_unmap,
-				virt_dev->unmap_max_lba_cnt,
-				virt_dev->dev->virt_name);
+			PRINT_WARNING("Too many UNMAP LBAs %u (max allowed %u, dev %s)",
+				      blocks_to_unmap,
+				      virt_dev->unmap_max_lba_cnt,
+				      virt_dev->dev->virt_name);
 			scst_set_invalid_field_in_parm_list(cmd, 0, 0);
 			goto out;
 		}
@@ -3655,8 +3586,7 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 			goto out;
 		}
 
-		rc = vdisk_unmap_range(cmd, virt_dev, pd[i].sdd_lba,
-			pd[i].sdd_blocks);
+		rc = vdisk_unmap_range(cmd, virt_dev, pd[i].sdd_lba, pd[i].sdd_blocks);
 		if (rc != 0)
 			goto out;
 	}
@@ -3877,7 +3807,7 @@ static int vdisk_block_limits(uint8_t *buf, struct scst_cmd *cmd,
 
 	/* Max transfer len is min of sg limit and 8M */
 	max_transfer = min((long)cmd->tgt_dev->max_sg_cnt << PAGE_SHIFT,
-			   8*1024*1024l) / dev->block_size;
+			   8 * 1024 * 1024l) / dev->block_size;
 	put_unaligned_be32(max_transfer, &buf[8]);
 
 	put_unaligned_be32(min_t(int, max_transfer,
@@ -3915,8 +3845,9 @@ static int vdisk_bdev_char(uint8_t *buf, struct scst_cmd *cmd,
 	if (virt_dev->rotational) {
 		/* 15K RPM */
 		put_unaligned_be16(0x3A98, &buf[4]);
-	} else
+	} else {
 		put_unaligned_be16(1, &buf[4]);
+	}
 	return buf[3] + 4;
 }
 
@@ -3993,7 +3924,7 @@ static int vdisk_inq(uint8_t *buf, struct scst_cmd *cmd,
 	num += 2;
 
 	/* Physical transport */
-	if (cmd->tgtt->get_phys_transport_version != NULL) {
+	if (cmd->tgtt->get_phys_transport_version) {
 		uint16_t v = cmd->tgtt->get_phys_transport_version(cmd->tgt);
 
 		if (v != 0) {
@@ -4003,10 +3934,9 @@ static int vdisk_inq(uint8_t *buf, struct scst_cmd *cmd,
 	}
 
 	/* SCSI transport */
-	if (cmd->tgtt->get_scsi_transport_version != NULL) {
-		put_unaligned_be16(
-			cmd->tgtt->get_scsi_transport_version(cmd->tgt),
-			&buf[58 + num]);
+	if (cmd->tgtt->get_scsi_transport_version) {
+		put_unaligned_be16(cmd->tgtt->get_scsi_transport_version(cmd->tgt),
+				   &buf[58 + num]);
 		num += 2;
 	}
 
@@ -4048,7 +3978,7 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 	TRACE_ENTRY();
 
 	buf = kzalloc(INQ_BUF_SZ, cmd->cmd_gfp_mask);
-	if (buf == NULL) {
+	if (!buf) {
 		scst_set_busy(cmd);
 		goto out;
 	}
@@ -4059,15 +3989,13 @@ static enum compl_status_e vdisk_exec_inquiry(struct vdisk_cmd_params *p)
 		goto out_free;
 
 	if (cmd->cdb[1] & CMDDT) {
-		TRACE_DBG("%s", "INQUIRY: CMDDT is unsupported");
-		scst_set_invalid_field_in_cdb(cmd, 1,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 1);
+		TRACE_DBG("INQUIRY: CMDDT is unsupported");
+		scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID | 1);
 		goto out_put;
 	}
 
 	alua_state = scst_get_alua_state(cmd->dev, cmd->tgt);
-	if ((alua_state == SCST_TG_STATE_UNAVAILABLE) ||
-	    (alua_state == SCST_TG_STATE_OFFLINE))
+	if (alua_state == SCST_TG_STATE_UNAVAILABLE || alua_state == SCST_TG_STATE_OFFLINE)
 		buf[0] = SCSI_INQ_PQ_NOT_CON << 5 | dev->type;
 	else
 		buf[0] = virt_dev->dummy ? SCSI_INQ_PQ_NOT_CON << 5 | 0x1f :
@@ -4150,7 +4078,7 @@ static enum compl_status_e vdisk_exec_request_sense(struct vdisk_cmd_params *p)
 		TRACE_DBG("Format progress %d", v);
 
 		sl = scst_set_sense(b, sizeof(b), dev->d_sense,
-			SCST_LOAD_SENSE(scst_sense_format_in_progress));
+				    SCST_LOAD_SENSE(scst_sense_format_in_progress));
 
 		BUILD_BUG_ON(SCST_STANDARD_SENSE_LEN < 18);
 		if (dev->d_sense) {
@@ -4158,17 +4086,18 @@ static enum compl_status_e vdisk_exec_request_sense(struct vdisk_cmd_params *p)
 			int o = 8;
 			*p += 8;
 			b[o] = 2;
-			b[o+1] = 6;
-			b[o+4] = 0x80;
-			put_unaligned_be16(v, &b[o+5]);
+			b[o + 1] = 6;
+			b[o + 4] = 0x80;
+			put_unaligned_be16(v, &b[o + 5]);
 		} else {
 			b[15] = 0x80;
 			put_unaligned_be16(v, &b[16]);
 		}
 		TRACE_BUFF_FLAG(TRACE_DEBUG, "Format sense", b, sizeof(b));
-	} else
+	} else {
 		sl = scst_set_sense(b, sizeof(b), cmd->dev->d_sense,
-			SCST_LOAD_SENSE(scst_sense_no_sense));
+				    SCST_LOAD_SENSE(scst_sense_no_sense));
+	}
 
 	length = scst_get_buf_full_sense(cmd, &address);
 	TRACE_DBG("length %d", length);
@@ -4186,8 +4115,7 @@ out:
 	return CMD_SUCCEEDED;
 }
 
-static int vdisk_err_recov_pg(unsigned char *p, int pcontrol,
-			       struct scst_vdisk_dev *virt_dev)
+static int vdisk_err_recov_pg(unsigned char *p, int pcontrol, struct scst_vdisk_dev *virt_dev)
 {	/* Read-Write Error Recovery page for mode_sense */
 	const unsigned char err_recov_pg[] = {0x1, 0xa, 0xc0, 1, 0, 0, 0, 0,
 					      1, 0, 0xff, 0xff};
@@ -4198,8 +4126,7 @@ static int vdisk_err_recov_pg(unsigned char *p, int pcontrol,
 	return sizeof(err_recov_pg);
 }
 
-static int vdisk_disconnect_pg(unsigned char *p, int pcontrol,
-				struct scst_vdisk_dev *virt_dev)
+static int vdisk_disconnect_pg(unsigned char *p, int pcontrol, struct scst_vdisk_dev *virt_dev)
 {	/* Disconnect-Reconnect page for mode_sense */
 	const unsigned char disconnect_pg[] = {0x2, 0xe, 128, 128, 0, 10, 0, 0,
 					       0, 0, 0, 0, 0, 0, 0, 0};
@@ -4210,8 +4137,7 @@ static int vdisk_disconnect_pg(unsigned char *p, int pcontrol,
 	return sizeof(disconnect_pg);
 }
 
-static int vdisk_rigid_geo_pg(unsigned char *p, int pcontrol,
-	struct scst_vdisk_dev *virt_dev)
+static int vdisk_rigid_geo_pg(unsigned char *p, int pcontrol, struct scst_vdisk_dev *virt_dev)
 {
 	unsigned char geo_m_pg[] = {0x04, 0x16, 0, 0, 0, DEF_HEADS, 0, 0,
 				    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -4237,8 +4163,7 @@ static int vdisk_rigid_geo_pg(unsigned char *p, int pcontrol,
 	return sizeof(geo_m_pg);
 }
 
-static int vdisk_format_pg(unsigned char *p, int pcontrol,
-			    struct scst_vdisk_dev *virt_dev)
+static int vdisk_format_pg(unsigned char *p, int pcontrol, struct scst_vdisk_dev *virt_dev)
 {       /* Format device page for mode_sense */
 	const unsigned char format_pg[] = {0x3, 0x16, 0, 0, 0, 0, 0, 0,
 					   0, 0, 0, 0, 0, 0, 0, 0,
@@ -4252,8 +4177,7 @@ static int vdisk_format_pg(unsigned char *p, int pcontrol,
 	return sizeof(format_pg);
 }
 
-static int vdisk_caching_pg(unsigned char *p, int pcontrol,
-			     struct scst_vdisk_dev *virt_dev)
+static int vdisk_caching_pg(unsigned char *p, int pcontrol, struct scst_vdisk_dev *virt_dev)
 {
 	/* Caching page for mode_sense */
 	static const unsigned char caching_pg[] = {
@@ -4290,8 +4214,7 @@ static int vdisk_caching_pg(unsigned char *p, int pcontrol,
 	return sizeof(caching_pg);
 }
 
-static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
-			    struct scst_vdisk_dev *virt_dev)
+static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol, struct scst_vdisk_dev *virt_dev)
 {	/* Control mode page for mode_sense */
 	unsigned char ctrl_m_pg[] = {0xa, 0xa, 0, 0, 0, 0, 0, 0,
 					   0, 0, 0x2, 0x4b};
@@ -4360,8 +4283,7 @@ static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol,
 	return sizeof(ctrl_m_pg);
 }
 
-static int vdisk_iec_m_pg(unsigned char *p, int pcontrol,
-			   struct scst_vdisk_dev *virt_dev)
+static int vdisk_iec_m_pg(unsigned char *p, int pcontrol, struct scst_vdisk_dev *virt_dev)
 {	/* Informational Exceptions control mode page for mode_sense */
 	const unsigned char iec_m_pg[] = {0x1c, 0xa, 0x08, 0, 0, 0, 0, 0,
 					  0, 0, 0x0, 0x0};
@@ -4389,7 +4311,7 @@ static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p)
 	TRACE_ENTRY();
 
 	buf = kzalloc(MSENSE_BUF_SZ, cmd->cmd_gfp_mask);
-	if (buf == NULL) {
+	if (!buf) {
 		scst_set_busy(cmd);
 		goto out;
 	}
@@ -4413,10 +4335,9 @@ static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p)
 	if (unlikely(length <= 0))
 		goto out_free;
 
-	if (!vdev_saved_mode_pages_enabled && (pcontrol == 0x3)) {
-		TRACE_DBG("%s", "MODE SENSE: Saving values not supported");
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_saving_params_unsup));
+	if (!vdev_saved_mode_pages_enabled && pcontrol == 0x3) {
+		TRACE_DBG("MODE SENSE: Saving values not supported");
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_saving_params_unsup));
 		goto out_put;
 	}
 
@@ -4432,7 +4353,7 @@ static enum compl_status_e vdisk_exec_mode_sense(struct vdisk_cmd_params *p)
 
 	if (subpcode != 0) {
 		/* TODO: Control Extension page */
-		TRACE_DBG("%s", "MODE SENSE: Only subpage 0 is supported");
+		TRACE_DBG("MODE SENSE: Only subpage 0 is supported");
 		scst_set_invalid_field_in_cdb(cmd, 3, 0);
 		goto out_put;
 	}
@@ -4535,7 +4456,7 @@ static int vdisk_set_wt(struct scst_vdisk_dev *virt_dev, int wt, bool read_only)
 
 	TRACE_ENTRY();
 
-	if ((virt_dev->wt_flag == wt) || virt_dev->nullio || virt_dev->nv_cache)
+	if (virt_dev->wt_flag == wt || virt_dev->nullio || virt_dev->nv_cache)
 		goto out;
 
 	spin_lock(&virt_dev->flags_lock);
@@ -4563,9 +4484,8 @@ out_err:
 	goto out;
 }
 
-static void vdisk_ctrl_m_pg_select(unsigned char *p,
-	struct scst_vdisk_dev *virt_dev, struct scst_cmd *cmd, bool save,
-	int param_offset)
+static void vdisk_ctrl_m_pg_select(unsigned char *p, struct scst_vdisk_dev *virt_dev,
+				   struct scst_cmd *cmd, bool save, int param_offset)
 {
 	struct scst_device *dev = virt_dev->dev;
 	int old_swp = dev->swp, old_tas = dev->tas, old_dsense = dev->d_sense;
@@ -4576,10 +4496,8 @@ static void vdisk_ctrl_m_pg_select(unsigned char *p,
 	TRACE_ENTRY();
 
 	if (save && !vdev_saved_mode_pages_enabled) {
-		TRACE(TRACE_MINOR|TRACE_SCSI, "MODE SELECT: saved control page "
-			"not supported");
-		scst_set_invalid_field_in_cdb(cmd, 2,
-				SCST_INVAL_FIELD_BIT_OFFS_VALID | 1);
+		TRACE(TRACE_MINOR | TRACE_SCSI, "MODE SELECT: saved control page not supported");
+		scst_set_invalid_field_in_cdb(cmd, 2, SCST_INVAL_FIELD_BIT_OFFS_VALID | 1);
 		goto out;
 	}
 
@@ -4593,83 +4511,74 @@ static void vdisk_ctrl_m_pg_select(unsigned char *p,
 	/* ToDo: check validity of the new value */
 #else
 	if (dev->tst != ((p[2] >> 5) & 7)) {
-		TRACE(TRACE_MINOR|TRACE_SCSI, "%s", "MODE SELECT: Changing of "
-			"TST not supported");
+		TRACE(TRACE_MINOR | TRACE_SCSI, "MODE SELECT: Changing of TST not supported");
 		scst_set_invalid_field_in_parm_list(cmd, param_offset + 2,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 5);
+						    SCST_INVAL_FIELD_BIT_OFFS_VALID | 5);
 		goto out;
 	}
 #endif
 
 	queue_alg = p[3] >> 4;
-	if ((queue_alg != SCST_QUEUE_ALG_0_RESTRICTED_REORDER) &&
-	    (queue_alg != SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER)) {
-		PRINT_WARNING("Attempt to set invalid Control mode page QUEUE "
-			"ALGORITHM MODIFIER value %d (initiator %s, dev %s)",
-			queue_alg, cmd->sess->initiator_name, dev->virt_name);
+	if (queue_alg != SCST_QUEUE_ALG_0_RESTRICTED_REORDER &&
+	    queue_alg != SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER) {
+		PRINT_WARNING("Attempt to set invalid Control mode page QUEUE ALGORITHM MODIFIER value %d (initiator %s, dev %s)",
+			      queue_alg, cmd->sess->initiator_name, dev->virt_name);
 		scst_set_invalid_field_in_parm_list(cmd, param_offset + 3,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
+						    SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
 		goto out;
 	}
 
 	swp = (p[4] & 0x8) >> 3;
 	if (swp > 1) {
-		PRINT_WARNING("Attempt to set invalid Control mode page SWP "
-			"value %d (initiator %s, dev %s)", swp,
-			cmd->sess->initiator_name, dev->virt_name);
+		PRINT_WARNING("Attempt to set invalid Control mode page SWP value %d (initiator %s, dev %s)",
+			      swp, cmd->sess->initiator_name, dev->virt_name);
 		scst_set_invalid_field_in_parm_list(cmd, param_offset + 4,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 3);
+						    SCST_INVAL_FIELD_BIT_OFFS_VALID | 3);
 		goto out;
 	}
 
 	tas = (p[5] & 0x40) >> 6;
 	if (tas > 1) {
-		PRINT_WARNING("Attempt to set invalid Control mode page TAS "
-			"value %d (initiator %s, dev %s)", tas,
-			cmd->sess->initiator_name, dev->virt_name);
+		PRINT_WARNING("Attempt to set invalid Control mode page TAS value %d (initiator %s, dev %s)",
+			      tas, cmd->sess->initiator_name, dev->virt_name);
 		scst_set_invalid_field_in_parm_list(cmd, param_offset + 5,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 6);
+						    SCST_INVAL_FIELD_BIT_OFFS_VALID | 6);
 		goto out;
 	}
 
 	tmf_only = (p[2] & 0x10) >> 4;
 	if (tmf_only > 1) {
-		PRINT_WARNING("Attempt to set invalid Control mode page "
-			"TMF_ONLY value %d (initiator %s, dev %s)", tmf_only,
-			cmd->sess->initiator_name, dev->virt_name);
+		PRINT_WARNING("Attempt to set invalid Control mode page TMF_ONLY value %d (initiator %s, dev %s)",
+			      tmf_only, cmd->sess->initiator_name, dev->virt_name);
 		scst_set_invalid_field_in_parm_list(cmd, param_offset + 2,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
+						    SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
 		goto out;
 	}
 
 	dpicz = (p[2] & 0x8) >> 3;
 	if (dpicz > 1) {
-		PRINT_WARNING("Attempt to set invalid Control mode page "
-			"dpicz value %d (initiator %s, dev %s)", dpicz,
-			cmd->sess->initiator_name, dev->virt_name);
+		PRINT_WARNING("Attempt to set invalid Control mode page dpicz value %d (initiator %s, dev %s)",
+			      dpicz, cmd->sess->initiator_name, dev->virt_name);
 		scst_set_invalid_field_in_parm_list(cmd, param_offset + 2,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 3);
+						    SCST_INVAL_FIELD_BIT_OFFS_VALID | 3);
 		goto out;
 	}
 
 	qerr = (p[3] & 0x6) >> 1;
-	if ((qerr == SCST_QERR_2_RESERVED) ||
-	    (qerr > SCST_QERR_3_ABORT_THIS_NEXUS_ONLY)) {
-		PRINT_WARNING("Attempt to set invalid Control mode page QErr "
-			"value %d (initiator %s, dev %s)", qerr,
-			cmd->sess->initiator_name, dev->virt_name);
+	if (qerr == SCST_QERR_2_RESERVED || qerr > SCST_QERR_3_ABORT_THIS_NEXUS_ONLY) {
+		PRINT_WARNING("Attempt to set invalid Control mode page QErr value %d (initiator %s, dev %s)",
+			      qerr, cmd->sess->initiator_name, dev->virt_name);
 		scst_set_invalid_field_in_parm_list(cmd, param_offset + 3,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 1);
+						    SCST_INVAL_FIELD_BIT_OFFS_VALID | 1);
 		goto out;
 	}
 
 	d_sense = (p[2] & 0x4) >> 2;
 	if (d_sense > 1) {
-		PRINT_WARNING("Attempt to set invalid Control mode page D_SENSE "
-			"value %d (initiator %s, dev %s)", d_sense,
-			cmd->sess->initiator_name, dev->virt_name);
+		PRINT_WARNING("Attempt to set invalid Control mode page D_SENSE value %d (initiator %s, dev %s)",
+			      d_sense, cmd->sess->initiator_name, dev->virt_name);
 		scst_set_invalid_field_in_parm_list(cmd, param_offset + 2,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 2);
+						    SCST_INVAL_FIELD_BIT_OFFS_VALID | 2);
 		goto out;
 	}
 
@@ -4681,10 +4590,10 @@ static void vdisk_ctrl_m_pg_select(unsigned char *p,
 	dev->qerr = qerr;
 	dev->d_sense = d_sense;
 
-	if ((dev->swp == old_swp) && (dev->tas == old_tas) &&
-	    (dev->d_sense == old_dsense) && (dev->queue_alg == old_queue_alg) &&
-	    (dev->qerr == old_qerr) && (dev->tmf_only == old_tmf_only) &&
-	    (dev->dpicz == old_dpicz))
+	if (dev->swp == old_swp && dev->tas == old_tas &&
+	    dev->d_sense == old_dsense && dev->queue_alg == old_queue_alg &&
+	    dev->qerr == old_qerr && dev->tmf_only == old_tmf_only &&
+	    dev->dpicz == old_dpicz)
 		goto out;
 
 	if (!save)
@@ -4713,32 +4622,26 @@ static void vdisk_ctrl_m_pg_select(unsigned char *p,
 	dev->dpicz_saved = dev->dpicz;
 
 out_ok:
-	PRINT_INFO("Device %s: new control mode page parameters: SWP %x "
-		"(was %x), TAS %x (was %x), TMF_ONLY %d (was %x), QErr %x "
-		"(was %x), D_SENSE %d (was %d), QUEUE ALG %d (was %d), "
-		"DPICZ %d (was %d)", virt_dev->name, dev->swp, old_swp,
-		dev->tas, old_tas, dev->tmf_only, old_tmf_only, dev->qerr,
-		old_qerr, dev->d_sense, old_dsense, dev->queue_alg,
-		old_queue_alg, dev->dpicz, old_dpicz);
+	PRINT_INFO("Device %s: new control mode page parameters: SWP %x (was %x), TAS %x (was %x), TMF_ONLY %d (was %x), QErr %x (was %x), D_SENSE %d (was %d), QUEUE ALG %d (was %d), DPICZ %d (was %d)",
+		   virt_dev->name, dev->swp, old_swp,
+		   dev->tas, old_tas, dev->tmf_only, old_tmf_only, dev->qerr,
+		   old_qerr, dev->d_sense, old_dsense, dev->queue_alg,
+		   old_queue_alg, dev->dpicz, old_dpicz);
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
-static void vdisk_caching_m_pg_select(unsigned char *p,
-	struct scst_vdisk_dev *virt_dev, struct scst_cmd *cmd, bool save,
-	bool read_only)
+static void vdisk_caching_m_pg_select(unsigned char *p, struct scst_vdisk_dev *virt_dev,
+				      struct scst_cmd *cmd, bool save, bool read_only)
 {
 	int old_wt = virt_dev->wt_flag, new_wt, rc;
 
 	TRACE_ENTRY();
 
 	if (save && (!vdev_saved_mode_pages_enabled || virt_dev->nv_cache)) {
-		TRACE(TRACE_MINOR|TRACE_SCSI, "MODE SELECT: saved cache page "
-			"not supported");
-		scst_set_invalid_field_in_cdb(cmd, 1,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+		TRACE(TRACE_MINOR | TRACE_SCSI, "MODE SELECT: saved cache page not supported");
+		scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 		goto out;
 	}
 
@@ -4766,12 +4669,11 @@ static void vdisk_caching_m_pg_select(unsigned char *p,
 	virt_dev->wt_flag_saved = virt_dev->wt_flag;
 
 out_ok:
-	PRINT_INFO("Device %s: new wt_flag: %x (was %x)", virt_dev->name,
-		virt_dev->wt_flag, old_wt);
+	PRINT_INFO("Device %s: new wt_flag: %x (was %x)",
+		   virt_dev->name, virt_dev->wt_flag, old_wt);
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
@@ -4787,8 +4689,7 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 	virt_dev = cmd->dev->dh_priv;
 	if (cmd->dev->cluster_mode) {
 		PRINT_ERROR("MODE SELECT: not supported in cluster mode\n");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		goto out;
 	}
 
@@ -4800,8 +4701,8 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 		goto out;
 
 	if (!(cmd->cdb[1] & PF)) {
-		TRACE(TRACE_MINOR|TRACE_SCSI, "MODE SELECT: Unsupported "
-			"PF bit zero (cdb[1]=%x)", cmd->cdb[1]);
+		TRACE(TRACE_MINOR | TRACE_SCSI, "MODE SELECT: Unsupported PF bit zero (cdb[1]=%x)",
+		      cmd->cdb[1]);
 		scst_set_invalid_field_in_cdb(cmd, 1, 0);
 		goto out_put;
 	}
@@ -4814,47 +4715,45 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 		offset = 8;
 	}
 
-	if (bdl == 8)
+	if (bdl == 8) {
 		offset += 8;
-	else if (bdl != 0) {
-		PRINT_ERROR("%s", "MODE SELECT: Wrong parameters list length");
-		scst_set_invalid_field_in_parm_list(cmd, offset-1, 0);
+	} else if (bdl != 0) {
+		PRINT_ERROR("MODE SELECT: Wrong parameters list length");
+		scst_set_invalid_field_in_parm_list(cmd, offset - 1, 0);
 		goto out_put;
 	}
 
 	while (length > offset + 2) {
 		if (address[offset] & PS) {
-			PRINT_ERROR("%s", "MODE SELECT: Illegal PS bit");
+			PRINT_ERROR("MODE SELECT: Illegal PS bit");
 			scst_set_invalid_field_in_parm_list(cmd, offset,
-				SCST_INVAL_FIELD_BIT_OFFS_VALID | 7);
+							    SCST_INVAL_FIELD_BIT_OFFS_VALID | 7);
 			goto out_put;
 		}
-		if (((address[offset] & 0x3f) == 0x8) && (type != TYPE_ROM)) {
+		if (((address[offset] & 0x3f) == 0x8) && type != TYPE_ROM) {
 			/* Caching page */
 			if (address[offset + 1] != 18) {
-				PRINT_ERROR("%s", "MODE SELECT: Invalid "
-					"caching page request");
-				scst_set_invalid_field_in_parm_list(cmd, offset+1, 0);
+				PRINT_ERROR("MODE SELECT: Invalid caching page request");
+				scst_set_invalid_field_in_parm_list(cmd, offset + 1, 0);
 				goto out_put;
 			}
-			vdisk_caching_m_pg_select(&address[offset], virt_dev,
-				cmd, cmd->cdb[1] & SP, cmd->tgt_dev->tgt_dev_rd_only);
+			vdisk_caching_m_pg_select(&address[offset], virt_dev, cmd,
+						  cmd->cdb[1] & SP, cmd->tgt_dev->tgt_dev_rd_only);
 			break;
 		} else if ((address[offset] & 0x3f) == 0xA) {
 			/* Control page */
 			if (address[offset + 1] != 0xA) {
-				PRINT_ERROR("%s", "MODE SELECT: Invalid "
-					"control page request");
-				scst_set_invalid_field_in_parm_list(cmd, offset+1, 0);
+				PRINT_ERROR("MODE SELECT: Invalid control page request");
+				scst_set_invalid_field_in_parm_list(cmd, offset + 1, 0);
 				goto out_put;
 			}
 			vdisk_ctrl_m_pg_select(&address[offset], virt_dev, cmd,
-				cmd->cdb[1] & SP, offset);
+					       cmd->cdb[1] & SP, offset);
 		} else {
 			TRACE(TRACE_MINOR, "MODE SELECT: Invalid request %x",
-				address[offset] & 0x3f);
+			      address[offset] & 0x3f);
 			scst_set_invalid_field_in_parm_list(cmd, offset,
-				SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+							    SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 			goto out_put;
 		}
 		offset += address[offset + 1];
@@ -4909,7 +4808,7 @@ static enum compl_status_e vdisk_exec_read_capacity(struct vdisk_cmd_params *p)
 
 	memset(buffer, 0, sizeof(buffer));
 
-	/* Last block on the virt_dev is (nblocks-1) */
+	/* Last block on the virt_dev is (nblocks - 1) */
 #if 0 /* we don't need this workaround anymore */
 	/*
 	 * If we are thinly provisioned, we must ensure that the initiator
@@ -4995,6 +4894,7 @@ static enum compl_status_e vdisk_exec_read_capacity16(struct vdisk_cmd_params *p
 		struct request_queue *q = virt_dev->bdev_desc.bdev ?
 			bdev_get_queue(virt_dev->bdev_desc.bdev) : NULL;
 		uint32_t physical_blocksize = q ? queue_physical_block_size(q) : 4096;
+
 		buffer[13] = max(ilog2(physical_blocksize) - ilog2(blocksize), 0);
 	}
 
@@ -5025,8 +4925,7 @@ out:
 static enum compl_status_e vdisk_exec_get_lba_status(struct vdisk_cmd_params *p)
 {
 	/* Changing it don't forget to add it to vdisk_opcode_descriptors! */
-	scst_set_invalid_field_in_cdb(p->cmd, 1,
-			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+	scst_set_invalid_field_in_cdb(p->cmd, 1, 0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
 	return CMD_SUCCEEDED;
 }
 
@@ -5039,8 +4938,7 @@ static enum compl_status_e vdisk_exec_sai_16(struct vdisk_cmd_params *p)
 	case SAI_GET_LBA_STATUS:
 		return vdisk_exec_get_lba_status(p);
 	}
-	scst_set_invalid_field_in_cdb(p->cmd, 1,
-			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+	scst_set_invalid_field_in_cdb(p->cmd, 1, 0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
 	return CMD_SUCCEEDED;
 }
 
@@ -5064,29 +4962,27 @@ static enum compl_status_e vdisk_exec_read_toc(struct vdisk_cmd_params *p)
 	uint8_t *address;
 	struct scst_vdisk_dev *virt_dev;
 	uint32_t nblocks;
-	uint8_t buffer[4+8+8] = { 0x00, 0x0a, 0x01, 0x01, 0x00, 0x14,
-				  0x01, 0x00, 0x00, 0x00, 0x00, 0x00 };
+	uint8_t buffer[4 + 8 + 8] = { 0x00, 0x0a, 0x01, 0x01, 0x00, 0x14,
+				      0x01, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
 	TRACE_ENTRY();
 
 	if (cmd->dev->type != TYPE_ROM) {
-		PRINT_ERROR("%s", "READ TOC for non-CDROM device");
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		PRINT_ERROR("READ TOC for non-CDROM device");
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out;
 	}
 
 	if (cmd->cdb[2] & 0x0e/*Format*/) {
-		PRINT_ERROR("%s", "READ TOC: invalid requested data format");
-		scst_set_invalid_field_in_cdb(cmd, 2,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 5);
+		PRINT_ERROR("READ TOC: invalid requested data format");
+		scst_set_invalid_field_in_cdb(cmd, 2, SCST_INVAL_FIELD_BIT_OFFS_VALID | 5);
 		goto out;
 	}
 
 	if ((cmd->cdb[6] != 0 && (cmd->cdb[2] & 0x01)) ||
 	    (cmd->cdb[6] > 1 && cmd->cdb[6] != 0xAA)) {
 		PRINT_ERROR("READ TOC: invalid requested track number %x",
-			cmd->cdb[6]);
+			    cmd->cdb[6]);
 		scst_set_invalid_field_in_cdb(cmd, 6, 0);
 		goto out;
 	}
@@ -5110,16 +5006,16 @@ static enum compl_status_e vdisk_exec_read_toc(struct vdisk_cmd_params *p)
 		 * ADDR    0x10 - Q Sub-channel encodes current position data
 		 * CONTROL 0x04 - Data track, recoreded uninterrupted
 		 */
-		buffer[off+1] = 0x14;
+		buffer[off + 1] = 0x14;
 		/* Track Number */
-		buffer[off+2] = 0x01;
+		buffer[off + 2] = 0x01;
 		off += 8;
 	}
 	if (!(cmd->cdb[2] & 0x01)) {
 		/* Lead-out area TOC Track Descriptor */
-		buffer[off+1] = 0x14;
+		buffer[off + 1] = 0x14;
 		/* Track Number */
-		buffer[off+2] = 0xAA;
+		buffer[off + 2] = 0xAA;
 		/* Track Start Address */
 		put_unaligned_be32(nblocks, &buffer[off + 4]);
 		off += 8;
@@ -5170,7 +5066,7 @@ static struct kvec *vdisk_alloc_sync_kvec(struct scst_cmd *cmd,
 			p->sync.small_kvec :
 			kmalloc_array(kvec_segs, sizeof(*p->sync.kvec),
 				      cmd->cmd_gfp_mask);
-		if (p->sync.kvec == NULL) {
+		if (!p->sync.kvec) {
 			PRINT_ERROR("Unable to allocate kvec (%d)", kvec_segs);
 			goto out;
 		}
@@ -5244,9 +5140,9 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 		goto out;
 
 	kvec = p->sync.kvec;
-	if (kvec == NULL) {
+	if (!kvec) {
 		kvec = vdisk_alloc_sync_kvec(cmd, p);
-		if (kvec == NULL) {
+		if (!kvec) {
 			unsigned long flags;
 
 			/* To protect sense setting against blockio data reads */
@@ -5286,24 +5182,22 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 			finished = true;
 
 		TRACE_DBG("Reading DIF kvec_segs %d, full_len %zd, loff %lld",
-			kvec_segs, full_len, (long long)loff);
+			  kvec_segs, full_len, (long long)loff);
 
 		/* READ */
 		err = scst_readv(fd, kvec, kvec_segs, &loff);
-		if ((err < 0) || (err < full_len)) {
+		if (err < 0 || err < full_len) {
 			unsigned long flags;
 
-			PRINT_ERROR("DIF readv() returned %lld from %zd "
-				"(offs %lld, dev %s)", (long long)err,
-				full_len, (long long)loff, cmd->dev->virt_name);
+			PRINT_ERROR("DIF readv() returned %lld from %zd (offs %lld, dev %s)",
+				    (long long)err, full_len, (long long)loff,
+				    cmd->dev->virt_name);
 			/* To protect sense setting with blockio */
 			spin_lock_irqsave(&vdev_err_lock, flags);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
-			else {
-				scst_set_cmd_error(cmd,
-				    SCST_LOAD_SENSE(scst_sense_read_error));
-			}
+			else
+				scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_read_error));
 			spin_unlock_irqrestore(&vdev_err_lock, flags);
 			res = err;
 			goto out_put_dif_buf;
@@ -5358,9 +5252,9 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 		goto out;
 
 	kvec = p->sync.kvec;
-	if (kvec == NULL) {
+	if (!kvec) {
 		kvec = vdisk_alloc_sync_kvec(cmd, p);
-		if (kvec == NULL) {
+		if (!kvec) {
 			unsigned long flags;
 
 			/* To protect sense setting against blockio data writes */
@@ -5415,10 +5309,8 @@ restart:
 			spin_lock_irqsave(&vdev_err_lock, flags);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
-			else {
-				scst_set_cmd_error(cmd,
-				    SCST_LOAD_SENSE(scst_sense_write_error));
-			}
+			else
+				scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
 			spin_unlock_irqrestore(&vdev_err_lock, flags);
 			res = err;
 			goto out_put_dif_buf;
@@ -5429,13 +5321,12 @@ restart:
 			 */
 			int e = ekvec_segs;
 
-			TRACE_MGMT_DBG("DIF write() returned %d from %zd "
-				"(kvec_segs=%d)", (int)err, full_len,
-				ekvec_segs);
-			if (err == 0) {
-				PRINT_INFO("Suspicious: DIF write() returned 0 from "
-					"%zd (kvec_segs=%d)", full_len, ekvec_segs);
-			}
+			TRACE_MGMT_DBG("DIF write() returned %d from %zd (kvec_segs=%d)",
+				       (int)err, full_len, ekvec_segs);
+			if (err == 0)
+				PRINT_INFO("Suspicious: DIF write() returned 0 from %zd (kvec_segs=%d)",
+					   full_len, ekvec_segs);
+
 			full_len -= err;
 			for (i = 0; i < e; i++) {
 				if ((long long)ekvec->iov_len < err) {
@@ -5538,7 +5429,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 		goto out;
 
 	kvec = vdisk_alloc_sync_kvec(cmd, p);
-	if (kvec == NULL)
+	if (!kvec)
 		goto out_nomem;
 
 	max_kvec_segs = p->sync.kvec_segs;
@@ -5546,8 +5437,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length < 0)) {
 		PRINT_ERROR("scst_get_buf_first() failed: %zd", length);
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_internal_failure));
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_internal_failure));
 		goto out;
 	}
 
@@ -5571,8 +5461,7 @@ static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 				break;
 		} else if (unlikely(length < 0)) {
 			PRINT_ERROR("scst_get_buf_next() failed: %zd", length);
-			scst_set_cmd_error(cmd,
-			    SCST_LOAD_SENSE(scst_sense_internal_failure));
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_internal_failure));
 			goto out_put_buf;
 		}
 
@@ -5587,15 +5476,15 @@ restart:
 			PRINT_ERROR("write() returned %lld from %zd",
 				    (unsigned long long)err,
 				    full_len);
-			if (err == -EAGAIN)
+			if (err == -EAGAIN) {
 				scst_set_busy(cmd);
-			else if (err == -ENOSPC) {
+			} else if (err == -ENOSPC) {
 				WARN_ON(!virt_dev->thin_provisioned);
 				scst_set_cmd_error(cmd,
-					SCST_LOAD_SENSE(scst_space_allocation_failed_write_protect));
-			} else
-				scst_set_cmd_error(cmd,
-				    SCST_LOAD_SENSE(scst_sense_write_error));
+						   SCST_LOAD_SENSE(scst_space_allocation_failed_write_protect));
+			} else {
+				scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
+			}
 			goto out_put_buf;
 		} else if (err < full_len) {
 			/*
@@ -5604,13 +5493,11 @@ restart:
 			 */
 			int e = ekvec_segs;
 
-			TRACE_MGMT_DBG("write() returned %d from %zd "
-				"(kvec_segs=%d)", (int)err, full_len,
-				ekvec_segs);
-			if (err == 0) {
-				PRINT_INFO("Suspicious: write() returned 0 from "
-					"%zd (kvec_segs=%d)", full_len, ekvec_segs);
-			}
+			TRACE_MGMT_DBG("write() returned %d from %zd (kvec_segs=%d)",
+				       (int)err, full_len, ekvec_segs);
+			if (err == 0)
+				PRINT_INFO("Suspicious: write() returned 0 from %zd (kvec_segs=%d)",
+					   full_len, ekvec_segs);
 			full_len -= err;
 			for (i = 0; i < e; i++) {
 				if ((long long)ekvec->iov_len < err) {
@@ -5726,8 +5613,8 @@ static void blockio_endio(struct bio *bio)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
 	if (unlikely(!bio_flagged(bio, BIO_UPTODATE))) {
 		if (error == 0) {
-			PRINT_ERROR("Not up to date bio with error 0 for "
-				"cmd %p, returning -EIO", blockio_work->cmd);
+			PRINT_ERROR("Not up to date bio with error 0 for cmd %p, returning -EIO",
+				    blockio_work->cmd);
 			error = -EIO;
 		}
 	}
@@ -5736,9 +5623,8 @@ static void blockio_endio(struct bio *bio)
 	if (unlikely(error != 0)) {
 		unsigned long flags;
 
-		PRINT_ERROR_RATELIMITED(
-			"BLOCKIO for cmd %p finished with error %d",
-			blockio_work->cmd, error);
+		PRINT_ERROR_RATELIMITED("BLOCKIO for cmd %p finished with error %d",
+					blockio_work->cmd, error);
 
 		/*
 		 * To protect from several bios finishing simultaneously +
@@ -5758,13 +5644,15 @@ static void blockio_endio(struct bio *bio)
 
 				WARN_ON(!virt_dev->thin_provisioned);
 				scst_set_cmd_error(blockio_work->cmd,
-					SCST_LOAD_SENSE(scst_space_allocation_failed_write_protect));
-			} else
+						   SCST_LOAD_SENSE(scst_space_allocation_failed_write_protect));
+			} else {
 				scst_set_cmd_error(blockio_work->cmd,
-					SCST_LOAD_SENSE(scst_sense_write_error));
-		} else
+						   SCST_LOAD_SENSE(scst_sense_write_error));
+			}
+		} else {
 			scst_set_cmd_error(blockio_work->cmd,
-				SCST_LOAD_SENSE(scst_sense_read_error));
+					   SCST_LOAD_SENSE(scst_sense_read_error));
+		}
 
 		spin_unlock_irqrestore(&vdev_err_lock, flags);
 	}
@@ -5772,7 +5660,6 @@ static void blockio_endio(struct bio *bio)
 	blockio_check_finish(blockio_work);
 
 	bio_put(bio);
-	return;
 }
 
 static void vdisk_bio_set_failfast(struct bio *bio)
@@ -5812,9 +5699,8 @@ defined(CONFIG_SUSE_KERNEL) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0)
 }
 
 #if defined(CONFIG_BLK_DEV_INTEGRITY)
-static void vdisk_blk_add_dif(struct bio *bio, gfp_t gfp_mask,
-	const struct scst_device *dev, struct scatterlist **pdsg,
-	int *pdsg_offs, int *pdsg_len, bool last)
+static void vdisk_blk_add_dif(struct bio *bio, gfp_t gfp_mask, const struct scst_device *dev,
+			      struct scatterlist **pdsg, int *pdsg_offs, int *pdsg_len, bool last)
 {
 	int block_shift = dev->block_shift;
 	struct scatterlist *orig_dsg = *pdsg;
@@ -5827,8 +5713,8 @@ static void vdisk_blk_add_dif(struct bio *bio, gfp_t gfp_mask,
 
 	tags_len = ((bio_sectors(bio) << 9) >> block_shift) << SCST_DIF_TAG_SHIFT;
 
-	TRACE_DBG("bio %p, tags_len %d, pdsg %p, pdsg_offs %d, pdsg_len %d, "
-		"last %d", bio, tags_len, *pdsg, *pdsg_offs, *pdsg_len, last);
+	TRACE_DBG("bio %p, tags_len %d, pdsg %p, pdsg_offs %d, pdsg_len %d, last %d",
+		  bio, tags_len, *pdsg, *pdsg_offs, *pdsg_len, last);
 
 	pages = 0;
 	left = tags_len;
@@ -5845,7 +5731,7 @@ static void vdisk_blk_add_dif(struct bio *bio, gfp_t gfp_mask,
 				*pdsg_offs = sg->offset + left;
 				*pdsg_len = sg->length - left;
 				TRACE_DBG("left %d, pdsg %p, pdsg_offs %d, pdsg_len %d",
-					left, *pdsg, *pdsg_offs, *pdsg_len);
+					  left, *pdsg, *pdsg_offs, *pdsg_len);
 			}
 			break;
 		}
@@ -5855,8 +5741,8 @@ static void vdisk_blk_add_dif(struct bio *bio, gfp_t gfp_mask,
 
 	bip = bio_integrity_alloc(bio, gfp_mask, pages);
 	if (IS_ERR_OR_NULL(bip)) {
-		PRINT_WARNING("Allocation of %d pages for DIF tags "
-			"failed! (dev %s)", pages, dev->virt_name);
+		PRINT_WARNING("Allocation of %d pages for DIF tags failed! (dev %s)",
+			      pages, dev->virt_name);
 		goto out; /* proceed without integrity */
 	}
 
@@ -5872,20 +5758,20 @@ static void vdisk_blk_add_dif(struct bio *bio, gfp_t gfp_mask,
 	sg = orig_dsg;
 	while (1) {
 		TRACE_DBG("page %p (buf %p), sg_len %d, sg_offs %d",
-			sg_page(sg), page_address(sg_page(sg)),
-			sg_len, sg_offs);
+			  sg_page(sg), page_address(sg_page(sg)),
+			  sg_len, sg_offs);
 
 		rc = bio_integrity_add_page(bio, sg_page(sg), sg_len, sg_offs);
 		if (rc != sg_len) {
-			PRINT_WARNING("Can not add DIF tags page! "
-				"(dev %s)", dev->virt_name);
+			PRINT_WARNING("Can not add DIF tags page! (dev %s)",
+				      dev->virt_name);
 			/* bio_integrity_free() will be called as part of bio_free() */
 			goto out; /* proceed without integrity */
 		}
 
 		if (left < sg_len) {
 			TRACE_DBG("left %d, sg_len %d, sg_offs %d",
-				left, sg_len, sg_offs);
+				  left, sg_len, sg_offs);
 			break;
 		}
 
@@ -5904,12 +5790,10 @@ static void vdisk_blk_add_dif(struct bio *bio, gfp_t gfp_mask,
 
 out:
 	TRACE_EXIT();
-	return;
 }
 #else /* defined(CONFIG_BLK_DEV_INTEGRITY) */
-static void vdisk_blk_add_dif(struct bio *bio, gfp_t gfp_mask,
-	const struct scst_device *dev, struct scatterlist **pdsg,
-	int *pdsg_offs, int *pdsg_len, bool last)
+static void vdisk_blk_add_dif(struct bio *bio, gfp_t gfp_mask, const struct scst_device *dev,
+			      struct scatterlist **pdsg, int *pdsg_offs, int *pdsg_len, bool last)
 {
 	BUG();
 }
@@ -5950,7 +5834,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 
 	/* Allocate and initialize blockio_work struct */
 	blockio_work = kmem_cache_alloc(blockio_work_cachep, gfp_mask);
-	if (blockio_work == NULL) {
+	if (!blockio_work) {
 		scst_set_busy(cmd);
 		goto finish_cmd;
 	}
@@ -6011,9 +5895,8 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 				bio = bio_alloc_bioset(/*bdev=*/NULL, max_nr_vecs, /*opf=*/0,
 						       gfp_mask, bs);
 				if (!bio) {
-					PRINT_ERROR("Failed to create bio "
-						"for data segment %d (cmd %p)",
-						cmd->get_sg_buf_entry_num, cmd);
+					PRINT_ERROR("Failed to create bio for data segment %d (cmd %p)",
+						    cmd->get_sg_buf_entry_num, cmd);
 					scst_set_busy(cmd);
 					goto free_bio;
 				}
@@ -6069,8 +5952,8 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 			if (rc < bytes) {
 				WARN_ON(rc != 0);
 				if (dif)
-					vdisk_blk_add_dif(bio, gfp_mask, dev, &dsg,
-						&dsg_offs, &dsg_len, false);
+					vdisk_blk_add_dif(bio, gfp_mask, dev, &dsg, &dsg_offs,
+							  &dsg_len, false);
 				need_new_bio = 1;
 				lba_start0 += thislen >> block_shift;
 				thislen = 0;
@@ -6089,11 +5972,10 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 	}
 
 	if (dif)
-		vdisk_blk_add_dif(bio, gfp_mask, dev, &dsg, &dsg_offs,
-			&dsg_len, true);
+		vdisk_blk_add_dif(bio, gfp_mask, dev, &dsg, &dsg_offs, &dsg_len, true);
 
 	/* +1 to prevent erroneous too early command completion */
-	atomic_set(&blockio_work->bios_inflight, bios+1);
+	atomic_set(&blockio_work->bios_inflight, bios + 1);
 
 	blk_start_plug(&plug);
 
@@ -6113,8 +5995,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 
 	blk_finish_plug(&plug);
 
-	if ((dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) &&
-	    (virt_dev->dif_fd != NULL) &&
+	if ((dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) && virt_dev->dif_fd &&
 	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE)) {
 		if (write)
 			vdev_write_dif_tags(p);
@@ -6170,7 +6051,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 		return fileio_exec_async(p);
 
 	kvec = vdisk_alloc_sync_kvec(cmd, p);
-	if (kvec == NULL)
+	if (!kvec)
 		goto out_nomem;
 
 	max_kvec_segs = p->sync.kvec_segs;
@@ -6178,8 +6059,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 	length = scst_get_buf_first(cmd, &address);
 	if (unlikely(length < 0)) {
 		PRINT_ERROR("scst_get_buf_first() failed: %zd", length);
-		scst_set_cmd_error(cmd,
-		    SCST_LOAD_SENSE(scst_sense_internal_failure));
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_internal_failure));
 		goto out;
 	}
 
@@ -6203,8 +6083,7 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 				break;
 		} else if (unlikely(length < 0)) {
 			PRINT_ERROR("scst_get_buf_next() failed: %zd", length);
-			scst_set_cmd_error(cmd,
-			    SCST_LOAD_SENSE(scst_sense_internal_failure));
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_internal_failure));
 			goto out_put_buf;
 		}
 
@@ -6212,16 +6091,14 @@ static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 
 		/* READ */
 		err = scst_readv(fd, kvec, kvec_segs, &loff);
-		if ((err < 0) || (err < full_len)) {
+		if (err < 0 || err < full_len) {
 			PRINT_ERROR("readv() returned %lld from %zd",
 				    (unsigned long long)err,
 				    full_len);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
-			else {
-				scst_set_cmd_error(cmd,
-				    SCST_LOAD_SENSE(scst_sense_read_error));
-			}
+			else
+				scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_read_error));
 			goto out_put_buf;
 		}
 
@@ -6325,7 +6202,8 @@ static enum compl_status_e nullio_exec_verify(struct vdisk_cmd_params *p)
 }
 
 static void blockio_on_alua_state_change_start(struct scst_device *dev,
-	enum scst_tg_state old_state, enum scst_tg_state new_state)
+					       enum scst_tg_state old_state,
+					       enum scst_tg_state new_state)
 {
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	const bool close = virt_dev->dev_active &&
@@ -6350,11 +6228,11 @@ static void blockio_on_alua_state_change_start(struct scst_device *dev,
 	vdisk_disable_dev(virt_dev);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void blockio_on_alua_state_change_finish(struct scst_device *dev,
-	enum scst_tg_state old_state, enum scst_tg_state new_state)
+						enum scst_tg_state old_state,
+						enum scst_tg_state new_state)
 {
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	const bool open = !virt_dev->dev_active &&
@@ -6385,15 +6263,13 @@ static void blockio_on_alua_state_change_finish(struct scst_device *dev,
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
-static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
-	struct scst_tgt_dev *tgt_dev)
+static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd, struct scst_tgt_dev *tgt_dev)
 {
 	TRACE_ENTRY();
 
-	if ((mcmd->fn == SCST_LUN_RESET) || (mcmd->fn == SCST_TARGET_RESET)) {
+	if (mcmd->fn == SCST_LUN_RESET || mcmd->fn == SCST_TARGET_RESET) {
 		/* Restore default values */
 		struct scst_device *dev = tgt_dev->dev;
 		struct scst_vdisk_dev *virt_dev = dev->dh_priv;
@@ -6409,12 +6285,10 @@ static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
 
 		dev->tst = virt_dev->tst;
 
-		rc = vdisk_set_wt(virt_dev, DEF_WRITE_THROUGH,
-			tgt_dev->tgt_dev_rd_only);
-		if (rc != 0) {
+		rc = vdisk_set_wt(virt_dev, DEF_WRITE_THROUGH, tgt_dev->tgt_dev_rd_only);
+		if (rc != 0)
 			PRINT_CRIT_ERROR("Unable to reset caching mode to %d",
-				DEF_WRITE_THROUGH);
-		}
+					 DEF_WRITE_THROUGH);
 
 		spin_lock(&virt_dev->flags_lock);
 		virt_dev->prevent_allow_medium_removal = 0;
@@ -6429,12 +6303,10 @@ static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd,
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 #ifdef CONFIG_DEBUG_EXT_COPY_REMAP
-static void vdev_ext_copy_remap(struct scst_cmd *cmd,
-	struct scst_ext_copy_seg_descr *seg)
+static void vdev_ext_copy_remap(struct scst_cmd *cmd, struct scst_ext_copy_seg_descr *seg)
 {
 	struct scst_ext_copy_data_descr *d;
 	static int shift;
@@ -6448,8 +6320,8 @@ static void vdev_ext_copy_remap(struct scst_cmd *cmd,
 		goto out_done;
 	}
 
-	d = kzalloc(sizeof(*d)*2, GFP_KERNEL);
-	if (d == NULL)
+	d = kzalloc(sizeof(*d) * 2, GFP_KERNEL);
+	if (!d)
 		goto out_busy;
 
 	spin_lock(&lock);
@@ -6459,11 +6331,12 @@ static void vdev_ext_copy_remap(struct scst_cmd *cmd,
 	if (shift >= seg->data_descr.data_len) {
 		shift = 0;
 		s = 0;
-	} else
+	} else {
 		s = shift;
+	}
 
-	TRACE_DBG("cmd %p, seg %p, data_len %d, shift %d, s %d", cmd, seg,
-		seg->data_descr.data_len, shift, s);
+	TRACE_DBG("cmd %p, seg %p, data_len %d, shift %d, s %d",
+		  cmd, seg, seg->data_descr.data_len, shift, s);
 
 	spin_unlock(&lock);
 
@@ -6512,7 +6385,7 @@ static void vdisk_report_registering(const struct scst_vdisk_dev *virt_dev)
 	}
 
 	i = snprintf(buf, buf_size, "Registering virtual %s device %s ",
-		virt_dev->vdev_devt->name, virt_dev->name);
+		     virt_dev->vdev_devt->name, virt_dev->name);
 	j = i;
 
 	if (virt_dev->wt_flag)
@@ -6559,10 +6432,10 @@ static void vdisk_report_registering(const struct scst_vdisk_dev *virt_dev)
 			(j == i) ? "(" : ", ");
 
 	if (virt_dev->dif_mode != SCST_DIF_MODE_NONE) {
-		i += snprintf(&buf[i], buf_size - i, "%sDIF MODE %x, "
-			"DIF TYPE %d", (j == i) ? "(" : ", ",
-			virt_dev->dif_mode, virt_dev->dif_type);
-		if (virt_dev->dif_filename != NULL)
+		i += snprintf(&buf[i], buf_size - i, "%sDIF MODE %x, DIF TYPE %d",
+			      (j == i) ? "(" : ", ",
+			      virt_dev->dif_mode, virt_dev->dif_type);
+		if (virt_dev->dif_filename)
 			i += snprintf(&buf[i], buf_size - i, ", DIF FILENAME %s",
 				virt_dev->dif_filename);
 		else if (virt_dev->dif_static_app_tag_combined != SCST_DIF_NO_CHECK_APP_TAG)
@@ -6581,8 +6454,6 @@ static void vdisk_report_registering(const struct scst_vdisk_dev *virt_dev)
 	PRINT_INFO("%s%s", buf, j == i ? "" : ")");
 
 	kfree(buf);
-
-	return;
 }
 
 static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
@@ -6604,7 +6475,7 @@ static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 
 	if (file_size == virt_dev->file_size) {
 		PRINT_INFO("Size of virtual disk %s remained the same",
-			virt_dev->name);
+			   virt_dev->name);
 		goto out;
 	}
 
@@ -6617,14 +6488,12 @@ static int vdisk_resync_size(struct scst_vdisk_dev *virt_dev)
 
 	virt_dev->size_key = 0;
 
-	PRINT_INFO("New size of SCSI target virtual disk %s "
-		"(fs=%lldMB, bs=%d, nblocks=%lld, cyln=%lld%s)",
-		virt_dev->name, virt_dev->file_size >> 20,
-		virt_dev->dev->block_size,
-		(unsigned long long)virt_dev->nblocks,
-		(unsigned long long)virt_dev->nblocks/64/32,
-		virt_dev->nblocks < 64*32 ? " !WARNING! cyln less "
-						"than 1" : "");
+	PRINT_INFO("New size of SCSI target virtual disk %s (fs=%lldMB, bs=%d, nblocks=%lld, cyln=%lld%s)",
+		   virt_dev->name, virt_dev->file_size >> 20,
+		   virt_dev->dev->block_size,
+		   (unsigned long long)virt_dev->nblocks,
+		   (unsigned long long)virt_dev->nblocks / 64 / 32,
+		   virt_dev->nblocks < 64 * 32 ? " !WARNING! cyln less than 1" : "");
 
 	scst_capacity_data_changed(virt_dev->dev);
 
@@ -6646,7 +6515,7 @@ static int vdisk_create_bioset(struct scst_vdisk_dev *virt_dev)
 			  BIOSET_NEED_BVECS);
 #else
 	virt_dev->vdisk_bioset = bioset_create(2, 0, BIOSET_NEED_BVECS);
-	if (virt_dev->vdisk_bioset == NULL)
+	if (!virt_dev->vdisk_bioset)
 		res = -ENOMEM;
 #endif
 	if (res < 0) {
@@ -6658,8 +6527,8 @@ static int vdisk_create_bioset(struct scst_vdisk_dev *virt_dev)
 		/* The same, pool size doesn't really matter */
 		res = bioset_integrity_create(virt_dev->vdisk_bioset, 2);
 		if (res != 0) {
-			PRINT_ERROR("Failed to create integrity bioset "
-				"(dev %s)", virt_dev->name);
+			PRINT_ERROR("Failed to create integrity bioset (dev %s)",
+				    virt_dev->name);
 			goto out_free;
 		}
 	}
@@ -6681,7 +6550,7 @@ out_free:
 
 static void vdisk_free_bioset(struct scst_vdisk_dev *virt_dev)
 {
-	if (virt_dev->vdisk_bioset == NULL)
+	if (!virt_dev->vdisk_bioset)
 		return;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
 	bioset_exit(virt_dev->vdisk_bioset);
@@ -6699,16 +6568,15 @@ static void vdev_inq_changed_fn(struct work_struct *work)
 	TRACE_ENTRY();
 
 	TRACE_DBG("Updating INQUIRY data for virt_dev %p (dev %s)",
-		virt_dev, dev->virt_name);
+		  virt_dev, dev->virt_name);
 
 	scst_dev_inquiry_data_changed(dev);
 
 	TRACE_EXIT();
-	return;
 }
 
-static int vdev_create_node(struct scst_dev_type *devt,
-	const char *name, int nodeid, struct scst_vdisk_dev **res_virt_dev)
+static int vdev_create_node(struct scst_dev_type *devt, const char *name, int nodeid,
+			    struct scst_vdisk_dev **res_virt_dev)
 {
 	int res;
 	struct scst_vdisk_dev *virt_dev, *vv;
@@ -6722,9 +6590,9 @@ static int vdev_create_node(struct scst_dev_type *devt,
 
 	/* It's read-mostly, so cache alignment isn't needed */
 	virt_dev = kzalloc_node(sizeof(*virt_dev), GFP_KERNEL, nodeid);
-	if (virt_dev == NULL) {
+	if (!virt_dev) {
 		PRINT_ERROR("Allocation of virtual device %s failed",
-			devt->name);
+			    devt->name);
 		res = -ENOMEM;
 		goto out;
 	}
@@ -6751,7 +6619,7 @@ static int vdev_create_node(struct scst_dev_type *devt,
 
 	if (strlen(name) >= sizeof(virt_dev->name)) {
 		PRINT_ERROR("Name %s is too long (max allowed %zd)", name,
-			sizeof(virt_dev->name)-1);
+			    sizeof(virt_dev->name) - 1);
 		res = -EINVAL;
 		goto out_free;
 	}
@@ -6760,7 +6628,7 @@ static int vdev_create_node(struct scst_dev_type *devt,
 	dev_id_num = vdisk_gen_dev_id_num(virt_dev->name);
 
 	snprintf(virt_dev->t10_dev_id, sizeof(virt_dev->t10_dev_id),
-		"%llx-%s", dev_id_num, virt_dev->name);
+		 "%llx-%s", dev_id_num, virt_dev->name);
 	TRACE_DBG("t10_dev_id %s", virt_dev->t10_dev_id);
 
 	sprintf(virt_dev->t10_vend_id, "%.*s",
@@ -6788,7 +6656,7 @@ static int vdev_create_node(struct scst_dev_type *devt,
 	list_for_each_entry(vv, &vdev_list, vdev_list_entry) {
 		if (strcmp(virt_dev->usn, vv->usn) == 0) {
 			PRINT_ERROR("New usn %s conflicts with one of dev %s",
-				virt_dev->usn, vv->name);
+				    virt_dev->usn, vv->name);
 			res = -EEXIST;
 			goto out_free;
 		}
@@ -6805,8 +6673,8 @@ out_free:
 	goto out;
 }
 
-static inline int vdev_create(struct scst_dev_type *devt,
-	const char *name, struct scst_vdisk_dev **res_virt_dev)
+static inline int vdev_create(struct scst_dev_type *devt, const char *name,
+			      struct scst_vdisk_dev **res_virt_dev)
 {
 	return vdev_create_node(devt, name, NUMA_NO_NODE, res_virt_dev);
 }
@@ -6817,9 +6685,7 @@ static void vdev_destroy(struct scst_vdisk_dev *virt_dev)
 	kfree(virt_dev->filename);
 	kfree(virt_dev->dif_filename);
 	kfree(virt_dev);
-	return;
 }
-
 
 static void vdev_check_node(struct scst_vdisk_dev **pvirt_dev, int orig_nodeid)
 {
@@ -6834,9 +6700,9 @@ static void vdev_check_node(struct scst_vdisk_dev **pvirt_dev, int orig_nodeid)
 		TRACE_MEM("Realloc virt_dev %s on node %d", virt_dev->name, nodeid);
 		/* It's read-mostly, so cache alignment isn't needed */
 		v = kzalloc_node(sizeof(*v), GFP_KERNEL, nodeid);
-		if (v == NULL) {
+		if (!v) {
 			PRINT_ERROR("Reallocation of virtual device %s failed",
-				virt_dev->name);
+				    virt_dev->name);
 			goto out;
 		}
 		*v = *virt_dev;
@@ -6852,7 +6718,6 @@ static void vdev_check_node(struct scst_vdisk_dev **pvirt_dev, int orig_nodeid)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 static int vdev_set_t10_dev_id(struct scst_vdisk_dev *virt_dev,
@@ -6862,8 +6727,7 @@ static int vdev_set_t10_dev_id(struct scst_vdisk_dev *virt_dev,
 
 	t10_dev_id_size = sizeof(virt_dev->t10_dev_id);
 
-	if (count > t10_dev_id_size ||
-			(count == t10_dev_id_size && buf[count - 1] != '\n')) {
+	if (count > t10_dev_id_size || (count == t10_dev_id_size && buf[count - 1] != '\n')) {
 		PRINT_ERROR("T10 device id is too long (max %zu characters)",
 			    t10_dev_id_size - 1);
 		return -EINVAL;
@@ -6888,8 +6752,8 @@ static int vdev_set_t10_dev_id(struct scst_vdisk_dev *virt_dev,
  * Parse the add_device parameters. @allowed_params restricts which
  * parameters can be specified at device creation time.
  */
-static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
-	char *params, const char *const allowed_params[])
+static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev, char *params,
+				     const char *const allowed_params[])
 {
 	int res = 0;
 	unsigned long long ull_val;
@@ -6900,22 +6764,22 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 
 	while (1) {
 		param = scst_get_next_token_str(&params);
-		if (param == NULL)
+		if (!param)
 			break;
 
 		p = scst_get_next_lexem(&param);
 		if (*p == '\0') {
 			PRINT_ERROR("Syntax error at %s (device %s)",
-				param, virt_dev->name);
+				    param, virt_dev->name);
 			res = -EINVAL;
 			goto out;
 		}
 
-		if (allowed_params != NULL) {
+		if (allowed_params) {
 			const char *const *a = allowed_params;
 			bool allowed = false;
 
-			while (*a != NULL) {
+			while (*a) {
 				if (!strcasecmp(*a, p)) {
 					allowed = true;
 					break;
@@ -6924,8 +6788,8 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 			}
 
 			if (!allowed) {
-				PRINT_ERROR("Unknown parameter %s (device %s)", p,
-					virt_dev->name);
+				PRINT_ERROR("Unknown parameter %s (device %s)",
+					    p, virt_dev->name);
 				res = -EINVAL;
 				goto out;
 			}
@@ -6934,36 +6798,36 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 		pp = scst_get_next_lexem(&param);
 		if (*pp == '\0') {
 			PRINT_ERROR("Parameter %s value missed for device %s",
-				p, virt_dev->name);
+				    p, virt_dev->name);
 			res = -EINVAL;
 			goto out;
 		}
 
 		if (scst_get_next_lexem(&param)[0] != '\0') {
 			PRINT_ERROR("Too many parameter's %s values (device %s)",
-				p, virt_dev->name);
+				    p, virt_dev->name);
 			res = -EINVAL;
 			goto out;
 		}
 
 		if (!strcasecmp("filename", p)) {
 			if (virt_dev->filename) {
-				PRINT_ERROR("%s specified more than once"
-					    " (device %s)", p, virt_dev->name);
+				PRINT_ERROR("%s specified more than once (device %s)",
+					    p, virt_dev->name);
 				res = -EINVAL;
 				goto out;
 			}
 			if (*pp != '/') {
-				PRINT_ERROR("Filename %s must be global "
-					"(device %s)", pp, virt_dev->name);
+				PRINT_ERROR("Filename %s must be global (device %s)",
+					    pp, virt_dev->name);
 				res = -EINVAL;
 				goto out;
 			}
 
 			virt_dev->filename = kstrdup(pp, GFP_KERNEL);
-			if (virt_dev->filename == NULL) {
-				PRINT_ERROR("Unable to duplicate file name %s "
-					"(device %s)", pp, virt_dev->name);
+			if (!virt_dev->filename) {
+				PRINT_ERROR("Unable to duplicate file name %s (device %s)",
+					    pp, virt_dev->name);
 				res = -ENOMEM;
 				goto out;
 			}
@@ -6972,16 +6836,16 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 
 		if (!strcasecmp("dif_filename", p)) {
 			if (*pp != '/') {
-				PRINT_ERROR("DIF filename %s must be global "
-					"(device %s)", pp, virt_dev->name);
+				PRINT_ERROR("DIF filename %s must be global (device %s)",
+					    pp, virt_dev->name);
 				res = -EINVAL;
 				goto out;
 			}
 
 			virt_dev->dif_filename = kstrdup(pp, GFP_KERNEL);
-			if (virt_dev->dif_filename == NULL) {
-				PRINT_ERROR("Unable to duplicate DIF filename %s "
-					"(device %s)", pp, virt_dev->name);
+			if (!virt_dev->dif_filename) {
+				PRINT_ERROR("Unable to duplicate DIF filename %s (device %s)",
+					    pp, virt_dev->name);
 				res = -ENOMEM;
 				goto out;
 			}
@@ -7000,26 +6864,26 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 					break;
 
 				dd = strchr(d, '|');
-				if (dd != NULL)
+				if (dd)
 					*dd = '\0';
-				if (!strcasecmp(SCST_DIF_MODE_TGT_STR, d))
+				if (!strcasecmp(SCST_DIF_MODE_TGT_STR, d)) {
 					virt_dev->dif_mode |= SCST_DIF_MODE_TGT;
-				else if (!strcasecmp(SCST_DIF_MODE_SCST_STR, d))
+				} else if (!strcasecmp(SCST_DIF_MODE_SCST_STR, d)) {
 					virt_dev->dif_mode |= SCST_DIF_MODE_SCST;
-				else if (!strcasecmp(SCST_DIF_MODE_DEV_CHECK_STR, d)) {
+				} else if (!strcasecmp(SCST_DIF_MODE_DEV_CHECK_STR, d)) {
 					virt_dev->dif_mode |= SCST_DIF_MODE_DEV_CHECK;
-				} else if (!strcasecmp(SCST_DIF_MODE_DEV_STORE_STR, d))
+				} else if (!strcasecmp(SCST_DIF_MODE_DEV_STORE_STR, d)) {
 					virt_dev->dif_mode |= SCST_DIF_MODE_DEV_STORE;
-				else {
+				} else {
 					PRINT_ERROR("Error parsing DIF mode %s", pp);
 					res = -EINVAL;
 					goto out;
 				}
-				if (dd == NULL)
+				if (!dd)
 					break;
 
 				*dd = '|';
-				d = dd+1;
+				d = dd + 1;
 			}
 			TRACE_DBG("DIF DEV mode %x", virt_dev->dif_mode);
 			continue;
@@ -7093,8 +6957,8 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 			virt_dev->rotational = ull_val;
 			TRACE_DBG("ROTATIONAL %d", virt_dev->rotational);
 		} else if (!strcasecmp("tst", p)) {
-			if ((ull_val != SCST_TST_0_SINGLE_TASK_SET) &&
-			    (ull_val != SCST_TST_1_SEP_TASK_SETS)) {
+			if (ull_val != SCST_TST_0_SINGLE_TASK_SET &&
+			    ull_val != SCST_TST_1_SEP_TASK_SETS) {
 				PRINT_ERROR("Invalid TST value %lld", ull_val);
 				res = -EINVAL;
 				goto out;
@@ -7105,7 +6969,7 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 			virt_dev->thin_provisioned = ull_val;
 			virt_dev->thin_provisioned_manually_set = 1;
 			TRACE_DBG("THIN PROVISIONED %d",
-				virt_dev->thin_provisioned);
+				  virt_dev->thin_provisioned);
 		} else if (!strcasecmp("async", p)) {
 			virt_dev->async = !!ull_val;
 		} else if (!strcasecmp("size", p)) {
@@ -7124,30 +6988,29 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev,
 				goto out;
 			}
 			TRACE_DBG("block size %lld, block shift %d",
-				ull_val, virt_dev->blk_shift);
+				  ull_val, virt_dev->blk_shift);
 		} else if (!strcasecmp("dif_type", p)) {
 			virt_dev->dif_type = ull_val;
 			TRACE_DBG("DIF type %d", virt_dev->dif_type);
 		} else if (!strcasecmp("dif_static_app_tag", p)) {
 			virt_dev->dif_static_app_tag_combined = cpu_to_be64(ull_val);
 			TRACE_DBG("DIF static app tag %llx",
-				(long long)be64_to_cpu(virt_dev->dif_static_app_tag_combined));
+				  (long long)be64_to_cpu(virt_dev->dif_static_app_tag_combined));
 		} else if (!strcasecmp("lb_per_pb_exp", p)) {
 			virt_dev->lb_per_pb_exp = ull_val;
 			TRACE_DBG("LB_PER_PB_EXP %d",
 				  virt_dev->lb_per_pb_exp);
 		} else {
-			PRINT_ERROR("Unknown parameter %s (device %s)", p,
-				virt_dev->name);
+			PRINT_ERROR("Unknown parameter %s (device %s)",
+				    p, virt_dev->name);
 			res = -EINVAL;
 			goto out;
 		}
 	}
 
 	if ((virt_dev->file_size & ((1 << virt_dev->blk_shift) - 1)) != 0) {
-		PRINT_ERROR("Device size %lld is not a multiple of the block"
-			    " size %d", virt_dev->file_size,
-			    1 << virt_dev->blk_shift);
+		PRINT_ERROR("Device size %lld is not a multiple of the block size %d",
+			    virt_dev->file_size, 1 << virt_dev->blk_shift);
 		res = -EINVAL;
 	}
 out:
@@ -7180,12 +7043,12 @@ static int vdev_fileio_add_device(const char *device_name, char *params)
 
 	if (virt_dev->rd_only && (virt_dev->wt_flag || virt_dev->nv_cache)) {
 		PRINT_ERROR("Write options on read only device %s",
-			virt_dev->name);
+			    virt_dev->name);
 		res = -EINVAL;
 		goto out_destroy;
 	}
 
-	if (virt_dev->filename == NULL) {
+	if (!virt_dev->filename) {
 		PRINT_ERROR("File name required (device %s)", virt_dev->name);
 		res = -EINVAL;
 		goto out_destroy;
@@ -7198,14 +7061,15 @@ static int vdev_fileio_add_device(const char *device_name, char *params)
 	vdisk_report_registering(virt_dev);
 
 	virt_dev->virt_id = scst_register_virtual_device_node(virt_dev->vdev_devt,
-					virt_dev->name, virt_dev->numa_node_id);
+							      virt_dev->name,
+							      virt_dev->numa_node_id);
 	if (virt_dev->virt_id < 0) {
 		res = virt_dev->virt_id;
 		goto out_del;
 	}
 
-	TRACE_DBG("Registered virt_dev %s with id %d", virt_dev->name,
-		virt_dev->virt_id);
+	TRACE_DBG("Registered virt_dev %s with id %d",
+		  virt_dev->name, virt_dev->virt_id);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -7240,11 +7104,11 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 		(int)sizeof(virt_dev->t10_vend_id) - 1, SCST_BIO_VENDOR);
 
 	res = vdev_parse_add_dev_params(virt_dev, params,
-			virt_dev->vdev_devt->add_device_parameters);
+					virt_dev->vdev_devt->add_device_parameters);
 	if (res != 0)
 		goto out_destroy;
 
-	if (virt_dev->filename == NULL) {
+	if (!virt_dev->filename) {
 		PRINT_ERROR("File name required (device %s)", virt_dev->name);
 		res = -EINVAL;
 		goto out_destroy;
@@ -7261,14 +7125,15 @@ static int vdev_blockio_add_device(const char *device_name, char *params)
 	vdisk_report_registering(virt_dev);
 
 	virt_dev->virt_id = scst_register_virtual_device_node(virt_dev->vdev_devt,
-					virt_dev->name, virt_dev->numa_node_id);
+							      virt_dev->name,
+							      virt_dev->numa_node_id);
 	if (virt_dev->virt_id < 0) {
 		res = virt_dev->virt_id;
 		goto out_del;
 	}
 
-	TRACE_DBG("Registered virt_dev %s with id %d", virt_dev->name,
-		virt_dev->virt_id);
+	TRACE_DBG("Registered virt_dev %s with id %d",
+		  virt_dev->name, virt_dev->virt_id);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -7301,7 +7166,7 @@ static int vdev_nullio_add_device(const char *device_name, char *params)
 	virt_dev->file_size = VDISK_NULLIO_SIZE;
 
 	res = vdev_parse_add_dev_params(virt_dev, params,
-			virt_dev->vdev_devt->add_device_parameters);
+					virt_dev->vdev_devt->add_device_parameters);
 	if (res != 0)
 		goto out_destroy;
 
@@ -7312,14 +7177,15 @@ static int vdev_nullio_add_device(const char *device_name, char *params)
 	vdisk_report_registering(virt_dev);
 
 	virt_dev->virt_id = scst_register_virtual_device_node(virt_dev->vdev_devt,
-					virt_dev->name, virt_dev->numa_node_id);
+							      virt_dev->name,
+							      virt_dev->numa_node_id);
 	if (virt_dev->virt_id < 0) {
 		res = virt_dev->virt_id;
 		goto out_del;
 	}
 
-	TRACE_DBG("Registered virt_dev %s with id %d", virt_dev->name,
-		virt_dev->virt_id);
+	TRACE_DBG("Registered virt_dev %s with id %d",
+		  virt_dev->name, virt_dev->virt_id);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -7369,7 +7235,6 @@ static ssize_t vdisk_add_blockio_device(const char *device_name, char *params)
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
 }
 
 static ssize_t vdisk_add_nullio_device(const char *device_name, char *params)
@@ -7389,9 +7254,7 @@ static ssize_t vdisk_add_nullio_device(const char *device_name, char *params)
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
 }
-
 
 static void vdev_on_free(struct scst_device *dev, void *arg)
 {
@@ -7422,10 +7285,7 @@ static void vdev_del_device(struct scst_vdisk_dev *virt_dev)
 	TRACE_DBG("virt_id %d unregistered", virt_dev->virt_id);
 
 	vdev_destroy(virt_dev);
-
-	return;
 }
-
 
 static ssize_t vdisk_del_device(const char *device_name)
 {
@@ -7439,7 +7299,7 @@ static ssize_t vdisk_del_device(const char *device_name)
 		goto out;
 
 	virt_dev = vdev_find(device_name);
-	if (virt_dev == NULL) {
+	if (!virt_dev) {
 		PRINT_ERROR("Device %s not found", device_name);
 		res = -EINVAL;
 		goto out_unlock;
@@ -7483,7 +7343,7 @@ static ssize_t __vcdrom_add_device(const char *device_name, char *params)
 	virt_dev->blk_shift = DEF_CDROM_BLOCK_SHIFT;
 
 	res = vdev_parse_add_dev_params(virt_dev, params,
-			virt_dev->vdev_devt->add_device_parameters);
+					virt_dev->vdev_devt->add_device_parameters);
 	if (res != 0)
 		goto out_destroy;
 
@@ -7491,15 +7351,14 @@ static ssize_t __vcdrom_add_device(const char *device_name, char *params)
 
 	vdisk_report_registering(virt_dev);
 
-	virt_dev->virt_id = scst_register_virtual_device(virt_dev->vdev_devt,
-					virt_dev->name);
+	virt_dev->virt_id = scst_register_virtual_device(virt_dev->vdev_devt, virt_dev->name);
 	if (virt_dev->virt_id < 0) {
 		res = virt_dev->virt_id;
 		goto out_del;
 	}
 
-	TRACE_DBG("Registered virt_dev %s with id %d", virt_dev->name,
-		virt_dev->virt_id);
+	TRACE_DBG("Registered virt_dev %s with id %d",
+		  virt_dev->name, virt_dev->virt_id);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -7530,7 +7389,6 @@ static ssize_t vcdrom_add_device(const char *device_name, char *params)
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
 }
 
 static ssize_t vcdrom_del_device(const char *device_name)
@@ -7545,7 +7403,7 @@ static ssize_t vcdrom_del_device(const char *device_name)
 		goto out;
 
 	virt_dev = vdev_find(device_name);
-	if (virt_dev == NULL) {
+	if (!virt_dev) {
 		PRINT_ERROR("Device %s not found", device_name);
 		res = -EINVAL;
 		goto out_unlock;
@@ -7560,7 +7418,6 @@ out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
-
 
 static int vcdrom_change(struct scst_vdisk_dev *virt_dev, char *buffer)
 {
@@ -7578,8 +7435,8 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev, char *buffer)
 		  virt_dev->dif_fd, virt_dev->filename);
 
 	if (virt_dev->prevent_allow_medium_removal) {
-		PRINT_ERROR("Prevent medium removal for "
-			"virtual device with name %s", virt_dev->name);
+		PRINT_ERROR("Prevent medium removal for virtual device with name %s",
+			    virt_dev->name);
 		res = -EBUSY;
 		goto out;
 	}
@@ -7592,7 +7449,7 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev, char *buffer)
 	filename = p;
 	/* Strip trailing whitespace */
 	WARN_ON_ONCE(length == 0);
-	p = &buffer[length-1];
+	p = &buffer[length - 1];
 	while (p > buffer && isspace(*p))
 		p--;
 	p[1] = '\0';
@@ -7609,19 +7466,20 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev, char *buffer)
 
 	if (*filename == '\0') {
 		virt_dev->cdrom_empty = 1;
-		TRACE_DBG("%s", "No media");
+		TRACE_DBG("No media");
 	} else if (*filename != '/') {
 		PRINT_ERROR("File path \"%s\" is not absolute", filename);
 		res = -EINVAL;
 		goto out_e_unlock;
-	} else
+	} else {
 		virt_dev->cdrom_empty = 0;
+	}
 
 	if (!virt_dev->cdrom_empty) {
 		char *fn = kstrdup(filename, GFP_KERNEL);
 
-		if (fn == NULL) {
-			PRINT_ERROR("%s", "Allocation of filename failed");
+		if (!fn) {
+			PRINT_ERROR("Allocation of filename failed");
 			res = -ENOMEM;
 			goto out_e_unlock;
 		}
@@ -7652,18 +7510,15 @@ static int vcdrom_change(struct scst_vdisk_dev *virt_dev, char *buffer)
 	mutex_unlock(&scst_mutex);
 
 	if (!virt_dev->cdrom_empty) {
-		PRINT_INFO("Changed SCSI target virtual cdrom %s "
-			"(file=\"%s\", fs=%lldMB, bs=%d, nblocks=%lld,"
-			" cyln=%lld%s)", virt_dev->name,
-			vdev_get_filename(virt_dev),
-			virt_dev->file_size >> 20, virt_dev->dev->block_size,
-			(unsigned long long)virt_dev->nblocks,
-			(unsigned long long)virt_dev->nblocks/64/32,
-			virt_dev->nblocks < 64*32 ? " !WARNING! cyln less "
-							"than 1" : "");
+		PRINT_INFO("Changed SCSI target virtual cdrom %s (file=\"%s\", fs=%lldMB, bs=%d, nblocks=%lld, cyln=%lld%s)",
+			   virt_dev->name, vdev_get_filename(virt_dev),
+			   virt_dev->file_size >> 20, virt_dev->dev->block_size,
+			   (unsigned long long)virt_dev->nblocks,
+			   (unsigned long long)virt_dev->nblocks / 64 / 32,
+			   virt_dev->nblocks < 64 * 32 ? " !WARNING! cyln less than 1" : "");
 	} else {
 		PRINT_INFO("Removed media from SCSI target virtual cdrom %s",
-			virt_dev->name);
+			   virt_dev->name);
 	}
 
 	kfree(old_fn);
@@ -7672,8 +7527,9 @@ out_resume:
 	scst_resume_activity();
 
 out:
-	TRACE_DBG("virt_dev %s, empty %d, fd %p (dif_fd %p), filename %p", virt_dev->name,
-		virt_dev->cdrom_empty, virt_dev->fd, virt_dev->dif_fd, virt_dev->filename);
+	TRACE_DBG("virt_dev %s, empty %d, fd %p (dif_fd %p), filename %p",
+		  virt_dev->name, virt_dev->cdrom_empty, virt_dev->fd, virt_dev->dif_fd,
+		  virt_dev->filename);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -7689,9 +7545,8 @@ out_e_unlock:
 	goto out_resume;
 }
 
-
-static ssize_t vdisk_sysfs_sync_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t vdisk_sysfs_sync_store(struct kobject *kobj, struct kobj_attribute *attr,
+				      const char *buf, size_t count)
 {
 	struct scst_device *dev =
 		container_of(kobj, struct scst_device, dev_kobj);
@@ -7729,8 +7584,8 @@ static int vcdrom_sysfs_process_filename_store(struct scst_sysfs_work_item *work
 	return res;
 }
 
-static ssize_t vcdrom_sysfs_filename_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t vcdrom_sysfs_filename_store(struct kobject *kobj, struct kobj_attribute *attr,
+					   const char *buf, size_t count)
 {
 	int res;
 	char *i_buf;
@@ -7742,15 +7597,14 @@ static ssize_t vcdrom_sysfs_filename_store(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
 	i_buf = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
-	if (i_buf == NULL) {
+	if (!i_buf) {
 		PRINT_ERROR("Unable to alloc intermediate buffer with size %zd",
-			count+1);
+			    count + 1);
 		res = -ENOMEM;
 		goto out;
 	}
 
-	res = scst_alloc_sysfs_work(vcdrom_sysfs_process_filename_store,
-					false, &work);
+	res = scst_alloc_sysfs_work(vcdrom_sysfs_process_filename_store, false, &work);
 	if (res != 0)
 		goto out_free;
 
@@ -7810,7 +7664,7 @@ static int vdev_size_process_store(struct scst_sysfs_work_item *work)
 
 	mutex_unlock(&scst_mutex);
 
-	if ((res == 0) || queue_ua)
+	if (res == 0 || queue_ua)
 		scst_capacity_data_changed(dev);
 
 resume:
@@ -7821,9 +7675,8 @@ put:
 	return res;
 }
 
-static ssize_t vdev_size_store(struct kobject *kobj,
-		struct kobj_attribute *attr, const char *buf,
-		size_t count, int size_shift)
+static ssize_t vdev_size_store(struct kobject *kobj, struct kobj_attribute *attr, const char *buf,
+			       size_t count, int size_shift)
 {
 	struct scst_device *dev = container_of(kobj, struct scst_device,
 					       dev_kobj);
@@ -7858,8 +7711,8 @@ out_free:
 	goto out;
 }
 
-static ssize_t vdev_sysfs_size_store(struct kobject *kobj,
-		struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t vdev_sysfs_size_store(struct kobject *kobj, struct kobj_attribute *attr,
+				     const char *buf, size_t count)
 {
 	return vdev_size_store(kobj, attr, buf, count, 0);
 }
@@ -7887,26 +7740,24 @@ static ssize_t vdev_size_show(struct kobject *kobj, struct kobj_attribute *attr,
 		       key ? SCST_SYSFS_KEY_MARK "\n" : "");
 }
 
-static ssize_t vdev_sysfs_size_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t vdev_sysfs_size_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	return vdev_size_show(kobj, attr, buf, 0);
 }
 
-static ssize_t vdev_sysfs_size_mb_store(struct kobject *kobj,
-		struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t vdev_sysfs_size_mb_store(struct kobject *kobj, struct kobj_attribute *attr,
+					const char *buf, size_t count)
 {
 	return vdev_size_store(kobj, attr, buf, count, 20);
 }
 
-static ssize_t vdev_sysfs_size_mb_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t vdev_sysfs_size_mb_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	return vdev_size_show(kobj, attr, buf, 20);
 }
 
-static ssize_t vdisk_sysfs_blocksize_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t vdisk_sysfs_blocksize_show(struct kobject *kobj, struct kobj_attribute *attr,
+					  char *buf)
 {
 	int pos = 0;
 	struct scst_device *dev;
@@ -7916,8 +7767,8 @@ static ssize_t vdisk_sysfs_blocksize_show(struct kobject *kobj,
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
 	pos = sprintf(buf, "%d\n%s", dev->block_size,
-		(dev->block_size == (1 << DEF_DISK_BLOCK_SHIFT)) ? "" :
-			SCST_SYSFS_KEY_MARK "\n");
+		      dev->block_size == (1 << DEF_DISK_BLOCK_SHIFT) ? "" :
+		      SCST_SYSFS_KEY_MARK "\n");
 
 	TRACE_EXIT_RES(pos);
 	return pos;
@@ -7963,8 +7814,8 @@ static ssize_t vdisk_opt_trans_len_show(struct kobject *kobj,
 		       "");
 }
 
-static ssize_t vdisk_sysfs_rd_only_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t vdisk_sysfs_rd_only_show(struct kobject *kobj, struct kobj_attribute *attr,
+					char *buf)
 {
 	int pos = 0;
 	struct scst_device *dev;
@@ -7976,15 +7827,13 @@ static ssize_t vdisk_sysfs_rd_only_show(struct kobject *kobj,
 	virt_dev = dev->dh_priv;
 
 	pos = sprintf(buf, "%d\n%s", virt_dev->rd_only,
-		(virt_dev->rd_only == DEF_RD_ONLY) ? "" :
-			SCST_SYSFS_KEY_MARK "\n");
+		      virt_dev->rd_only == DEF_RD_ONLY ? "" : SCST_SYSFS_KEY_MARK "\n");
 
 	TRACE_EXIT_RES(pos);
 	return pos;
 }
 
-static ssize_t vdisk_sysfs_wt_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t vdisk_sysfs_wt_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	int pos = 0;
 	struct scst_device *dev;
@@ -7996,15 +7845,13 @@ static ssize_t vdisk_sysfs_wt_show(struct kobject *kobj,
 	virt_dev = dev->dh_priv;
 
 	pos = sprintf(buf, "%d\n%s", virt_dev->wt_flag,
-		(virt_dev->wt_flag == DEF_WRITE_THROUGH) ? "" :
-			SCST_SYSFS_KEY_MARK "\n");
+		      virt_dev->wt_flag == DEF_WRITE_THROUGH ? "" : SCST_SYSFS_KEY_MARK "\n");
 
 	TRACE_EXIT_RES(pos);
 	return pos;
 }
 
-static ssize_t vdisk_sysfs_tp_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t vdisk_sysfs_tp_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	int pos = 0;
 	struct scst_device *dev;
@@ -8024,7 +7871,8 @@ static ssize_t vdisk_sysfs_tp_show(struct kobject *kobj,
 }
 
 static ssize_t vdisk_sysfs_gen_tp_soft_threshold_reached_UA(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+							    struct kobj_attribute *attr,
+							    const char *buf, size_t count)
 {
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
@@ -8039,10 +7887,8 @@ static ssize_t vdisk_sysfs_gen_tp_soft_threshold_reached_UA(struct kobject *kobj
 		return -EINVAL;
 
 	spin_lock_bh(&dev->dev_lock);
-	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-				dev_tgt_dev_list_entry) {
+	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list, dev_tgt_dev_list_entry)
 		scst_set_tp_soft_threshold_reached_UA(tgt_dev);
-	}
 	spin_unlock_bh(&dev->dev_lock);
 
 	TRACE_EXIT_RES(count);
@@ -8059,7 +7905,6 @@ static ssize_t vdisk_sysfs_expl_alua_show(struct kobject *kobj,
 	return sprintf(buf, "%d\n%s", dev->expl_alua,
 		      dev->expl_alua != DEF_EXPL_ALUA ?
 		      SCST_SYSFS_KEY_MARK "\n" : "");
-
 }
 
 static ssize_t vdisk_sysfs_expl_alua_store(struct kobject *kobj,
@@ -8082,8 +7927,8 @@ static ssize_t vdisk_sysfs_expl_alua_store(struct kobject *kobj,
 	return count;
 }
 
-static ssize_t vdisk_sysfs_nv_cache_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t vdisk_sysfs_nv_cache_show(struct kobject *kobj, struct kobj_attribute *attr,
+					 char *buf)
 {
 	int pos = 0;
 	struct scst_device *dev;
@@ -8095,15 +7940,14 @@ static ssize_t vdisk_sysfs_nv_cache_show(struct kobject *kobj,
 	virt_dev = dev->dh_priv;
 
 	pos = sprintf(buf, "%d\n%s", virt_dev->nv_cache,
-		(virt_dev->nv_cache == DEF_NV_CACHE) ? "" :
-			SCST_SYSFS_KEY_MARK "\n");
+		      virt_dev->nv_cache == DEF_NV_CACHE ? "" : SCST_SYSFS_KEY_MARK "\n");
 
 	TRACE_EXIT_RES(pos);
 	return pos;
 }
 
-static ssize_t vdisk_sysfs_o_direct_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t vdisk_sysfs_o_direct_show(struct kobject *kobj, struct kobj_attribute *attr,
+					 char *buf)
 {
 	int pos = 0;
 	struct scst_device *dev;
@@ -8115,8 +7959,7 @@ static ssize_t vdisk_sysfs_o_direct_show(struct kobject *kobj,
 	virt_dev = dev->dh_priv;
 
 	pos = sprintf(buf, "%d\n%s", virt_dev->o_direct_flag,
-		(virt_dev->o_direct_flag == DEF_O_DIRECT) ? "" :
-			SCST_SYSFS_KEY_MARK "\n");
+		      virt_dev->o_direct_flag == DEF_O_DIRECT ? "" : SCST_SYSFS_KEY_MARK "\n");
 
 	TRACE_EXIT_RES(pos);
 	return pos;
@@ -8174,8 +8017,8 @@ out:
 	return res;
 }
 
-static ssize_t vdisk_sysfs_removable_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t vdisk_sysfs_removable_show(struct kobject *kobj, struct kobj_attribute *attr,
+					  char *buf)
 {
 	int pos = 0;
 	struct scst_device *dev;
@@ -8188,16 +8031,14 @@ static ssize_t vdisk_sysfs_removable_show(struct kobject *kobj,
 
 	pos = sprintf(buf, "%d\n", virt_dev->removable);
 
-	if ((virt_dev->dev->type != TYPE_ROM) &&
-	    (virt_dev->removable != DEF_REMOVABLE))
+	if (virt_dev->dev->type != TYPE_ROM && virt_dev->removable != DEF_REMOVABLE)
 		pos += sprintf(&buf[pos], "%s\n", SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT_RES(pos);
 	return pos;
 }
 
-static ssize_t vdisk_sysfs_tst_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t vdisk_sysfs_tst_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	int pos = 0;
 	struct scst_device *dev;
@@ -8217,8 +8058,8 @@ static ssize_t vdisk_sysfs_tst_show(struct kobject *kobj,
 	return pos;
 }
 
-static ssize_t vdisk_sysfs_rotational_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t vdisk_sysfs_rotational_show(struct kobject *kobj, struct kobj_attribute *attr,
+					   char *buf)
 {
 	int pos = 0;
 	struct scst_device *dev;
@@ -8257,7 +8098,7 @@ static int vdev_sysfs_process_get_filename(struct scst_sysfs_work_item *work)
 	while (!mutex_trylock(&scst_vdisk_mutex)) {
 		if (dev->dev_unregistering) {
 			TRACE_MGMT_DBG("Skipping being unregistered dev %s",
-				dev->virt_name);
+				       dev->virt_name);
 			res = -ENOENT;
 			goto out_put;
 		}
@@ -8282,15 +8123,14 @@ static int vdev_sysfs_process_get_filename(struct scst_sysfs_work_item *work)
 
 	virt_dev = dev->dh_priv;
 
-	if (virt_dev == NULL)
+	if (!virt_dev)
 		goto out_unlock;
 
-	if (virt_dev->filename != NULL)
+	if (virt_dev->filename)
 		work->res_buf = kasprintf(GFP_KERNEL, "%s\n%s\n",
-			vdev_get_filename(virt_dev), SCST_SYSFS_KEY_MARK);
+					  vdev_get_filename(virt_dev), SCST_SYSFS_KEY_MARK);
 	else
-		work->res_buf = kasprintf(GFP_KERNEL, "%s\n",
-					vdev_get_filename(virt_dev));
+		work->res_buf = kasprintf(GFP_KERNEL, "%s\n", vdev_get_filename(virt_dev));
 
 out_unlock:
 	mutex_unlock(&scst_vdisk_mutex);
@@ -8302,8 +8142,8 @@ out_put:
 	return res;
 }
 
-static ssize_t vdev_sysfs_filename_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t vdev_sysfs_filename_show(struct kobject *kobj, struct kobj_attribute *attr,
+					char *buf)
 {
 	int res = 0;
 	struct scst_device *dev;
@@ -8313,8 +8153,7 @@ static ssize_t vdev_sysfs_filename_show(struct kobject *kobj,
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-	res = scst_alloc_sysfs_work(vdev_sysfs_process_get_filename,
-					true, &work);
+	res = scst_alloc_sysfs_work(vdev_sysfs_process_get_filename, true, &work);
 	if (res != 0)
 		goto out;
 
@@ -8386,7 +8225,7 @@ static int vdev_sysfs_process_filename_store(struct scst_sysfs_work_item *work)
 		goto unlock;
 	}
 	fn = kstrdup(filename, GFP_KERNEL);
-	if (fn == NULL) {
+	if (!fn) {
 		PRINT_ERROR("Filename allocation failed");
 		goto unlock;
 	}
@@ -8406,8 +8245,8 @@ out:
 	return res;
 }
 
-static ssize_t vdev_sysfs_filename_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t vdev_sysfs_filename_store(struct kobject *kobj, struct kobj_attribute *attr,
+					 const char *buf, size_t count)
 {
 	struct scst_device *dev = container_of(kobj, struct scst_device,
 					       dev_kobj);
@@ -8440,19 +8279,17 @@ out:
 	return res;
 }
 
-static ssize_t vdev_sysfs_cluster_mode_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t vdev_sysfs_cluster_mode_show(struct kobject *kobj, struct kobj_attribute *attr,
+					    char *buf)
 {
-	struct scst_device *dev = container_of(kobj, struct scst_device,
-					       dev_kobj);
+	struct scst_device *dev = container_of(kobj, struct scst_device, dev_kobj);
 
 	return sprintf(buf, "%d\n%s", dev->cluster_mode,
 		       dev->cluster_mode ?
 		       SCST_SYSFS_KEY_MARK "\n" : "");
 }
 
-static int vdev_sysfs_process_cluster_mode_store(
-	struct scst_sysfs_work_item *work)
+static int vdev_sysfs_process_cluster_mode_store(struct scst_sysfs_work_item *work)
 {
 	struct scst_device *dev = work->dev;
 	struct scst_vdisk_dev *virt_dev;
@@ -8500,8 +8337,8 @@ out:
 	return res;
 }
 
-static ssize_t vdev_sysfs_cluster_mode_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t vdev_sysfs_cluster_mode_store(struct kobject *kobj, struct kobj_attribute *attr,
+					     const char *buf, size_t count)
 {
 	struct scst_device *dev = container_of(kobj, struct scst_device,
 					       dev_kobj);
@@ -8534,8 +8371,7 @@ out:
 	return res;
 }
 
-static int vdisk_sysfs_process_resync_size_store(
-	struct scst_sysfs_work_item *work)
+static int vdisk_sysfs_process_resync_size_store(struct scst_sysfs_work_item *work)
 {
 	int res;
 	struct scst_device *dev = work->dev;
@@ -8554,8 +8390,8 @@ static int vdisk_sysfs_process_resync_size_store(
 	return res;
 }
 
-static ssize_t vdisk_sysfs_resync_size_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t vdisk_sysfs_resync_size_store(struct kobject *kobj, struct kobj_attribute *attr,
+					     const char *buf, size_t count)
 {
 	int res;
 	struct scst_device *dev;
@@ -8565,8 +8401,7 @@ static ssize_t vdisk_sysfs_resync_size_store(struct kobject *kobj,
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-	res = scst_alloc_sysfs_work(vdisk_sysfs_process_resync_size_store,
-					false, &work);
+	res = scst_alloc_sysfs_work(vdisk_sysfs_process_resync_size_store, false, &work);
 	if (res != 0)
 		goto out;
 
@@ -8661,8 +8496,7 @@ static ssize_t vdev_sysfs_vend_specific_id_store(struct kobject *kobj,
 	len = p ? p - buf : count;
 
 	if (len >= sizeof(virt_dev->vend_specific_id)) {
-		PRINT_ERROR("Vendor specific id is too long (max %zd"
-			    " characters)",
+		PRINT_ERROR("Vendor specific id is too long (max %zd characters)",
 			    sizeof(virt_dev->vend_specific_id) - 1);
 		res = -EINVAL;
 		goto out;
@@ -8781,8 +8615,7 @@ static ssize_t vdev_sysfs_prod_rev_lvl_store(struct kobject *kobj,
 	len = p ? p - buf : count;
 
 	if (len >= sizeof(virt_dev->prod_rev_lvl)) {
-		PRINT_ERROR("Product revision level is too long (max %zd"
-			    " characters)",
+		PRINT_ERROR("Product revision level is too long (max %zd characters)",
 			    sizeof(virt_dev->prod_rev_lvl));
 		res = -EINVAL;
 		goto out;
@@ -8825,9 +8658,8 @@ static ssize_t vdev_sysfs_prod_rev_lvl_show(struct kobject *kobj,
 	return pos;
 }
 
-static ssize_t vdev_sysfs_scsi_device_name_store(struct kobject *kobj,
-					     struct kobj_attribute *attr,
-					     const char *buf, size_t count)
+static ssize_t vdev_sysfs_scsi_device_name_store(struct kobject *kobj, struct kobj_attribute *attr,
+						 const char *buf, size_t count)
 {
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
@@ -8843,7 +8675,7 @@ static ssize_t vdev_sysfs_scsi_device_name_store(struct kobject *kobj,
 
 	if (len >= sizeof(virt_dev->scsi_device_name)) {
 		PRINT_ERROR("SCSI device namel is too long (max %zd characters)",
-			sizeof(virt_dev->scsi_device_name));
+			    sizeof(virt_dev->scsi_device_name));
 		res = -EINVAL;
 		goto out;
 	}
@@ -8865,9 +8697,8 @@ out:
 	return res;
 }
 
-static ssize_t vdev_sysfs_scsi_device_name_show(struct kobject *kobj,
-					    struct kobj_attribute *attr,
-					    char *buf)
+static ssize_t vdev_sysfs_scsi_device_name_show(struct kobject *kobj, struct kobj_attribute *attr,
+						char *buf)
 {
 	int pos;
 	struct scst_device *dev;
@@ -8887,8 +8718,8 @@ static ssize_t vdev_sysfs_scsi_device_name_show(struct kobject *kobj,
 	return pos;
 }
 
-static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj, struct kobj_attribute *attr,
+					   const char *buf, size_t count)
 {
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
@@ -8913,8 +8744,8 @@ static ssize_t vdev_sysfs_t10_dev_id_store(struct kobject *kobj,
 
 	res = count;
 
-	PRINT_INFO("T10 device id for device %s changed to %s", virt_dev->name,
-		virt_dev->t10_dev_id);
+	PRINT_INFO("T10 device id for device %s changed to %s",
+		   virt_dev->name, virt_dev->t10_dev_id);
 
 out_unlock:
 	write_unlock(&vdisk_serial_rwlock);
@@ -8924,8 +8755,8 @@ out:
 	return res;
 }
 
-static ssize_t vdev_sysfs_t10_dev_id_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t vdev_sysfs_t10_dev_id_show(struct kobject *kobj, struct kobj_attribute *attr,
+					  char *buf)
 {
 	int pos = 0;
 	struct scst_device *dev;
@@ -8938,7 +8769,7 @@ static ssize_t vdev_sysfs_t10_dev_id_show(struct kobject *kobj,
 
 	read_lock(&vdisk_serial_rwlock);
 	pos = sprintf(buf, "%s\n%s", virt_dev->t10_dev_id,
-		virt_dev->t10_dev_id_set ? SCST_SYSFS_KEY_MARK "\n" : "");
+		      virt_dev->t10_dev_id_set ? SCST_SYSFS_KEY_MARK "\n" : "");
 	read_unlock(&vdisk_serial_rwlock);
 
 	TRACE_EXIT_RES(pos);
@@ -9068,8 +8899,7 @@ out:
 	return res;
 }
 
-static ssize_t vdev_sysfs_naa_id_show(struct kobject *kobj,
-					struct kobj_attribute *attr, char *buf)
+static ssize_t vdev_sysfs_naa_id_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	int i, pos = 0;
 	struct scst_device *dev;
@@ -9090,8 +8920,8 @@ static ssize_t vdev_sysfs_naa_id_show(struct kobject *kobj,
 	return pos;
 }
 
-static ssize_t vdev_sysfs_usn_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t vdev_sysfs_usn_store(struct kobject *kobj, struct kobj_attribute *attr,
+				    const char *buf, size_t count)
 {
 	int res, i;
 	struct scst_device *dev;
@@ -9104,11 +8934,10 @@ static ssize_t vdev_sysfs_usn_store(struct kobject *kobj,
 
 	write_lock(&vdisk_serial_rwlock);
 
-	if ((count > sizeof(virt_dev->usn)) ||
-	    ((count == sizeof(virt_dev->usn)) &&
-	     (buf[count-1] != '\n'))) {
-		PRINT_ERROR("USN is too long (max %zd "
-			"characters)", sizeof(virt_dev->usn)-1);
+	if (count > sizeof(virt_dev->usn) ||
+	    (count == sizeof(virt_dev->usn) && buf[count - 1] != '\n')) {
+		PRINT_ERROR("USN is too long (max %zd characters)",
+			    sizeof(virt_dev->usn) - 1);
 		res = -EINVAL;
 		goto out_unlock;
 	}
@@ -9131,8 +8960,8 @@ static ssize_t vdev_sysfs_usn_store(struct kobject *kobj,
 
 	res = count;
 
-	PRINT_INFO("USN for device %s changed to %s", virt_dev->name,
-		virt_dev->usn);
+	PRINT_INFO("USN for device %s changed to %s",
+		   virt_dev->name, virt_dev->usn);
 
 out_unlock:
 	write_unlock(&vdisk_serial_rwlock);
@@ -9141,8 +8970,7 @@ out_unlock:
 	return res;
 }
 
-static ssize_t vdev_sysfs_usn_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t vdev_sysfs_usn_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	int pos = 0;
 	struct scst_device *dev;
@@ -9155,7 +8983,7 @@ static ssize_t vdev_sysfs_usn_show(struct kobject *kobj,
 
 	read_lock(&vdisk_serial_rwlock);
 	pos = sprintf(buf, "%s\n%s", virt_dev->usn,
-		virt_dev->usn_set ? SCST_SYSFS_KEY_MARK "\n" : "");
+		      virt_dev->usn_set ? SCST_SYSFS_KEY_MARK "\n" : "");
 	read_unlock(&vdisk_serial_rwlock);
 
 	TRACE_EXIT_RES(pos);
@@ -9232,8 +9060,7 @@ static ssize_t vdev_sysfs_active_show(struct kobject *kobj,
 	return pos;
 }
 
-static int vdev_sysfs_process_active_store(
-	struct scst_sysfs_work_item *work)
+static int vdev_sysfs_process_active_store(struct scst_sysfs_work_item *work)
 {
 	struct scst_device *dev = work->dev;
 	struct scst_vdisk_dev *virt_dev;
@@ -9295,8 +9122,8 @@ out:
 	return res;
 }
 
-static ssize_t vdev_sysfs_active_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t vdev_sysfs_active_store(struct kobject *kobj, struct kobj_attribute *attr,
+				       const char *buf, size_t count)
 {
 	struct scst_device *dev = container_of(kobj, struct scst_device,
 					       dev_kobj);
@@ -9383,8 +9210,8 @@ out:
 	return res;
 }
 
-static ssize_t vdev_async_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t vdev_async_store(struct kobject *kobj, struct kobj_attribute *attr,
+				const char *buf, size_t count)
 {
 	struct scst_device *dev =
 		container_of(kobj, struct scst_device, dev_kobj);
@@ -9416,8 +9243,7 @@ static ssize_t vdev_async_show(struct kobject *kobj,
 		      virt_dev->async ? SCST_SYSFS_KEY_MARK "\n" : "");
 }
 
-static ssize_t vdev_dif_filename_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t vdev_dif_filename_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	int pos = 0;
 	struct scst_device *dev;
@@ -9429,14 +9255,14 @@ static ssize_t vdev_dif_filename_show(struct kobject *kobj,
 	virt_dev = dev->dh_priv;
 
 	pos = sprintf(buf, "%s\n%s", virt_dev->dif_filename,
-		      (virt_dev->dif_filename != NULL) ? SCST_SYSFS_KEY_MARK "\n" : "");
+		      virt_dev->dif_filename ? SCST_SYSFS_KEY_MARK "\n" : "");
 
 	TRACE_EXIT_RES(pos);
 	return pos;
 }
 
-static ssize_t vdev_lb_per_pb_exp_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t vdev_lb_per_pb_exp_store(struct kobject *kobj, struct kobj_attribute *attr,
+					const char *buf, size_t count)
 {
 	struct scst_device *dev =
 		container_of(kobj, struct scst_device, dev_kobj);
@@ -9457,121 +9283,119 @@ static ssize_t vdev_lb_per_pb_exp_store(struct kobject *kobj,
 	return count;
 }
 
-static ssize_t vdev_lb_per_pb_exp_show(struct kobject *kobj,
-			       struct kobj_attribute *attr, char *buf)
+static ssize_t vdev_lb_per_pb_exp_show(struct kobject *kobj, struct kobj_attribute *attr,
+				       char *buf)
 {
 	struct scst_device *dev =
 		container_of(kobj, struct scst_device, dev_kobj);
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 
 	return sprintf(buf, "%d\n%s", virt_dev->lb_per_pb_exp,
-		      (virt_dev->lb_per_pb_exp == DEF_LB_PER_PB_EXP)
-			? "" : SCST_SYSFS_KEY_MARK "\n");
+		       virt_dev->lb_per_pb_exp == DEF_LB_PER_PB_EXP ? "" :
+		       SCST_SYSFS_KEY_MARK "\n");
 }
 
-
 static struct kobj_attribute vdev_active_attr =
-	__ATTR(active, S_IWUSR|S_IRUGO, vdev_sysfs_active_show,
+	__ATTR(active, 0644, vdev_sysfs_active_show,
 	       vdev_sysfs_active_store);
 static struct kobj_attribute vdev_bind_alua_state_attr =
-	__ATTR(bind_alua_state, S_IWUSR|S_IRUGO,
+	__ATTR(bind_alua_state, 0644,
 	       vdev_sysfs_bind_alua_state_show,
 	       vdev_sysfs_bind_alua_state_store);
 static struct kobj_attribute vdev_size_ro_attr =
-	__ATTR(size, S_IRUGO, vdev_sysfs_size_show, NULL);
+	__ATTR(size, 0444, vdev_sysfs_size_show, NULL);
 static struct kobj_attribute vdev_size_rw_attr =
-	__ATTR(size, S_IWUSR|S_IRUGO, vdev_sysfs_size_show,
+	__ATTR(size, 0644, vdev_sysfs_size_show,
 	       vdev_sysfs_size_store);
 static struct kobj_attribute vdev_size_mb_ro_attr =
-	__ATTR(size_mb, S_IRUGO, vdev_sysfs_size_mb_show, NULL);
+	__ATTR(size_mb, 0444, vdev_sysfs_size_mb_show, NULL);
 static struct kobj_attribute vdev_size_mb_rw_attr =
-	__ATTR(size_mb, S_IWUSR|S_IRUGO, vdev_sysfs_size_mb_show,
+	__ATTR(size_mb, 0644, vdev_sysfs_size_mb_show,
 	       vdev_sysfs_size_mb_store);
 static struct kobj_attribute vdisk_blocksize_attr =
-	__ATTR(blocksize, S_IRUGO, vdisk_sysfs_blocksize_show, NULL);
+	__ATTR(blocksize, 0444, vdisk_sysfs_blocksize_show, NULL);
 static struct kobj_attribute vdisk_opt_trans_len_attr =
-	__ATTR(opt_trans_len, S_IWUSR|S_IRUGO, vdisk_opt_trans_len_show,
+	__ATTR(opt_trans_len, 0644, vdisk_opt_trans_len_show,
 	       vdisk_opt_trans_len_store);
 static struct kobj_attribute vdisk_rd_only_attr =
-	__ATTR(read_only, S_IRUGO, vdisk_sysfs_rd_only_show, NULL);
+	__ATTR(read_only, 0444, vdisk_sysfs_rd_only_show, NULL);
 static struct kobj_attribute vdisk_wt_attr =
-	__ATTR(write_through, S_IRUGO, vdisk_sysfs_wt_show, NULL);
+	__ATTR(write_through, 0444, vdisk_sysfs_wt_show, NULL);
 static struct kobj_attribute vdisk_tp_attr =
-	__ATTR(thin_provisioned, S_IRUGO, vdisk_sysfs_tp_show, NULL);
+	__ATTR(thin_provisioned, 0444, vdisk_sysfs_tp_show, NULL);
 static struct kobj_attribute vdisk_tst_attr =
-	__ATTR(tst, S_IRUGO, vdisk_sysfs_tst_show, NULL);
+	__ATTR(tst, 0444, vdisk_sysfs_tst_show, NULL);
 static struct kobj_attribute vdisk_rotational_attr =
-	__ATTR(rotational, S_IRUGO, vdisk_sysfs_rotational_show, NULL);
+	__ATTR(rotational, 0444, vdisk_sysfs_rotational_show, NULL);
 static struct kobj_attribute vdisk_expl_alua_attr =
-	__ATTR(expl_alua, S_IWUSR|S_IRUGO, vdisk_sysfs_expl_alua_show,
+	__ATTR(expl_alua, 0644, vdisk_sysfs_expl_alua_show,
 	       vdisk_sysfs_expl_alua_store);
 static struct kobj_attribute vdisk_nv_cache_attr =
-	__ATTR(nv_cache, S_IRUGO, vdisk_sysfs_nv_cache_show, NULL);
+	__ATTR(nv_cache, 0444, vdisk_sysfs_nv_cache_show, NULL);
 static struct kobj_attribute vdisk_o_direct_attr =
-	__ATTR(o_direct, S_IRUGO, vdisk_sysfs_o_direct_show, NULL);
+	__ATTR(o_direct, 0444, vdisk_sysfs_o_direct_show, NULL);
 static struct kobj_attribute vdev_dummy_attr =
-	__ATTR(dummy, S_IRUGO, vdev_sysfs_dummy_show, NULL);
+	__ATTR(dummy, 0444, vdev_sysfs_dummy_show, NULL);
 static struct kobj_attribute vdev_read_zero_attr =
-	__ATTR(read_zero, S_IWUSR|S_IRUGO, vdev_sysfs_rz_show,
+	__ATTR(read_zero, 0644, vdev_sysfs_rz_show,
 	       vdev_sysfs_rz_store);
 static struct kobj_attribute vdisk_removable_attr =
-	__ATTR(removable, S_IRUGO, vdisk_sysfs_removable_show, NULL);
+	__ATTR(removable, 0444, vdisk_sysfs_removable_show, NULL);
 static struct kobj_attribute vdisk_filename_attr =
-	__ATTR(filename, S_IWUSR|S_IRUGO, vdev_sysfs_filename_show,
+	__ATTR(filename, 0644, vdev_sysfs_filename_show,
 	       vdev_sysfs_filename_store);
 static struct kobj_attribute vdisk_cluster_mode_attr =
-	__ATTR(cluster_mode, S_IWUSR|S_IRUGO, vdev_sysfs_cluster_mode_show,
+	__ATTR(cluster_mode, 0644, vdev_sysfs_cluster_mode_show,
 	       vdev_sysfs_cluster_mode_store);
 static struct kobj_attribute vdisk_resync_size_attr =
-	__ATTR(resync_size, S_IWUSR, NULL, vdisk_sysfs_resync_size_store);
+	__ATTR(resync_size, 0200, NULL, vdisk_sysfs_resync_size_store);
 static struct kobj_attribute vdisk_sync_attr =
-	__ATTR(sync, S_IWUSR, NULL, vdisk_sysfs_sync_store);
+	__ATTR(sync, 0200, NULL, vdisk_sysfs_sync_store);
 static struct kobj_attribute vdev_t10_vend_id_attr =
-	__ATTR(t10_vend_id, S_IWUSR|S_IRUGO, vdev_sysfs_t10_vend_id_show,
+	__ATTR(t10_vend_id, 0644, vdev_sysfs_t10_vend_id_show,
 	       vdev_sysfs_t10_vend_id_store);
 static struct kobj_attribute vdev_vend_specific_id_attr =
-	__ATTR(vend_specific_id, S_IWUSR|S_IRUGO,
+	__ATTR(vend_specific_id, 0644,
 	       vdev_sysfs_vend_specific_id_show,
 	       vdev_sysfs_vend_specific_id_store);
 static struct kobj_attribute vdev_prod_id_attr =
-	__ATTR(prod_id, S_IWUSR|S_IRUGO, vdev_sysfs_prod_id_show,
+	__ATTR(prod_id, 0644, vdev_sysfs_prod_id_show,
 	       vdev_sysfs_prod_id_store);
 static struct kobj_attribute vdev_prod_rev_lvl_attr =
-	__ATTR(prod_rev_lvl, S_IWUSR|S_IRUGO, vdev_sysfs_prod_rev_lvl_show,
+	__ATTR(prod_rev_lvl, 0644, vdev_sysfs_prod_rev_lvl_show,
 	       vdev_sysfs_prod_rev_lvl_store);
 static struct kobj_attribute vdev_scsi_device_name_attr =
-	__ATTR(scsi_device_name, S_IWUSR|S_IRUGO, vdev_sysfs_scsi_device_name_show,
+	__ATTR(scsi_device_name, 0644, vdev_sysfs_scsi_device_name_show,
 	       vdev_sysfs_scsi_device_name_store);
 static struct kobj_attribute vdev_t10_dev_id_attr =
-	__ATTR(t10_dev_id, S_IWUSR|S_IRUGO, vdev_sysfs_t10_dev_id_show,
-		vdev_sysfs_t10_dev_id_store);
+	__ATTR(t10_dev_id, 0644, vdev_sysfs_t10_dev_id_show, vdev_sysfs_t10_dev_id_store);
 static struct kobj_attribute vdev_eui64_id_attr =
-	__ATTR(eui64_id, S_IWUSR|S_IRUGO, vdev_sysfs_eui64_id_show,
+	__ATTR(eui64_id, 0644, vdev_sysfs_eui64_id_show,
 	       vdev_sysfs_eui64_id_store);
 static struct kobj_attribute vdev_naa_id_attr =
-	__ATTR(naa_id, S_IWUSR|S_IRUGO, vdev_sysfs_naa_id_show,
+	__ATTR(naa_id, 0644, vdev_sysfs_naa_id_show,
 	       vdev_sysfs_naa_id_store);
 static struct kobj_attribute vdev_usn_attr =
-	__ATTR(usn, S_IWUSR|S_IRUGO, vdev_sysfs_usn_show, vdev_sysfs_usn_store);
+	__ATTR(usn, 0644, vdev_sysfs_usn_show, vdev_sysfs_usn_store);
 static struct kobj_attribute vdev_inq_vend_specific_attr =
-	__ATTR(inq_vend_specific, S_IWUSR|S_IRUGO,
+	__ATTR(inq_vend_specific, 0644,
 	       vdev_sysfs_inq_vend_specific_show,
 	       vdev_sysfs_inq_vend_specific_store);
 static struct kobj_attribute vdev_async_attr =
-	__ATTR(async, S_IWUSR|S_IRUGO, vdev_async_show, vdev_async_store);
+	__ATTR(async, 0644, vdev_async_show, vdev_async_store);
 static struct kobj_attribute vdev_lb_per_pb_exp_attr =
-	__ATTR(lb_per_pb_exp, S_IWUSR|S_IRUGO, vdev_lb_per_pb_exp_show, vdev_lb_per_pb_exp_store);
+	__ATTR(lb_per_pb_exp, 0644, vdev_lb_per_pb_exp_show, vdev_lb_per_pb_exp_store);
 
 static struct kobj_attribute vcdrom_filename_attr =
-	__ATTR(filename, S_IRUGO|S_IWUSR, vdev_sysfs_filename_show,
-		vcdrom_sysfs_filename_store);
+	__ATTR(filename, 0644, vdev_sysfs_filename_show, vcdrom_sysfs_filename_store);
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static struct scst_trace_log vdisk_local_trace_tbl[] = {
 	{ TRACE_ORDER,		"order" },
 	{ 0,			NULL }
 };
-#define trace_log_tbl			vdisk_local_trace_tbl
+
+#define trace_log_tbl		vdisk_local_trace_tbl
 
 #define VDISK_TRACE_TBL_HELP	", order"
 
@@ -9890,11 +9714,9 @@ static int __init init_scst_vdisk(struct scst_dev_type *devtype)
 	if (res < 0)
 		goto out;
 
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
 }
 
 static void exit_scst_vdisk(struct scst_dev_type *devtype)
@@ -9908,18 +9730,15 @@ static void exit_scst_vdisk(struct scst_dev_type *devtype)
 		if (list_empty(&vdev_list))
 			break;
 
-		virt_dev = list_first_entry(&vdev_list, typeof(*virt_dev),
-				vdev_list_entry);
+		virt_dev = list_first_entry(&vdev_list, typeof(*virt_dev), vdev_list_entry);
 
 		vdev_del_device(virt_dev);
 	}
 	mutex_unlock(&scst_vdisk_mutex);
 
-
 	scst_unregister_virtual_dev_driver(devtype);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void init_ops(vdisk_op_fn *ops, int count)
@@ -9927,9 +9746,8 @@ static void init_ops(vdisk_op_fn *ops, int count)
 	int i;
 
 	for (i = 0; i < count; i++)
-		if (ops[i] == NULL)
+		if (!ops[i])
 			ops[i] = vdisk_invalid_opcode;
-	return;
 }
 
 static int __init vdev_check_mode_pages_path(void)
@@ -9943,9 +9761,8 @@ static int __init vdev_check_mode_pages_path(void)
 	if (res == 0)
 		path_put(&path);
 	if (res != 0) {
-		PRINT_WARNING("Unable to find %s (err %d), saved mode pages "
-			"disabled. You should create this directory manually "
-			"or reinstall SCST", VDEV_MODE_PAGES_DIR, res);
+		PRINT_WARNING("Unable to find %s (err %d), saved mode pages disabled. You should create this directory manually or reinstall SCST",
+			      VDEV_MODE_PAGES_DIR, res);
 		vdev_saved_mode_pages_enabled = false;
 	}
 
@@ -10079,22 +9896,21 @@ static int __init init_scst_vdisk_driver(void)
 		goto out;
 
 	vdisk_cmd_param_cachep = KMEM_CACHE(vdisk_cmd_params,
-					SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
-	if (vdisk_cmd_param_cachep == NULL) {
+					    SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN);
+	if (!vdisk_cmd_param_cachep) {
 		res = -ENOMEM;
 		goto out;
 	}
 
-	blockio_work_cachep = KMEM_CACHE(scst_blockio_work,
-				SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);
-	if (blockio_work_cachep == NULL) {
+	blockio_work_cachep = KMEM_CACHE(scst_blockio_work, SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN);
+	if (!blockio_work_cachep) {
 		res = -ENOMEM;
 		goto out_free_vdisk_cache;
 	}
 
 	if (num_threads < 1) {
-		PRINT_ERROR("num_threads can not be less than 1, use "
-			"default %d", DEF_NUM_THREADS);
+		PRINT_ERROR("num_threads can not be less than 1, use default %d",
+			    DEF_NUM_THREADS);
 		num_threads = DEF_NUM_THREADS;
 	}
 
@@ -10153,7 +9969,6 @@ module_exit(exit_scst_vdisk_driver);
 
 MODULE_AUTHOR("Vladislav Bolkhovitin & Leonid Stoljar");
 MODULE_LICENSE("GPL");
-MODULE_DESCRIPTION("SCSI disk (type 0) and CDROM (type 5) dev handler for "
-	"SCST using files on file systems or block devices");
+MODULE_DESCRIPTION("SCSI disk (type 0) and CDROM (type 5) dev handler for SCST using files on file systems or block devices");
 MODULE_VERSION(SCST_VERSION_STRING);
 MODULE_IMPORT_NS(SCST);
