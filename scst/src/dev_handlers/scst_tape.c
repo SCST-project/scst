@@ -101,11 +101,9 @@ static int __init init_scst_tape_driver(void)
 	if (res < 0)
 		goto out_unreg;
 
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
 
 out_unreg:
 	scst_unregister_dev_driver(&tape_devtype);
@@ -120,7 +118,6 @@ static void __exit exit_scst_tape_driver(void)
 	scst_unregister_dev_driver(&tape_devtype);
 
 	TRACE_EXIT();
-	return;
 }
 
 module_init(init_scst_tape_driver);
@@ -136,9 +133,8 @@ static int tape_attach(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
-	if (dev->scsi_dev == NULL ||
-	    dev->scsi_dev->type != dev->type) {
-		PRINT_ERROR("%s", "SCSI device not define or illegal type");
+	if (!dev->scsi_dev || dev->scsi_dev->type != dev->type) {
+		PRINT_ERROR("SCSI device not define or illegal type");
 		res = -ENODEV;
 		goto out;
 	}
@@ -149,16 +145,16 @@ static int tape_attach(struct scst_device *dev)
 	buffer = kmalloc(buffer_size, GFP_KERNEL);
 	if (!buffer) {
 		PRINT_ERROR("Buffer memory allocation (size %d) failure",
-			buffer_size);
+			    buffer_size);
 		res = -ENOMEM;
 		goto out;
 	}
 
 	retries = SCST_DEV_RETRIES_ON_UA;
 	do {
-		TRACE_DBG("%s", "Doing TEST_UNIT_READY");
-		rc = scsi_test_unit_ready(dev->scsi_dev,
-			SCST_GENERIC_TAPE_SMALL_TIMEOUT, TAPE_RETRIES, NULL);
+		TRACE_DBG("Doing TEST_UNIT_READY");
+		rc = scsi_test_unit_ready(dev->scsi_dev, SCST_GENERIC_TAPE_SMALL_TIMEOUT,
+					  TAPE_RETRIES, NULL);
 		TRACE_DBG("TEST_UNIT_READY done: %x", rc);
 	} while ((--retries > 0) && rc);
 
@@ -168,7 +164,7 @@ static int tape_attach(struct scst_device *dev)
 		goto obtain;
 	}
 
-	TRACE_DBG("%s", "Doing MODE_SENSE");
+	TRACE_DBG("Doing MODE_SENSE");
 	rc = scsi_mode_sense(dev->scsi_dev,
 			     ((dev->scsi_dev->scsi_level <= SCSI_2) ?
 			      ((dev->scsi_dev->lun << 5) & 0xe0) : 0),
@@ -194,9 +190,9 @@ static int tape_attach(struct scst_device *dev)
 		mode = (buffer[2] & 0x70) >> 4;
 		speed = buffer[2] & 0x0f;
 		density = buffer[4];
-		TRACE_DBG("Tape: lun %lld. bs %d. type 0x%02x mode 0x%02x "
-			  "speed 0x%02x dens 0x%02x", (u64)dev->scsi_dev->lun,
-			  dev->block_size, medium_type, mode, speed, density);
+		TRACE_DBG("Tape: lun %lld. bs %d. type 0x%02x mode 0x%02x speed 0x%02x dens 0x%02x",
+			  (u64)dev->scsi_dev->lun, dev->block_size, medium_type, mode, speed,
+			  density);
 	} else {
 		PRINT_ERROR("MODE_SENSE failed: %x", rc);
 		res = -ENODEV;
@@ -207,8 +203,8 @@ static int tape_attach(struct scst_device *dev)
 obtain:
 	res = scst_obtain_device_parameters(dev, NULL);
 	if (res != 0) {
-		PRINT_ERROR("Failed to obtain control parameters for device "
-			"%s", dev->virt_name);
+		PRINT_ERROR("Failed to obtain control parameters for device %s",
+			    dev->virt_name);
 		goto out_free_buf;
 	}
 
@@ -223,7 +219,6 @@ out:
 static void tape_detach(struct scst_device *dev)
 {
 	/* Nothing to do */
-	return;
 }
 
 static int tape_parse(struct scst_cmd *cmd)
@@ -250,7 +245,6 @@ static void tape_set_block_size(struct scst_cmd *cmd, int block_size)
 	 */
 	dev->block_size = block_size;
 	dev->block_shift = scst_calc_block_shift(dev->block_size);
-	return;
 }
 
 static int tape_done(struct scst_cmd *cmd)
@@ -261,22 +255,19 @@ static int tape_done(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	if ((status == SAM_STAT_GOOD) || (status == SAM_STAT_CONDITION_MET))
+	if (status == SAM_STAT_GOOD || status == SAM_STAT_CONDITION_MET) {
 		res = scst_tape_generic_dev_done(cmd, tape_set_block_size);
-	else if ((status == SAM_STAT_CHECK_CONDITION) &&
-		   scst_sense_valid(cmd->sense)) {
+	} else if (status == SAM_STAT_CHECK_CONDITION && scst_sense_valid(cmd->sense)) {
 		TRACE_DBG("Extended sense %x", scst_sense_response_code(cmd->sense));
 
 		if (scst_sense_response_code(cmd->sense) != 0x70) {
 			PRINT_ERROR("Sense format 0x%x is not supported",
-				scst_sense_response_code(cmd->sense));
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_internal_failure));
+				    scst_sense_response_code(cmd->sense));
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_internal_failure));
 			goto out;
 		}
 
-		if (opcode == READ_6 && !(cmd->cdb[1] & SILI_BIT) &&
-		    (cmd->sense[2] & 0xe0)) {
+		if (opcode == READ_6 && !(cmd->cdb[1] & SILI_BIT) && (cmd->sense[2] & 0xe0)) {
 			/* EOF, EOM, or ILI */
 			unsigned int TransferLength, Residue = 0;
 
@@ -287,10 +278,9 @@ static int tape_done(struct scst_cmd *cmd)
 			/* Compute the residual count */
 			if ((cmd->sense[0] & 0x80) != 0)
 				Residue = get_unaligned_be32(&cmd->sense[3]);
-			TRACE_DBG("Checking the sense key "
-				"sn[2]=%x cmd->cdb[0,1]=%x,%x TransLen/Resid"
-				" %d/%d", (int)cmd->sense[2], cmd->cdb[0],
-				cmd->cdb[1], TransferLength, Residue);
+			TRACE_DBG("Checking the sense key sn[2]=%x cmd->cdb[0,1]=%x,%x TransLen/Resid %d/%d",
+				  (int)cmd->sense[2], cmd->cdb[0], cmd->cdb[1], TransferLength,
+				  Residue);
 			if (TransferLength > Residue) {
 				int resp_data_len = TransferLength - Residue;
 
@@ -308,8 +298,8 @@ static int tape_done(struct scst_cmd *cmd)
 	}
 
 out:
-	TRACE_DBG("cmd->is_send_status=%x, cmd->resp_data_len=%d, "
-	      "res=%d", cmd->is_send_status, cmd->resp_data_len, res);
+	TRACE_DBG("cmd->is_send_status=%x, cmd->resp_data_len=%d, res=%d",
+		  cmd->is_send_status, cmd->resp_data_len, res);
 
 	TRACE_EXIT_RES(res);
 	return res;
