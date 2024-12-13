@@ -96,11 +96,9 @@ static int __init init_scst_modisk_driver(void)
 	if (res < 0)
 		goto out_unreg;
 
-
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
 
 out_unreg:
 	scst_unregister_dev_driver(&modisk_devtype);
@@ -115,7 +113,6 @@ static void __exit exit_scst_modisk_driver(void)
 	scst_unregister_dev_driver(&modisk_devtype);
 
 	TRACE_EXIT();
-	return;
 }
 
 module_init(init_scst_modisk_driver);
@@ -132,9 +129,8 @@ static int modisk_attach(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
-	if (dev->scsi_dev == NULL ||
-	    dev->scsi_dev->type != dev->type) {
-		PRINT_ERROR("%s", "SCSI device not define or illegal type");
+	if (!dev->scsi_dev || dev->scsi_dev->type != dev->type) {
+		PRINT_ERROR("SCSI device not define or illegal type");
 		res = -ENODEV;
 		goto out;
 	}
@@ -147,7 +143,7 @@ static int modisk_attach(struct scst_device *dev)
 	 * of the other stuff
 	 */
 	if (dev->scsi_dev->sdev_state == SDEV_OFFLINE) {
-		TRACE_DBG("%s", "Device is offline");
+		TRACE_DBG("Device is offline");
 		res = -ENODEV;
 		goto out;
 	}
@@ -155,7 +151,7 @@ static int modisk_attach(struct scst_device *dev)
 	buffer = kmalloc(buffer_size, GFP_KERNEL);
 	if (!buffer) {
 		PRINT_ERROR("Buffer memory allocation (size %d) failure",
-			buffer_size);
+			    buffer_size);
 		res = -ENOMEM;
 		goto out;
 	}
@@ -173,16 +169,15 @@ static int modisk_attach(struct scst_device *dev)
 		memset(buffer, 0, buffer_size);
 		memset(sense_buffer, 0, sizeof(sense_buffer));
 
-		TRACE_DBG("%s", "Doing READ_CAPACITY");
+		TRACE_DBG("Doing READ_CAPACITY");
 		rc = scst_scsi_execute_cmd(dev->scsi_dev, cmd, DMA_FROM_DEVICE,
 					   buffer, buffer_size, sense_buffer,
 					   SCST_GENERIC_MODISK_REG_TIMEOUT, 3, 0);
 
 		TRACE_DBG("READ_CAPACITY done: %x", rc);
 
-		if (!rc || !scst_analyze_sense(sense_buffer,
-				sizeof(sense_buffer), SCST_SENSE_KEY_VALID,
-				UNIT_ATTENTION, 0, 0))
+		if (!rc || !scst_analyze_sense(sense_buffer, sizeof(sense_buffer),
+					       SCST_SENSE_KEY_VALID, UNIT_ATTENTION, 0, 0))
 			break;
 
 		if (!--retries) {
@@ -201,7 +196,7 @@ static int modisk_attach(struct scst_device *dev)
 		else
 			dev->block_shift = scst_calc_block_shift(sector_size);
 		TRACE_DBG("Sector size is %i scsi_level %d(SCSI_2 %d)",
-		      sector_size, dev->scsi_dev->scsi_level, SCSI_2);
+			  sector_size, dev->scsi_dev->scsi_level, SCSI_2);
 		if (dev->block_shift < 9) {
 			PRINT_ERROR("READ CAPACITY reported an invalid sector size: %d",
 				    sector_size);
@@ -210,17 +205,17 @@ static int modisk_attach(struct scst_device *dev)
 		}
 	} else {
 		dev->block_shift = MODISK_DEF_BLOCK_SHIFT;
-		TRACE(TRACE_MINOR, "Read capacity failed: %x, using default "
-			"sector size %d", rc, dev->block_shift);
-		PRINT_BUFF_FLAG(TRACE_MINOR, "Returned sense", sense_buffer,
-			sizeof(sense_buffer));
+		TRACE(TRACE_MINOR, "Read capacity failed: %x, using default sector size %d",
+		      rc, dev->block_shift);
+		PRINT_BUFF_FLAG(TRACE_MINOR, "Returned sense",
+				sense_buffer, sizeof(sense_buffer));
 	}
 	dev->block_size = 1 << dev->block_shift;
 
 	res = scst_obtain_device_parameters(dev, NULL);
 	if (res != 0) {
-		PRINT_ERROR("Failed to obtain control parameters for device "
-			"%s: %x", dev->virt_name, res);
+		PRINT_ERROR("Failed to obtain control parameters for device %s: %x",
+			    dev->virt_name, res);
 		goto out_free_buf;
 	}
 
@@ -235,7 +230,6 @@ out:
 static void modisk_detach(struct scst_device *dev)
 {
 	/* Nothing to do */
-	return;
 }
 
 static int modisk_parse(struct scst_cmd *cmd)
@@ -270,7 +264,6 @@ static void modisk_set_block_shift(struct scst_cmd *cmd, int block_shift)
 		dev->block_shift = new_block_shift;
 		dev->block_size = 1 << dev->block_shift;
 	}
-	return;
 }
 
 static int modisk_done(struct scst_cmd *cmd)
