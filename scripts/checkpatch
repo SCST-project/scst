@@ -18,6 +18,7 @@ ignore=(
 	NEW_TYPEDEFS
 	AVOID_BUG
 	MACRO_ARG_REUSE
+	IF_0
 )
 ignore_str=${ignore[*]}
 
