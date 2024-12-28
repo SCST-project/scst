@@ -3,6 +3,7 @@ name: Checkpatch upon pull request
 on:
   pull_request:
     branches:
+      - 3.9.x
       - master
 
 jobs:
