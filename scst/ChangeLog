@@ -1,3 +1,24 @@
+Summary of changes between versions 3.8 and 3.9
+-----------------------------------------------
+- scst_vdisk: Added active attributes support to vdisk_fileio.
+- iscsi-scst: Added a new link_local parameter to control whether link local
+  addresses are included in the IPv6 SendTargets response, preserving existing
+  behavior by including them.
+- iscsi-scst: Added an internal_portal parameter to allow specified portals to
+  bypass CHAP controls for both discovery and target login, preserving the
+  existing behavior if unset.
+- Fixed VPD inquiry handling for invalid LUNs. If the requested data cannot be
+  returned, the device now correctly terminates with CHECK CONDITION as per SPC-6.
+- Eliminated per-device synchronize_rcu() calls in scst_sess_free_tgt_devs(),
+  significantly cutting cleanup time for large numbers of target devices.
+- qla2x00t-32gbit driver: Updated from Linux kernel version v6.7 to v6.12.
+
+The kernel versions supported by this release are:
+* Kernel.org kernel versions v3.10..v6.12.
+* Debian / Ubuntu kernels based on upstream kernel versions v3.10..v6.12.
+* RHEL / CentOS / AlmaLinux 7.x, 8.0..8.9 and 9.0..9.5 kernels.
+* UEK version 4, 5, 6 and 7 kernels.
+
 Summary of changes between versions 3.7 and 3.8
 -----------------------------------------------
 - Fixed depmod warnings during the installation process.
@@ -671,4 +692,3 @@ Summary of changes between versions 0.9.0a and 0.9.1
  - Race with the commands serialization on one drive fixed
 
  - Cleanup
-
