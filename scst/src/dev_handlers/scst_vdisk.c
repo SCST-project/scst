@@ -74,7 +74,7 @@
 #define SCST_FIO_VENDOR			"SCST_FIO"
 #define SCST_BIO_VENDOR			"SCST_BIO"
 /* 4 byte ASCII Product Revision Level - left aligned */
-#define SCST_FIO_REV			"390 "
+#define SCST_FIO_REV			"3100"
 
 #define MAX_USN_LEN			(20 + 1) /* For '\0' */
 #define MAX_INQ_VEND_SPECIFIC_LEN	(INQ_BUF_SZ - 96)
