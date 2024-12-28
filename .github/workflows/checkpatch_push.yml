@@ -3,6 +3,7 @@ name: Checkpatch upon push
 on:
   push:
     branches:
+      - 3.9.x
       - master
 
 jobs:
