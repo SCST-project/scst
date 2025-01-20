@@ -43,6 +43,9 @@
 #include "scst_priv.h"
 #include "scst_pres.h"
 
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
+
 static void scst_cmd_set_sn(struct scst_cmd *cmd);
 static int __scst_init_cmd(struct scst_cmd *cmd);
 static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess,

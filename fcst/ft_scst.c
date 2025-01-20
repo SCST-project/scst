@@ -85,7 +85,7 @@ static void __exit ft_module_exit(void)
 MODULE_AUTHOR("Joe Eykholt <jeykholt@cisco.com>");
 MODULE_DESCRIPTION("SCST FCoE target driver v" FT_VERSION);
 MODULE_LICENSE("GPL v2");
-MODULE_IMPORT_NS(SCST);
+MODULE_IMPORT_NS(SCST_NAMESPACE);
 
 module_init(ft_module_init);
 module_exit(ft_module_exit);

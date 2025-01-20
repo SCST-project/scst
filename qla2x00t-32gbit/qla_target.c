@@ -30,6 +30,9 @@
 #include "qla_def.h"
 #include "qla_target.h"
 
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_QLA32_NAMESPACE
+
 /*
  * See also commit fb3269baf4ec ("qla2xxx: Add selective command queuing")
  * # v4.5.

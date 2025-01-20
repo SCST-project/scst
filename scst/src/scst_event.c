@@ -29,6 +29,9 @@
 
 #include "scst_priv.h"
 
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
+
 static struct workqueue_struct *scst_event_wq;
 static struct class *scst_event_sysfs_class;
 

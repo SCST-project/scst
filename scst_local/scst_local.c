@@ -149,7 +149,7 @@ MODULE_AUTHOR("Richard Sharpe, Vladislav Bolkhovitin + ideas from SCSI_DEBUG");
 MODULE_DESCRIPTION("SCSI+SCST local adapter driver");
 MODULE_LICENSE("GPL");
 MODULE_VERSION(SCST_LOCAL_VERSION);
-MODULE_IMPORT_NS(SCST);
+MODULE_IMPORT_NS(SCST_NAMESPACE);
 
 static int scst_local_get_sas_transport_id(struct scst_local_sess *sess, uint8_t **transport_id,
 					   int *len)

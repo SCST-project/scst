@@ -28,6 +28,9 @@
 #include "scst_priv.h"
 #include "scst_pres.h"
 
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
+
 struct alua_state_and_name {
 	enum scst_tg_state s;
 	char *n;

@@ -34,6 +34,9 @@
 #include "scst_pres.h"
 #include "scst_mem.h"
 
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
+
 #ifdef CONFIG_LOCKDEP
 static struct lock_class_key scst_tgtt_key;
 static struct lockdep_map scst_tgtt_dep_map =

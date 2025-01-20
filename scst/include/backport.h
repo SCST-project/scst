@@ -1003,7 +1003,21 @@ register_shrinker_backport(struct shrinker *shrinker, const char *fmt, ...)
 #endif
 
 /* <linux/module.h> */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
+#define SCST_NAMESPACE		SCST
+#define SCST_QLA16_NAMESPACE	QLA16GB
+#define SCST_QLA32_NAMESPACE	QLA32GB
+#else
+#define SCST_NAMESPACE		"SCST"
+#define SCST_QLA16_NAMESPACE	"QLA16GB"
+#define SCST_QLA32_NAMESPACE	"QLA32GB"
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 17, 0)
+#undef MODULE_IMPORT_NS
+#define MODULE_IMPORT_NS(ns)	MODULE_INFO(import_ns, __stringify(ns))
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 0)
 #define MODULE_IMPORT_NS(ns)
 #endif
 

@@ -56,6 +56,9 @@
 #include "scst_mem.h"
 #include "scst_pres.h"
 
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
+
 /* 8 byte ASCII Vendor */
 #define SCST_NOLUN_VENDOR		"SCST    "
 

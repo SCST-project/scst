@@ -1,8 +1,7 @@
-ccflags-y += -I$(src)/../scst/include -I$(src)/include		\
-	-DDEFAULT_SYMBOL_NAMESPACE=QLA32GB
+ccflags-y :=	-I$(src)/../scst/include -I$(src)/include
 
 ifneq ($(CONFIG_SCSI_QLA2XXX_TARGET),)
-ccflags-y += -DCONFIG_SCSI_QLA2XXX_TARGET=$(CONFIG_SCSI_QLA2XXX_TARGET)
+ccflags-y +=	-DCONFIG_SCSI_QLA2XXX_TARGET=$(CONFIG_SCSI_QLA2XXX_TARGET)
 endif
 
 obj-m := qla2xxx_scst.o
