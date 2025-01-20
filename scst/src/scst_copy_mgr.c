@@ -18,6 +18,8 @@
 #include "scst_priv.h"
 #include "scst_pres.h"
 
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
 
 #define SCST_CM_NAME		"copy_manager"
 #define SCST_CM_TGT_NAME	(SCST_CM_NAME "_tgt")

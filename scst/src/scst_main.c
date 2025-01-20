@@ -40,6 +40,9 @@
 #include "scst_mem.h"
 #include "scst_pres.h"
 
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
+
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
 #warning HIGHMEM kernel configurations are fully supported, but not \
 recommended for performance reasons. Consider changing VMSPLIT \

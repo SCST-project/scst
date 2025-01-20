@@ -1,4 +1,3 @@
-
 #include <linux/spinlock.h>
 #include "iscsi_trace_flag.h"
 #ifdef INSIDE_KERNEL_TREE
@@ -7,6 +6,9 @@
 #include "iscsit_transport.h"
 #endif
 #include "iscsi.h"
+
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
 
 static LIST_HEAD(transport_list);
 static DEFINE_MUTEX(transport_mutex);
@@ -66,4 +68,3 @@ void iscsit_unreg_transport(struct iscsit_transport *t)
 	PRINT_INFO("Unregistered iSCSI transport: %s", t->name);
 }
 EXPORT_SYMBOL(iscsit_unreg_transport);
-

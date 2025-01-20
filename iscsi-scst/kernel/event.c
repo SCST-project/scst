@@ -25,6 +25,9 @@
 #include "iscsi_trace_flag.h"
 #include "iscsi.h"
 
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
+
 struct net *iscsi_net_ns;
 EXPORT_SYMBOL(iscsi_net_ns);
 

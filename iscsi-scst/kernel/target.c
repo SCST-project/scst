@@ -21,6 +21,9 @@
 #include "iscsi.h"
 #include "digest.h"
 
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
+
 #define MAX_NR_TARGETS		(1UL << 30)
 
 DEFINE_MUTEX(target_mgmt_mutex);

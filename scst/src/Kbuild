@@ -1,9 +1,7 @@
-# See also Documentation/core-api/symbol-namespaces.rst for more information
-# about DEFAULT_SYMBOL_NAMESPACE.
-ccflags-y += -I$(src)/../include	\
-	-DDEFAULT_SYMBOL_NAMESPACE=SCST	\
-	$(shell [ -n "${CONFIG_SCST_NO_DLM}" ] && echo -DCONFIG_SCST_NO_DLM)	\
-	$(shell [ -n "${REVISION}" ] && echo -DSCST_REVISION=${REVISION})
+ccflags-y :=	-I$(src)/../include
+
+ccflags-y +=	$(shell [ -n "${CONFIG_SCST_NO_DLM}" ] && echo -DCONFIG_SCST_NO_DLM)	\
+		$(shell [ -n "${REVISION}" ] && echo -DSCST_REVISION=${REVISION})
 
 #ccflags-y += -DCONFIG_SCST_STRICT_SERIALIZING
 #ccflags-y += -DCONFIG_SCST_USE_EXPECTED_VALUES

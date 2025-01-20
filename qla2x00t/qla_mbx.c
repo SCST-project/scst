@@ -11,6 +11,8 @@
 #include <linux/delay.h>
 #include <linux/vmalloc.h>
 
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_QLA16_NAMESPACE
 
 /*
  * qla2x00_mailbox_command
@@ -5021,4 +5023,3 @@ qla2x00_port_logout(scsi_qla_host_t *vha, struct fc_port *fcport)
 
 	return rval;
 }
-

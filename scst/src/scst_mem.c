@@ -34,6 +34,9 @@
 #include "scst_priv.h"
 #include "scst_mem.h"
 
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
+
 #define SGV_DEFAULT_PURGE_INTERVAL	(60 * HZ)
 #define SGV_MIN_SHRINK_INTERVAL		(1 * HZ)
 
@@ -2165,4 +2168,3 @@ void scst_del_put_sgv_kobj(void)
 	kobject_put(scst_sgv_kobj);
 	scst_sgv_kobj = NULL;
 }
-

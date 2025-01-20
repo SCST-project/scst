@@ -44,6 +44,9 @@
 #include "qla_def.h"
 #include "scst_qla2xxx.h"
 
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_QLA32_NAMESPACE
+
 size_t qlt_add_vtarget(u64 port_name, u64 node_name, u64 parent_host)
 {
 	struct fc_vport *vport;

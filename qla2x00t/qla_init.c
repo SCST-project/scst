@@ -22,6 +22,9 @@
 #include "qla2x_tgt.h"
 #endif
 
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_QLA16_NAMESPACE
+
 /*
 *  QLogic ISP2x00 Hardware Support Function Prototypes.
 */

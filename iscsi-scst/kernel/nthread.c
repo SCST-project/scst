@@ -29,6 +29,9 @@
 #include "iscsi.h"
 #include "digest.h"
 
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
+
 /* Read data states */
 enum rx_state {
 	RX_INIT_BHS, /* Must be zero for better "switch" optimization. */

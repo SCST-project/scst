@@ -9971,4 +9971,4 @@ MODULE_AUTHOR("Vladislav Bolkhovitin & Leonid Stoljar");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("SCSI disk (type 0) and CDROM (type 5) dev handler for SCST using files on file systems or block devices");
 MODULE_VERSION(SCST_VERSION_STRING);
-MODULE_IMPORT_NS(SCST);
+MODULE_IMPORT_NS(SCST_NAMESPACE);

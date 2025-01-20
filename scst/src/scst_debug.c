@@ -32,6 +32,9 @@
 #include "scst_debug.h"
 #endif
 
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
+
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 
 #define TRACE_BUF_SIZE    512

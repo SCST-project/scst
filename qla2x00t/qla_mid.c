@@ -19,6 +19,9 @@
 #include "qla2x_tgt.h"
 #endif
 
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_QLA16_NAMESPACE
+
 void
 qla2x00_vp_stop_timer(scsi_qla_host_t *vha)
 {

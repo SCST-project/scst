@@ -12,6 +12,10 @@
 #include <scsi/scsi_tcq.h>
 
 #include "qla2x_tgt.h"
+
+#undef DEFAULT_SYMBOL_NAMESPACE
+#define DEFAULT_SYMBOL_NAMESPACE	SCST_QLA16_NAMESPACE
+
 static void qla25xx_set_que(srb_t *, struct rsp_que **);
 
 /*
