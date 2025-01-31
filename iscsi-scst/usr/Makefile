@@ -23,7 +23,7 @@ cc-option = $(shell if $(CC) $(1) -Werror -S -o /dev/null -xc /dev/null \
 
 SRCS_D = iscsid.c iscsi_scstd.c conn.c session.c target.c message.c ctldev.c \
 		log.c chap.c event.c param.c config.c isns.c md5.c sha1.c \
-		misc.c
+		misc.c af_alg.c
 OBJS_D = $(SRCS_D:.c=.o)
 
 SRCS_ADM = iscsi_adm.c param.c
