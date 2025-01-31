@@ -31,6 +31,8 @@
 #include <unistd.h>
 #include "sha1.h"
 #include "md5.h"
+#include "af_alg.h"
+#include <sys/param.h>
 
 #include "iscsid.h"
 
@@ -39,9 +41,13 @@
 
 #define CHAP_DIGEST_ALG_MD5   5
 #define CHAP_DIGEST_ALG_SHA1  6
+#define CHAP_DIGEST_ALG_SHA256  7
+#define CHAP_DIGEST_ALG_SHA3_256  8
 
 #define CHAP_MD5_DIGEST_LEN  16
 #define CHAP_SHA1_DIGEST_LEN 20
+#define CHAP_SHA256_DIGEST_LEN 32
+#define CHAP_SHA3_256_DIGEST_LEN 32
 
 #define CHAP_INITIATOR_ERROR -1
 #define CHAP_AUTH_ERROR      -2
@@ -338,6 +344,49 @@ static inline void chap_calc_digest_sha1(char chap_id, const char *secret, int s
 	sha1_final(&ctx, digest);
 }
 
+static inline void
+chap_calc_digest_af_alg(char *alg, char chap_id,
+			const char *secret, int secret_len,
+			const u8 *challenge, int challenge_len,
+			u8 *digest, int digest_len)
+{
+	int datafd = af_alg_init(alg);
+	char buffer[1024];
+	int bytes;
+
+	if (datafd < 0) {
+		log_error("CHAP unable to use %s algorithm", alg);
+		return;
+	}
+
+	af_alg_update(datafd, &chap_id, 1);
+	af_alg_update(datafd, secret, secret_len);
+	af_alg_update(datafd, challenge, challenge_len);
+	bytes = af_alg_final(datafd, buffer, sizeof(buffer));
+	close(datafd);
+	memcpy(digest, buffer, MIN(bytes, digest_len));
+}
+
+static inline void
+chap_calc_digest_sha256(char chap_id, const char *secret, int secret_len,
+			const u8 *challenge, int challenge_len, u8 *digest)
+{
+	chap_calc_digest_af_alg(SCST_AF_ALG_SHA256_NAME,
+				chap_id, secret, secret_len,
+				challenge, challenge_len,
+				digest, CHAP_SHA256_DIGEST_LEN);
+}
+
+static inline void
+chap_calc_digest_sha3_256(char chap_id, const char *secret, int secret_len,
+			  const u8 *challenge, int challenge_len, u8 *digest)
+{
+	chap_calc_digest_af_alg(SCST_AF_ALG_SHA3_256_NAME,
+				chap_id, secret, secret_len,
+				challenge, challenge_len,
+				digest, CHAP_SHA3_256_DIGEST_LEN);
+}
+
 /*
  * To generate challenge for CHAP, use stronger random number generator as
  * opposed to simple rand().
@@ -374,7 +423,16 @@ static int chap_initiator_auth_create_challenge(struct connection *conn)
 			conn->auth.chap.digest_alg = CHAP_DIGEST_ALG_SHA1;
 			conn->auth_state = CHAP_AUTH_STATE_CHALLENGE;
 			break;
+		} else if (!strcmp(p, "7") && af_alg_supported(SCST_AF_ALG_SHA256_NAME)) {
+			conn->auth.chap.digest_alg = CHAP_DIGEST_ALG_SHA256;
+			conn->auth_state = CHAP_AUTH_STATE_CHALLENGE;
+			break;
+		} else if (!strcmp(p, "8") && af_alg_supported(SCST_AF_ALG_SHA3_256_NAME)) {
+			conn->auth.chap.digest_alg = CHAP_DIGEST_ALG_SHA3_256;
+			conn->auth_state = CHAP_AUTH_STATE_CHALLENGE;
+			break;
 		}
+
 	}
 	if (!p)
 		return CHAP_INITIATOR_ERROR;
@@ -458,6 +516,12 @@ static int chap_initiator_auth_check_response(struct connection *conn)
 	case CHAP_DIGEST_ALG_SHA1:
 		digest_len = CHAP_SHA1_DIGEST_LEN;
 		break;
+	case CHAP_DIGEST_ALG_SHA256:
+		digest_len = CHAP_SHA256_DIGEST_LEN;
+		break;
+	case CHAP_DIGEST_ALG_SHA3_256:
+		digest_len = CHAP_SHA3_256_DIGEST_LEN;
+		break;
 	default:
 		retval = CHAP_TARGET_ERROR;
 		goto out;
@@ -489,6 +553,18 @@ static int chap_initiator_auth_check_response(struct connection *conn)
 				      conn->auth.chap.challenge,
 				      conn->auth.chap.challenge_size,
 				      our_digest);
+		break;
+	case CHAP_DIGEST_ALG_SHA256:
+		chap_calc_digest_sha256(conn->auth.chap.id, pass, strlen(pass),
+					conn->auth.chap.challenge,
+					conn->auth.chap.challenge_size,
+					our_digest);
+		break;
+	case CHAP_DIGEST_ALG_SHA3_256:
+		chap_calc_digest_sha3_256(conn->auth.chap.id, pass, strlen(pass),
+					  conn->auth.chap.challenge,
+					  conn->auth.chap.challenge_size,
+					  our_digest);
 		break;
 	default:
 		retval = CHAP_TARGET_ERROR;
@@ -571,6 +647,12 @@ static int chap_target_auth_create_response(struct connection *conn)
 	case CHAP_DIGEST_ALG_SHA1:
 		digest_len = CHAP_SHA1_DIGEST_LEN;
 		break;
+	case CHAP_DIGEST_ALG_SHA256:
+		digest_len = CHAP_SHA256_DIGEST_LEN;
+		break;
+	case CHAP_DIGEST_ALG_SHA3_256:
+		digest_len = CHAP_SHA3_256_DIGEST_LEN;
+		break;
 	default:
 		retval = CHAP_TARGET_ERROR;
 		goto out;
@@ -618,6 +700,16 @@ static int chap_target_auth_create_response(struct connection *conn)
 	case CHAP_DIGEST_ALG_SHA1:
 		chap_calc_digest_sha1(chap_id, ISCSI_USER_PASS(user),
 			strlen(ISCSI_USER_PASS(user)), challenge, challenge_len, digest);
+		break;
+	case CHAP_DIGEST_ALG_SHA256:
+		chap_calc_digest_sha256(chap_id, ISCSI_USER_PASS(user),
+					strlen(ISCSI_USER_PASS(user)),
+					challenge, challenge_len, digest);
+		break;
+	case CHAP_DIGEST_ALG_SHA3_256:
+		chap_calc_digest_sha3_256(chap_id, ISCSI_USER_PASS(user),
+					  strlen(ISCSI_USER_PASS(user)),
+					  challenge, challenge_len, digest);
 		break;
 	default:
 		retval = CHAP_TARGET_ERROR;
