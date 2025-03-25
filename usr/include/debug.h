@@ -202,53 +202,52 @@ do {								\
 #define TRACE_ENTRY()						\
 do {								\
 	if (trace_flag & TRACE_ENTRYEXIT) {			\
-		if (trace_flag & TRACE_PID) {			\
+		if (trace_flag & TRACE_PID)			\
 			PRINT(LOG_DEBUG, "[%d]: ENTRY %s",	\
-				gettid(), __func__);		\
-		} else {					\
+			      gettid(), __func__);		\
+		else						\
 			PRINT(LOG_DEBUG, "ENTRY %s",		\
-				__func__);			\
-		}						\
+			      __func__);			\
 	}							\
 } while (0)
 
 #define TRACE_EXIT()						\
 do {								\
 	if (trace_flag & TRACE_ENTRYEXIT) {			\
-		if (trace_flag & TRACE_PID) {			\
+		if (trace_flag & TRACE_PID)			\
 			PRINT(LOG_DEBUG, "[%d]: EXIT %s",	\
-				gettid(), __func__);		\
-		} else {					\
-			PRINT(LOG_DEBUG, "EXIT %s", __func__);	\
-		}						\
+			      gettid(), __func__);		\
+		else						\
+			PRINT(LOG_DEBUG, "EXIT %s",		\
+			      __func__);			\
 	}							\
 } while (0)
 
 #define TRACE_EXIT_RES(res)					\
 do {								\
 	if (trace_flag & TRACE_ENTRYEXIT) {			\
-		if (trace_flag & TRACE_PID) {			\
+		long lres = res;				\
+								\
+		if (trace_flag & TRACE_PID)			\
 			PRINT(LOG_DEBUG, "[%d]: EXIT %s: %ld",	\
-				gettid(), __func__,		\
-				(long)(res));			\
-		} else {					\
+			      gettid(), __func__, lres);	\
+		else						\
 			PRINT(LOG_DEBUG, "EXIT %s: %ld",	\
-				__func__, (long)(res));		\
-		}						\
+			      __func__, lres);			\
 	}							\
 } while (0)
 
 #define TRACE_EXIT_HRES(res)					\
 do {								\
 	if (trace_flag & TRACE_ENTRYEXIT) {			\
-		if (trace_flag & TRACE_PID) {			\
+		unsigned long lres = (unsigned long)(res);	\
+								\
+		if (trace_flag & TRACE_PID)			\
 			PRINT(LOG_DEBUG, "[%d]: EXIT %s: 0x%lx",\
-				gettid(), __func__,		\
-				(long)(res));			\
-		} else {					\
+			      gettid(), __func__, lres);	\
+		else						\
 			PRINT(LOG_DEBUG, "EXIT %s: %lx",	\
-				__func__, (long)(res));		\
-		}						\
+			      __func__, lres);			\
 	}							\
 } while (0)
 

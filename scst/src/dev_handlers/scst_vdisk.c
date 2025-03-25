@@ -695,7 +695,7 @@ static struct scst_vdisk_dev *vdev_find(const char *name)
 		}
 	}
 
-	TRACE_EXIT_HRES((unsigned long)res);
+	TRACE_EXIT_HRES(res);
 	return res;
 }
 

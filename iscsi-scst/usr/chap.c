@@ -33,6 +33,7 @@
 #include "md5.h"
 #include "af_alg.h"
 #include <sys/param.h>
+#include <errno.h>
 
 #include "iscsid.h"
 
@@ -344,47 +345,66 @@ static inline void chap_calc_digest_sha1(char chap_id, const char *secret, int s
 	sha1_final(&ctx, digest);
 }
 
-static inline void
+static inline int
 chap_calc_digest_af_alg(char *alg, char chap_id,
 			const char *secret, int secret_len,
 			const u8 *challenge, int challenge_len,
 			u8 *digest, int digest_len)
 {
-	int datafd = af_alg_init(alg);
+	int datafd;
+	ssize_t bytes;
 	char buffer[1024];
-	int bytes;
+	int res = 0;
 
+	datafd = af_alg_init(alg);
 	if (datafd < 0) {
 		log_error("CHAP unable to use %s algorithm", alg);
-		return;
+		return -EINVAL;
 	}
 
-	af_alg_update(datafd, &chap_id, 1);
-	af_alg_update(datafd, secret, secret_len);
-	af_alg_update(datafd, challenge, challenge_len);
+	res = af_alg_update(datafd, &chap_id, 1);
+	if (res)
+		goto out;
+
+	res = af_alg_update(datafd, secret, secret_len);
+	if (res)
+		goto out;
+
+	res = af_alg_update(datafd, challenge, challenge_len);
+	if (res)
+		goto out;
+
 	bytes = af_alg_final(datafd, buffer, sizeof(buffer));
+	if (bytes < 0) {
+		res = bytes;
+		goto out;
+	}
+
+	memcpy(digest, buffer, MIN(res, digest_len));
+
+out:
 	close(datafd);
-	memcpy(digest, buffer, MIN(bytes, digest_len));
+	return res;
 }
 
-static inline void
+static inline int
 chap_calc_digest_sha256(char chap_id, const char *secret, int secret_len,
 			const u8 *challenge, int challenge_len, u8 *digest)
 {
-	chap_calc_digest_af_alg(SCST_AF_ALG_SHA256_NAME,
-				chap_id, secret, secret_len,
-				challenge, challenge_len,
-				digest, CHAP_SHA256_DIGEST_LEN);
+	return chap_calc_digest_af_alg(SCST_AF_ALG_SHA256_NAME,
+				       chap_id, secret, secret_len,
+				       challenge, challenge_len,
+				       digest, CHAP_SHA256_DIGEST_LEN);
 }
 
-static inline void
+static inline int
 chap_calc_digest_sha3_256(char chap_id, const char *secret, int secret_len,
 			  const u8 *challenge, int challenge_len, u8 *digest)
 {
-	chap_calc_digest_af_alg(SCST_AF_ALG_SHA3_256_NAME,
-				chap_id, secret, secret_len,
-				challenge, challenge_len,
-				digest, CHAP_SHA3_256_DIGEST_LEN);
+	return chap_calc_digest_af_alg(SCST_AF_ALG_SHA3_256_NAME,
+				       chap_id, secret, secret_len,
+				       challenge, challenge_len,
+				       digest, CHAP_SHA3_256_DIGEST_LEN);
 }
 
 /*
@@ -470,12 +490,12 @@ static int chap_initiator_auth_check_response(struct connection *conn)
 {
 	char *value;
 	u8 *his_digest = NULL, *our_digest = NULL;
-	int digest_len = 0, retval = 0, encoding_format;
 	char pass[ISCSI_NAME_LEN];
+	int digest_len = 0, retval = 0, encoding_format;
+	int res;
 
 	if (accounts_empty(conn->tid, ISCSI_USER_DIR_INCOMING)) {
-		log_warning("CHAP initiator auth.: "
-			    "No CHAP credentials configured");
+		log_warning("CHAP initiator auth.: No CHAP credentials configured");
 		retval = CHAP_TARGET_ERROR;
 		goto out;
 	}
@@ -486,15 +506,13 @@ static int chap_initiator_auth_check_response(struct connection *conn)
 	}
 
 	conn->user = strdup(value);
-	if (conn->user == NULL) {
+	if (!conn->user)
 		log_error("Unable to duplicate initiator's USER %s", value);
-	}
 
 	memset(pass, 0, sizeof(pass));
 	if (config_account_query(conn->tid, ISCSI_USER_DIR_INCOMING, value, pass) < 0) {
-		log_warning("CHAP initiator auth.: "
-			    "No valid user/pass combination for initiator %s "
-			    "found", conn->initiator);
+		log_warning("CHAP initiator auth.: No valid user/pass combination for initiator %s found",
+			    conn->initiator);
 		retval = CHAP_AUTH_ERROR;
 		goto out;
 	}
@@ -527,11 +545,14 @@ static int chap_initiator_auth_check_response(struct connection *conn)
 		goto out;
 	}
 
-	if (!(his_digest = malloc(digest_len))) {
+	his_digest = malloc(digest_len);
+	if (!his_digest) {
 		retval = CHAP_TARGET_ERROR;
 		goto out;
 	}
-	if (!(our_digest = malloc(digest_len))) {
+
+	our_digest = malloc(digest_len);
+	if (!our_digest) {
 		retval = CHAP_TARGET_ERROR;
 		goto out;
 	}
@@ -555,16 +576,24 @@ static int chap_initiator_auth_check_response(struct connection *conn)
 				      our_digest);
 		break;
 	case CHAP_DIGEST_ALG_SHA256:
-		chap_calc_digest_sha256(conn->auth.chap.id, pass, strlen(pass),
-					conn->auth.chap.challenge,
-					conn->auth.chap.challenge_size,
-					our_digest);
+		res = chap_calc_digest_sha256(conn->auth.chap.id, pass, strlen(pass),
+					      conn->auth.chap.challenge,
+					      conn->auth.chap.challenge_size,
+					      our_digest);
+		if (res) {
+			retval = CHAP_TARGET_ERROR;
+			goto out;
+		}
 		break;
 	case CHAP_DIGEST_ALG_SHA3_256:
-		chap_calc_digest_sha3_256(conn->auth.chap.id, pass, strlen(pass),
-					  conn->auth.chap.challenge,
-					  conn->auth.chap.challenge_size,
-					  our_digest);
+		res = chap_calc_digest_sha3_256(conn->auth.chap.id, pass, strlen(pass),
+						conn->auth.chap.challenge,
+						conn->auth.chap.challenge_size,
+						our_digest);
+		if (res) {
+			retval = CHAP_TARGET_ERROR;
+			goto out;
+		}
 		break;
 	default:
 		retval = CHAP_TARGET_ERROR;
@@ -572,8 +601,7 @@ static int chap_initiator_auth_check_response(struct connection *conn)
 	}
 
 	if (memcmp(our_digest, his_digest, digest_len)) {
-		log_warning("CHAP initiator auth.: "
-			    "authentication of %s failed (wrong secret!?)",
+		log_warning("CHAP initiator auth.: authentication of %s failed (wrong secret!?)",
 			    conn->initiator);
 		retval = CHAP_AUTH_ERROR;
 		goto out;
@@ -581,10 +609,8 @@ static int chap_initiator_auth_check_response(struct connection *conn)
 
 	conn->state = CHAP_AUTH_STATE_RESPONSE;
  out:
-	if (his_digest)
-		free(his_digest);
-	if (our_digest)
-		free(our_digest);
+	free(his_digest);
+	free(our_digest);
 	return retval;
 }
 
@@ -593,8 +619,9 @@ static int chap_target_auth_create_response(struct connection *conn)
 	char chap_id, *value, *response = NULL;
 	u8 *challenge = NULL, *digest = NULL;
 	int encoding_format, response_len;
-	int challenge_len = 0, digest_len = 0, retval = 0;
 	struct iscsi_attr *user;
+	int challenge_len = 0, digest_len = 0, retval = 0;
+	int res;
 
 	if (!(value = text_key_find(conn, "CHAP_I"))) {
 		/* Initiator doesn't want target auth!? */
@@ -606,16 +633,14 @@ static int chap_target_auth_create_response(struct connection *conn)
 
 	user = account_get_first(conn->tid, ISCSI_USER_DIR_OUTGOING);
 	if (user == NULL) {
-		log_warning("CHAP target auth.: "
-			    "no outgoing credentials configured%s",
+		log_warning("CHAP target auth.: no outgoing credentials configured%s",
 			    conn->tid ? "." : " for discovery.");
 		retval = CHAP_AUTH_ERROR;
 		goto out;
 	}
 
 	if (!(value = text_key_find(conn, "CHAP_C"))) {
-		log_warning("CHAP target auth.: "
-			    "got no challenge from initiator %s",
+		log_warning("CHAP target auth.: got no challenge from initiator %s",
 			    conn->initiator);
 		retval = CHAP_INITIATOR_ERROR;
 		goto out;
@@ -629,9 +654,9 @@ static int chap_target_auth_create_response(struct connection *conn)
 	retval = chap_alloc_decode_buffer(value, &challenge, encoding_format);
 	if (retval <= 0)
 		goto out;
-	else if (retval > 1024) {
-		log_warning("CHAP target auth.: "
-			    "initiator %s sent challenge of invalid length %d",
+
+	if (retval > 1024) {
+		log_warning("CHAP target auth.: initiator %s sent challenge of invalid length %d",
 			    conn->initiator, challenge_len);
 		retval = CHAP_INITIATOR_ERROR;
 		goto out;
@@ -665,11 +690,14 @@ static int chap_target_auth_create_response(struct connection *conn)
 	/* "0x" / "0b" and "\0": */
 	response_len += 3;
 
-	if (!(digest = malloc(digest_len))) {
+	digest = malloc(digest_len);
+	if (!digest) {
 		retval = CHAP_TARGET_ERROR;
 		goto out;
 	}
-	if (!(response = malloc(response_len))) {
+
+	response = malloc(response_len);
+	if (!response) {
 		retval = CHAP_TARGET_ERROR;
 		goto out;
 	}
@@ -684,8 +712,7 @@ static int chap_target_auth_create_response(struct connection *conn)
 		if (!memcmp(challenge, conn->auth.chap.challenge,
 			    challenge_len)) {
 			/* ToDo: RFC 3720 demands to close TCP conn */
-			log_warning("CHAP target auth.: "
-				    "initiator %s reflected our challenge",
+			log_warning("CHAP target auth.: initiator %s reflected our challenge",
 				    conn->initiator);
 			retval = CHAP_INITIATOR_ERROR;
 			goto out;
@@ -702,14 +729,22 @@ static int chap_target_auth_create_response(struct connection *conn)
 			strlen(ISCSI_USER_PASS(user)), challenge, challenge_len, digest);
 		break;
 	case CHAP_DIGEST_ALG_SHA256:
-		chap_calc_digest_sha256(chap_id, ISCSI_USER_PASS(user),
-					strlen(ISCSI_USER_PASS(user)),
-					challenge, challenge_len, digest);
+		res = chap_calc_digest_sha256(chap_id, ISCSI_USER_PASS(user),
+					      strlen(ISCSI_USER_PASS(user)),
+					      challenge, challenge_len, digest);
+		if (res) {
+			retval = CHAP_TARGET_ERROR;
+			goto out;
+		}
 		break;
 	case CHAP_DIGEST_ALG_SHA3_256:
-		chap_calc_digest_sha3_256(chap_id, ISCSI_USER_PASS(user),
-					  strlen(ISCSI_USER_PASS(user)),
-					  challenge, challenge_len, digest);
+		res = chap_calc_digest_sha3_256(chap_id, ISCSI_USER_PASS(user),
+						strlen(ISCSI_USER_PASS(user)),
+						challenge, challenge_len, digest);
+		if (res) {
+			retval = CHAP_TARGET_ERROR;
+			goto out;
+		}
 		break;
 	default:
 		retval = CHAP_TARGET_ERROR;
@@ -723,12 +758,9 @@ static int chap_target_auth_create_response(struct connection *conn)
 
 	conn->state = STATE_SECURITY_DONE;
  out:
-	if (challenge)
-		free(challenge);
-	if (digest)
-		free(digest);
-	if (response)
-		free(response);
+	free(challenge);
+	free(digest);
+	free(response);
 	return retval;
 }
 

@@ -245,7 +245,7 @@ static struct iscsi_cmnd *iscsi_create_tm_clone(struct iscsi_cmnd *cmnd)
 		PRINT_ERROR("Failed to create TM clone for cmnd %p", cmnd);
 	}
 
-	TRACE_EXIT_HRES((unsigned long)tm_clone);
+	TRACE_EXIT_HRES(tm_clone);
 	return tm_clone;
 }
 
@@ -744,7 +744,7 @@ static struct iscsi_cmnd *iscsi_alloc_rsp(struct iscsi_cmnd *parent)
 
 	cmnd_get(parent);
 
-	TRACE_EXIT_HRES((unsigned long)rsp);
+	TRACE_EXIT_HRES(rsp);
 	return rsp;
 }
 
@@ -759,7 +759,7 @@ static inline struct iscsi_cmnd *iscsi_alloc_main_rsp(struct iscsi_cmnd *parent)
 	rsp = iscsi_alloc_rsp(parent);
 	parent->main_rsp = rsp;
 
-	TRACE_EXIT_HRES((unsigned long)rsp);
+	TRACE_EXIT_HRES(rsp);
 	return rsp;
 }
 
@@ -1047,7 +1047,7 @@ struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req, int status, const u
 	iscsi_init_status_rsp(rsp, status, sense_buf, sense_len);
 	iscsi_set_resid(rsp);
 
-	TRACE_EXIT_HRES((unsigned long)rsp);
+	TRACE_EXIT_HRES(rsp);
 	return rsp;
 }
 EXPORT_SYMBOL(create_status_rsp);

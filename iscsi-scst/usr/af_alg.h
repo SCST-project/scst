@@ -23,7 +23,7 @@
 #define SCST_AF_ALG_SHA3_256_NAME  "sha3-256"
 
 int af_alg_init(const char *algorithm);
-void af_alg_update(int datafd, const void *data_in, size_t len);
+int af_alg_update(int datafd, const void *data_in, size_t len);
 ssize_t af_alg_final(int datafd, void *out, size_t len);
 bool af_alg_supported(char *alg);
 

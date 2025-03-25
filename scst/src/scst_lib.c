@@ -2609,7 +2609,7 @@ struct scst_aen *scst_alloc_aen(struct scst_session *sess,
 	aen->lun = scst_pack_lun(unpacked_lun, sess->acg->addr_method);
 
 out:
-	TRACE_EXIT_HRES((unsigned long)aen);
+	TRACE_EXIT_HRES(aen);
 	return aen;
 }
 
@@ -5154,7 +5154,7 @@ static struct scst_tgt_dev *scst_find_shared_io_tgt_dev(
 	}
 
 out:
-	TRACE_EXIT_HRES((unsigned long)res);
+	TRACE_EXIT_HRES(res);
 	return res;
 
 found:
@@ -5934,7 +5934,7 @@ struct scst_cmd *__scst_create_prepare_internal_cmd(const uint8_t *cdb,
 	scst_set_cmd_state(res, SCST_CMD_STATE_PARSE);
 
 out:
-	TRACE_EXIT_HRES((unsigned long)res);
+	TRACE_EXIT_HRES(res);
 	return res;
 }
 
@@ -5955,7 +5955,7 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 	res->atomic = scst_cmd_atomic(orig_cmd);
 
 out:
-	TRACE_EXIT_HRES((unsigned long)res);
+	TRACE_EXIT_HRES(res);
 	return res;
 }
 
@@ -13616,7 +13616,7 @@ restart:
 	}
 
 out:
-	TRACE_EXIT_HRES((unsigned long)res);
+	TRACE_EXIT_HRES(res);
 	return res;
 }
 
@@ -13632,7 +13632,7 @@ struct scst_cmd *__scst_check_deferred_commands(
 	res = __scst_check_deferred_commands_locked(order_data, return_first);
 	spin_unlock_irq(&order_data->sn_lock);
 
-	TRACE_EXIT_HRES((unsigned long)res);
+	TRACE_EXIT_HRES(res);
 	return res;
 }
 

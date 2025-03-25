@@ -22,6 +22,7 @@
 #include <string.h>
 #include <sys/param.h>
 #include <stdbool.h>
+#include <errno.h>
 
 int af_alg_init(const char *algorithm)
 {
@@ -56,21 +57,33 @@ int af_alg_init(const char *algorithm)
 	return datafd;
 }
 
-void af_alg_update(int datafd, const void *data_in, size_t len)
+int af_alg_update(int datafd, const void *data_in, size_t len)
 {
-	send(datafd, data_in, len, MSG_MORE);
+	ssize_t res;
+
+	res = send(datafd, data_in, len, MSG_MORE);
+	if (res == -1)
+		return -errno;
+
+	return 0;
 }
 
 ssize_t af_alg_final(int datafd, void *out, size_t len)
 {
 	char buffer[1024];
-	ssize_t bytes;
+	ssize_t res;
 
-	send(datafd, NULL, 0, 0);
+	res = send(datafd, NULL, 0, 0);
+	if (res == -1)
+		return -errno;
 
-	bytes = recv(datafd, buffer, sizeof(buffer), 0);
-	memcpy(out, buffer, MIN(len, bytes));
-	return bytes;
+	res = recv(datafd, buffer, sizeof(buffer), 0);
+	if (res == -1)
+		return -errno;
+
+	memcpy(out, buffer, MIN(len, res));
+
+	return res;
 }
 
 bool af_alg_supported(char *alg)

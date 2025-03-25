@@ -1038,7 +1038,7 @@ static __poll_t scst_event_poll(struct file *file, poll_table *wait)
 out_unlock:
 	mutex_unlock(&scst_event_mutex);
 
-	TRACE_EXIT_HRES((__force unsigned int)res);
+	TRACE_EXIT_HRES(res);
 	return res;
 }
 
