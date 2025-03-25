@@ -15,16 +15,30 @@
 #  GNU General Public License for more details.
 
 LINUXINCLUDE := $(ISER_CFLAGS) $(LINUXINCLUDE)
-KBUILD_EXTRA_SYMBOLS+=$(src)/../../../scst/src/Module.symvers
-KBUILD_EXTRA_SYMBOLS+=							\
+KBUILD_EXTRA_SYMBOLS += $(src)/../../../scst/src/Module.symvers
+KBUILD_EXTRA_SYMBOLS +=							\
 	$(src)/../../kernel/Module.symvers				\
 	$(shell for d in /usr/src/ofa_kernel/default/Module.symvers; do	\
 		[ -e $$d ] || continue; echo $$d; break; done)
 
-ccflags-y	+= -I$(src)/../../../scst/include
-ccflags-y	+= -I$(src)/../../include
+ccflags-y :=	-I$(src)/../../../scst/include		\
+		-I$(src)/../../include			\
+		-Wall					\
+		-Wextra					\
+		-Wno-type-limits			\
+		-Wno-missing-field-initializers		\
+		-Wno-unused-parameter			\
+		-Wformat				\
+		-O2					\
+		-Werror=format-security			\
+		-Werror=implicit-function-declaration	\
+		-pipe					\
+		-g					\
+		-grecord-gcc-switches			\
+		-fstack-clash-protection		\
+		-fstack-protector-strong		\
+		-Wstrict-prototypes
 
 obj-m		+= isert-scst.o
 isert-scst-objs	:= isert.o isert_login.o \
 		iser_datamover.o iser_rdma.o iser_buf.o iser_pdu.o iser_global.o
-

@@ -269,7 +269,7 @@ restart:
 	}
 
 	res = kobject_init_and_add(&conn->conn_kobj, &iscsi_conn_ktype,
-				   scst_sysfs_get_sess_kobj(session->scst_sess), addr);
+				   scst_sysfs_get_sess_kobj(session->scst_sess), "%s", addr);
 	if (res != 0) {
 		PRINT_ERROR("Unable create sysfs entries for conn %s",
 			    addr);

@@ -1,6 +1,23 @@
 KBUILD_EXTRA_SYMBOLS = $(src)/../../scst/src/Module.symvers \
 			$(src)/../Module.symvers
-ccflags-y += -I$(src)/../../scst/include -I$(src)/..
+ccflags-y :=	-I$(src)/../../scst/include		\
+		-I$(src)/..				\
+		-Wall					\
+		-Wextra					\
+		-Wno-type-limits			\
+		-Wno-missing-field-initializers		\
+		-Wno-unused-parameter			\
+		-Wformat				\
+		-O2					\
+		-Werror=format-security			\
+		-Werror=implicit-function-declaration	\
+		-pipe					\
+		-g					\
+		-grecord-gcc-switches			\
+		-fstack-clash-protection		\
+		-fstack-protector-strong		\
+		-Wstrict-prototypes
+
 #ccflags-y += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
 #ccflags-y += -DCONFIG_QLA_TGT_DEBUG_SRR
 
