@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
-scriptpath=${CHECKPATCH_PATH:-/lib/modules/$(uname -r)/build/scripts}
+scriptpath="${CHECKPATCH_PATH:-/lib/modules/$(uname -r)/build/scripts}"
 
 ignore=(
 	MISSING_SIGN_OFF
@@ -20,6 +20,6 @@ ignore=(
 	MACRO_ARG_REUSE
 	IF_0
 )
-ignore_str=${ignore[*]}
+ignore_str="${ignore[*]}"
 
-${scriptpath}/checkpatch.pl --no-tree --show-types --strict --ignore="${ignore_str// /,}" $@
+"${scriptpath}/checkpatch.pl" --no-tree --show-types --strict --ignore="${ignore_str// /,}" "$@"
