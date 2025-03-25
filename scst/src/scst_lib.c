@@ -8554,16 +8554,20 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 
 			TRACE_DBG("len %zd, bytes %zd, offset %zd", len, bytes, offset);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
 			rc = bio_add_pc_page(q, bio, page, bytes, offset);
+#else
+			rc = bio_add_page(bio, page, bytes, offset);
+#endif
 			if (rc < bytes) {
 				if (unlikely(need_new_bio || rc < 0)) {
 					rq = ERR_PTR(rc < 0 ? rc : -EIO);
 					goto out_free_bios;
-				} else {
-					need_new_bio = true;
-					len -= rc;
-					offset += rc;
 				}
+
+				need_new_bio = true;
+				offset += rc;
+				len -= rc;
 			} else {
 				need_new_bio = false;
 				offset = 0;
