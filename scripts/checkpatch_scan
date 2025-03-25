@@ -1,23 +1,23 @@
 #!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
-rootdir=$(readlink -f $(dirname $0)/..)
-scriptsdir=${rootdir}/scripts
-outputfile=checkpatch.out
+rootdir="$(readlink -f "$(dirname "$0")/..")"
+scriptsdir="${rootdir}/scripts"
+outputfile="checkpatch.out"
 
-src_files=$(${scriptsdir}/list-source-files ${rootdir} | \
+mapfile -t src_files < <(
+	"${scriptsdir}/list-source-files" "${rootdir}" | \
 	grep -vE '^debian/|^fcst/linux-patches|patch$|pdf$|png$|^iscsi-scst/usr|^qla|^scripts/|^scstadmin/|^usr/|^www/' | \
 	while read -r filename; do echo "${rootdir}/$filename"; done)
 
-${scriptsdir}/checkpatch -f $src_files 1> ${outputfile} || true
+"${scriptsdir}/checkpatch" -f "${src_files[@]}" 1> "${outputfile}" || true
 
-errors=$(grep -c '^ERROR' "${outputfile}")
-warnings=$(grep -c '^WARNING' "${outputfile}")
-checks=$(grep -c '^CHECK' "${outputfile}")
+errors=$(grep -c '^ERROR' "${outputfile}" || true)
+warnings=$(grep -c '^WARNING' "${outputfile}" || true)
+checks=$(grep -c '^CHECK' "${outputfile}" || true)
 
 echo "${errors} errors / ${warnings} warnings / ${checks} checks."
-
 grep -E '^WARNING|^ERROR|^CHECK' "${outputfile}" |
 	sort |
 	sed 's/^CHECK:CAMELCASE: Avoid CamelCase:.*/CHECK:CAMELCASE Avoid CamelCase/' |
