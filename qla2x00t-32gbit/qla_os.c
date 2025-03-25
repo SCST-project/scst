@@ -14,7 +14,8 @@
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <linux/version.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0) && \
+	LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
 #include <linux/blk-mq-pci.h>
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
@@ -1979,7 +1980,11 @@ qla2x00_abort_all_cmds(scsi_qla_host_t *vha, int res)
 }
 
 static int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
 qla2xxx_slave_alloc(struct scsi_device *sdev)
+#else
+qla2xxx_sdev_init(struct scsi_device *sdev)
+#endif
 {
 	struct fc_rport *rport = starget_to_rport(scsi_target(sdev));
 
@@ -1992,7 +1997,11 @@ qla2xxx_slave_alloc(struct scsi_device *sdev)
 }
 
 static int
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
 qla2xxx_slave_configure(struct scsi_device *sdev)
+#else
+qla2xxx_sdev_configure(struct scsi_device *sdev, struct queue_limits *lim)
+#endif
 {
 	scsi_qla_host_t *vha = shost_priv(sdev->host);
 	struct req_que *req = vha->req;
@@ -2011,7 +2020,11 @@ qla2xxx_slave_configure(struct scsi_device *sdev)
 }
 
 static void
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
 qla2xxx_slave_destroy(struct scsi_device *sdev)
+#else
+qla2xxx_sdev_destroy(struct scsi_device *sdev)
+#endif
 {
 	sdev->hostdata = NULL;
 }
@@ -8174,7 +8187,12 @@ static MAP_QUEUES_RET qla2xxx_map_queues(struct Scsi_Host *shost)
 	if (USER_CTRL_IRQ(vha->hw) || !vha->hw->mqiobase)
 		blk_mq_map_queues(qmap);
 	else
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
 		blk_mq_pci_map_queues(qmap, vha->hw->pdev, vha->irq_offset);
+#else
+		blk_mq_map_hw_queues(qmap, &vha->hw->pdev->dev,
+				       vha->irq_offset);
+#endif
 #else
 	if (USER_CTRL_IRQ(vha->hw))
 		blk_mq_map_queues(&shost->tag_set);
@@ -8216,10 +8234,15 @@ struct scsi_host_template qla2xxx_driver_template = {
 	.eh_bus_reset_handler	= qla2xxx_eh_bus_reset,
 	.eh_host_reset_handler	= qla2xxx_eh_host_reset,
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
 	.slave_configure	= qla2xxx_slave_configure,
-
 	.slave_alloc		= qla2xxx_slave_alloc,
 	.slave_destroy		= qla2xxx_slave_destroy,
+#else
+	.sdev_configure		= qla2xxx_sdev_configure,
+	.sdev_init		= qla2xxx_sdev_init,
+	.sdev_destroy		= qla2xxx_sdev_destroy,
+#endif
 	.scan_finished		= qla2xxx_scan_finished,
 	.scan_start		= qla2xxx_scan_start,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0)
@@ -8275,7 +8298,7 @@ static const struct pci_error_handlers qla2xxx_err_handler = {
 #endif
 };
 
-static struct pci_device_id qla2xxx_pci_tbl[] = {
+static const struct pci_device_id qla2xxx_pci_tbl[] = {
 	{ PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2100) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2200) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2300) },

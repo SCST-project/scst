@@ -1050,7 +1050,11 @@ static int scst_local_slave_alloc(struct scsi_device *sdev)
 }
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
 static int scst_local_slave_configure(struct scsi_device *sdev)
+#else
+static int scst_local_sdev_configure(struct scsi_device *sdev, struct queue_limits *lim)
+#endif
 {
 	int mqd;
 
@@ -1370,7 +1374,11 @@ static const struct scsi_host_template scst_lcl_ini_driver_template = {
 #else
 	.dma_alignment			= (4096 - 1),
 #endif
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
 	.slave_configure		= scst_local_slave_configure,
+#else
+	.sdev_configure			= scst_local_sdev_configure,
+#endif
 	.eh_abort_handler		= scst_local_abort,
 	.eh_device_reset_handler	= scst_local_device_reset,
 	.eh_target_reset_handler	= scst_local_target_reset,
@@ -1382,7 +1390,7 @@ static const struct scsi_host_template scst_lcl_ini_driver_template = {
 	/*
 	 * Set it low for the "Drop back to untagged" case in
 	 * scsi_track_queue_full(). We are adjusting it to a better
-	 * default in slave_configure()
+	 * default in sdev_configure()
 	 */
 	.cmd_per_lun			= 3,
 	.this_id			= -1,
