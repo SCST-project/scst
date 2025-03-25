@@ -695,7 +695,7 @@ static struct scst_user_cmd *dev_user_alloc_ucmd(struct scst_user_dev *dev, gfp_
 	TRACE_MEM("ucmd %p allocated", ucmd);
 
 out:
-	TRACE_EXIT_HRES((unsigned long)ucmd);
+	TRACE_EXIT_HRES(ucmd);
 	return ucmd;
 }
 
@@ -2544,7 +2544,7 @@ out_unlock:
 	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 out:
-	TRACE_EXIT_HRES((__force unsigned int)res);
+	TRACE_EXIT_HRES(res);
 	return res;
 }
 

@@ -277,11 +277,10 @@ static int stpg_event_loop(void)
 {
 	int res = 0, status;
 	int event_fd;
-	uint8_t event_user_buf[1024*1024];
+	uint8_t event_user_buf[1024 * 1024];
 	pid_t c_pid = 0;
 	struct pollfd pl;
-	struct scst_event_user *event_user =
-		(struct scst_event_user *)event_user_buf;
+	struct scst_event_user *event_user = (struct scst_event_user *)event_user_buf;
 	struct scst_event e1;
 	bool first_error = true;
 
@@ -289,8 +288,8 @@ static int stpg_event_loop(void)
 	if (event_fd < 0) {
 		res = -errno;
 		PRINT_ERROR("Unable to open SCST event device %s (%s)",
-			SCST_EVENT_DEV, strerror(-res));
-		goto out;
+			    SCST_EVENT_DEV, strerror(-res));
+		return res;
 	}
 
 	close(stpg_init_report_pipe[0]);
@@ -305,10 +304,12 @@ static int stpg_event_loop(void)
 	pl.events = POLLIN;
 
 	memset(&e1, 0, sizeof(e1));
+
 	e1.event_code = SCST_EVENT_STPG_USER_INVOKE;
 	strncpy(e1.issuer_name, SCST_EVENT_SCST_CORE_ISSUER,
 		sizeof(e1.issuer_name));
 	e1.issuer_name[sizeof(e1.issuer_name)-1] = '\0';
+
 	PRINT_INFO("Setting allowed event code %d, issuer_name %s",
 		   e1.event_code, e1.issuer_name);
 
@@ -323,9 +324,11 @@ static int stpg_event_loop(void)
 	e1.event_code = SCST_EVENT_TM_FN_RECEIVED;
 	strncpy(e1.issuer_name, SCST_EVENT_SCST_CORE_ISSUER,
 		sizeof(e1.issuer_name));
-	e1.issuer_name[sizeof(e1.issuer_name)-1] = '\0';
+	e1.issuer_name[sizeof(e1.issuer_name) - 1] = '\0';
+
 	PRINT_INFO("Setting allowed event code %d, issuer_name %s",
 		   e1.event_code, e1.issuer_name);
+
 	res = ioctl(event_fd, SCST_EVENT_ALLOW_EVENT, &e1);
 	if (res != 0) {
 		res = -errno;
@@ -337,24 +340,25 @@ static int stpg_event_loop(void)
 	while (1) {
 		memset(event_user_buf, 0, sizeof(event_user_buf));
 		event_user->max_event_size = sizeof(event_user_buf);
+
 		res = ioctl(event_fd, SCST_EVENT_GET_NEXT_EVENT, event_user);
 		if (res != 0) {
 			res = -errno;
 			switch (-res) {
 			case ESRCH:
 			case EBUSY:
-				TRACE_MGMT_DBG("SCST_EVENT_GET_NEXT_EVENT "
-					"returned %d (%s)", res, strerror(res));
+				TRACE_MGMT_DBG("SCST_EVENT_GET_NEXT_EVENT returned %d (%s)",
+					       res, strerror(res));
 				/* fall through */
 			case EINTR:
 				continue;
 			case EAGAIN:
-				TRACE_DBG("SCST_EVENT_GET_NEXT_EVENT, "
-					"returned EAGAIN (%d)", -res);
+				TRACE_DBG("SCST_EVENT_GET_NEXT_EVENT, returned EAGAIN (%d)",
+					  -res);
 				continue;
 			default:
-				PRINT_ERROR("SCST_EVENT_GET_NEXT_EVENT "
-					"failed: %d (%s)", res, strerror(-res));
+				PRINT_ERROR("SCST_EVENT_GET_NEXT_EVENT failed: %d (%s)",
+					    res, strerror(-res));
 				if (!first_error)
 					goto out;
 				first_error = false;
@@ -365,40 +369,40 @@ again_poll:
 			res = poll(&pl, 1, c_pid > 0 ? 1 : 0);
 			if (res > 0)
 				continue;
-			else if (res == 0)
+			if (res == 0)
 				goto again_poll;
-			else {
-				res = -errno;
-				switch (res) {
-				case ESRCH:
-				case EBUSY:
-				case EAGAIN:
-					TRACE_MGMT_DBG("poll() returned %d "
-						"(%s)", res, strerror(-res));
-				case EINTR:
-					goto again_poll;
-				default:
-					PRINT_ERROR("poll() failed: %d (%s)",
-						res, strerror(-res));
-					goto again_poll;
-				}
+
+			res = -errno;
+			switch (res) {
+			case ESRCH:
+			case EBUSY:
+			case EAGAIN:
+				TRACE_MGMT_DBG("poll() returned %d (%s)",
+					       res, strerror(-res));
+				/* fall through */
+			case EINTR:
+				goto again_poll;
+			default:
+				PRINT_ERROR("poll() failed: %d (%s)",
+					    res, strerror(-res));
+				goto again_poll;
 			}
 		}
 		first_error = true;
 #ifdef DEBUG
 		PRINT_INFO("event_code %d, issuer_name %s",
-			event_user->out_event.event_code,
-			event_user->out_event.issuer_name);
+			   event_user->out_event.event_code,
+			   event_user->out_event.issuer_name);
 #endif
 		if (event_user->out_event.payload_len != 0)
 			TRACE_BUFFER("payload", event_user->out_event.payload,
-				event_user->out_event.payload_len);
+				     event_user->out_event.payload_len);
 
 		if (event_user->out_event.event_code == SCST_EVENT_STPG_USER_INVOKE) {
 			c_pid = fork();
-			if (c_pid == -1)
+			if (c_pid == -1) {
 				PRINT_ERROR("Failed to fork: %d", c_pid);
-			else if (c_pid == 0) {
+			} else if (c_pid == 0) {
 				struct scst_event_notify_done d;
 
 				signal(SIGCHLD, SIG_DFL);
@@ -411,19 +415,21 @@ again_poll:
 				res = ioctl(event_fd, SCST_EVENT_NOTIFY_DONE, &d);
 				if (res != 0) {
 					res = -errno;
-					PRINT_ERROR("SCST_EVENT_NOTIFY_DONE "
-						"failed: %s (res %d)",
-						strerror(-res), res);
-				} else
+					PRINT_ERROR("SCST_EVENT_NOTIFY_DONE failed: %s (res %d)",
+						    strerror(-res), res);
+				} else {
 					PRINT_INFO("STPG event completed with status %d", status);
+				}
 				exit(res);
 			}
-		} else if (event_user->out_event.event_code == SCST_EVENT_TM_FN_RECEIVED)
+		} else if (event_user->out_event.event_code == SCST_EVENT_TM_FN_RECEIVED) {
 			stpg_handle_tm_received(event_user);
-		else
+		} else {
 			PRINT_ERROR("Unknown event %d received", event_user->out_event.event_code);
+		}
 	}
 out:
+	close(event_fd);
 	return res;
 }
 

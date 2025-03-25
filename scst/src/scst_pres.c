@@ -491,7 +491,7 @@ struct scst_dev_registrant *scst_pr_add_registrant(
 		dev->virt_name, reg->tgt_dev);
 
 out:
-	TRACE_EXIT_HRES((unsigned long)reg);
+	TRACE_EXIT_HRES(reg);
 	return reg;
 
 out_free:

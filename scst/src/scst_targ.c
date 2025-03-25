@@ -7158,7 +7158,7 @@ static struct scst_acg *__scst_find_acg(struct scst_tgt *tgt,
 	if (acg == NULL)
 		acg = tgt->default_acg;
 
-	TRACE_EXIT_HRES((unsigned long)acg);
+	TRACE_EXIT_HRES(acg);
 	return acg;
 }
 

@@ -5841,7 +5841,7 @@ out_free_fcport:
 	kfree(fcport);
 
 out:
-	TRACE_EXIT_HRES((unsigned long)sess);
+	TRACE_EXIT_HRES(sess);
 	return sess;
 }
 
