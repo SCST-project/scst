@@ -1,4 +1,19 @@
-ccflags-y :=	-I$(src)/../include
+ccflags-y :=	-I$(src)/../include			\
+		-Wall					\
+		-Wextra					\
+		-Wno-type-limits			\
+		-Wno-missing-field-initializers		\
+		-Wno-unused-parameter			\
+		-Wformat				\
+		-O2					\
+		-Werror=format-security			\
+		-Werror=implicit-function-declaration	\
+		-pipe					\
+		-g					\
+		-grecord-gcc-switches			\
+		-fstack-clash-protection		\
+		-fstack-protector-strong		\
+		-Wstrict-prototypes
 
 ccflags-y +=	$(shell [ -n "${CONFIG_SCST_NO_DLM}" ] && echo -DCONFIG_SCST_NO_DLM)	\
 		$(shell [ -n "${REVISION}" ] && echo -DSCST_REVISION=${REVISION})
@@ -20,17 +35,18 @@ ccflags-y +=	$(shell [ -n "${CONFIG_SCST_NO_DLM}" ] && echo -DCONFIG_SCST_NO_DLM
 
 obj-m := scst.o
 
-scst-y        += scst_copy_mgr.o
-scst-y        += scst_debug.o
-scst-y        += scst_dlm.o
-scst-y        += scst_event.o
-scst-y        += scst_lib.o
-scst-y        += scst_local_cmd.o
-scst-y        += scst_main.o
-scst-y        += scst_mem.o
-scst-y        += scst_no_dlm.o
-scst-y        += scst_pres.o
-scst-y        += scst_sysfs.o
-scst-y        += scst_targ.o
-scst-y        += scst_tg.o
-obj-$(CONFIG_SCST)   += scst.o dev_handlers/
+scst-y +=	scst_copy_mgr.o		\
+		scst_debug.o		\
+		scst_dlm.o		\
+		scst_event.o		\
+		scst_lib.o		\
+		scst_local_cmd.o	\
+		scst_main.o		\
+		scst_mem.o		\
+		scst_no_dlm.o		\
+		scst_pres.o		\
+		scst_sysfs.o		\
+		scst_targ.o		\
+		scst_tg.o
+
+obj-$(CONFIG_SCST) += scst.o dev_handlers/

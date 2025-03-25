@@ -901,7 +901,6 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 	struct ib_mr *mr;
 #endif
 	struct ib_cq *cq;
-	char wq_name[64];
 	int i, j;
 
 	TRACE_ENTRY();
@@ -975,9 +974,9 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 		cq_desc->idx = i;
 		INIT_WORK(&cq_desc->cq_comp_work, isert_cq_comp_work_cb);
 
-		snprintf(wq_name, sizeof(wq_name), "isert_cq_%p", cq_desc);
-		cq_desc->cq_workqueue = alloc_workqueue(wq_name,
-							WQ_CPU_INTENSIVE | WQ_MEM_RECLAIM, 1);
+		cq_desc->cq_workqueue = alloc_workqueue("isert_cq_%p",
+							WQ_CPU_INTENSIVE | WQ_MEM_RECLAIM, 1,
+							cq_desc);
 		if (unlikely(!cq_desc->cq_workqueue)) {
 			PRINT_ERROR("Failed to alloc iser cq work queue for dev:%s",
 				    ib_dev->name);

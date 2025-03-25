@@ -1,5 +1,22 @@
-KBUILD_EXTRA_SYMBOLS=$(src)/../Module.symvers
-ccflags-y += -I$(src)/../../include
+KBUILD_EXTRA_SYMBOLS = $(src)/../Module.symvers
+
+ccflags-y :=	-I$(src)/../../include			\
+		-Wall					\
+		-Wextra					\
+		-Wno-type-limits			\
+		-Wno-missing-field-initializers		\
+		-Wno-unused-parameter			\
+		-Wformat				\
+		-O2					\
+		-Werror=format-security			\
+		-Werror=implicit-function-declaration	\
+		-pipe					\
+		-g					\
+		-grecord-gcc-switches			\
+		-fstack-clash-protection		\
+		-fstack-protector-strong		\
+		-Wstrict-prototypes
+
 #ccflags-y += -DCONFIG_DEBUG_EXT_COPY_REMAP
 
 obj-m := scst_cdrom.o scst_changer.o scst_disk.o scst_modisk.o scst_tape.o \

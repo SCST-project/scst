@@ -1083,8 +1083,8 @@ int scst_tgtt_sysfs_create(struct scst_tgt_template *tgtt)
 
 	TRACE_ENTRY();
 
-	res = kobject_init_and_add(&tgtt->tgtt_kobj, &tgtt_ktype,
-			scst_targets_kobj, tgtt->name);
+	res = kobject_init_and_add(&tgtt->tgtt_kobj, &tgtt_ktype, scst_targets_kobj, "%s",
+				   tgtt->name);
 	if (res != 0) {
 		PRINT_ERROR("Can't add tgtt %s to sysfs", tgtt->name);
 		goto out;
@@ -3019,8 +3019,8 @@ int scst_tgt_sysfs_create(struct scst_tgt *tgt)
 
 	TRACE_ENTRY();
 
-	res = kobject_init_and_add(&tgt->tgt_kobj, &tgt_ktype,
-			&tgt->tgtt->tgtt_kobj, tgt->tgt_name);
+	res = kobject_init_and_add(&tgt->tgt_kobj, &tgt_ktype, &tgt->tgtt->tgtt_kobj, "%s",
+				   tgt->tgt_name);
 	if (res != 0) {
 		PRINT_ERROR("Can't add tgt %s to sysfs", tgt->tgt_name);
 		goto out;
@@ -3983,8 +3983,8 @@ int scst_dev_sysfs_create(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
-	res = kobject_init_and_add(&dev->dev_kobj, &scst_dev_ktype,
-				      scst_devices_kobj, dev->virt_name);
+	res = kobject_init_and_add(&dev->dev_kobj, &scst_dev_ktype, scst_devices_kobj, "%s",
+				   dev->virt_name);
 	if (res != 0) {
 		PRINT_ERROR("Can't add device %s to sysfs", dev->virt_name);
 		goto out;
@@ -4370,8 +4370,8 @@ int scst_tgt_dev_sysfs_create(struct scst_tgt_dev *tgt_dev)
 	TRACE_ENTRY();
 
 	res = kobject_init_and_add(&tgt_dev->tgt_dev_kobj, &scst_tgt_dev_ktype,
-			      &tgt_dev->sess->sess_kobj, "lun%lld",
-			      (unsigned long long)tgt_dev->lun);
+				   &tgt_dev->sess->sess_kobj, "lun%lld",
+				   (unsigned long long)tgt_dev->lun);
 	if (res != 0) {
 		PRINT_ERROR("Can't add tgt_dev %lld to sysfs",
 			(unsigned long long)tgt_dev->lun);
@@ -5049,8 +5049,8 @@ int scst_sess_sysfs_create(struct scst_session *sess)
 	name = sess->sess_name;
 	TRACE_DBG("Adding session %s to sysfs", name);
 
-	res = kobject_init_and_add(&sess->sess_kobj, &scst_session_ktype,
-			      sess->tgt->tgt_sess_kobj, name);
+	res = kobject_init_and_add(&sess->sess_kobj, &scst_session_ktype, sess->tgt->tgt_sess_kobj,
+				   "%s", name);
 	if (res != 0) {
 		PRINT_ERROR("Can't add session %s to sysfs", name);
 		goto out;
@@ -5229,8 +5229,8 @@ int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev,
 
 	TRACE_ENTRY();
 
-	res = kobject_init_and_add(&acg_dev->acg_dev_kobj, &acg_dev_ktype,
-				      parent, "%llu", acg_dev->lun);
+	res = kobject_init_and_add(&acg_dev->acg_dev_kobj, &acg_dev_ktype, parent, "%llu",
+				   acg_dev->lun);
 	if (res != 0) {
 		PRINT_ERROR("Can't add acg_dev %p to sysfs", acg_dev);
 		goto out;
@@ -5647,8 +5647,8 @@ int scst_acg_sysfs_create(struct scst_tgt *tgt,
 
 	TRACE_ENTRY();
 
-	res = kobject_init_and_add(&acg->acg_kobj, &acg_ktype,
-		tgt->tgt_ini_grp_kobj, acg->acg_name);
+	res = kobject_init_and_add(&acg->acg_kobj, &acg_ktype, tgt->tgt_ini_grp_kobj, "%s",
+				   acg->acg_name);
 	if (res != 0) {
 		PRINT_ERROR("Can't add acg '%s' to sysfs", acg->acg_name);
 		goto out;
@@ -6257,8 +6257,7 @@ int scst_devt_sysfs_create(struct scst_dev_type *devt)
 	else
 		parent = scst_handlers_kobj;
 
-	res = kobject_init_and_add(&devt->devt_kobj, &scst_devt_ktype,
-			parent, devt->name);
+	res = kobject_init_and_add(&devt->devt_kobj, &scst_devt_ktype, parent, "%s", devt->name);
 	if (res != 0) {
 		PRINT_ERROR("Can't add devt %s to sysfs", devt->name);
 		goto out;
@@ -8025,8 +8024,8 @@ int __init scst_sysfs_init(void)
 		goto out;
 	}
 
-	res = kobject_init_and_add(&scst_sysfs_root_kobj,
-			&scst_sysfs_root_ktype, kernel_kobj, "%s", "scst_tgt");
+	res = kobject_init_and_add(&scst_sysfs_root_kobj, &scst_sysfs_root_ktype, kernel_kobj,
+				   "%s", "scst_tgt");
 	if (res != 0)
 		goto sysfs_root_add_error;
 

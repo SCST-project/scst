@@ -1,4 +1,19 @@
-ccflags-y :=	-I$(src)/../scst/include -I$(src)/include
+ccflags-y :=	-I$(src)/../scst/include		\
+		-I$(src)/include			\
+		-Wall					\
+		-Wextra					\
+		-Wno-type-limits			\
+		-Wno-missing-field-initializers		\
+		-Wno-unused-parameter			\
+		-Wformat				\
+		-O2					\
+		-Werror=implicit-function-declaration	\
+		-pipe					\
+		-g					\
+		-grecord-gcc-switches			\
+		-fstack-clash-protection		\
+		-fstack-protector-strong		\
+		-Wstrict-prototypes
 
 ifneq ($(CONFIG_SCSI_QLA2XXX_TARGET),)
 ccflags-y +=	-DCONFIG_SCSI_QLA2XXX_TARGET=$(CONFIG_SCSI_QLA2XXX_TARGET)

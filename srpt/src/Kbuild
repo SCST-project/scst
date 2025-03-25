@@ -1,8 +1,23 @@
 LINUXINCLUDE := $(CONFTEST_CFLAGS) $(LINUXINCLUDE)
-KBUILD_EXTRA_SYMBOLS=$(src)/../../scst/src/Module.symvers \
+KBUILD_EXTRA_SYMBOLS = $(src)/../../scst/src/Module.symvers \
 		$(shell for d in /usr/src/ofa_kernel/default/Module.symvers; do\
 			[ -e $$d ] || continue; echo $$d; break; done)
 
-ccflags-y	+= -I$(src)/../../scst/include
+ccflags-y	+= -I$(src)/../../scst/include		\
+		-Wall					\
+		-Wextra					\
+		-Wno-type-limits			\
+		-Wno-missing-field-initializers		\
+		-Wno-unused-parameter			\
+		-Wformat				\
+		-O2					\
+		-Werror=format-security			\
+		-Werror=implicit-function-declaration	\
+		-pipe					\
+		-g					\
+		-grecord-gcc-switches			\
+		-fstack-clash-protection		\
+		-fstack-protector-strong		\
+		-Wstrict-prototypes
 
 obj-m		+= ib_srpt.o
