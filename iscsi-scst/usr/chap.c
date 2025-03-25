@@ -354,7 +354,7 @@ chap_calc_digest_af_alg(char *alg, char chap_id,
 	int datafd;
 	ssize_t bytes;
 	char buffer[1024];
-	int res = 0;
+	ssize_t res = 0;
 
 	datafd = af_alg_init(alg);
 	if (datafd < 0) {
