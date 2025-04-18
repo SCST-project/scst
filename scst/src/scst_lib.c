@@ -456,24 +456,24 @@ static int get_cdb_info_dyn_runtime_attr(struct scst_cmd *cmd,
 
 struct scst_sdbops {
 	uint8_t ops;		/* SCSI-2 op codes */
-	uint8_t devkey[16];	/* Key for every device type M,O,V,R
-				 * type_disk      devkey[0]
-				 * type_tape      devkey[1]
-				 * type_printer   devkey[2]
-				 * type_processor devkey[3]
-				 * type_worm      devkey[4]
-				 * type_cdrom     devkey[5]
-				 * type_scanner   devkey[6]
-				 * type_mod       devkey[7]
-				 * type_changer   devkey[8]
-				 * type_commdev   devkey[9]
-				 * type_reserv    devkey[A]
-				 * type_reserv    devkey[B]
-				 * type_raid      devkey[C]
-				 * type_enclosure devkey[D]
-				 * type_reserv    devkey[E]
-				 * type_reserv    devkey[F]
-				 */
+	uint8_t devkey[16] __nonstring;	/* Key for every device type M,O,V,R
+					 * type_disk      devkey[0]
+					 * type_tape      devkey[1]
+					 * type_printer   devkey[2]
+					 * type_processor devkey[3]
+					 * type_worm      devkey[4]
+					 * type_cdrom     devkey[5]
+					 * type_scanner   devkey[6]
+					 * type_mod       devkey[7]
+					 * type_changer   devkey[8]
+					 * type_commdev   devkey[9]
+					 * type_reserv    devkey[A]
+					 * type_reserv    devkey[B]
+					 * type_raid      devkey[C]
+					 * type_enclosure devkey[D]
+					 * type_reserv    devkey[E]
+					 * type_reserv    devkey[F]
+					 */
 	uint8_t info_lba_off;	/* LBA offset in cdb */
 	uint8_t info_lba_len;	/* LBA length in cdb */
 	uint8_t info_len_off;	/* length offset in cdb */

@@ -419,6 +419,14 @@ static inline void be32_to_cpu_array(u32 *dst, const __be32 *src, size_t len)
 #endif
 #endif
 
+/*
+ * See also commit 92676236917d ("Compiler Attributes: add support for
+ * __nonstring (gcc >= 8)") # v4.20.
+ */
+#ifndef __nonstring
+#define __nonstring
+#endif
+
 /* <linux/debugfs.h> */
 
 /*
