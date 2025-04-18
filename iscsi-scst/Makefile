@@ -12,7 +12,7 @@ endif
 SHELL=/bin/bash
 
 SCST_DIR := $(shell echo "$$PWD")/../scst/src
-SBINDIR := $(PREFIX)/sbin
+SBINDIR ?= $(PREFIX)/sbin
 INITDIR := /etc/init.d
 RCDIR := /etc/rc.d
 MANDIR ?= $(PREFIX)/man
