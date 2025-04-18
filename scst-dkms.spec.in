@@ -148,7 +148,7 @@ for d in scst fcst iscsi-scst qla2x00t-32gbit/qla2x00-target scst_local srpt; do
 done
 
 %install
-export KVER=%{kversion} PREFIX=%{_prefix} MANDIR=%{_mandir} DEPMOD=true
+export KVER=%{kversion} PREFIX=%{_prefix} MANDIR=%{_mandir} SBINDIR=%{_sbindir} DEPMOD=true
 export BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y
 for d in scst; do
     DESTDIR=%{buildroot} %{make} -C $d install

@@ -56,7 +56,7 @@ export PREFIX=%{_prefix} DESTDIR=%{buildroot} MANDIR=%{buildroot}%{_mandir}
 %{make}
 
 %install
-export PREFIX=%{_prefix} DESTDIR=%{buildroot} MANDIR=%{buildroot}%{_mandir}
+export PREFIX=%{_prefix} DESTDIR=%{buildroot} MANDIR=%{buildroot}%{_mandir} SBINDIR=%{_sbindir}
 %{make} install_vendor
 %scstadmin_perl_process_packlist
 rm -rf %{buildroot}/var/adm/perl-modules/scst

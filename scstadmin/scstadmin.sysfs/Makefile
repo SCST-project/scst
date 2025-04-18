@@ -5,7 +5,7 @@ endif
 MODULE_VERSION = 1.0.0
 TOOL = scstadmin
 
-SBINDIR := $(PREFIX)/sbin
+SBINDIR ?= $(PREFIX)/sbin
 
 all: perl-module
 
