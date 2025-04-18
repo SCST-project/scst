@@ -23,6 +23,7 @@
 #include <assert.h>
 #include <netdb.h>
 #include <syslog.h>
+#include <stdbool.h>
 
 #include "types.h"
 #ifdef INSIDE_KERNEL_TREE
@@ -35,10 +36,6 @@
 #include "iscsi_hdr.h"
 #include "param.h"
 #include "misc.h"
-
-#ifndef bool
-typedef enum {false = 0, true} bool;
-#endif
 
 #define sBUG() assert(0)
 #define sBUG_ON(p) assert(!(p))
