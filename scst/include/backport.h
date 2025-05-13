@@ -1577,6 +1577,47 @@ struct t10_pi_tuple {
 
 /* <linux/timer.h> */
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0) &&			\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(4, 19, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 312)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 4, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 274)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 10, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 215)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 15, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 154)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 1, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 84)) &&		\
+	(!defined(UEK_KABI_RENAME) ||					\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 17))
+/*
+ * See also commit 9b13df3fb64e ("timers: Rename del_timer_sync() to
+ * timer_delete_sync()") # v6.2.
+ * See also commit 48a8a5393960 # v4.19.312.
+ * See also commit df4209170b6c # v5.4.274.
+ * See also commit d8166e8adb7f # v5.10.215.
+ * See also commit 2382f2e45c71 # v5.15.154.
+ * See also commit 113d5341ee12 # v6.1.84.
+ */
+static inline int timer_delete_sync(struct timer_list *timer)
+{
+	return del_timer_sync(timer);
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0) &&			\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 1, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 91))
+/*
+ * See also commit bb663f0f3c39 ("timers: Rename del_timer() to timer_delete()") # v6.2.
+ * See also commit b086d1e82fcd # v6.1.91.
+ */
+static inline int timer_delete(struct timer_list *timer)
+{
+	return del_timer(timer);
+}
+#endif
+
 /*
  * See also commit 686fef928bba ("timer: Prepare to change timer callback
  * argument type") # v4.14. See also commit 0eeda71bc30d ("timer: Replace

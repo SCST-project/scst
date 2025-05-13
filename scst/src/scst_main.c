@@ -567,7 +567,7 @@ void scst_unregister_target(struct scst_tgt *tgt)
 	list_del(&tgt->tgt_list_entry);
 	mutex_unlock(&scst_mutex2);
 
-	del_timer_sync(&tgt->retry_timer);
+	timer_delete_sync(&tgt->retry_timer);
 
 	scst_tg_tgt_remove_by_tgt(tgt);
 

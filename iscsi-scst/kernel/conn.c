@@ -555,7 +555,7 @@ static void conn_rsp_timer_fn(struct timer_list *timer)
 			 *
 			 * Since we have not empty write_timeout_list, we are
 			 * safe to restart the timer, because we not race with
-			 * del_timer_sync() in conn_free().
+			 * timer_delete_sync() in conn_free().
 			 */
 			mod_timer(&conn->rsp_timer, timeout_time);
 		}
@@ -792,7 +792,7 @@ void conn_free(struct iscsi_conn *conn)
 
 	lockdep_assert_held(&conn->target->target_mutex);
 
-	del_timer_sync(&conn->rsp_timer);
+	timer_delete_sync(&conn->rsp_timer);
 
 	conn_sysfs_del(conn);
 
