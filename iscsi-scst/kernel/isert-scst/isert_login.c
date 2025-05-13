@@ -89,7 +89,7 @@ void isert_del_timer(struct isert_conn_dev *dev)
 {
 	if (dev->timer_active) {
 		dev->timer_active = 0;
-		del_timer_sync(&dev->tmo_timer);
+		timer_delete_sync(&dev->tmo_timer);
 	}
 }
 

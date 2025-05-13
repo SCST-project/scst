@@ -15850,7 +15850,7 @@ static void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev)
 		unsigned long flags;
 
 		TRACE_MGMT_DBG("Deinit TM debugging tgt_dev %p", tgt_dev);
-		del_timer_sync(&tm_dbg_timer);
+		timer_delete_sync(&tm_dbg_timer);
 		spin_lock_irqsave(&scst_tm_dbg_lock, flags);
 		tm_dbg_tgt_dev = NULL;
 		spin_unlock_irqrestore(&scst_tm_dbg_lock, flags);
@@ -15969,7 +15969,7 @@ static void tm_dbg_change_state(unsigned long *flags)
 
 	TRACE_MGMT_DBG("%s", "Deleting timer");
 	spin_unlock_irqrestore(&scst_tm_dbg_lock, *flags);
-	del_timer_sync(&tm_dbg_timer);
+	timer_delete_sync(&tm_dbg_timer);
 	spin_lock_irqsave(&scst_tm_dbg_lock, *flags);
 	return;
 }
