@@ -23,34 +23,42 @@
 
 #include "debug.h"
 
-#ifndef WRITE_SAME_10
-#define WRITE_SAME_10	      0x41
+/* 8 byte ASCII Vendor */
+#define VENDOR			"SCST_USR"
+/* 4 byte ASCII Product Revision Level - left aligned */
+#define FIO_REV			"3100"
+
+#define MAX_USN_LEN		(20 + 1) /* For '\0' */
+
+#define INQ_BUF_SZ		128
+#define EVPD			0x01
+#define CMDDT			0x02
+
+#define MSENSE_BUF_SZ		256
+#define DBD			0x08	/* disable block descriptor */
+#define WP			0x80	/* write protect */
+#define DPOFUA			0x10	/* DPOFUA bit */
+#define WCE			0x04	/* write cache enable */
+
+#define PF			0x10	/* page format */
+#define SP			0x01	/* save pages */
+#define PS			0x80	/* parameter saveable */
+
+#define	BYTE			8
+#define	DEF_SECTORS		56
+#define	DEF_HEADS		255
+
+#ifndef RESERVE_6
+#define RESERVE_6		0x16
 #endif
 
-/* 8 byte ASCII Vendor */
-#define VENDOR				"SCST_USR"
-/* 4 byte ASCII Product Revision Level - left aligned */
-#define FIO_REV				"3100"
+#ifndef RELEASE_6
+#define RELEASE_6		0x17
+#endif
 
-#define MAX_USN_LEN			(20+1) /* For '\0' */
-
-#define INQ_BUF_SZ			128
-#define EVPD				0x01
-#define CMDDT				0x02
-
-#define MSENSE_BUF_SZ			256
-#define DBD				0x08	/* disable block descriptor */
-#define WP				0x80	/* write protect */
-#define DPOFUA				0x10	/* DPOFUA bit */
-#define WCE				0x04	/* write cache enable */
-
-#define PF				0x10	/* page format */
-#define SP				0x01	/* save pages */
-#define PS				0x80	/* parameter saveable */
-
-#define	BYTE				8
-#define	DEF_SECTORS			56
-#define	DEF_HEADS			255
+#ifndef WRITE_SAME_10
+#define WRITE_SAME_10		0x41
+#endif
 
 struct vdisk_tgt_dev {
 	uint64_t sess_h;

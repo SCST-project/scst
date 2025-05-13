@@ -1875,6 +1875,19 @@ static inline void scsi_done(struct scsi_cmnd *cmd)
 }
 #endif
 
+/* <scsi/scsi_proto.h> */
+
+/*
+ * See also commit 0ea163a18b17 ("scsi: usb: Rename the RESERVE and RELEASE constants") # v6.15.
+ */
+#ifndef RESERVE_6
+#define RESERVE_6	0x16
+#endif
+
+#ifndef RELEASE_6
+#define RELEASE_6	0x17
+#endif
+
 /* <scsi/scsi_request.h> */
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 18, 0)

@@ -145,7 +145,7 @@ static bool scst_cmd_overlap_cwr(struct scst_cmd *cwr_cmd, struct scst_cmd *cmd)
 
 	if (cmd->op_flags & SCST_LBA_NOT_VALID) {
 		switch (cmd->cdb[0]) {
-		case RESERVE:
+		case RESERVE_6:
 		case RESERVE_10:
 			res = true;
 			break;
@@ -179,8 +179,7 @@ out:
 	return res;
 }
 
-static bool scst_cmd_overlap_reserve(struct scst_cmd *reserve_cmd,
-	struct scst_cmd *cmd)
+static bool scst_cmd_overlap_reserve(struct scst_cmd *reserve_cmd, struct scst_cmd *cmd)
 {
 	bool res;
 
@@ -191,7 +190,7 @@ static bool scst_cmd_overlap_reserve(struct scst_cmd *reserve_cmd,
 		(cmd->op_flags & SCST_LBA_NOT_VALID) == 0,
 		(long long)cmd->lba, (long long)cmd->data_len);
 
-	EXTRACHECKS_BUG_ON((reserve_cmd->cdb[0] != RESERVE) &&
+	EXTRACHECKS_BUG_ON((reserve_cmd->cdb[0] != RESERVE_6) &&
 			   (reserve_cmd->cdb[0] != RESERVE_10));
 
 	/*
@@ -225,7 +224,7 @@ static bool scst_cmd_overlap_atomic(struct scst_cmd *atomic_cmd, struct scst_cmd
 	case COMPARE_AND_WRITE:
 		res = scst_cmd_overlap_cwr(atomic_cmd, cmd);
 		break;
-	case RESERVE:
+	case RESERVE_6:
 	case RESERVE_10:
 		res = scst_cmd_overlap_reserve(atomic_cmd, cmd);
 		break;
@@ -2702,11 +2701,11 @@ static scst_local_exec_fn scst_local_fns[256] = {
 	[PERSISTENT_RESERVE_IN]	 = scst_persistent_reserve_in_local,
 	[PERSISTENT_RESERVE_OUT] = scst_persistent_reserve_out_local,
 	[RECEIVE_COPY_RESULTS]	 = scst_cm_rcv_copy_res_exec,
-	[RELEASE]		 = scst_release_local,
+	[RELEASE_6]		 = scst_release_local,
 	[RELEASE_10]		 = scst_release_local,
 	[REPORT_LUNS]		 = scst_report_luns_local,
 	[REQUEST_SENSE]		 = scst_request_sense_local,
-	[RESERVE]		 = scst_reserve_local,
+	[RESERVE_6]		 = scst_reserve_local,
 	[RESERVE_10]		 = scst_reserve_local,
 };
 

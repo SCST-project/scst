@@ -348,9 +348,9 @@ static enum scst_exec_res disk_exec(struct scst_cmd *cmd)
 
 	if (unlikely(tgt->tgt_forward_src && cmd->op_flags & SCST_LOCAL_CMD)) {
 		switch (cmd->cdb[0]) {
-		case RESERVE:
+		case RESERVE_6:
 		case RESERVE_10:
-		case RELEASE:
+		case RELEASE_6:
 		case RELEASE_10:
 			TRACE_DBG("Skipping LOCAL cmd %p (op %s)",
 				  cmd, cmd->op_name);
