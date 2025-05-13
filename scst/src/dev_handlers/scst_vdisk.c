@@ -6502,6 +6502,20 @@ out:
 	return res;
 }
 
+static void vdisk_free_bioset(struct scst_vdisk_dev *virt_dev)
+{
+	if (!virt_dev->vdisk_bioset)
+		return;
+
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
+	bioset_exit(virt_dev->vdisk_bioset);
+#else
+	bioset_free(virt_dev->vdisk_bioset);
+#endif
+
+	virt_dev->vdisk_bioset = NULL;
+}
+
 static int vdisk_create_bioset(struct scst_vdisk_dev *virt_dev)
 {
 	int res = 0;
@@ -6511,8 +6525,7 @@ static int vdisk_create_bioset(struct scst_vdisk_dev *virt_dev)
 	/* Pool size doesn't really matter */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
 	virt_dev->vdisk_bioset = &virt_dev->vdisk_bioset_struct;
-	res = bioset_init(&virt_dev->vdisk_bioset_struct, 2, 0,
-			  BIOSET_NEED_BVECS);
+	res = bioset_init(&virt_dev->vdisk_bioset_struct, 2, 0, BIOSET_NEED_BVECS);
 #else
 	virt_dev->vdisk_bioset = bioset_create(2, 0, BIOSET_NEED_BVECS);
 	if (!virt_dev->vdisk_bioset)
@@ -6520,43 +6533,26 @@ static int vdisk_create_bioset(struct scst_vdisk_dev *virt_dev)
 #endif
 	if (res < 0) {
 		PRINT_ERROR("Failed to create bioset (dev %s)", virt_dev->name);
-		goto out;
+		return res;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
+	/*
+	 * See also commit 105ca2a2c2ff ("block: split struct bio_integrity_payload") #v6.15.
+	 */
 	if (virt_dev->dif_mode & SCST_DIF_MODE_DEV) {
 		/* The same, pool size doesn't really matter */
 		res = bioset_integrity_create(virt_dev->vdisk_bioset, 2);
-		if (res != 0) {
+		if (res) {
 			PRINT_ERROR("Failed to create integrity bioset (dev %s)",
 				    virt_dev->name);
-			goto out_free;
+			vdisk_free_bioset(virt_dev);
+			return res;
 		}
 	}
-
-	res = 0;
-
-out:
-	return res;
-
-out_free:
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
-	bioset_exit(virt_dev->vdisk_bioset);
-#else
-	bioset_free(virt_dev->vdisk_bioset);
 #endif
-	virt_dev->vdisk_bioset = NULL;
-	goto out;
-}
 
-static void vdisk_free_bioset(struct scst_vdisk_dev *virt_dev)
-{
-	if (!virt_dev->vdisk_bioset)
-		return;
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
-	bioset_exit(virt_dev->vdisk_bioset);
-#else
-	bioset_free(virt_dev->vdisk_bioset);
-#endif
+	return 0;
 }
 
 static void vdev_inq_changed_fn(struct work_struct *work)
