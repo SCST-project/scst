@@ -3285,9 +3285,9 @@ static bool vdisk_no_fd_allowed_commands(const struct scst_cmd *cmd)
 	case READ_CAPACITY:
 	case REPORT_LUNS:
 	case REQUEST_SENSE:
-	case RELEASE:
+	case RELEASE_6:
 	case RELEASE_10:
-	case RESERVE:
+	case RESERVE_6:
 	case RESERVE_10:
 	case READ_BUFFER:
 	case WRITE_BUFFER:
@@ -9784,9 +9784,9 @@ static int __init vdev_check_mode_pages_path(void)
 	[ALLOW_MEDIUM_REMOVAL] = vdisk_exec_prevent_allow_medium_removal, \
 	[READ_TOC] = vdisk_exec_read_toc,				\
 	[START_STOP] = vdisk_exec_start_stop,				\
-	[RESERVE] = vdisk_nop,						\
+	[RESERVE_6] = vdisk_nop,					\
 	[RESERVE_10] = vdisk_nop,					\
-	[RELEASE] = vdisk_nop,						\
+	[RELEASE_6] = vdisk_nop,					\
 	[RELEASE_10] = vdisk_nop,					\
 	[TEST_UNIT_READY] = vdisk_nop,					\
 	[INQUIRY] = vdisk_exec_inquiry,					\

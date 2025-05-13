@@ -313,9 +313,9 @@ static int scst_tg_accept_standby(struct scst_cmd *cmd)
 	case READ_CAPACITY:
 	case REPORT_LUNS:
 	case REQUEST_SENSE:
-	case RELEASE:
+	case RELEASE_6:
 	case RELEASE_10:
-	case RESERVE:
+	case RESERVE_6:
 	case RESERVE_10:
 	case READ_BUFFER:
 	case WRITE_BUFFER:

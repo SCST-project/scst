@@ -236,22 +236,22 @@ const struct scst_opcode_descriptor scst_op_descr_send_diagnostic = {
 EXPORT_SYMBOL(scst_op_descr_send_diagnostic);
 
 const struct scst_opcode_descriptor scst_op_descr_reserve6 = {
-	.od_opcode = RESERVE,
+	.od_opcode = RESERVE_6,
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 6,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
 	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
-	.od_cdb_usage_bits = { RESERVE, 0, 0, 0, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
+	.od_cdb_usage_bits = { RESERVE_6, 0, 0, 0, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 EXPORT_SYMBOL(scst_op_descr_reserve6);
 
 const struct scst_opcode_descriptor scst_op_descr_release6 = {
-	.od_opcode = RELEASE,
+	.od_opcode = RELEASE_6,
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 6,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
 	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
-	.od_cdb_usage_bits = { RELEASE, 0, 0, 0, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
+	.od_cdb_usage_bits = { RELEASE_6, 0, 0, 0, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 EXPORT_SYMBOL(scst_op_descr_release6);
 
@@ -727,14 +727,14 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_len_off = 4, .info_len_len = 1,
 	 .get_cdb_info = get_cdb_info_len_1},
 	{.ops = 0x16, .devkey = "MMMMMMMMMMMMMMMM",
-	 .info_op_name = "RESERVE",
+	 .info_op_name = "RESERVE(6)",
 	 .info_data_direction = SCST_DATA_NONE,
 	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
 			 SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED|
 			 SCST_SCSI_ATOMIC/* see comment in scst_cmd_overlap() */,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x17, .devkey = "MMMMMMMMMMMMMMMM",
-	 .info_op_name = "RELEASE",
+	 .info_op_name = "RELEASE(6)",
 	 .info_data_direction = SCST_DATA_NONE,
 	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
 		SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
@@ -7257,23 +7257,23 @@ static void scst_send_release(struct scst_device *dev)
 
 	for (i = 0; i < 5; i++) {
 		memset(cdb, 0, sizeof(cdb));
-		cdb[0] = RELEASE;
+		cdb[0] = RELEASE_6;
 		cdb[1] = (scsi_dev->scsi_level <= SCSI_2) ?
 		    ((scsi_dev->lun << 5) & 0xe0) : 0;
 
 		memset(sense, 0, sizeof(sense));
 
-		TRACE(TRACE_DEBUG | TRACE_SCSI, "%s", "Sending RELEASE req to "
-			"SCSI mid-level");
+		TRACE(TRACE_DEBUG | TRACE_SCSI,
+		      "Sending RELEASE_6 req to SCSI mid-level");
 		rc = scst_scsi_execute_cmd(scsi_dev, cdb, DMA_FROM_DEVICE,
 					   NULL, 0, sense, 15, 0, 0);
-		TRACE_DBG("RELEASE done: %x", rc);
+		TRACE_DBG("RELEASE_6 done: %x", rc);
 
 		if (scsi_status_is_good(rc))
 			break;
 
-		PRINT_ERROR("RELEASE failed: %d", rc);
-		PRINT_BUFFER("RELEASE sense", sense, sizeof(sense));
+		PRINT_ERROR("RELEASE_6 failed: %d", rc);
+		PRINT_BUFFER("RELEASE_6 sense", sense, sizeof(sense));
 		scst_check_internal_sense(dev, rc, sense, sizeof(sense));
 	}
 

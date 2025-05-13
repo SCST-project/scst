@@ -418,9 +418,9 @@ static int do_exec(struct vdisk_cmd *vcmd)
 	case START_STOP:
 		exec_fsync(vcmd/*, 0, dev->file_size*/);
 		break;
-	case RESERVE:
+	case RESERVE_6:
 	case RESERVE_10:
-	case RELEASE:
+	case RELEASE_6:
 	case RELEASE_10:
 	case TEST_UNIT_READY:
 		break;
