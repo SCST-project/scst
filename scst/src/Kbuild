@@ -15,8 +15,12 @@ ccflags-y :=	-I$(src)/../include			\
 		-fstack-protector-strong		\
 		-Wstrict-prototypes
 
-ccflags-y +=	$(shell [ -n "${CONFIG_SCST_NO_DLM}" ] && echo -DCONFIG_SCST_NO_DLM)	\
-		$(shell [ -n "${REVISION}" ] && echo -DSCST_REVISION=${REVISION})
+ccflags-y +=	$(shell [ -n "${CONFIG_SCST_NO_DLM}" ] && echo -DCONFIG_SCST_NO_DLM)		\
+		$(shell [ -n "${KVER}" ] && echo -DSCST_KVER=${KVER})				\
+		$(shell [ -n "${BUILD_DATE}" ] && echo -DSCST_BUILD_DATE=${BUILD_DATE})		\
+		$(shell [ -n "${GIT_COMMIT}" ] && echo -DSCST_GIT_COMMIT=${GIT_COMMIT})		\
+		$(shell [ -n "${BUILD_NUMBER}" ] && echo -DSCST_BUILD_NUMBER=${BUILD_NUMBER})	\
+		$(shell [ -n "${ARCH_TYPE}" ] && echo -DSCST_ARCH_TYPE=${ARCH_TYPE})
 
 #ccflags-y += -DCONFIG_SCST_STRICT_SERIALIZING
 #ccflags-y += -DCONFIG_SCST_USE_EXPECTED_VALUES

@@ -1,9 +1,24 @@
 ifndef PREFIX
-        PREFIX=/usr/local
+PREFIX=/usr/local
 endif
 
-REVISION ?= $(shell if [ -e .git ]; then echo -n .; git rev-parse --short HEAD 2>/dev/null; fi)
-VERSION = $(shell echo -n "$$(sed -n 's/^[[:blank:]]*\$$VERSION[[:blank:]]*=[[:blank:]]*[\"'"'"']\([0-9.]*\)[\"'"'"'];$$/\1/p' scstadmin/scst-*/lib/SCST/SCST.pm)$(REVISION)")
+GIT_COMMIT := $(shell git rev-parse --short=12 HEAD 2>/dev/null)
+
+ifndef BUILD_NUMBER
+BUILD_NUMBER := $(shell git rev-list --count HEAD 2>/dev/null || echo 0)
+endif
+
+RELEASE_VERSION := $(shell echo -n "$$(sed -n 's/^[[:blank:]]*\$$VERSION[[:blank:]]*=[[:blank:]]*[\"'"'"']\([0-9.]*\)[\"'"'"'];$$/\1/p' scstadmin/scst-*/lib/SCST/SCST.pm)")
+
+ifndef REVISION
+	ifneq ($(GIT_COMMIT),)
+		REVISION := $(BUILD_NUMBER).$(GIT_COMMIT)
+	else
+		REVISION := $(BUILD_NUMBER)
+	endif
+endif
+
+VERSION := $(RELEASE_VERSION).$(REVISION)
 
 SCSTADMIN_DIR = $(shell if [ ! -h scstadmin ]; then		\
 			    rm -f scstadmin;			\

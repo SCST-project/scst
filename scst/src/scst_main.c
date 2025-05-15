@@ -2154,71 +2154,77 @@ static struct class_interface scst_interface = {
 	.remove_dev = scst_remove,
 };
 
-static void __init scst_print_config(void)
+bool scst_dump_config(char *buf, size_t len)
 {
-	char buf[128];
-	int i, j;
+	ssize_t ret, pos;
 
-	i = snprintf(buf, sizeof(buf), "Enabled features: ");
-	j = i;
+	ret = scnprintf(buf, len, "SCST config: ");
+	pos = ret;
 
 #ifdef CONFIG_SCST_STRICT_SERIALIZING
-	i += snprintf(&buf[i], sizeof(buf) - i, "STRICT_SERIALIZING");
+	ret += scnprintf(buf + ret, len - ret, "%sSTRICT_SERIALIZING",
+			 ret == pos ? "" : ", ");
 #endif
 
 #ifdef CONFIG_SCST_EXTRACHECKS
-	i += snprintf(&buf[i], sizeof(buf) - i, "%sEXTRACHECKS",
-		(j == i) ? "" : ", ");
+	ret += scnprintf(buf + ret, len - ret, "%sEXTRACHECKS",
+			 ret == pos ? "" : ", ");
 #endif
 
 #ifdef CONFIG_SCST_TRACING
-	i += snprintf(&buf[i], sizeof(buf) - i, "%sTRACING",
-		(j == i) ? "" : ", ");
+	ret += scnprintf(buf + ret, len - ret, "%sTRACING",
+			 ret == pos ? "" : ", ");
 #endif
 
 #ifdef CONFIG_SCST_DEBUG
-	i += snprintf(&buf[i], sizeof(buf) - i, "%sDEBUG",
-		(j == i) ? "" : ", ");
+	ret += scnprintf(buf + ret, len - ret, "%sDEBUG",
+			 ret == pos ? "" : ", ");
 #endif
 
 #ifdef CONFIG_SCST_DEBUG_TM
-	i += snprintf(&buf[i], sizeof(buf) - i, "%sDEBUG_TM",
-		(j == i) ? "" : ", ");
+	ret += scnprintf(buf + ret, len - ret, "%sDEBUG_TM",
+			 ret == pos ? "" : ", ");
 #endif
 
 #ifdef CONFIG_SCST_DEBUG_RETRY
-	i += snprintf(&buf[i], sizeof(buf) - i, "%sDEBUG_RETRY",
-		(j == i) ? "" : ", ");
+	ret += scnprintf(buf + ret, len - ret, "%sDEBUG_RETRY",
+			 ret == pos ? "" : ", ");
 #endif
 
 #ifdef CONFIG_SCST_DEBUG_OOM
-	i += snprintf(&buf[i], sizeof(buf) - i, "%sDEBUG_OOM",
-		(j == i) ? "" : ", ");
+	ret += scnprintf(buf + ret, len - ret, "%sDEBUG_OOM",
+			 ret == pos ? "" : ", ");
 #endif
 
 #ifdef CONFIG_SCST_DEBUG_SN
-	i += snprintf(&buf[i], sizeof(buf) - i, "%sDEBUG_SN",
-		(j == i) ? "" : ", ");
+	ret += scnprintf(buf + ret, len - ret, "%sDEBUG_SN",
+			 ret == pos ? "" : ", ");
 #endif
 
 #ifdef CONFIG_SCST_USE_EXPECTED_VALUES
-	i += snprintf(&buf[i], sizeof(buf) - i, "%sUSE_EXPECTED_VALUES",
-		(j == i) ? "" : ", ");
+	ret += scnprintf(buf + ret, len - ret, "%sUSE_EXPECTED_VALUES",
+			 ret == pos ? "" : ", ");
 #endif
 
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-	i += snprintf(&buf[i], sizeof(buf) - i,
-		"%sTEST_IO_IN_SIRQ",
-		(j == i) ? "" : ", ");
+	ret += scnprintf(buf + ret, len - ret, "%sTEST_IO_IN_SIRQ",
+			 ret == pos ? "" : ", ");
 #endif
 
 #ifdef CONFIG_SCST_STRICT_SECURITY
-	i += snprintf(&buf[i], sizeof(buf) - i, "%sSTRICT_SECURITY",
-		(j == i) ? "" : ", ");
+	ret += scnprintf(buf + ret, len - ret, "%sSTRICT_SECURITY",
+			 ret == pos ? "" : ", ");
 #endif
 
-	if (j != i)
-		PRINT_INFO("%s", buf);
+	return ret != pos;
+}
+
+static inline void __init scst_print_config(void)
+{
+	char config[SCST_CONFIG_BUF_SIZE] = {};
+
+	if (scst_dump_config(config, sizeof(config)))
+		PRINT_INFO("%s", config);
 }
 
 static void scst_suspended(struct percpu_ref *ref)
@@ -2462,13 +2468,18 @@ static int __init init_scst(void)
 		goto out_thread_free;
 
 #ifdef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
-	PRINT_INFO("SCST version %s (revision=%s) loaded successfully (global max mem for commands ignored, per device %dMB)",
-		   SCST_VERSION_STRING, SCST_REVISION_STRING, scst_max_dev_cmd_mem);
+	PRINT_INFO("SCST loaded successfully (global max mem for commands ignored, per device %dMB)",
+		   scst_max_dev_cmd_mem);
 #else
-	PRINT_INFO("SCST version %s (revision=%s) loaded successfully (max mem for commands %dMB, per device %dMB)",
-		   SCST_VERSION_STRING, SCST_REVISION_STRING, scst_max_cmd_mem, scst_max_dev_cmd_mem);
+	PRINT_INFO("SCST loaded successfully (max mem for commands %dMB, per device %dMB)",
+		   scst_max_cmd_mem, scst_max_dev_cmd_mem);
 #endif
-
+	PRINT_INFO("SCST version: %s", SCST_VERSION_STRING);
+	PRINT_INFO("SCST kver: %s", SCST_KVER_STRING);
+	PRINT_INFO("SCST build date: %s", SCST_BUILD_DATE_STRING);
+	PRINT_INFO("SCST git commit sha1: %s", SCST_GIT_COMMIT_STRING);
+	PRINT_INFO("SCST build number: %s", SCST_BUILD_NUMBER_STRING);
+	PRINT_INFO("SCST arch type: %s", SCST_ARCH_TYPE_STRING);
 	scst_print_config();
 
 out:
@@ -2621,4 +2632,8 @@ MODULE_AUTHOR("Vladislav Bolkhovitin");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("SCSI target core");
 MODULE_VERSION(SCST_VERSION_STRING);
-MODULE_INFO(revision, SCST_REVISION_STRING);
+MODULE_INFO(kver, SCST_KVER_STRING);
+MODULE_INFO(build_date, SCST_BUILD_DATE_STRING);
+MODULE_INFO(git_commit, SCST_GIT_COMMIT_STRING);
+MODULE_INFO(build_number, SCST_BUILD_NUMBER_STRING);
+MODULE_INFO(arch_type, SCST_ARCH_TYPE_STRING);

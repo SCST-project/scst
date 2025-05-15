@@ -7438,58 +7438,34 @@ static ssize_t scst_version_show(struct kobject *kobj,
 				 struct kobj_attribute *attr,
 				 char *buf)
 {
+	char config[SCST_CONFIG_BUF_SIZE] = {};
 	ssize_t ret = 0;
 
 	TRACE_ENTRY();
 
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "%s (revision=%s)\n",
-			 SCST_VERSION_STRING, SCST_REVISION_STRING);
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "SCST version: %s\n",
+			 SCST_VERSION_STRING);
 
-#ifdef CONFIG_SCST_STRICT_SERIALIZING
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "STRICT_SERIALIZING\n");
-#endif
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "SCST kver: %s\n",
+			 SCST_KVER_STRING);
 
-#ifdef CONFIG_SCST_EXTRACHECKS
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "EXTRACHECKS\n");
-#endif
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "SCST build date: %s\n",
+			 SCST_BUILD_DATE_STRING);
 
-#ifdef CONFIG_SCST_TRACING
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "TRACING\n");
-#endif
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "SCST git commit sha1: %s\n",
+			 SCST_GIT_COMMIT_STRING);
 
-#ifdef CONFIG_SCST_DEBUG
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "DEBUG\n");
-#endif
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "SCST build number: %s\n",
+			 SCST_BUILD_NUMBER_STRING);
 
-#ifdef CONFIG_SCST_DEBUG_TM
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "DEBUG_TM\n");
-#endif
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "SCST arch type: %s\n",
+			 SCST_ARCH_TYPE_STRING);
 
-#ifdef CONFIG_SCST_DEBUG_RETRY
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "DEBUG_RETRY\n");
-#endif
-
-#ifdef CONFIG_SCST_DEBUG_OOM
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "DEBUG_OOM\n");
-#endif
-
-#ifdef CONFIG_SCST_DEBUG_SN
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "DEBUG_SN\n");
-#endif
-
-#ifdef CONFIG_SCST_USE_EXPECTED_VALUES
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "USE_EXPECTED_VALUES\n");
-#endif
-
-#ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "TEST_IO_IN_SIRQ\n");
-#endif
-
-#ifdef CONFIG_SCST_STRICT_SECURITY
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "STRICT_SECURITY\n");
-#endif
+	if (scst_dump_config(config, sizeof(config)))
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "%s\n", config);
 
 	TRACE_EXIT();
+
 	return ret;
 }
 
