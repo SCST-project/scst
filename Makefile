@@ -16,7 +16,7 @@
 #
 #
 
-SHELL = /bin/bash
+SHELL := /bin/bash
 
 # Define the location to the kernel src. Can be defined here or on
 # the command line during the build process. If KDIR is defined,
@@ -30,58 +30,70 @@ SHELL = /bin/bash
 #export KVER=2.6.x
 
 ifdef KDIR
-     ifndef KVER
-          export KVER = $(strip $(shell					 \
-		cat $(KDIR)/include/config/kernel.release 2>/dev/null || \
-		make -s -C $(KDIR) kernelversion))
-     endif
+    ifndef KVER
+        KVER = $(strip $(shell						\
+            cat $(KDIR)/include/config/kernel.release 2>/dev/null ||	\
+            make -s -C $(KDIR) kernelversion))
+    endif
 else
-     ifndef KVER
-	KVER=$(strip $(shell uname -r))
-     endif
-     KDIR=/lib/modules/$(KVER)/build
+    ifndef KVER
+        KVER=$(strip $(shell uname -r))
+    endif
+
+    KDIR=/lib/modules/$(KVER)/build
 endif
 
 PKG_BUILD_MODE ?= 2release
 
-OLD_QLA_INI_DIR=qla2x00t
-OLD_QLA_DIR=$(OLD_QLA_INI_DIR)/qla2x00-target
+OLD_QLA_INI_DIR = qla2x00t
+OLD_QLA_DIR = $(OLD_QLA_INI_DIR)/qla2x00-target
 
-NEW_QLA_INI_DIR=qla2x00t-32gbit
-NEW_QLA_DIR=$(NEW_QLA_INI_DIR)/qla2x00-target
+NEW_QLA_INI_DIR = qla2x00t-32gbit
+NEW_QLA_DIR = $(NEW_QLA_INI_DIR)/qla2x00-target
 
 ifeq ($(QLA_32GBIT),no)
-    QLA_INI_DIR=$(OLD_QLA_INI_DIR)
-    QLA_DIR=$(OLD_QLA_DIR)
+    QLA_INI_DIR = $(OLD_QLA_INI_DIR)
+    QLA_DIR = $(OLD_QLA_DIR)
 else
-    QLA_INI_DIR=$(NEW_QLA_INI_DIR)
-    QLA_DIR=$(NEW_QLA_DIR)
+    QLA_INI_DIR = $(NEW_QLA_INI_DIR)
+    QLA_DIR = $(NEW_QLA_DIR)
 endif
 
+SCST_DIR = scst
+DOC_DIR = doc
+SCSTADM_DIR = scstadmin
+USR_DIR = usr
+SRP_DIR = srpt
+SCST_LOCAL_DIR = scst_local
+FCST_DIR = fcst
+EMULEX_DIR = emulex
+ISCSI_DIR = iscsi-scst
 
-SCST_DIR=scst
-DOC_DIR=doc
-SCSTADM_DIR=scstadmin
-USR_DIR=usr
-SRP_DIR=srpt
-SCST_LOCAL_DIR=scst_local
-FCST_DIR=fcst
-EMULEX_DIR=emulex
+BUILD_DATE := $(shell date -u '+%Y/%m/%d-%H:%M:%S-%Z%:z')
+GIT_COMMIT := $(shell git rev-parse --short=12 HEAD 2>/dev/null)
 
-ISCSI_DIR=iscsi-scst
-
-SCST_GIT_COMMIT := $(shell git rev-parse --short HEAD 2>/dev/null)
-
-REVISION ?= $(SCST_GIT_COMMIT)
-export REVISION
-
-VERSION_WITHOUT_REVISION := $(shell echo -n "$$(sed -n 's/^\#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^-]*\).*\"/\1/p' scst/include/scst_const.h)")
-ifneq (, $(REVISION))
-VERSION := $(VERSION_WITHOUT_REVISION).$(REVISION)
-else
-VERSION := $(VERSION_WITHOUT_REVISION)
+ifndef BUILD_NUMBER
+BUILD_NUMBER := $(shell git rev-list --count HEAD 2>/dev/null || echo 0)
 endif
-DEBIAN_REVISION=1.1
+
+ifndef ARCH_TYPE
+ARCH_TYPE := $(shell uname -m)
+endif
+
+export KVER BUILD_DATE GIT_COMMIT BUILD_NUMBER ARCH_TYPE
+
+RELEASE_VERSION := $(shell echo -n "$$(sed -n 's/^\#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^-]*\).*\"/\1/p' scst/include/scst_const.h)")
+
+ifndef REVISION
+	ifneq ($(GIT_COMMIT),)
+		REVISION := $(BUILD_NUMBER).$(GIT_COMMIT)
+	else
+		REVISION := $(BUILD_NUMBER)
+	endif
+endif
+
+VERSION := $(RELEASE_VERSION).$(REVISION)
+DEBIAN_REVISION := 1.1
 RPMTOPDIR ?= $(shell if [ $$(id -u) = 0 ]; then echo /usr/src/packages;\
 		else echo $$PWD/rpmbuilddir; fi)
 SCST_SOURCE_FILES = $(shell if [ -e scripts/list-source-files ]; then	\
@@ -481,9 +493,9 @@ dpkg: ../scst_$(VERSION).orig.tar.gz
 
 release-archive:
 	$(MAKE) 2release
-	scripts/generate-release-archive scst "$(VERSION_WITHOUT_REVISION)"
-	md5sum ../scst-$(VERSION_WITHOUT_REVISION).tar.bz2	\
-	  > ../scst-$(VERSION_WITHOUT_REVISION).tar.bz2.md5sum
+	scripts/generate-release-archive scst "$(RELEASE_VERSION)"
+	md5sum ../scst-$(RELEASE_VERSION).tar.bz2	\
+	  > ../scst-$(RELEASE_VERSION).tar.bz2.md5sum
 	$(MAKE) 2debug
 
 multiple-release-archives:

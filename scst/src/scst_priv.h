@@ -392,6 +392,10 @@ int scst_process_check_condition(struct scst_cmd *cmd);
 
 int scst_assign_dev_handler(struct scst_device *dev, struct scst_dev_type *handler);
 
+#define SCST_CONFIG_BUF_SIZE	(128 + 1)
+
+bool scst_dump_config(char *buf, size_t len);
+
 struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 					const char *initiator_name);
 void scst_free_session(struct scst_session *sess);
