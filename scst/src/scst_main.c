@@ -165,30 +165,28 @@ spinlock_t scst_measure_latency_lock;
 atomic_t scst_measure_latency;
 
 int scst_threads;
-module_param_named(scst_threads, scst_threads, int, S_IRUGO);
+module_param_named(scst_threads, scst_threads, int, 0444);
 MODULE_PARM_DESC(scst_threads, "SCSI target threads count");
 
 static unsigned int scst_max_cmd_mem;
-module_param_named(scst_max_cmd_mem, scst_max_cmd_mem, int, S_IRUGO);
-MODULE_PARM_DESC(scst_max_cmd_mem, "Maximum memory allowed to be consumed by "
-	"all SCSI commands of all devices at any given time in MB");
+module_param_named(scst_max_cmd_mem, scst_max_cmd_mem, int, 0444);
+MODULE_PARM_DESC(scst_max_cmd_mem,
+		 "Maximum memory allowed to be consumed by all SCSI commands of all devices at any given time in MB");
 
 unsigned int scst_max_dev_cmd_mem;
-module_param_named(scst_max_dev_cmd_mem, scst_max_dev_cmd_mem, int, S_IRUGO);
-MODULE_PARM_DESC(scst_max_dev_cmd_mem, "Maximum memory allowed to be consumed "
-	"by all SCSI commands of a device at any given time in MB");
+module_param_named(scst_max_dev_cmd_mem, scst_max_dev_cmd_mem, int, 0444);
+MODULE_PARM_DESC(scst_max_dev_cmd_mem,
+		 "Maximum memory allowed to be consumed by all SCSI commands of a device at any given time in MB");
 
 bool scst_forcibly_close_sessions;
-module_param_named(forcibly_close_sessions, scst_forcibly_close_sessions, bool,
-		   S_IWUSR | S_IRUGO);
+module_param_named(forcibly_close_sessions, scst_forcibly_close_sessions, bool, 0644);
 MODULE_PARM_DESC(forcibly_close_sessions,
-"If enabled, close the sessions associated with an access control group (ACG)"
-" when an ACG is deleted via sysfs instead of returning -EBUSY. (default: false)");
+		 "If enabled, close the sessions associated with an access control group (ACG) when an ACG is deleted via sysfs instead of returning -EBUSY. (default: false)");
 
 bool scst_auto_cm_assignment = true;
-module_param_named(auto_cm_assignment, scst_auto_cm_assignment, bool,
-		   S_IWUSR | S_IRUGO);
-MODULE_PARM_DESC(auto_cm_assignment, "Enables the copy managers auto registration. (default: true)");
+module_param_named(auto_cm_assignment, scst_auto_cm_assignment, bool, 0644);
+MODULE_PARM_DESC(auto_cm_assignment,
+		 "Enables the copy managers auto registration. (default: true)");
 
 struct scst_dev_type scst_null_devtype = {
 	.name = "none",
@@ -211,8 +209,7 @@ static void __scst_resume_activity(void);
  *    Target drivers supposed to behave sanely and not call register()
  *    and unregister() randomly simultaneously.
  */
-int __scst_register_target_template(struct scst_tgt_template *vtt,
-	const char *version)
+int __scst_register_target_template(struct scst_tgt_template *vtt, const char *version)
 {
 	int res = 0;
 	struct scst_tgt_template *t;
@@ -228,48 +225,43 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 	}
 
 	if (!vtt->release) {
-		PRINT_ERROR("Target driver %s must have "
-			"release() method.", vtt->name);
+		PRINT_ERROR("Target driver %s must have release() method.",
+			    vtt->name);
 		res = -EINVAL;
 		goto out;
 	}
 
 	if (!vtt->xmit_response) {
-		PRINT_ERROR("Target driver %s must have "
-			"xmit_response() method.", vtt->name);
+		PRINT_ERROR("Target driver %s must have xmit_response() method.",
+			    vtt->name);
 		res = -EINVAL;
 		goto out;
 	}
 
-	if (vtt->get_initiator_port_transport_id == NULL)
-		PRINT_WARNING("Target driver %s doesn't support Persistent "
-			"Reservations", vtt->name);
+	if (!vtt->get_initiator_port_transport_id)
+		PRINT_WARNING("Target driver %s doesn't support Persistent Reservations",
+			      vtt->name);
 
 	if (vtt->threads_num < 0) {
-		PRINT_ERROR("Wrong threads_num value %d for "
-			"target \"%s\"", vtt->threads_num,
-			vtt->name);
+		PRINT_ERROR("Wrong threads_num value %d for target \"%s\"",
+			    vtt->threads_num, vtt->name);
 		res = -EINVAL;
 		goto out;
 	}
 
 	if ((!vtt->enable_target || !vtt->is_target_enabled) &&
 	    !vtt->enabled_attr_not_needed)
-		PRINT_WARNING("Target driver %s doesn't have enable_target() "
-			"and/or is_target_enabled() method(s). This is unsafe "
-			"and can lead that initiators connected on the "
-			"initialization time can see an unexpected set of "
-			"devices or no devices at all!", vtt->name);
+		PRINT_WARNING("Target driver %s doesn't have enable_target() and/or is_target_enabled() method(s). This is unsafe and can lead that initiators connected on the initialization time can see an unexpected set of devices or no devices at all!",
+			      vtt->name);
 
-	if (((vtt->add_target != NULL) && (vtt->del_target == NULL)) ||
-	    ((vtt->add_target == NULL) && (vtt->del_target != NULL))) {
-		PRINT_ERROR("Target driver %s must either define both "
-			"add_target() and del_target(), or none.", vtt->name);
+	if ((vtt->add_target && !vtt->del_target) || (!vtt->add_target && vtt->del_target)) {
+		PRINT_ERROR("Target driver %s must either define both add_target() and del_target(), or none.",
+			    vtt->name);
 		res = -EINVAL;
 		goto out;
 	}
 
-	if (vtt->rdy_to_xfer == NULL)
+	if (!vtt->rdy_to_xfer)
 		vtt->rdy_to_xfer_atomic = 1;
 
 	res = mutex_lock_interruptible(&scst_mutex);
@@ -278,7 +270,7 @@ int __scst_register_target_template(struct scst_tgt_template *vtt,
 	list_for_each_entry(t, &scst_template_list, scst_template_list_entry) {
 		if (strcmp(t->name, vtt->name) == 0) {
 			PRINT_ERROR("Target driver %s already registered",
-				vtt->name);
+				    vtt->name);
 			goto out_unlock;
 		}
 	}
@@ -314,8 +306,8 @@ static int scst_check_non_gpl_target_template(struct scst_tgt_template *vtt)
 
 	if (vtt->task_mgmt_affected_cmds_done || vtt->threads_num ||
 	    vtt->on_hw_pending_cmd_timeout) {
-		PRINT_ERROR("Not allowed functionality in non-GPL version for "
-			"target template %s", vtt->name);
+		PRINT_ERROR("Not allowed functionality in non-GPL version for target template %s",
+			    vtt->name);
 		res = -EPERM;
 		goto out;
 	}
@@ -341,8 +333,7 @@ out:
  *
  *    Note: *vtt must be static!
  */
-int __scst_register_target_template_non_gpl(struct scst_tgt_template *vtt,
-	const char *version)
+int __scst_register_target_template_non_gpl(struct scst_tgt_template *vtt, const char *version)
 {
 	int res;
 
@@ -430,8 +421,7 @@ EXPORT_SYMBOL(scst_unregister_target_template);
  * Registers a target for template vtt and returns new target structure on
  * success or NULL otherwise.
  */
-struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
-	const char *target_name)
+struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt, const char *target_name)
 {
 	struct scst_tgt *tgt, *t;
 	int rc = 0;
@@ -445,7 +435,7 @@ struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 		goto out;
 
 	tgt->tgt_name = kstrdup(target_name, GFP_KERNEL);
-	if (tgt->tgt_name == NULL) {
+	if (!tgt->tgt_name) {
 		PRINT_ERROR("Allocation of tgt name %s failed",
 			    target_name);
 		rc = -ENOMEM;
@@ -479,7 +469,7 @@ struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt,
 	mutex_unlock(&scst_mutex);
 
 	PRINT_INFO("Target %s for template %s registered successfully",
-		tgt->tgt_name, vtt->name);
+		   tgt->tgt_name, vtt->name);
 
 	TRACE_DBG("tgt %p", tgt);
 
@@ -526,9 +516,9 @@ void scst_unregister_target(struct scst_tgt *tgt)
 	 */
 	scst_tgt_sysfs_del(tgt);
 
-	TRACE_DBG("%s", "Calling target driver's release()");
+	TRACE_DBG("Calling target driver's release()");
 	tgt->tgtt->release(tgt);
-	TRACE_DBG("%s", "Target driver's release() returned");
+	TRACE_DBG("Target driver's release() returned");
 
 	/*
 	 * Testing tgt->sysfs_sess_list below without holding scst_mutex
@@ -542,9 +532,8 @@ void scst_unregister_target(struct scst_tgt *tgt)
 	 * waits until scst_free_session() has finished accessing the 'tgt'
 	 * object.
 	 */
-	TRACE_DBG("%s", "Waiting for sessions shutdown");
-	while (!wait_event_timeout(tgt->unreg_waitQ,
-				list_empty(&tgt->sysfs_sess_list), 60 * HZ)) {
+	TRACE_DBG("Waiting for sessions shutdown");
+	while (!wait_event_timeout(tgt->unreg_waitQ, list_empty(&tgt->sysfs_sess_list), 60 * HZ)) {
 		struct scst_session *sess;
 
 		mutex_lock(&scst_mutex);
@@ -556,7 +545,7 @@ void scst_unregister_target(struct scst_tgt *tgt)
 		}
 		mutex_unlock(&scst_mutex);
 	}
-	TRACE_DBG("%s", "wait_event() returned");
+	TRACE_DBG("wait_event() returned");
 
 	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_UNLIMITED);
 	WARN_ON_ONCE(res);
@@ -573,10 +562,8 @@ void scst_unregister_target(struct scst_tgt *tgt)
 
 	scst_del_free_acg(tgt->default_acg, false);
 
-	list_for_each_entry_safe(acg, acg_tmp, &tgt->tgt_acg_list,
-					acg_list_entry) {
+	list_for_each_entry_safe(acg, acg_tmp, &tgt->tgt_acg_list, acg_list_entry)
 		scst_del_free_acg(acg, false);
-	}
 
 	mutex_unlock(&scst_mutex);
 	scst_resume_activity();
@@ -584,14 +571,13 @@ void scst_unregister_target(struct scst_tgt *tgt)
 	scst_tgt_sysfs_put(tgt);
 
 	PRINT_INFO("Target %s for template %s unregistered successfully",
-		tgt->tgt_name, vtt->name);
+		   tgt->tgt_name, vtt->name);
 
 	scst_free_tgt(tgt);
 
 	TRACE_DBG("Unregistering tgt %p finished", tgt);
 
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL(scst_unregister_target);
 
@@ -665,42 +651,36 @@ void scst_trace_cmds(scst_show_fn show, void *arg)
 						    sess_cmd_list_entry) {
 					tgt_dev = cmd->tgt_dev;
 					scst_dump_cdb(cdb, sizeof(cdb), cmd);
-					scst_get_cmd_state_name(state_name,
-							    sizeof(state_name),
-							    cmd->state);
-					show(arg, "cmd %p: state %s; op %s; "
-						"proc time %ld sec; tgtt %s; "
-						"tgt %s; session %s; grp %s; "
-						"LUN %lld; ini %s; cdb %s\n",
-						cmd, state_name,
-						scst_get_opcode_name(cmd),
-						(long)(jiffies - cmd->start_time) / HZ,
-						t->name, tgt->tgt_name, sess->sess_name,
-						tgt_dev ? (tgt_dev->acg_dev->acg->acg_name ?
-								: "(default)") : "?",
-						cmd->lun, sess->initiator_name, cdb);
+					scst_get_cmd_state_name(state_name, sizeof(state_name),
+								cmd->state);
+					show(arg,
+					     "cmd %p: state %s; op %s; proc time %ld sec; tgtt %s; tgt %s; session %s; grp %s; LUN %lld; ini %s; cdb %s\n",
+					     cmd, state_name, scst_get_opcode_name(cmd),
+					     (long)(jiffies - cmd->start_time) / HZ,
+					     t->name, tgt->tgt_name, sess->sess_name,
+					     tgt_dev ? (tgt_dev->acg_dev->acg->acg_name ?: "(default)") : "?",
+					     cmd->lun, sess->initiator_name, cdb);
 				}
 				spin_unlock_irq(&sess->sess_list_lock);
 			}
 		}
 	}
 	mutex_unlock(&scst_mutex);
-	return;
 }
 
 static const char *const scst_tm_fn_name[] = {
-	[SCST_ABORT_TASK]	= "ABORT_TASK",
-	[SCST_ABORT_TASK_SET]	= "ABORT_TASK_SET",
-	[SCST_CLEAR_ACA]	= "CLEAR_ACA",
-	[SCST_CLEAR_TASK_SET]	= "CLEAR_TASK_SET",
-	[SCST_LUN_RESET]	= "LUN_RESET",
-	[SCST_TARGET_RESET]	= "TARGET_RESET",
-	[SCST_NEXUS_LOSS_SESS]	= "NEXUS_LOSS_SESS",
-	[SCST_ABORT_ALL_TASKS_SESS] = "ABORT_ALL_TASKS_SESS",
-	[SCST_NEXUS_LOSS] =	"NEXUS_LOSS",
-	[SCST_ABORT_ALL_TASKS] = "ABORT_ALL_TASKS",
-	[SCST_UNREG_SESS_TM] =	"UNREG_SESS_TM",
-	[SCST_PR_ABORT_ALL] =	"PR_ABORT_ALL",
+	[SCST_ABORT_TASK]		= "ABORT_TASK",
+	[SCST_ABORT_TASK_SET]		= "ABORT_TASK_SET",
+	[SCST_CLEAR_ACA]		= "CLEAR_ACA",
+	[SCST_CLEAR_TASK_SET]		= "CLEAR_TASK_SET",
+	[SCST_LUN_RESET]		= "LUN_RESET",
+	[SCST_TARGET_RESET]		= "TARGET_RESET",
+	[SCST_NEXUS_LOSS_SESS]		= "NEXUS_LOSS_SESS",
+	[SCST_ABORT_ALL_TASKS_SESS]	= "ABORT_ALL_TASKS_SESS",
+	[SCST_NEXUS_LOSS]		= "NEXUS_LOSS",
+	[SCST_ABORT_ALL_TASKS]		= "ABORT_ALL_TASKS",
+	[SCST_UNREG_SESS_TM]		= "UNREG_SESS_TM",
+	[SCST_PR_ABORT_ALL]		= "PR_ABORT_ALL",
 };
 
 char *scst_get_tm_fn_name(char *name, int len, unsigned int fn)
@@ -713,13 +693,13 @@ char *scst_get_tm_fn_name(char *name, int len, unsigned int fn)
 }
 
 static const char *const scst_mcmd_state_name[] = {
-	[SCST_MCMD_STATE_INIT] =	"INIT",
-	[SCST_MCMD_STATE_EXEC] =	"EXEC",
-	[SCST_MCMD_STATE_WAITING_AFFECTED_CMDS_DONE] = "WAITING_AFFECTED_CMDS_DONE",
-	[SCST_MCMD_STATE_AFFECTED_CMDS_DONE] = "AFFECTED_CMDS_DONE",
-	[SCST_MCMD_STATE_WAITING_AFFECTED_CMDS_FINISHED] = "WAITING_AFFECTED_CMDS_FINISHED",
-	[SCST_MCMD_STATE_DONE] =	"DONE",
-	[SCST_MCMD_STATE_FINISHED] =	"FINISHED",
+	[SCST_MCMD_STATE_INIT]					= "INIT",
+	[SCST_MCMD_STATE_EXEC]					= "EXEC",
+	[SCST_MCMD_STATE_WAITING_AFFECTED_CMDS_DONE]		= "WAITING_AFFECTED_CMDS_DONE",
+	[SCST_MCMD_STATE_AFFECTED_CMDS_DONE]			= "AFFECTED_CMDS_DONE",
+	[SCST_MCMD_STATE_WAITING_AFFECTED_CMDS_FINISHED]	= "WAITING_AFFECTED_CMDS_FINISHED",
+	[SCST_MCMD_STATE_DONE]					= "DONE",
+	[SCST_MCMD_STATE_FINISHED]				= "FINISHED",
 };
 
 char *scst_get_mcmd_state_name(char *name, int len, unsigned int state)
@@ -738,19 +718,16 @@ void scst_trace_mcmds(scst_show_fn show, void *arg)
 	char fn_name[16], state_name[32];
 
 	spin_lock_irq(&scst_mcmd_lock);
-	list_for_each_entry(mcmd, &scst_active_mgmt_cmd_list,
-			    mgmt_cmd_list_entry) {
+	list_for_each_entry(mcmd, &scst_active_mgmt_cmd_list, mgmt_cmd_list_entry) {
 		scst_get_tm_fn_name(fn_name, sizeof(fn_name), mcmd->fn);
-		scst_get_mcmd_state_name(state_name, sizeof(state_name),
-					 mcmd->state);
-		show(arg, "mcmd %p: state %s; tgtt %s; tgt %s; session %s; fn %s;"
-		     " LUN %lld; tag %lld; cmd_done_wait_count %d\n",
+		scst_get_mcmd_state_name(state_name, sizeof(state_name), mcmd->state);
+		show(arg,
+		     "mcmd %p: state %s; tgtt %s; tgt %s; session %s; fn %s; LUN %lld; tag %lld; cmd_done_wait_count %d\n",
 		     mcmd, state_name, mcmd->sess->tgt->tgtt->name,
 		     mcmd->sess->tgt->tgt_name, mcmd->sess->sess_name, fn_name,
 		     mcmd->lun, mcmd->tag, mcmd->cmd_done_wait_count);
 	}
 	spin_unlock_irq(&scst_mcmd_lock);
-	return;
 }
 
 static void __printf(2, 3) scst_to_syslog(void *arg, const char *fmt, ...)
@@ -767,7 +744,6 @@ static void __printf(2, 3) scst_to_syslog(void *arg, const char *fmt, ...)
 	pr_info("    ");
 	vprintk(fmt, args);
 	va_end(args);
-	return;
 }
 
 /*
@@ -800,12 +776,12 @@ static int scst_susp_wait(unsigned long timeout)
 	if (res > 0) {
 		res = 0;
 		goto out;
-	} else if ((res < 0) && (timeout != SCST_SUSPEND_TIMEOUT_UNLIMITED))
+	}
+	if (res < 0 && timeout != SCST_SUSPEND_TIMEOUT_UNLIMITED)
 		goto out;
 
 	if (res == 0) {
-		PRINT_INFO(
-	"%d active commands to still not completed. See README for possible reasons.",
+		PRINT_INFO("%d active commands to still not completed. See README for possible reasons.",
 			   scst_get_cmd_counter());
 		scst_trace_cmds(scst_to_syslog, &hp);
 		scst_trace_mcmds(scst_to_syslog, &hp);
@@ -865,8 +841,9 @@ int scst_suspend_activity(unsigned long timeout)
 		res = mutex_lock_interruptible(&scst_suspend_mutex);
 		if (res != 0)
 			goto out;
-	} else
+	} else {
 		mutex_lock(&scst_suspend_mutex);
+	}
 
 	TRACE_MGMT_DBG("suspend_count %d", suspend_count);
 	suspend_count++;
@@ -923,8 +900,9 @@ int scst_suspend_activity(unsigned long timeout)
 			goto out_resume;
 		}
 		wait_time = timeout - wait_time;
-	} else
+	} else {
 		wait_time = SCST_SUSPEND_TIMEOUT_UNLIMITED;
+	}
 
 	res = scst_susp_wait(wait_time);
 	if (res != 0)
@@ -989,12 +967,9 @@ static void __scst_resume_activity(void)
 	wake_up_all(&scst_init_cmd_list_waitQ);
 
 	spin_lock_irq(&scst_mcmd_lock);
-	list_for_each_entry(m, &scst_delayed_mgmt_cmd_list,
-			    mgmt_cmd_list_entry) {
-		TRACE_MGMT_DBG(
-		"Moving delayed mgmt cmd %p to head of active mgmt cmd list",
+	list_for_each_entry(m, &scst_delayed_mgmt_cmd_list, mgmt_cmd_list_entry)
+		TRACE_MGMT_DBG("Moving delayed mgmt cmd %p to head of active mgmt cmd list",
 			       m);
-	}
 	list_splice_init(&scst_delayed_mgmt_cmd_list,
 			 &scst_active_mgmt_cmd_list);
 	spin_unlock_irq(&scst_mcmd_lock);
@@ -1003,7 +978,6 @@ static void __scst_resume_activity(void)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 /**
@@ -1022,7 +996,6 @@ void scst_resume_activity(void)
 	mutex_unlock(&scst_suspend_mutex);
 
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL_GPL(scst_resume_activity);
 
@@ -1039,7 +1012,6 @@ static int scst_register_device(struct scsi_device *scsidp)
 
 	TRACE_ENTRY();
 
-
 	res = mutex_lock_interruptible(&scst_mutex);
 	if (res != 0)
 		goto out;
@@ -1053,8 +1025,8 @@ static int scst_register_device(struct scsi_device *scsidp)
 	dev->virt_name = kasprintf(GFP_KERNEL, "%d:%d:%d:%lld",
 				   scsidp->host->host_no, scsidp->channel,
 				   scsidp->id, (u64)scsidp->lun);
-	if (dev->virt_name == NULL) {
-		PRINT_ERROR("%s", "Unable to alloc device name");
+	if (!dev->virt_name) {
+		PRINT_ERROR("Unable to alloc device name");
 		res = -ENOMEM;
 		goto out_free_dev;
 	}
@@ -1139,7 +1111,7 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 	mutex_lock(&scst_mutex);
 
 	dev = __scst_lookup_device(scsidp);
-	if (dev == NULL) {
+	if (!dev) {
 		PRINT_ERROR("SCST device for SCSI device %d:%d:%d:%lld not found",
 			    scsidp->host->host_no, scsidp->channel, scsidp->id,
 			    (u64)scsidp->lun);
@@ -1194,28 +1166,25 @@ static int scst_dev_handler_check(struct scst_dev_type *dev_handler)
 {
 	int res = 0;
 
-	if (dev_handler->parse == NULL) {
-		PRINT_ERROR("scst dev handler %s must have "
-			"parse() method.", dev_handler->name);
+	if (!dev_handler->parse) {
+		PRINT_ERROR("scst dev handler %s must have parse() method.",
+			    dev_handler->name);
 		res = -EINVAL;
 		goto out;
 	}
 
-	if (((dev_handler->add_device != NULL) &&
-	     (dev_handler->del_device == NULL)) ||
-	    ((dev_handler->add_device == NULL) &&
-	     (dev_handler->del_device != NULL))) {
-		PRINT_ERROR("Dev handler %s must either define both "
-			"add_device() and del_device(), or none.",
-			dev_handler->name);
+	if ((dev_handler->add_device && !dev_handler->del_device) ||
+	    (!dev_handler->add_device && dev_handler->del_device)) {
+		PRINT_ERROR("Dev handler %s must either define both add_device() and del_device(), or none.",
+			    dev_handler->name);
 		res = -EINVAL;
 		goto out;
 	}
 
-	if (dev_handler->dev_alloc_data_buf == NULL)
+	if (!dev_handler->dev_alloc_data_buf)
 		dev_handler->dev_alloc_data_buf_atomic = 1;
 
-	if (dev_handler->dev_done == NULL)
+	if (!dev_handler->dev_done)
 		dev_handler->dev_done_atomic = 1;
 
 	if (dev_handler->max_tgt_dev_commands == 0)
@@ -1230,17 +1199,17 @@ static int scst_check_device_name(const char *dev_name)
 {
 	int res = 0;
 
-	if (strchr(dev_name, '/') != NULL) {
+	if (strchr(dev_name, '/')) {
 		PRINT_ERROR("Dev name %s contains illegal character '/'",
-			dev_name);
+			    dev_name);
 		res = -EINVAL;
 		goto out;
 	}
 
 	/* To prevent collision with saved PR and mode pages backup files */
-	if (strchr(dev_name, '.') != NULL) {
+	if (strchr(dev_name, '.')) {
 		PRINT_ERROR("Dev name %s contains illegal character '.'",
-			dev_name);
+			    dev_name);
 		res = -EINVAL;
 		goto out;
 	}
@@ -1260,8 +1229,8 @@ out:
  * Registers a virtual device and returns ID assigned to the device on
  * success, or negative value otherwise
  */
-int scst_register_virtual_device_node(struct scst_dev_type *dev_handler,
-	const char *dev_name, int nodeid)
+int scst_register_virtual_device_node(struct scst_dev_type *dev_handler, const char *dev_name,
+				      int nodeid)
 {
 	DECLARE_COMPLETION_ONSTACK(c);
 	struct scst_device *dev, *d;
@@ -1270,14 +1239,14 @@ int scst_register_virtual_device_node(struct scst_dev_type *dev_handler,
 
 	TRACE_ENTRY();
 
-	if (dev_handler == NULL) {
+	if (!dev_handler) {
 		PRINT_ERROR("%s: valid device handler must be supplied",
 			    __func__);
 		res = -EINVAL;
 		goto out;
 	}
 
-	if (dev_name == NULL) {
+	if (!dev_name) {
 		PRINT_ERROR("%s: device name must be non-NULL", __func__);
 		res = -EINVAL;
 		goto out;
@@ -1302,9 +1271,9 @@ int scst_register_virtual_device_node(struct scst_dev_type *dev_handler,
 	dev->type = dev_handler->type;
 	dev->scsi_dev = NULL;
 	dev->virt_name = kstrdup(dev_name, GFP_KERNEL);
-	if (dev->virt_name == NULL) {
+	if (!dev->virt_name) {
 		PRINT_ERROR("Unable to allocate virt_name for dev %s",
-			dev_name);
+			    dev_name);
 		res = -ENOMEM;
 		goto out_free_dev;
 	}
@@ -1425,7 +1394,7 @@ void scst_unregister_virtual_device(int id,
 			break;
 		}
 	}
-	if (dev == NULL) {
+	if (!dev) {
 		PRINT_ERROR("Virtual device (id %d) not found", id);
 		goto out_unlock;
 	}
@@ -1450,7 +1419,7 @@ void scst_unregister_virtual_device(int id,
 	mutex_unlock(&scst_mutex);
 
 	PRINT_INFO("Detached from virtual device %s (id %d)",
-		dev->virt_name, dev->virt_id);
+		   dev->virt_name, dev->virt_id);
 
 	if (on_free)
 		on_free(dev, arg);
@@ -1490,8 +1459,7 @@ EXPORT_SYMBOL_GPL(scst_unregister_virtual_device);
  *    Registers a pass-through dev handler driver. Returns 0 on success
  *    or appropriate error code otherwise.
  */
-int __scst_register_dev_driver(struct scst_dev_type *dev_type,
-	const char *version)
+int __scst_register_dev_driver(struct scst_dev_type *dev_type, const char *version)
 {
 	int res, exist;
 	struct scst_dev_type *dt;
@@ -1501,7 +1469,7 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	res = -EINVAL;
 	if (strcmp(version, SCST_INTERFACE_VERSION) != 0) {
 		PRINT_ERROR("Incorrect version of dev handler %s",
-			dev_type->name);
+			    dev_type->name);
 		goto out;
 	}
 
@@ -1516,8 +1484,8 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	exist = 0;
 	list_for_each_entry(dt, &scst_dev_type_list, dev_type_list_entry) {
 		if (strcmp(dt->name, dev_type->name) == 0) {
-			PRINT_ERROR("Device type handler \"%s\" already "
-				    "exists", dt->name);
+			PRINT_ERROR("Device type handler \"%s\" already exists",
+				    dt->name);
 			exist = 1;
 			break;
 		}
@@ -1533,8 +1501,8 @@ int __scst_register_dev_driver(struct scst_dev_type *dev_type,
 	if (res < 0)
 		goto out;
 
-	PRINT_INFO("Device handler \"%s\" for type %d registered "
-		"successfully", dev_type->name, dev_type->type);
+	PRINT_INFO("Device handler \"%s\" for type %d registered successfully",
+		   dev_type->name, dev_type->type);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1570,7 +1538,7 @@ void scst_unregister_dev_driver(struct scst_dev_type *dev_type)
 	}
 	if (!found) {
 		PRINT_ERROR("Dev handler \"%s\" isn't registered",
-			dev_type->name);
+			    dev_type->name);
 		goto out_up;
 	}
 
@@ -1613,8 +1581,7 @@ EXPORT_SYMBOL_GPL(scst_unregister_dev_driver);
  *    Registers a virtual dev handler driver. Returns 0 on success or
  *    appropriate error code otherwise.
  */
-int __scst_register_virtual_dev_driver(struct scst_dev_type *dev_type,
-	const char *version)
+int __scst_register_virtual_dev_driver(struct scst_dev_type *dev_type, const char *version)
 {
 	int res;
 
@@ -1622,7 +1589,7 @@ int __scst_register_virtual_dev_driver(struct scst_dev_type *dev_type,
 
 	if (strcmp(version, SCST_INTERFACE_VERSION) != 0) {
 		PRINT_ERROR("Incorrect version of virtual dev handler %s",
-			dev_type->name);
+			    dev_type->name);
 		res = -EINVAL;
 		goto out;
 	}
@@ -1641,14 +1608,12 @@ int __scst_register_virtual_dev_driver(struct scst_dev_type *dev_type,
 	if (res < 0)
 		goto out;
 
-	if (dev_type->type != -1) {
-		PRINT_INFO("Virtual device handler %s for type %d "
-			"registered successfully", dev_type->name,
-			dev_type->type);
-	} else {
-		PRINT_INFO("Virtual device handler \"%s\" registered "
-			"successfully", dev_type->name);
-	}
+	if (dev_type->type != -1)
+		PRINT_INFO("Virtual device handler %s for type %d registered successfully",
+			   dev_type->name, dev_type->type);
+	else
+		PRINT_INFO("Virtual device handler \"%s\" registered successfully",
+			   dev_type->name);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -1682,12 +1647,11 @@ void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type)
 	PRINT_INFO("Device handler \"%s\" unloaded", dev_type->name);
 
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL_GPL(scst_unregister_virtual_dev_driver);
 
-int scst_add_threads(struct scst_cmd_threads *cmd_threads,
-	struct scst_device *dev, struct scst_tgt_dev *tgt_dev, int num)
+int scst_add_threads(struct scst_cmd_threads *cmd_threads, struct scst_device *dev,
+		     struct scst_tgt_dev *tgt_dev, int num)
 {
 	int res = 0, i;
 	struct scst_cmd_thread_t *thr;
@@ -1705,13 +1669,12 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 	spin_unlock(&cmd_threads->thr_lock);
 
 	TRACE_DBG("cmd_threads %p, dev %s, tgt_dev %p, num %d, n %d",
-		cmd_threads, dev ? dev->virt_name : "NULL", tgt_dev, num, n);
+		  cmd_threads, dev ? dev->virt_name : "NULL", tgt_dev, num, n);
 
-	if (tgt_dev != NULL) {
+	if (tgt_dev) {
 		struct scst_tgt_dev *t;
 
-		list_for_each_entry(t, &tgt_dev->dev->dev_tgt_dev_list,
-				dev_tgt_dev_list_entry) {
+		list_for_each_entry(t, &tgt_dev->dev->dev_tgt_dev_list, dev_tgt_dev_list_entry) {
 			if (t == tgt_dev)
 				break;
 			tgt_dev_num++;
@@ -1719,8 +1682,9 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 		tgt_dev->thread_index = tgt_dev_num;
 
 		nodeid = tgt_dev->dev->dev_numa_node_id;
-	} else if (dev != NULL)
+	} else if (dev) {
 		nodeid = dev->dev_numa_node_id;
+	}
 
 	for (i = 0; i < num; i++) {
 		thr = kmem_cache_alloc_node(scst_thr_cachep, GFP_KERNEL, nodeid);
@@ -1734,16 +1698,18 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 		spin_lock_init(&thr->thr_cmd_list_lock);
 		thr->thr_cmd_threads = cmd_threads;
 
-		if (dev != NULL) {
-			thr->cmd_thread = kthread_create_on_node(scst_cmd_thread,
-				thr, nodeid, "%.13s%d", dev->virt_name, n++);
-		} else if (tgt_dev != NULL) {
-			thr->cmd_thread = kthread_create_on_node(scst_cmd_thread,
-				thr, nodeid, "%.10s%d_%d",
-				tgt_dev->dev->virt_name, tgt_dev_num, n++);
-		} else
-			thr->cmd_thread = kthread_create_on_node(scst_cmd_thread,
-				thr, nodeid, "scstd%d", n++);
+		if (dev) {
+			thr->cmd_thread = kthread_create_on_node(scst_cmd_thread, thr, nodeid,
+								 "%.13s%d", dev->virt_name, n++);
+		} else if (tgt_dev) {
+			thr->cmd_thread = kthread_create_on_node(scst_cmd_thread, thr, nodeid,
+								 "%.10s%d_%d",
+								 tgt_dev->dev->virt_name,
+								 tgt_dev_num, n++);
+		} else {
+			thr->cmd_thread = kthread_create_on_node(scst_cmd_thread, thr, nodeid,
+								 "scstd%d", n++);
+		}
 
 		if (IS_ERR(thr->cmd_thread)) {
 			res = PTR_ERR(thr->cmd_thread);
@@ -1752,17 +1718,17 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 			goto out_wait;
 		}
 
-		if (tgt_dev != NULL) {
+		if (tgt_dev) {
 			int rc;
 			/*
 			 * sess->acg can be NULL here, if called from
 			 * scst_check_reassign_sess()!
 			 */
 			rc = set_cpus_allowed_ptr(thr->cmd_thread,
-				&tgt_dev->acg_dev->acg->acg_cpu_mask);
+						  &tgt_dev->acg_dev->acg->acg_cpu_mask);
 			if (rc != 0)
-				PRINT_ERROR("Setting CPU affinity failed: "
-					"%d", rc);
+				PRINT_ERROR("Setting CPU affinity failed: %d",
+					    rc);
 		}
 
 		spin_lock(&cmd_threads->thr_lock);
@@ -1771,7 +1737,7 @@ int scst_add_threads(struct scst_cmd_threads *cmd_threads,
 		spin_unlock(&cmd_threads->thr_lock);
 
 		TRACE_DBG("Added thr %p to threads list (nr_threads %d, n %d)",
-			thr, cmd_threads->nr_threads, n);
+			  thr, cmd_threads->nr_threads, n);
 
 		wake_up_process(thr->cmd_thread);
 	}
@@ -1830,11 +1796,9 @@ void scst_del_threads(struct scst_cmd_threads *cmd_threads, int num)
 		kmem_cache_free(scst_thr_cachep, ct);
 	}
 
-	EXTRACHECKS_BUG_ON((cmd_threads->nr_threads == 0) &&
-		(cmd_threads->io_context != NULL));
+	EXTRACHECKS_BUG_ON((cmd_threads->nr_threads == 0) && cmd_threads->io_context);
 
 	TRACE_EXIT();
-	return;
 }
 
 /* scst_mutex supposed to be held */
@@ -1864,17 +1828,13 @@ void scst_stop_dev_threads(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
-	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-				dev_tgt_dev_list_entry) {
+	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list, dev_tgt_dev_list_entry)
 		scst_tgt_dev_stop_threads(tgt_dev);
-	}
 
-	if ((dev->threads_num > 0) &&
-	    (dev->threads_pool_type == SCST_THREADS_POOL_SHARED))
+	if (dev->threads_num > 0 && dev->threads_pool_type == SCST_THREADS_POOL_SHARED)
 		scst_del_threads(&dev->dev_cmd_threads, -1);
 
 	TRACE_EXIT();
-	return;
 }
 
 /* The activity supposed to be suspended and scst_mutex held */
@@ -1885,17 +1845,14 @@ int scst_create_dev_threads(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
-	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-			dev_tgt_dev_list_entry) {
+	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list, dev_tgt_dev_list_entry) {
 		res = scst_tgt_dev_setup_threads(tgt_dev);
 		if (res != 0)
 			goto out_err;
 	}
 
-	if ((dev->threads_num > 0) &&
-	    (dev->threads_pool_type == SCST_THREADS_POOL_SHARED)) {
-		res = scst_add_threads(&dev->dev_cmd_threads, dev, NULL,
-			dev->threads_num);
+	if (dev->threads_num > 0 && dev->threads_pool_type == SCST_THREADS_POOL_SHARED) {
+		res = scst_add_threads(&dev->dev_cmd_threads, dev, NULL, dev->threads_num);
 		if (res != 0)
 			goto out_err;
 	}
@@ -1916,8 +1873,7 @@ out_err:
  * wait until the commands associated with these LUNs have finished before this
  * function is called.
  */
-int scst_assign_dev_handler(struct scst_device *dev,
-	struct scst_dev_type *handler)
+int scst_assign_dev_handler(struct scst_device *dev, struct scst_dev_type *handler)
 {
 	int res = 0;
 	struct scst_tgt_dev *tgt_dev;
@@ -1927,21 +1883,20 @@ int scst_assign_dev_handler(struct scst_device *dev,
 
 	lockdep_assert_held(&scst_mutex);
 
-	sBUG_ON(handler == NULL);
+	sBUG_ON(!handler);
 
 	if (dev->handler == handler)
 		goto out;
 
-	if (dev->handler == NULL)
+	if (!dev->handler)
 		goto assign;
 
 	if (dev->handler->detach_tgt) {
-		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-				dev_tgt_dev_list_entry) {
+		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list, dev_tgt_dev_list_entry) {
 			TRACE_DBG("Calling dev handler's detach_tgt(%p)",
-				tgt_dev);
+				  tgt_dev);
 			dev->handler->detach_tgt(tgt_dev);
-			TRACE_DBG("%s", "Dev handler's detach_tgt() returned");
+			TRACE_DBG("Dev handler's detach_tgt() returned");
 		}
 	}
 
@@ -1953,9 +1908,9 @@ int scst_assign_dev_handler(struct scst_device *dev,
 	scst_devt_dev_sysfs_del(dev);
 
 	if (dev->handler->detach) {
-		TRACE_DBG("%s", "Calling dev handler's detach()");
+		TRACE_DBG("Calling dev handler's detach()");
 		dev->handler->detach(dev);
-		TRACE_DBG("%s", "Old handler's detach() returned");
+		TRACE_DBG("Old handler's detach() returned");
 	}
 
 	scst_stop_dev_threads(dev);
@@ -1972,8 +1927,8 @@ assign:
 		res = handler->attach(dev);
 		TRACE_DBG("New dev handler's attach() returned %d", res);
 		if (res != 0) {
-			PRINT_ERROR("New device handler's %s attach() "
-				"failed: %d", handler->name, res);
+			PRINT_ERROR("New device handler's %s attach() failed: %d",
+				    handler->name, res);
 			goto out;
 		}
 	}
@@ -1983,19 +1938,17 @@ assign:
 		goto out_detach;
 
 	if (handler->attach_tgt) {
-		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-				dev_tgt_dev_list_entry) {
+		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list, dev_tgt_dev_list_entry) {
 			TRACE_DBG("Calling dev handler's attach_tgt(%p)",
-				tgt_dev);
+				  tgt_dev);
 			res = handler->attach_tgt(tgt_dev);
-			TRACE_DBG("%s", "Dev handler's attach_tgt() returned");
+			TRACE_DBG("Dev handler's attach_tgt() returned");
 			if (res != 0) {
-				PRINT_ERROR("Device handler's %s attach_tgt() "
-				    "failed: %d", handler->name, res);
+				PRINT_ERROR("Device handler's %s attach_tgt() failed: %d",
+					    handler->name, res);
 				goto out_err_detach_tgt;
 			}
-			list_add_tail(&tgt_dev->extra_tgt_dev_list_entry,
-				&attached_tgt_devs);
+			list_add_tail(&tgt_dev->extra_tgt_dev_list_entry, &attached_tgt_devs);
 		}
 	}
 
@@ -2009,12 +1962,11 @@ out:
 
 out_err_detach_tgt:
 	if (handler->detach_tgt) {
-		list_for_each_entry(tgt_dev, &attached_tgt_devs,
-				 extra_tgt_dev_list_entry) {
+		list_for_each_entry(tgt_dev, &attached_tgt_devs, extra_tgt_dev_list_entry) {
 			TRACE_DBG("Calling handler's detach_tgt(%p)",
-				tgt_dev);
+				  tgt_dev);
 			handler->detach_tgt(tgt_dev);
-			TRACE_DBG("%s", "Handler's detach_tgt() returned");
+			TRACE_DBG("Handler's detach_tgt() returned");
 		}
 	}
 
@@ -2022,9 +1974,9 @@ out_err_detach_tgt:
 
 out_detach:
 	if (handler->detach) {
-		TRACE_DBG("%s", "Calling handler's detach()");
+		TRACE_DBG("Calling handler's detach()");
 		handler->detach(dev);
-		TRACE_DBG("%s", "Handler's detach() returned");
+		TRACE_DBG("Handler's detach() returned");
 	}
 
 	dev->handler = &scst_null_devtype;
@@ -2051,12 +2003,10 @@ void scst_init_threads(struct scst_cmd_threads *cmd_threads)
 	spin_lock_init(&cmd_threads->thr_lock);
 
 	mutex_lock(&scst_cmd_threads_mutex);
-	list_add_tail(&cmd_threads->lists_list_entry,
-		&scst_cmd_threads_list);
+	list_add_tail(&cmd_threads->lists_list_entry, &scst_cmd_threads_list);
 	mutex_unlock(&scst_cmd_threads_mutex);
 
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL_GPL(scst_init_threads);
 
@@ -2076,7 +2026,6 @@ void scst_deinit_threads(struct scst_cmd_threads *cmd_threads)
 	sBUG_ON(cmd_threads->io_context);
 
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL_GPL(scst_deinit_threads);
 
@@ -2098,7 +2047,6 @@ static void scst_stop_global_threads(void)
 	mutex_unlock(&scst_mutex);
 
 	TRACE_EXIT();
-	return;
 }
 
 /* It does NOT stop ran threads on error! */
@@ -2114,8 +2062,7 @@ static int scst_start_global_threads(int num)
 	if (res < 0)
 		goto out_unlock;
 
-	scst_init_cmd_thread = kthread_run(scst_init_thread,
-		NULL, "scst_initd");
+	scst_init_cmd_thread = kthread_run(scst_init_thread, NULL, "scst_initd");
 	if (IS_ERR(scst_init_cmd_thread)) {
 		res = PTR_ERR(scst_init_cmd_thread);
 		PRINT_ERROR("kthread_create() for init cmd failed: %d", res);
@@ -2123,8 +2070,7 @@ static int scst_start_global_threads(int num)
 		goto out_unlock;
 	}
 
-	scst_mgmt_cmd_thread = kthread_run(scst_tm_thread,
-		NULL, "scsi_tm");
+	scst_mgmt_cmd_thread = kthread_run(scst_tm_thread, NULL, "scsi_tm");
 	if (IS_ERR(scst_mgmt_cmd_thread)) {
 		res = PTR_ERR(scst_mgmt_cmd_thread);
 		PRINT_ERROR("kthread_create() for TM failed: %d", res);
@@ -2132,8 +2078,7 @@ static int scst_start_global_threads(int num)
 		goto out_unlock;
 	}
 
-	scst_mgmt_thread = kthread_run(scst_global_mgmt_thread,
-		NULL, "scst_mgmtd");
+	scst_mgmt_thread = kthread_run(scst_global_mgmt_thread, NULL, "scst_mgmtd");
 	if (IS_ERR(scst_mgmt_thread)) {
 		res = PTR_ERR(scst_mgmt_thread);
 		PRINT_ERROR("kthread_create() for mgmt failed: %d", res);
@@ -2175,7 +2120,7 @@ static int scst_add(struct device *cdev)
 
 	scsidp = to_scsi_device(cdev->parent);
 
-	if ((scsidp->host->hostt->name == NULL) ||
+	if (!scsidp->host->hostt->name ||
 	    (strcmp(scsidp->host->hostt->name, SCST_LOCAL_NAME) != 0))
 		res = scst_register_device(scsidp);
 
@@ -2197,12 +2142,11 @@ static void scst_remove(struct device *cdev)
 
 	scsidp = to_scsi_device(cdev->parent);
 
-	if ((scsidp->host->hostt->name == NULL) ||
+	if (!scsidp->host->hostt->name ||
 	    (strcmp(scsidp->host->hostt->name, SCST_LOCAL_NAME) != 0))
 		scst_unregister_device(scsidp);
 
 	TRACE_EXIT();
-	return;
 }
 
 static struct class_interface scst_interface = {
@@ -2342,7 +2286,7 @@ static int __init init_scst(void)
 		scst_threads = scst_num_cpus;
 
 	if (scst_threads < 1) {
-		PRINT_ERROR("%s", "scst_threads can not be less than 1");
+		PRINT_ERROR("scst_threads can not be less than 1");
 		scst_threads = scst_num_cpus;
 	}
 
@@ -2363,7 +2307,8 @@ static int __init init_scst(void)
 
 /* Used for structures with fast path write access */
 #define INIT_CACHEP_ALIGN(p, s) ({					\
-		(p) = KMEM_CACHE(s, SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN);\
+		(p) = KMEM_CACHE(s,					\
+				 SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN);	\
 		TRACE_MEM("Slab create: %s at %p size %zd", #s, (p),	\
 			  sizeof(struct s));				\
 		(p);							\
@@ -2407,9 +2352,9 @@ static int __init init_scst(void)
 	if (!INIT_CACHEP_ALIGN(scst_thr_cachep, scst_cmd_thread_t))
 		goto out_destroy_acg_cache;
 
-	scst_mgmt_mempool = mempool_create(64, mempool_alloc_slab,
-		mempool_free_slab, scst_mgmt_cachep);
-	if (scst_mgmt_mempool == NULL) {
+	scst_mgmt_mempool = mempool_create(64, mempool_alloc_slab, mempool_free_slab,
+					   scst_mgmt_cachep);
+	if (!scst_mgmt_mempool) {
 		res = -ENOMEM;
 		goto out_destroy_thr_cache;
 	}
@@ -2419,30 +2364,30 @@ static int __init init_scst(void)
 	 * may have fatal consequences, so let's have big pools for them.
 	 */
 
-	scst_mgmt_stub_mempool = mempool_create(1024, mempool_alloc_slab,
-		mempool_free_slab, scst_mgmt_stub_cachep);
-	if (scst_mgmt_stub_mempool == NULL) {
+	scst_mgmt_stub_mempool = mempool_create(1024, mempool_alloc_slab, mempool_free_slab,
+						scst_mgmt_stub_cachep);
+	if (!scst_mgmt_stub_mempool) {
 		res = -ENOMEM;
 		goto out_destroy_mgmt_mempool;
 	}
 
-	scst_ua_mempool = mempool_create(512, mempool_alloc_slab,
-		mempool_free_slab, scst_ua_cachep);
-	if (scst_ua_mempool == NULL) {
+	scst_ua_mempool = mempool_create(512, mempool_alloc_slab, mempool_free_slab,
+					 scst_ua_cachep);
+	if (!scst_ua_mempool) {
 		res = -ENOMEM;
 		goto out_destroy_mgmt_stub_mempool;
 	}
 
-	scst_sense_mempool = mempool_create(1024, mempool_alloc_slab,
-		mempool_free_slab, scst_sense_cachep);
-	if (scst_sense_mempool == NULL) {
+	scst_sense_mempool = mempool_create(1024, mempool_alloc_slab, mempool_free_slab,
+					    scst_sense_cachep);
+	if (!scst_sense_mempool) {
 		res = -ENOMEM;
 		goto out_destroy_ua_mempool;
 	}
 
-	scst_aen_mempool = mempool_create(100, mempool_alloc_slab,
-		mempool_free_slab, scst_aen_cachep);
-	if (scst_aen_mempool == NULL) {
+	scst_aen_mempool = mempool_create(100, mempool_alloc_slab, mempool_free_slab,
+					  scst_aen_cachep);
+	if (!scst_aen_mempool) {
 		res = -ENOMEM;
 		goto out_destroy_sense_mempool;
 	}
@@ -2462,31 +2407,26 @@ static int __init init_scst(void)
 
 		si_meminfo(&si);
 #if BITS_PER_LONG == 32
-		scst_max_cmd_mem = min(
-			(((uint64_t)(si.totalram - si.totalhigh) << PAGE_SHIFT)
-				>> 20) >> 2, (uint64_t)1 << 30);
+		scst_max_cmd_mem = min((((uint64_t)(si.totalram - si.totalhigh) << PAGE_SHIFT) >> 20) >> 2,
+				       (uint64_t)1 << 30);
 #else
-		scst_max_cmd_mem = (((si.totalram - si.totalhigh) << PAGE_SHIFT)
-					>> 20) >> 2;
+		scst_max_cmd_mem = (((si.totalram - si.totalhigh) << PAGE_SHIFT) >> 20) >> 2;
 #endif
 	}
 
 	if (scst_max_dev_cmd_mem != 0) {
 		if (scst_max_dev_cmd_mem > scst_max_cmd_mem) {
-			PRINT_ERROR("scst_max_dev_cmd_mem (%d) > "
-				"scst_max_cmd_mem (%d)",
-				scst_max_dev_cmd_mem,
-				scst_max_cmd_mem);
+			PRINT_ERROR("scst_max_dev_cmd_mem (%d) > scst_max_cmd_mem (%d)",
+				    scst_max_dev_cmd_mem, scst_max_cmd_mem);
 			scst_max_dev_cmd_mem = scst_max_cmd_mem;
 		}
-	} else
+	} else {
 		scst_max_dev_cmd_mem = scst_max_cmd_mem * 2 / 5;
+	}
 
-	res = scst_sgv_pools_init(
-		((uint64_t)scst_max_cmd_mem << 10) >> (PAGE_SHIFT - 10), 0);
+	res = scst_sgv_pools_init(((uint64_t)scst_max_cmd_mem << 10) >> (PAGE_SHIFT - 10), 0);
 	if (res != 0)
 		goto out_sysfs_cleanup;
-
 
 	res = scsi_register_interface(&scst_interface);
 	if (res != 0)
@@ -2510,13 +2450,12 @@ static int __init init_scst(void)
 			     (unsigned long)&scst_percpu_infos[i]);
 	}
 
-	TRACE_DBG("%d CPUs found, starting %d threads", scst_num_cpus,
-		scst_threads);
+	TRACE_DBG("%d CPUs found, starting %d threads",
+		  scst_num_cpus, scst_threads);
 
 	res = scst_start_global_threads(scst_threads);
 	if (res < 0)
 		goto out_thread_free;
-
 
 	res = scst_cm_init();
 	if (res != 0)
@@ -2535,7 +2474,6 @@ static int __init init_scst(void)
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
 
 out_thread_free:
 	scst_stop_global_threads();
@@ -2671,10 +2609,9 @@ static void __exit exit_scst(void)
 
 	scst_lib_exit();
 
-	PRINT_INFO("%s", "SCST unloaded");
+	PRINT_INFO("SCST unloaded");
 
 	TRACE_EXIT();
-	return;
 }
 
 module_init(init_scst);
