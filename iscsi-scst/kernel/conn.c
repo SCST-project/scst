@@ -187,17 +187,17 @@ static struct kobj_attribute iscsi_conn_transport_attr =
 
 static ssize_t iscsi_conn_cid_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	int pos;
 	struct iscsi_conn *conn;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
 	conn = container_of(kobj, struct iscsi_conn, conn_kobj);
 
-	pos = sprintf(buf, "%u", conn->cid);
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%u", conn->cid);
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static struct kobj_attribute iscsi_conn_cid_attr =

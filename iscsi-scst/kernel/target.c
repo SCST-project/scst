@@ -393,9 +393,9 @@ void target_del_all(void)
 
 static ssize_t iscsi_tgt_tid_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	int res = -E_TGT_PRIV_NOT_YET_SET;
 	struct scst_tgt *scst_tgt;
 	struct iscsi_target *tgt;
+	ssize_t res = -E_TGT_PRIV_NOT_YET_SET;
 
 	TRACE_ENTRY();
 
@@ -404,7 +404,7 @@ static ssize_t iscsi_tgt_tid_show(struct kobject *kobj, struct kobj_attribute *a
 	if (!tgt)
 		goto out;
 
-	res = sprintf(buf, "%u\n", tgt->tid);
+	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%u\n", tgt->tid);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -568,19 +568,20 @@ ssize_t iscsi_sysfs_mgmt_cmd(char *cmd)
 static ssize_t iscsi_acg_sess_dedicated_threads_show(struct kobject *kobj,
 						     struct kobj_attribute *attr, char *buf)
 {
-	int pos;
 	struct scst_acg *acg;
 	bool dedicated;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 	dedicated = scst_get_acg_tgt_priv(acg);
 
-	pos = sprintf(buf, "%d\n%s", dedicated, dedicated ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s",
+			dedicated, dedicated ? SCST_SYSFS_KEY_MARK "\n" : "");
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static ssize_t iscsi_acg_sess_dedicated_threads_store(struct kobject *kobj,

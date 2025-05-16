@@ -3708,19 +3708,20 @@ out:
 }
 
 
-static ssize_t scst_cm_allow_not_conn_copy_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t scst_cm_allow_not_conn_copy_show(struct kobject *kobj, struct kobj_attribute *attr,
+						char *buf)
 {
-	ssize_t res;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
-	res = sprintf(buf, "%d\n%s", scst_cm_allow_not_connected_copy,
-		(scst_cm_allow_not_connected_copy == SCST_ALLOW_NOT_CONN_COPY_DEF) ?
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s",
+			scst_cm_allow_not_connected_copy,
+			scst_cm_allow_not_connected_copy == SCST_ALLOW_NOT_CONN_COPY_DEF ?
 			"" : SCST_SYSFS_KEY_MARK "\n");
 
-	TRACE_EXIT_RES(res);
-	return res;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static ssize_t scst_cm_allow_not_conn_copy_store(struct kobject *kobj,

@@ -1904,12 +1904,12 @@ void scst_sgv_pools_deinit(void)
 	return;
 }
 
-static ssize_t sgv_sysfs_stat_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t sgv_sysfs_stat_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	struct sgv_pool *pool;
 	int i, total = 0, hit = 0, merged = 0, allocated = 0;
-	int oa, om, res;
+	int oa, om;
+	ssize_t ret;
 
 	pool = container_of(kobj, struct sgv_pool, sgv_kobj);
 
@@ -1925,14 +1925,15 @@ static ssize_t sgv_sysfs_stat_show(struct kobject *kobj,
 		merged += atomic_read(&pool->cache_acc[i].merged);
 	}
 
-	res = sprintf(buf, "%-30s %-11s %-11s %-11s %-11s", "Name", "Hit", "Total",
-		"% merged", "Cached (P/I/O)");
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%-30s %-11s %-11s %-11s %-11s",
+			"Name", "Hit", "Total", "% merged", "Cached (P/I/O)");
 
-	res += sprintf(&buf[res], "\n%-30s %-11d %-11d %-11d %d/%d/%d\n",
-		pool->name, hit, total,
-		(allocated != 0) ? merged*100/allocated : 0,
-		pool->cached_pages, pool->inactive_cached_pages,
-		pool->cached_entries);
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+			 "\n%-30s %-11d %-11d %-11d %d/%d/%d\n",
+			 pool->name, hit, total,
+			 allocated != 0 ? merged * 100 / allocated : 0,
+			 pool->cached_pages, pool->inactive_cached_pages,
+			 pool->cached_entries);
 
 	for (i = 0; i < SGV_POOL_ELEMENTS; i++) {
 		int t = atomic_read(&pool->cache_acc[i].total_alloc) -
@@ -1940,11 +1941,12 @@ static ssize_t sgv_sysfs_stat_show(struct kobject *kobj,
 		allocated = t * (1 << i);
 		merged = atomic_read(&pool->cache_acc[i].merged);
 
-		res += sprintf(&buf[res], "  %-28s %-11d %-11d %d\n",
-			pool->cache_names[i],
-			atomic_read(&pool->cache_acc[i].hit_alloc),
-			atomic_read(&pool->cache_acc[i].total_alloc),
-			(allocated != 0) ? merged*100/allocated : 0);
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+				 "  %-28s %-11d %-11d %d\n",
+				 pool->cache_names[i],
+				 atomic_read(&pool->cache_acc[i].hit_alloc),
+				 atomic_read(&pool->cache_acc[i].total_alloc),
+				 allocated != 0 ? merged * 100 / allocated : 0);
 	}
 
 	allocated = atomic_read(&pool->big_pages);
@@ -1952,12 +1954,13 @@ static ssize_t sgv_sysfs_stat_show(struct kobject *kobj,
 	oa = atomic_read(&pool->other_pages);
 	om = atomic_read(&pool->other_merged);
 
-	res += sprintf(&buf[res], "  %-40s %d/%-9d %d/%d\n", "big/other",
-		atomic_read(&pool->big_alloc), atomic_read(&pool->other_alloc),
-		(allocated != 0) ? merged*100/allocated : 0,
-		(oa != 0) ? om/oa : 0);
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+			 "  %-40s %d/%-9d %d/%d\n", "big/other",
+			 atomic_read(&pool->big_alloc), atomic_read(&pool->other_alloc),
+			 allocated != 0 ? merged * 100 / allocated : 0,
+			 oa != 0 ? om / oa : 0);
 
-	return res;
+	return ret;
 }
 
 static ssize_t sgv_sysfs_stat_reset(struct kobject *kobj,
@@ -1989,11 +1992,12 @@ static ssize_t sgv_sysfs_stat_reset(struct kobject *kobj,
 	return count;
 }
 
-static ssize_t sgv_sysfs_global_stat_show(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buf)
+static ssize_t sgv_sysfs_global_stat_show(struct kobject *kobj, struct kobj_attribute *attr,
+					  char *buf)
 {
 	struct sgv_pool *pool;
-	int inactive_pages = 0, res;
+	int inactive_pages = 0;
+	size_t ret;
 
 	TRACE_ENTRY();
 
@@ -2004,21 +2008,22 @@ static ssize_t sgv_sysfs_global_stat_show(struct kobject *kobj,
 	spin_unlock_bh(&sgv_pools_lock);
 
 #ifdef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
-	res = sprintf(buf, "%-42s %d\n", "Inactive pages", inactive_pages);
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%-42s %d\n", "Inactive pages",
+			inactive_pages);
 #else
-	res = sprintf(buf, "%-42s %d/%d\n%-42s %d/%d\n%-42s %d/%d\n"
-		"%-42s %-11d\n",
-		"Inactive/active pages", inactive_pages,
-		atomic_read(&sgv_pages_total) - inactive_pages,
-		"Hi/lo watermarks [pages]", sgv_hi_wmk, sgv_lo_wmk,
-		"Hi watermark releases/failures",
-		atomic_read(&sgv_releases_on_hiwmk),
-		atomic_read(&sgv_releases_on_hiwmk_failed),
-		"Other allocs", atomic_read(&sgv_other_total_alloc));
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%-42s %d/%d\n%-42s %d/%d\n%-42s %d/%d\n"
+			"%-42s %-11d\n",
+			"Inactive/active pages", inactive_pages,
+			atomic_read(&sgv_pages_total) - inactive_pages,
+			"Hi/lo watermarks [pages]", sgv_hi_wmk, sgv_lo_wmk,
+			"Hi watermark releases/failures",
+			atomic_read(&sgv_releases_on_hiwmk),
+			atomic_read(&sgv_releases_on_hiwmk_failed),
+			"Other allocs", atomic_read(&sgv_other_total_alloc));
 #endif
 
 	TRACE_EXIT();
-	return res;
+	return ret;
 }
 
 static ssize_t sgv_sysfs_global_stat_reset(struct kobject *kobj,
