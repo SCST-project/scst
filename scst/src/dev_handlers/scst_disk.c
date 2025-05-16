@@ -565,9 +565,9 @@ static ssize_t disk_sysfs_cluster_mode_show(struct kobject *kobj, struct kobj_at
 	struct scst_device *dev = container_of(kobj, struct scst_device,
 					       dev_kobj);
 
-	return sprintf(buf, "%d\n%s", dev->cluster_mode,
-		       dev->cluster_mode ?
-		       SCST_SYSFS_KEY_MARK "\n" : "");
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s",
+			 dev->cluster_mode,
+			 dev->cluster_mode ? SCST_SYSFS_KEY_MARK "\n" : "");
 }
 
 static int disk_sysfs_process_cluster_mode_store(struct scst_sysfs_work_item *work)

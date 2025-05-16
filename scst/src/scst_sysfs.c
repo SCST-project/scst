@@ -132,53 +132,55 @@ static struct scst_trace_log scst_local_trace_tbl[] = {
 	{ 0,				NULL			}
 };
 
-static void scst_read_trace_tbl(const struct scst_trace_log *tbl, char *buf,
-				unsigned long log_level, int *pos)
+static ssize_t scst_read_trace_tbl(const struct scst_trace_log *tbl, char *buf,
+				   unsigned long log_level, ssize_t ret)
 {
 	const struct scst_trace_log *t = tbl;
 
 	if (!t)
-		return;
+		goto out;
 
 	while (t->token) {
-		if (log_level & t->val) {
-			*pos += sprintf(&buf[*pos], "%s%s",
-					(*pos == 0) ? "" : " | ",
-					t->token);
-		}
+		if (log_level & t->val)
+			ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "%s%s",
+					 ret == 0 ? "" : " | ", t->token);
 		t++;
 	}
+
+out:
+	return ret;
 }
 
 static ssize_t scst_trace_level_show(const struct scst_trace_log *local_tbl,
 				     unsigned long log_level, char *buf, const char *help)
 {
-	int pos = 0;
+	ssize_t ret = 0;
 
-	scst_read_trace_tbl(scst_trace_tbl, buf, log_level, &pos);
-	scst_read_trace_tbl(local_tbl, buf, log_level, &pos);
+	ret += scst_read_trace_tbl(scst_trace_tbl, buf, log_level, ret);
+	ret += scst_read_trace_tbl(local_tbl, buf, log_level, ret);
 
-	pos += sprintf(&buf[pos], "\n\n\nUsage:\n"
-		"	echo \"all|none|default\" >trace_level\n"
-		"	echo \"value DEC|0xHEX|0OCT\" >trace_level\n"
-		"	echo \"add|del TOKEN\" >trace_level\n"
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+			 "\n\n\nUsage:\n"
+			 "	echo \"all|none|default\" >trace_level\n"
+			 "	echo \"value DEC|0xHEX|0OCT\" >trace_level\n"
+			 "	echo \"add|del TOKEN\" >trace_level\n"
 #ifdef CONFIG_SCST_DEBUG
-		"\nwhere TOKEN is one of [debug, function, line, pid,\n"
+			 "\nwhere TOKEN is one of [debug, function, line, pid,\n"
 #ifndef GENERATING_UPSTREAM_PATCH
-		"		       entryexit, buff, mem, sg, out_of_mem,\n"
+			 "		       entryexit, buff, mem, sg, out_of_mem,\n"
 #else
-		"		       buff, mem, sg, out_of_mem,\n"
+			 "		       buff, mem, sg, out_of_mem,\n"
 #endif
-		"		       special, scsi, mgmt, minor,\n"
-		"		       mgmt_dbg, scsi_serializing,\n"
-		"		       retry, pr, block%s]\n",
+			 "		       special, scsi, mgmt, minor,\n"
+			 "		       mgmt_dbg, scsi_serializing,\n"
+			 "		       retry, pr, block%s]\n",
 #else /* CONFIG_SCST_DEBUG */
-		"\nwhere TOKEN is one of [function, line, pid, out_of_mem, special, scsi, mgmt, minor, scsi_serializing, retry, pr%s]\n",
+			 "\nwhere TOKEN is one of [function, line, pid, out_of_mem, special, scsi, mgmt, minor, scsi_serializing, retry, pr%s]\n",
 
 #endif /* CONFIG_SCST_DEBUG */
-		help ? help : "");
+			 help ? help : "");
 
-	return pos;
+	return ret;
 }
 
 static int scst_write_trace(const char *buf, size_t length, unsigned long *log_level,
@@ -848,26 +850,26 @@ static ssize_t scst_tgtt_mgmt_show(struct kobject *kobj, struct kobj_attribute *
 	tgtt = container_of(kobj, struct scst_tgt_template, tgtt_kobj);
 
 	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, help,
-		tgtt->tgtt_optional_attributes ?
-			"       echo \"add_attribute <attribute> <value>\" >mgmt\n"
-			"       echo \"del_attribute <attribute> <value>\" >mgmt\n" : "",
-		tgtt->tgt_optional_attributes ?
-			"       echo \"add_target_attribute target_name <attribute> <value>\" >mgmt\n"
-			"       echo \"del_target_attribute target_name <attribute> <value>\" >mgmt\n" : "",
-		tgtt->mgmt_cmd_help ? tgtt->mgmt_cmd_help : "",
-		tgtt->mgmt_cmd_help ? "\n" : "",
-		tgtt->add_target_parameters ?
-			"The following parameters available: " : "",
-		tgtt->add_target_parameters ? tgtt->add_target_parameters : "",
-		tgtt->add_target_parameters ? "\n" : "",
-		tgtt->tgtt_optional_attributes ?
-			"The following target driver attributes available: " : "",
-		tgtt->tgtt_optional_attributes ? tgtt->tgtt_optional_attributes : "",
-		tgtt->tgtt_optional_attributes ? "\n" : "",
-		tgtt->tgt_optional_attributes ?
-			"The following target attributes available: " : "",
-		tgtt->tgt_optional_attributes ? tgtt->tgt_optional_attributes : "",
-		tgtt->tgt_optional_attributes ? "\n" : "");
+			 tgtt->tgtt_optional_attributes ?
+			 "       echo \"add_attribute <attribute> <value>\" >mgmt\n"
+			 "       echo \"del_attribute <attribute> <value>\" >mgmt\n" : "",
+			 tgtt->tgt_optional_attributes ?
+			 "       echo \"add_target_attribute target_name <attribute> <value>\" >mgmt\n"
+			 "       echo \"del_target_attribute target_name <attribute> <value>\" >mgmt\n" : "",
+			 tgtt->mgmt_cmd_help ? tgtt->mgmt_cmd_help : "",
+			 tgtt->mgmt_cmd_help ? "\n" : "",
+			 tgtt->add_target_parameters ?
+			 "The following parameters available: " : "",
+			 tgtt->add_target_parameters ? tgtt->add_target_parameters : "",
+			 tgtt->add_target_parameters ? "\n" : "",
+			 tgtt->tgtt_optional_attributes ?
+			 "The following target driver attributes available: " : "",
+			 tgtt->tgtt_optional_attributes ? tgtt->tgtt_optional_attributes : "",
+			 tgtt->tgtt_optional_attributes ? "\n" : "",
+			 tgtt->tgt_optional_attributes ?
+			 "The following target attributes available: " : "",
+			 tgtt->tgt_optional_attributes ? tgtt->tgt_optional_attributes : "",
+			 tgtt->tgt_optional_attributes ? "\n" : "");
 }
 
 static int scst_process_tgtt_mgmt_store(char *buffer, struct scst_tgt_template *tgtt)
@@ -978,8 +980,8 @@ static struct kobj_attribute scst_tgtt_mgmt =
 static ssize_t scst_tgtt_dif_capable_show(struct kobject *kobj, struct kobj_attribute *attr,
 					  char *buf)
 {
-	int pos = 0;
 	struct scst_tgt_template *tgtt;
+	ssize_t ret = 0;
 
 	TRACE_ENTRY();
 
@@ -987,47 +989,48 @@ static ssize_t scst_tgtt_dif_capable_show(struct kobject *kobj, struct kobj_attr
 
 	EXTRACHECKS_BUG_ON(!tgtt->dif_supported);
 
-	pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
 			"dif_supported");
 
 	if (tgtt->hw_dif_type1_supported)
-		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
-			", hw_dif_type1_supported");
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+				 ", hw_dif_type1_supported");
 
 	if (tgtt->hw_dif_type2_supported)
-		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
-			", hw_dif_type2_supported");
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+				 ", hw_dif_type2_supported");
 
 	if (tgtt->hw_dif_type3_supported)
-		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
-			", hw_dif_type3_supported");
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+				 ", hw_dif_type3_supported");
 
 	if (tgtt->hw_dif_ip_supported)
-		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
-			", hw_dif_ip_supported");
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+				 ", hw_dif_ip_supported");
 
 	if (tgtt->hw_dif_same_sg_layout_required)
-		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
-			", hw_dif_same_sg_layout_required");
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+				 ", hw_dif_same_sg_layout_required");
 
-	pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos, "\n");
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "\n");
 
 	if (tgtt->supported_dif_block_sizes) {
 		const int *p = tgtt->supported_dif_block_sizes;
-		int j;
+		ssize_t pos;
 
-		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
-			"Supported blocks: ");
-		j = pos;
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+				 "Supported blocks: ");
+		pos = ret;
+
 		while (*p != 0) {
-			pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
-				"%s%d", (j == pos) ? "" : ", ", *p);
+			ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+					 "%s%d", ret == pos ? "" : ", ", *p);
 			p++;
 		}
 	}
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static struct kobj_attribute scst_tgtt_dif_capable_attr =
@@ -1491,7 +1494,7 @@ static ssize_t scst_luns_mgmt_show(struct kobject *kobj,
 		"where parameters are one or more param_name=value pairs separated by ';'\n"
 		"\nThe following parameters available: read_only\n";
 
-	return sprintf(buf, "%s", help);
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s", help);
 }
 
 static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
@@ -1501,6 +1504,8 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 	int res;
 	struct scst_acg *acg;
 	struct scst_tgt *tgt;
+
+	TRACE_ENTRY();
 
 	tgt = container_of(kobj->parent, struct scst_tgt, tgt_kobj);
 	acg = tgt->default_acg;
@@ -1516,27 +1521,28 @@ static struct kobj_attribute scst_luns_mgmt =
 
 static ssize_t __scst_acg_addr_method_show(struct scst_acg *acg, char *buf)
 {
-	int res;
+	ssize_t ret;
 
 	switch (acg->addr_method) {
 	case SCST_LUN_ADDR_METHOD_FLAT:
-		res = sprintf(buf, "FLAT\n");
+		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "FLAT\n");
 		break;
 	case SCST_LUN_ADDR_METHOD_PERIPHERAL:
-		res = sprintf(buf, "PERIPHERAL\n");
+		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "PERIPHERAL\n");
 		break;
 	case SCST_LUN_ADDR_METHOD_LUN:
-		res = sprintf(buf, "LUN\n");
+		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "LUN\n");
 		break;
 	default:
-		res = sprintf(buf, "UNKNOWN\n");
+		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "UNKNOWN\n");
 		break;
 	}
 
 	if (acg->addr_method != acg->tgt->tgtt->preferred_addr_method)
-		res += sprintf(&buf[res], "%s\n", SCST_SYSFS_KEY_MARK);
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+				 "%s\n", SCST_SYSFS_KEY_MARK);
 
-	return res;
+	return ret;
 }
 
 static ssize_t __scst_acg_addr_method_store(struct scst_acg *acg, const char *buf, size_t count)
@@ -1578,6 +1584,8 @@ static ssize_t scst_tgt_addr_method_store(struct kobject *kobj, struct kobj_attr
 	struct scst_acg *acg;
 	struct scst_tgt *tgt;
 
+	TRACE_ENTRY();
+
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	acg = tgt->default_acg;
 
@@ -1592,25 +1600,27 @@ static struct kobj_attribute scst_tgt_addr_method =
 
 static ssize_t __scst_acg_io_grouping_type_show(struct scst_acg *acg, char *buf)
 {
-	int res;
+	ssize_t ret;
 
 	switch (acg->acg_io_grouping_type) {
 	case SCST_IO_GROUPING_AUTO:
-		res = sprintf(buf, "%s\n", SCST_IO_GROUPING_AUTO_STR);
+		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n", SCST_IO_GROUPING_AUTO_STR);
 		break;
 	case SCST_IO_GROUPING_THIS_GROUP_ONLY:
-		res = sprintf(buf, "%s\n%s\n", SCST_IO_GROUPING_THIS_GROUP_ONLY_STR,
-			      SCST_SYSFS_KEY_MARK);
+		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n%s\n",
+				SCST_IO_GROUPING_THIS_GROUP_ONLY_STR, SCST_SYSFS_KEY_MARK);
 		break;
 	case SCST_IO_GROUPING_NEVER:
-		res = sprintf(buf, "%s\n%s\n", SCST_IO_GROUPING_NEVER_STR, SCST_SYSFS_KEY_MARK);
+		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n%s\n",
+				SCST_IO_GROUPING_NEVER_STR, SCST_SYSFS_KEY_MARK);
 		break;
 	default:
-		res = sprintf(buf, "%d\n%s\n", acg->acg_io_grouping_type, SCST_SYSFS_KEY_MARK);
+		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s\n",
+				acg->acg_io_grouping_type, SCST_SYSFS_KEY_MARK);
 		break;
 	}
 
-	return res;
+	return ret;
 }
 
 static int __scst_acg_process_io_grouping_type_store(struct scst_tgt *tgt, struct scst_acg *acg,
@@ -1724,6 +1734,8 @@ static ssize_t scst_tgt_io_grouping_type_store(struct kobject *kobj, struct kobj
 	struct scst_acg *acg;
 	struct scst_tgt *tgt;
 
+	TRACE_ENTRY();
+
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	acg = tgt->default_acg;
 
@@ -1744,11 +1756,9 @@ static struct kobj_attribute scst_tgt_io_grouping_type =
 
 static ssize_t __scst_acg_black_hole_show(struct scst_acg *acg, char *buf)
 {
-	int res, t = acg->acg_black_hole_type;
+	int t = acg->acg_black_hole_type;
 
-	res = sprintf(buf, "%d\n", t);
-
-	return res;
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n", t);
 }
 
 static ssize_t __scst_acg_black_hole_store(struct scst_acg *acg, const char *buf, size_t count)
@@ -1846,6 +1856,8 @@ static ssize_t scst_tgt_black_hole_store(struct kobject *kobj, struct kobj_attri
 	struct scst_acg *acg;
 	struct scst_tgt *tgt;
 
+	TRACE_ENTRY();
+
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	acg = tgt->default_acg;
 
@@ -1865,20 +1877,20 @@ static struct kobj_attribute scst_tgt_black_hole =
 
 static ssize_t __scst_acg_cpu_mask_show(struct scst_acg *acg, char *buf)
 {
-	int res;
+	ssize_t ret;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
-	res = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, &acg->acg_cpu_mask);
+	ret = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, &acg->acg_cpu_mask);
 #else
-	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%*pb",
-			cpumask_pr_args(&acg->acg_cpu_mask));
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%*pb", cpumask_pr_args(&acg->acg_cpu_mask));
 #endif
 	if (!cpumask_equal(&acg->acg_cpu_mask, &default_cpu_mask))
-		res += sprintf(&buf[res], "\n%s\n", SCST_SYSFS_KEY_MARK);
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+				 "\n%s\n", SCST_SYSFS_KEY_MARK);
 	else
-		res += sprintf(&buf[res], "\n");
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "\n");
 
-	return res;
+	return ret;
 }
 
 static int __scst_acg_process_cpu_mask_store(struct scst_tgt *tgt, struct scst_acg *acg,
@@ -2011,6 +2023,8 @@ static ssize_t scst_tgt_cpu_mask_store(struct kobject *kobj, struct kobj_attribu
 	struct scst_acg *acg;
 	struct scst_tgt *tgt;
 
+	TRACE_ENTRY();
+
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	acg = tgt->default_acg;
 
@@ -2035,7 +2049,7 @@ static ssize_t scst_ini_group_mgmt_show(struct kobject *kobj, struct kobj_attrib
 		"Usage: echo \"create GROUP_NAME\" >mgmt\n"
 		"       echo \"del GROUP_NAME\" >mgmt\n";
 
-	return sprintf(buf, "%s", help);
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s", help);
 }
 
 static int scst_process_ini_group_mgmt_store(char *buffer, struct scst_tgt *tgt)
@@ -2179,8 +2193,8 @@ static struct kobj_attribute scst_ini_group_mgmt =
 static ssize_t scst_tgt_enable_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	struct scst_tgt *tgt;
-	int res;
 	bool enabled;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
@@ -2188,10 +2202,10 @@ static ssize_t scst_tgt_enable_show(struct kobject *kobj, struct kobj_attribute 
 
 	enabled = tgt->tgtt->is_target_enabled(tgt);
 
-	res = sprintf(buf, "%d\n", enabled ? 1 : 0);
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n", enabled ? 1 : 0);
 
-	TRACE_EXIT_RES(res);
-	return res;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static int scst_process_tgt_enable_store(struct scst_tgt *tgt, bool enable)
@@ -2292,17 +2306,18 @@ static struct kobj_attribute tgt_enable_attr =
 static ssize_t scst_rel_tgt_id_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	struct scst_tgt *tgt;
-	int res;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
-	res = sprintf(buf, "%d\n%s", tgt->rel_tgt_id,
-		      (tgt->rel_tgt_id != 0) ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s",
+			tgt->rel_tgt_id,
+			tgt->rel_tgt_id != 0 ? SCST_SYSFS_KEY_MARK "\n" : "");
 
-	TRACE_EXIT_RES(res);
-	return res;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static int scst_process_rel_tgt_id_store(struct scst_sysfs_work_item *work)
@@ -2402,8 +2417,9 @@ static ssize_t scst_tgt_forward_src_show(struct kobject *kobj, struct kobj_attri
 {
 	struct scst_tgt *tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
-	return sprintf(buf, "%d\n%s", tgt->tgt_forward_src,
-		       tgt->tgt_forward_src ? SCST_SYSFS_KEY_MARK "\n" : "");
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s",
+			 tgt->tgt_forward_src,
+			 tgt->tgt_forward_src ? SCST_SYSFS_KEY_MARK "\n" : "");
 }
 
 static ssize_t scst_tgt_forward_src_store(struct kobject *kobj, struct kobj_attribute *attr,
@@ -2438,17 +2454,18 @@ static ssize_t scst_tgt_forward_dst_show(struct kobject *kobj, struct kobj_attri
 					 char *buf)
 {
 	struct scst_tgt *tgt;
-	int res;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
-	res = sprintf(buf, "%d\n%s", tgt->tgt_forward_dst,
-		      tgt->tgt_forward_dst ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s",
+			tgt->tgt_forward_dst,
+			tgt->tgt_forward_dst ? SCST_SYSFS_KEY_MARK "\n" : "");
 
-	TRACE_EXIT_RES(res);
-	return res;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static ssize_t scst_tgt_forward_dst_store(struct kobject *kobj, struct kobj_attribute *attr,
@@ -2538,17 +2555,18 @@ static ssize_t scst_tgt_aen_disabled_show(struct kobject *kobj, struct kobj_attr
 					  char *buf)
 {
 	struct scst_tgt *tgt;
-	int res;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
-	res = sprintf(buf, "%d\n%s", tgt->tgt_aen_disabled,
-		      tgt->tgt_aen_disabled ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s",
+			tgt->tgt_aen_disabled,
+			tgt->tgt_aen_disabled ? SCST_SYSFS_KEY_MARK "\n" : "");
 
-	TRACE_EXIT_RES(res);
-	return res;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static ssize_t scst_tgt_aen_disabled_store(struct kobject *kobj, struct kobj_attribute *attr,
@@ -2634,19 +2652,20 @@ static struct kobj_attribute scst_tgt_aen_disabled =
 static ssize_t scst_tgt_comment_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	struct scst_tgt *tgt;
-	int res;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
 	if (tgt->tgt_comment)
-		res = sprintf(buf, "%s\n%s", tgt->tgt_comment, SCST_SYSFS_KEY_MARK "\n");
+		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n%s",
+				tgt->tgt_comment, SCST_SYSFS_KEY_MARK "\n");
 	else
-		res = 0;
+		ret = 0;
 
-	TRACE_EXIT_RES(res);
-	return res;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static ssize_t scst_tgt_comment_store(struct kobject *kobj, struct kobj_attribute *attr,
@@ -2724,8 +2743,8 @@ EXPORT_SYMBOL(scst_create_tgt_attr);
 static ssize_t scst_tgt_dif_capable_show(struct kobject *kobj, struct kobj_attribute *attr,
 					 char *buf)
 {
-	int pos = 0;
 	struct scst_tgt *tgt;
+	ssize_t ret = 0;
 
 	TRACE_ENTRY();
 
@@ -2733,45 +2752,46 @@ static ssize_t scst_tgt_dif_capable_show(struct kobject *kobj, struct kobj_attri
 
 	EXTRACHECKS_BUG_ON(!tgt->tgt_dif_supported);
 
-	pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos, "dif_supported");
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "dif_supported");
 
 	if (tgt->tgt_hw_dif_type1_supported)
-		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
 				 ", hw_dif_type1_supported");
 
 	if (tgt->tgt_hw_dif_type2_supported)
-		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
 				 ", hw_dif_type2_supported");
 
 	if (tgt->tgt_hw_dif_type3_supported)
-		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
 				 ", hw_dif_type3_supported");
 
 	if (tgt->tgt_hw_dif_ip_supported)
-		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
 				 ", hw_dif_ip_supported");
 
 	if (tgt->tgt_hw_dif_same_sg_layout_required)
-		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
 				 ", hw_dif_same_sg_layout_required");
 
-	pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos, "\n");
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "\n");
 
 	if (tgt->tgt_supported_dif_block_sizes) {
 		const int *p = tgt->tgt_supported_dif_block_sizes;
-		int j;
+		ssize_t pos;
 
-		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos, "Supported blocks: ");
-		j = pos;
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "Supported blocks: ");
+		pos = ret;
+
 		while (*p != 0) {
-			pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
-					 "%s%d", (j == pos) ? "" : ", ", *p);
+			ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+					 "%s%d", ret == pos ? "" : ", ", *p);
 			p++;
 		}
 	}
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static struct kobj_attribute scst_tgt_dif_capable_attr =
@@ -2780,24 +2800,21 @@ static struct kobj_attribute scst_tgt_dif_capable_attr =
 static ssize_t scst_tgt_dif_checks_failed_show(struct kobject *kobj, struct kobj_attribute *attr,
 					       char *buf)
 {
-	int pos = 0;
 	struct scst_tgt *tgt;
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
-	pos = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "\tapp\tref\tguard\n"
-		"tgt\t%d\t%d\t%d\nscst\t%d\t%d\t%d\ndev\t%d\t%d\t%d\n",
-		atomic_read(&tgt->tgt_dif_app_failed_tgt),
-		atomic_read(&tgt->tgt_dif_ref_failed_tgt),
-		atomic_read(&tgt->tgt_dif_guard_failed_tgt),
-		atomic_read(&tgt->tgt_dif_app_failed_scst),
-		atomic_read(&tgt->tgt_dif_ref_failed_scst),
-		atomic_read(&tgt->tgt_dif_guard_failed_scst),
-		atomic_read(&tgt->tgt_dif_app_failed_dev),
-		atomic_read(&tgt->tgt_dif_ref_failed_dev),
-		atomic_read(&tgt->tgt_dif_guard_failed_dev));
-
-	return pos;
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
+			 "\tapp\tref\tguard\ntgt\t%d\t%d\t%d\nscst\t%d\t%d\t%d\ndev\t%d\t%d\t%d\n",
+			 atomic_read(&tgt->tgt_dif_app_failed_tgt),
+			 atomic_read(&tgt->tgt_dif_ref_failed_tgt),
+			 atomic_read(&tgt->tgt_dif_guard_failed_tgt),
+			 atomic_read(&tgt->tgt_dif_app_failed_scst),
+			 atomic_read(&tgt->tgt_dif_ref_failed_scst),
+			 atomic_read(&tgt->tgt_dif_guard_failed_scst),
+			 atomic_read(&tgt->tgt_dif_app_failed_dev),
+			 atomic_read(&tgt->tgt_dif_ref_failed_dev),
+			 atomic_read(&tgt->tgt_dif_guard_failed_dev));
 }
 
 static ssize_t scst_tgt_dif_checks_failed_store(struct kobject *kobj, struct kobj_attribute *attr,
@@ -2859,7 +2876,7 @@ static ssize_t scst_tgt_sysfs_##attr##_show(struct kobject *kobj,			\
 	struct scst_tgt *tgt =								\
 		container_of(kobj, struct scst_tgt, tgt_kobj);				\
 	struct scst_sysfs_work_item *work;						\
-	int res;									\
+	ssize_t res;									\
 											\
 	res = scst_alloc_sysfs_work(scst_tgt_sysfs_##attr##_show_work_fn,		\
 				    true, &work);					\
@@ -2872,7 +2889,7 @@ static ssize_t scst_tgt_sysfs_##attr##_show(struct kobject *kobj,			\
 	scst_sysfs_work_get(work);							\
 	res = scst_sysfs_queue_wait_work(work);						\
 	if (res == 0)									\
-		res = scnprintf(buf, PAGE_SIZE, "%s", work->res_buf);			\
+		res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s", work->res_buf);	\
 	scst_sysfs_work_put(work);							\
 											\
 out:											\
@@ -3074,17 +3091,14 @@ void scst_tgt_sysfs_put(struct scst_tgt *tgt)
 static ssize_t scst_dev_sysfs_type_show(struct kobject *kobj, struct kobj_attribute *attr,
 					char *buf)
 {
-	int pos = 0;
-
 	struct scst_device *dev;
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-	pos = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d - %s\n", dev->type,
-			(unsigned int)dev->type >= ARRAY_SIZE(scst_dev_handler_types) ?
-			"unknown" : scst_dev_handler_types[dev->type]);
-
-	return pos;
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d - %s\n",
+			 dev->type,
+			 (unsigned int)dev->type >= ARRAY_SIZE(scst_dev_handler_types) ?
+			 "unknown" : scst_dev_handler_types[dev->type]);
 }
 
 static struct kobj_attribute dev_type_attr =
@@ -3095,16 +3109,16 @@ static ssize_t scst_dev_sysfs_pr_file_name_show(struct kobject *kobj,
 						char *buf)
 {
 	struct scst_device *dev;
-	int res;
+	ssize_t res;
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
 	res = mutex_lock_interruptible(&dev->dev_pr_mutex);
 	if (res != 0)
 		goto out;
-	res = scnprintf(buf, PAGE_SIZE, "%s\n%s", dev->pr_file_name ? : "",
-			dev->pr_file_name_is_set ? SCST_SYSFS_KEY_MARK "\n" :
-			"");
+	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n%s",
+			dev->pr_file_name ? : "",
+			dev->pr_file_name_is_set ? SCST_SYSFS_KEY_MARK "\n" : "");
 	mutex_unlock(&dev->dev_pr_mutex);
 
 out:
@@ -3336,19 +3350,20 @@ out:
 static ssize_t scst_dev_sysfs_threads_num_show(struct kobject *kobj, struct kobj_attribute *attr,
 					       char *buf)
 {
-	int pos = 0;
 	struct scst_device *dev;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-	pos = sprintf(buf, "%d\n%s", dev->threads_num,
-		      (dev->threads_num != dev->handler->threads_num) ?
-		      SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s",
+			dev->threads_num,
+			dev->threads_num != dev->handler->threads_num ?
+			SCST_SYSFS_KEY_MARK "\n" : "");
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static ssize_t scst_dev_sysfs_threads_num_store(struct kobject *kobj, struct kobj_attribute *attr,
@@ -3404,40 +3419,42 @@ static struct kobj_attribute dev_threads_num_attr =
 static ssize_t scst_dev_sysfs_threads_pool_type_show(struct kobject *kobj,
 						     struct kobj_attribute *attr, char *buf)
 {
-	int pos = 0;
 	struct scst_device *dev;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
 	if (dev->threads_num == 0) {
-		pos = sprintf(buf, "Async\n");
+		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "Async\n");
 		goto out;
 	} else if (dev->threads_num < 0) {
-		pos = sprintf(buf, "Not valid\n");
+		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "Not valid\n");
 		goto out;
 	}
 
 	switch (dev->threads_pool_type) {
 	case SCST_THREADS_POOL_PER_INITIATOR:
-		pos = sprintf(buf, "%s\n%s", SCST_THREADS_POOL_PER_INITIATOR_STR,
-			      (dev->threads_pool_type != dev->handler->threads_pool_type) ?
-			      SCST_SYSFS_KEY_MARK "\n" : "");
+		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n%s",
+				SCST_THREADS_POOL_PER_INITIATOR_STR,
+				dev->threads_pool_type != dev->handler->threads_pool_type ?
+				SCST_SYSFS_KEY_MARK "\n" : "");
 		break;
 	case SCST_THREADS_POOL_SHARED:
-		pos = sprintf(buf, "%s\n%s", SCST_THREADS_POOL_SHARED_STR,
-			      (dev->threads_pool_type != dev->handler->threads_pool_type) ?
-			      SCST_SYSFS_KEY_MARK "\n" : "");
+		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n%s",
+				SCST_THREADS_POOL_SHARED_STR,
+				dev->threads_pool_type != dev->handler->threads_pool_type ?
+				SCST_SYSFS_KEY_MARK "\n" : "");
 		break;
 	default:
-		pos = sprintf(buf, "Unknown\n");
+		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "Unknown\n");
 		break;
 	}
 
 out:
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static ssize_t scst_dev_sysfs_threads_pool_type_store(struct kobject *kobj,
@@ -3492,19 +3509,20 @@ static struct kobj_attribute dev_threads_pool_type_attr =
 static ssize_t scst_dev_sysfs_max_tgt_dev_commands_show(struct kobject *kobj,
 							struct kobj_attribute *attr, char *buf)
 {
-	int pos = 0;
 	struct scst_device *dev;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-	pos = sprintf(buf, "%d\n%s", dev->max_tgt_dev_commands,
-		      (dev->max_tgt_dev_commands != dev->handler->max_tgt_dev_commands) ?
-		      SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s",
+			dev->max_tgt_dev_commands,
+			dev->max_tgt_dev_commands != dev->handler->max_tgt_dev_commands ?
+			SCST_SYSFS_KEY_MARK "\n" : "");
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static ssize_t scst_dev_sysfs_max_tgt_dev_commands_store(struct kobject *kobj,
@@ -3551,18 +3569,19 @@ static struct kobj_attribute dev_max_tgt_dev_commands_attr =
 static ssize_t scst_dev_numa_node_id_show(struct kobject *kobj, struct kobj_attribute *attr,
 					  char *buf)
 {
-	int pos = 0;
 	struct scst_device *dev;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-	pos = sprintf(buf, "%d\n%s", dev->dev_numa_node_id,
-		      (dev->dev_numa_node_id != NUMA_NO_NODE) ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s",
+			dev->dev_numa_node_id,
+			dev->dev_numa_node_id != NUMA_NO_NODE ? SCST_SYSFS_KEY_MARK "\n" : "");
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static ssize_t scst_dev_numa_node_id_store(struct kobject *kobj, struct kobj_attribute *attr,
@@ -3608,18 +3627,18 @@ static struct kobj_attribute dev_numa_node_id_attr =
 
 static ssize_t scst_dev_block_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	int pos = 0;
 	struct scst_device *dev;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-	pos = sprintf(buf, "%d %d\n", READ_ONCE(dev->ext_blocks_cnt),
-		      dev->ext_blocking_pending);
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d %d\n",
+			READ_ONCE(dev->ext_blocks_cnt), dev->ext_blocking_pending);
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static void scst_sysfs_ext_blocking_done(struct scst_device *dev, uint8_t *data, int len)
@@ -3954,42 +3973,42 @@ void scst_dev_sysfs_del(struct scst_device *dev)
 
 static ssize_t scst_dev_dif_mode_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	int pos = 0;
 	struct scst_device *dev;
+	ssize_t ret = 0;
 
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
 	if (dev->dev_dif_mode == SCST_DIF_MODE_NONE) {
-		pos = sprintf(buf, "None\n");
+		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "None\n");
 	} else {
-		int j = pos;
+		ssize_t pos = ret;
 
 		if (dev->dev_dif_mode & SCST_DIF_MODE_TGT)
-			pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
-					 "%s", SCST_DIF_MODE_TGT_STR);
+			ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+					 "%s%s", ret == pos ? "" : "|", SCST_DIF_MODE_TGT_STR);
 
 		if (dev->dev_dif_mode & SCST_DIF_MODE_SCST)
-			pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
-					 "%s%s", (j == pos) ? "" : "|", SCST_DIF_MODE_SCST_STR);
+			ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+					 "%s%s", ret == pos ? "" : "|", SCST_DIF_MODE_SCST_STR);
 
 		if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK)
-			pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
-					 "%s%s", (j == pos) ? "" : "|",
+			ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+					 "%s%s", ret == pos ? "" : "|",
 					 SCST_DIF_MODE_DEV_CHECK_STR);
 
 		if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE)
-			pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
-					 "%s%s", (j == pos) ? "" : "|",
+			ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
+					 "%s%s", ret == pos ? "" : "|",
 					 SCST_DIF_MODE_DEV_STORE_STR);
 
-		pos += scnprintf(&buf[pos], SCST_SYSFS_BLOCK_SIZE - pos,
+		ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
 				 "\n%s", SCST_SYSFS_KEY_MARK "\n");
 	}
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static struct kobj_attribute scst_dev_dif_mode_attr =
@@ -3997,18 +4016,19 @@ static struct kobj_attribute scst_dev_dif_mode_attr =
 
 static ssize_t scst_dev_dif_type_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	int pos = 0;
 	struct scst_device *dev;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-	pos = sprintf(buf, "%d\n%s", dev->dev_dif_type,
-		      (dev->dev_dif_type != 0) ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s",
+			dev->dev_dif_type,
+			dev->dev_dif_type != 0 ? SCST_SYSFS_KEY_MARK "\n" : "");
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static struct kobj_attribute scst_dev_dif_type_attr =
@@ -4049,9 +4069,9 @@ out:
 static ssize_t scst_dev_sysfs_dif_static_app_tag_show(struct kobject *kobj,
 						      struct kobj_attribute *attr, char *buf)
 {
-	int pos = 0;
 	struct scst_device *dev;
 	__be64 a;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
@@ -4059,12 +4079,12 @@ static ssize_t scst_dev_sysfs_dif_static_app_tag_show(struct kobject *kobj,
 
 	a = scst_dev_get_dif_static_app_tag_combined(dev);
 
-	pos = sprintf(buf, "0x%llx\n%s",
-		      (unsigned long long)be64_to_cpu(a),
-		      (a != SCST_DIF_NO_CHECK_APP_TAG) ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "0x%llx\n%s",
+			(unsigned long long)be64_to_cpu(a),
+			(a != SCST_DIF_NO_CHECK_APP_TAG) ? SCST_SYSFS_KEY_MARK "\n" : "");
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static struct kobj_attribute scst_dev_dif_static_app_tag_attr =
@@ -4119,7 +4139,7 @@ static ssize_t scst_tgt_dev_thread_index_show(struct kobject *kobj,
 	struct scst_tgt_dev *tgt_dev =
 		container_of(kobj, struct scst_tgt_dev, tgt_dev_kobj);
 
-	return sprintf(buffer, "%d\n", tgt_dev->thread_index);
+	return scnprintf(buffer, SCST_SYSFS_BLOCK_SIZE, "%d\n", tgt_dev->thread_index);
 }
 
 static struct kobj_attribute tgt_dev_thread_idx_attr =
@@ -4133,18 +4153,17 @@ static ssize_t scst_tgt_dev_thread_pid_show(struct kobject *kobj,
 		container_of(kobj, struct scst_tgt_dev, tgt_dev_kobj);
 	struct scst_cmd_threads *cmd_threads = tgt_dev->active_cmd_threads;
 	struct scst_cmd_thread_t *t;
-	int res = 0;
+	ssize_t ret = 0;
 
 	spin_lock(&cmd_threads->thr_lock);
 	list_for_each_entry(t, &cmd_threads->threads_list, thread_list_entry)
-		res += scnprintf(buffer + res, PAGE_SIZE - res, "%d%s",
+		ret += scnprintf(buffer + ret, SCST_SYSFS_BLOCK_SIZE - ret, "%d%s",
 				 task_pid_vnr(t->cmd_thread),
 				 list_is_last(&t->thread_list_entry,
-					      &cmd_threads->threads_list) ?
-				 "\n" : " ");
+					      &cmd_threads->threads_list) ? "\n" : " ");
 	spin_unlock(&cmd_threads->thr_lock);
 
-	return res;
+	return ret;
 }
 
 static struct kobj_attribute tgt_dev_thread_pid_attr =
@@ -4153,14 +4172,12 @@ static struct kobj_attribute tgt_dev_thread_pid_attr =
 static ssize_t scst_tgt_dev_active_commands_show(struct kobject *kobj, struct kobj_attribute *attr,
 						 char *buf)
 {
-	int pos = 0;
 	struct scst_tgt_dev *tgt_dev;
 
 	tgt_dev = container_of(kobj, struct scst_tgt_dev, tgt_dev_kobj);
 
-	pos = sprintf(buf, "%d\n", atomic_read(&tgt_dev->tgt_dev_cmd_count));
-
-	return pos;
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n",
+			 atomic_read(&tgt_dev->tgt_dev_cmd_count));
 }
 
 static struct kobj_attribute tgt_dev_active_commands_attr =
@@ -4169,24 +4186,21 @@ static struct kobj_attribute tgt_dev_active_commands_attr =
 static ssize_t scst_tgt_dev_dif_checks_failed_show(struct kobject *kobj,
 						   struct kobj_attribute *attr, char *buf)
 {
-	int pos = 0;
 	struct scst_tgt_dev *tgt_dev;
 
 	tgt_dev = container_of(kobj, struct scst_tgt_dev, tgt_dev_kobj);
 
-	pos = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "\tapp\tref\tguard\n"
-		"tgt\t%d\t%d\t%d\nscst\t%d\t%d\t%d\ndev\t%d\t%d\t%d\n",
-		atomic_read(&tgt_dev->tgt_dev_dif_app_failed_tgt),
-		atomic_read(&tgt_dev->tgt_dev_dif_ref_failed_tgt),
-		atomic_read(&tgt_dev->tgt_dev_dif_guard_failed_tgt),
-		atomic_read(&tgt_dev->tgt_dev_dif_app_failed_scst),
-		atomic_read(&tgt_dev->tgt_dev_dif_ref_failed_scst),
-		atomic_read(&tgt_dev->tgt_dev_dif_guard_failed_scst),
-		atomic_read(&tgt_dev->tgt_dev_dif_app_failed_dev),
-		atomic_read(&tgt_dev->tgt_dev_dif_ref_failed_dev),
-		atomic_read(&tgt_dev->tgt_dev_dif_guard_failed_dev));
-
-	return pos;
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
+			 "\tapp\tref\tguard\ntgt\t%d\t%d\t%d\nscst\t%d\t%d\t%d\ndev\t%d\t%d\t%d\n",
+			 atomic_read(&tgt_dev->tgt_dev_dif_app_failed_tgt),
+			 atomic_read(&tgt_dev->tgt_dev_dif_ref_failed_tgt),
+			 atomic_read(&tgt_dev->tgt_dev_dif_guard_failed_tgt),
+			 atomic_read(&tgt_dev->tgt_dev_dif_app_failed_scst),
+			 atomic_read(&tgt_dev->tgt_dev_dif_ref_failed_scst),
+			 atomic_read(&tgt_dev->tgt_dev_dif_guard_failed_scst),
+			 atomic_read(&tgt_dev->tgt_dev_dif_app_failed_dev),
+			 atomic_read(&tgt_dev->tgt_dev_dif_ref_failed_dev),
+			 atomic_read(&tgt_dev->tgt_dev_dif_guard_failed_dev));
 }
 
 static ssize_t scst_tgt_dev_dif_checks_failed_store(struct kobject *kobj,
@@ -4330,7 +4344,7 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj, struct kobj_attribut
 {
 	struct scst_session *sess =
 		container_of(kobj->parent, struct scst_session, sess_kobj);
-	int res = 0, i, j, k;
+	int i, j, k;
 	long sz;
 	struct scst_lat_stat_entry *d;
 	uint64_t avg, stddev;
@@ -4343,6 +4357,7 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj, struct kobj_attribut
 	u64 d_min_div_10, d_max_div_10, avg_div_10, stddev_div_10;
 	u32 d_min_mod_10, d_max_mod_10, avg_mod_10, stddev_mod_10;
 	char state_name[32];
+	ssize_t res;
 
 	switch (attr->attr.name[0]) {
 	case 'n':
@@ -4370,14 +4385,14 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj, struct kobj_attribut
 		goto out;
 	}
 
-	res += scnprintf(buf + res, PAGE_SIZE - res,
+	res += scnprintf(buf + res, SCST_SYSFS_BLOCK_SIZE - res,
 			 "state count min max avg stddev\n");
 
 	spin_lock_irq(&sess->lat_stats_lock);
 	for (k = 0; k < SCST_CMD_STATE_COUNT; k++) {
 		struct scst_lat_stats *lat_stats = sess->lat_stats;
 
-		if (!lat_stats || res >= PAGE_SIZE)
+		if (!lat_stats || res >= SCST_SYSFS_BLOCK_SIZE)
 			continue;
 		d = &lat_stats->ls[i][j][k];
 		if (d->count == 0)
@@ -4395,7 +4410,7 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj, struct kobj_attribut
 		avg_mod_10 = do_div(avg_div_10, 10);
 		stddev_div_10 = stddev;
 		stddev_mod_10 = do_div(stddev_div_10, 10);
-		res += scnprintf(buf + res, PAGE_SIZE - res,
+		res += scnprintf(buf + res, SCST_SYSFS_BLOCK_SIZE - res,
 				 "%s %d %lld.%01d %lld.%01d %lld.%01d %lld.%01d us\n",
 				 state_name, d->count,
 				 d_min_div_10, d_min_mod_10,
@@ -4406,9 +4421,8 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj, struct kobj_attribut
 		min = d->minc * 10000 / (tsc_khz / 100);
 		max = d->maxc * 10000 / (tsc_khz / 100);
 		avg = d->sumc * 10000 / (d->count * 1ull * tsc_khz / 100);
-		stddev = calc_stddev(d->sumsqc, d->sumc, d->count)
-			* 1000000 / tsc_khz;
-		res += scnprintf(buf + res, PAGE_SIZE - res,
+		stddev = calc_stddev(d->sumsqc, d->sumc, d->count) * 1000000 / tsc_khz;
+		res += scnprintf(buf + res, SCST_SYSFS_BLOCK_SIZE - res,
 				 "%s %d %lld.%01lld %lld.%01lld %lld.%01lld %lld.%01lld cc -> us\n",
 				 state_name, d->count,
 				 min / 10, min % 10,
@@ -4429,9 +4443,8 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj, struct kobj_attribut
 	if (count != 0) {
 #ifdef SCST_MEASURE_CLOCK_CYCLES
 		avg = numst * sumc / (count * 1ull * tsc_khz / 1000000);
-		stddev = calc_stddev(sumsqc, sumc, count) * numst *
-			1000000 / tsc_khz;
-		res += scnprintf(buf + res, PAGE_SIZE - res,
+		stddev = calc_stddev(sumsqc, sumc, count) * numst * 1000000 / tsc_khz;
+		res += scnprintf(buf + res, SCST_SYSFS_BLOCK_SIZE - res,
 				 "total %d - - %lld.%01lld %lld.%01lld cc -> us\n",
 				 count / numst, avg / 10, avg % 10, stddev / 10,
 				 stddev % 10);
@@ -4443,7 +4456,7 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj, struct kobj_attribut
 		avg_mod_10 = do_div(avg_div_10, 10);
 		stddev_div_10 = stddev;
 		stddev_mod_10 = do_div(stddev_div_10, 10);
-		res += scnprintf(buf + res, PAGE_SIZE - res,
+		res += scnprintf(buf + res, SCST_SYSFS_BLOCK_SIZE - res,
 				 "total %d - - %lld.%01d %lld.%01d us\n",
 				 count / numst, avg_div_10, avg_mod_10,
 				 stddev_div_10, stddev_mod_10);
@@ -4475,7 +4488,7 @@ static ssize_t scst_sess_sysfs_commands_show(struct kobject *kobj, struct kobj_a
 
 	sess = container_of(kobj, struct scst_session, sess_kobj);
 
-	return sprintf(buf, "%i\n", atomic_read(&sess->sess_cmd_count));
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n", atomic_read(&sess->sess_cmd_count));
 }
 
 static struct kobj_attribute session_commands_attr =
@@ -4514,9 +4527,9 @@ static int scst_sysfs_sess_get_active_commands_work_fn(struct scst_sysfs_work_it
 static ssize_t scst_sess_sysfs_active_commands_show(struct kobject *kobj,
 						    struct kobj_attribute *attr, char *buf)
 {
-	int res;
 	struct scst_session *sess;
 	struct scst_sysfs_work_item *work;
+	int res;
 
 	sess = container_of(kobj, struct scst_session, sess_kobj);
 
@@ -4531,7 +4544,7 @@ static ssize_t scst_sess_sysfs_active_commands_show(struct kobject *kobj,
 
 	res = scst_sysfs_queue_wait_work(work);
 	if (res != -EAGAIN)
-		res = sprintf(buf, "%i\n", res);
+		res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n", res);
 
 out:
 	return res;
@@ -4585,9 +4598,9 @@ static int scst_sysfs_sess_get_dif_checks_failed_work_fn(struct scst_sysfs_work_
 static ssize_t scst_sess_sysfs_dif_checks_failed_show(struct kobject *kobj,
 						      struct kobj_attribute *attr, char *buf)
 {
-	int res;
 	struct scst_session *sess;
 	struct scst_sysfs_work_item *work;
+	ssize_t res;
 
 	sess = container_of(kobj, struct scst_session, sess_kobj);
 
@@ -4606,7 +4619,7 @@ static ssize_t scst_sess_sysfs_dif_checks_failed_show(struct kobject *kobj,
 	if (res != 0)
 		goto out_put;
 
-	res = snprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s", work->res_buf);
+	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s", work->res_buf);
 
 out_put:
 	scst_sysfs_work_put(work);
@@ -4705,7 +4718,6 @@ static ssize_t scst_sess_sysfs_##exported_name##_show(struct kobject *kobj,			\
 						      struct kobj_attribute *attr, char *buf)	\
 {												\
 	struct scst_session *sess;								\
-	int res;										\
 	uint64_t v;										\
 												\
 	BUILD_BUG_ON(SCST_DATA_UNKNOWN != 0);							\
@@ -4720,8 +4732,7 @@ static ssize_t scst_sess_sysfs_##exported_name##_show(struct kobject *kobj,			\
 	v = sess->io_stats[dir].name;								\
 	if (kb)											\
 		v >>= 10;									\
-	res = sprintf(buf, "%llu\n", (unsigned long long)v);					\
-	return res;										\
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%llu\n", (unsigned long long)v);		\
 }												\
 												\
 static ssize_t scst_sess_sysfs_##exported_name##_store(struct kobject *kobj,			\
@@ -5035,9 +5046,9 @@ static ssize_t scst_lun_rd_only_show(struct kobject *kobj, struct kobj_attribute
 	acg_dev = container_of(kobj, struct scst_acg_dev, acg_dev_kobj);
 
 	if (acg_dev->acg_dev_rd_only || acg_dev->dev->dev_rd_only)
-		return sprintf(buf, "%d\n%s\n", 1, SCST_SYSFS_KEY_MARK);
+		return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s\n", 1, SCST_SYSFS_KEY_MARK);
 	else
-		return sprintf(buf, "%d\n", 0);
+		return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n", 0);
 }
 
 static struct kobj_attribute lun_options_attr =
@@ -5161,7 +5172,7 @@ static ssize_t scst_acg_ini_mgmt_show(struct kobject *kobj, struct kobj_attribut
 		"       echo \"move INITIATOR_NAME DEST_GROUP_NAME\" >mgmt\n"
 		"       echo \"clear\" >mgmt\n";
 
-	return sprintf(buf, "%s", help);
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s", help);
 }
 
 static int scst_process_acg_ini_mgmt_store(char *buffer, struct scst_tgt *tgt,
@@ -5354,6 +5365,8 @@ static ssize_t scst_acg_addr_method_store(struct kobject *kobj, struct kobj_attr
 	int res;
 	struct scst_acg *acg;
 
+	TRACE_ENTRY();
+
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 
 	res = __scst_acg_addr_method_store(acg, buf, count);
@@ -5380,6 +5393,8 @@ static ssize_t scst_acg_io_grouping_type_store(struct kobject *kobj, struct kobj
 {
 	int res;
 	struct scst_acg *acg;
+
+	TRACE_ENTRY();
 
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 
@@ -5414,6 +5429,8 @@ static ssize_t scst_acg_black_hole_store(struct kobject *kobj, struct kobj_attri
 	int res;
 	struct scst_acg *acg;
 
+	TRACE_ENTRY();
+
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 
 	res = __scst_acg_black_hole_store(acg, buf, count);
@@ -5444,6 +5461,8 @@ static ssize_t scst_acg_cpu_mask_store(struct kobject *kobj, struct kobj_attribu
 {
 	int res;
 	struct scst_acg *acg;
+
+	TRACE_ENTRY();
 
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 
@@ -5718,16 +5737,14 @@ static struct kobj_attribute devt_trace_attr =
 
 static ssize_t scst_devt_type_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	int pos;
 	struct scst_dev_type *devt;
 
 	devt = container_of(kobj, struct scst_dev_type, devt_kobj);
 
-	pos = sprintf(buf, "%d - %s\n", devt->type,
-		      (unsigned int)devt->type >= ARRAY_SIZE(scst_dev_handler_types) ?
-		      "unknown" : scst_dev_handler_types[devt->type]);
-
-	return pos;
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d - %s\n",
+			 devt->type,
+			 (unsigned int)devt->type >= ARRAY_SIZE(scst_dev_handler_types) ?
+			 "unknown" : scst_dev_handler_types[devt->type]);
 }
 
 static struct kobj_attribute scst_devt_type_attr =
@@ -5931,7 +5948,8 @@ static ssize_t scst_devt_pass_through_mgmt_show(struct kobject *kobj, struct kob
 	static const char help[] =
 		"Usage: echo \"add_device H:C:I:L\" >mgmt\n"
 		"       echo \"del_device H:C:I:L\" >mgmt\n";
-	return sprintf(buf, "%s", help);
+
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s", help);
 }
 
 static int scst_process_devt_pass_through_mgmt_store(char *buffer, struct scst_dev_type *devt)
@@ -6175,7 +6193,7 @@ static ssize_t scst_dg_devs_mgmt_show(struct kobject *kobj, struct kobj_attribut
 		"Usage: echo \"add device\" >mgmt\n"
 		"       echo \"del device\" >mgmt\n";
 
-	return scnprintf(buf, PAGE_SIZE, help);
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, help);
 }
 
 static int scst_dg_devs_mgmt_store_work_fn(struct scst_sysfs_work_item *w)
@@ -6267,7 +6285,7 @@ static ssize_t scst_tg_tgt_rel_tgt_id_show(struct kobject *kobj,
 	struct scst_tg_tgt *tg_tgt;
 
 	tg_tgt = container_of(kobj, struct scst_tg_tgt, kobj);
-	return scnprintf(buf, PAGE_SIZE, "%u\n" SCST_SYSFS_KEY_MARK "\n",
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%u\n" SCST_SYSFS_KEY_MARK "\n",
 			 tg_tgt->rel_tgt_id);
 }
 
@@ -6356,7 +6374,7 @@ static ssize_t scst_tg_group_id_show(struct kobject *kobj,
 	struct scst_target_group *tg;
 
 	tg = container_of(kobj, struct scst_target_group, kobj);
-	return scnprintf(buf, PAGE_SIZE, "%u\n" SCST_SYSFS_KEY_MARK "\n",
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%u\n" SCST_SYSFS_KEY_MARK "\n",
 			 tg->group_id);
 }
 
@@ -6395,7 +6413,8 @@ static ssize_t scst_tg_preferred_show(struct kobject *kobj,
 	struct scst_target_group *tg;
 
 	tg = container_of(kobj, struct scst_target_group, kobj);
-	return scnprintf(buf, PAGE_SIZE, "%u\n%s", tg->preferred,
+
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%u\n%s", tg->preferred,
 			 tg->preferred ? SCST_SYSFS_KEY_MARK "\n" : "");
 }
 
@@ -6468,7 +6487,7 @@ static ssize_t scst_tg_state_show(struct kobject *kobj,
 	tg = container_of(kobj, struct scst_target_group, kobj);
 	n = scst_alua_state_name(tg->state);
 
-	return scnprintf(buf, PAGE_SIZE, "%s\n" SCST_SYSFS_KEY_MARK "\n",
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n" SCST_SYSFS_KEY_MARK "\n",
 			 n ? n : "???");
 }
 
@@ -6546,7 +6565,7 @@ static ssize_t scst_tg_mgmt_show(struct kobject *kobj,
 		"Usage: echo \"add target\" >mgmt\n"
 		"       echo \"del target\" >mgmt\n";
 
-	return scnprintf(buf, PAGE_SIZE, help);
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, help);
 }
 
 static int scst_tg_mgmt_store_work_fn(struct scst_sysfs_work_item *w)
@@ -6668,7 +6687,7 @@ static ssize_t scst_dg_tgs_mgmt_show(struct kobject *kobj, struct kobj_attribute
 		"Usage: echo \"create group_name\" >mgmt\n"
 		"       echo \"del group_name\" >mgmt\n";
 
-	return scnprintf(buf, PAGE_SIZE, help);
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, help);
 }
 
 static int scst_dg_tgs_mgmt_store_work_fn(struct scst_sysfs_work_item *w)
@@ -6808,7 +6827,7 @@ static ssize_t scst_device_groups_mgmt_show(struct kobject *kobj,
 		"Usage: echo \"create group_name\" >mgmt\n"
 		"       echo \"del group_name\" >mgmt\n";
 
-	return scnprintf(buf, PAGE_SIZE, help);
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, help);
 }
 
 static ssize_t scst_device_groups_mgmt_store(struct kobject *kobj,
@@ -6864,7 +6883,7 @@ static struct kobject scst_sysfs_root_kobj;
 static ssize_t scst_measure_latency_show(struct kobject *kobj, struct kobj_attribute *attr,
 					 char *buf)
 {
-	return sprintf(buf, "%d\n", atomic_read(&scst_measure_latency));
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n", atomic_read(&scst_measure_latency));
 }
 
 static void scst_free_lat_stats_mem(void)
@@ -6962,16 +6981,18 @@ static struct kobj_attribute scst_measure_latency_attr =
 
 static ssize_t scst_threads_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	int count;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
-	count = sprintf(buf, "%d\n%s", scst_main_cmd_threads.nr_threads,
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s",
+			scst_main_cmd_threads.nr_threads,
 			(scst_main_cmd_threads.nr_threads != scst_threads) ?
 			SCST_SYSFS_KEY_MARK "\n" : "");
 
 	TRACE_EXIT();
-	return count;
+
+	return ret;
 }
 
 static int scst_process_threads_store(int newtn)
@@ -7067,15 +7088,17 @@ static struct kobj_attribute scst_threads_attr =
 static ssize_t scst_setup_id_show(struct kobject *kobj,
 				  struct kobj_attribute *attr, char *buf)
 {
-	int count;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
-	count = sprintf(buf, "0x%x\n%s\n", scst_setup_id,
-			(scst_setup_id == 0) ? "" : SCST_SYSFS_KEY_MARK);
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "0x%x\n%s\n",
+			scst_setup_id,
+			scst_setup_id == 0 ? "" : SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT();
-	return count;
+
+	return ret;
 }
 
 static ssize_t scst_setup_id_store(struct kobject *kobj, struct kobj_attribute *attr,
@@ -7108,16 +7131,18 @@ static struct kobj_attribute scst_setup_id_attr =
 static ssize_t scst_max_tasklet_cmd_show(struct kobject *kobj, struct kobj_attribute *attr,
 					 char *buf)
 {
-	int count;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
-	count = sprintf(buf, "%d\n%s\n", scst_max_tasklet_cmd,
-			(scst_max_tasklet_cmd == SCST_DEF_MAX_TASKLET_CMD)
-			? "" : SCST_SYSFS_KEY_MARK);
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s\n",
+			scst_max_tasklet_cmd,
+			scst_max_tasklet_cmd == SCST_DEF_MAX_TASKLET_CMD ?
+			"" : SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT();
-	return count;
+
+	return ret;
 }
 
 static ssize_t scst_max_tasklet_cmd_store(struct kobject *kobj, struct kobj_attribute *attr,
@@ -7149,17 +7174,19 @@ static struct kobj_attribute scst_max_tasklet_cmd_attr =
 
 static ssize_t scst_poll_us_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	int count;
 	u64 t = scst_poll_ns;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
 	do_div(t, 1000);
-	count = sprintf(buf, "%lld\n%s\n", t,
-			(scst_poll_ns == SCST_DEF_POLL_NS) ? "" : SCST_SYSFS_KEY_MARK);
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%lld\n%s\n",
+			t,
+			scst_poll_ns == SCST_DEF_POLL_NS ? "" : SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT();
-	return count;
+
+	return ret;
 }
 
 static ssize_t scst_poll_us_store(struct kobject *kobj, struct kobj_attribute *attr,
@@ -7194,14 +7221,15 @@ static struct kobj_attribute scst_poll_us_attr =
 static ssize_t scst_suspend_show(struct kobject *kobj,
 				 struct kobj_attribute *attr, char *buf)
 {
-	int count;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
-	count = sprintf(buf, "%d\n", scst_get_suspend_count());
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n", scst_get_suspend_count());
 
 	TRACE_EXIT();
-	return count;
+
+	return ret;
 }
 
 static ssize_t scst_suspend_store(struct kobject *kobj, struct kobj_attribute *attr,
@@ -7276,8 +7304,9 @@ static struct kobj_attribute scst_main_trace_level_attr =
 static ssize_t scst_force_global_sgv_pool_show(struct kobject *kobj, struct kobj_attribute *attr,
 					       char *buf)
 {
-	return sprintf(buf, "%d\n%s\n", scst_force_global_sgv_pool,
-		       scst_force_global_sgv_pool ? SCST_SYSFS_KEY_MARK "\n" : "");
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s\n",
+			 scst_force_global_sgv_pool,
+			 scst_force_global_sgv_pool ? SCST_SYSFS_KEY_MARK "\n" : "");
 }
 
 static ssize_t scst_force_global_sgv_pool_store(struct kobject *kobj, struct kobj_attribute *attr,
@@ -7409,57 +7438,59 @@ static ssize_t scst_version_show(struct kobject *kobj,
 				 struct kobj_attribute *attr,
 				 char *buf)
 {
+	ssize_t ret = 0;
+
 	TRACE_ENTRY();
 
-	sprintf(buf, "%s (revision=%s)\n",
-		SCST_VERSION_STRING, SCST_REVISION_STRING);
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "%s (revision=%s)\n",
+			 SCST_VERSION_STRING, SCST_REVISION_STRING);
 
 #ifdef CONFIG_SCST_STRICT_SERIALIZING
-	strcat(buf, "STRICT_SERIALIZING\n");
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "STRICT_SERIALIZING\n");
 #endif
 
 #ifdef CONFIG_SCST_EXTRACHECKS
-	strcat(buf, "EXTRACHECKS\n");
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "EXTRACHECKS\n");
 #endif
 
 #ifdef CONFIG_SCST_TRACING
-	strcat(buf, "TRACING\n");
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "TRACING\n");
 #endif
 
 #ifdef CONFIG_SCST_DEBUG
-	strcat(buf, "DEBUG\n");
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "DEBUG\n");
 #endif
 
 #ifdef CONFIG_SCST_DEBUG_TM
-	strcat(buf, "DEBUG_TM\n");
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "DEBUG_TM\n");
 #endif
 
 #ifdef CONFIG_SCST_DEBUG_RETRY
-	strcat(buf, "DEBUG_RETRY\n");
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "DEBUG_RETRY\n");
 #endif
 
 #ifdef CONFIG_SCST_DEBUG_OOM
-	strcat(buf, "DEBUG_OOM\n");
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "DEBUG_OOM\n");
 #endif
 
 #ifdef CONFIG_SCST_DEBUG_SN
-	strcat(buf, "DEBUG_SN\n");
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "DEBUG_SN\n");
 #endif
 
 #ifdef CONFIG_SCST_USE_EXPECTED_VALUES
-	strcat(buf, "USE_EXPECTED_VALUES\n");
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "USE_EXPECTED_VALUES\n");
 #endif
 
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-	strcat(buf, "TEST_IO_IN_SIRQ\n");
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "TEST_IO_IN_SIRQ\n");
 #endif
 
 #ifdef CONFIG_SCST_STRICT_SECURITY
-	strcat(buf, "STRICT_SECURITY\n");
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "STRICT_SECURITY\n");
 #endif
 
 	TRACE_EXIT();
-	return strlen(buf);
+	return ret;
 }
 
 static struct kobj_attribute scst_version_attr =
@@ -7468,7 +7499,7 @@ static struct kobj_attribute scst_version_attr =
 static ssize_t scst_last_sysfs_mgmt_res_show(struct kobject *kobj, struct kobj_attribute *attr,
 					     char *buf)
 {
-	int res;
+	ssize_t res;
 
 	TRACE_ENTRY();
 
@@ -7477,7 +7508,7 @@ static ssize_t scst_last_sysfs_mgmt_res_show(struct kobject *kobj, struct kobj_a
 	if (active_sysfs_works > 0)
 		res = -EAGAIN;
 	else
-		res = sprintf(buf, "%d\n", last_sysfs_work_res);
+		res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n", last_sysfs_work_res);
 	spin_unlock(&sysfs_work_lock);
 
 	TRACE_EXIT_RES(res);
@@ -7489,12 +7520,13 @@ static struct kobj_attribute scst_last_sysfs_mgmt_res_attr =
 
 static ssize_t scst_cluster_name_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	int res = 0;
+	ssize_t res = 0;
 
 	TRACE_ENTRY();
 
 	if (scst_cluster_name)
-		res = sprintf(buf, "%s\n%s", scst_cluster_name, SCST_SYSFS_KEY_MARK "\n");
+		res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n%s",
+				scst_cluster_name, SCST_SYSFS_KEY_MARK "\n");
 
 	TRACE_EXIT_RES(res);
 	return res;

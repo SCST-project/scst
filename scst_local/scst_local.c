@@ -244,22 +244,26 @@ out:
 static ssize_t scst_local_version_show(struct kobject *kobj, struct kobj_attribute *attr,
 				       char *buf)
 {
-	sprintf(buf, "%s/%s\n", SCST_LOCAL_VERSION, scst_local_version_date);
+	ssize_t ret = 0;
+
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "%s/%s\n",
+			 SCST_LOCAL_VERSION, scst_local_version_date);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
-	strcat(buf, "EXTRACHECKS\n");
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "EXTRACHECKS\n");
 #endif
 
 #ifdef CONFIG_SCST_TRACING
-	strcat(buf, "TRACING\n");
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "TRACING\n");
 #endif
 
 #ifdef CONFIG_SCST_DEBUG
-	strcat(buf, "DEBUG\n");
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "DEBUG\n");
 #endif
 
 	TRACE_EXIT();
-	return strlen(buf);
+
+	return ret;
 }
 
 static struct kobj_attribute scst_local_version_attr =
@@ -267,10 +271,10 @@ static struct kobj_attribute scst_local_version_attr =
 
 static ssize_t scst_local_stats_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	return sprintf(buf,
-		       "Aborts: %d, Device Resets: %d, Target Resets: %d\n",
-		       atomic_read(&num_aborts), atomic_read(&num_dev_resets),
-		       atomic_read(&num_target_resets));
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE,
+			 "Aborts: %d, Device Resets: %d, Target Resets: %d\n",
+			 atomic_read(&num_aborts), atomic_read(&num_dev_resets),
+			 atomic_read(&num_target_resets));
 }
 
 static struct kobj_attribute scst_local_stats_attr =
@@ -304,10 +308,10 @@ static ssize_t scst_local_scsi_transport_version_show(struct kobject *kobj,
 		goto out_up;
 
 	if (tgt->scsi_transport_version != 0)
-		res = sprintf(buf, "0x%x\n%s", tgt->scsi_transport_version,
-			      SCST_SYSFS_KEY_MARK "\n");
+		res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "0x%x\n%s",
+				tgt->scsi_transport_version, SCST_SYSFS_KEY_MARK "\n");
 	else
-		res = sprintf(buf, "0x%x\n", 0x0BE0); /* SAS */
+		res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "0x%x\n", 0x0BE0); /* SAS */
 
 out_up:
 	up_read(&scst_local_exit_rwsem);
@@ -372,8 +376,9 @@ static ssize_t scst_local_phys_transport_version_show(struct kobject *kobj,
 	if (!tgt)
 		goto out_up;
 
-	res = sprintf(buf, "0x%x\n%s", tgt->phys_transport_version,
-		      tgt->phys_transport_version != 0 ? SCST_SYSFS_KEY_MARK "\n" : "");
+	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "0x%x\n%s",
+			tgt->phys_transport_version,
+			tgt->phys_transport_version != 0 ? SCST_SYSFS_KEY_MARK "\n" : "");
 
 out_up:
 	up_read(&scst_local_exit_rwsem);
@@ -446,11 +451,11 @@ static struct kobj_attribute scst_local_host_no_attr = __ATTR_RO(host_no);
 static ssize_t scst_local_transport_id_show(struct kobject *kobj, struct kobj_attribute *attr,
 					    char *buf)
 {
-	ssize_t res;
 	struct scst_session *scst_sess;
 	struct scst_local_sess *sess;
 	uint8_t *tr_id;
 	int tr_id_len, i;
+	ssize_t res;
 
 	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
 		return -ENOENT;
@@ -471,7 +476,7 @@ static ssize_t scst_local_transport_id_show(struct kobject *kobj, struct kobj_at
 
 	res = 0;
 	for (i = 0; i < tr_id_len; i++)
-		res += sprintf(&buf[res], "%c", tr_id[i]);
+		res += scnprintf(buf + res, SCST_SYSFS_BLOCK_SIZE - res, "%c", tr_id[i]);
 
 	if (!sess->transport_id)
 		kfree(tr_id);
