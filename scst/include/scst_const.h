@@ -46,46 +46,46 @@
  * Changing it don't forget to change SCST_FIO_REV in scst_vdisk.c
  * and FIO_REV in usr/fileio/common.h as well.
  */
-#define SCST_VERSION(a, b, c, d)    (((a) << 24) + ((b) << 16) + ((c) << 8) + d)
-#define SCST_VERSION_CODE	    SCST_VERSION(3, 10, 0, 0)
+#define SCST_VERSION(a, b, c, d)	(((a) << 24) + ((b) << 16) + ((c) << 8) + (d))
+#define SCST_VERSION_CODE		SCST_VERSION(3, 10, 0, 0)
 
+#define SCST_VERSION_NAME		"3.10.0-pre"
 #define SCST_VERSION_STRING_SUFFIX
-#define SCST_VERSION_NAME	    "3.10.0-pre"
-#define SCST_VERSION_STRING	    SCST_VERSION_NAME SCST_VERSION_STRING_SUFFIX
+#define SCST_VERSION_STRING		SCST_VERSION_NAME SCST_VERSION_STRING_SUFFIX
 
 #ifdef SCST_REVISION
-#define SCST_REVISION_STRING SCST_STRINGIFY(SCST_REVISION)
+#define SCST_REVISION_STRING		SCST_STRINGIFY(SCST_REVISION)
 #else
-#define SCST_REVISION_STRING ""
+#define SCST_REVISION_STRING		""
 #endif
 
-#define SCST_CONST_VERSION SCST_CONST_INTF_VER
+#define SCST_CONST_VERSION		SCST_CONST_INTF_VER
 
 /*** Shared constants between user and kernel spaces ***/
 
 /* Max size of CDB */
-#define SCST_MAX_CDB_SIZE            16
+#define SCST_MAX_CDB_SIZE		16
 
 /* Max size of long CDB */
-#define SCST_MAX_LONG_CDB_SIZE	     65536
+#define SCST_MAX_LONG_CDB_SIZE		65536
 
 /* Max size of various names */
-#define SCST_MAX_NAME		     50
+#define SCST_MAX_NAME			50
 
 /* Max size of external names, like initiator name */
-#define SCST_MAX_EXTERNAL_NAME	     256
+#define SCST_MAX_EXTERNAL_NAME		256
 
 /* Max LUN. 2 bits are used for addressing method. */
-#define SCST_MAX_LUN		     ((1 << (16-2)) - 1)
+#define SCST_MAX_LUN			((1 << (16 - 2)) - 1)
 
 /*
  * Size of sense sufficient to carry standard sense data.
  * Warning! It's allocated on stack!
  */
-#define SCST_STANDARD_SENSE_LEN      18
+#define SCST_STANDARD_SENSE_LEN		18
 
 /* Max size of sense */
-#define SCST_SENSE_BUFFERSIZE        252
+#define SCST_SENSE_BUFFERSIZE		252
 
 /*************************************************************
  ** Allowed delivery statuses for cmd's delivery_status
@@ -202,47 +202,47 @@ enum scst_cdb_flags {
 	 * !! Both timeouts must be the lowest bits to match
 	 * !! scst_generic_parse() expectations!
 	 */
-	SCST_SMALL_TIMEOUT =			0x0001,
-	SCST_LONG_TIMEOUT =			0x0002,
+	SCST_SMALL_TIMEOUT		= 0x0001,
+	SCST_LONG_TIMEOUT		= 0x0002,
 #define	SCST_BOTH_TIMEOUTS	(SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)
-	SCST_TRANSFER_LEN_TYPE_FIXED =		0x0004,
-	SCST_UNKNOWN_LBA =			0x0008,
-	SCST_UNKNOWN_LENGTH =			0x0010,
-	SCST_INFO_VALID =			0x0020,
+	SCST_TRANSFER_LEN_TYPE_FIXED	= 0x0004,
+	SCST_UNKNOWN_LBA		= 0x0008,
+	SCST_UNKNOWN_LENGTH		= 0x0010,
+	SCST_INFO_VALID			= 0x0020,
 
 	/*
 	 * Set if LBA not defined for this CDB. The "NOT" approach
 	 * was used to make sure that all dev handlers either init
 	 * cmd->lba or set this flag (for backward compatibility)
 	 */
-	SCST_LBA_NOT_VALID =			0x0040,
+	SCST_LBA_NOT_VALID		= 0x0040,
 
-	SCST_IMPLICIT_HQ =			0x0080,
-	SCST_SKIP_UA =				0x0100,
-	SCST_WRITE_MEDIUM =			0x0200,
+	SCST_IMPLICIT_HQ		= 0x0080,
+	SCST_SKIP_UA			= 0x0100,
+	SCST_WRITE_MEDIUM		= 0x0200,
 	/*
 	 * Set if a command should be executed by the SCST core instead
 	 * of by the device handler.
 	 */
-	SCST_LOCAL_CMD =			0x0400,
+	SCST_LOCAL_CMD			= 0x0400,
 
 	/*
 	 * Set if CDB is fully locally handled by SCST. Dev handlers
 	 * parse() and dev_done() not called for such commands
 	 */
-	SCST_FULLY_LOCAL_CMD =			0x0800,
+	SCST_FULLY_LOCAL_CMD		= 0x0800,
 
-	SCST_REG_RESERVE_ALLOWED =		0x1000,
-	SCST_WRITE_EXCL_ALLOWED =		0x2000,
-	SCST_EXCL_ACCESS_ALLOWED =		0x4000,
+	SCST_REG_RESERVE_ALLOWED	= 0x1000,
+	SCST_WRITE_EXCL_ALLOWED		= 0x2000,
+	SCST_EXCL_ACCESS_ALLOWED	= 0x4000,
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-	SCST_TEST_IO_IN_SIRQ_ALLOWED =		0x8000,
+	SCST_TEST_IO_IN_SIRQ_ALLOWED	= 0x8000,
 #endif
-	SCST_SERIALIZED =		        0x10000,
-	SCST_STRICTLY_SERIALIZED =	        0x20000|SCST_SERIALIZED,
-	SCST_CAN_GEN_3PARTY_COMMANDS =	        0x40000,
-	SCST_DESCRIPTORS_BASED =	        0x80000,
-	SCST_SCSI_ATOMIC =		        0x100000,
+	SCST_SERIALIZED			= 0x10000,
+	SCST_STRICTLY_SERIALIZED	= 0x20000 | SCST_SERIALIZED,
+	SCST_CAN_GEN_3PARTY_COMMANDS	= 0x40000,
+	SCST_DESCRIPTORS_BASED		= 0x80000,
+	SCST_SCSI_ATOMIC		= 0x100000,
 };
 
 /*************************************************************
@@ -257,8 +257,7 @@ typedef enum scst_data_direction {
 	SCST_DATA_NONE		= 4,
 } scst_data_direction;
 
-#define SCST_DATA_DIR_MAX		(SCST_DATA_NONE+1)
-
+#define SCST_DATA_DIR_MAX		(SCST_DATA_NONE + 1)
 
 /*************************************************************
  ** Default suffix for targets with NULL names
@@ -272,12 +271,12 @@ typedef enum scst_data_direction {
 
 static inline int scst_sense_valid(const uint8_t *sense)
 {
-	return (sense != NULL) && ((sense[0] & 0x70) == 0x70);
+	return sense && ((sense[0] & 0x70) == 0x70);
 }
 
 static inline int scst_no_sense(const uint8_t *sense)
 {
-	return (sense != NULL) && (sense[2] == 0);
+	return sense && (sense[2] == 0);
 }
 
 static inline int scst_sense_response_code(const uint8_t *sense)
@@ -358,7 +357,6 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 
 /* MISCOMPARE is 0xe */
 #define scst_sense_miscompare_error		MISCOMPARE,      0x1D, 0
-
 
 /*************************************************************
  * SCSI opcodes not listed anywhere else
@@ -717,6 +715,5 @@ enum {
 
 /* Size of the lock value block in the DLM PR lockspace */
 #define PR_DLM_LVB_LEN 256
-
 
 #endif /* __SCST_CONST_H */

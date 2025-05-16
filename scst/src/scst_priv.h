@@ -55,7 +55,7 @@ extern unsigned long scst_trace_flag;
 
 #define TRACE_RETRY(args...)	TRACE_DBG_FLAG(TRACE_RTRY, args)
 #define TRACE_SN(args...)	TRACE_DBG_FLAG(TRACE_SCSI_SERIALIZING, args)
-#define TRACE_SN_SPECIAL(args...) TRACE_DBG_FLAG(TRACE_SCSI_SERIALIZING|TRACE_SPECIAL, args)
+#define TRACE_SN_SPECIAL(args...) TRACE_DBG_FLAG(TRACE_SCSI_SERIALIZING | TRACE_SPECIAL, args)
 
 #else /* CONFIG_SCST_DEBUG */
 
@@ -90,7 +90,7 @@ static inline void scst_set_cmd_state(struct scst_cmd *cmd,
  **/
 #define SCST_CMD_STATE_RES_CONT_NEXT         SCST_EXEC_COMPLETED
 #define SCST_CMD_STATE_RES_CONT_SAME         SCST_EXEC_NOT_COMPLETED
-#define SCST_CMD_STATE_RES_NEED_THREAD       (SCST_EXEC_NOT_COMPLETED+1)
+#define SCST_CMD_STATE_RES_NEED_THREAD       (SCST_EXEC_NOT_COMPLETED + 1)
 
 /**
  ** Maximum count of uncompleted commands that an initiator could
@@ -116,7 +116,7 @@ static inline void scst_set_cmd_state(struct scst_cmd *cmd,
 /* Used to prevent overflow of int cmd->bufflen. Assumes max blocksize is 4K */
 #define SCST_MAX_VALID_BUFFLEN_MASK	     (~((1 << (32 - 12)) - 1))
 
-#define SCST_MAX_EACH_INTERNAL_IO_SIZE	     (128*1024)
+#define SCST_MAX_EACH_INTERNAL_IO_SIZE	     (128 * 1024)
 #define SCST_MAX_IN_FLIGHT_INTERNAL_COMMANDS 32
 
 /*
@@ -231,7 +231,7 @@ static inline bool scst_set_io_context(struct scst_cmd *cmd,
 #else
 	bool res;
 
-	EXTRACHECKS_BUG_ON(old == NULL);
+	EXTRACHECKS_BUG_ON(!old);
 
 	if (cmd->cmd_threads == &scst_main_cmd_threads &&
 	    cmd->tgt_dev->async_io_context) {
@@ -243,9 +243,9 @@ static inline bool scst_set_io_context(struct scst_cmd *cmd,
 		*old = current->io_context;
 		current->io_context = cmd->tgt_dev->async_io_context;
 		res = true;
-		TRACE_DBG("io_context %p (tgt_dev %p)", current->io_context,
-			cmd->tgt_dev);
-		EXTRACHECKS_BUG_ON(current->io_context == NULL);
+		TRACE_DBG("io_context %p (tgt_dev %p)",
+			  current->io_context, cmd->tgt_dev);
+		EXTRACHECKS_BUG_ON(!current->io_context);
 	} else {
 		res = false;
 	}
@@ -254,23 +254,20 @@ static inline bool scst_set_io_context(struct scst_cmd *cmd,
 #endif
 }
 
-static inline void scst_reset_io_context(struct scst_tgt_dev *tgt_dev,
-	struct io_context *old)
+static inline void scst_reset_io_context(struct scst_tgt_dev *tgt_dev, struct io_context *old)
 {
 	current->io_context = old;
 	TRACE_DBG("io_context %p reset", current->io_context);
-	return;
 }
 
 /*
  * Converts string presentation of threads pool type to enum.
  * Returns SCST_THREADS_POOL_TYPE_INVALID if the string is invalid.
  */
-extern enum scst_dev_type_threads_pool_type scst_parse_threads_pool_type(
-	const char *p, int len);
+extern enum scst_dev_type_threads_pool_type scst_parse_threads_pool_type(const char *p, int len);
 
-extern int scst_add_threads(struct scst_cmd_threads *cmd_threads,
-	struct scst_device *dev, struct scst_tgt_dev *tgt_dev, int num);
+extern int scst_add_threads(struct scst_cmd_threads *cmd_threads, struct scst_device *dev,
+			    struct scst_tgt_dev *tgt_dev, int num);
 extern void scst_del_threads(struct scst_cmd_threads *cmd_threads, int num);
 
 extern int scst_create_dev_threads(struct scst_device *dev);
@@ -285,45 +282,40 @@ char *scst_get_cmd_state_name(char *name, int len, unsigned int state);
 char *scst_get_mcmd_state_name(char *name, int len, unsigned int state);
 char *scst_get_tm_fn_name(char *name, int len, unsigned int fn);
 
-extern struct scst_cmd *__scst_check_deferred_commands_locked(
-	struct scst_order_data *order_data, bool return_first);
-extern struct scst_cmd *__scst_check_deferred_commands(
-	struct scst_order_data *order_data, bool return_first);
+extern struct scst_cmd *__scst_check_deferred_commands_locked(struct scst_order_data *order_data,
+							      bool return_first);
+extern struct scst_cmd *__scst_check_deferred_commands(struct scst_order_data *order_data,
+						       bool return_first);
 
 /* Used to save the function call on the fast path */
-static inline struct scst_cmd *scst_check_deferred_commands(
-	struct scst_order_data *order_data, bool return_first)
+static inline struct scst_cmd *scst_check_deferred_commands(struct scst_order_data *order_data,
+							    bool return_first)
 {
 	if (order_data->def_cmd_count == 0)
 		return NULL;
-	else
-		return __scst_check_deferred_commands(order_data, return_first);
+
+	return __scst_check_deferred_commands(order_data, return_first);
 }
 
-static inline void scst_make_deferred_commands_active(
-	struct scst_order_data *order_data)
+static inline void scst_make_deferred_commands_active(struct scst_order_data *order_data)
 {
 	scst_check_deferred_commands(order_data, false);
-	return;
 }
 
 /*
  * sn_lock supposed to be locked and IRQs off. Might drop then reacquire
  * it inside.
  */
-static inline void scst_make_deferred_commands_active_locked(
-	struct scst_order_data *order_data)
+static inline void scst_make_deferred_commands_active_locked(struct scst_order_data *order_data)
 {
 	if (order_data->def_cmd_count != 0)
 		__scst_check_deferred_commands_locked(order_data, false);
-	return;
 }
 
 bool scst_inc_expected_sn(const struct scst_cmd *cmd);
 int scst_check_hq_cmd(struct scst_cmd *cmd);
 
-void scst_unblock_deferred(struct scst_order_data *order_data,
-	struct scst_cmd *cmd_sn);
+void scst_unblock_deferred(struct scst_order_data *order_data, struct scst_cmd *cmd_sn);
 
 void scst_on_hq_cmd_response(struct scst_cmd *cmd);
 void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd);
@@ -351,8 +343,8 @@ int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev);
 void scst_free_device(struct scst_device *dev);
 bool scst_device_is_exported(struct scst_device *dev);
 
-int scst_alloc_add_acg(struct scst_tgt *tgt, const char *acg_name,
-	bool tgt_acg, struct scst_acg **out_acg);
+int scst_alloc_add_acg(struct scst_tgt *tgt, const char *acg_name, bool tgt_acg,
+		       struct scst_acg **out_acg);
 int scst_del_free_acg(struct scst_acg *acg, bool close_sessions);
 void scst_get_acg(struct scst_acg *acg);
 void scst_put_acg(struct scst_acg *acg);
@@ -373,11 +365,9 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA);
 #define SCST_ADD_LUN_CM		4
 #define SCST_REPL_LUN_GEN_UA	8
 
-int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
-	struct scst_device *dev, uint64_t lun, unsigned int flags,
-	struct scst_acg_dev **out_acg_dev);
-int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
-	bool gen_report_luns_changed);
+int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent, struct scst_device *dev,
+		     uint64_t lun, unsigned int flags, struct scst_acg_dev **out_acg_dev);
+int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun, bool gen_report_luns_changed);
 int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 		      struct scst_device *dev, uint64_t lun,
 		      unsigned int flags);
@@ -395,17 +385,15 @@ static inline bool scst_acg_sess_is_empty(struct scst_acg *acg)
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd);
 int scst_finish_internal_cmd(struct scst_cmd *cmd);
 
-int scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
-	unsigned int len);
+int scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense, unsigned int len);
 void scst_store_sense(struct scst_cmd *cmd);
 
 int scst_process_check_condition(struct scst_cmd *cmd);
 
-int scst_assign_dev_handler(struct scst_device *dev,
-	struct scst_dev_type *handler);
+int scst_assign_dev_handler(struct scst_device *dev, struct scst_dev_type *handler);
 
 struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
-	const char *initiator_name);
+					const char *initiator_name);
 void scst_free_session(struct scst_session *sess);
 void scst_free_session_callback(struct scst_session *sess);
 
@@ -430,7 +418,9 @@ void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd);
 void scst_done_cmd_mgmt(struct scst_cmd *cmd);
 void scst_finish_cmd_mgmt(struct scst_cmd *cmd);
 
-static inline void scst_devt_cleanup(struct scst_dev_type *devt) { }
+static inline void scst_devt_cleanup(struct scst_dev_type *devt)
+{
+}
 
 void scst_tg_init(void);
 void scst_tg_cleanup(void);
@@ -456,14 +446,12 @@ void scst_tgt_sysfs_put(struct scst_tgt *tgt);
 int scst_dg_dev_sysfs_add(struct scst_dev_group *dg, struct scst_dg_dev *dgdev);
 void scst_dg_dev_sysfs_del(struct scst_dev_group *dg,
 			   struct scst_dg_dev *dgdev);
-int scst_tg_sysfs_add(struct scst_dev_group *dg,
-			 struct scst_target_group *tg);
+int scst_tg_sysfs_add(struct scst_dev_group *dg, struct scst_target_group *tg);
 void scst_tg_sysfs_del(struct scst_target_group *tg);
 int scst_tg_tgt_sysfs_add(struct scst_target_group *tg,
 			  struct scst_tg_tgt *tg_tgt);
 void scst_tg_tgt_sysfs_del(struct scst_target_group *tg,
 			   struct scst_tg_tgt *tg_tgt);
-
 
 extern const struct sysfs_ops scst_sysfs_ops;
 int scst_sysfs_init(void);
@@ -487,15 +475,12 @@ int scst_tgt_dev_sysfs_create(struct scst_tgt_dev *tgt_dev);
 void scst_tgt_dev_sysfs_del(struct scst_tgt_dev *tgt_dev);
 int scst_devt_dev_sysfs_create(struct scst_device *dev);
 void scst_devt_dev_sysfs_del(struct scst_device *dev);
-int scst_acg_sysfs_create(struct scst_tgt *tgt,
-	struct scst_acg *acg);
+int scst_acg_sysfs_create(struct scst_tgt *tgt, struct scst_acg *acg);
 void scst_acg_sysfs_del(struct scst_acg *acg);
-int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev,
-	struct kobject *parent);
+int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev, struct kobject *parent);
 void scst_acg_dev_sysfs_del(struct scst_acg_dev *acg_dev);
 int scst_acn_sysfs_create(struct scst_acn *acn);
 void scst_acn_sysfs_del(struct scst_acn *acn);
-
 
 /*
  * Check SPC-2 reservation state.
@@ -505,7 +490,6 @@ static inline bool scst_dev_reserved(struct scst_device *dev)
 {
 	return dev->cl_ops->reserved(dev);
 }
-
 
 /* Protect SPC-2 reservation state against concurrent modifications. */
 static inline void scst_res_lock(struct scst_device *dev,
@@ -529,7 +513,7 @@ static inline void scst_res_unlock(struct scst_device *dev,
 static inline bool scst_is_reservation_holder(struct scst_device *dev,
 					      struct scst_session *sess)
 {
-	EXTRACHECKS_BUG_ON(sess == NULL);
+	EXTRACHECKS_BUG_ON(!sess);
 	return dev->cl_ops->is_rsv_holder(dev, sess);
 }
 
@@ -540,7 +524,7 @@ static inline bool scst_is_reservation_holder(struct scst_device *dev,
 static inline bool scst_is_not_reservation_holder(struct scst_device *dev,
 						  struct scst_session *sess)
 {
-	EXTRACHECKS_BUG_ON(sess == NULL);
+	EXTRACHECKS_BUG_ON(!sess);
 	return dev->cl_ops->is_not_rsv_holder(dev, sess);
 }
 
@@ -548,7 +532,7 @@ static inline void scst_reserve_dev(struct scst_device *dev,
 				    struct scst_session *sess)
 {
 	lockdep_assert_held(&dev->dev_lock);
-	EXTRACHECKS_BUG_ON(sess == NULL);
+	EXTRACHECKS_BUG_ON(!sess);
 	dev->cl_ops->reserve(dev, sess);
 }
 
@@ -560,40 +544,37 @@ static inline void scst_clear_dev_reservation(struct scst_device *dev)
 
 void scst_tgt_dev_del_free_UA(struct scst_tgt_dev *tgt_dev,
 			      struct scst_tgt_dev_UA *ua);
-void scst_dev_check_set_UA(struct scst_device *dev,
-	struct scst_cmd *exclude, const uint8_t *sense, int sense_len);
-void scst_dev_check_set_local_UA(struct scst_device *dev,
-	struct scst_cmd *exclude, const uint8_t *sense, int sense_len);
+void scst_dev_check_set_UA(struct scst_device *dev, struct scst_cmd *exclude,
+			   const uint8_t *sense, int sense_len);
+void scst_dev_check_set_local_UA(struct scst_device *dev, struct scst_cmd *exclude,
+				 const uint8_t *sense, int sense_len);
 
 #define SCST_SET_UA_FLAG_AT_HEAD	1
 #define SCST_SET_UA_FLAG_GLOBAL		2
 
-void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
-	const uint8_t *sense, int sense_len, int flags);
+void scst_check_set_UA(struct scst_tgt_dev *tgt_dev, const uint8_t *sense, int sense_len,
+		       int flags);
 int scst_set_pending_UA(struct scst_cmd *cmd, uint8_t *buf, int *size);
 
 void scst_report_luns_changed(struct scst_acg *acg);
 
-void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd,
-	bool other_ini, bool call_dev_task_mgmt_fn);
-void scst_process_reset(struct scst_device *dev,
-	struct scst_session *originator, struct scst_cmd *exclude_cmd,
-	struct scst_mgmt_cmd *mcmd, bool setUA);
-void __scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
-	const struct scst_session *sess, const struct scst_device *device);
-void scst_unblock_aborted_cmds(const struct scst_tgt *tgt,
-	const struct scst_session *sess, const struct scst_device *device);
+void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd, bool other_ini,
+		    bool call_dev_task_mgmt_fn);
+void scst_process_reset(struct scst_device *dev, struct scst_session *originator,
+			struct scst_cmd *exclude_cmd, struct scst_mgmt_cmd *mcmd, bool setUA);
+void __scst_unblock_aborted_cmds(const struct scst_tgt *tgt, const struct scst_session *sess,
+				 const struct scst_device *device);
+void scst_unblock_aborted_cmds(const struct scst_tgt *tgt, const struct scst_session *sess,
+			       const struct scst_device *device);
 void scst_clear_aca(struct scst_tgt_dev *tgt_dev, bool other_ini);
 
 bool scst_is_ua_global(const uint8_t *sense, int len);
 void scst_requeue_ua(struct scst_cmd *cmd, const uint8_t *buf, int size);
 
-struct scst_aen *scst_alloc_aen(struct scst_session *sess,
-	uint64_t unpacked_lun);
+struct scst_aen *scst_alloc_aen(struct scst_session *sess, uint64_t unpacked_lun);
 void scst_free_aen(struct scst_aen *aen);
 
-void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
-	int key, int asc, int ascq);
+void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev, int key, int asc, int ascq);
 
 /*
  * Some notes on devices "blocking". Blocking means that no
@@ -692,24 +673,25 @@ static inline void scst_sess_put(struct scst_session *sess)
 	percpu_ref_put(&sess->refcnt);
 }
 
-struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb,
-	unsigned int cdb_len, gfp_t gfp_mask);
-int scst_pre_init_cmd(struct scst_cmd *cmd, const uint8_t *cdb,
-	unsigned int cdb_len, gfp_t gfp_mask);
+struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb, unsigned int cdb_len, gfp_t gfp_mask);
+int scst_pre_init_cmd(struct scst_cmd *cmd, const uint8_t *cdb, unsigned int cdb_len,
+		      gfp_t gfp_mask);
 void scst_free_cmd(struct scst_cmd *cmd);
 
 static inline void __scst_cmd_get(struct scst_cmd *cmd)
 {
 	atomic_inc(&cmd->cmd_ref);
 	smp_mb__after_atomic_inc();
+
 	TRACE_DBG("Incrementing cmd %p ref (new value %d)",
-		cmd, atomic_read(&cmd->cmd_ref));
+		  cmd, atomic_read(&cmd->cmd_ref));
 }
 
 static inline void __scst_cmd_put(struct scst_cmd *cmd)
 {
 	TRACE_DBG("Decrementing cmd %p ref (new value %d)",
-		cmd, atomic_read(&cmd->cmd_ref)-1);
+		  cmd, atomic_read(&cmd->cmd_ref) - 1);
+
 	if (atomic_dec_and_test(&cmd->cmd_ref))
 		scst_free_cmd(cmd);
 }
@@ -729,19 +711,19 @@ void scst_vfs_unlink_and_put(struct path *path);
 
 int scst_copy_file(const char *src, const char *dest);
 
-struct scst_cmd *__scst_create_prepare_internal_cmd(const uint8_t *cdb,
-	unsigned int cdb_len, enum scst_cmd_queue_type queue_type,
-	struct scst_tgt_dev *tgt_dev, gfp_t gfp_mask, bool fantom);
+struct scst_cmd *__scst_create_prepare_internal_cmd(const uint8_t *cdb, unsigned int cdb_len,
+						    enum scst_cmd_queue_type queue_type,
+						    struct scst_tgt_dev *tgt_dev, gfp_t gfp_mask,
+						    bool fantom);
 
-static inline bool scst_lba1_inside_lba2(int64_t lba1,
-	int64_t lba2, int64_t lba2_blocks)
+static inline bool scst_lba1_inside_lba2(int64_t lba1, int64_t lba2, int64_t lba2_blocks)
 {
 	bool res;
 
-	TRACE_DBG("lba1 %lld, lba2 %lld, lba2_blocks %lld", (long long)lba1,
-		(long long)lba2, (long long)lba2_blocks);
+	TRACE_DBG("lba1 %lld, lba2 %lld, lba2_blocks %lld",
+		  (long long)lba1, (long long)lba2, (long long)lba2_blocks);
 
-	if ((lba1 >= lba2) && (lba1 < (lba2 + lba2_blocks)))
+	if (lba1 >= lba2 && (lba1 < (lba2 + lba2_blocks)))
 		res = true;
 	else
 		res = false;
@@ -750,17 +732,14 @@ static inline bool scst_lba1_inside_lba2(int64_t lba1,
 	return res;
 }
 
-
 void scst_cm_update_dev(struct scst_device *dev);
 int scst_cm_on_dev_register(struct scst_device *dev);
 void scst_cm_on_dev_unregister(struct scst_device *dev);
 
 int scst_cm_on_add_acg(struct scst_acg *acg);
 void scst_cm_on_del_acg(struct scst_acg *acg);
-int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun,
-	unsigned int *flags);
-bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev,
-	bool gen_report_luns_changed);
+int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun, unsigned int *flags);
+bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev, bool gen_report_luns_changed);
 
 int scst_cm_parse_descriptors(struct scst_cmd *cmd);
 void scst_cm_free_descriptors(struct scst_cmd *cmd);
@@ -779,23 +758,30 @@ bool scst_cm_ec_cmd_overlap(struct scst_cmd *ec_cmd, struct scst_cmd *cmd);
 int scst_cm_init(void);
 void scst_cm_exit(void);
 
-
 #ifdef CONFIG_SCST_DEBUG_TM
 extern void tm_dbg_check_released_cmds(void);
 extern int tm_dbg_check_cmd(struct scst_cmd *cmd);
 extern void tm_dbg_release_cmd(struct scst_cmd *cmd);
-extern void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn,
-	int force);
+extern void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn, int force);
 extern int tm_dbg_is_release(void);
 #else
-static inline void tm_dbg_check_released_cmds(void) {}
+static inline void tm_dbg_check_released_cmds(void)
+{
+}
+
 static inline int tm_dbg_check_cmd(struct scst_cmd *cmd)
 {
 	return 0;
 }
-static inline void tm_dbg_release_cmd(struct scst_cmd *cmd) {}
-static inline void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn,
-	int force) {}
+
+static inline void tm_dbg_release_cmd(struct scst_cmd *cmd)
+{
+}
+
+static inline void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn, int force)
+{
+}
+
 static inline int tm_dbg_is_release(void)
 {
 	return 0;
@@ -805,24 +791,24 @@ static inline int tm_dbg_is_release(void)
 #ifdef CONFIG_SCST_DEBUG_SN
 void scst_check_debug_sn(struct scst_cmd *cmd);
 #else
-static inline void scst_check_debug_sn(struct scst_cmd *cmd) {}
+static inline void scst_check_debug_sn(struct scst_cmd *cmd)
+{
+}
 #endif
 
 static inline int scst_sn_before(uint32_t seq1, uint32_t seq2)
 {
-	return (int32_t)(seq1-seq2) < 0;
+	return (int32_t)(seq1 - seq2) < 0;
 }
 
 int gen_relative_target_port_id(uint16_t *id);
-bool scst_is_relative_target_port_id_unique(uint16_t id,
-	const struct scst_tgt *t);
+bool scst_is_relative_target_port_id_unique(uint16_t id, const struct scst_tgt *t);
 
 int scst_event_init(void);
 void scst_event_exit(void);
 
 int scst_event_queue_lun_not_found(const struct scst_cmd *cmd);
-int scst_event_queue_negative_luns_inquiry(const struct scst_tgt *tgt,
-	const char *initiator_name);
+int scst_event_queue_negative_luns_inquiry(const struct scst_tgt *tgt, const char *initiator_name);
 int scst_event_queue_ext_blocking_done(struct scst_device *dev, void *data, int len);
 int scst_event_queue_tm_fn_received(struct scst_mgmt_cmd *mcmd);
 int scst_event_queue_reg_vdev(const char *dev_name);
