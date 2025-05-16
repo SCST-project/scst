@@ -71,6 +71,7 @@ ISCSI_DIR = iscsi-scst
 
 BUILD_DATE := $(shell date -u '+%Y/%m/%d-%H:%M:%S-%Z%:z')
 GIT_COMMIT := $(shell git rev-parse --short=12 HEAD 2>/dev/null)
+KVER_SEMVER := $(shell echo ${KVER} | cut -d'-' -f1)
 
 ifndef BUILD_NUMBER
 BUILD_NUMBER := $(shell git rev-list --count HEAD 2>/dev/null || echo 0)
@@ -80,7 +81,7 @@ ifndef ARCH_TYPE
 ARCH_TYPE := $(shell uname -m)
 endif
 
-export KVER BUILD_DATE GIT_COMMIT BUILD_NUMBER ARCH_TYPE
+export KVER BUILD_DATE GIT_COMMIT KVER_SEMVER BUILD_NUMBER ARCH_TYPE
 
 RELEASE_VERSION := $(shell echo -n "$$(sed -n 's/^\#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^-]*\).*\"/\1/p' scst/include/scst_const.h)")
 
