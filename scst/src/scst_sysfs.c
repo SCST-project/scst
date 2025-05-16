@@ -3987,7 +3987,7 @@ static ssize_t scst_dev_dif_mode_show(struct kobject *kobj, struct kobj_attribut
 
 		if (dev->dev_dif_mode & SCST_DIF_MODE_TGT)
 			ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
-					 "%s%s", ret == pos ? "" : "|", SCST_DIF_MODE_TGT_STR);
+					 "%s", SCST_DIF_MODE_TGT_STR);
 
 		if (dev->dev_dif_mode & SCST_DIF_MODE_SCST)
 			ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
@@ -7446,14 +7446,14 @@ static ssize_t scst_version_show(struct kobject *kobj,
 	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "SCST version: %s\n",
 			 SCST_VERSION_STRING);
 
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "SCST kver: %s\n",
-			 SCST_KVER_STRING);
-
 	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "SCST build date: %s\n",
 			 SCST_BUILD_DATE_STRING);
 
 	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "SCST git commit sha1: %s\n",
 			 SCST_GIT_COMMIT_STRING);
+
+	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "SCST kver: %s\n",
+			 SCST_KVER_STRING);
 
 	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "SCST build number: %s\n",
 			 SCST_BUILD_NUMBER_STRING);

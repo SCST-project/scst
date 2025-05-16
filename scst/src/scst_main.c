@@ -2475,9 +2475,9 @@ static int __init init_scst(void)
 		   scst_max_cmd_mem, scst_max_dev_cmd_mem);
 #endif
 	PRINT_INFO("SCST version: %s", SCST_VERSION_STRING);
-	PRINT_INFO("SCST kver: %s", SCST_KVER_STRING);
 	PRINT_INFO("SCST build date: %s", SCST_BUILD_DATE_STRING);
 	PRINT_INFO("SCST git commit sha1: %s", SCST_GIT_COMMIT_STRING);
+	PRINT_INFO("SCST kver: %s", SCST_KVER_STRING);
 	PRINT_INFO("SCST build number: %s", SCST_BUILD_NUMBER_STRING);
 	PRINT_INFO("SCST arch type: %s", SCST_ARCH_TYPE_STRING);
 	scst_print_config();
@@ -2632,8 +2632,8 @@ MODULE_AUTHOR("Vladislav Bolkhovitin");
 MODULE_LICENSE("GPL");
 MODULE_DESCRIPTION("SCSI target core");
 MODULE_VERSION(SCST_VERSION_STRING);
-MODULE_INFO(kver, SCST_KVER_STRING);
 MODULE_INFO(build_date, SCST_BUILD_DATE_STRING);
 MODULE_INFO(git_commit, SCST_GIT_COMMIT_STRING);
+MODULE_INFO(kver, SCST_KVER_STRING);
 MODULE_INFO(build_number, SCST_BUILD_NUMBER_STRING);
 MODULE_INFO(arch_type, SCST_ARCH_TYPE_STRING);
