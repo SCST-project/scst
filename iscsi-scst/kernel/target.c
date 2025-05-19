@@ -577,8 +577,10 @@ static ssize_t iscsi_acg_sess_dedicated_threads_show(struct kobject *kobj,
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 	dedicated = scst_get_acg_tgt_priv(acg);
 
-	ret = sysfs_emit(buf, "%d\n%s",
-			 dedicated, dedicated ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = sysfs_emit(buf, "%d\n", dedicated);
+
+	if (dedicated)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT_RES(ret);
 	return ret;

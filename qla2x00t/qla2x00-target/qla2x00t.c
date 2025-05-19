@@ -6616,9 +6616,10 @@ static ssize_t q2t_show_expl_conf_enabled(struct kobject *kobj, struct kobj_attr
 
 	vha = tgt->vha;
 
-	res = sysfs_emit(buffer, "%d\n%s",
-			 vha->hw->enable_explicit_conf,
-			 vha->hw->enable_explicit_conf ? SCST_SYSFS_KEY_MARK "\n" : "");
+	res = sysfs_emit(buffer, "%d\n", vha->hw->enable_explicit_conf);
+
+	if (vha->hw->enable_explicit_conf)
+		res += sysfs_emit_at(buffer, res, "%s\n", SCST_SYSFS_KEY_MARK);
 
 out:
 	return res;

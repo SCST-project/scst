@@ -3715,10 +3715,10 @@ static ssize_t scst_cm_allow_not_conn_copy_show(struct kobject *kobj, struct kob
 
 	TRACE_ENTRY();
 
-	ret = sysfs_emit(buf, "%d\n%s",
-			 scst_cm_allow_not_connected_copy,
-			 scst_cm_allow_not_connected_copy == SCST_ALLOW_NOT_CONN_COPY_DEF ?
-			 "" : SCST_SYSFS_KEY_MARK "\n");
+	ret = sysfs_emit(buf, "%d\n", scst_cm_allow_not_connected_copy);
+
+	if (scst_cm_allow_not_connected_copy != SCST_ALLOW_NOT_CONN_COPY_DEF)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT_RES(ret);
 	return ret;
