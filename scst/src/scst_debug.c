@@ -60,8 +60,8 @@ static inline int get_current_tid(void)
  *
  * Adds, if requested by trace_flag, debug prefix in the beginning
  */
-int debug_print_with_prefix(unsigned long trace_flag, const char *severity,
-	const char *prefix, const char *func, int line, const char *fmt, ...)
+int debug_print_with_prefix(unsigned long trace_flag, const char *severity, const char *prefix,
+			    const char *func, int line, const char *fmt, ...)
 {
 	int i;
 	unsigned long flags;
@@ -75,7 +75,7 @@ int debug_print_with_prefix(unsigned long trace_flag, const char *severity,
 
 	if (trace_flag & TRACE_PID)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "[%d]: ", pid);
-	if (prefix != NULL)
+	if (prefix)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s: ",
 			      prefix);
 	if (trace_flag & TRACE_FUNCTION)
@@ -103,10 +103,10 @@ EXPORT_SYMBOL(debug_print_with_prefix);
 void debug_print_buffer(const void *data, int len)
 {
 	int z, z1, i;
-	const unsigned char *buf = (const unsigned char *) data;
+	const unsigned char *buf = (const unsigned char *)data;
 	unsigned long flags;
 
-	if (buf == NULL)
+	if (!buf)
 		return;
 
 	spin_lock_irqsave(&trace_buf_lock, flags);
@@ -119,8 +119,7 @@ void debug_print_buffer(const void *data, int len)
 					      " ");
 				for (; (z1 < z) && (i < TRACE_BUF_SIZE - 1);
 				     z1++) {
-					if ((buf[z1] >= 0x20) &&
-					    (buf[z1] < 0x80))
+					if (buf[z1] >= 0x20 && buf[z1] < 0x80)
 						trace_buf[i++] = buf[z1];
 					else
 						trace_buf[i++] = '.';
@@ -138,7 +137,7 @@ void debug_print_buffer(const void *data, int len)
 
 	i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "  ");
 	for (; (z1 < z) && (i < TRACE_BUF_SIZE - 1); z1++) {
-		if ((buf[z1] > 0x20) && (buf[z1] < 0x80))
+		if (buf[z1] > 0x20 && buf[z1] < 0x80)
 			trace_buf[i++] = buf[z1];
 		else
 			trace_buf[i++] = '.';
@@ -148,7 +147,6 @@ void debug_print_buffer(const void *data, int len)
 	PRINT(KERN_INFO, "%s", trace_buf);
 
 	spin_unlock_irqrestore(&trace_buf_lock, flags);
-	return;
 }
 EXPORT_SYMBOL(debug_print_buffer);
 
@@ -175,7 +173,7 @@ const char *debug_transport_id_to_initiator_name(const uint8_t *transport_id)
 	char *name_buf;
 	unsigned long flags;
 
-	sBUG_ON(transport_id == NULL); /* better to catch it not under lock */
+	sBUG_ON(!transport_id); /* better to catch it not under lock */
 
 	spin_lock_irqsave(&trace_buf_lock, flags);
 
@@ -190,50 +188,48 @@ const char *debug_transport_id_to_initiator_name(const uint8_t *transport_id)
 
 	switch (transport_id[0] & 0x0f) {
 	case SCSI_TRANSPORTID_PROTOCOLID_ISCSI:
-		scnprintf(name_buf, SIZEOF_NAME_BUF, "%s",
-			&transport_id[4]);
+		scnprintf(name_buf, SIZEOF_NAME_BUF, "%s", &transport_id[4]);
 		break;
 	case SCSI_TRANSPORTID_PROTOCOLID_FCP2:
 		scnprintf(name_buf, SIZEOF_NAME_BUF,
-			"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
-			transport_id[8], transport_id[9],
-			transport_id[10], transport_id[11],
-			transport_id[12], transport_id[13],
-			transport_id[14], transport_id[15]);
+			  "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+			  transport_id[8], transport_id[9],
+			  transport_id[10], transport_id[11],
+			  transport_id[12], transport_id[13],
+			  transport_id[14], transport_id[15]);
 		break;
 	case SCSI_TRANSPORTID_PROTOCOLID_SPI5:
 		scnprintf(name_buf, SIZEOF_NAME_BUF,
-			"%x:%x", be16_to_cpu((__force __be16)transport_id[2]),
-			be16_to_cpu((__force __be16)transport_id[6]));
+			  "%x:%x", be16_to_cpu((__force __be16)transport_id[2]),
+			  be16_to_cpu((__force __be16)transport_id[6]));
 		break;
 	case SCSI_TRANSPORTID_PROTOCOLID_SRP:
 		scnprintf(name_buf, SIZEOF_NAME_BUF,
-			"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x"
-			":%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
-			transport_id[8], transport_id[9],
-			transport_id[10], transport_id[11],
-			transport_id[12], transport_id[13],
-			transport_id[14], transport_id[15],
-			transport_id[16], transport_id[17],
-			transport_id[18], transport_id[19],
-			transport_id[20], transport_id[21],
-			transport_id[22], transport_id[23]);
+			  "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+			  transport_id[8], transport_id[9],
+			  transport_id[10], transport_id[11],
+			  transport_id[12], transport_id[13],
+			  transport_id[14], transport_id[15],
+			  transport_id[16], transport_id[17],
+			  transport_id[18], transport_id[19],
+			  transport_id[20], transport_id[21],
+			  transport_id[22], transport_id[23]);
 		break;
 	case SCSI_TRANSPORTID_PROTOCOLID_SAS:
 		scnprintf(name_buf, SIZEOF_NAME_BUF,
-			"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
-			transport_id[4], transport_id[5],
-			transport_id[6], transport_id[7],
-			transport_id[8], transport_id[9],
-			transport_id[10], transport_id[11]);
+			  "%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
+			  transport_id[4], transport_id[5],
+			  transport_id[6], transport_id[7],
+			  transport_id[8], transport_id[9],
+			  transport_id[10], transport_id[11]);
 		break;
 	case SCST_TRANSPORTID_PROTOCOLID_COPY_MGR:
 		scnprintf(name_buf, SIZEOF_NAME_BUF,
-			"%s", &transport_id[2]);
+			  "%s", &transport_id[2]);
 		break;
 	default:
 		scnprintf(name_buf, SIZEOF_NAME_BUF,
-			"(Not known protocol ID %x)", transport_id[0] & 0x0f);
+			  "(Not known protocol ID %x)", transport_id[0] & 0x0f);
 		break;
 	}
 
