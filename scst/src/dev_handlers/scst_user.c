@@ -3897,10 +3897,10 @@ out:
 static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj, struct kobj_attribute *attr,
 					    char *buf)
 {
-	int pos = 0, ppos, i;
 	struct scst_device *dev;
 	struct scst_user_dev *udev;
 	unsigned long flags;
+	int i, ret = 0, pos;
 
 	TRACE_ENTRY();
 
@@ -3913,26 +3913,24 @@ static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj, struct kobj_at
 		struct scst_user_cmd *ucmd;
 
 		list_for_each_entry(ucmd, head, hash_list_entry) {
-			ppos = pos;
-			pos += scnprintf(&buf[pos],
-					 SCST_SYSFS_BLOCK_SIZE - pos,
-					 "ucmd %p (state %x, ref %d), sent_to_user %d, seen_by_user %d, aborted %d, jammed %d, scst_cmd %p\n",
-					 ucmd, ucmd->state,
-					 atomic_read(&ucmd->ucmd_ref),
-					 ucmd->sent_to_user, ucmd->seen_by_user,
-					 ucmd->aborted, ucmd->jammed, ucmd->cmd);
-			if (pos >= SCST_SYSFS_BLOCK_SIZE - 1) {
-				ppos += scnprintf(&buf[ppos],
-					SCST_SYSFS_BLOCK_SIZE - ppos, "...\n");
-				pos = ppos;
+			pos = ret;
+			ret += sysfs_emit_at(buf, ret,
+					     "ucmd %p (state %x, ref %d), sent_to_user %d, seen_by_user %d, aborted %d, jammed %d, scst_cmd %p\n",
+					     ucmd, ucmd->state,
+					     atomic_read(&ucmd->ucmd_ref),
+					     ucmd->sent_to_user, ucmd->seen_by_user,
+					     ucmd->aborted, ucmd->jammed, ucmd->cmd);
+			if (ret >= SCST_SYSFS_BLOCK_SIZE - 1) {
+				pos += sysfs_emit_at(buf, pos, "...\n");
+				ret = pos;
 				break;
 			}
 		}
 	}
 	spin_unlock_irqrestore(&udev->udev_cmd_threads.cmd_list_lock, flags);
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static inline int test_cleanup_list(void)

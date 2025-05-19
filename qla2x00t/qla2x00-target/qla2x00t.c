@@ -6601,8 +6601,8 @@ out:
 }
 
 
-static ssize_t q2t_show_expl_conf_enabled(struct kobject *kobj,
-	struct kobj_attribute *attr, char *buffer)
+static ssize_t q2t_show_expl_conf_enabled(struct kobject *kobj, struct kobj_attribute *attr,
+					  char *buffer)
 {
 	struct scst_tgt *scst_tgt;
 	struct q2t_tgt *tgt;
@@ -6613,11 +6613,12 @@ static ssize_t q2t_show_expl_conf_enabled(struct kobject *kobj,
 	tgt = scst_tgt_get_tgt_priv(scst_tgt);
 	if (!tgt)
 		goto out;
+
 	vha = tgt->vha;
 
-	res = scnprintf(buffer, PAGE_SIZE, "%d\n%s",
-		    vha->hw->enable_explicit_conf,
-		    vha->hw->enable_explicit_conf ? SCST_SYSFS_KEY_MARK "\n" : "");
+	res = sysfs_emit(buffer, "%d\n%s",
+			 vha->hw->enable_explicit_conf,
+			 vha->hw->enable_explicit_conf ? SCST_SYSFS_KEY_MARK "\n" : "");
 
 out:
 	return res;
@@ -6709,22 +6710,22 @@ static ssize_t q2t_version_show(struct kobject *kobj, struct kobj_attribute *att
 {
 	size_t ret = 0;
 
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "%s\n", Q2T_VERSION_STRING);
+	ret += sysfs_emit_at(buf, ret, "%s\n", Q2T_VERSION_STRING);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "EXTRACHECKS\n");
+	ret += sysfs_emit_at(buf, ret, "EXTRACHECKS\n");
 #endif
 
 #ifdef CONFIG_SCST_TRACING
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "TRACING\n");
+	ret += sysfs_emit_at(buf, ret, "TRACING\n");
 #endif
 
 #ifdef CONFIG_SCST_DEBUG
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "DEBUG\n");
+	ret += sysfs_emit_at(buf, ret, "DEBUG\n");
 #endif
 
 #ifdef CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "QLA_TGT_DEBUG_WORK_IN_THREAD\n");
+	ret += sysfs_emit_at(buf, ret, "QLA_TGT_DEBUG_WORK_IN_THREAD\n");
 #endif
 
 	TRACE_EXIT();
@@ -6733,7 +6734,7 @@ static ssize_t q2t_version_show(struct kobject *kobj, struct kobj_attribute *att
 
 static ssize_t q2t_hw_target_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n", 1);
+	return sysfs_emit(buf, "%d\n", 1);
 }
 
 static ssize_t q2t_node_name_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
@@ -6757,12 +6758,11 @@ static ssize_t q2t_node_name_show(struct kobject *kobj, struct kobj_attribute *a
 	if (res != 0)
 		goto out;
 
-	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n", wwn);
+	res = sysfs_emit(buf, "%s\n", wwn);
 
 	/* For virtual ports it's always key */
 	if (vha->node_name_set || (vha->vp_idx != 0))
-		res += scnprintf(buf + res, SCST_SYSFS_BLOCK_SIZE - res, "%s\n",
-				 SCST_SYSFS_KEY_MARK);
+		res += sysfs_emit_at(buf, res, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	kfree(wwn);
 
@@ -6860,12 +6860,11 @@ static ssize_t q2t_port_name_show(struct kobject *kobj, struct kobj_attribute *a
 	if (res != 0)
 		goto out;
 
-	res = scnprintf(buf, "%s\n", wwn);
+	res = sysfs_emit(buf, "%s\n", wwn);
 
 	/* For virtual ports it's always key */
 	if ((vha->vp_idx != 0) || vha->port_name_set)
-		res += scnprintf(buf + res, SCST_SYSFS_BLOCK_SIZE - res, "%s\n",
-				 SCST_SYSFS_KEY_MARK);
+		res += sysfs_emit_at(buf, res, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	kfree(wwn);
 
@@ -6958,7 +6957,7 @@ static ssize_t q2t_vp_parent_host_show(struct kobject *kobj, struct kobj_attribu
 	if (res != 0)
 		goto out;
 
-	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n%s\n", wwn, SCST_SYSFS_KEY_MARK);
+	res = sysfs_emit(buf, "%s\n%s\n", wwn, SCST_SYSFS_KEY_MARK);
 
 	kfree(wwn);
 

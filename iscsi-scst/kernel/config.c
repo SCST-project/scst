@@ -29,22 +29,22 @@ static ssize_t iscsi_version_show(struct kobject *kobj, struct kobj_attribute *a
 
 	TRACE_ENTRY();
 
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "%s\n", ISCSI_VERSION_STRING);
+	ret += sysfs_emit_at(buf, ret, "%s\n", ISCSI_VERSION_STRING);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "EXTRACHECKS\n");
+	ret += sysfs_emit_at(buf, ret, "EXTRACHECKS\n");
 #endif
 
 #ifdef CONFIG_SCST_TRACING
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "TRACING\n");
+	ret += sysfs_emit_at(buf, ret, "TRACING\n");
 #endif
 
 #ifdef CONFIG_SCST_DEBUG
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "DEBUG\n");
+	ret += sysfs_emit_at(buf, ret, "DEBUG\n");
 #endif
 
 #ifdef CONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "DEBUG_DIGEST_FAILURES\n");
+	ret += sysfs_emit_at(buf, ret, "DEBUG_DIGEST_FAILURES\n");
 #endif
 
 	TRACE_EXIT();
@@ -60,16 +60,16 @@ static ssize_t iscsi_open_state_show(struct kobject *kobj, struct kobj_attribute
 
 	switch (ctr_open_state) {
 	case ISCSI_CTR_OPEN_STATE_CLOSED:
-		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "closed\n");
+		ret = sysfs_emit(buf, "closed\n");
 		break;
 	case ISCSI_CTR_OPEN_STATE_OPEN:
-		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "open\n");
+		ret = sysfs_emit(buf, "open\n");
 		break;
 	case ISCSI_CTR_OPEN_STATE_CLOSING:
-		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "closing\n");
+		ret = sysfs_emit(buf, "closing\n");
 		break;
 	default:
-		ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "unknown\n");
+		ret = sysfs_emit(buf, "unknown\n");
 		break;
 	}
 
@@ -442,7 +442,7 @@ static ssize_t iscsi_attr_show(struct kobject *kobj, struct kobj_attribute *attr
 	if (pos != 0)
 		goto out;
 
-	pos = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n", (char *)value);
+	pos = sysfs_emit(buf, "%s\n", (char *)value);
 
 	kfree(value);
 

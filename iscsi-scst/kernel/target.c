@@ -404,7 +404,7 @@ static ssize_t iscsi_tgt_tid_show(struct kobject *kobj, struct kobj_attribute *a
 	if (!tgt)
 		goto out;
 
-	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%u\n", tgt->tid);
+	res = sysfs_emit(buf, "%u\n", tgt->tid);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -577,8 +577,8 @@ static ssize_t iscsi_acg_sess_dedicated_threads_show(struct kobject *kobj,
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 	dedicated = scst_get_acg_tgt_priv(acg);
 
-	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s",
-			dedicated, dedicated ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = sysfs_emit(buf, "%d\n%s",
+			 dedicated, dedicated ? SCST_SYSFS_KEY_MARK "\n" : "");
 
 	TRACE_EXIT_RES(ret);
 	return ret;

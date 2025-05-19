@@ -895,28 +895,27 @@ static ssize_t sqa_version_show(struct kobject *kobj,
 {
 	ssize_t ret = 0;
 
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret,
-			 "INTERFACE=%s\nSCST=%s\nQLOGIC=%s\n",
-			 SQA_VERSION, SCST_VERSION_NAME, QLA2XXX_VERSION);
+	ret += sysfs_emit_at(buf, ret, "INTERFACE=%s\nSCST=%s\nQLOGIC=%s\n",
+			     SQA_VERSION, SCST_VERSION_NAME, QLA2XXX_VERSION);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "EXTRACHECKS\n");
+	ret += sysfs_emit_at(buf, ret, "EXTRACHECKS\n");
 #endif
 
 #ifdef CONFIG_SCST_TRACING
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "TRACING\n");
+	ret += sysfs_emit_at(buf, ret, "TRACING\n");
 #endif
 
 #ifdef CONFIG_SCST_DEBUG
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "DEBUG\n");
+	ret += sysfs_emit_at(buf, ret, "DEBUG\n");
 #endif
 
 #ifdef CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "QLA_TGT_DEBUG_WORK_IN_THREAD\n");
+	ret += sysfs_emit_at(buf, ret, "QLA_TGT_DEBUG_WORK_IN_THREAD\n");
 #endif
 
 #ifdef CONFIG_QLA_TGT_DEBUG_SRR
-	ret += scnprintf(buf + ret, SCST_SYSFS_BLOCK_SIZE - ret, "DEBUG_SRR\n");
+	ret += sysfs_emit_at(buf, ret, "DEBUG_SRR\n");
 #endif
 
 	TRACE_EXIT();
@@ -935,8 +934,7 @@ static ssize_t sqa_hw_target_show(struct kobject *kobj,
 
 	tgt = sqa_tgt->qla_tgt;
 
-	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n",
-			 tgt->vha->vp_idx == 0 ? 1 : 0);
+	return sysfs_emit(buf, "%d\n", tgt->vha->vp_idx == 0 ? 1 : 0);
 }
 
 static ssize_t sqa_node_name_show(struct kobject *kobj,
@@ -973,11 +971,10 @@ static ssize_t sqa_node_name_show(struct kobject *kobj,
 	if (res != 0)
 		goto out;
 
-	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n", wwn);
+	res = sysfs_emit(buf, "%s\n", wwn);
 
 	if (ha->tgt.node_name_set)
-		res += scnprintf(buf + res, SCST_SYSFS_BLOCK_SIZE - res, "%s\n",
-				 SCST_SYSFS_KEY_MARK);
+		res += sysfs_emit_at(buf, res, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	kfree(wwn);
 
@@ -1072,7 +1069,7 @@ static ssize_t sqa_vp_parent_host_show(struct kobject *kobj,
 	if (res != 0)
 		goto out;
 
-	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n%s\n", wwn, SCST_SYSFS_KEY_MARK);
+	res = sysfs_emit(buf, "%s\n%s\n", wwn, SCST_SYSFS_KEY_MARK);
 
 	kfree(wwn);
 
@@ -1095,10 +1092,10 @@ static ssize_t sqa_show_expl_conf_enabled(struct kobject *kobj,
 	tgt = sqa_tgt->qla_tgt;
 	ha = tgt->ha;
 
-	return scnprintf(buffer, SCST_SYSFS_BLOCK_SIZE, "%d\n%s",
-			 ha->base_qpair->enable_explicit_conf,
-			 ha->base_qpair->enable_explicit_conf ?
-			 SCST_SYSFS_KEY_MARK "\n" : "");
+	return sysfs_emit(buffer, "%d\n%s",
+			  ha->base_qpair->enable_explicit_conf,
+			  ha->base_qpair->enable_explicit_conf ?
+			  SCST_SYSFS_KEY_MARK "\n" : "");
 }
 
 static ssize_t sqa_store_expl_conf_enabled(struct kobject *kobj,
