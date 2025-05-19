@@ -37,8 +37,11 @@
 #include <linux/iocontext.h>
 #include <linux/kobject_ns.h>
 #include <linux/scatterlist.h>	/* struct scatterlist */
+#include <linux/shrinker.h>
 #include <linux/slab.h>		/* kmalloc() */
 #include <linux/stddef.h>	/* sizeof_field() */
+#include <linux/string.h>
+#include <linux/sysfs.h>
 #include <linux/timer.h>
 #include <linux/vmalloc.h>
 #include <linux/workqueue.h>
@@ -1563,6 +1566,79 @@ static inline ssize_t strscpy(char *dest, const char *src, size_t count)
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
 /* See also commit b9b3259746d7 ("sysfs.h: add __ATTR_RW() macro") # v3.11. */
 #define __ATTR_RW(_name) __ATTR(_name, 0644, _name##_show, _name##_store)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) &&			\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(4, 9, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 260)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(4, 14, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 224)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(4, 19, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 179)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 4, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 103))
+/*
+ * See also commit 2efc459d06f1 ("sysfs: Add sysfs_emit and sysfs_emit_at to format sysfs output")
+ * # v5.10.
+ * See also commit f3c3dcf35532 # v4.9.260.
+ * See also commit 390881843b4f # v4.14.224.
+ * See also commit cb1f69d53ac8 # v4.19.179.
+ * See also commit 5f4243642873 # v5.4.103.
+ */
+static inline __printf(2, 3)
+int sysfs_emit(char *buf, const char *fmt, ...)
+{
+	va_list args;
+	int len;
+
+	if (WARN(!buf ||
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0)
+		/*
+		 * For kernel releases older than 4.20, using the SLUB allocator will cause
+		 * this alignment check to fail as that allocator did NOT align kmalloc
+		 * allocations on a PAGE_SIZE boundary.
+		 */
+		 false,
+#else
+		 offset_in_page(buf),
+#endif
+		 "invalid sysfs_emit: buf:%p\n", buf))
+		return 0;
+
+	va_start(args, fmt);
+	len = vscnprintf(buf, PAGE_SIZE, fmt, args);
+	va_end(args);
+
+	return len;
+}
+
+static inline __printf(3, 4)
+int sysfs_emit_at(char *buf, int at, const char *fmt, ...)
+{
+	va_list args;
+	int len;
+
+	if (WARN(!buf ||
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0)
+		/*
+		 * For kernel releases older than 4.20, using the SLUB allocator will cause
+		 * this alignment check to fail as that allocator did NOT align kmalloc
+		 * allocations on a PAGE_SIZE boundary.
+		 */
+		 false ||
+#else
+		 offset_in_page(buf) ||
+#endif
+		 at < 0 || at >= PAGE_SIZE,
+		 "invalid sysfs_emit_at: buf:%p at:%d\n", buf, at))
+		return 0;
+
+	va_start(args, fmt);
+	len = vscnprintf(buf + at, PAGE_SIZE - at, fmt, args);
+	va_end(args);
+
+	return len;
+}
 #endif
 
 /* <linux/t10-pi.h> */

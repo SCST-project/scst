@@ -35,43 +35,43 @@ static struct lockdep_map scst_conn_dep_map =
 	STATIC_LOCKDEP_MAP_INIT("iscsi_conn_kref", &scst_conn_key);
 #endif
 
-static int print_conn_state(char *p, size_t size, struct iscsi_conn *conn)
+static ssize_t print_conn_state(char *buf, size_t size, struct iscsi_conn *conn)
 {
-	int pos = 0;
+	ssize_t ret = 0;
 
 	if (conn->closing) {
-		pos += scnprintf(p, size, "closing");
+		ret += scnprintf(buf, size, "closing");
 		goto out;
 	}
 
 	switch (conn->rd_state) {
 	case ISCSI_CONN_RD_STATE_PROCESSING:
-		pos += scnprintf(&p[pos], size - pos, "read_processing ");
+		ret += scnprintf(buf + ret, size - ret, "read_processing ");
 		break;
 	case ISCSI_CONN_RD_STATE_IN_LIST:
-		pos += scnprintf(&p[pos], size - pos, "in_read_list ");
+		ret += scnprintf(buf + ret, size - ret, "in_read_list ");
 		break;
 	}
 
 	switch (conn->wr_state) {
 	case ISCSI_CONN_WR_STATE_PROCESSING:
-		pos += scnprintf(&p[pos], size - pos, "write_processing ");
+		ret += scnprintf(buf + ret, size - ret, "write_processing ");
 		break;
 	case ISCSI_CONN_WR_STATE_IN_LIST:
-		pos += scnprintf(&p[pos], size - pos, "in_write_list ");
+		ret += scnprintf(buf + ret, size - ret, "in_write_list ");
 		break;
 	case ISCSI_CONN_WR_STATE_SPACE_WAIT:
-		pos += scnprintf(&p[pos], size - pos, "space_waiting ");
+		ret += scnprintf(buf + ret, size - ret, "space_waiting ");
 		break;
 	}
 
 	if (test_bit(ISCSI_CONN_REINSTATING, &conn->conn_aflags))
-		pos += scnprintf(&p[pos], size - pos, "reinstating ");
-	else if (pos == 0)
-		pos += scnprintf(&p[pos], size - pos, "established idle ");
+		ret += scnprintf(buf + ret, size - ret, "reinstating ");
+	else if (ret == 0)
+		ret += scnprintf(buf + ret, size - ret, "established idle ");
 
 out:
-	return pos;
+	return ret;
 }
 
 static void iscsi_conn_release(struct kobject *kobj)
@@ -98,17 +98,17 @@ static ssize_t iscsi_get_initiator_ip(struct iscsi_conn *conn, char *buf, int si
 
 static ssize_t iscsi_conn_ip_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	int pos;
 	struct iscsi_conn *conn;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
 	conn = container_of(kobj, struct iscsi_conn, conn_kobj);
 
-	pos = iscsi_get_initiator_ip(conn, buf, SCST_SYSFS_BLOCK_SIZE);
+	ret = iscsi_get_initiator_ip(conn, buf, SCST_SYSFS_BLOCK_SIZE);
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static struct kobj_attribute iscsi_conn_ip_attr =
@@ -116,8 +116,8 @@ static struct kobj_attribute iscsi_conn_ip_attr =
 
 static ssize_t iscsi_get_target_ip(struct iscsi_conn *conn, char *buf, int size)
 {
-	int pos;
 	struct sock *sk;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
@@ -127,40 +127,40 @@ static ssize_t iscsi_get_target_ip(struct iscsi_conn *conn, char *buf, int size)
 	sk = conn->sock->sk;
 	switch (sk->sk_family) {
 	case AF_INET:
-		pos = scnprintf(buf, size, "%pI4", &inet_sk(sk)->inet_saddr);
+		ret = scnprintf(buf, size, "%pI4", &inet_sk(sk)->inet_saddr);
 		break;
 #ifdef CONFIG_IPV6
 	case AF_INET6:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0)
-		pos = scnprintf(buf, size, "[%pI6]", &inet6_sk(sk)->saddr);
+		ret = scnprintf(buf, size, "[%pI6]", &inet6_sk(sk)->saddr);
 #else
-		pos = scnprintf(buf, size, "[%pI6]", &sk->sk_v6_rcv_saddr);
+		ret = scnprintf(buf, size, "[%pI6]", &sk->sk_v6_rcv_saddr);
 #endif
 #endif
 		break;
 	default:
-		pos = scnprintf(buf, size, "Unknown family %d", sk->sk_family);
+		ret = scnprintf(buf, size, "Unknown family %d", sk->sk_family);
 		break;
 	}
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static ssize_t iscsi_conn_target_ip_show(struct kobject *kobj, struct kobj_attribute *attr,
 					 char *buf)
 {
-	int pos;
 	struct iscsi_conn *conn;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
 	conn = container_of(kobj, struct iscsi_conn, conn_kobj);
 
-	pos = iscsi_get_target_ip(conn, buf, SCST_SYSFS_BLOCK_SIZE);
+	ret = iscsi_get_target_ip(conn, buf, SCST_SYSFS_BLOCK_SIZE);
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static struct kobj_attribute iscsi_conn_target_ip_attr =
@@ -176,7 +176,7 @@ static ssize_t iscsi_conn_transport_show(struct kobject *kobj, struct kobj_attri
 
 	conn = container_of(kobj, struct iscsi_conn, conn_kobj);
 
-	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n", conn->transport->name);
+	ret = sysfs_emit(buf, "%s\n", conn->transport->name);
 
 	TRACE_EXIT_RES(ret);
 	return ret;
@@ -194,7 +194,7 @@ static ssize_t iscsi_conn_cid_show(struct kobject *kobj, struct kobj_attribute *
 
 	conn = container_of(kobj, struct iscsi_conn, conn_kobj);
 
-	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%u", conn->cid);
+	ret = sysfs_emit(buf, "%u", conn->cid);
 
 	TRACE_EXIT_RES(ret);
 	return ret;
@@ -205,17 +205,17 @@ static struct kobj_attribute iscsi_conn_cid_attr =
 
 static ssize_t iscsi_conn_state_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	int pos;
 	struct iscsi_conn *conn;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
 	conn = container_of(kobj, struct iscsi_conn, conn_kobj);
 
-	pos = print_conn_state(buf, SCST_SYSFS_BLOCK_SIZE, conn);
+	ret = print_conn_state(buf, SCST_SYSFS_BLOCK_SIZE, conn);
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static struct kobj_attribute iscsi_conn_state_attr =

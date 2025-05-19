@@ -388,8 +388,8 @@ static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
 	scst_sess = container_of(kobj, struct scst_session, sess_kobj);		\
 	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);	\
 										\
-	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n",			\
-			 iscsi_get_bool_value(sess->sess_params.name));		\
+	return sysfs_emit(buf, "%s\n",						\
+			  iscsi_get_bool_value(sess->sess_params.name));	\
 }										\
 										\
 static struct kobj_attribute iscsi_sess_attr_##name =				\
@@ -405,8 +405,8 @@ static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
 	scst_sess = container_of(kobj, struct scst_session, sess_kobj);		\
 	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);	\
 										\
-	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n",			\
-			 sess->sess_params.name);				\
+	return sysfs_emit(buf, "%d\n",						\
+			  sess->sess_params.name);				\
 }										\
 										\
 static struct kobj_attribute iscsi_sess_attr_##name =				\
@@ -423,8 +423,8 @@ static ssize_t iscsi_sess_show_##name(struct kobject *kobj,				\
 	scst_sess = container_of(kobj, struct scst_session, sess_kobj);			\
 	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);		\
 											\
-	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n",				\
-			 iscsi_get_digest_name(sess->sess_params.name, digest_name));	\
+	return sysfs_emit(buf, "%s\n",							\
+			  iscsi_get_digest_name(sess->sess_params.name, digest_name));	\
 }											\
 											\
 static struct kobj_attribute iscsi_sess_attr_##name =					\
@@ -451,7 +451,7 @@ static ssize_t iscsi_sess_sid_show(struct kobject *kobj, struct kobj_attribute *
 	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
 	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);
 
-	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%llx\n", sess->sid);
+	ret = sysfs_emit(buf, "%llx\n", sess->sid);
 
 	TRACE_EXIT_RES(ret);
 	return ret;
@@ -472,7 +472,7 @@ static ssize_t iscsi_sess_reinstating_show(struct kobject *kobj, struct kobj_att
 	scst_sess = container_of(kobj, struct scst_session, sess_kobj);
 	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);
 
-	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n", sess->sess_reinstating ? 1 : 0);
+	ret = sysfs_emit(buf, "%d\n", sess->sess_reinstating ? 1 : 0);
 
 	TRACE_EXIT_RES(ret);
 	return ret;
@@ -497,11 +497,11 @@ static ssize_t iscsi_sess_thread_pid_show(struct kobject *kobj, struct kobj_attr
 
 	mutex_lock(&thr_pool->tp_mutex);
 	list_for_each_entry(t, &thr_pool->threads_list, threads_list_entry)
-		res += scnprintf(buf + res, SCST_SYSFS_BLOCK_SIZE - res, "%d%s",
-				 task_pid_vnr(t->thr),
-				 list_is_last(&t->threads_list_entry,
-					      &thr_pool->threads_list) ?
-				 "\n" : " ");
+		res += sysfs_emit_at(buf, res, "%d%s",
+				     task_pid_vnr(t->thr),
+				     list_is_last(&t->threads_list_entry,
+						  &thr_pool->threads_list) ?
+				     "\n" : " ");
 	mutex_unlock(&thr_pool->tp_mutex);
 
 out:
