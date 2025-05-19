@@ -63,27 +63,26 @@ static inline int get_current_tid(void)
 int debug_print_with_prefix(unsigned long trace_flag, const char *severity, const char *prefix,
 			    const char *func, int line, const char *fmt, ...)
 {
-	int i;
-	unsigned long flags;
 	int pid = get_current_tid();
+	unsigned long flags;
 	va_list args;
+	int ret;
 
 	spin_lock_irqsave(&trace_buf_lock, flags);
 
 	strscpy(trace_buf, severity, TRACE_BUF_SIZE);
-	i = strlen(trace_buf);
+	ret = strlen(trace_buf);
 
 	if (trace_flag & TRACE_PID)
-		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "[%d]: ", pid);
+		ret += scnprintf(trace_buf + ret, TRACE_BUF_SIZE - ret, "[%d]: ", pid);
 	if (prefix)
-		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s: ",
-			      prefix);
+		ret += scnprintf(trace_buf + ret, TRACE_BUF_SIZE - ret, "%s: ", prefix);
 	if (trace_flag & TRACE_FUNCTION)
-		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s:", func);
+		ret += scnprintf(trace_buf + ret, TRACE_BUF_SIZE - ret, "%s:", func);
 	if (trace_flag & TRACE_LINE)
-		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%i:", line);
+		ret += scnprintf(trace_buf + ret, TRACE_BUF_SIZE - ret, "%i:", line);
 
-	i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s\n", fmt);
+	ret += scnprintf(trace_buf + ret, TRACE_BUF_SIZE - ret, "%s\n", fmt);
 
 	va_start(args, fmt);
 	vprintk(trace_buf, args);
@@ -91,7 +90,7 @@ int debug_print_with_prefix(unsigned long trace_flag, const char *severity, cons
 
 	spin_unlock_irqrestore(&trace_buf_lock, flags);
 
-	return i;
+	return ret;
 }
 EXPORT_SYMBOL(debug_print_with_prefix);
 
@@ -102,9 +101,9 @@ EXPORT_SYMBOL(debug_print_with_prefix);
  */
 void debug_print_buffer(const void *data, int len)
 {
-	int z, z1, i;
 	const unsigned char *buf = (const unsigned char *)data;
 	unsigned long flags;
+	int z, z1, i;
 
 	if (!buf)
 		return;
@@ -115,28 +114,27 @@ void debug_print_buffer(const void *data, int len)
 	for (z = 0, z1 = 0, i = 0; z < len; z++) {
 		if (z % 16 == 0) {
 			if (z != 0) {
-				i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i,
-					      " ");
-				for (; (z1 < z) && (i < TRACE_BUF_SIZE - 1);
-				     z1++) {
+				i += scnprintf(trace_buf + i, TRACE_BUF_SIZE - i, " ");
+
+				for (; z1 < z && i < TRACE_BUF_SIZE - 1; z1++) {
 					if (buf[z1] >= 0x20 && buf[z1] < 0x80)
 						trace_buf[i++] = buf[z1];
 					else
 						trace_buf[i++] = '.';
 				}
 				trace_buf[i] = '\0';
+
 				PRINT(KERN_INFO, "%s", trace_buf);
 				i = 0;
 			}
-			i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i,
-				      "%4x: ", z);
+			i += scnprintf(trace_buf + i, TRACE_BUF_SIZE - i, "%4x: ", z);
 		}
-		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%02x ",
-			      buf[z]);
+		i += scnprintf(trace_buf + i, TRACE_BUF_SIZE - i, "%02x ", buf[z]);
 	}
 
-	i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "  ");
-	for (; (z1 < z) && (i < TRACE_BUF_SIZE - 1); z1++) {
+	i += scnprintf(trace_buf + i, TRACE_BUF_SIZE - i, "  ");
+
+	for (; z1 < z && i < TRACE_BUF_SIZE - 1; z1++) {
 		if (buf[z1] > 0x20 && buf[z1] < 0x80)
 			trace_buf[i++] = buf[z1];
 		else

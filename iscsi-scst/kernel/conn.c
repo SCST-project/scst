@@ -169,17 +169,17 @@ static struct kobj_attribute iscsi_conn_target_ip_attr =
 static ssize_t iscsi_conn_transport_show(struct kobject *kobj, struct kobj_attribute *attr,
 					 char *buf)
 {
-	int pos;
 	struct iscsi_conn *conn;
+	ssize_t ret;
 
 	TRACE_ENTRY();
 
 	conn = container_of(kobj, struct iscsi_conn, conn_kobj);
 
-	pos = snprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n", conn->transport->name);
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n", conn->transport->name);
 
-	TRACE_EXIT_RES(pos);
-	return pos;
+	TRACE_EXIT_RES(ret);
+	return ret;
 }
 
 static struct kobj_attribute iscsi_conn_transport_attr =

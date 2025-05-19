@@ -6376,82 +6376,84 @@ out_done:
 static void vdisk_report_registering(const struct scst_vdisk_dev *virt_dev)
 {
 	enum { buf_size = 256 };
-	char *buf = kmalloc(buf_size, GFP_KERNEL);
-	int i, j;
+	char *buf;
+	int ret, pos;
 
+	buf = kmalloc(buf_size, GFP_KERNEL);
 	if (!buf) {
 		PRINT_ERROR("%s: out of memory", __func__);
 		return;
 	}
 
-	i = snprintf(buf, buf_size, "Registering virtual %s device %s ",
-		     virt_dev->vdev_devt->name, virt_dev->name);
-	j = i;
+	ret = scnprintf(buf, buf_size, "Registering virtual %s device %s ",
+			virt_dev->vdev_devt->name, virt_dev->name);
+	pos = ret;
 
 	if (virt_dev->wt_flag)
-		i += snprintf(&buf[i], buf_size - i, "(WRITE_THROUGH");
+		ret += scnprintf(buf + ret, buf_size - ret, "(WRITE_THROUGH");
 
 	if (virt_dev->nv_cache)
-		i += snprintf(&buf[i], buf_size - i, "%sNV_CACHE",
-			(j == i) ? "(" : ", ");
+		ret += scnprintf(buf + ret, buf_size - ret, "%sNV_CACHE",
+				 ret == pos ? "(" : ", ");
 
 	if (virt_dev->rd_only)
-		i += snprintf(&buf[i], buf_size - i, "%sREAD_ONLY",
-			(j == i) ? "(" : ", ");
+		ret += scnprintf(buf + ret, buf_size - ret, "%sREAD_ONLY",
+				 ret == pos ? "(" : ", ");
 
 	if (virt_dev->o_direct_flag)
-		i += snprintf(&buf[i], buf_size - i, "%sO_DIRECT",
-			(j == i) ? "(" : ", ");
+		ret += scnprintf(buf + ret, buf_size - ret, "%sO_DIRECT",
+				 ret == pos ? "(" : ", ");
 
 	if (virt_dev->nullio)
-		i += snprintf(&buf[i], buf_size - i, "%sNULLIO",
-			(j == i) ? "(" : ", ");
+		ret += scnprintf(buf + ret, buf_size - ret, "%sNULLIO",
+				 ret == pos ? "(" : ", ");
 
 	if (virt_dev->blockio)
-		i += snprintf(&buf[i], buf_size - i, "%sBLOCKIO",
-			(j == i) ? "(" : ", ");
+		ret += scnprintf(buf + ret, buf_size - ret, "%sBLOCKIO",
+				 ret == pos ? "(" : ", ");
 
 	if (virt_dev->removable)
-		i += snprintf(&buf[i], buf_size - i, "%sREMOVABLE",
-			(j == i) ? "(" : ", ");
+		ret += scnprintf(buf + ret, buf_size - ret, "%sREMOVABLE",
+				 ret == pos ? "(" : ", ");
 
 	if (!virt_dev->dev_active)
-		i += snprintf(&buf[i], buf_size - i, "%sINACTIVE",
-			(j == i) ? "(" : ", ");
+		ret += scnprintf(buf + ret, buf_size - ret, "%sINACTIVE",
+				 ret == pos ? "(" : ", ");
 
 	if (virt_dev->tst != DEF_TST)
-		i += snprintf(&buf[i], buf_size - i, "%sTST %d",
-			(j == i) ? "(" : ", ", virt_dev->tst);
+		ret += scnprintf(buf + ret, buf_size - ret, "%sTST %d",
+				 ret == pos ? "(" : ", ", virt_dev->tst);
 
 	if (virt_dev->rotational)
-		i += snprintf(&buf[i], buf_size - i, "%sROTATIONAL",
-			(j == i) ? "(" : ", ");
+		ret += scnprintf(buf + ret, buf_size - ret, "%sROTATIONAL",
+				 ret == pos ? "(" : ", ");
 
 	if (virt_dev->thin_provisioned)
-		i += snprintf(&buf[i], buf_size - i, "%sTHIN_PROVISIONED",
-			(j == i) ? "(" : ", ");
+		ret += scnprintf(buf + ret, buf_size - ret, "%sTHIN_PROVISIONED",
+				 ret == pos ? "(" : ", ");
 
 	if (virt_dev->dif_mode != SCST_DIF_MODE_NONE) {
-		i += snprintf(&buf[i], buf_size - i, "%sDIF MODE %x, DIF TYPE %d",
-			      (j == i) ? "(" : ", ",
-			      virt_dev->dif_mode, virt_dev->dif_type);
+		ret += scnprintf(buf + ret, buf_size - ret, "%sDIF MODE %x, DIF TYPE %d",
+				 ret == pos ? "(" : ", ",
+				 virt_dev->dif_mode, virt_dev->dif_type);
+
 		if (virt_dev->dif_filename)
-			i += snprintf(&buf[i], buf_size - i, ", DIF FILENAME %s",
-				virt_dev->dif_filename);
+			ret += scnprintf(buf + ret, buf_size - ret, ", DIF FILENAME %s",
+					 virt_dev->dif_filename);
 		else if (virt_dev->dif_static_app_tag_combined != SCST_DIF_NO_CHECK_APP_TAG)
-			i += snprintf(&buf[i], buf_size - i, ", DIF STATIC APP TAG %llx",
-				(long long)be64_to_cpu(virt_dev->dif_static_app_tag_combined));
+			ret += scnprintf(buf + ret, buf_size - ret, ", DIF STATIC APP TAG %llx",
+					 (long long)be64_to_cpu(virt_dev->dif_static_app_tag_combined));
 	}
 
 	if (virt_dev->async)
-		i += snprintf(&buf[i], buf_size - i, "%sASYNC",
-			(j == i) ? "(" : ", ");
+		ret += scnprintf(buf + ret, buf_size - ret, "%sASYNC",
+				 ret == pos ? "(" : ", ");
 
 	if (virt_dev->dummy)
-		i += snprintf(&buf[i], buf_size - i, "%sDUMMY",
-			(j == i) ? "(" : ", ");
+		ret += scnprintf(buf + ret, buf_size - ret, "%sDUMMY",
+				 ret == pos ? "(" : ", ");
 
-	PRINT_INFO("%s%s", buf, j == i ? "" : ")");
+	PRINT_INFO("%s%s", buf, ret == pos ? "" : ")");
 
 	kfree(buf);
 }
@@ -8150,9 +8152,9 @@ out_put:
 static ssize_t vdev_sysfs_filename_show(struct kobject *kobj, struct kobj_attribute *attr,
 					char *buf)
 {
-	int res = 0;
 	struct scst_device *dev;
 	struct scst_sysfs_work_item *work;
+	ssize_t res = 0;
 
 	TRACE_ENTRY();
 
@@ -8173,7 +8175,7 @@ static ssize_t vdev_sysfs_filename_show(struct kobject *kobj, struct kobj_attrib
 	if (res != 0)
 		goto out_put;
 
-	res = snprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n", work->res_buf);
+	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n", work->res_buf);
 
 out_put:
 	scst_sysfs_work_put(work);
@@ -9040,41 +9042,36 @@ static ssize_t vdev_sysfs_inq_vend_specific_show(struct kobject *kobj,
 						 struct kobj_attribute *attr,
 						 char *buf)
 {
-	int pos;
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
+	ssize_t ret;
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
 	read_lock(&vdisk_serial_rwlock);
-	pos = snprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%.*s\n%s",
-		       virt_dev->inq_vend_specific_len,
-		       virt_dev->inq_vend_specific,
-		       virt_dev->inq_vend_specific_len ?
-		       SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%.*s\n%s",
+			virt_dev->inq_vend_specific_len,
+			virt_dev->inq_vend_specific,
+			virt_dev->inq_vend_specific_len ? SCST_SYSFS_KEY_MARK "\n" : "");
 	read_unlock(&vdisk_serial_rwlock);
 
-	return pos;
+	return ret;
 }
 
 static ssize_t vdev_sysfs_active_show(struct kobject *kobj,
 				      struct kobj_attribute *attr,
 				      char *buf)
 {
-	int pos;
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 	virt_dev = dev->dh_priv;
 
-	pos = snprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s",
-		       virt_dev->dev_active,
-		       virt_dev->dev_active != DEF_DEV_ACTIVE ?
-			       SCST_SYSFS_KEY_MARK "\n" : "");
-
-	return pos;
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%d\n%s",
+			 virt_dev->dev_active,
+			 virt_dev->dev_active != DEF_DEV_ACTIVE ? SCST_SYSFS_KEY_MARK "\n" : "");
 }
 
 static int vdev_sysfs_process_active_store(struct scst_sysfs_work_item *work)

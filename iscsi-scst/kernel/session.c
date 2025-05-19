@@ -488,7 +488,7 @@ static ssize_t iscsi_sess_thread_pid_show(struct kobject *kobj, struct kobj_attr
 	struct iscsi_session *sess = scst_sess_get_tgt_priv(scst_sess);
 	struct iscsi_thread_pool *thr_pool = sess->sess_thr_pool;
 	struct iscsi_thread *t;
-	int res = -ENOENT;
+	ssize_t res = -ENOENT;
 
 	if (!thr_pool)
 		goto out;
@@ -497,7 +497,7 @@ static ssize_t iscsi_sess_thread_pid_show(struct kobject *kobj, struct kobj_attr
 
 	mutex_lock(&thr_pool->tp_mutex);
 	list_for_each_entry(t, &thr_pool->threads_list, threads_list_entry)
-		res += scnprintf(buf + res, PAGE_SIZE - res, "%d%s",
+		res += scnprintf(buf + res, SCST_SYSFS_BLOCK_SIZE - res, "%d%s",
 				 task_pid_vnr(t->thr),
 				 list_is_last(&t->threads_list_entry,
 					      &thr_pool->threads_list) ?

@@ -3954,12 +3954,12 @@ static ssize_t show_comp_v_mask(struct kobject *kobj,
 	if (!sport)
 		goto out;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
-	res = cpumask_scnprintf(buf, PAGE_SIZE, &sport->comp_v_mask);
+	res = cpumask_scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, &sport->comp_v_mask);
 #else
-	res = scnprintf(buf, PAGE_SIZE, "%*pb",
+	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%*pb",
 			cpumask_pr_args(&sport->comp_v_mask));
 #endif
-	res += scnprintf(&buf[res], PAGE_SIZE - res, "\n%s\n",
+	res += scnprintf(buf + res, SCST_SYSFS_BLOCK_SIZE - res, "\n%s\n",
 			 SCST_SYSFS_KEY_MARK);
 
 out:
@@ -4064,24 +4064,21 @@ out:
 static struct kobj_attribute srpt_link_layer_attr =
 	__ATTR(link_layer, S_IRUGO, srpt_show_link_layer, NULL);
 
-static ssize_t show_port_id(struct kobject *kobj, struct kobj_attribute *attr,
-			    char *buf)
+static ssize_t show_port_id(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
-						 tgt_kobj);
+	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
-	int res = -E_TGT_PRIV_NOT_YET_SET;
+	ssize_t res = -E_TGT_PRIV_NOT_YET_SET;
 
 	if (!sport)
 		goto out;
 
 	mutex_lock(&sport->mutex);
-	snprintf(buf, PAGE_SIZE, "%s\n%s", sport->port_id,
-		 strcmp(sport->port_id, DEFAULT_SRPT_ID_STRING) ?
-		 SCST_SYSFS_KEY_MARK "\n" : "");
+	res = scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%s\n%s",
+			sport->port_id,
+			strcmp(sport->port_id, DEFAULT_SRPT_ID_STRING) ?
+			SCST_SYSFS_KEY_MARK "\n" : "");
 	mutex_unlock(&sport->mutex);
-
-	res = strlen(buf);
 
 out:
 	return res;

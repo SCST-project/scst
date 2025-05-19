@@ -438,12 +438,15 @@ static const struct attribute *scst_local_tgt_attrs[] = {
 
 static ssize_t host_no_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	struct scst_session *scst_sess =
-		container_of(kobj, struct scst_session, sess_kobj);
+	struct scst_session *scst_sess = container_of(kobj, struct scst_session, sess_kobj);
 	struct scst_local_sess *sess = scst_sess_get_tgt_priv(scst_sess);
-	struct Scsi_Host *host = sess->shost;
+	struct Scsi_Host *host;
 
-	return host ? snprintf(buf, PAGE_SIZE, "%u\n", host->host_no) : -EINVAL;
+	host = sess->shost;
+	if (!host)
+		return -EINVAL;
+
+	return scnprintf(buf, SCST_SYSFS_BLOCK_SIZE, "%u\n", host->host_no);
 }
 
 static struct kobj_attribute scst_local_host_no_attr = __ATTR_RO(host_no);
