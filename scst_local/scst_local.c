@@ -376,9 +376,10 @@ static ssize_t scst_local_phys_transport_version_show(struct kobject *kobj,
 	if (!tgt)
 		goto out_up;
 
-	res = sysfs_emit(buf, "0x%x\n%s",
-			 tgt->phys_transport_version,
-			 tgt->phys_transport_version != 0 ? SCST_SYSFS_KEY_MARK "\n" : "");
+	res = sysfs_emit(buf, "0x%x\n", tgt->phys_transport_version);
+
+	if (tgt->phys_transport_version != 0)
+		res += sysfs_emit_at(buf, res, "%s\n", SCST_SYSFS_KEY_MARK);
 
 out_up:
 	up_read(&scst_local_exit_rwsem);

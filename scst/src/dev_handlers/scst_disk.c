@@ -562,12 +562,15 @@ out_complete:
 static ssize_t disk_sysfs_cluster_mode_show(struct kobject *kobj, struct kobj_attribute *attr,
 					    char *buf)
 {
-	struct scst_device *dev = container_of(kobj, struct scst_device,
-					       dev_kobj);
+	struct scst_device *dev = container_of(kobj, struct scst_device, dev_kobj);
+	ssize_t ret;
 
-	return sysfs_emit(buf, "%d\n%s",
-			  dev->cluster_mode,
-			  dev->cluster_mode ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = sysfs_emit(buf, "%d\n", dev->cluster_mode);
+
+	if (dev->cluster_mode)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
+
+	return ret;
 }
 
 static int disk_sysfs_process_cluster_mode_store(struct scst_sysfs_work_item *work)

@@ -2303,9 +2303,10 @@ static ssize_t scst_rel_tgt_id_show(struct kobject *kobj, struct kobj_attribute 
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
-	ret = sysfs_emit(buf, "%d\n%s",
-			 tgt->rel_tgt_id,
-			 tgt->rel_tgt_id != 0 ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = sysfs_emit(buf, "%d\n", tgt->rel_tgt_id);
+
+	if (tgt->rel_tgt_id)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT_RES(ret);
 	return ret;
@@ -2407,10 +2408,14 @@ static ssize_t scst_tgt_forward_src_show(struct kobject *kobj, struct kobj_attri
 					 char *buf)
 {
 	struct scst_tgt *tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	ssize_t ret;
 
-	return sysfs_emit(buf, "%d\n%s",
-			  tgt->tgt_forward_src,
-			  tgt->tgt_forward_src ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = sysfs_emit(buf, "%d\n", tgt->tgt_forward_src);
+
+	if (tgt->tgt_forward_src)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
+
+	return ret;
 }
 
 static ssize_t scst_tgt_forward_src_store(struct kobject *kobj, struct kobj_attribute *attr,
@@ -2451,9 +2456,10 @@ static ssize_t scst_tgt_forward_dst_show(struct kobject *kobj, struct kobj_attri
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
-	ret = sysfs_emit(buf, "%d\n%s",
-			 tgt->tgt_forward_dst,
-			 tgt->tgt_forward_dst ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = sysfs_emit(buf, "%d\n", tgt->tgt_forward_dst);
+
+	if (tgt->tgt_forward_dst)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT_RES(ret);
 	return ret;
@@ -2552,9 +2558,10 @@ static ssize_t scst_tgt_aen_disabled_show(struct kobject *kobj, struct kobj_attr
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 
-	ret = sysfs_emit(buf, "%d\n%s",
-			 tgt->tgt_aen_disabled,
-			 tgt->tgt_aen_disabled ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = sysfs_emit(buf, "%d\n", tgt->tgt_aen_disabled);
+
+	if (tgt->tgt_aen_disabled)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT_RES(ret);
 	return ret;
@@ -3101,9 +3108,12 @@ static ssize_t scst_dev_sysfs_pr_file_name_show(struct kobject *kobj,
 	res = mutex_lock_interruptible(&dev->dev_pr_mutex);
 	if (res != 0)
 		goto out;
-	res = sysfs_emit(buf, "%s\n%s",
-			 dev->pr_file_name ? : "",
-			 dev->pr_file_name_is_set ? SCST_SYSFS_KEY_MARK "\n" : "");
+
+	res = sysfs_emit(buf, "%s\n", dev->pr_file_name ? : "");
+
+	if (dev->pr_file_name_is_set)
+		res += sysfs_emit_at(buf, res, "%s\n", SCST_SYSFS_KEY_MARK);
+
 	mutex_unlock(&dev->dev_pr_mutex);
 
 out:
@@ -3342,10 +3352,10 @@ static ssize_t scst_dev_sysfs_threads_num_show(struct kobject *kobj, struct kobj
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-	ret = sysfs_emit(buf, "%d\n%s",
-			 dev->threads_num,
-			 dev->threads_num != dev->handler->threads_num ?
-			 SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = sysfs_emit(buf, "%d\n", dev->threads_num);
+
+	if (dev->threads_num != dev->handler->threads_num)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT_RES(ret);
 	return ret;
@@ -3421,16 +3431,16 @@ static ssize_t scst_dev_sysfs_threads_pool_type_show(struct kobject *kobj,
 
 	switch (dev->threads_pool_type) {
 	case SCST_THREADS_POOL_PER_INITIATOR:
-		ret = sysfs_emit(buf, "%s\n%s",
-				 SCST_THREADS_POOL_PER_INITIATOR_STR,
-				 dev->threads_pool_type != dev->handler->threads_pool_type ?
-				 SCST_SYSFS_KEY_MARK "\n" : "");
+		ret = sysfs_emit(buf, "%s\n", SCST_THREADS_POOL_PER_INITIATOR_STR);
+
+		if (dev->threads_pool_type != dev->handler->threads_pool_type)
+			ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
 		break;
 	case SCST_THREADS_POOL_SHARED:
-		ret = sysfs_emit(buf, "%s\n%s",
-				 SCST_THREADS_POOL_SHARED_STR,
-				 dev->threads_pool_type != dev->handler->threads_pool_type ?
-				 SCST_SYSFS_KEY_MARK "\n" : "");
+		ret = sysfs_emit(buf, "%s\n", SCST_THREADS_POOL_SHARED_STR);
+
+		if (dev->threads_pool_type != dev->handler->threads_pool_type)
+			ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
 		break;
 	default:
 		ret = sysfs_emit(buf, "Unknown\n");
@@ -3501,10 +3511,10 @@ static ssize_t scst_dev_sysfs_max_tgt_dev_commands_show(struct kobject *kobj,
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-	ret = sysfs_emit(buf, "%d\n%s",
-			 dev->max_tgt_dev_commands,
-			 dev->max_tgt_dev_commands != dev->handler->max_tgt_dev_commands ?
-			 SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = sysfs_emit(buf, "%d\n", dev->max_tgt_dev_commands);
+
+	if (dev->max_tgt_dev_commands != dev->handler->max_tgt_dev_commands)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT_RES(ret);
 	return ret;
@@ -3561,9 +3571,10 @@ static ssize_t scst_dev_numa_node_id_show(struct kobject *kobj, struct kobj_attr
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-	ret = sysfs_emit(buf, "%d\n%s",
-			 dev->dev_numa_node_id,
-			 dev->dev_numa_node_id != NUMA_NO_NODE ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = sysfs_emit(buf, "%d\n", dev->dev_numa_node_id);
+
+	if (dev->dev_numa_node_id != NUMA_NO_NODE)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT_RES(ret);
 	return ret;
@@ -4004,9 +4015,10 @@ static ssize_t scst_dev_dif_type_show(struct kobject *kobj, struct kobj_attribut
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);
 
-	ret = sysfs_emit(buf, "%d\n%s",
-			 dev->dev_dif_type,
-			 dev->dev_dif_type != 0 ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = sysfs_emit(buf, "%d\n", dev->dev_dif_type);
+
+	if (dev->dev_dif_type)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT_RES(ret);
 	return ret;
@@ -4060,9 +4072,10 @@ static ssize_t scst_dev_sysfs_dif_static_app_tag_show(struct kobject *kobj,
 
 	a = scst_dev_get_dif_static_app_tag_combined(dev);
 
-	ret = sysfs_emit(buf, "0x%llx\n%s",
-			 (unsigned long long)be64_to_cpu(a),
-			 a != SCST_DIF_NO_CHECK_APP_TAG ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = sysfs_emit(buf, "0x%llx\n", (unsigned long long)be64_to_cpu(a));
+
+	if (a != SCST_DIF_NO_CHECK_APP_TAG)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT_RES(ret);
 	return ret;
@@ -6390,12 +6403,15 @@ static ssize_t scst_tg_preferred_show(struct kobject *kobj,
 				      struct kobj_attribute *attr,
 				      char *buf)
 {
-	struct scst_target_group *tg;
+	struct scst_target_group *tg = container_of(kobj, struct scst_target_group, kobj);
+	ssize_t ret;
 
-	tg = container_of(kobj, struct scst_target_group, kobj);
+	ret = sysfs_emit(buf, "%u\n", tg->preferred);
 
-	return sysfs_emit(buf, "%u\n%s", tg->preferred,
-			  tg->preferred ? SCST_SYSFS_KEY_MARK "\n" : "");
+	if (tg->preferred)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
+
+	return ret;
 }
 
 static int scst_tg_preferred_store_work_fn(struct scst_sysfs_work_item *w)
@@ -6965,10 +6981,10 @@ static ssize_t scst_threads_show(struct kobject *kobj, struct kobj_attribute *at
 
 	TRACE_ENTRY();
 
-	ret = sysfs_emit(buf, "%d\n%s",
-			 scst_main_cmd_threads.nr_threads,
-			 (scst_main_cmd_threads.nr_threads != scst_threads) ?
-			 SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = sysfs_emit(buf, "%d\n", scst_main_cmd_threads.nr_threads);
+
+	if (scst_main_cmd_threads.nr_threads != scst_threads)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT();
 
@@ -7072,9 +7088,10 @@ static ssize_t scst_setup_id_show(struct kobject *kobj,
 
 	TRACE_ENTRY();
 
-	ret = sysfs_emit(buf, "0x%x\n%s",
-			 scst_setup_id,
-			 scst_setup_id == 0 ? "" : SCST_SYSFS_KEY_MARK "\n");
+	ret = sysfs_emit(buf, "0x%x\n", scst_setup_id);
+
+	if (scst_setup_id)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT();
 
@@ -7115,10 +7132,10 @@ static ssize_t scst_max_tasklet_cmd_show(struct kobject *kobj, struct kobj_attri
 
 	TRACE_ENTRY();
 
-	ret = sysfs_emit(buf, "%d\n%s",
-			 scst_max_tasklet_cmd,
-			 scst_max_tasklet_cmd == SCST_DEF_MAX_TASKLET_CMD ?
-			 "" : SCST_SYSFS_KEY_MARK "\n");
+	ret = sysfs_emit(buf, "%d\n", scst_max_tasklet_cmd);
+
+	if (scst_max_tasklet_cmd != SCST_DEF_MAX_TASKLET_CMD)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT();
 
@@ -7160,9 +7177,11 @@ static ssize_t scst_poll_us_show(struct kobject *kobj, struct kobj_attribute *at
 	TRACE_ENTRY();
 
 	do_div(t, 1000);
-	ret = sysfs_emit(buf, "%lld\n%s",
-			 t,
-			 scst_poll_ns == SCST_DEF_POLL_NS ? "" : SCST_SYSFS_KEY_MARK "\n");
+
+	ret = sysfs_emit(buf, "%lld\n", t);
+
+	if (scst_poll_ns != SCST_DEF_POLL_NS)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT();
 
@@ -7284,9 +7303,14 @@ static struct kobj_attribute scst_main_trace_level_attr =
 static ssize_t scst_force_global_sgv_pool_show(struct kobject *kobj, struct kobj_attribute *attr,
 					       char *buf)
 {
-	return sysfs_emit(buf, "%d\n%s",
-			  scst_force_global_sgv_pool,
-			  scst_force_global_sgv_pool ? SCST_SYSFS_KEY_MARK "\n" : "");
+	ssize_t ret;
+
+	ret = sysfs_emit(buf, "%d\n", scst_force_global_sgv_pool);
+
+	if (scst_force_global_sgv_pool)
+		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
+
+	return ret;
 }
 
 static ssize_t scst_force_global_sgv_pool_store(struct kobject *kobj, struct kobj_attribute *attr,
@@ -7470,8 +7494,7 @@ static ssize_t scst_cluster_name_show(struct kobject *kobj, struct kobj_attribut
 	TRACE_ENTRY();
 
 	if (scst_cluster_name)
-		res = sysfs_emit(buf, "%s\n%s",
-				 scst_cluster_name, SCST_SYSFS_KEY_MARK "\n");
+		res = sysfs_emit(buf, "%s\n%s\n", scst_cluster_name, SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT_RES(res);
 	return res;

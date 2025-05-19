@@ -1086,16 +1086,19 @@ static ssize_t sqa_show_expl_conf_enabled(struct kobject *kobj,
 	struct sqa_scst_tgt *sqa_tgt;
 	struct qla_tgt *tgt;
 	struct qla_hw_data *ha;
+	ssize_t ret;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	sqa_tgt = scst_tgt_get_tgt_priv(scst_tgt);
 	tgt = sqa_tgt->qla_tgt;
 	ha = tgt->ha;
 
-	return sysfs_emit(buffer, "%d\n%s",
-			  ha->base_qpair->enable_explicit_conf,
-			  ha->base_qpair->enable_explicit_conf ?
-			  SCST_SYSFS_KEY_MARK "\n" : "");
+	ret = sysfs_emit(buffer, "%d\n", ha->base_qpair->enable_explicit_conf);
+
+	if (ha->base_qpair->enable_explicit_conf)
+		ret += sysfs_emit_at(buffer, ret, "%s\n", SCST_SYSFS_KEY_MARK);
+
+	return ret;
 }
 
 static ssize_t sqa_store_expl_conf_enabled(struct kobject *kobj,

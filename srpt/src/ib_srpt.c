@@ -4073,10 +4073,12 @@ static ssize_t show_port_id(struct kobject *kobj, struct kobj_attribute *attr, c
 		goto out;
 
 	mutex_lock(&sport->mutex);
-	res = sysfs_emit(buf, "%s\n%s",
-			 sport->port_id,
-			 strcmp(sport->port_id, DEFAULT_SRPT_ID_STRING) ?
-			 SCST_SYSFS_KEY_MARK "\n" : "");
+
+	res = sysfs_emit(buf, "%s\n", sport->port_id);
+
+	if (strcmp(sport->port_id, DEFAULT_SRPT_ID_STRING))
+		res += sysfs_emit_at(buf, res, "%s\n", SCST_SYSFS_KEY_MARK);
+
 	mutex_unlock(&sport->mutex);
 
 out:
