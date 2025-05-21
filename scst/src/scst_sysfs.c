@@ -7449,9 +7449,9 @@ static ssize_t scst_version_show(struct kobject *kobj,
 
 	ret += sysfs_emit_at(buf, ret, "SCST version: %s\n", SCST_VERSION_STRING);
 	ret += sysfs_emit_at(buf, ret, "SCST build date: %s\n", SCST_BUILD_DATE_STRING);
+	ret += sysfs_emit_at(buf, ret, "SCST build number: %s\n", SCST_BUILD_NUMBER_STRING);
 	ret += sysfs_emit_at(buf, ret, "SCST git commit sha1: %s\n", SCST_GIT_COMMIT_STRING);
 	ret += sysfs_emit_at(buf, ret, "SCST kver: %s\n", SCST_KVER_STRING);
-	ret += sysfs_emit_at(buf, ret, "SCST build number: %s\n", SCST_BUILD_NUMBER_STRING);
 	ret += sysfs_emit_at(buf, ret, "SCST arch type: %s\n", SCST_ARCH_TYPE_STRING);
 
 	if (scst_dump_config(config, sizeof(config)))
