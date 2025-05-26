@@ -44,7 +44,7 @@ function get_srpm_urls() {
 	"Oracle Linux Server"|"UEK")
 	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/${releaseverminor}/base/${arch}/getPackageSource"
 	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/latest/${arch}/getPackageSource"
-	    for ((i=4;i<=7;i++)); do
+	    for ((i=4;i<=8;i++)); do
 		echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/UEKR$i/${arch}/getPackageSource"
 	    done
 	    ;;
@@ -104,7 +104,7 @@ function get_rpm_urls() {
 	"Oracle Linux Server"|"UEK")
 	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/${releaseverminor}/base/${arch}/getPackageSource"
 	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/latest/${arch}/getPackageSource"
-	    for ((i=4;i<=7;i++)); do
+	    for ((i=4;i<=8;i++)); do
 		echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/UEKR$i/${arch}/getPackageSource"
 	    done
 	    ;;
