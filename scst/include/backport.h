@@ -43,6 +43,7 @@
 #include <linux/string.h>
 #include <linux/sysfs.h>
 #include <linux/timer.h>
+#include <linux/usb/quirks.h>
 #include <linux/vmalloc.h>
 #include <linux/workqueue.h>
 #include <linux/writeback.h>	/* sync_page_range() */
@@ -1498,7 +1499,8 @@ static inline void __user *KERNEL_SOCKPTR(void *p)
 /* <linux/string.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7) &&	\
+	(!defined(UEK_KABI_RENAME) || !defined(USB_QUIRK_NO_LPM))
 /* See also commit e9d408e107db ("new helper: memdup_user_nul()") # v4.5 */
 static inline void *memdup_user_nul(const void __user *src, size_t len)
 {
@@ -1576,7 +1578,10 @@ static inline ssize_t strscpy(char *dest, const char *src, size_t count)
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(4, 19, 0) >> 8 ||	\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 179)) &&		\
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 4, 0) >> 8 ||	\
-	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 103))
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 103)) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||					\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 5)) &&		\
+	!defined(UEK_KABI_RENAME)
 /*
  * See also commit 2efc459d06f1 ("sysfs: Add sysfs_emit and sysfs_emit_at to format sysfs output")
  * # v5.10.
@@ -1664,6 +1669,9 @@ struct t10_pi_tuple {
 	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 154)) &&		\
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 1, 0) >> 8 ||	\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 84)) &&		\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||			\
+	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 9 ||			\
+	 RHEL_MAJOR -0 == 9 && RHEL_MINOR -0 < 3) &&			\
 	(!defined(UEK_KABI_RENAME) ||					\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 17))
 /*
@@ -1683,7 +1691,10 @@ static inline int timer_delete_sync(struct timer_list *timer)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0) &&			\
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 1, 0) >> 8 ||	\
-	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 91))
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 91)) &&		\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||			\
+	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 9 ||			\
+	 RHEL_MAJOR -0 == 9 && RHEL_MINOR -0 < 3)
 /*
  * See also commit bb663f0f3c39 ("timers: Rename del_timer() to timer_delete()") # v6.2.
  * See also commit b086d1e82fcd # v6.1.91.
