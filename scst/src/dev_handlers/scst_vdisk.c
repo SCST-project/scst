@@ -968,7 +968,9 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
 	bi_profile_name = bi->name;
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 6))
 	bi_profile_name = bi->profile->name;
 #else
 	bi_profile_name = blk_integrity_profile_name(bi);

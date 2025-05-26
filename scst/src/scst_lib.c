@@ -8401,8 +8401,9 @@ scst_free_bio(struct bio *bio)
 #endif
 }
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0) ||			\
-(defined(CONFIG_SUSE_KERNEL) && LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0) ||	\
+	(defined(CONFIG_SUSE_KERNEL) &&			\
+	 LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
 static struct request *blk_make_request(struct request_queue *q,
 					struct bio *bio,
 					gfp_t gfp_mask)
@@ -8450,7 +8451,9 @@ static struct request *blk_make_request(struct request_queue *q,
 static inline unsigned int
 queue_dma_pad_mask(const struct request_queue *q)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 6))
 	return q->dma_pad_mask;
 #else
 	return q->limits.dma_pad_mask;
@@ -15365,14 +15368,16 @@ out_unlock:
 
 void scst_vfs_unlink_and_put(struct path *path)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7) && \
-	(!defined(CONFIG_SUSE_KERNEL) || \
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7) &&	\
+	(!defined(CONFIG_SUSE_KERNEL) ||		\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0))
 	vfs_unlink(path->dentry->d_parent->d_inode, path->dentry);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 12, 0)
 	vfs_unlink(path->dentry->d_parent->d_inode, path->dentry, NULL);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 6))
 	vfs_unlink(&init_user_ns, path->dentry->d_parent->d_inode, path->dentry,
 		   NULL);
 #else

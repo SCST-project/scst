@@ -1032,7 +1032,9 @@ out:
 
 #endif /* LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0) */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 6))
 static int scst_local_slave_alloc(struct scsi_device *sdev)
 {
 	struct request_queue *q = sdev->request_queue;
@@ -1378,7 +1380,9 @@ static const struct scsi_host_template scst_lcl_ini_driver_template = {
 	.name				= SCST_LOCAL_NAME,
 	.queuecommand			= scst_local_queuecommand,
 	.change_queue_depth		= scst_local_change_queue_depth,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 6))
 	.slave_alloc			= scst_local_slave_alloc,
 #else
 	.dma_alignment			= (4096 - 1),
