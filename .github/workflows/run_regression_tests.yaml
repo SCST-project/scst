@@ -74,7 +74,15 @@ jobs:
 
           ./scripts/run-regression-tests -l -q -k -d /tmp/scst-${{matrix.version}} ${{matrix.version}}-nc-ns-nm | tee output.txt
 
-          cat output.txt | grep -A1 "Compiling the patched kernel" | grep -e "FAILED" -e "[^0] errors" > /dev/null 2>&1 && err=1
+          if ! grep -q "Compiling the patched kernel" output.txt; then
+            echo "::error ::run-regression-tests failed"
+            err=1
+          else
+            if grep -A1 "Compiling the patched kernel" output.txt | grep -E -q "FAILED|[1-9][0-9]* errors"; then
+              echo "::error ::Regression test failed"
+              err=1
+            fi
+          fi
 
           rm -f output.txt
 
