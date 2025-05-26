@@ -2949,7 +2949,14 @@ static void qla2x00_iocb_work_fn(struct work_struct *work)
 static void
 qla_trace_init(void)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 8, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 8, 0) &&			\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 6, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 87))
+	/*
+	 * See also commit d23569979ca1 ("tracing: Allow creating instances with specified system
+	 * events") # v6.8.
+	 * See also commit f568fbe8c603 # v6.6.87.
+	 */
 	qla_trc_array = trace_array_get_by_name("qla2xxx");
 #else
 	qla_trc_array = trace_array_get_by_name("qla2xxx", NULL);
