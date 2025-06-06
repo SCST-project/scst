@@ -5651,14 +5651,15 @@ __scst_scsi_execute_cmd(struct scsi_device *sdev, const unsigned char *cmd,
 			unsigned char *sense, unsigned int sense_len,
 			int timeout, int retries, blk_opf_t opf)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 3))
 	if (WARN_ON_ONCE(sense && sense_len != SCSI_SENSE_BUFFERSIZE))
 		return -EINVAL;
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)
 	return scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense,
 			    timeout, retries, opf, /*resid=*/NULL);
-
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0) &&	\
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8)
 	return scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense,
@@ -5669,7 +5670,6 @@ __scst_scsi_execute_cmd(struct scsi_device *sdev, const unsigned char *cmd,
 			      /*sshdr=*/NULL, timeout, retries, opf,
 			      /*rq_flags=*/0, /*resid=*/NULL);
 #endif
-
 #else
 	opf |= data_direction == DMA_TO_DEVICE ? REQ_OP_DRV_OUT : REQ_OP_DRV_IN;
 
