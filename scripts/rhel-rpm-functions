@@ -37,7 +37,7 @@ function get_srpm_urls() {
 	    ;;
 	"AlmaLinux")
 	    case $releasever in
-		[89]*)
+	        [89]*|10*)
 		    echo "https://repo.almalinux.org/vault/${releasever}/BaseOS/Source/Packages/";;
 	    esac
 	    ;;
@@ -97,7 +97,7 @@ function get_rpm_urls() {
 	    echo "";;
 	"AlmaLinux")
 	    case $releasever in
-		[89]*)
+	        [89]*|10*)
 		    echo "https://mirror.yandex.ru/almalinux/${releasever}/BaseOS/${arch}/os/Packages/";;
 	    esac
 	    ;;
