@@ -979,7 +979,7 @@ int main(int argc, char **argv)
 		pid_t pid;
 		int fd;
 
-		fd = open("/var/run/iscsi-scstd.pid", O_WRONLY|O_CREAT, 0644);
+		fd = open("/run/iscsi-scstd.pid", O_WRONLY|O_CREAT, 0644);
 		if (fd < 0) {
 			log_error("unable to create pid file");
 			exit(1);

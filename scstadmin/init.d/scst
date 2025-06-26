@@ -102,7 +102,7 @@ start_daemon() {
 killproc() {
     exe=$(basename "$1")
     killall "$exe"
-    rm -f "/var/run/$exe.pid"
+    rm -f "/run/$exe.pid"
 }
 fi
 
@@ -275,8 +275,8 @@ stop_scst() {
 scst_status() {
         # Status has a slightly different meaning for the status command:
         # 0 - service running
-        # 1 - service dead, but /var/run/  pid  file exists
-        # 2 - service dead, but /var/lock/ lock file exists
+        # 1 - service dead, but /run/  pid  file exists
+        # 2 - service dead, but /run/lock/ lock file exists
         # 3 - service not running
 
         parse_scst_conf
