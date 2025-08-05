@@ -1231,10 +1231,9 @@ static int write_data(struct iscsi_conn *conn)
 			iov_iter_bvec(&msg.msg_iter, ITER_SOURCE, &bvec, 1, sendsize);
 			res = sock_sendmsg(sock, &msg);
 #endif
-			TRACE_WRITE("sid %#Lx cid %u: res %d (page[%p] index %lu, offset %u, sendsize %lu, size %lu, cmd %p)",
+			TRACE_WRITE("sid %#Lx cid %u: res %d (page[%p] offset %u, sendsize %lu, size %lu, cmd %p)",
 				    (unsigned long long)conn->session->sid, conn->cid,
-				    res, page, page->index, offset, sendsize, size,
-				    write_cmnd);
+				    res, page, offset, sendsize, size, write_cmnd);
 
 			if (unlikely(res <= 0)) {
 				if (res == -EINTR)
