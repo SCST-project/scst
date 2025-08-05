@@ -1734,6 +1734,14 @@ static inline int timer_delete(struct timer_list *timer)
 #endif
 
 /*
+ * See also commit 41cb08555c41 ("treewide, timers: Rename from_timer() to
+ * timer_container_of()") # v6.16.
+ */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+#define timer_container_of from_timer
+#endif
+
+/*
  * See also commit 1d27e3e2252b ("timer: Remove expires and data arguments
  * from DEFINE_TIMER").
  */
