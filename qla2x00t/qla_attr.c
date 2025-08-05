@@ -441,9 +441,12 @@ static DEVICE_ATTR(port_database,
 #endif /* CONFIG_SCSI_QLA2XXX_TARGET */
 
 static ssize_t
-qla2x00_sysfs_read_fw_dump(struct file *file,
-			   struct kobject *kobj,
+qla2x00_sysfs_read_fw_dump(struct file *file, struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 			   struct bin_attribute *bin_attr,
+#else
+			   const struct bin_attribute *bin_attr,
+#endif
 			   char *buf, loff_t off, size_t count)
 {
 	struct scsi_qla_host *vha = shost_priv(dev_to_shost(container_of(kobj,
@@ -470,9 +473,12 @@ qla2x00_sysfs_read_fw_dump(struct file *file,
 }
 
 static ssize_t
-qla2x00_sysfs_write_fw_dump(struct file *file,
-			    struct kobject *kobj,
+qla2x00_sysfs_write_fw_dump(struct file *file, struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 			    struct bin_attribute *bin_attr,
+#else
+			    const struct bin_attribute *bin_attr,
+#endif
 			    char *buf, loff_t off, size_t count)
 {
 	struct scsi_qla_host *vha = shost_priv(dev_to_shost(container_of(kobj,
@@ -538,7 +544,7 @@ qla2x00_sysfs_write_fw_dump(struct file *file,
 	return count;
 }
 
-static struct bin_attribute sysfs_fw_dump_attr = {
+static const struct bin_attribute sysfs_fw_dump_attr = {
 	.attr = {
 		.name = "fw_dump",
 		.mode = S_IRUSR | S_IWUSR,
@@ -549,9 +555,12 @@ static struct bin_attribute sysfs_fw_dump_attr = {
 };
 
 static ssize_t
-qla2x00_sysfs_read_nvram(struct file *file,
-			 struct kobject *kobj,
+qla2x00_sysfs_read_nvram(struct file *file, struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 			 struct bin_attribute *bin_attr,
+#else
+			 const struct bin_attribute *bin_attr,
+#endif
 			 char *buf, loff_t off, size_t count)
 {
 	struct scsi_qla_host *vha = shost_priv(dev_to_shost(container_of(kobj,
@@ -569,9 +578,12 @@ qla2x00_sysfs_read_nvram(struct file *file,
 }
 
 static ssize_t
-qla2x00_sysfs_write_nvram(struct file *file,
-			  struct kobject *kobj,
+qla2x00_sysfs_write_nvram(struct file *file, struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 			  struct bin_attribute *bin_attr,
+#else
+			  const struct bin_attribute *bin_attr,
+#endif
 			  char *buf, loff_t off, size_t count)
 {
 	struct scsi_qla_host *vha = shost_priv(dev_to_shost(container_of(kobj,
@@ -627,7 +639,7 @@ qla2x00_sysfs_write_nvram(struct file *file,
 	return count;
 }
 
-static struct bin_attribute sysfs_nvram_attr = {
+static const struct bin_attribute sysfs_nvram_attr = {
 	.attr = {
 		.name = "nvram",
 		.mode = S_IRUSR | S_IWUSR,
@@ -638,9 +650,12 @@ static struct bin_attribute sysfs_nvram_attr = {
 };
 
 static ssize_t
-qla2x00_sysfs_read_optrom(struct file *file,
-			  struct kobject *kobj,
+qla2x00_sysfs_read_optrom(struct file *file, struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 			  struct bin_attribute *bin_attr,
+#else
+			  const struct bin_attribute *bin_attr,
+#endif
 			  char *buf, loff_t off, size_t count)
 {
 	struct scsi_qla_host *vha = shost_priv(dev_to_shost(container_of(kobj,
@@ -655,9 +670,12 @@ qla2x00_sysfs_read_optrom(struct file *file,
 }
 
 static ssize_t
-qla2x00_sysfs_write_optrom(struct file *file,
-			   struct kobject *kobj,
+qla2x00_sysfs_write_optrom(struct file *file, struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 			   struct bin_attribute *bin_attr,
+#else
+			   const struct bin_attribute *bin_attr,
+#endif
 			   char *buf, loff_t off, size_t count)
 {
 	struct scsi_qla_host *vha = shost_priv(dev_to_shost(container_of(kobj,
@@ -676,7 +694,7 @@ qla2x00_sysfs_write_optrom(struct file *file,
 	return count;
 }
 
-static struct bin_attribute sysfs_optrom_attr = {
+static const struct bin_attribute sysfs_optrom_attr = {
 	.attr = {
 		.name = "optrom",
 		.mode = S_IRUSR | S_IWUSR,
@@ -687,9 +705,12 @@ static struct bin_attribute sysfs_optrom_attr = {
 };
 
 static ssize_t
-qla2x00_sysfs_write_optrom_ctl(struct file *file,
-			       struct kobject *kobj,
+qla2x00_sysfs_write_optrom_ctl(struct file *file, struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 			       struct bin_attribute *bin_attr,
+#else
+			       const struct bin_attribute *bin_attr,
+#endif
 			       char *buf, loff_t off, size_t count)
 {
 	struct scsi_qla_host *vha = shost_priv(dev_to_shost(container_of(kobj,
@@ -842,7 +863,7 @@ qla2x00_sysfs_write_optrom_ctl(struct file *file,
 	return count;
 }
 
-static struct bin_attribute sysfs_optrom_ctl_attr = {
+static const struct bin_attribute sysfs_optrom_ctl_attr = {
 	.attr = {
 		.name = "optrom_ctl",
 		.mode = S_IWUSR,
@@ -852,9 +873,12 @@ static struct bin_attribute sysfs_optrom_ctl_attr = {
 };
 
 static ssize_t
-qla2x00_sysfs_read_vpd(struct file *file,
-		       struct kobject *kobj,
+qla2x00_sysfs_read_vpd(struct file *file, struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 		       struct bin_attribute *bin_attr,
+#else
+		       const struct bin_attribute *bin_attr,
+#endif
 		       char *buf, loff_t off, size_t count)
 {
 	struct scsi_qla_host *vha = shost_priv(dev_to_shost(container_of(kobj,
@@ -874,9 +898,12 @@ qla2x00_sysfs_read_vpd(struct file *file,
 }
 
 static ssize_t
-qla2x00_sysfs_write_vpd(struct file *file,
-			struct kobject *kobj,
+qla2x00_sysfs_write_vpd(struct file *file, struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 			struct bin_attribute *bin_attr,
+#else
+			const struct bin_attribute *bin_attr,
+#endif
 			char *buf, loff_t off, size_t count)
 {
 	struct scsi_qla_host *vha = shost_priv(dev_to_shost(container_of(kobj,
@@ -917,7 +944,7 @@ qla2x00_sysfs_write_vpd(struct file *file,
 	return count;
 }
 
-static struct bin_attribute sysfs_vpd_attr = {
+static const struct bin_attribute sysfs_vpd_attr = {
 	.attr = {
 		.name = "vpd",
 		.mode = S_IRUSR | S_IWUSR,
@@ -928,9 +955,12 @@ static struct bin_attribute sysfs_vpd_attr = {
 };
 
 static ssize_t
-qla2x00_sysfs_read_sfp(struct file *file,
-		       struct kobject *kobj,
+qla2x00_sysfs_read_sfp(struct file *file, struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 		       struct bin_attribute *bin_attr,
+#else
+		       const struct bin_attribute *bin_attr,
+#endif
 		       char *buf, loff_t off, size_t count)
 {
 	struct scsi_qla_host *vha = shost_priv(dev_to_shost(container_of(kobj,
@@ -980,7 +1010,7 @@ do_read:
 	return count;
 }
 
-static struct bin_attribute sysfs_sfp_attr = {
+static const struct bin_attribute sysfs_sfp_attr = {
 	.attr = {
 		.name = "sfp",
 		.mode = S_IRUSR | S_IWUSR,
@@ -990,9 +1020,12 @@ static struct bin_attribute sysfs_sfp_attr = {
 };
 
 static ssize_t
-qla2x00_sysfs_write_reset(struct file *file,
-			struct kobject *kobj,
+qla2x00_sysfs_write_reset(struct file *file, struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 			struct bin_attribute *bin_attr,
+#else
+			const struct bin_attribute *bin_attr,
+#endif
 			char *buf, loff_t off, size_t count)
 {
 	struct scsi_qla_host *vha = shost_priv(dev_to_shost(container_of(kobj,
@@ -1056,7 +1089,7 @@ qla2x00_sysfs_write_reset(struct file *file,
 	return count;
 }
 
-static struct bin_attribute sysfs_reset_attr = {
+static const struct bin_attribute sysfs_reset_attr = {
 	.attr = {
 		.name = "reset",
 		.mode = S_IWUSR,
@@ -1066,9 +1099,12 @@ static struct bin_attribute sysfs_reset_attr = {
 };
 
 static ssize_t
-qla2x00_sysfs_read_xgmac_stats(struct file *file,
-		       struct kobject *kobj,
+qla2x00_sysfs_read_xgmac_stats(struct file *file, struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 		       struct bin_attribute *bin_attr,
+#else
+		       const struct bin_attribute *bin_attr,
+#endif
 		       char *buf, loff_t off, size_t count)
 {
 	struct scsi_qla_host *vha = shost_priv(dev_to_shost(container_of(kobj,
@@ -1109,7 +1145,7 @@ do_read:
 	return count;
 }
 
-static struct bin_attribute sysfs_xgmac_stats_attr = {
+static const struct bin_attribute sysfs_xgmac_stats_attr = {
 	.attr = {
 		.name = "xgmac_stats",
 		.mode = S_IRUSR,
@@ -1119,9 +1155,12 @@ static struct bin_attribute sysfs_xgmac_stats_attr = {
 };
 
 static ssize_t
-qla2x00_sysfs_read_dcbx_tlv(struct file *file,
-		       struct kobject *kobj,
+qla2x00_sysfs_read_dcbx_tlv(struct file *file, struct kobject *kobj,
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
 		       struct bin_attribute *bin_attr,
+#else
+		       const struct bin_attribute *bin_attr,
+#endif
 		       char *buf, loff_t off, size_t count)
 {
 	struct scsi_qla_host *vha = shost_priv(dev_to_shost(container_of(kobj,
@@ -1159,7 +1198,7 @@ do_read:
 	return count;
 }
 
-static struct bin_attribute sysfs_dcbx_tlv_attr = {
+static const struct bin_attribute sysfs_dcbx_tlv_attr = {
 	.attr = {
 		.name = "dcbx_tlv",
 		.mode = S_IRUSR,
@@ -1170,7 +1209,7 @@ static struct bin_attribute sysfs_dcbx_tlv_attr = {
 
 static struct sysfs_entry {
 	char *name;
-	struct bin_attribute *attr;
+	const struct bin_attribute *attr;
 	int is4GBp_only;
 } bin_file_entries[] = {
 	{ "fw_dump", &sysfs_fw_dump_attr, },
