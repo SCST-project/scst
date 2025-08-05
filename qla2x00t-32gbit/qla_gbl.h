@@ -166,10 +166,8 @@ extern int ql2xextended_error_logging;
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 5, 0)
 extern int ql2xextended_error_logging_ktrace;
 #endif
-extern int ql2xiidmaenable;
 extern int ql2xmqsupport;
 extern int ql2xfwloadbin;
-extern int ql2xetsenable;
 extern int ql2xshiftctondsd;
 extern int ql2xdbwr;
 extern int ql2xasynctmfenable;
