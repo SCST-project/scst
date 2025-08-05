@@ -90,7 +90,7 @@ BuildRequires:	%{?kernel_rpm:%{kernel_rpm} = %{krpmver} %{kernel_devel_rpm} = %{
 Source:		%{kmod_name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-build
 AutoReqProv:	no
-Requires:	%{?kernel_rpm:%{kernel_rpm} = %{krpmver}} @depmod@ %{expand:%%(for c in find rm; do echo -n "$(PATH=/usr/sbin:/usr/bin:/sbin:/bin which $c) "; done)}
+Requires:	%{?kernel_rpm:%{kernel_rpm} = %{krpmver}} @depmod@ coreutils findutils
 Provides:	scst
 
 %description
