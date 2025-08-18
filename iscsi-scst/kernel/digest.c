@@ -26,7 +26,8 @@
 
 void digest_alg_available(int *val)
 {
-#if defined(CONFIG_LIBCRC32C_MODULE) || defined(CONFIG_LIBCRC32C)
+#if defined(CONFIG_LIBCRC32C_MODULE) || defined(CONFIG_LIBCRC32C) ||	\
+	defined(CONFIG_CRC32_MODULE) || defined(CONFIG_CRC32)
 	int crc32c = 1;
 #else
 	int crc32c = 0;
@@ -34,7 +35,7 @@ void digest_alg_available(int *val)
 
 	if ((*val & DIGEST_CRC32C) && !crc32c) {
 		PRINT_ERROR("CRC32C digest algorithm not available in kernel");
-		*val |= ~DIGEST_CRC32C;
+		*val &= ~DIGEST_CRC32C;
 	}
 }
 
@@ -65,7 +66,8 @@ static __be32 evaluate_crc32_from_sg(struct scatterlist *sg, int nbytes, uint32_
 	}
 #endif
 
-#if defined(CONFIG_LIBCRC32C_MODULE) || defined(CONFIG_LIBCRC32C)
+#if defined(CONFIG_LIBCRC32C_MODULE) || defined(CONFIG_LIBCRC32C) ||	\
+	defined(CONFIG_CRC32_MODULE) || defined(CONFIG_CRC32)
 	{
 		int pad_bytes = ((nbytes + 3) & -4) - nbytes;
 
