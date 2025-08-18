@@ -333,12 +333,16 @@ sub new {
 
 	$self->{'debug'} = $debug;
 
-	my $scstVersion = $self->scstVersion();
+	my $rawVersion = $self->scstVersion();
 
 	die("Failed to obtain SCST version information. Are the SCST modules loaded?\n")
+	  if (!defined($rawVersion));
+
+	my ($scstVersion) = ($rawVersion =~ /(\d+\.\d+\.\d+)/);
+
+	die("Failed to parse SCST version from '$rawVersion'\n")
 	  if (!defined($scstVersion));
 
-	($scstVersion, undef) = split(/\-/, $scstVersion);
 	my($major, $minor, $release) = split(/\./, $scstVersion, 3);
 
 	($release, undef) = split(/\-/, $release) if ($release =~ /\-/);
