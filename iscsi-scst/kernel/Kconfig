@@ -1,6 +1,6 @@
 config SCST_ISCSI
 	tristate "ISCSI Target"
-	depends on SCST && INET && LIBCRC32C
+	depends on SCST && INET && (LIBCRC32C || CRC32)
 	default SCST
 	help
 	  ISCSI target driver for SCST. The iSCSI protocol has been defined in
