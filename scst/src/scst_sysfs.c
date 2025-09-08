@@ -2718,6 +2718,26 @@ out:
 
 static struct kobj_attribute scst_tgt_comment =
 	__ATTR(comment, 0644, scst_tgt_comment_show, scst_tgt_comment_store);
+
+static ssize_t scst_tgt_sg_tablesize_show(struct kobject *kobj, struct kobj_attribute *attr,
+					  char *buf)
+{
+	struct scst_tgt *tgt;
+	int ret;
+
+	TRACE_ENTRY();
+
+	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+
+	ret = sysfs_emit(buf, "%d\n", tgt->sg_tablesize);
+
+	TRACE_EXIT_RES(ret);
+	return ret;
+}
+
+static struct kobj_attribute scst_tgt_sg_tablesize =
+	__ATTR(sg_tablesize, 0444, scst_tgt_sg_tablesize_show, NULL);
+
 /*
  * Creates an attribute entry for one target. Allows for target driver to
  * create an attribute that is not for every target.
@@ -2910,6 +2930,7 @@ static struct attribute *scst_tgt_attrs[] = {
 	&scst_tgt_aen_disabled.attr,
 	&scst_tgt_forwarding.attr,
 	&scst_tgt_comment.attr,
+	&scst_tgt_sg_tablesize.attr,
 	&scst_tgt_addr_method.attr,
 	&scst_tgt_io_grouping_type.attr,
 	&scst_tgt_black_hole.attr,
