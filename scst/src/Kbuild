@@ -11,8 +11,6 @@ ccflags-y :=	-I$(src)/../include			\
 		-pipe					\
 		-g					\
 		-grecord-gcc-switches			\
-		-fstack-clash-protection		\
-		-fstack-protector-strong		\
 		-Wstrict-prototypes
 
 ccflags-y +=	$(shell [ -n "${BUILD_DATE}" ] && echo -DSCST_BUILD_DATE=${BUILD_DATE})		\

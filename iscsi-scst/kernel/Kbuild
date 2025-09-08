@@ -30,8 +30,6 @@ ccflags-y :=	-I$(src)/../include			\
 		-pipe					\
 		-g					\
 		-grecord-gcc-switches			\
-		-fstack-clash-protection		\
-		-fstack-protector-strong		\
 		-Wstrict-prototypes
 
 ccflags-y += $(CONFTEST_CFLAGS)

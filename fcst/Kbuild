@@ -14,8 +14,6 @@ ccflags-y +=	-Wall					\
 		-pipe					\
 		-g					\
 		-grecord-gcc-switches			\
-		-fstack-clash-protection		\
-		-fstack-protector-strong		\
 		-Wstrict-prototypes
 
 obj-$(CONFIG_FCST) += fcst.o

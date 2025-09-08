@@ -14,8 +14,6 @@ ccflags-y :=	-I$(src)/../../scst/include		\
 		-pipe					\
 		-g					\
 		-grecord-gcc-switches			\
-		-fstack-clash-protection		\
-		-fstack-protector-strong		\
 		-Wstrict-prototypes
 
 #ccflags-y += -DCONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD

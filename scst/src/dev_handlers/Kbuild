@@ -13,8 +13,6 @@ ccflags-y :=	-I$(src)/../../include			\
 		-pipe					\
 		-g					\
 		-grecord-gcc-switches			\
-		-fstack-clash-protection		\
-		-fstack-protector-strong		\
 		-Wstrict-prototypes
 
 #ccflags-y += -DCONFIG_DEBUG_EXT_COPY_REMAP
