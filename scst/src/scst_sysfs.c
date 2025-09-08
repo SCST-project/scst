@@ -156,8 +156,8 @@ static ssize_t scst_trace_level_show(const struct scst_trace_log *local_tbl,
 {
 	ssize_t ret = 0;
 
-	ret += scst_read_trace_tbl(scst_trace_tbl, buf, log_level, ret);
-	ret += scst_read_trace_tbl(local_tbl, buf, log_level, ret);
+	ret = scst_read_trace_tbl(scst_trace_tbl, buf, log_level, ret);
+	ret = scst_read_trace_tbl(local_tbl, buf, log_level, ret);
 
 	ret += sysfs_emit_at(buf, ret,
 			     "\n\n\nUsage:\n"
