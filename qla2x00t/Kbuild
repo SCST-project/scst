@@ -11,8 +11,6 @@ ccflags-y :=	-I$(src)/../scst/include		\
 		-pipe					\
 		-g					\
 		-grecord-gcc-switches			\
-		-fstack-clash-protection		\
-		-fstack-protector-strong		\
 		-Wstrict-prototypes
 
 ifneq ($(CONFIG_SCSI_QLA2XXX_TARGET),)

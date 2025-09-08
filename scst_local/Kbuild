@@ -13,8 +13,6 @@ ccflags-y :=	-I$(src)/../scst/include		\
 		-pipe					\
 		-g					\
 		-grecord-gcc-switches			\
-		-fstack-clash-protection		\
-		-fstack-protector-strong		\
 		-Wstrict-prototypes
 
 obj-m := scst_local.o
