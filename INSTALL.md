@@ -4,6 +4,7 @@
 
 If the following packages have not yet been installed, install these now:
 
+    which
     bzip2
     gcc
     kernel-devel or kernel-default-devel
