@@ -757,6 +757,15 @@ static int dev_user_parse(struct scst_cmd *cmd)
 			res = SCST_CMD_STATE_NEED_THREAD_CTX;
 			goto out;
 		}
+		if (rc < 0) {
+			/*
+			 * May have already called e.g. scst_set_cmd_error();
+			 * too late to try user parse without cleaning up
+			 * first.
+			 */
+			PRINT_ERROR("PARSE failed (ucmd %p, rc %d)", ucmd, rc);
+			goto out_error;
+		}
 		fallthrough;
 
 	case SCST_USER_PARSE_CALL:
