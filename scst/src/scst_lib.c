@@ -11941,8 +11941,6 @@ static int scst_set_cmd_from_cdb_info(struct scst_cmd *cmd,
 	int res;
 
 	cmd->cdb_len = SCST_GET_CDB_LEN(cmd->cdb[0]);
-	cmd->cmd_naca = (cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_NACA_BIT);
-	cmd->cmd_linked = (cmd->cdb[cmd->cdb_len - 1] & CONTROL_BYTE_LINK_BIT);
 	cmd->op_name = ptr->info_op_name;
 	cmd->data_direction = ptr->info_data_direction;
 	cmd->op_flags = ptr->info_op_flags | SCST_INFO_VALID;
@@ -11952,6 +11950,15 @@ static int scst_set_cmd_from_cdb_info(struct scst_cmd *cmd,
 	cmd->len_len = ptr->info_len_len;
 	cmd->log2_max_buf_len = ptr->log2_max_buf_len;
 	res = (*ptr->get_cdb_info)(cmd, ptr);
+
+	/* get_cdb_info() may override cdb_len, so do this after */
+	if (likely(cmd->cdb_len != 0)) {
+		unsigned int control = (cmd->cdb[0] == 0x7F) ? cmd->cdb[1] :
+			cmd->cdb[cmd->cdb_len - 1];
+		cmd->cmd_naca = !!(control & CONTROL_BYTE_NACA_BIT);
+		cmd->cmd_linked = !!(control & CONTROL_BYTE_LINK_BIT);
+	}
+
 	if (!cmd->log2_max_buf_len ||
 	    cmd->bufflen <= (1U << cmd->log2_max_buf_len))
 		return res;
@@ -12046,9 +12053,6 @@ static int get_cdb_info_var_len(struct scst_cmd *cmd,
 	}
 
 	res = scst_set_cmd_from_cdb_info(cmd, ptr);
-
-	cmd->cmd_naca = (cmd->cdb[1] & CONTROL_BYTE_NACA_BIT);
-	cmd->cmd_linked = (cmd->cdb[1] & CONTROL_BYTE_LINK_BIT);
 
 out:
 	TRACE_EXIT_RES(res);
