@@ -19,6 +19,7 @@ ignore=(
 	AVOID_BUG
 	MACRO_ARG_REUSE
 	IF_0
+	LONG_LINE_STRING
 )
 ignore_str="${ignore[*]}"
 
