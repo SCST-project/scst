@@ -3541,16 +3541,14 @@ void scst_unregister_target_template(struct scst_tgt_template *vtt);
 struct scst_tgt *scst_register_target(struct scst_tgt_template *vtt, const char *target_name);
 void scst_unregister_target(struct scst_tgt *tgt);
 
-struct scst_session *scst_register_session(struct scst_tgt *tgt, int atomic,
-					   const char *initiator_name, void *tgt_priv,
-					   void *result_fn_data,
-					   void (*result_fn)(struct scst_session *sess, void *data,
-							     int result));
-struct scst_session *scst_register_session_mq(struct scst_tgt *tgt, int atomic,
-					      const char *initiator_name, void *tgt_priv,
-					      void *result_fn_data,
-					      void (*result_fn)(struct scst_session *sess,
-								void *data, int result));
+struct scst_session *
+scst_register_session(struct scst_tgt *tgt, int atomic, const char *initiator_name, void *tgt_priv,
+		      void *result_fn_data,
+		      void (*result_fn)(struct scst_session *sess, void *data, int result));
+struct scst_session *
+scst_register_session_mq(struct scst_tgt *tgt, int atomic, const char *initiator_name,
+			 void *tgt_priv, void *result_fn_data,
+			 void (*result_fn)(struct scst_session *sess, void *data, int result));
 struct scst_session *scst_register_session_non_gpl(struct scst_tgt *tgt,
 						   const char *initiator_name, void *tgt_priv);
 void scst_unregister_session(struct scst_session *sess, int wait,
