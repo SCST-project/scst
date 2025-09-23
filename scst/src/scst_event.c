@@ -38,8 +38,8 @@ static struct class *scst_event_sysfs_class;
 static int scst_event_major;
 
 #define SCST_MAX_EVENTS			2048
-#define SCST_MAX_PAYLOAD		(3*1024)
-#define SCST_DEFAULT_EVENT_TIMEOUT	(60*HZ)
+#define SCST_MAX_PAYLOAD		(3 * 1024)
+#define SCST_DEFAULT_EVENT_TIMEOUT	(60 * HZ)
 
 struct scst_event_priv {
 	struct list_head privs_list_entry;
@@ -69,15 +69,13 @@ static LIST_HEAD(scst_event_privs_list);
  *   - issuer_name "*" - any issuer name
  *   - payload_len 0 - any payload
  */
-static bool scst_event_cmp(const struct scst_event *e1_wild,
-	const struct scst_event *e2)
+static bool scst_event_cmp(const struct scst_event *e1_wild, const struct scst_event *e2)
 {
 	int res = false;
 
 	TRACE_ENTRY();
 
-	if ((e1_wild->event_code != e2->event_code) &&
-	    (e1_wild->event_code != 0))
+	if (e1_wild->event_code != e2->event_code && e1_wild->event_code != 0)
 		goto out;
 
 	if ((strcmp(e1_wild->issuer_name, e2->issuer_name) != 0) &&
@@ -87,7 +85,7 @@ static bool scst_event_cmp(const struct scst_event *e1_wild,
 	if (e1_wild->payload_len == 0)
 		goto out_true;
 
-	if ((e1_wild->payload_len != e2->payload_len) ||
+	if (e1_wild->payload_len != e2->payload_len ||
 	    (memcmp(e1_wild->payload, e2->payload, e1_wild->payload_len) != 0))
 		goto out;
 
@@ -101,14 +99,14 @@ out:
 
 static void scst_event_timeout_fn(struct work_struct *work)
 {
-	struct scst_event_entry *event_entry = container_of(work,
-		struct scst_event_entry, event_timeout_work.work);
+	struct scst_event_entry *event_entry = container_of(work, struct scst_event_entry,
+							    event_timeout_work.work);
 
 	TRACE_ENTRY();
 
 	TRACE_MGMT_DBG("Timeout of event %d (issuer %s, id %u, entry %p)",
-		event_entry->event.event_code, event_entry->event.issuer_name,
-		event_entry->event.event_id, event_entry);
+		       event_entry->event.event_code, event_entry->event.issuer_name,
+		       event_entry->event.event_id, event_entry);
 
 	mutex_lock(&scst_event_mutex);
 
@@ -132,11 +130,10 @@ static void scst_event_timeout_fn(struct work_struct *work)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 static int scst_clone_event(const struct scst_event_entry *orig_entry,
-	struct scst_event_entry **new_event_entry)
+			    struct scst_event_entry **new_event_entry)
 {
 	int res = 0;
 	const struct scst_event *event = &orig_entry->event;
@@ -146,10 +143,9 @@ static int scst_clone_event(const struct scst_event_entry *orig_entry,
 	TRACE_ENTRY();
 
 	event_entry = kzalloc(event_entry_len, GFP_KERNEL);
-	if (event_entry == NULL) {
-		PRINT_ERROR("Unable to clone event entry (size %d, event %d, "
-			"issuer %s", event_entry_len, event->event_code,
-			event->issuer_name);
+	if (!event_entry) {
+		PRINT_ERROR("Unable to clone event entry (size %d, event %d, issuer %s",
+			    event_entry_len, event->event_code, event->issuer_name);
 		res = -ENOMEM;
 		goto out;
 	}
@@ -158,7 +154,7 @@ static int scst_clone_event(const struct scst_event_entry *orig_entry,
 
 	memcpy(&event_entry->event, event, sizeof(*event) + event->payload_len);
 
-	WARN_ON(orig_entry->event_notify_fn != NULL);
+	WARN_ON(orig_entry->event_notify_fn);
 
 	*new_event_entry = event_entry;
 
@@ -181,55 +177,54 @@ static void __scst_event_queue(struct scst_event_entry *event_entry)
 	mutex_lock(&scst_event_mutex);
 
 	list_for_each_entry(priv, &scst_event_privs_list, privs_list_entry) {
-		list_for_each_entry(allowed_entry, &priv->allowed_events_list,
-				events_list_entry) {
+		list_for_each_entry(allowed_entry, &priv->allowed_events_list, events_list_entry) {
 			if (scst_event_cmp(&allowed_entry->event, event)) {
 				struct scst_event_entry *new_event_entry;
 
 				if (priv->queued_events_cnt >= SCST_MAX_EVENTS) {
-					PRINT_ERROR("Too many queued events %d, "
-						"event %d, issuer %s is lost.",
-						priv->queued_events_cnt,
-						event->event_code,
-						event->issuer_name);
+					PRINT_ERROR("Too many queued events %d, event %d, issuer %s is lost.",
+						    priv->queued_events_cnt, event->event_code,
+						    event->issuer_name);
 					rc = -EMFILE;
 					break;
 				}
 
-				if (!queued)
+				if (!queued) {
 					new_event_entry = event_entry;
-				else if (event_entry->event_notify_fn == NULL) {
+				} else if (!event_entry->event_notify_fn) {
 					rc = scst_clone_event(event_entry, &new_event_entry);
 					if (rc != 0)
 						goto done;
 				} else {
-					PRINT_WARNING("Event %d can be queued only once, "
-						"dublicated receiver pid %d will miss it!",
-						event->event_code, priv->owner_pid);
+					PRINT_WARNING("Event %d can be queued only once, dublicated receiver pid %d will miss it!",
+						      event->event_code, priv->owner_pid);
 					break;
 				}
 
 				INIT_DELAYED_WORK(&new_event_entry->event_timeout_work,
 						  scst_event_timeout_fn);
-				if (new_event_entry->event_notify_fn != NULL) {
-					new_event_entry->event.event_id = atomic_inc_return(&base_event_id);
+				if (new_event_entry->event_notify_fn) {
+					new_event_entry->event.event_id =
+						atomic_inc_return(&base_event_id);
 					if (new_event_entry->event_timeout == 0)
-						new_event_entry->event_timeout = SCST_DEFAULT_EVENT_TIMEOUT;
+						new_event_entry->event_timeout =
+							SCST_DEFAULT_EVENT_TIMEOUT;
 
-					queue_delayed_work(scst_event_wq, &new_event_entry->event_timeout_work,
+					queue_delayed_work(scst_event_wq,
+							   &new_event_entry->event_timeout_work,
 							   new_event_entry->event_timeout);
 				}
 
 				list_add_tail(&new_event_entry->events_list_entry,
-					&priv->queued_events_list);
+					      &priv->queued_events_list);
 				priv->queued_events_cnt++;
 				new_event_entry->pqueued_events_cnt = &priv->queued_events_cnt;
 				queued = true;
 
-				TRACE_DBG("event %d queued (issuer %s, id %u, "
-					"entry %p)", new_event_entry->event.event_code,
-					new_event_entry->event.issuer_name,
-					new_event_entry->event.event_id, new_event_entry);
+				TRACE_DBG("event %d queued (issuer %s, id %u, entry %p)",
+					  new_event_entry->event.event_code,
+					  new_event_entry->event.issuer_name,
+					  new_event_entry->event.event_id, new_event_entry);
 
 				wake_up_all(&priv->queued_events_waitQ);
 				break;
@@ -240,13 +235,13 @@ done:
 	mutex_unlock(&scst_event_mutex);
 
 	if (!queued) {
-		if (event_entry->event_notify_fn != NULL) {
+		if (event_entry->event_notify_fn) {
 			if (rc == 0)
 				rc = -ENOENT;
 			TRACE_DBG("Calling notify_fn of event_entry %p (rc %d)",
-				event_entry, rc);
+				  event_entry, rc);
 			event_entry->event_notify_fn(&event_entry->event,
-				event_entry->notify_fn_priv, rc);
+						     event_entry->notify_fn_priv, rc);
 		}
 
 		TRACE_MEM("Freeing orphan event entry %p", event_entry);
@@ -254,25 +249,22 @@ done:
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_event_queue_work_fn(struct work_struct *work)
 {
-	struct scst_event_entry *e = container_of(work,
-		struct scst_event_entry, scst_event_queue_work);
+	struct scst_event_entry *e = container_of(work, struct scst_event_entry,
+						  scst_event_queue_work);
 
 	TRACE_ENTRY();
 
 	__scst_event_queue(e);
 
 	TRACE_EXIT();
-	return;
 }
 
 /* Can be called on IRQ with any lock held */
-void scst_event_queue(uint32_t event_code, const char *issuer_name,
-	struct scst_event_entry *e)
+void scst_event_queue(uint32_t event_code, const char *issuer_name, struct scst_event_entry *e)
 {
 	TRACE_ENTRY();
 
@@ -286,7 +278,6 @@ void scst_event_queue(uint32_t event_code, const char *issuer_name,
 	queue_work(scst_event_wq, &e->scst_event_queue_work);
 
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL_GPL(scst_event_queue);
 
@@ -302,17 +293,16 @@ int scst_event_queue_lun_not_found(const struct scst_cmd *cmd)
 
 	event_entry_len = sizeof(*event_entry) + sizeof(*payload);
 	event_entry = kzalloc(event_entry_len, GFP_ATOMIC);
-	if (event_entry == NULL) {
-		PRINT_ERROR("Unable to allocate event (size %d). LUN not found "
-			"event is lost (LUN %lld, initiator %s, target %s)!",
-			event_entry_len, (unsigned long long)cmd->lun,
-			cmd->sess->initiator_name, cmd->tgt->tgt_name);
+	if (!event_entry) {
+		PRINT_ERROR("Unable to allocate event (size %d). LUN not found event is lost (LUN %lld, initiator %s, target %s)!",
+			    event_entry_len, (unsigned long long)cmd->lun,
+			    cmd->sess->initiator_name, cmd->tgt->tgt_name);
 		res = -ENOMEM;
 		goto out;
 	}
 
-	TRACE_MEM("event_entry %p (len %d) allocated", event_entry,
-		event_entry_len);
+	TRACE_MEM("event_entry %p (len %d) allocated",
+		  event_entry, event_entry_len);
 
 	event = &event_entry->event;
 
@@ -325,16 +315,14 @@ int scst_event_queue_lun_not_found(const struct scst_cmd *cmd)
 	strscpy(payload->target_name, cmd->tgt->tgt_name,
 		sizeof(payload->target_name));
 
-	scst_event_queue(SCST_EVENT_LUN_NOT_FOUND,
-		SCST_EVENT_SCST_CORE_ISSUER, event_entry);
+	scst_event_queue(SCST_EVENT_LUN_NOT_FOUND, SCST_EVENT_SCST_CORE_ISSUER, event_entry);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
 }
 
-int scst_event_queue_negative_luns_inquiry(const struct scst_tgt *tgt,
-	const char *initiator_name)
+int scst_event_queue_negative_luns_inquiry(const struct scst_tgt *tgt, const char *initiator_name)
 {
 	int res = 0, event_entry_len;
 	struct scst_event_entry *event_entry;
@@ -345,16 +333,15 @@ int scst_event_queue_negative_luns_inquiry(const struct scst_tgt *tgt,
 
 	event_entry_len = sizeof(*event_entry) + sizeof(*payload);
 	event_entry = kzalloc(event_entry_len, GFP_ATOMIC);
-	if (event_entry == NULL) {
-		PRINT_ERROR("Unable to allocate event (size %d). NEGATIVE LUNS "
-			"INQUIRY event is lost (initiator %s, target %s)!",
-			event_entry_len, initiator_name, tgt->tgt_name);
+	if (!event_entry) {
+		PRINT_ERROR("Unable to allocate event (size %d). NEGATIVE LUNS INQUIRY event is lost (initiator %s, target %s)!",
+			    event_entry_len, initiator_name, tgt->tgt_name);
 		res = -ENOMEM;
 		goto out;
 	}
 
-	TRACE_MEM("event_entry %p (len %d) allocated", event_entry,
-		event_entry_len);
+	TRACE_MEM("event_entry %p (len %d) allocated",
+		  event_entry, event_entry_len);
 
 	event = &event_entry->event;
 
@@ -366,8 +353,8 @@ int scst_event_queue_negative_luns_inquiry(const struct scst_tgt *tgt,
 	strscpy(payload->target_name, tgt->tgt_name,
 		sizeof(payload->target_name));
 
-	scst_event_queue(SCST_EVENT_NEGATIVE_LUNS_INQUIRY,
-		SCST_EVENT_SCST_CORE_ISSUER, event_entry);
+	scst_event_queue(SCST_EVENT_NEGATIVE_LUNS_INQUIRY, SCST_EVENT_SCST_CORE_ISSUER,
+			 event_entry);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -386,16 +373,15 @@ int scst_event_queue_ext_blocking_done(struct scst_device *dev, void *data, int 
 
 	event_entry_len = sizeof(*event_entry) + sizeof(*payload) + len;
 	event_entry = kzalloc(event_entry_len, GFP_ATOMIC);
-	if (event_entry == NULL) {
-		PRINT_CRIT_ERROR("Unable to allocate event. Ext blocking "
-			"done event is lost (device %s, size %zd)!", dev->virt_name,
-			sizeof(*event_entry) + sizeof(*payload) + len);
+	if (!event_entry) {
+		PRINT_CRIT_ERROR("Unable to allocate event. Ext blocking done event is lost (device %s, size %zd)!",
+				 dev->virt_name, sizeof(*event_entry) + sizeof(*payload) + len);
 		res = -ENOMEM;
 		goto out;
 	}
 
-	TRACE_MEM("event_entry %p (len %d) allocated", event_entry,
-		event_entry_len);
+	TRACE_MEM("event_entry %p (len %d) allocated",
+		  event_entry, event_entry_len);
 
 	event = &event_entry->event;
 
@@ -406,8 +392,7 @@ int scst_event_queue_ext_blocking_done(struct scst_device *dev, void *data, int 
 	if (len > 0)
 		memcpy(payload->data, data, len);
 
-	scst_event_queue(SCST_EVENT_EXT_BLOCKING_DONE,
-		SCST_EVENT_SCST_CORE_ISSUER, event_entry);
+	scst_event_queue(SCST_EVENT_EXT_BLOCKING_DONE, SCST_EVENT_SCST_CORE_ISSUER, event_entry);
 	res = 0;
 
 out:
@@ -427,15 +412,15 @@ int scst_event_queue_tm_fn_received(struct scst_mgmt_cmd *mcmd)
 
 	event_entry_len = sizeof(*event_entry) + sizeof(*payload);
 	event_entry = kzalloc(event_entry_len, GFP_KERNEL);
-	if (event_entry == NULL) {
-		PRINT_CRIT_ERROR("Unable to allocate event (size %d). External "
-			"TM fn received event is lost!", event_entry_len);
+	if (!event_entry) {
+		PRINT_CRIT_ERROR("Unable to allocate event (size %d). External TM fn received event is lost!",
+				 event_entry_len);
 		res = -ENOMEM;
 		goto out;
 	}
 
-	TRACE_MEM("event_entry %p (len %d) allocated", event_entry,
-		event_entry_len);
+	TRACE_MEM("event_entry %p (len %d) allocated",
+		  event_entry, event_entry_len);
 
 	event = &event_entry->event;
 
@@ -444,7 +429,7 @@ int scst_event_queue_tm_fn_received(struct scst_mgmt_cmd *mcmd)
 
 	payload->fn = mcmd->fn;
 	payload->lun = mcmd->lun;
-	if (mcmd->mcmd_tgt_dev != NULL)
+	if (mcmd->mcmd_tgt_dev)
 		strscpy(payload->device_name, mcmd->mcmd_tgt_dev->dev->virt_name,
 			sizeof(payload->device_name));
 	strscpy(payload->initiator_name, mcmd->sess->initiator_name,
@@ -453,15 +438,14 @@ int scst_event_queue_tm_fn_received(struct scst_mgmt_cmd *mcmd)
 		sizeof(payload->target_name));
 	strscpy(payload->session_sysfs_name, mcmd->sess->sess_name,
 		sizeof(payload->session_sysfs_name));
-	if (mcmd->cmd_to_abort != NULL) {
+	if (mcmd->cmd_to_abort) {
 		payload->cmd_to_abort_tag = mcmd->cmd_to_abort->tag;
 		memcpy(payload->cdb, mcmd->cmd_to_abort->cdb,
 		       min_t(u32, mcmd->cmd_to_abort->cdb_len,
 			     sizeof(payload->cdb)));
 	}
 
-	scst_event_queue(SCST_EVENT_TM_FN_RECEIVED,
-		SCST_EVENT_SCST_CORE_ISSUER, event_entry);
+	scst_event_queue(SCST_EVENT_TM_FN_RECEIVED, SCST_EVENT_SCST_CORE_ISSUER, event_entry);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -480,16 +464,15 @@ int scst_event_queue_reg_vdev(const char *dev_name)
 
 	event_entry_len = sizeof(*event_entry) + sizeof(*payload);
 	event_entry = kzalloc(event_entry_len, GFP_ATOMIC);
-	if (event_entry == NULL) {
-		PRINT_ERROR("Unable to allocate event (size %d). Virtual "
-			"device registration event is lost (device name %s)!",
-			event_entry_len, dev_name);
+	if (!event_entry) {
+		PRINT_ERROR("Unable to allocate event (size %d). Virtual device registration event is lost (device name %s)!",
+			    event_entry_len, dev_name);
 		res = -ENOMEM;
 		goto out;
 	}
 
-	TRACE_MEM("event_entry %p (len %d) allocated", event_entry,
-		event_entry_len);
+	TRACE_MEM("event_entry %p (len %d) allocated",
+		  event_entry, event_entry_len);
 
 	event = &event_entry->event;
 
@@ -499,8 +482,7 @@ int scst_event_queue_reg_vdev(const char *dev_name)
 	strscpy(payload->device_name, dev_name,
 		sizeof(payload->device_name));
 
-	scst_event_queue(SCST_EVENT_REG_VIRT_DEV,
-		SCST_EVENT_SCST_CORE_ISSUER, event_entry);
+	scst_event_queue(SCST_EVENT_REG_VIRT_DEV, SCST_EVENT_SCST_CORE_ISSUER, event_entry);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -515,7 +497,7 @@ static void scst_release_event_entry(struct scst_event_entry *e)
 	TRACE_DBG("Deleting event entry %p", e);
 	list_del(&e->events_list_entry);
 
-	if (e->event_notify_fn != NULL) {
+	if (e->event_notify_fn) {
 		mutex_unlock(&scst_event_mutex);
 
 		cancel_delayed_work_sync(&e->event_timeout_work);
@@ -530,7 +512,6 @@ static void scst_release_event_entry(struct scst_event_entry *e)
 	kfree(e);
 
 	TRACE_EXIT();
-	return;
 }
 
 static int scst_event_release(struct inode *inode, struct file *file)
@@ -543,7 +524,7 @@ static int scst_event_release(struct inode *inode, struct file *file)
 	mutex_lock(&scst_event_mutex);
 
 	priv = file->private_data;
-	if (priv == NULL) {
+	if (!priv) {
 		mutex_unlock(&scst_event_mutex);
 		goto out;
 	}
@@ -558,8 +539,7 @@ static int scst_event_release(struct inode *inode, struct file *file)
 	priv->going_to_exit = 1;
 	wake_up_all(&priv->queued_events_waitQ);
 
-	list_for_each_entry_safe(e, et, &priv->allowed_events_list,
-					events_list_entry) {
+	list_for_each_entry_safe(e, et, &priv->allowed_events_list, events_list_entry) {
 		TRACE_MEM("Deleting allowed event entry %p", e);
 		list_del(&e->events_list_entry);
 		kfree(e);
@@ -567,13 +547,11 @@ static int scst_event_release(struct inode *inode, struct file *file)
 
 	mutex_lock(&scst_event_mutex); /* to sync with timeout_work */
 	while (!list_empty(&priv->queued_events_list)) {
-		e = list_entry(priv->queued_events_list.next,
-				typeof(*e), events_list_entry);
+		e = list_entry(priv->queued_events_list.next, typeof(*e), events_list_entry);
 		scst_release_event_entry(e);
 	}
 	while (!list_empty(&priv->processing_events_list)) {
-		e = list_entry(priv->processing_events_list.next,
-				typeof(*e), events_list_entry);
+		e = list_entry(priv->processing_events_list.next, typeof(*e), events_list_entry);
 		scst_release_event_entry(e);
 	}
 	mutex_unlock(&scst_event_mutex);
@@ -594,7 +572,7 @@ out:
  * plain event, because this entry can then be queued in some list.
  */
 static int scst_event_get_event_from_user(struct scst_event_user __user *arg,
-	struct scst_event_entry **out_event_entry)
+					  struct scst_event_entry **out_event_entry)
 {
 	int res, rc;
 	int event_entry_len, event_len;
@@ -611,8 +589,8 @@ static int scst_event_get_event_from_user(struct scst_event_user __user *arg,
 	}
 
 	if (payload_len > SCST_MAX_PAYLOAD) {
-		PRINT_ERROR("Payload len %d is too big (max %d)", payload_len,
-			SCST_MAX_PAYLOAD);
+		PRINT_ERROR("Payload len %d is too big (max %d)",
+			    payload_len, SCST_MAX_PAYLOAD);
 		res = -EINVAL;
 		goto out;
 	}
@@ -622,9 +600,9 @@ static int scst_event_get_event_from_user(struct scst_event_user __user *arg,
 	event_entry_len = sizeof(*event_entry) + payload_len;
 
 	event_entry = kzalloc(event_entry_len, GFP_KERNEL);
-	if (event_entry == NULL) {
+	if (!event_entry) {
 		PRINT_ERROR("Unable to allocate event entry (size %d)",
-			event_entry_len);
+			    event_entry_len);
 		res = -ENOMEM;
 		goto out;
 	}
@@ -644,7 +622,7 @@ static int scst_event_get_event_from_user(struct scst_event_user __user *arg,
 	/* payload_len has been recopied, so recheck it. */
 	if (event->payload_len != payload_len) {
 		PRINT_ERROR("Payload len %d changed while being read: %d",
-				event->payload_len, payload_len);
+			    event->payload_len, payload_len);
 		res = -EINVAL;
 		goto out_free;
 	}
@@ -652,7 +630,7 @@ static int scst_event_get_event_from_user(struct scst_event_user __user *arg,
 	event->issuer_name[sizeof(event->issuer_name) - 1] = '\0';
 
 	TRACE_DBG("user event: event_code %d, issuer_name %s",
-		event->event_code, event->issuer_name);
+		  event->event_code, event->issuer_name);
 
 	*out_event_entry = event_entry;
 
@@ -680,9 +658,8 @@ static int scst_event_allow_event(struct scst_event_priv *priv, void __user *arg
 
 	list_for_each_entry(e, &priv->allowed_events_list, events_list_entry) {
 		if (scst_event_cmp(&event_entry->event, &e->event)) {
-			PRINT_WARNING("Allowed event (event_code %d, "
-				"issuer_name %s) already exists",
-				e->event.event_code, e->event.issuer_name);
+			PRINT_WARNING("Allowed event (event_code %d, issuer_name %s) already exists",
+				      e->event.event_code, e->event.issuer_name);
 			res = -EEXIST;
 			goto out_free;
 		}
@@ -690,13 +667,12 @@ static int scst_event_allow_event(struct scst_event_priv *priv, void __user *arg
 
 	if (priv->allowed_events_cnt >= SCST_MAX_EVENTS) {
 		PRINT_ERROR("Too many allowed events %d",
-			priv->allowed_events_cnt);
+			    priv->allowed_events_cnt);
 		res = -EMFILE;
 		goto out_free;
 	}
 
-	list_add_tail(&event_entry->events_list_entry,
-		&priv->allowed_events_list);
+	list_add_tail(&event_entry->events_list_entry, &priv->allowed_events_list);
 	priv->allowed_events_cnt++;
 	res = 0;
 
@@ -711,8 +687,7 @@ out_free:
 }
 
 /* scst_event_mutex supposed to be held */
-static int scst_event_disallow_event(struct scst_event_priv *priv,
-	void __user *arg)
+static int scst_event_disallow_event(struct scst_event_priv *priv, void __user *arg)
 {
 	int res;
 	struct scst_event_entry *event_entry, *e, *et;
@@ -725,12 +700,10 @@ static int scst_event_disallow_event(struct scst_event_priv *priv,
 		goto out;
 
 	/* For wildcard events we might delete several events */
-	list_for_each_entry_safe(e, et, &priv->allowed_events_list,
-					events_list_entry) {
+	list_for_each_entry_safe(e, et, &priv->allowed_events_list, events_list_entry) {
 		if (scst_event_cmp(&event_entry->event, &e->event)) {
-			PRINT_INFO("Deleting allowed event (event_code %d, "
-				"issuer_name %s)", e->event.event_code,
-				e->event.issuer_name);
+			PRINT_INFO("Deleting allowed event (event_code %d, issuer_name %s)",
+				   e->event.event_code, e->event.issuer_name);
 			TRACE_MEM("Deleting event entry %p", e);
 			list_del(&e->events_list_entry);
 			kfree(e);
@@ -739,12 +712,12 @@ static int scst_event_disallow_event(struct scst_event_priv *priv,
 		}
 	}
 	if (!found) {
-		PRINT_WARNING("Allowed event (event_code %d, issuer_name %s) "
-			"not found", event_entry->event.event_code,
-			event_entry->event.issuer_name);
+		PRINT_WARNING("Allowed event (event_code %d, issuer_name %s) not found",
+			      event_entry->event.event_code, event_entry->event.issuer_name);
 		res = -ENOENT;
-	} else
+	} else {
 		res = 0;
+	}
 
 	TRACE_MEM("Deleting event entry %p", e);
 	kfree(event_entry);
@@ -755,8 +728,7 @@ out:
 }
 
 /* scst_event_mutex supposed to be held. Might drop it, then get back. */
-static int scst_event_user_next_event(struct scst_event_priv *priv,
-	void __user *arg)
+static int scst_event_user_next_event(struct scst_event_priv *priv, void __user *arg)
 {
 	int res, rc;
 	int32_t max_event_size, needed_size;
@@ -775,13 +747,14 @@ static int scst_event_user_next_event(struct scst_event_priv *priv,
 	while (list_empty(&priv->queued_events_list)) {
 		mutex_unlock(&scst_event_mutex);
 		wait_event_interruptible(priv->queued_events_waitQ,
-			(!list_empty(&priv->queued_events_list) || priv->going_to_exit ||
-			 !priv->blocking || signal_pending(current)));
+					 (!list_empty(&priv->queued_events_list) ||
+					  priv->going_to_exit || !priv->blocking ||
+					  signal_pending(current)));
 		mutex_lock(&scst_event_mutex);
 		if (priv->going_to_exit || signal_pending(current)) {
 			res = -EINTR;
 			TRACE_DBG("Signal pending or going_to_exit (%d), returning",
-				priv->going_to_exit);
+				  priv->going_to_exit);
 			goto out;
 		} else if (list_empty(&priv->queued_events_list) && !priv->blocking) {
 			res = -EAGAIN;
@@ -792,14 +765,14 @@ static int scst_event_user_next_event(struct scst_event_priv *priv,
 
 	EXTRACHECKS_BUG_ON(list_empty(&priv->queued_events_list));
 
-	event_entry = list_entry(priv->queued_events_list.next,
-			struct scst_event_entry, events_list_entry);
+	event_entry = list_entry(priv->queued_events_list.next, struct scst_event_entry,
+				 events_list_entry);
 
 	needed_size = sizeof(event_entry->event) + event_entry->event.payload_len;
 
 	if (needed_size > max_event_size) {
-		TRACE_DBG("Too big event (size %d, max size %d)", needed_size,
-			max_event_size);
+		TRACE_DBG("Too big event (size %d, max size %d)",
+			  needed_size, max_event_size);
 		res = put_user(needed_size, (int32_t __user *)arg);
 		if (res == 0)
 			res = -ENOSPC;
@@ -815,9 +788,8 @@ static int scst_event_user_next_event(struct scst_event_priv *priv,
 
 	if (event_entry->event_notify_fn) {
 		TRACE_DBG("Moving event entry %p to processing events list",
-			event_entry);
-		list_move_tail(&event_entry->events_list_entry,
-			&priv->processing_events_list);
+			  event_entry);
+		list_move_tail(&event_entry->events_list_entry, &priv->processing_events_list);
 	} else {
 		TRACE_MEM("Deleting event entry %p", event_entry);
 		list_del(&event_entry->events_list_entry);
@@ -834,8 +806,7 @@ out:
 }
 
 /* scst_event_mutex supposed to be held. Might drop it, then get back. */
-static int scst_event_user_notify_done(struct scst_event_priv *priv,
-	void __user *arg)
+static int scst_event_user_notify_done(struct scst_event_priv *priv, void __user *arg)
 {
 	int res, rc;
 	struct scst_event_notify_done n;
@@ -871,7 +842,7 @@ static int scst_event_user_notify_done(struct scst_event_priv *priv,
 
 	cancel_delayed_work_sync(&e->event_timeout_work);
 
-	if (e->event_notify_fn != NULL) {
+	if (e->event_notify_fn) {
 		TRACE_DBG("Calling notify_fn of event_entry %p", e);
 		e->event_notify_fn(&e->event, e->notify_fn_priv, n.status);
 	}
@@ -895,7 +866,7 @@ static int scst_event_create_priv(struct file *file)
 
 	TRACE_ENTRY();
 
-	EXTRACHECKS_BUG_ON(file->private_data != NULL);
+	EXTRACHECKS_BUG_ON(file->private_data);
 
 	if (!try_module_get(THIS_MODULE)) {
 		PRINT_ERROR("Fail to get module");
@@ -904,9 +875,9 @@ static int scst_event_create_priv(struct file *file)
 	}
 
 	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
-	if (priv == NULL) {
+	if (!priv) {
 		PRINT_ERROR("Unable to allocate priv (size %zd)",
-			sizeof(*priv));
+			    sizeof(*priv));
 		res = -ENOMEM;
 		goto out_put;
 	}
@@ -919,10 +890,11 @@ static int scst_event_create_priv(struct file *file)
 	INIT_LIST_HEAD(&priv->queued_events_list);
 	INIT_LIST_HEAD(&priv->processing_events_list);
 	if (file->f_flags & O_NONBLOCK) {
-		TRACE_DBG("%s", "Non-blocking operations");
+		TRACE_DBG("Non-blocking operations");
 		priv->blocking = 0;
-	} else
+	} else {
 		priv->blocking = 1;
+	}
 
 	list_add_tail(&priv->privs_list_entry, &scst_event_privs_list);
 
@@ -939,8 +911,7 @@ out_put:
 	goto out;
 }
 
-static long scst_event_ioctl(struct file *file, unsigned int cmd,
-	unsigned long arg)
+static long scst_event_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	long res;
 	struct scst_event_priv *priv;
@@ -950,7 +921,7 @@ static long scst_event_ioctl(struct file *file, unsigned int cmd,
 	mutex_lock(&scst_event_mutex);
 
 	priv = file->private_data;
-	if (unlikely(priv == NULL)) {
+	if (unlikely(!priv)) {
 		/* This is the first time we are here */
 		res = scst_event_create_priv(file);
 		if (res != 0)
@@ -969,22 +940,22 @@ static long scst_event_ioctl(struct file *file, unsigned int cmd,
 
 	switch (cmd) {
 	case SCST_EVENT_ALLOW_EVENT:
-		TRACE_DBG("%s", "ALLOW_EVENT");
+		TRACE_DBG("ALLOW_EVENT");
 		res = scst_event_allow_event(priv, (void __user *)arg);
 		break;
 
 	case SCST_EVENT_DISALLOW_EVENT:
-		TRACE_DBG("%s", "DISALLOW_EVENT");
+		TRACE_DBG("DISALLOW_EVENT");
 		res = scst_event_disallow_event(priv, (void __user *)arg);
 		break;
 
 	case SCST_EVENT_GET_NEXT_EVENT:
-		TRACE_DBG("%s", "GET_NEXT_EVENT");
+		TRACE_DBG("GET_NEXT_EVENT");
 		res = scst_event_user_next_event(priv, (void __user *)arg);
 		break;
 
 	case SCST_EVENT_NOTIFY_DONE:
-		TRACE_DBG("%s", "NOTIFY_DONE");
+		TRACE_DBG("NOTIFY_DONE");
 		res = scst_event_user_notify_done(priv, (void __user *)arg);
 		break;
 
@@ -1011,7 +982,7 @@ static __poll_t scst_event_poll(struct file *file, poll_table *wait)
 	mutex_lock(&scst_event_mutex);
 
 	priv = file->private_data;
-	if (unlikely(priv == NULL)) {
+	if (unlikely(!priv)) {
 		PRINT_ERROR("At least one allowed event must be set");
 		res = EPOLLNVAL;
 		goto out_unlock;
@@ -1047,21 +1018,18 @@ out_unlock:
 #endif
 
 #ifdef CONFIG_EVENTS_WAIT_TEST
-static void scst_event_test_notify_fn(struct scst_event *event,
-	void *priv, int status)
+static void scst_event_test_notify_fn(struct scst_event *event, void *priv, int status)
 {
 	TRACE_ENTRY();
 
-	PRINT_INFO("Notification for event %u (id %d) received with status %d "
-		"(priv %p)", event->event_code, event->event_id, status,
-		priv);
+	PRINT_INFO("Notification for event %u (id %d) received with status %d (priv %p)",
+		   event->event_code, event->event_id, status, priv);
 
 	TRACE_EXIT();
-	return;
 }
 
-static ssize_t event_wait_test_store(struct kobject *kobj,
-	struct kobj_attribute *attr, const char *buf, size_t count)
+static ssize_t event_wait_test_store(struct kobject *kobj, struct kobj_attribute *attr,
+				     const char *buf, size_t count)
 {
 	int res = 0, event_entry_len;
 	struct scst_event_entry *event_entry;
@@ -1070,18 +1038,18 @@ static ssize_t event_wait_test_store(struct kobject *kobj,
 
 	event_entry_len = sizeof(*event_entry);
 	event_entry = kzalloc(event_entry_len, GFP_KERNEL);
-	if (event_entry == NULL) {
-		PRINT_ERROR("Unable to allocate event (size %d). Test "
-			"event is lost!", event_entry_len);
+	if (!event_entry) {
+		PRINT_ERROR("Unable to allocate event (size %d). Test event is lost!",
+			    event_entry_len);
 		res = -ENOMEM;
 		goto out;
 	}
 
-	TRACE_MEM("event_entry %p (len %d) allocated", event_entry,
-		event_entry_len);
+	TRACE_MEM("event_entry %p (len %d) allocated",
+		  event_entry, event_entry_len);
 
 	event_entry->event_notify_fn = scst_event_test_notify_fn;
-	event_entry->event_timeout = 10*HZ;
+	event_entry->event_timeout = 10 * HZ;
 
 	scst_event_queue(0x12345, SCST_EVENT_SCST_CORE_ISSUER, event_entry);
 
@@ -1094,7 +1062,7 @@ out:
 }
 
 static struct kobj_attribute event_wait_test_attr =
-	__ATTR(event_wait_test, S_IWUSR, NULL, event_wait_test_store);
+	__ATTR(event_wait_test, 0200, NULL, event_wait_test_store);
 
 #endif /* #ifdef CONFIG_EVENTS_WAIT_TEST */
 
@@ -1141,10 +1109,8 @@ int scst_event_init(void)
 		goto out_class;
 	}
 
-	dev = device_create(scst_event_sysfs_class, NULL,
-			    MKDEV(scst_event_major, 0),
-				NULL,
-				SCST_EVENT_NAME);
+	dev = device_create(scst_event_sysfs_class, NULL, MKDEV(scst_event_major, 0), NULL,
+			    SCST_EVENT_NAME);
 	if (IS_ERR(dev)) {
 		res = PTR_ERR(dev);
 		goto out_chrdev;
@@ -1187,5 +1153,4 @@ void scst_event_exit(void)
 	destroy_workqueue(scst_event_wq);
 
 	TRACE_EXIT();
-	return;
 }
