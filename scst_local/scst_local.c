@@ -1445,7 +1445,7 @@ static int scst_local_driver_probe(struct device *dev)
 	}
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
-	hpnt->nr_hw_queues = num_possible_cpus();
+	hpnt->nr_hw_queues = blk_mq_num_possible_queues(0);
 #endif
 
 	sess->shost = hpnt;
