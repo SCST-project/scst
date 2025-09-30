@@ -2395,7 +2395,7 @@ qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 5))
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 4))
 	/* This may fail but that's ok */
 	pci_enable_pcie_error_reporting(pdev);
 #endif
@@ -3052,7 +3052,7 @@ qla2x00_remove_one(struct pci_dev *pdev)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 5))
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 4))
 	pci_disable_pcie_error_reporting(pdev);
 #endif
 	pci_disable_device(pdev);

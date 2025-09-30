@@ -373,10 +373,11 @@ blkdev_issue_discard_backport(struct block_device *bdev, sector_t sector,
  * See also f2f2efb807d3 ("byteorder: Move {cpu_to_be32, be32_to_cpu}_array()
  * from Thunderbolt to core") # v4.15.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0) && \
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0) &&	\
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
-	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 5) && \
-	!defined(UEK_KABI_RENAME)
+	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 5) &&	\
+	(!defined(UEK_KABI_RENAME) ||			\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 static inline void cpu_to_be32_array(__be32 *dst, const u32 *src, size_t len)
 {
 	int i;
@@ -941,7 +942,8 @@ static inline void *kvmalloc_array(size_t n, size_t size, gfp_t flags)
 	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 7) &&	\
 	!defined(CONFIG_SUSE_KERNEL) &&			\
 	!defined(_COMPAT_LINUX_MM_H) &&			\
-	!defined(UEK_KABI_RENAME)
+	(!defined(UEK_KABI_RENAME) ||			\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 /* See also commit 1c542f38ab8d ("mm: Introduce kvcalloc()") # v4.18. */
 static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
 {
@@ -1926,7 +1928,9 @@ static inline struct request *scsi_cmd_to_rq(struct scsi_cmnd *scmd)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) ||		\
 	(defined(RHEL_RELEASE_CODE) &&				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 7))
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 7)) ||	\
+	(defined(UEK_KABI_RENAME) &&				\
+	 LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0))
 static inline u32 scsi_prot_ref_tag(struct scsi_cmnd *scmd)
 {
 #if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 7
@@ -2099,7 +2103,8 @@ enum {
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||		\
 	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 9 ||		\
 	 RHEL_MAJOR -0 == 9 && RHEL_MINOR -0 < 3) &&		\
-	!defined(UEK_KABI_RENAME)
+	(!defined(UEK_KABI_RENAME) ||				\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 /*
  * See also commit 64fd2ba977b1 ("scsi: scsi_transport_fc: Add an additional
  * flag to fc_host_fpin_rcv()") # v6.3
@@ -2142,7 +2147,9 @@ static inline int fc_block_rport(struct fc_rport *rport)
 /* See also commit a7dff3ad4787 ("scsi: fc: add FPIN ELS definition") # v5.2 */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0) &&	\
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
-	 (RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 2))
+	 (RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 2)) &&	\
+	(!defined(UEK_KABI_RENAME) ||			\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 #define ELS_FPIN 0x16
 #endif
 
@@ -2150,10 +2157,11 @@ static inline int fc_block_rport(struct fc_rport *rport)
  * See also commit 62e9dd177732 ("scsi: qla2xxx: Change in PUREX to handle FPIN
  * ELS requests").
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0) &&			\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||			\
-	 (RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 4)) &&			\
-	!(defined(UEK_KABI_RENAME) && defined(FC_PORTSPEED_256GBIT))
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0) &&		\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||		\
+	 (RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 4)) &&		\
+	(!defined(UEK_KABI_RENAME) ||				\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 #define ELS_RDP 0x18
 #endif
 
