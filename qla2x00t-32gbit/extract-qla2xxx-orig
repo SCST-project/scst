@@ -6,25 +6,27 @@ source "$(dirname "$0")/../scripts/kernel-functions" || exit $?
 # Argument verification #
 #########################
 
-kernel_version="$1"
+full_kver="$1"
 
-if [ "$1" = "" ]; then
+if [ "${full_kver}" = "" ]; then
   echo "Error: missing kernel version argument."
   exit 1
 fi
 
+krel=${full_kver/^*}
+
 mkdir -p qla2xxx-orig
 cd qla2xxx-orig || exit $?
-download_and_extract_kernel_tree "${kernel_version}" || exit $?
-kernel_version=${kernel_version/^*}
-touch "linux-${kernel_version}"/drivers/scsi/qla2xxx/*
-rm -rf "${kernel_version}"
-mkdir -p "${kernel_version}/include/trace/events"
-mv "linux-${kernel_version}"/drivers/scsi/qla2xxx/* "${kernel_version}"
-if [ -e "linux-${kernel_version}"/include/trace/events/qla.h ]; then
-    touch "linux-${kernel_version}"/include/trace/events/qla.h
-    mv "linux-${kernel_version}"/include/trace/events/qla.h \
-       "${kernel_version}/include/trace/events"
+download_and_extract_kernel_tree "${full_kver}" || exit $?
+
+touch "linux-${krel}"/drivers/scsi/qla2xxx/*
+rm -rf "${krel}"
+mkdir -p "${krel}/include/trace/events"
+
+mv "linux-${krel}"/drivers/scsi/qla2xxx/* "${krel}"
+if [ -e "linux-${krel}"/include/trace/events/qla.h ]; then
+    touch "linux-${krel}"/include/trace/events/qla.h
+    mv "linux-${krel}"/include/trace/events/qla.h "${krel}/include/trace/events"
 fi
-rm -rf "linux-${kernel_version}"
+rm -rf "linux-${krel}"
 cd ..
