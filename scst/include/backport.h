@@ -237,6 +237,27 @@ void blk_execute_rq_nowait_backport(struct request *rq, bool at_head)
 #define blk_execute_rq_nowait blk_execute_rq_nowait_backport
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
+static inline unsigned int blk_mq_num_queues(const struct cpumask *mask,
+					     unsigned int max_queues)
+{
+	unsigned int num;
+
+	num = cpumask_weight(mask);
+	return min_not_zero(num, max_queues);
+}
+
+static inline unsigned int blk_mq_num_possible_queues(unsigned int max_queues)
+{
+	return blk_mq_num_queues(cpu_possible_mask, max_queues);
+}
+
+static inline unsigned int blk_mq_num_online_queues(unsigned int max_queues)
+{
+	return blk_mq_num_queues(cpu_online_mask, max_queues);
+}
+#endif
+
 /* <linux/blkdev.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0) &&		\
