@@ -1689,7 +1689,7 @@ skip_pio:
 		/* Max queues are bounded by available msix vectors */
 		/* queue 0 uses two msix vectors */
 		if (ql2xmultique_tag) {
-			cpus = num_online_cpus();
+			cpus = blk_mq_num_online_queues(0);
 			ha->max_rsp_queues = (ha->msix_count - 1 > cpus) ?
 				(cpus + 1) : (ha->msix_count - 1);
 			ha->max_req_queues = 2;
@@ -1778,7 +1778,7 @@ qla83xx_iospace_config(struct qla_hw_data *ha)
 		/* Max queues are bounded by available msix vectors */
 		/* queue 0 uses two msix vectors */
 		if (ql2xmultique_tag) {
-			cpus = num_online_cpus();
+			cpus = blk_mq_num_online_queues(0);
 			ha->max_rsp_queues = (ha->msix_count - 1 > cpus) ?
 				(cpus + 1) : (ha->msix_count - 1);
 			ha->max_req_queues = 2;

@@ -2237,7 +2237,7 @@ static void scst_suspended(struct percpu_ref *ref)
 static int __init init_scst(void)
 {
 	int res, i;
-	int scst_num_cpus;
+	int num_online_queues;
 
 	TRACE_ENTRY();
 
@@ -2284,16 +2284,16 @@ static int __init init_scst(void)
 	if (res != 0)
 		goto out_deinit_threads;
 
-	scst_num_cpus = num_online_cpus();
+	num_online_queues = blk_mq_num_online_queues(0);
 
 	/* ToDo: register_cpu_notifier() */
 
 	if (scst_threads == 0)
-		scst_threads = scst_num_cpus;
+		scst_threads = num_online_queues;
 
 	if (scst_threads < 1) {
 		PRINT_ERROR("scst_threads can not be less than 1");
-		scst_threads = scst_num_cpus;
+		scst_threads = num_online_queues;
 	}
 
 /* Used for rarely used or read-mostly on fast path structures */
@@ -2456,8 +2456,8 @@ static int __init init_scst(void)
 			     (unsigned long)&scst_percpu_infos[i]);
 	}
 
-	TRACE_DBG("%d CPUs found, starting %d threads",
-		  scst_num_cpus, scst_threads);
+	TRACE_DBG("%d online queues, starting %d threads",
+		  num_online_queues, scst_threads);
 
 	res = scst_start_global_threads(scst_threads);
 	if (res < 0)

@@ -922,8 +922,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 	isert_dev->device_attr = ib_dev->attrs;
 #endif
 
-	isert_dev->num_cqs = min_t(int, num_online_cpus(),
-				   ib_dev->num_comp_vectors);
+	isert_dev->num_cqs = blk_mq_num_online_queues(ib_dev->num_comp_vectors);
 
 	isert_dev->cq_qps = kcalloc(isert_dev->num_cqs,
 				    sizeof(*isert_dev->cq_qps),
