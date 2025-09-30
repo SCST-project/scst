@@ -125,12 +125,12 @@ function make_dpkg {
 
 function compile_scst {
   (
-    for p in scst scst_local iscsi-scst srpt qla2x00t qla2x00t-32gbit; do
-      if [ "${p%qla2x00t}" != "$p" ]; then
+    for d in scst iscsi-scst qla2x00t qla2x00t-32gbit srpt scst_local fcst usr; do
+      if [[ $d = qla2x00t || $d = qla2x00t-32gbit ]]; then
         BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y \
-        make -C "$p/qla2x00-target" || return $?
+        make -j"$(nproc)" -C "$d" || return $?
       else
-        make -C "$p" || return $?
+        make -j"$(nproc)" -C "$d" || return $?
       fi
     done
   )
@@ -321,17 +321,8 @@ CONFIG_LTO_CLANG				\
 "
   local enable="CONFIG_UNWINDER_FRAME_POINTER"
 
-  case "$1" in
-      2.6.32-*)
-         echo "Enabling CONFIG_EVENT_TRACING for CentOS 6.x"
-         enable="$enable \
-                 CONFIG_DEBUG_KERNEL \
-                 CONFIG_FTRACE \
-                 CONFIG_EVENT_TRACING \
-                 CONFIG_DYNAMIC_DEBUG";;
-      *)
-         disable="$disable CONFIG_EVENT_TRACING";;
-  esac
+  # SCST does not need event tracing on supported kernels
+  disable="$disable CONFIG_EVENT_TRACING"
 
   echo "Patching and configuring kernel ..."
   if [ "$ipv6" = "false" ]; then
@@ -394,7 +385,7 @@ function compile_kernel {
   if (cd "${outputdir}/linux-$k" \
       && make -s modules_prepare \
       && make -s scripts \
-      && for subdir; do LC_ALL=C KBUILD_MODPOST_WARN=1 make -j$(nproc) -k M="${subdir}"; done
+      && for subdir; do LC_ALL=C KBUILD_MODPOST_WARN=1 make -j"$(nproc)" -k M="${subdir}"; done
      ) &> "${outputfile}"
   then
     local errors warnings
@@ -581,7 +572,6 @@ kernel_versions=""
 outputdir="${PWD}/regression-test-output-$(date +%Y-%m-%d_%Hh%Mm%Ss)"
 # Driver configuration.
 multiple_patches="false"
-qla2x00t="true"
 remove_temporary_files_at_end="false"
 run_local_compilation="true"
 quiet_download="false"
@@ -713,7 +703,7 @@ do
       fi
   done
   export KCFLAGS
-  subdirs=(drivers/scst)
+  subdirs=(drivers/scst drivers/scsi/qla2xxx)
   if [ "${run_sparse}" = "true" ]; then
     run_sparse "$k" "${subdirs[@]}"
     mv "${outputdir}/sparse-$k-output.txt" \
@@ -727,9 +717,6 @@ do
   fi
   if [ "${run_smatch}" = "true" ]; then
     run_smatch "$k" "${subdirs[@]}"
-  fi
-  if [ "${qla2x00t}" = "true" ] && kernel_version_le 2.6.37 "$k"; then
-    subdirs+=(drivers/scsi/qla2xxx)
   fi
   compile_kernel "$k" "${subdirs[@]}"
   if [ "${full_check}" = "true" ]; then

@@ -238,13 +238,6 @@ fi
 full_kver="$1"
 kver="$(kernel_version "$1")"
 
-# Include fcst in the patch for kernel versions 2.6.33 and later.
-if kernel_version_le "2.6.37" "${kver}"; then
-  include_fcst="true"
-else
-  include_fcst="false"
-fi
-
 # See also commit 89d9a567952b ("[SCSI] add support for per-host cmd pools";
 # v3.15).
 if kernel_version_lt "$kver" 3.18; then
@@ -261,15 +254,8 @@ else
   scst_makefile="Makefile.scst"
 fi
 
-# Make sure that for kernel 2.6.26 and later the line
-# "#define CONFIG_SCST_PROC" is removed from scst/include/scst.h.
-if grep -qw scst_sysfs scst/kernel/in-tree/${scst_makefile} \
-   || [ "${generating_upstream_patch}" = "true" ];
-then
-  specialize_patch_options+=(-v "config_scst_proc_undefined=1")
-else
-  include_proc_impl="true"
-fi
+specialize_patch_options+=(-v "config_scst_proc_undefined=1")
+
 if [ "${debug_specialize}" = "true" ]; then
   specialize_patch_options+=(-v "debug=1")
 fi
@@ -315,7 +301,6 @@ scst_06_lib="scst/src/scst_lib.c"
 scst_07_pres="scst/src/scst_pres.h scst/src/scst_pres.c"
 scst_08_sysfs="scst/src/scst_sysfs.c"
 scst_09_debug="scst/include/scst_debug.h scst/src/scst_debug.c"
-scst_proc="scst/src/scst_proc.c"
 scst_10_sgv="scst/include/scst_sgv.h scst/src/scst_mem.h scst/src/scst_mem.c doc/scst_pg.sgml"
 scst_user="scst/include/scst_user.h scst/src/dev_handlers/scst_user.c"
 scst_13_vdisk="scst/src/dev_handlers/scst_vdisk.c"
@@ -323,11 +308,8 @@ scst_14_tg="scst/src/scst_tg.c"
 separate_patches="scst_03_public_headers scst_04_main scst_05_targ scst_06_lib scst_07_pres scst_08_sysfs scst_09_debug scst_10_sgv scst_user scst_13_vdisk scst_14_tg"
 
 # Suppress shellcheck warnings about unused variables.
-echo "$scst_03_public_headers $scst_04_main $scst_05_targ $scst_06_lib $scst_07_pres $scst_08_sysfs $scst_09_debug $scst_proc $scst_10_sgv $scst_user $scst_13_vdisk $scst_14_tg" >/dev/null
+echo "$scst_03_public_headers $scst_04_main $scst_05_targ $scst_06_lib $scst_07_pres $scst_08_sysfs $scst_09_debug $scst_10_sgv $scst_user $scst_13_vdisk $scst_14_tg" >/dev/null
 
-if [ "$include_proc_impl" = "true" ]; then
-  separate_patches+=" scst_proc"
-fi
 source_files_in_separate_patch=""
 for s in ${separate_patches}
 do
@@ -347,8 +329,7 @@ else
             "drivers/Kconfig"
 fi
 
-if [ "${full_kver#2.6.32-}" = "${full_kver}" ] &&
-       [ -e "scst/kernel/in-tree/Makefile.drivers.Linux-${kver}.patch" ]; then
+if [ -e "scst/kernel/in-tree/Makefile.drivers.Linux-${kver}.patch" ]; then
   add_patch "scst/kernel/in-tree/Makefile.drivers.Linux-${kver}.patch"\
             "drivers/Makefile"
 else
@@ -366,29 +347,11 @@ tmpdir="/tmp/scst-$$"
 mkdir -p "${tmpdir}"
 
 tmp_Kconfig="${tmpdir}/Kconfig.scst-${kver}"
-# shellcheck disable=SC2002
-cat "scst/kernel/in-tree/Kconfig.scst" | \
-if [ "${include_fcst}" = true ]; then
-  cat
-else
-  grep -v '^source "drivers/scst/fcst/Kconfig"$'
-fi >"${tmp_Kconfig}"
+cat "scst/kernel/in-tree/Kconfig.scst" >"${tmp_Kconfig}"
 add_file "${tmp_Kconfig}" "drivers/scst/Kconfig"
 
 tmp_Makefile="${tmpdir}/${scst_makefile}"
-# shellcheck disable=SC2002
-cat "scst/kernel/in-tree/${scst_makefile}" | \
-if [ "$include_proc_impl" != "true" ]; then
-  grep -v 'scst_proc'
-else
-  cat
-fi | \
-  if [ "${include_fcst}" = true ] && [ "${kver}" != "2.6.37" ] &&
-	 [ "${kver}" != "2.6.38" ]; then
-  cat
-else
-  sed -e 's: fcst/* : :'
-fi >"$tmp_Makefile"
+cat "scst/kernel/in-tree/${scst_makefile}" >"${tmp_Makefile}"
 add_file "$tmp_Makefile" "drivers/scst/Makefile"
 
 rm -rf "${tmpdir}"
@@ -434,8 +397,7 @@ done
 
 
 # Directory drivers/scst/dev_handlers/
-if [ -e "scst/kernel/in-tree/Makefile.dev_handlers-${kver}" ]
-then
+if [ -e "scst/kernel/in-tree/Makefile.dev_handlers-${kver}" ]; then
   add_file "scst/kernel/in-tree/Makefile.dev_handlers-${kver}" \
            "drivers/scst/dev_handlers/Makefile" \
   | process_patch "scst_11_dev_handlers_makefile.diff"
@@ -456,7 +418,7 @@ done \
 
 # Directory drivers/scst/fcst/
 
-if [ "${include_fcst}" = true ]; then
+(
   if [ -e "${fcst_patch_series}" ]; then
     grep -v '^#' "${fcst_patch_series}" |
       while read -r f; do
@@ -474,8 +436,7 @@ if [ "${include_fcst}" = true ]; then
     [ -e "$f" ] || continue
     add_file "${f}" "drivers/scst/fcst/${f#fcst/}"
   done
-fi \
-| process_patch "fcst.diff"
+) | process_patch "fcst.diff"
 
 add_file "fcst/README" "Documentation/scst/README.fcst" \
 | process_patch "fcst-doc.diff"
@@ -519,8 +480,7 @@ for f in iscsi-scst/kernel/isert-scst/*.[ch]; do
 done
 add_file "iscsi-scst/kernel/isert-scst/Makefile.in-kernel" "drivers/scst/iscsi-scst/isert-scst/Makefile"
 add_file "iscsi-scst/kernel/isert-scst/Kconfig" "drivers/scst/iscsi-scst/isert-scst/Kconfig"
-) \
-| process_patch "iscsi-scst.diff"
+) | process_patch "iscsi-scst.diff"
 
 add_file "iscsi-scst/README_in-tree" "Documentation/scst/README.iscsi" \
 | process_patch "iscsi-scst-doc.diff"
@@ -578,8 +538,7 @@ elif [ "${qla2x00t_32gbit}" = "true" ]; then
            "Documentation/scst/README.qla2x00t" \
   | process_patch "qla2x00t-doc.diff"
 
-fi \
-| process_patch "qla2x00t.diff"
+fi | process_patch "qla2x00t.diff"
 
 
 # Directory drivers/scst/srpt
@@ -639,5 +598,4 @@ fi \
   fi
 
   add_file "scst_local/scst_local.c" "drivers/scst/scst_local/scst_local.c"
-) \
-| process_patch "scst_16_local.diff"
+) | process_patch "scst_16_local.diff"
