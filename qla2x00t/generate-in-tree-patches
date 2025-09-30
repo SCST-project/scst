@@ -1,24 +1,24 @@
 #!/bin/bash
 
-kernel_version="$1"
+full_kver="$1"
 
-if [ "$kernel_version" = "" ]; then
+if [ "${full_kver}" = "" ]; then
   echo "Error: missing kernel version argument."
   exit 1
 fi
 
-if [ ! -e qla2xxx-orig/${kernel_version/^*} ]; then
-  "$(dirname "$0")/extract-qla2xxx-orig" "$kernel_version" || exit $?
+krel=${full_kver/^*}
+
+if [ ! -e qla2xxx-orig/"${krel}" ]; then
+  "$(dirname "$0")/extract-qla2xxx-orig" "${full_kver}" || exit $?
 fi
 
-kernel_version=${kernel_version/^*}
-
-mkdir -p in-tree-patches/"${kernel_version}"
+mkdir -p in-tree-patches/"${krel}"
 
 for g in Kconfig *.[ch]; do
-  f1="qla2xxx-orig/${kernel_version}/$g"
+  f1="qla2xxx-orig/${krel}/$g"
   f2="$g"
-  f3="in-tree-patches/${kernel_version}/$g.patch"
+  f3="in-tree-patches/${krel}/$g.patch"
   if [ "$f1" -nt "$f3" -o "$f2" -nt "$f3" ]; then
     if [ -e "$f1" ]; then
       diff -up "$f1" "$f2" > "$f3"
@@ -29,9 +29,9 @@ for g in Kconfig *.[ch]; do
 done
 
 for g in Makefile; do
-  f1="qla2xxx-orig/${kernel_version}/$g"
+  f1="qla2xxx-orig/${krel}/$g"
   f2="${g}_in-tree"
-  f3="in-tree-patches/${kernel_version}/$g.patch"
+  f3="in-tree-patches/${krel}/$g.patch"
   if [ "$f1" -nt "$f3" -o "$f2" -nt "$f3" ]; then
     diff -up "$f1" "$f2" > "$f3"
   fi

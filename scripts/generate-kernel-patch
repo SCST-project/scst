@@ -236,7 +236,8 @@ fi
 
 # Strip patch level from the kernel version number.
 full_kver="$1"
-kver="$(kernel_version "$1")"
+kver="$(kernel_version "${full_kver}")"
+krel=${full_kver/^*}
 
 # See also commit 89d9a567952b ("[SCSI] add support for per-host cmd pools";
 # v3.15).
@@ -490,11 +491,11 @@ add_file "iscsi-scst/README_in-tree" "Documentation/scst/README.iscsi" \
 
 if [ "${qla2x00t}" = "true" ]; then
 
-  ( cd qla2x00t && "$PWD/generate-in-tree-patches" "$1" ) || exit $?
+  ( cd qla2x00t && "$PWD/generate-in-tree-patches" "${full_kver}" ) || exit $?
 
-  for f in qla2x00t/in-tree-patches/"$1"/*.patch; do
+  for f in qla2x00t/in-tree-patches/"${krel}"/*.patch; do
     [ -e "$f" ] || continue
-    g="${f#qla2x00t/in-tree-patches/$1/}"
+    g="${f#qla2x00t/in-tree-patches/"${krel}"/}"
     g="${g%.patch}"
     add_patch "${f}" "drivers/scsi/qla2xxx/${g}"
   done
@@ -516,12 +517,14 @@ if [ "${qla2x00t}" = "true" ]; then
 
 elif [ "${qla2x00t_32gbit}" = "true" ]; then
 
-  ( cd qla2x00t-32gbit && "$PWD/generate-in-tree-patches" "$1" ) || exit $?
+  ( cd qla2x00t-32gbit && "$PWD/generate-in-tree-patches" "${full_kver}" ) || exit $?
 
-  for f in qla2x00t-32gbit/in-tree-patches/"$1"/*.patch; do
+  for f in qla2x00t-32gbit/in-tree-patches/"${krel}"/*.patch; do
     [ -e "$f" ] || continue
-    g="${f#qla2x00t-32gbit/in-tree-patches/$1/}"
+
+    g="${f#qla2x00t-32gbit/in-tree-patches/"${krel}"/}"
     g="${g%.patch}"
+
     if [ "$g" = "qla.h" ]; then
 	add_patch "${f}" "include/trace/events/${g}"
     else
@@ -531,6 +534,7 @@ elif [ "${qla2x00t_32gbit}" = "true" ]; then
 
   for f in qla2x00t-32gbit/qla2x00-target/*.[ch]; do
     [ -e "$f" ] || continue
+
     add_file "${f}" "drivers/scsi/qla2xxx/${f#qla2x00t-32gbit/qla2x00-target/}"
   done
 

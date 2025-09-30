@@ -210,11 +210,11 @@ function generate_kernel_patch {
   kver="$(kernel_version "${1/^*}")"
   driver_options=(-l)
 
-  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" $2 "$1" > "${patchfile}"
+  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" "$2" "$1" > "${patchfile}"
 
-  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" -n $2 "$1" > "${patchfile_m}"
+  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" -n "$2" "$1" > "${patchfile_m}"
 
-  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" -p "${outputdir}/${patchdir}" $2 "$1"
+  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" -p "${outputdir}/${patchdir}" "$2" "$1"
 }
 
 # Run checkpatch on the generated kernel patch. Assumes that there is a
