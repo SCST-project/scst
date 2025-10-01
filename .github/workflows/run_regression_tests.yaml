@@ -85,19 +85,30 @@ jobs:
       - name: Run regression tests
         run: |
           err=0
+          version="${{matrix.version}}"
+          workdir="/tmp/scst-${version}"
+          out="output.txt"
 
-          ./scripts/run-regression-tests -l -q -k -d /tmp/scst-${{matrix.version}} ${{matrix.version}}-nc-ns-nm | tee output.txt
+          ./scripts/run-regression-tests -l -q -d "${workdir}" "${version}-nc-ns-nm" | tee "${out}"
 
-          if ! grep -q "Compiling the patched kernel" output.txt; then
-            echo "::error ::run-regression-tests failed"
+          if ! grep -q "Compiling the patched kernel" "${out}"; then
+            echo "::error title=Regression tests::run-regression-tests failed"
             err=1
           else
-            if grep -A1 "Compiling the patched kernel" output.txt | grep -E -q "FAILED|[1-9][0-9]* errors"; then
-              echo "::error ::Regression test failed"
+            if grep -A1 "Compiling the patched kernel" "${out}" | grep -E -q "FAILED|[1-9][0-9]* errors"; then
+              echo "::error title=Regression tests::Regression test failed"
               err=1
+            else
+              echo "::notice title=Regression tests::Succeeded"
             fi
+
+            f=( "${workdir}"/compilation-*-output.txt )
+            echo
+            echo "===== $(basename "${f[0]}") ====="
+            cat "${f[0]}"
           fi
 
-          rm -f output.txt
+          rm -rf "${workdir}"
+          rm -f "${out}"
 
           exit $err
