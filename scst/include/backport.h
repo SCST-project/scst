@@ -2152,7 +2152,7 @@ static inline int fc_block_rport(struct fc_rport *rport)
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0) &&			\
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||			\
-	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 4) &&			\
+	 (RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 4)) &&			\
 	!(defined(UEK_KABI_RENAME) && defined(FC_PORTSPEED_256GBIT))
 #define ELS_RDP 0x18
 #endif
