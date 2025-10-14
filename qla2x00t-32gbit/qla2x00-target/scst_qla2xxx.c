@@ -83,6 +83,7 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd);
 static int sqa_rdy_to_xfer(struct scst_cmd *scst_cmd);
 static void sqa_on_free_cmd(struct scst_cmd *scst_cmd);
 static void sqa_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd);
+static void sqa_on_abort_cmd(struct scst_cmd *scst_cmd);
 static int sqa_get_initiator_port_transport_id(struct scst_tgt *tgt,
 					       struct scst_session *scst_sess,
 					       uint8_t **transport_id);
@@ -1273,6 +1274,7 @@ static struct scst_tgt_template sqa_scst_template = {
 
 	.on_free_cmd			 = sqa_on_free_cmd,
 	.task_mgmt_fn_done		 = sqa_task_mgmt_fn_done,
+	.on_abort_cmd			 = sqa_on_abort_cmd,
 	.close_session			 = sqa_close_session,
 
 	.get_initiator_port_transport_id = sqa_get_initiator_port_transport_id,
@@ -2032,6 +2034,46 @@ out_unlock:
 	scst_cmd_put(scst_cmd);
 
 	TRACE_EXIT();
+}
+
+struct sqa_abort_work {
+	struct scst_cmd *scst_cmd;
+	struct work_struct abort_work;
+};
+
+static void sqa_on_abort_cmd_work(struct work_struct *work)
+{
+	struct sqa_abort_work *abort_work =
+		container_of(work, struct sqa_abort_work, abort_work);
+	struct scst_cmd *scst_cmd = abort_work->scst_cmd;
+	struct qla_tgt_cmd *cmd = scst_cmd_get_tgt_priv(scst_cmd);
+
+	TRACE_ENTRY();
+
+	kfree(abort_work);
+	qlt_abort_cmd(cmd);
+	scst_cmd_put(scst_cmd);
+
+	TRACE_EXIT();
+}
+
+static void sqa_on_abort_cmd(struct scst_cmd *scst_cmd)
+{
+	struct sqa_abort_work *abort_work;
+
+	/*
+	 * The caller holds sess->sess_list_lock, but qlt_abort_cmd() needs to
+	 * acquire qpair->qp_lock_ptr (ha->hardware_lock); these locks are
+	 * acquired in the reverse order elsewhere.  Use a workqueue to avoid
+	 * acquiring the locks in the wrong order here.
+	 */
+	abort_work = kmalloc(sizeof(*abort_work), GFP_ATOMIC);
+	if (!abort_work)
+		return;
+	scst_cmd_get(scst_cmd);
+	abort_work->scst_cmd = scst_cmd;
+	INIT_WORK(&abort_work->abort_work, sqa_on_abort_cmd_work);
+	schedule_work(&abort_work->abort_work);
 }
 
 /*
