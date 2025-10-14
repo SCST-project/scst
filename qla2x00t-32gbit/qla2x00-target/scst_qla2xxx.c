@@ -419,16 +419,15 @@ static int sqa_qla2xxx_handle_cmd(scsi_qla_host_t *vha,
 	TRACE_DBG("sqatgt(%ld/%d): Handling command: length=%d, fcp_task_attr=%d, direction=%d, bidirectional=%d lun=%llx cdb=%x tag=%d cmd %p ulpcmd %p\n",
 		vha->host_no, vha->vp_idx, data_length, task_codes,
 		data_dir, bidi, cmd->unpacked_lun,
-		atio->u.isp24.fcp_cmnd.cdb[0],
+		cdb[0],
 		atio->u.isp24.exchange_addr, cmd, cmd->scst_cmd);
 
 
 	cmd->scst_cmd = scst_rx_cmd(scst_sess,
 		(uint8_t *)&atio->u.isp24.fcp_cmnd.lun,
 		sizeof(atio->u.isp24.fcp_cmnd.lun),
-		atio->u.isp24.fcp_cmnd.cdb,
-		sizeof(atio->u.isp24.fcp_cmnd.cdb) +
-		(atio->u.isp24.fcp_cmnd.add_cdb_len * 4),
+		cdb,
+		cmd->cdb_len,
 		SCST_ATOMIC);
 
 	if (cmd->scst_cmd == NULL) {
@@ -1550,7 +1549,6 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 		scst_to_tgt_dma_dir(scst_cmd_get_data_direction(scst_cmd));
 	cmd->offset = scst_cmd_get_ppl_offset(scst_cmd);
 	cmd->scsi_status = scst_cmd_get_status(scst_cmd);
-	cmd->cdb = (unsigned char *) scst_cmd_get_cdb(scst_cmd);
 	cmd->lba = scst_cmd_get_lba(scst_cmd);
 	cmd->trc_flags |= TRC_XMIT_STATUS;
 
@@ -1633,7 +1631,6 @@ static int sqa_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	cmd->dma_data_direction =
 		scst_to_tgt_dma_dir(scst_cmd_get_data_direction(scst_cmd));
 
-	cmd->cdb = scst_cmd_get_cdb(scst_cmd);
 	cmd->sg = scst_cmd_get_sg(scst_cmd);
 	cmd->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
 	cmd->scsi_status = scst_cmd_get_status(scst_cmd);
