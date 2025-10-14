@@ -72,6 +72,8 @@
 #endif
 #endif
 
+#define sense_initiator_detected_error HARDWARE_ERROR, 0x48, 0x00
+
 static LIST_HEAD(sqa_tgt_glist);
 
 /* Function definitions for callbacks from the SCST target core. */
@@ -394,6 +396,17 @@ static struct qla_tgt_cmd *sqa_qla2xxx_get_cmd(struct fc_port *sess)
 	return cmd;
 }
 
+static int sqa_qla2xxx_get_cmd_ref(struct qla_tgt_cmd *cmd)
+{
+	scst_cmd_get(cmd->scst_cmd);
+	return 0;
+}
+
+static void sqa_qla2xxx_put_cmd_ref(struct qla_tgt_cmd *cmd)
+{
+	scst_cmd_put(cmd->scst_cmd);
+}
+
 static DEFINE_MUTEX(sqa_mutex);
 
 
@@ -526,8 +539,12 @@ static void sqa_qla2xxx_handle_data(struct qla_tgt_cmd *cmd)
 			break;
 		case DIF_ERR_NONE:
 		default:
-			scst_set_cmd_error(scst_cmd,
-				SCST_LOAD_SENSE(scst_sense_aborted_command));
+			if (cmd->srr_failed)
+				scst_set_cmd_error(scst_cmd,
+					SCST_LOAD_SENSE(sense_initiator_detected_error));
+			else
+				scst_set_cmd_error(scst_cmd,
+					SCST_LOAD_SENSE(scst_sense_aborted_command));
 			break;
 		}
 	}
@@ -1544,6 +1561,11 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 		}
 	}
 
+	if (unlikely(cmd->free_sg)) {
+		cmd->free_sg = 0;
+		qlt_free_sg(cmd);
+	}
+
 	cmd->bufflen = scst_cmd_get_adjusted_resp_data_len(scst_cmd);
 	cmd->sg = scst_cmd_get_sg(scst_cmd);
 	cmd->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
@@ -1553,6 +1575,15 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 	cmd->scsi_status = scst_cmd_get_status(scst_cmd);
 	cmd->lba = scst_cmd_get_lba(scst_cmd);
 	cmd->trc_flags |= TRC_XMIT_STATUS;
+
+	/*
+	 * se_cmd::data_length,t_data_sg,t_data_nents used by
+	 * qlt_restore_orig_sg()
+	 */
+	cmd->se_cmd.data_length = cmd->bufflen;
+	cmd->se_cmd.t_data_sg = cmd->sg;
+	cmd->se_cmd.t_data_nents = cmd->sg_cnt;
+	cmd->se_cmd.scsi_status = cmd->scsi_status;
 
 #if QLA_ENABLE_PI
 	if (scst_get_tgt_dif_actions(scst_cmd->cmd_dif_actions)) {
@@ -1598,7 +1629,7 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 		  cmd->bufflen, cmd->sg_cnt, cmd->dma_data_direction,
 		  cmd->se_cmd.residual_count);
 
-	res = qlt_xmit_response(cmd, xmit_type, scst_cmd_get_status(scst_cmd));
+	res = qlt_xmit_response(cmd, xmit_type, cmd->scsi_status);
 
 	switch (res) {
 	case 0:
@@ -1628,15 +1659,29 @@ static int sqa_rdy_to_xfer(struct scst_cmd *scst_cmd)
 	TRACE(TRACE_SCSI, "sqatgt(%ld/%d): tag=%lld", cmd->vha->host_no,
 	      cmd->vha->vp_idx, scst_cmd_get_tag(scst_cmd));
 
+	if (unlikely(cmd->free_sg)) {
+		cmd->free_sg = 0;
+		qlt_free_sg(cmd);
+	}
+
 	cmd->bufflen = scst_cmd_get_write_fields(scst_cmd, &cmd->sg,
 						 &cmd->sg_cnt);
+
 	cmd->dma_data_direction =
 		scst_to_tgt_dma_dir(scst_cmd_get_data_direction(scst_cmd));
+	cmd->offset = 0;
 
-	cmd->sg = scst_cmd_get_sg(scst_cmd);
-	cmd->sg_cnt = scst_cmd_get_sg_cnt(scst_cmd);
 	cmd->scsi_status = scst_cmd_get_status(scst_cmd);
 	cmd->trc_flags |= TRC_XFR_RDY;
+
+	/*
+	 * se_cmd::data_length,t_data_sg,t_data_nents used by
+	 * qlt_restore_orig_sg()
+	 */
+	cmd->se_cmd.data_length = cmd->bufflen;
+	cmd->se_cmd.t_data_sg = cmd->sg;
+	cmd->se_cmd.t_data_nents = cmd->sg_cnt;
+	cmd->se_cmd.scsi_status = cmd->scsi_status;
 
 #if QLA_ENABLE_PI
 	if (scst_get_tgt_dif_actions(scst_cmd->cmd_dif_actions)) {
@@ -1839,7 +1884,9 @@ static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 	struct qla_tgt_cmd *cmd = scst_cmd_get_tgt_priv(scst_cmd);
 	struct scsi_qla_host *vha = cmd->vha;
 	struct qla_qpair *qpair = cmd->qpair;
+	struct qla_tgt_srr *srr;
 	unsigned long flags;
+	bool advance_cmd = false;
 
 	TRACE_ENTRY();
 
@@ -1870,13 +1917,46 @@ static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 		break;
 	}
 
-	/* Handle race with normal CTIO completion. */
-	if (!cmd->cmd_sent_to_fw) {
+	srr = cmd->srr;
+	if (srr) {
+		/* Handle race with SRR processing. */
+		if (srr->imm_ntfy_recvd && srr->ctio_recvd) {
+			TRACE_MGMT_DBG(
+			    "sqatgt(%ld/%d): tag %lld: cmd should be scheduled for SRR processing",
+			    vha->host_no, vha->vp_idx,
+			    scst_cmd_get_tag(scst_cmd));
+			goto out_unlock;
+		}
+
 		TRACE_MGMT_DBG(
-		    "sqatgt(%ld/%d): tag %lld: cmd not sent to fw; assuming just completed",
+		    "sqatgt(%ld/%d): tag %lld: timeout waiting for %s SRR",
 		    vha->host_no, vha->vp_idx,
-		    scst_cmd_get_tag(scst_cmd));
-		goto out_unlock;
+		    scst_cmd_get_tag(scst_cmd),
+		    (!srr->imm_ntfy_recvd) ? "IMM" : "CTIO");
+
+		if (srr->ctio_recvd) {
+			/*
+			 * When the SRR CTIO was received, cmd processing was
+			 * delayed to wait for the SRR immediate notify, which
+			 * never arrived. Process the cmd now.
+			 *
+			 * Note that in this case cmd->cmd_sent_to_fw == 0
+			 * so we avoid checking that.
+			 */
+			advance_cmd = true;
+		}
+
+		qlt_srr_abort(cmd, false);
+		srr = NULL; /* srr may have been freed */
+	} else {
+		/* Handle race with normal CTIO completion. */
+		if (!cmd->cmd_sent_to_fw) {
+			TRACE_MGMT_DBG(
+			    "sqatgt(%ld/%d): tag %lld: cmd not sent to fw; assuming just completed",
+			    vha->host_no, vha->vp_idx,
+			    scst_cmd_get_tag(scst_cmd));
+			goto out_unlock;
+		}
 	}
 
 	/* The command should be aborted elsewhere if the ISP was reset. */
@@ -1884,7 +1964,8 @@ static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 		goto out_unlock;
 
 	/* Reset the ISP if there was a timeout after sending a term exchange. */
-	if (cmd->sent_term_exchg &&
+	if (!advance_cmd &&
+	     cmd->sent_term_exchg &&
 	     time_is_before_jiffies(cmd->jiffies_at_term_exchg +
 				    SQA_MAX_HW_PENDING_TIME * HZ / 2)) {
 		if (!test_bit(ABORT_ISP_ACTIVE, &vha->dpc_flags)) {
@@ -1904,18 +1985,46 @@ static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 	if (!cmd->sent_term_exchg)
 		qlt_send_term_exchange(qpair, cmd, &cmd->atio, 1);
 
-	/*
-	 * Restart the timer so that this function is called again
-	 * after another timeout.  This is similar to
-	 * scst_update_hw_pending_start() except that we also set
-	 * cmd_hw_pending to 1.
-	 *
-	 * IRQs are already OFF.
-	 */
-	spin_lock(&scst_cmd->sess->sess_list_lock);
-	scst_cmd->cmd_hw_pending = 1;
-	scst_cmd->hw_pending_start = jiffies;
-	spin_unlock(&scst_cmd->sess->sess_list_lock);
+	if (advance_cmd) {
+		switch (cmd->state) {
+		case QLA_TGT_STATE_NEED_DATA:
+			TRACE_MGMT_DBG(
+			    "sqatgt(%ld/%d): tag %lld: force rx_data",
+			    vha->host_no, vha->vp_idx,
+			    scst_cmd_get_tag(scst_cmd));
+			cmd->state = QLA_TGT_STATE_DATA_IN;
+			scst_set_cmd_error(scst_cmd,
+			    SCST_LOAD_SENSE(scst_sense_internal_failure));
+			scst_rx_data(scst_cmd, SCST_RX_STATUS_ERROR_SENSE_SET,
+			    SCST_CONTEXT_THREAD);
+			break;
+
+		case QLA_TGT_STATE_PROCESSED:
+			TRACE_MGMT_DBG(
+			    "sqatgt(%ld/%d): tag %lld: force finishing cmd",
+			    vha->host_no, vha->vp_idx,
+			    scst_cmd_get_tag(scst_cmd));
+			scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
+			scst_tgt_cmd_done(scst_cmd, SCST_CONTEXT_THREAD);
+			break;
+
+		default:
+			break;
+		}
+	} else {
+		/*
+		 * Restart the timer so that this function is called again
+		 * after another timeout.  This is similar to
+		 * scst_update_hw_pending_start() except that we also set
+		 * cmd_hw_pending to 1.
+		 *
+		 * IRQs are already OFF.
+		 */
+		spin_lock(&scst_cmd->sess->sess_list_lock);
+		scst_cmd->cmd_hw_pending = 1;
+		scst_cmd->hw_pending_start = jiffies;
+		spin_unlock(&scst_cmd->sess->sess_list_lock);
+	}
 
 out_unlock:
 	spin_unlock_irqrestore(qpair->qp_lock_ptr, flags);
@@ -1936,6 +2045,8 @@ static struct qla_tgt_func_tmpl sqa_qla2xxx_template = {
 	.handle_tmr		    = sqa_qla2xxx_handle_tmr,
 	.find_cmd_by_tag	    = sqa_qla2xxx_find_cmd_by_tag,
 	.get_cmd		    = sqa_qla2xxx_get_cmd,
+	.get_cmd_ref		    = sqa_qla2xxx_get_cmd_ref,
+	.put_cmd_ref		    = sqa_qla2xxx_put_cmd_ref,
 	.rel_cmd		    = sqa_qla2xxx_rel_cmd,
 	.free_cmd		    = sqa_qla2xxx_free_cmd,
 	.free_mcmd		    = sqa_qla2xxx_free_mcmd,
