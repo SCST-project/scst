@@ -684,6 +684,8 @@ static void sqa_qla2xxx_free_cmd(struct qla_tgt_cmd *cmd)
 
 	cmd->state = QLA_TGT_STATE_DONE;
 	cmd->trc_flags |= TRC_CMD_DONE;
+	if (unlikely(!cmd->rsp_sent))
+		scst_set_delivery_status(scst_cmd, SCST_CMD_DELIVERY_FAILED);
 	scst_tgt_cmd_done(scst_cmd, scst_work_context);
 
 	TRACE_EXIT();
