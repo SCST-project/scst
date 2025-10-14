@@ -2002,7 +2002,7 @@ static void abort_cmds_for_lun(struct scsi_qla_host *vha, u64 lun, be_id_t s_id)
 		if (cmd_key == key && cmd_lun == lun) {
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0xe085,
 			    "qla_target(%d): tag %lld: aborted by TMR\n",
-			    vha->vp_idx, cmd->se_cmd.tag);
+			    vha->vp_idx, se_cmd_tag(&cmd->se_cmd));
 			cmd->aborted = 1;
 		}
 	}
@@ -3270,7 +3270,7 @@ int qlt_xmit_response(struct qla_tgt_cmd *cmd, int xmit_type,
 		     cmd->reset_count != qpair->chip_reset)) {
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0xe101,
 		    "qla_target(%d): tag %lld: skipping send response for aborted cmd\n",
-		    vha->vp_idx, cmd->se_cmd.tag);
+		    vha->vp_idx, se_cmd_tag(&cmd->se_cmd));
 		qlt_unmap_sg(vha, cmd);
 		cmd->state = QLA_TGT_STATE_PROCESSED;
 		vha->hw->tgt.tgt_ops->free_cmd(cmd);
@@ -3433,7 +3433,7 @@ int qlt_rdy_to_xfer(struct qla_tgt_cmd *cmd)
 		     cmd->reset_count != qpair->chip_reset)) {
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0xe102,
 		    "qla_target(%d): tag %lld: skipping data-out for aborted cmd\n",
-		    vha->vp_idx, cmd->se_cmd.tag);
+		    vha->vp_idx, se_cmd_tag(&cmd->se_cmd));
 		qlt_unmap_sg(vha, cmd);
 		cmd->aborted = 1;
 		cmd->write_data_transferred = 0;
@@ -3698,7 +3698,7 @@ void qlt_srr_abort(struct qla_tgt_cmd *cmd, bool reject)
 			 */
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0x1102e,
 			    "qla_target(%d): tag %lld: %s: SRR already scheduled\n",
-			    vha->vp_idx, cmd->se_cmd.tag, __func__);
+			    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), __func__);
 		} else {
 			struct qla_tgt *tgt = vha->vha_tgt.qla_tgt;
 			unsigned long flags;
@@ -3706,7 +3706,7 @@ void qlt_srr_abort(struct qla_tgt_cmd *cmd, bool reject)
 			/* Shedule processing for the SRR immediate notify. */
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0x1102f,
 			    "qla_target(%d): tag %lld: %s: schedule SRR %s\n",
-			    vha->vp_idx, cmd->se_cmd.tag, __func__,
+			    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), __func__,
 			    reject ? "reject" : "abort");
 			cmd->srr = NULL;
 			srr->cmd = NULL;
@@ -3718,7 +3718,7 @@ void qlt_srr_abort(struct qla_tgt_cmd *cmd, bool reject)
 	} else {
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x11030,
 		    "qla_target(%d): tag %lld: %s: no IMM SRR; free SRR\n",
-		    vha->vp_idx, cmd->se_cmd.tag, __func__);
+		    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), __func__);
 		cmd->srr = NULL;
 		kfree(srr);
 	}
@@ -3766,7 +3766,7 @@ static int __qlt_send_term_exchange(struct qla_qpair *qpair,
 	if (cmd) {
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0xe009,
 		    "qla_target(%d): tag %lld: Sending TERM EXCH CTIO state %d cmd_sent_to_fw %u\n",
-		    vha->vp_idx, cmd->se_cmd.tag, cmd->state,
+		    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), cmd->state,
 		    cmd->cmd_sent_to_fw);
 	} else {
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0xe009,
@@ -3920,7 +3920,7 @@ int qlt_abort_cmd(struct qla_tgt_cmd *cmd)
 
 	ql_dbg(ql_dbg_tgt_mgt, vha, 0xf014,
 	    "qla_target(%d): tag %lld: cmd being aborted (state %d) %s; %s\n",
-	    vha->vp_idx, cmd->se_cmd.tag, cmd->state,
+	    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), cmd->state,
 	    cmd->cmd_sent_to_fw ? "sent to fw" : "not sent to fw",
 	    cmd->aborted ? "aborted" : "not aborted");
 
@@ -3972,7 +3972,7 @@ void qlt_free_cmd(struct qla_tgt_cmd *cmd)
 					TRC_SRR_CTIO | TRC_SRR_IMM)))) {
 		ql_dbg(ql_dbg_tgt_mgt, cmd->vha, 0xe086,
 		    "qla_target(%d): tag %lld: free cmd (trc_flags %x, aborted %u, sent_term_exchg %u, rsp_sent %u)\n",
-		    cmd->vha->vp_idx, cmd->se_cmd.tag,
+		    cmd->vha->vp_idx, se_cmd_tag(&cmd->se_cmd),
 		    cmd->trc_flags, cmd->aborted, cmd->sent_term_exchg,
 		    cmd->rsp_sent);
 	}
@@ -4017,7 +4017,7 @@ static int qlt_prepare_srr_ctio(struct qla_qpair *qpair,
 		if (vha->hw->tgt.tgt_ops->get_cmd_ref(cmd)) {
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0x11037,
 			    "qla_target(%d): tag %lld: unable to get cmd ref for SRR processing\n",
-			    vha->vp_idx, cmd->se_cmd.tag);
+			    vha->vp_idx, se_cmd_tag(&cmd->se_cmd));
 			qlt_srr_abort(cmd, true);
 			return -ESHUTDOWN;
 		}
@@ -4026,13 +4026,17 @@ static int qlt_prepare_srr_ctio(struct qla_qpair *qpair,
 
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x1100f,
 		    "qla_target(%d): tag %lld: Scheduling SRR work\n",
-		    vha->vp_idx, cmd->se_cmd.tag);
+		    vha->vp_idx, se_cmd_tag(&cmd->se_cmd));
 
 		/* Schedule the srr for processing in qlt_handle_srr(). */
 		/* IRQ is already OFF */
 		spin_lock(&tgt->srr_lock);
 		list_add_tail(&srr->srr_list_entry, &tgt->srr_list);
+#if HAVE_SE_CMD_CPUID
 		queue_work_on(cmd->se_cmd.cpuid, qla_tgt_wq, &tgt->srr_work);
+#else
+		queue_work(qla_tgt_wq, &tgt->srr_work);
+#endif
 		spin_unlock(&tgt->srr_lock);
 		return 0;
 	}
@@ -4240,7 +4244,7 @@ static void qlt_do_ctio_completion(struct scsi_qla_host *vha,
 			if (printk_ratelimit())
 				dev_info(&vha->hw->pdev->dev,
 				    "qla_target(%d): tag %lld, op %x: CTIO with INVALID_RX_ID status 0x%x received (state %d, port %8phC, LUN %lld, ATIO attr %x, CTIO Flags %x|%x)\n",
-				    vha->vp_idx, cmd->se_cmd.tag, op,
+				    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), op,
 				    status, cmd->state, cmd->sess->port_name,
 				    cmd->unpacked_lun, cmd->atio.u.isp24.attr,
 				    ((cmd->ctio_flags >> 9) & 0xf),
@@ -4273,7 +4277,7 @@ static void qlt_do_ctio_completion(struct scsi_qla_host *vha,
 			}
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0xf058,
 			    "qla_target(%d): tag %lld, op %x: CTIO with %s status 0x%x received (state %d, port %8phC, LUN %lld)\n",
-			    vha->vp_idx, cmd->se_cmd.tag, op,
+			    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), op,
 			    status_str, status, cmd->state,
 			    cmd->sess->port_name, cmd->unpacked_lun);
 			break;
@@ -4287,7 +4291,7 @@ static void qlt_do_ctio_completion(struct scsi_qla_host *vha,
 
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0xf059,
 			    "qla_target(%d): tag %lld, op %x: CTIO with %s status 0x%x received (state %d, port %8phC, LUN %lld)\n",
-			    vha->vp_idx, cmd->se_cmd.tag, op,
+			    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), op,
 			    logged_out ? "PORT LOGGED OUT" : "PORT UNAVAILABLE",
 			    status, cmd->state, cmd->sess->port_name,
 			    cmd->unpacked_lun);
@@ -4311,7 +4315,7 @@ static void qlt_do_ctio_completion(struct scsi_qla_host *vha,
 		case CTIO_SRR_RECEIVED:
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0x1100e,
 			    "qla_target(%d): tag %lld, op %x: CTIO with SRR status 0x%x received (state %d, port %8phC, LUN %lld, bufflen %d)\n",
-			    vha->vp_idx, cmd->se_cmd.tag, op, status,
+			    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), op, status,
 			    cmd->state, cmd->sess->port_name,
 			    cmd->unpacked_lun, cmd->bufflen);
 
@@ -4324,7 +4328,7 @@ static void qlt_do_ctio_completion(struct scsi_qla_host *vha,
 				(struct ctio_crc_from_fw *)ctio;
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0xf073,
 			    "qla_target(%d): tag %lld, op %x: CTIO with DIF_ERROR status 0x%x received (state %d, port %8phC, LUN %lld, actual_dif[0x%llx] expect_dif[0x%llx])\n",
-			    vha->vp_idx, cmd->se_cmd.tag, op, status,
+			    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), op, status,
 			    cmd->state, cmd->sess->port_name,
 			    cmd->unpacked_lun,
 			    *((u64 *)&crc->actual_dif[0]),
@@ -4340,7 +4344,7 @@ static void qlt_do_ctio_completion(struct scsi_qla_host *vha,
 		case CTIO_FAST_SPI_ERR:
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0xf05b,
 			    "qla_target(%d): tag %lld, op %x: CTIO with EDIF error status 0x%x received (state %d, port %8phC, LUN %lld)\n",
-			    vha->vp_idx, cmd->se_cmd.tag, op, status,
+			    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), op, status,
 			    cmd->state, cmd->sess->port_name,
 			    cmd->unpacked_lun);
 			break;
@@ -4348,7 +4352,7 @@ static void qlt_do_ctio_completion(struct scsi_qla_host *vha,
 		default:
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0xf05b,
 			    "qla_target(%d): tag %lld, op %x: CTIO with error status 0x%x received (state %d, port %8phC, LUN %lld)\n",
-			    vha->vp_idx, cmd->se_cmd.tag, op, status,
+			    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), op, status,
 			    cmd->state, cmd->sess->port_name,
 			    cmd->unpacked_lun);
 			break;
@@ -4374,7 +4378,7 @@ static void qlt_do_ctio_completion(struct scsi_qla_host *vha,
 	if (unlikely(cmd->srr != NULL)) {
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x11031,
 		    "qla_target(%d): tag %lld, op %x: expected CTIO with SRR status; got status 0x%x: state %d, bufflen %d\n",
-		    vha->vp_idx, cmd->se_cmd.tag,
+		    vha->vp_idx, se_cmd_tag(&cmd->se_cmd),
 		    cmd->cdb ? cmd->cdb[0] : 0, status, cmd->state,
 		    cmd->bufflen);
 		qlt_srr_abort(cmd, true);
@@ -4399,12 +4403,12 @@ static void qlt_do_ctio_completion(struct scsi_qla_host *vha,
 		cmd->trc_flags |= TRC_CTIO_ABORTED;
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0xf01e,
 		    "qla_target(%d): tag %lld: Aborted command finished\n",
-		    vha->vp_idx, cmd->se_cmd.tag);
+		    vha->vp_idx, se_cmd_tag(&cmd->se_cmd));
 	} else {
 		cmd->trc_flags |= TRC_CTIO_STRANGE;
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0xf05c,
 		    "qla_target(%d): tag %lld: A command in state (%d) should not return a CTIO complete\n",
-		    vha->vp_idx, cmd->se_cmd.tag, cmd->state);
+		    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), cmd->state);
 	}
 
 	if (unlikely(status != CTIO_SUCCESS) &&
@@ -5425,7 +5429,7 @@ static struct qla_tgt_cmd *qlt_srr_to_cmd(struct scsi_qla_host *vha,
 		if (srr_ox_id != cmd_ox_id) {
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0x1100c,
 			    "qla_target(%d): tag %lld: IMM SRR: srr_ox_id[%04x] != cmd_ox_id[%04x]; reject SRR\n",
-			    vha->vp_idx, cmd->se_cmd.tag,
+			    vha->vp_idx, se_cmd_tag(&cmd->se_cmd),
 			    srr_ox_id, cmd_ox_id);
 			cmd = NULL;
 		}
@@ -5507,7 +5511,7 @@ static void qlt_handle_srr_imm(struct scsi_qla_host *vha,
 
 	ql_dbg(ql_dbg_tgt_mgt, vha, 0x11001,
 	    "qla_target(%d): tag %lld, op %x: received IMM SRR\n",
-	    vha->vp_idx, cmd->se_cmd.tag, cmd->cdb ? cmd->cdb[0] : 0);
+	    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), cmd->cdb ? cmd->cdb[0] : 0);
 
 	cmd->trc_flags |= TRC_SRR_IMM;
 
@@ -5520,7 +5524,7 @@ static void qlt_handle_srr_imm(struct scsi_qla_host *vha,
 			 */
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0x11006,
 			    "qla_target(%d): tag %lld: received multiple IMM SRR; reject SRR\n",
-			    vha->vp_idx, cmd->se_cmd.tag);
+			    vha->vp_idx, se_cmd_tag(&cmd->se_cmd));
 			spin_unlock_irq(qpair->qp_lock_ptr);
 			ha->tgt.tgt_ops->put_cmd_ref(cmd);
 			goto out_reject;
@@ -5541,7 +5545,7 @@ static void qlt_handle_srr_imm(struct scsi_qla_host *vha,
 
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x11002,
 		    "qla_target(%d): tag %lld: schedule SRR work\n",
-		    vha->vp_idx, cmd->se_cmd.tag);
+		    vha->vp_idx, se_cmd_tag(&cmd->se_cmd));
 
 		/* Schedule the srr for processing in qlt_handle_srr(). */
 		spin_lock(&tgt->srr_lock);
@@ -5561,7 +5565,7 @@ static void qlt_handle_srr_imm(struct scsi_qla_host *vha,
 	if (cmd->sent_term_exchg) {
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x11007,
 		    "qla_target(%d): tag %lld: IMM SRR: cmd already aborted\n",
-		    vha->vp_idx, cmd->se_cmd.tag);
+		    vha->vp_idx, se_cmd_tag(&cmd->se_cmd));
 		spin_unlock_irq(qpair->qp_lock_ptr);
 		spin_lock_irq(&ha->hardware_lock);
 		if (!qlt_srr_is_chip_reset(vha, ha->base_qpair, srr))
@@ -5576,7 +5580,7 @@ static void qlt_handle_srr_imm(struct scsi_qla_host *vha,
 	if (!cmd->cmd_sent_to_fw) {
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x11008,
 		    "qla_target(%d): tag %lld: IMM SRR but !cmd_sent_to_fw (state %d); reject SRR\n",
-		    vha->vp_idx, cmd->se_cmd.tag, cmd->state);
+		    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), cmd->state);
 		spin_unlock_irq(qpair->qp_lock_ptr);
 		ha->tgt.tgt_ops->put_cmd_ref(cmd);
 		goto out_reject;
@@ -5585,7 +5589,7 @@ static void qlt_handle_srr_imm(struct scsi_qla_host *vha,
 	/* Expect qlt_prepare_srr_ctio() to be called. */
 	ql_dbg(ql_dbg_tgt_mgt, vha, 0x11003,
 	    "qla_target(%d): tag %lld: wait for CTIO SRR (state %d)\n",
-	    vha->vp_idx, cmd->se_cmd.tag, cmd->state);
+	    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), cmd->state);
 	srr->cmd = cmd;
 	cmd->srr = srr;
 
@@ -5671,14 +5675,14 @@ static int qlt_restore_orig_sg(struct qla_tgt_cmd *cmd)
 		/* The original scatterlist is not available. */
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x1102c,
 		    "qla_target(%d): tag %lld: cannot restore original cmd buffer; keep modified buffer at offset %d\n",
-		    vha->vp_idx, cmd->se_cmd.tag, cmd->offset);
+		    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), cmd->offset);
 		return -ENOENT;
 	}
 
 	/* Restore the original scatterlist. */
 	ql_dbg(ql_dbg_tgt_mgt, vha, 0x1102d,
 	    "qla_target(%d): tag %lld: restore original cmd buffer: offset %d -> 0\n",
-	    vha->vp_idx, cmd->se_cmd.tag, cmd->offset);
+	    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), cmd->offset);
 	if (cmd->free_sg) {
 		cmd->free_sg = 0;
 		qlt_free_sg(cmd);
@@ -5711,21 +5715,21 @@ static int qlt_set_data_offset(struct qla_tgt_cmd *cmd, uint32_t offset)
 
 	ql_dbg(ql_dbg_tgt, vha, 0x11020,
 	    "qla_target(%d): tag %lld: %s: sg %p sg_cnt %d dir %d cmd->offset %d cmd->bufflen %d add offset %u\n",
-	    vha->vp_idx, cmd->se_cmd.tag, __func__, cmd->sg,
+	    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), __func__, cmd->sg,
 	    cmd->sg_cnt, cmd->dma_data_direction, cmd->offset, cmd->bufflen,
 	    offset);
 
 	if (cmd->se_cmd.prot_op != TARGET_PROT_NORMAL) {
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x11021,
 		    "qla_target(%d): tag %lld: %s: SRR with protection information at nonzero offset not implemented\n",
-		    vha->vp_idx, cmd->se_cmd.tag, __func__);
+		    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), __func__);
 		return -EINVAL;
 	}
 
 	if (!cmd->sg || !cmd->sg_cnt) {
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x11022,
 		    "qla_target(%d): tag %lld: %s: Missing cmd->sg or zero cmd->sg_cnt\n",
-		    vha->vp_idx, cmd->se_cmd.tag, __func__);
+		    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), __func__);
 		return -EINVAL;
 	}
 
@@ -5747,13 +5751,13 @@ static int qlt_set_data_offset(struct qla_tgt_cmd *cmd, uint32_t offset)
 	if (!sg_srr_start) {
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x11024,
 		    "qla_target(%d): tag %lld: Unable to locate sg_srr_start for offset: %u\n",
-		    vha->vp_idx, cmd->se_cmd.tag, offset);
+		    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), offset);
 		return -EINVAL;
 	}
 
 	ql_dbg(ql_dbg_tgt_mgt, vha, 0x11025,
 	    "qla_target(%d): tag %lld: prepare SRR sgl at sg index %d of %d byte offset %u of %u\n",
-	    vha->vp_idx, cmd->se_cmd.tag, i, cmd->sg_cnt,
+	    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), i, cmd->sg_cnt,
 	    first_offset, sg_srr_start->length);
 
 	sg_srr_cnt = cmd->sg_cnt - i;
@@ -5778,7 +5782,7 @@ static int qlt_set_data_offset(struct qla_tgt_cmd *cmd, uint32_t offset)
 		if (!sg_srr) {
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0x11027,
 			    "qla_target(%d): tag %lld: Unable to allocate SRR scatterlist\n",
-			    vha->vp_idx, cmd->se_cmd.tag);
+			    vha->vp_idx, se_cmd_tag(&cmd->se_cmd));
 			return -ENOMEM;
 		}
 		sg_init_table(sg_srr, n_alloc_sg);
@@ -5831,7 +5835,7 @@ static int qlt_set_data_offset(struct qla_tgt_cmd *cmd, uint32_t offset)
 	if (bufflen != cmd->bufflen) {
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x1102b,
 		    "qla_target(%d): tag %lld: %s: bad sgl length: expected %d got %d\n",
-		    vha->vp_idx, cmd->se_cmd.tag, __func__, cmd->bufflen, bufflen);
+		    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), __func__, cmd->bufflen, bufflen);
 		return -EINVAL;
 	}
 
@@ -5858,7 +5862,7 @@ static inline int qlt_srr_adjust_data(struct qla_tgt_cmd *cmd,
 		*xmit_type = 0;
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x1101e,
 		    "qla_target(%d): tag %lld: srr_rel_offs %u outside accepted range %u - %u\n",
-		    vha->vp_idx, cmd->se_cmd.tag, srr_rel_offs,
+		    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), srr_rel_offs,
 		    cmd->offset, cmd->offset + cmd->bufflen);
 		return -EINVAL;
 	}
@@ -5879,7 +5883,7 @@ static inline int qlt_srr_adjust_data(struct qla_tgt_cmd *cmd,
 
 	ql_dbg(ql_dbg_tgt_mgt, vha, 0x1101f,
 	    "qla_target(%d): tag %lld: current buffer [%u - %u); srr_rel_offs=%d, rel_offs=%d\n",
-	    vha->vp_idx, cmd->se_cmd.tag, cmd->offset,
+	    vha->vp_idx, se_cmd_tag(&cmd->se_cmd), cmd->offset,
 	    cmd->offset + cmd->bufflen, srr_rel_offs, rel_offs);
 
 	*xmit_type = QLA_TGT_XMIT_ALL;
@@ -5925,7 +5929,7 @@ static void qlt_handle_srr(struct scsi_qla_host *vha, struct qla_tgt_srr *srr)
 	if (cmd->sent_term_exchg || cmd->sess->deleted || srr->aborted) {
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x11010,
 		    "qla_target(%d): tag %lld: IMM SRR: cmd already aborted\n",
-		    vha->vp_idx, cmd->se_cmd.tag);
+		    vha->vp_idx, se_cmd_tag(se_cmd));
 
 		spin_unlock_irq(qpair->qp_lock_ptr);
 
@@ -5958,7 +5962,7 @@ static void qlt_handle_srr(struct scsi_qla_host *vha, struct qla_tgt_srr *srr)
 		if (cmd->state != QLA_TGT_STATE_PROCESSED) {
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0x11011,
 			    "qla_target(%d): tag %lld, op %x: reject SRR_IU_STATUS due to unexpected state %d\n",
-			    vha->vp_idx, se_cmd->tag, op,
+			    vha->vp_idx, se_cmd_tag(se_cmd), op,
 			    cmd->state);
 			goto out_reject;
 		}
@@ -5966,13 +5970,13 @@ static void qlt_handle_srr(struct scsi_qla_host *vha, struct qla_tgt_srr *srr)
 		if (did_timeout) {
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0x11033,
 			    "qla_target(%d): tag %lld, op %x: reject SRR_IU_STATUS due to timeout\n",
-			    vha->vp_idx, se_cmd->tag, op);
+			    vha->vp_idx, se_cmd_tag(se_cmd), op);
 			goto out_reject;
 		}
 
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x11012,
 		    "qla_target(%d): tag %lld, op %x: accept SRR_IU_STATUS and retransmit scsi_status=%x\n",
-		    vha->vp_idx, se_cmd->tag, op,
+		    vha->vp_idx, se_cmd_tag(se_cmd), op,
 		    se_cmd->scsi_status);
 		xmit_type = QLA_TGT_XMIT_STATUS;
 		xmit_response = true;
@@ -5982,14 +5986,14 @@ static void qlt_handle_srr(struct scsi_qla_host *vha, struct qla_tgt_srr *srr)
 	case SRR_IU_DATA_IN:
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x11013,
 		    "qla_target(%d): tag %lld, op %x: process SRR_IU_DATA_IN: bufflen=%d, sg_cnt=%d, offset=%d, srr_offset=%d, scsi_status=%x\n",
-		    vha->vp_idx, se_cmd->tag, op, cmd->bufflen,
+		    vha->vp_idx, se_cmd_tag(se_cmd), op, cmd->bufflen,
 		    cmd->sg_cnt, cmd->offset, srr_rel_offs,
 		    se_cmd->scsi_status);
 
 		if (cmd->state != QLA_TGT_STATE_PROCESSED) {
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0x11014,
 			    "qla_target(%d): tag %lld: reject SRR_IU_DATA_IN due to unexpected state %d\n",
-			    vha->vp_idx, se_cmd->tag, cmd->state);
+			    vha->vp_idx, se_cmd_tag(se_cmd), cmd->state);
 			goto out_reject;
 		}
 
@@ -5999,21 +6003,21 @@ static void qlt_handle_srr(struct scsi_qla_host *vha, struct qla_tgt_srr *srr)
 		if (!qlt_has_data(cmd)) {
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0x11015,
 			    "qla_target(%d): tag %lld: reject SRR_IU_DATA_IN because cmd has no data to send\n",
-			    vha->vp_idx, se_cmd->tag);
+			    vha->vp_idx, se_cmd_tag(se_cmd));
 			goto out_reject;
 		}
 
 		if (!cmd->sg || !cmd->sg_cnt) {
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0x11016,
 			    "qla_target(%d): tag %lld: reject SRR_IU_DATA_IN because buffer is missing\n",
-			    vha->vp_idx, se_cmd->tag);
+			    vha->vp_idx, se_cmd_tag(se_cmd));
 			goto out_reject;
 		}
 
 		if (did_timeout) {
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0x11034,
 			    "qla_target(%d): tag %lld, op %x: reject SRR_IU_DATA_IN due to timeout\n",
-			    vha->vp_idx, se_cmd->tag, op);
+			    vha->vp_idx, se_cmd_tag(se_cmd), op);
 			goto out_reject;
 		}
 
@@ -6022,7 +6026,7 @@ static void qlt_handle_srr(struct scsi_qla_host *vha, struct qla_tgt_srr *srr)
 
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x11017,
 		    "qla_target(%d): tag %lld: accept SRR_IU_DATA_IN and retransmit data: bufflen=%d, offset=%d\n",
-		    vha->vp_idx, se_cmd->tag, cmd->bufflen,
+		    vha->vp_idx, se_cmd_tag(se_cmd), cmd->bufflen,
 		    cmd->offset);
 		xmit_response = true;
 		cmd->trc_flags |= TRC_SRR_RSP;
@@ -6031,13 +6035,13 @@ static void qlt_handle_srr(struct scsi_qla_host *vha, struct qla_tgt_srr *srr)
 	case SRR_IU_DATA_OUT:
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x11018,
 		    "qla_target(%d): tag %lld, op %x: process SRR_IU_DATA_OUT: bufflen=%d, sg_cnt=%d, offset=%d, srr_offset=%d\n",
-		    vha->vp_idx, se_cmd->tag, op, cmd->bufflen,
+		    vha->vp_idx, se_cmd_tag(se_cmd), op, cmd->bufflen,
 		    cmd->sg_cnt, cmd->offset, srr_rel_offs);
 
 		if (cmd->state != QLA_TGT_STATE_NEED_DATA) {
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0x11019,
 			    "qla_target(%d): tag %lld: reject SRR_IU_DATA_OUT due to unexpected state %d\n",
-			    vha->vp_idx, se_cmd->tag, cmd->state);
+			    vha->vp_idx, se_cmd_tag(se_cmd), cmd->state);
 			goto out_reject;
 		}
 
@@ -6047,14 +6051,14 @@ static void qlt_handle_srr(struct scsi_qla_host *vha, struct qla_tgt_srr *srr)
 		if (!qlt_has_data(cmd) || !cmd->sg || !cmd->sg_cnt) {
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0x1101a,
 			    "qla_target(%d): tag %lld: reject SRR_IU_DATA_OUT because buffer is missing\n",
-			    vha->vp_idx, se_cmd->tag);
+			    vha->vp_idx, se_cmd_tag(se_cmd));
 			goto out_reject;
 		}
 
 		if (did_timeout) {
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0x11035,
 			    "qla_target(%d): tag %lld, op %x: reject SRR_IU_DATA_OUT due to timeout\n",
-			    vha->vp_idx, se_cmd->tag, op);
+			    vha->vp_idx, se_cmd_tag(se_cmd), op);
 			goto out_reject;
 		}
 
@@ -6064,13 +6068,13 @@ static void qlt_handle_srr(struct scsi_qla_host *vha, struct qla_tgt_srr *srr)
 		if (!(xmit_type & QLA_TGT_XMIT_DATA)) {
 			ql_dbg(ql_dbg_tgt_mgt, vha, 0x1101b,
 			    "qla_target(%d): tag %lld: reject SRR_IU_DATA_OUT: bad offset\n",
-			    vha->vp_idx, se_cmd->tag);
+			    vha->vp_idx, se_cmd_tag(se_cmd));
 			goto out_reject;
 		}
 
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x1101c,
 		    "qla_target(%d): tag %lld: accept SRR_IU_DATA_OUT and receive data again: bufflen=%d, offset=%d\n",
-		    vha->vp_idx, se_cmd->tag, cmd->bufflen,
+		    vha->vp_idx, se_cmd_tag(se_cmd), cmd->bufflen,
 		    cmd->offset);
 		cmd->trc_flags |= TRC_SRR_XRDY;
 		rdy_to_xfer = true;
@@ -6079,7 +6083,7 @@ static void qlt_handle_srr(struct scsi_qla_host *vha, struct qla_tgt_srr *srr)
 	default:
 		ql_dbg(ql_dbg_tgt_mgt, vha, 0x1101d,
 		    "qla_target(%d): tag %lld, op %x: reject unknown srr_ui value 0x%x: state=%d, bufflen=%d, offset=%d, srr_offset=%d\n",
-		    vha->vp_idx, se_cmd->tag, op, srr_ui, cmd->state,
+		    vha->vp_idx, se_cmd_tag(se_cmd), op, srr_ui, cmd->state,
 		    cmd->bufflen, cmd->offset, srr_rel_offs);
 		goto out_reject;
 	}
