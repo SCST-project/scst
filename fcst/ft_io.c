@@ -81,7 +81,7 @@ int ft_send_read_data(struct scst_cmd *cmd)
 		return SCST_TGT_RES_SUCCESS;
 	}
 	FT_IO_DBG("sid %x oxid %x mem_len %zd frame_off %u remaining %zd\n",
-		 ep->sid, ep->oxid, mem_len, frame_off, remaining);
+		  ep->sid, ep->oxid, mem_len, frame_off, remaining);
 
 	/*
 	 * If we've already transferred some of the data, skip through
@@ -99,12 +99,13 @@ int ft_send_read_data(struct scst_cmd *cmd)
 		}
 		mem_len -= tlen;
 		mem_off = tlen;
-	} else
+	} else {
 #ifdef NEW_LIBFC_API
 		fcmd->seq = fc_seq_start_next(fcmd->seq);
 #else
 		fcmd->seq = lport->tt.seq_start_next(fcmd->seq);
 #endif
+	}
 
 	/* no scatter/gather in skb for odd word length due to fc_seq_send() */
 	use_sg = !(remaining % 4) && lport->sg_supp;
@@ -202,8 +203,9 @@ int ft_send_read_data(struct scst_cmd *cmd)
 				"retrying" : "giving up");
 			return error == -ENOMEM ? SCST_TGT_RES_QUEUE_FULL :
 				SCST_TGT_RES_FATAL_ERROR;
-		} else
+		} else {
 			fcmd->read_data_len = frame_off;
+		}
 	}
 	if (mem_len)
 		scst_put_buf(cmd, from);

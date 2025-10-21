@@ -301,8 +301,7 @@ static void ft_sess_close(struct ft_sess *sess)
 /*
  * Allocate and fill in the SPC Transport ID for persistent reservations.
  */
-int ft_get_transport_id(struct scst_tgt *tgt, struct scst_session *scst_sess,
-	uint8_t **result)
+int ft_get_transport_id(struct scst_tgt *tgt, struct scst_session *scst_sess, uint8_t **result)
 {
 	struct ft_sess *sess;
 	struct {
@@ -413,7 +412,7 @@ static int ft_prli(struct fc_rport_priv *rdata, u32 spp_len,
 	ret = ft_prli_locked(rdata, spp_len, rspp, spp);
 	mutex_unlock(&ft_lport_lock);
 	FT_SESS_DBG("port_id %x flags %x ret %x\n",
-	       rdata->ids.port_id, rspp ? rspp->spp_flags : 0, ret);
+		    rdata->ids.port_id, rspp ? rspp->spp_flags : 0, ret);
 	return ret;
 }
 
@@ -486,7 +485,7 @@ static void ft_recv(struct fc_lport *lport, struct fc_frame *fp)
 		return;
 	}
 	FT_SESS_DBG("sid %x sess lookup returned %p preempt %x\n",
-			sid, sess, preempt_count());
+		    sid, sess, preempt_count());
 	ft_recv_req(sess, fp);
 	ft_sess_put(sess);
 }
@@ -523,7 +522,7 @@ int ft_tgt_enable(struct scst_tgt *tgt, bool enable)
 	if (enable) {
 		FT_SESS_DBG("enable tgt %s\n", tgt->tgt_name);
 		tport = scst_tgt_get_tgt_priv(tgt);
-		if (tport == NULL) {
+		if (!tport) {
 			ret = -E_TGT_PRIV_NOT_YET_SET;
 			goto out;
 		}
@@ -542,7 +541,7 @@ bool ft_tgt_enabled(struct scst_tgt *tgt)
 {
 	struct ft_tport *tport;
 
-	if (tgt == NULL)
+	if (!tgt)
 		return false;
 
 	tport = scst_tgt_get_tgt_priv(tgt);

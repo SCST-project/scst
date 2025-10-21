@@ -213,9 +213,10 @@ int ft_send_response(struct scst_cmd *cmd)
 				   scst_cmd_get_resp_data_len(cmd);
 			if (bi_resid)
 				len += sizeof(__be32);
-		} else
+		} else {
 			resid = (signed int)scst_cmd_get_bufflen(cmd) -
 				scst_cmd_get_resp_data_len(cmd);
+		}
 	}
 
 	fp = fc_frame_alloc(lport, len);
@@ -237,16 +238,18 @@ int ft_send_response(struct scst_cmd *cmd)
 		if (bi_resid < 0) {
 			fcp->resp.fr_flags |= FCP_BIDI_READ_OVER;
 			bi_resid = -bi_resid;
-		} else
+		} else {
 			fcp->resp.fr_flags |= FCP_BIDI_READ_UNDER;
+		}
 		*(__be32 *)((u8 *)(fcp + 1) + slen) = htonl(bi_resid);
 	}
 	if (resid) {
 		if (resid < 0) {
 			resid = -resid;
 			fcp->resp.fr_flags |= FCP_RESID_OVER;
-		} else
+		} else {
 			fcp->resp.fr_flags |= FCP_RESID_UNDER;
+		}
 		fcp->ext.fr_resid = htonl(resid);
 	}
 	FT_IO_DBG("response did %x oxid %x\n", ep->did, ep->oxid);
@@ -285,7 +288,6 @@ err:
 		  "%s: invalid error code %d\n",
 		  __func__, error);
 	return error;
-
 }
 
 /*
