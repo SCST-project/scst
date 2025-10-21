@@ -264,17 +264,17 @@ static inline void scst_reset_io_context(struct scst_tgt_dev *tgt_dev, struct io
  * Converts string presentation of threads pool type to enum.
  * Returns SCST_THREADS_POOL_TYPE_INVALID if the string is invalid.
  */
-extern enum scst_dev_type_threads_pool_type scst_parse_threads_pool_type(const char *p, int len);
+enum scst_dev_type_threads_pool_type scst_parse_threads_pool_type(const char *p, int len);
 
-extern int scst_add_threads(struct scst_cmd_threads *cmd_threads, struct scst_device *dev,
-			    struct scst_tgt_dev *tgt_dev, int num);
-extern void scst_del_threads(struct scst_cmd_threads *cmd_threads, int num);
+int scst_add_threads(struct scst_cmd_threads *cmd_threads, struct scst_device *dev,
+		     struct scst_tgt_dev *tgt_dev, int num);
+void scst_del_threads(struct scst_cmd_threads *cmd_threads, int num);
 
-extern int scst_create_dev_threads(struct scst_device *dev);
-extern void scst_stop_dev_threads(struct scst_device *dev);
+int scst_create_dev_threads(struct scst_device *dev);
+void scst_stop_dev_threads(struct scst_device *dev);
 
-extern int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev);
-extern void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev);
+int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev);
+void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev);
 
 extern struct scst_dev_type scst_null_devtype;
 
@@ -282,10 +282,10 @@ char *scst_get_cmd_state_name(char *name, int len, unsigned int state);
 char *scst_get_mcmd_state_name(char *name, int len, unsigned int state);
 char *scst_get_tm_fn_name(char *name, int len, unsigned int fn);
 
-extern struct scst_cmd *__scst_check_deferred_commands_locked(struct scst_order_data *order_data,
-							      bool return_first);
-extern struct scst_cmd *__scst_check_deferred_commands(struct scst_order_data *order_data,
+struct scst_cmd *__scst_check_deferred_commands_locked(struct scst_order_data *order_data,
 						       bool return_first);
+struct scst_cmd *__scst_check_deferred_commands(struct scst_order_data *order_data,
+						bool return_first);
 
 /* Used to save the function call on the fast path */
 static inline struct scst_cmd *scst_check_deferred_commands(struct scst_order_data *order_data,
@@ -763,11 +763,11 @@ int scst_cm_init(void);
 void scst_cm_exit(void);
 
 #ifdef CONFIG_SCST_DEBUG_TM
-extern void tm_dbg_check_released_cmds(void);
-extern int tm_dbg_check_cmd(struct scst_cmd *cmd);
-extern void tm_dbg_release_cmd(struct scst_cmd *cmd);
-extern void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn, int force);
-extern int tm_dbg_is_release(void);
+void tm_dbg_check_released_cmds(void);
+int tm_dbg_check_cmd(struct scst_cmd *cmd);
+void tm_dbg_release_cmd(struct scst_cmd *cmd);
+void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn, int force);
+int tm_dbg_is_release(void);
 #else
 static inline void tm_dbg_check_released_cmds(void)
 {
