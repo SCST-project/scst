@@ -42,9 +42,10 @@ enum scst_exec_res scst_report_luns_local(struct scst_cmd *cmd)
 	cmd->host_status = DID_OK;
 	cmd->driver_status = 0;
 
-	if ((cmd->cdb[2] != 0) && (cmd->cdb[2] != 2)) {
-		TRACE(TRACE_MINOR, "Unsupported SELECT REPORT value %#x in "
-			"REPORT LUNS command", cmd->cdb[2]);
+	if (cmd->cdb[2] != 0 && cmd->cdb[2] != 2) {
+		TRACE(TRACE_MINOR,
+		      "Unsupported SELECT REPORT value %#x in REPORT LUNS command",
+		      cmd->cdb[2]);
 		scst_set_invalid_field_in_cdb(cmd, 2, 0);
 		goto out_compl;
 	}
@@ -74,9 +75,8 @@ enum scst_exec_res scst_report_luns_local(struct scst_cmd *cmd)
 					overflow = 1;
 					goto inc_dev_cnt;
 				}
-				*(__force __be64 *)&buffer[offs]
-					= scst_pack_lun(tgt_dev->lun,
-						cmd->sess->acg->addr_method);
+				*(__force __be64 *)&buffer[offs] =
+					scst_pack_lun(tgt_dev->lun, cmd->sess->acg->addr_method);
 				offs += 8;
 			}
 inc_dev_cnt:
@@ -84,15 +84,12 @@ inc_dev_cnt:
 
 			/* Clear sense_reported_luns_data_changed UA. */
 			spin_lock_bh(&tgt_dev->tgt_dev_lock);
-			list_for_each_entry(ua, &tgt_dev->UA_list,
-						UA_list_entry) {
-				if (scst_analyze_sense(ua->UA_sense_buffer,
-						ua->UA_valid_sense_len,
-						SCST_SENSE_ALL_VALID,
-						SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed))) {
-					TRACE_DBG("Freeing not needed "
-						"REPORTED LUNS DATA CHANGED UA "
-						"%p", ua);
+			list_for_each_entry(ua, &tgt_dev->UA_list, UA_list_entry) {
+				if (scst_analyze_sense(ua->UA_sense_buffer, ua->UA_valid_sense_len,
+						       SCST_SENSE_ALL_VALID,
+						       SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed))) {
+					TRACE_DBG("Freeing not needed REPORTED LUNS DATA CHANGED UA %p",
+						  ua);
 					scst_tgt_dev_del_free_UA(tgt_dev, ua);
 					break;
 				}
@@ -156,7 +153,7 @@ enum scst_exec_res scst_request_sense_local(struct scst_cmd *cmd)
 			spin_unlock_bh(&tgt_dev->tgt_dev_lock);
 
 			buf = kzalloc(size, GFP_KERNEL);
-			if (buf == NULL)
+			if (!buf)
 				goto out_put_busy;
 
 			rc = scst_set_pending_UA(cmd, buf, &size);
@@ -188,37 +185,33 @@ enum scst_exec_res scst_request_sense_local(struct scst_cmd *cmd)
 	if (((scst_sense_response_code(tgt_dev->tgt_dev_sense) == 0x70) ||
 	     (scst_sense_response_code(tgt_dev->tgt_dev_sense) == 0x71)) &&
 	     (cmd->cdb[1] & 1)) {
-		PRINT_WARNING("%s: Fixed format of the saved sense, but "
-			"descriptor format requested. Conversion will "
-			"truncated data", cmd->op_name);
-		PRINT_BUFFER("Original sense", tgt_dev->tgt_dev_sense,
-			tgt_dev->tgt_dev_valid_sense_len);
+		PRINT_WARNING("%s: Fixed format of the saved sense, but descriptor format requested. Conversion will truncated data",
+			      cmd->op_name);
+		PRINT_BUFFER("Original sense",
+			     tgt_dev->tgt_dev_sense, tgt_dev->tgt_dev_valid_sense_len);
 
 		buffer_size = min(SCST_STANDARD_SENSE_LEN, buffer_size);
-		sl = scst_set_sense(buffer, buffer_size, true,
-			tgt_dev->tgt_dev_sense[2], tgt_dev->tgt_dev_sense[12],
-			tgt_dev->tgt_dev_sense[13]);
+		sl = scst_set_sense(buffer, buffer_size, true, tgt_dev->tgt_dev_sense[2],
+				    tgt_dev->tgt_dev_sense[12], tgt_dev->tgt_dev_sense[13]);
 	} else if (((scst_sense_response_code(tgt_dev->tgt_dev_sense) == 0x72) ||
 		    (scst_sense_response_code(tgt_dev->tgt_dev_sense) == 0x73)) &&
 		   !(cmd->cdb[1] & 1)) {
-		PRINT_WARNING("%s: Descriptor format of the "
-			"saved sense, but fixed format requested. Conversion "
-			"will truncate data", cmd->op_name);
-		PRINT_BUFFER("Original sense", tgt_dev->tgt_dev_sense,
-			tgt_dev->tgt_dev_valid_sense_len);
+		PRINT_WARNING("%s: Descriptor format of the saved sense, but fixed format requested. Conversion will truncate data",
+			      cmd->op_name);
+		PRINT_BUFFER("Original sense",
+			     tgt_dev->tgt_dev_sense, tgt_dev->tgt_dev_valid_sense_len);
 
 		buffer_size = min(SCST_STANDARD_SENSE_LEN, buffer_size);
-		sl = scst_set_sense(buffer, buffer_size, false,
-			tgt_dev->tgt_dev_sense[1], tgt_dev->tgt_dev_sense[2],
-			tgt_dev->tgt_dev_sense[3]);
+		sl = scst_set_sense(buffer, buffer_size, false, tgt_dev->tgt_dev_sense[1],
+				    tgt_dev->tgt_dev_sense[2], tgt_dev->tgt_dev_sense[3]);
 	} else {
-		if (buffer_size >= tgt_dev->tgt_dev_valid_sense_len)
+		if (buffer_size >= tgt_dev->tgt_dev_valid_sense_len) {
 			sl = tgt_dev->tgt_dev_valid_sense_len;
-		else {
+		} else {
 			sl = buffer_size;
-			TRACE(TRACE_SCSI|TRACE_MINOR, "%s: Being returned sense "
-				"truncated to size %d (needed %d)", cmd->op_name,
-				buffer_size, tgt_dev->tgt_dev_valid_sense_len);
+			TRACE(TRACE_SCSI | TRACE_MINOR,
+			      "%s: Being returned sense truncated to size %d (needed %d)",
+			      cmd->op_name, buffer_size, tgt_dev->tgt_dev_valid_sense_len);
 		}
 		memcpy(buffer, tgt_dev->tgt_dev_sense, sl);
 	}
@@ -278,8 +271,7 @@ static enum scst_exec_res scst_report_tpgs(struct scst_cmd *cmd)
 		scst_set_busy(cmd);
 		goto out_put;
 	} else if (res < 0) {
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		goto out_put;
 	}
 
@@ -308,11 +300,10 @@ static enum scst_exec_res scst_exec_set_tpgs(struct scst_cmd *cmd)
 	int rc;
 
 	if (!dev->expl_alua) {
-		PRINT_ERROR("SET TARGET PORT GROUPS: not explicit ALUA mode "
-			"(dev %s)", dev->virt_name);
+		PRINT_ERROR("SET TARGET PORT GROUPS: not explicit ALUA mode (dev %s)",
+			    dev->virt_name);
 		/* Invalid opcode, i.e. SA field */
-		scst_set_invalid_field_in_cdb(cmd, 1,
-			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		scst_set_invalid_field_in_cdb(cmd, 1, 0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		goto out;
 	}
 
@@ -347,9 +338,9 @@ static enum scst_exec_res scst_report_supported_tm_fns(struct scst_cmd *cmd)
 
 	buf[0] = 0xF8; /* ATS, ATSS, CACAS, CTSS, LURS */
 	buf[1] = 0;
-	if ((cmd->cdb[2] & 0x80) == 0)
+	if ((cmd->cdb[2] & 0x80) == 0) {
 		resp_len = 4;
-	else {
+	} else {
 		buf[3] = 0x0C;
 #if 1
 		buf[4] = 1; /* TMFTMOV */
@@ -402,7 +393,7 @@ static enum scst_exec_res scst_report_supported_opcodes(struct scst_cmd *cmd)
 		goto out_compl;
 
 	TRACE_DBG("cmd %p, options %d, req_opcode %x, req_sa %x, rctd %d",
-		cmd, options, req_opcode, req_sa, rctd);
+		  cmd, options, req_opcode, req_sa, rctd);
 
 	switch (options) {
 	case 0: /* all */
@@ -419,13 +410,12 @@ static enum scst_exec_res scst_report_supported_opcodes(struct scst_cmd *cmd)
 			if (req_opcode == supp_opcodes[i]->od_opcode) {
 				op = supp_opcodes[i];
 				if (op->od_serv_action_valid) {
-					TRACE(TRACE_MINOR, "Requested opcode %x "
-						"with unexpected service action "
-						"(dev %s, initiator %s)",
-						req_opcode, cmd->dev->virt_name,
-						cmd->sess->initiator_name);
+					TRACE(TRACE_MINOR,
+					      "Requested opcode %x ith unexpected service action (dev %s, initiator %s)",
+					      req_opcode, cmd->dev->virt_name,
+					      cmd->sess->initiator_name);
 					scst_set_invalid_field_in_cdb(cmd, 2,
-						SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+								      SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 					goto out_compl;
 				}
 				buf_len = 4 + op->od_cdb_size;
@@ -434,10 +424,10 @@ static enum scst_exec_res scst_report_supported_opcodes(struct scst_cmd *cmd)
 				break;
 			}
 		}
-		if (op == NULL) {
-			TRACE(TRACE_MINOR, "Requested opcode %x not found "
-				"(dev %s, initiator %s)", req_opcode,
-				cmd->dev->virt_name, cmd->sess->initiator_name);
+		if (!op) {
+			TRACE(TRACE_MINOR,
+			      "Requested opcode %x not found (dev %s, initiator %s)",
+			      req_opcode, cmd->dev->virt_name, cmd->sess->initiator_name);
 			buf_len = 4;
 		}
 		break;
@@ -447,13 +437,12 @@ static enum scst_exec_res scst_report_supported_opcodes(struct scst_cmd *cmd)
 			if (req_opcode == supp_opcodes[i]->od_opcode) {
 				op = supp_opcodes[i];
 				if (!op->od_serv_action_valid) {
-					TRACE(TRACE_MINOR, "Requested opcode %x "
-						"without expected service action "
-						"(dev %s, initiator %s)",
-						req_opcode, cmd->dev->virt_name,
-						cmd->sess->initiator_name);
+					TRACE(TRACE_MINOR,
+					      "Requested opcode %x without expected service action (dev %s, initiator %s)",
+					      req_opcode, cmd->dev->virt_name,
+					      cmd->sess->initiator_name);
 					scst_set_invalid_field_in_cdb(cmd, 2,
-						SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+								      SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 					goto out_compl;
 				}
 				if (req_sa != op->od_serv_action) {
@@ -466,19 +455,17 @@ static enum scst_exec_res scst_report_supported_opcodes(struct scst_cmd *cmd)
 				break;
 			}
 		}
-		if (op == NULL) {
-			TRACE(TRACE_MINOR, "Requested opcode %x/%x not found "
-				"(dev %s, initiator %s)", req_opcode, req_sa,
-				cmd->dev->virt_name, cmd->sess->initiator_name);
+		if (!op) {
+			TRACE(TRACE_MINOR,
+			      "Requested opcode %x/%x not found (dev %s, initiator %s)",
+			      req_opcode, req_sa, cmd->dev->virt_name, cmd->sess->initiator_name);
 			buf_len = 4;
 		}
 		break;
 	default:
-		PRINT_ERROR("REPORT SUPPORTED OPERATION CODES: REPORTING OPTIONS "
-			"%x not supported (dev %s, initiator %s)", options,
-			cmd->dev->virt_name, cmd->sess->initiator_name);
-		scst_set_invalid_field_in_cdb(cmd, 2,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+		PRINT_ERROR("REPORT SUPPORTED OPERATION CODES: REPORTING OPTIONS %x not supported (dev %s, initiator %s)",
+			    options, cmd->dev->virt_name, cmd->sess->initiator_name);
+		scst_set_invalid_field_in_cdb(cmd, 2, SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 		goto out_compl;
 	}
 
@@ -492,9 +479,9 @@ static enum scst_exec_res scst_report_supported_opcodes(struct scst_cmd *cmd)
 		inline_buf = true;
 	} else {
 		buf = vmalloc(buf_len); /* it can be big */
-		if (buf == NULL) {
-			PRINT_ERROR("Unable to allocate REPORT SUPPORTED "
-				"OPERATION CODES buffer with size %d", buf_len);
+		if (!buf) {
+			PRINT_ERROR("Unable to allocate REPORT SUPPORTED OPERATION CODES buffer with size %d",
+				    buf_len);
 			scst_set_busy(cmd);
 			goto out_err_put;
 		}
@@ -528,7 +515,7 @@ static enum scst_exec_res scst_report_supported_opcodes(struct scst_cmd *cmd)
 		break;
 	case 1:
 	case 2:
-		if (op != NULL) {
+		if (op) {
 			buf[1] |= op->od_support;
 			put_unaligned_be16(op->od_cdb_size, &buf[2]);
 			memcpy(&buf[4], op->od_cdb_usage_bits, op->od_cdb_size);
@@ -558,7 +545,7 @@ static enum scst_exec_res scst_report_supported_opcodes(struct scst_cmd *cmd)
 		scst_set_resp_data_len(cmd, length);
 
 out_compl:
-	if ((supp_opcodes != NULL) && (cmd->devt->put_supported_opcodes != NULL))
+	if (supp_opcodes && cmd->devt->put_supported_opcodes)
 		cmd->devt->put_supported_opcodes(cmd, supp_opcodes, supp_opcodes_cnt);
 
 	cmd->completed = 1;
@@ -624,18 +611,16 @@ enum scst_exec_res scst_reserve_local(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (cmd->sess->sess_mq) {
-		PRINT_WARNING_ONCE("MQ session (%p) from initiator %s (tgt %s), "
-			"reservations not supported", cmd->sess,
-			cmd->sess->initiator_name, cmd->sess->tgt->tgt_name);
+		PRINT_WARNING_ONCE("MQ session (%p) from initiator %s (tgt %s), reservations not supported",
+				   cmd->sess, cmd->sess->initiator_name, cmd->sess->tgt->tgt_name);
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out_done;
 	}
 
-	if ((cmd->cdb[0] == RESERVE_10) && (cmd->cdb[2] & SCST_RES_3RDPTY)) {
-		PRINT_ERROR("RESERVE_10: 3rdPty RESERVE not implemented "
-		     "(lun=%lld)", (unsigned long long)cmd->lun);
-		scst_set_invalid_field_in_cdb(cmd, 2,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
+	if (cmd->cdb[0] == RESERVE_10 && (cmd->cdb[2] & SCST_RES_3RDPTY)) {
+		PRINT_ERROR("RESERVE_10: 3rdPty RESERVE not implemented (lun=%lld)",
+			    (unsigned long long)cmd->lun);
+		scst_set_invalid_field_in_cdb(cmd, 2, SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
 		goto out_done;
 	}
 
@@ -661,11 +646,9 @@ enum scst_exec_res scst_reserve_local(struct scst_cmd *cmd)
 	if (!list_empty(&dev->dev_registrants_list)) {
 		if (scst_pr_crh_case(cmd))
 			goto out_completed;
-		else {
-			scst_set_cmd_error_status(cmd,
-				SAM_STAT_RESERVATION_CONFLICT);
-			goto out_done;
-		}
+
+		scst_set_cmd_error_status(cmd, SAM_STAT_RESERVATION_CONFLICT);
+		goto out_done;
 	}
 
 	scst_res_lock(dev, &pr_lksb);
@@ -700,9 +683,8 @@ enum scst_exec_res scst_release_local(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (cmd->sess->sess_mq) {
-		PRINT_WARNING_ONCE("MQ session (%p) from initiator %s (tgt %s), "
-			"reservations not supported", cmd->sess,
-			cmd->sess->initiator_name, cmd->sess->tgt->tgt_name);
+		PRINT_WARNING_ONCE("MQ session (%p) from initiator %s (tgt %s), reservations not supported",
+				   cmd->sess, cmd->sess->initiator_name, cmd->sess->tgt->tgt_name);
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out_done;
 	}
@@ -717,11 +699,9 @@ enum scst_exec_res scst_release_local(struct scst_cmd *cmd)
 	if (!list_empty(&dev->dev_registrants_list)) {
 		if (scst_pr_crh_case(cmd))
 			goto out_completed;
-		else {
-			scst_set_cmd_error_status(cmd,
-				SAM_STAT_RESERVATION_CONFLICT);
-			goto out_done;
-		}
+
+		scst_set_cmd_error_status(cmd, SAM_STAT_RESERVATION_CONFLICT);
+		goto out_done;
 	}
 
 	scst_res_lock(dev, &pr_lksb);
@@ -785,35 +765,30 @@ enum scst_exec_res scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 	session = cmd->sess;
 
 	if (session->sess_mq) {
-		PRINT_WARNING_ONCE("MQ session %p from initiator %s (tgt %s), "
-			"persistent reservations not supported", session,
-			session->initiator_name, session->tgt->tgt_name);
+		PRINT_WARNING_ONCE("MQ session %p from initiator %s (tgt %s), persistent reservations not supported",
+				   session, session->initiator_name, session->tgt->tgt_name);
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out_done;
 	}
 
 	if (unlikely(dev->not_pr_supporting_tgt_devs_num != 0)) {
-		PRINT_WARNING("Persistent Reservation command %s refused for "
-			"device %s, because the device has not supporting PR "
-			"transports connected", scst_get_opcode_name(cmd),
-			dev->virt_name);
-		scst_set_cmd_error(cmd,
-				   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		PRINT_WARNING("Persistent Reservation command %s refused for device %s, because the device has not supporting PR transports connected",
+			      scst_get_opcode_name(cmd), dev->virt_name);
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out_done;
 	}
 
 	if (scst_dev_reserved(dev)) {
-		TRACE_PR("PR command rejected, because device %s holds regular "
-			"reservation", dev->virt_name);
+		TRACE_PR("PR command rejected, because device %s holds regular reservation",
+			 dev->virt_name);
 		scst_set_cmd_error_status(cmd, SAM_STAT_RESERVATION_CONFLICT);
 		goto out_done;
 	}
 
 	if (cmd->tgt->tgt_forward_src && dev->scsi_dev && !dev->cluster_mode) {
-		PRINT_WARNING("PR commands for pass-through devices not "
-			"supported (device %s)", dev->virt_name);
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+		PRINT_WARNING("PR commands for pass-through devices not supported (device %s)",
+			      dev->virt_name);
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out_done;
 	}
 
@@ -832,7 +807,7 @@ enum scst_exec_res scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 	action = cmd->cdb[1] & 0x1f;
 
 	TRACE(TRACE_SCSI, "PR IN action %x for '%s' (LUN %llx) from '%s'",
-		action, dev->virt_name, tgt_dev->lun, session->initiator_name);
+	      action, dev->virt_name, tgt_dev->lun, session->initiator_name);
 
 	switch (action) {
 	case PR_READ_KEYS:
@@ -867,8 +842,7 @@ out_done:
 	return SCST_EXEC_COMPLETED;
 
 out_unsup_act:
-	scst_set_invalid_field_in_cdb(cmd, 1,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+	scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 	goto out_complete;
 }
 
@@ -894,18 +868,15 @@ enum scst_exec_res scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 	session = cmd->sess;
 
 	if (session->sess_mq) {
-		PRINT_WARNING_ONCE("MQ session (%p) from initiator %s (tgt %s), "
-			"persistent reservations not supported", session,
-			session->initiator_name, session->tgt->tgt_name);
+		PRINT_WARNING_ONCE("MQ session (%p) from initiator %s (tgt %s), persistent reservations not supported",
+				   session, session->initiator_name, session->tgt->tgt_name);
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out_done;
 	}
 
 	if (unlikely(dev->not_pr_supporting_tgt_devs_num != 0)) {
-		PRINT_WARNING("Persistent Reservation command %s refused for "
-			"device %s, because the device has not supporting PR "
-			"transports connected", scst_get_opcode_name(cmd),
-			dev->virt_name);
+		PRINT_WARNING("Persistent Reservation command %s refused for device %s, because the device has not supporting PR transports connected",
+			      scst_get_opcode_name(cmd), dev->virt_name);
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out_done;
 	}
@@ -913,11 +884,11 @@ enum scst_exec_res scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 	action = cmd->cdb[1] & 0x1f;
 
 	TRACE(TRACE_SCSI, "PR OUT action %x for '%s' (LUN %llx) from '%s'",
-		action, dev->virt_name, tgt_dev->lun, session->initiator_name);
+	      action, dev->virt_name, tgt_dev->lun, session->initiator_name);
 
 	if (scst_dev_reserved(dev)) {
-		TRACE_PR("PR command rejected, because device %s holds regular "
-			"reservation", dev->virt_name);
+		TRACE_PR("PR command rejected, because device %s holds regular reservation",
+			 dev->virt_name);
 		scst_set_cmd_error_status(cmd, SAM_STAT_RESERVATION_CONFLICT);
 		goto out_done;
 	}
@@ -935,37 +906,34 @@ enum scst_exec_res scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 	 * REGISTER AND MOVE and RESERVE will be additionally checked for
 	 * conflicts later.
 	 */
-	if ((action != PR_REGISTER) && (action != PR_REGISTER_AND_IGNORE) &&
-	    (tgt_dev->registrant == NULL)) {
+	if (action != PR_REGISTER && action != PR_REGISTER_AND_IGNORE &&
+	    !tgt_dev->registrant) {
 		TRACE_PR("'%s' not registered", cmd->sess->initiator_name);
 		scst_set_cmd_error_status(cmd, SAM_STAT_RESERVATION_CONFLICT);
 		goto out_unlock;
 	}
 
 	/* Check scope */
-	if ((action != PR_REGISTER) && (action != PR_REGISTER_AND_IGNORE) &&
-	    (action != PR_CLEAR) && (cmd->cdb[2] >> 4) != SCOPE_LU) {
+	if (action != PR_REGISTER && action != PR_REGISTER_AND_IGNORE &&
+	    action != PR_CLEAR && (cmd->cdb[2] >> 4) != SCOPE_LU) {
 		TRACE_PR("Scope must be SCOPE_LU for action %x", action);
-		scst_set_invalid_field_in_cdb(cmd, 2,
-				SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
+		scst_set_invalid_field_in_cdb(cmd, 2, SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
 		goto out_unlock;
 	}
 
 	/* Check SPEC_I_PT (PR_REGISTER_AND_MOVE has another format) */
-	if ((action != PR_REGISTER) && (action != PR_REGISTER_AND_MOVE) &&
+	if (action != PR_REGISTER && action != PR_REGISTER_AND_MOVE &&
 	    ((buffer[20] >> 3) & 0x01)) {
 		TRACE_PR("SPEC_I_PT must be zero for action %x", action);
-		scst_set_invalid_field_in_parm_list(cmd, 20,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 3);
+		scst_set_invalid_field_in_parm_list(cmd, 20, SCST_INVAL_FIELD_BIT_OFFS_VALID | 3);
 		goto out_unlock;
 	}
 
 	/* Check ALL_TG_PT (PR_REGISTER_AND_MOVE has another format) */
-	if ((action != PR_REGISTER) && (action != PR_REGISTER_AND_IGNORE) &&
-	    (action != PR_REGISTER_AND_MOVE) && ((buffer[20] >> 2) & 0x01)) {
+	if (action != PR_REGISTER && action != PR_REGISTER_AND_IGNORE &&
+	    action != PR_REGISTER_AND_MOVE && ((buffer[20] >> 2) & 0x01)) {
 		TRACE_PR("ALL_TG_PT must be zero for action %x", action);
-		scst_set_invalid_field_in_parm_list(cmd, 20,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 2);
+		scst_set_invalid_field_in_parm_list(cmd, 20, SCST_INVAL_FIELD_BIT_OFFS_VALID | 2);
 		goto out_unlock;
 	}
 
@@ -1002,16 +970,15 @@ enum scst_exec_res scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 		scst_pr_register_and_move(cmd, buffer, buffer_size);
 		break;
 	default:
-		scst_set_invalid_field_in_cdb(cmd, 1,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+		scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
 		goto out_unlock;
 	}
 
 	if (cmd->status == SAM_STAT_GOOD)
 		scst_pr_sync_device_file(dev);
 
-	if ((cmd->devt->pr_cmds_notifications) &&
-	    (cmd->status == SAM_STAT_GOOD)) /* sync file may change status */
+	/* sync file may change status */
+	if (cmd->devt->pr_cmds_notifications && cmd->status == SAM_STAT_GOOD)
 		res = SCST_EXEC_NOT_COMPLETED;
 
 out_unlock:
@@ -1023,8 +990,7 @@ out_done:
 	if (res == SCST_EXEC_COMPLETED) {
 		if (!aborted)
 			cmd->completed = 1;
-		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
-				SCST_CONTEXT_SAME);
+		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_SAME);
 	}
 
 	TRACE_EXIT_RES(res);
