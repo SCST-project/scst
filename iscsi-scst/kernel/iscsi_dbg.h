@@ -47,8 +47,9 @@
 #ifdef CONFIG_SCST_DEBUG
 struct iscsi_pdu;
 struct iscsi_cmnd;
-extern void iscsi_dump_pdu(struct iscsi_pdu *pdu);
-extern unsigned long iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(struct iscsi_cmnd *cmnd);
+
+void iscsi_dump_pdu(struct iscsi_pdu *pdu);
+unsigned long iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(struct iscsi_cmnd *cmnd);
 #else
 #define iscsi_dump_pdu(x) do {} while (0)
 #define iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(x) 0
