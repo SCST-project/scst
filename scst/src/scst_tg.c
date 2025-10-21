@@ -426,15 +426,13 @@ static void scst_alua_transitioning_work_fn(struct work_struct *work)
 	TRACE_DBG("Retrying transitioning cmd %p", cmd);
 
 	spin_lock_irq(&cmd->cmd_threads->cmd_list_lock);
-	list_add(&cmd->cmd_list_entry,
-		&cmd->cmd_threads->active_cmd_list);
+	list_add(&cmd->cmd_list_entry, &cmd->cmd_threads->active_cmd_list);
 	wake_up(&cmd->cmd_threads->cmd_list_waitQ);
 	spin_unlock_irq(&cmd->cmd_threads->cmd_list_lock);
 
 	kfree(retry);
 
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -471,19 +469,17 @@ static int scst_tg_accept_transitioning(struct scst_cmd *cmd)
 		break;
 	}
 
-	if (cmd->already_transitioning)
+	if (cmd->already_transitioning) {
 		TRACE_DBG("cmd %p already transitioned checked, failing", cmd);
-	else {
+	} else {
 		struct scst_alua_retry *retry;
 
 		TRACE_DBG("ALUA transitioning: delaying cmd %p", cmd);
 
 		retry = kzalloc(sizeof(*retry), GFP_KERNEL);
-		if (retry == NULL) {
-			TRACE_DBG("Unable to allocate ALUA retry "
-				"struct, failing cmd %p", cmd);
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_alua_transitioning));
+		if (!retry) {
+			TRACE_DBG("Unable to allocate ALUA retry struct, failing cmd %p", cmd);
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_alua_transitioning));
 			res = SCST_ALUA_CHECK_ERROR;
 			goto out;
 		}
@@ -493,13 +489,12 @@ static int scst_tg_accept_transitioning(struct scst_cmd *cmd)
 		INIT_DELAYED_WORK(&retry->alua_retry_work,
 				  scst_alua_transitioning_work_fn);
 		cmd->already_transitioning = 1;
-		schedule_delayed_work(&retry->alua_retry_work, HZ/2);
+		schedule_delayed_work(&retry->alua_retry_work, HZ / 2);
 		res = SCST_ALUA_CHECK_DELAYED;
 		goto out;
 	}
 
-	scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_alua_transitioning));
+	scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_alua_transitioning));
 	res = SCST_ALUA_CHECK_ERROR;
 
 out:
@@ -548,16 +543,14 @@ static void scst_check_alua_invariant(void)
 				SCST_TG_STATE_OPTIMIZED;
 			if (tgt_dev->alua_filter !=
 				   scst_alua_filter[expected_state]) {
-				PRINT_ERROR("LUN %s/%s/%s/%lld/%s: ALUA filter"
-					" %p <> %p",
-					tgt_dev->acg_dev->acg->tgt->tgt_name,
-					tgt_dev->acg_dev->acg->acg_name ? :
-					"(default)",
-					tgt_dev->sess->initiator_name,
-					tgt_dev->lun,
-					tgt_dev->dev->virt_name ? : "(null)",
-					tgt_dev->alua_filter,
-					scst_alua_filter[expected_state]);
+				PRINT_ERROR("LUN %s/%s/%s/%lld/%s: ALUA filter %p <> %p",
+					    tgt_dev->acg_dev->acg->tgt->tgt_name,
+					    tgt_dev->acg_dev->acg->acg_name ?: "(default)",
+					    tgt_dev->sess->initiator_name,
+					    tgt_dev->lun,
+					    tgt_dev->dev->virt_name ?: "(null)",
+					    tgt_dev->alua_filter,
+					    scst_alua_filter[expected_state]);
 			}
 		}
 	}
@@ -580,12 +573,11 @@ static void scst_tg_change_tgt_dev_state(struct scst_tgt_dev *tgt_dev,
 	lockdep_assert_held(&scst_dg_mutex);
 
 	TRACE_MGMT_DBG("ALUA state of tgt_dev %p has changed (gen_ua %d)",
-		tgt_dev, gen_ua);
+		       tgt_dev, gen_ua);
 
 	scst_update_tgt_dev_alua_filter(tgt_dev, state);
 	if (gen_ua)
-		scst_gen_aen_or_ua(tgt_dev,
-			SCST_LOAD_SENSE(scst_sense_asym_access_state_changed));
+		scst_gen_aen_or_ua(tgt_dev, SCST_LOAD_SENSE(scst_sense_asym_access_state_changed));
 }
 
 /* Initialize ALUA state of LUN tgt_dev */
@@ -646,8 +638,7 @@ static void scst_reset_tgt_alua_filter(struct scst_target_group *tg,
 		list_for_each_entry(tgt_dev, &dgd->dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
 			if (tgt_dev->acg_dev->acg->tgt == tgt)
-				scst_update_tgt_dev_alua_filter(tgt_dev,
-						      SCST_TG_STATE_OPTIMIZED);
+				scst_update_tgt_dev_alua_filter(tgt_dev, SCST_TG_STATE_OPTIMIZED);
 		}
 	}
 
@@ -882,9 +873,8 @@ static void scst_event_stpg_notify_fn(struct scst_event *event,
 
 	TRACE_ENTRY();
 
-	PRINT_INFO("Notification for event %u (id %d) received "
-		   "with status %d (priv %p)", event->event_code,
-		   event->event_id, status, priv);
+	PRINT_INFO("Notification for event %u (id %d) received with status %d (priv %p)",
+		   event->event_code, event->event_id, status, priv);
 
 	mutex_lock(&scst_mutex);
 	mutex_lock(&scst_dg_mutex);
@@ -892,14 +882,14 @@ static void scst_event_stpg_notify_fn(struct scst_event *event,
 	dg = __lookup_dg_by_dev(cmd->dev);
 	if (!dg) {
 		PRINT_ERROR("STPG: unable to find DG for device %s",
-			cmd->dev->virt_name);
+			    cmd->dev->virt_name);
 		goto out_fail;
 	}
 
 	list_for_each_entry(dgd, &dg->dev_list, entry) {
 		if (dgd->dev->stpg_ext_blocked) {
 			TRACE_DBG("STPG: ext unblocking dev %s",
-				dgd->dev->virt_name);
+				  dgd->dev->virt_name);
 			scst_ext_unblock_dev(dgd->dev, true);
 			dgd->dev->stpg_ext_blocked = 0;
 		}
@@ -910,7 +900,7 @@ static void scst_event_stpg_notify_fn(struct scst_event *event,
 
 	if (status != 0) {
 		PRINT_ERROR("on_stpg script for device group %s failed with status %d",
-			dg->name, status);
+			    dg->name, status);
 		goto out_fail;
 	}
 
@@ -921,9 +911,8 @@ static void scst_event_stpg_notify_fn(struct scst_event *event,
 			PRINT_ERROR("STPG: unable to find TG %d", d->group_id);
 			goto out_fail;
 		} else if (tg->state == scst_alua_name_to_state(d->prev_state)) {
-			PRINT_ERROR("on_stpg script did not change ALUA state"
-				   " for device group %s / target group %s",
-				   dg->name, tg->name);
+			PRINT_ERROR("on_stpg script did not change ALUA state for device group %s / target group %s",
+				    dg->name, tg->name);
 			goto out_fail;
 		}
 	}
@@ -953,9 +942,8 @@ out_fail:
  * @invoke_callbacks: Whether or not to invoke the on_alua_state_changed_*
  *	callback functions.
  */
-static void __scst_tgt_set_state(struct scst_target_group *tg,
-	struct scst_tgt_dev *tgt_dev, enum scst_tg_state state,
-	bool invoke_callbacks)
+static void __scst_tgt_set_state(struct scst_target_group *tg, struct scst_tgt_dev *tgt_dev,
+				 enum scst_tg_state state, bool invoke_callbacks)
 {
 	bool gen_ua = state != SCST_TG_STATE_TRANSITIONING;
 	struct scst_tgt *tgt = tgt_dev->sess->tgt;
@@ -1102,7 +1090,7 @@ static void __scst_gen_alua_state_changed_ua(struct scst_target_group *tg)
 			tgt = tgt_dev->sess->tgt;
 			if (__scst_tg_have_tgt(tg, tgt))
 				scst_gen_aen_or_ua(tgt_dev,
-					SCST_LOAD_SENSE(scst_sense_asym_access_state_changed));
+						   SCST_LOAD_SENSE(scst_sense_asym_access_state_changed));
 		}
 	}
 }
@@ -1127,8 +1115,7 @@ static void __scst_tg_set_preferred(struct scst_target_group *tg,
 	__scst_gen_alua_state_changed_ua(tg);
 }
 
-int scst_tg_set_preferred(struct scst_target_group *tg,
-				 bool preferred)
+int scst_tg_set_preferred(struct scst_target_group *tg, bool preferred)
 {
 	int res;
 
@@ -1235,8 +1222,8 @@ static void __scst_dg_dev_remove(struct scst_dev_group *dg,
 				 struct scst_dg_dev *dgdev)
 {
 	if (dgdev->dev->stpg_ext_blocked) {
-		TRACE_DBG("DG %s remove: unblocking STPG ext blocked "
-			"dev %s", dg->name, dgdev->dev->virt_name);
+		TRACE_DBG("DG %s remove: unblocking STPG ext blocked dev %s",
+			  dg->name, dgdev->dev->virt_name);
 		scst_ext_unblock_dev(dgdev->dev, true);
 		dgdev->dev->stpg_ext_blocked = 0;
 	}
@@ -1430,7 +1417,6 @@ struct scst_dev_group *scst_lookup_dg_by_dev(struct scst_device *dev)
 	return __lookup_dg_by_dev(dev);
 }
 
-
 /*
  * Target group module management.
  */
@@ -1534,7 +1520,7 @@ bool scst_alua_configured(struct scst_device *dev)
 	dg = __lookup_dg_by_dev(dev);
 	mutex_unlock(&scst_dg_mutex);
 
-	return dg != NULL;
+	return dg;
 }
 EXPORT_SYMBOL_GPL(scst_alua_configured);
 
@@ -1671,21 +1657,19 @@ static void scst_stpg_check_blocking_done(struct scst_stpg_wait *wait)
 	if (atomic_dec_and_test(&wait->stpg_wait_left)) {
 		if (wait->status == 0)
 			scst_event_queue(SCST_EVENT_STPG_USER_INVOKE,
-				SCST_EVENT_SCST_CORE_ISSUER, wait->event_entry);
-		else {
+					 SCST_EVENT_SCST_CORE_ISSUER, wait->event_entry);
+		else
 			wait->event_entry->event_notify_fn(&wait->event_entry->event,
-				wait->event_entry->notify_fn_priv, wait->status);
-		}
+							   wait->event_entry->notify_fn_priv,
+							   wait->status);
 		kfree(wait);
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 /* No locks */
-static void scst_stpg_ext_blocking_done(struct scst_device *dev,
-	uint8_t *data, int len)
+static void scst_stpg_ext_blocking_done(struct scst_device *dev, uint8_t *data, int len)
 {
 	sBUG_ON(len != sizeof(data));
 	scst_stpg_check_blocking_done(*((struct scst_stpg_wait **)data));
@@ -1723,15 +1707,16 @@ static int scst_emit_stpg_event(struct scst_cmd *cmd, struct scst_dev_group *dg,
 
 	payload_len = sizeof(*payload) + sizeof(*descr) * tpg_desc_count;
 	event_entry_len = sizeof(*event_entry) + payload_len;
+
 	event_entry = kzalloc(event_entry_len, GFP_KERNEL);
-	if (event_entry == NULL) {
+	if (!event_entry) {
 		PRINT_ERROR("Unable to allocate event (size %d)", event_entry_len);
 		res = -ENOMEM;
 		goto out;
 	}
 
-	TRACE_MEM("event_entry %p (len %d) allocated", event_entry,
-		event_entry_len);
+	TRACE_MEM("event_entry %p (len %d) allocated",
+		  event_entry, event_entry_len);
 
 	event = &event_entry->event;
 	event->payload_len = payload_len;
@@ -1741,8 +1726,7 @@ static int scst_emit_stpg_event(struct scst_cmd *cmd, struct scst_dev_group *dg,
 
 	res = 1;
 
-	if (strscpy(payload->device_name, dev->virt_name,
-		    sizeof(payload->device_name)) < 0) {
+	if (strscpy(payload->device_name, dev->virt_name, sizeof(payload->device_name)) < 0) {
 		PRINT_ERROR("Device name %s too long", dev->virt_name);
 		goto out_too_long;
 	}
@@ -1786,16 +1770,16 @@ static int scst_emit_stpg_event(struct scst_cmd *cmd, struct scst_dev_group *dg,
 
 	dg->stpg_rel_tgt_id = cmd->tgt->rel_tgt_id;
 	dg->stpg_transport_id = kmemdup(cmd->sess->transport_id,
-		scst_tid_size(cmd->sess->transport_id), GFP_KERNEL);
-	if (dg->stpg_transport_id == NULL) {
+					scst_tid_size(cmd->sess->transport_id), GFP_KERNEL);
+	if (!dg->stpg_transport_id) {
 		PRINT_ERROR("Unable to duplicate stpg_transport_id");
 		goto out;
 	}
 
 	wait = kzalloc(sizeof(*wait), GFP_KERNEL);
-	if (wait == NULL) {
-		PRINT_ERROR("Unable to allocate STPG wait struct "
-			    "(size %zd)", sizeof(*wait));
+	if (!wait) {
+		PRINT_ERROR("Unable to allocate STPG wait struct (size %zd)",
+			    sizeof(*wait));
 		res = -ENOMEM;
 		goto out;
 	}
@@ -1822,8 +1806,8 @@ static int scst_emit_stpg_event(struct scst_cmd *cmd, struct scst_dev_group *dg,
 					scst_stpg_ext_blocking_done,
 					&wait, sizeof(wait), true);
 		if (rc != 0) {
-			TRACE_DBG("scst_ext_block_dev() failed "
-				  "with %d, reverting (cmd %p)", rc, cmd);
+			TRACE_DBG("scst_ext_block_dev() failed with %d, reverting (cmd %p)",
+				  rc, cmd);
 			wait->status = rc;
 			wait->dg = dg;
 			atomic_dec(&wait->stpg_wait_left);
@@ -1897,7 +1881,7 @@ int scst_tg_set_group_info(struct scst_cmd *cmd)
 	/* Check for some reasonable limit */
 	if (tpg_desc_count > 64) {
 		PRINT_ERROR("Too many STPG descriptors (%d) for dev %s",
-			tpg_desc_count, dev->virt_name);
+			    tpg_desc_count, dev->virt_name);
 		res = -EINVAL;
 		scst_set_invalid_field_in_cdb(cmd, 6, 0);
 		goto out_put;
@@ -1914,16 +1898,16 @@ int scst_tg_set_group_info(struct scst_cmd *cmd)
 
 	res = mutex_lock_interruptible(&scst_mutex);
 	if (res) {
-		PRINT_INFO("mutex_lock_interruptible() returned %d, finishing "
-			"cmd %p", res, cmd);
+		PRINT_INFO("mutex_lock_interruptible() returned %d, finishing cmd %p",
+			   res, cmd);
 		scst_set_busy(cmd);
 		goto out_put;
 	}
 
 	res = mutex_lock_interruptible(&scst_dg_mutex);
 	if (res) {
-		PRINT_INFO("mutex_lock_interruptible() returned %d, finishing "
-			"cmd %p", res, cmd);
+		PRINT_INFO("mutex_lock_interruptible() returned %d, finishing cmd %p",
+			   res, cmd);
 		scst_set_busy(cmd);
 		goto out_unlock_sm_fail;
 	}
@@ -1978,15 +1962,14 @@ int scst_tg_set_group_info(struct scst_cmd *cmd)
 		if (osi[j].tg->state == SCST_TG_STATE_TRANSITIONING) {
 			TRACE_MGMT_DBG("TG %p is transitioning", osi[j].tg);
 			res = -EBUSY;
-			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_alua_transitioning));
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_alua_transitioning));
 			/* second sense will not override the set one */
 			goto out_unlock_fail;
 		}
 		osi[j].prev_state = osi[j].tg->state;
 
-		TRACE_DBG("j %d, group_id %u, tg %s (%p), state %d", j, osi[j].group_id,
-			osi[j].tg->name, osi[j].tg, osi[j].tg->state);
+		TRACE_DBG("j %d, group_id %u, tg %s (%p), state %d",
+			  j, osi[j].group_id, osi[j].tg->name, osi[j].tg, osi[j].tg->state);
 	}
 
 	mutex_unlock(&scst_dg_mutex);
@@ -2006,8 +1989,7 @@ int scst_tg_set_group_info(struct scst_cmd *cmd)
 		WARN_ONCE(true, "res = %d\n", res);
 		fallthrough;
 	case -EOVERFLOW:
-		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_set_target_pgs_failed));
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_set_target_pgs_failed));
 		break;
 	}
 
