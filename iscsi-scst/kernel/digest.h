@@ -18,14 +18,17 @@
 #ifndef __ISCSI_DIGEST_H__
 #define __ISCSI_DIGEST_H__
 
-extern void digest_alg_available(int *val);
+struct iscsi_conn;
+struct iscsi_cmnd;
 
-extern int digest_init(struct iscsi_conn *conn);
+void digest_alg_available(int *val);
 
-extern int digest_rx_header(struct iscsi_cmnd *cmnd);
-extern int digest_rx_data(struct iscsi_cmnd *cmnd);
+int digest_init(struct iscsi_conn *conn);
 
-extern void digest_tx_header(struct iscsi_cmnd *cmnd);
-extern void digest_tx_data(struct iscsi_cmnd *cmnd);
+int digest_rx_header(struct iscsi_cmnd *cmnd);
+int digest_rx_data(struct iscsi_cmnd *cmnd);
+
+void digest_tx_header(struct iscsi_cmnd *cmnd);
+void digest_tx_data(struct iscsi_cmnd *cmnd);
 
 #endif /* __ISCSI_DIGEST_H__ */
