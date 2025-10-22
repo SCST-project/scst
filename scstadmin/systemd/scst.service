@@ -1,0 +1,20 @@
+[Unit]
+Description=SCST - A Generic SCSI Target Subsystem
+Documentation=man:scstadmin(1) man:scst.conf(5)
+After=network-online.target local-fs.target
+Wants=network-online.target
+DefaultDependencies=no
+Before=shutdown.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+EnvironmentFile=-/etc/default/scst
+ExecStart=/etc/init.d/scst start
+ExecStop=/etc/init.d/scst stop
+ExecReload=/etc/init.d/scst reload
+TimeoutStartSec=5min
+TimeoutStopSec=5min
+
+[Install]
+WantedBy=multi-user.target

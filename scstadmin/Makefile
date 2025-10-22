@@ -110,6 +110,12 @@ install install_vendor:
 	  mkdir -p $(DESTDIR)$(DEFAULTDIR);			\
 	  install -m 755 default/scst $(DESTDIR)$(DEFAULTDIR);	\
 	fi
+	# Install systemd service file
+	if [ -d systemd ]; then						\
+	  install -d $(DESTDIR)/lib/systemd/system;			\
+	  install -m 644 systemd/scst.service				\
+	    $(DESTDIR)/lib/systemd/system/scst.service;			\
+	fi
 	for s in iscsi-scst qla2x00t; do			\
 	  { $(call REMOVE_FN,$$s); } >/dev/null 2>&1;		\
 	done
