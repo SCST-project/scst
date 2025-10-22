@@ -90,6 +90,7 @@ install:
 	mv "$(DESTDIR)"/usr/man "$(DESTDIR)"/usr/share/man &&		\
 	dh_install &&							\
 	dh_installman &&						\
+	dh_installsystemd --name=scst --no-start &&			\
 	dh_installchangelogs &&						\
 	dh_compress &&							\
 	dh_fixperms &&							\

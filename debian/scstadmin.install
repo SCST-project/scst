@@ -1,4 +1,5 @@
 etc/init.d/scst
+lib/systemd/system/scst.service
 usr/sbin/scstadmin
 usr/share/perl/
 usr/lib/
