@@ -760,6 +760,16 @@ static inline long get_user_pages_backport(unsigned long start,
 #define get_user_pages get_user_pages_backport
 #endif
 
+/* <linux/jiffies.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
+/*
+ * See also commit 3740dcdf8a77 ("jiffies: add time comparison functions for 64 bit jiffies")
+ * #v4.9.
+ */
+#define time_is_before_jiffies64(a) time_after64(get_jiffies_64(), a)
+#endif
+
 /* <linux/kobject_ns.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0) &&		\
