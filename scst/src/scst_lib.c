@@ -8369,12 +8369,19 @@ scst_alloc_bio(unsigned short nr_vecs, gfp_t gfp_mask)
 	/*
 	 * See also commit 066ff571011d ("block: turn bio_kmalloc into a
 	 * simple kmalloc wrapper").
+	 * See also commit d86eaa0f3c56 ("block: remove the bi_inline_vecs
+	 * variable sized array from struct bio") # v6.18.
 	 */
 	struct bio *bio;
 
 	bio = bio_kmalloc(nr_vecs, gfp_mask);
-	if (bio)
+	if (bio) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 18, 0)
 		bio_init(bio, NULL, bio->bi_inline_vecs, nr_vecs, 0);
+#else
+		bio_init(bio, NULL, bio_inline_vecs(bio), nr_vecs, 0);
+#endif
+	}
 
 	return bio;
 #endif
@@ -8575,7 +8582,15 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 				need_new_bio = false;
 				offset = 0;
 				len -= bytes;
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 18, 0)
 				page = nth_page(page, 1);
+#else
+				/*
+				 * See also commit 84efbefa26df ("mm: remove nth_page()") # v6.18.
+				 * Use simple pointer arithmetic for contiguous pages.
+				 */
+				page = page + 1;
+#endif
 			}
 		}
 	}
