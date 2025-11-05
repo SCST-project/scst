@@ -33,6 +33,7 @@ INITDIR := $(shell if [ -f /etc/slackware-version ]; then	\
                    else						\
                      echo /etc/init.d;				\
                    fi)
+SYSTEMD_UNITDIR ?= /lib/systemd/system
 
 ECHO_INSTALL_FN =							\
 	if [ -n "$(DESTDIR)" ]; then					\
@@ -112,9 +113,9 @@ install install_vendor:
 	fi
 	# Install systemd service file
 	if [ -d systemd ]; then						\
-	  install -d $(DESTDIR)/lib/systemd/system;			\
+	  install -d $(DESTDIR)$(SYSTEMD_UNITDIR);			\
 	  install -m 644 systemd/scst.service				\
-	    $(DESTDIR)/lib/systemd/system/scst.service;			\
+	    $(DESTDIR)$(SYSTEMD_UNITDIR)/scst.service;			\
 	fi
 	for s in iscsi-scst qla2x00t; do			\
 	  { $(call REMOVE_FN,$$s); } >/dev/null 2>&1;		\
