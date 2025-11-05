@@ -17,6 +17,8 @@ Source:		%{name}-%{version}.tar.bz2
 BuildRoot:	%{_tmppath}/%{name}-%{version}-build
 AutoReqProv:	yes
 Requires:	psmisc, coreutils
+BuildRequires:	systemd-rpm-macros
+%{?systemd_requires}
 
 %description
 A tool for configuring SCST via the SCST sysfs interface. Allows to save,
@@ -56,7 +58,7 @@ export PREFIX=%{_prefix} DESTDIR=%{buildroot} MANDIR=%{buildroot}%{_mandir}
 %{make}
 
 %install
-export PREFIX=%{_prefix} DESTDIR=%{buildroot} MANDIR=%{buildroot}%{_mandir} SBINDIR=%{_sbindir}
+export PREFIX=%{_prefix} DESTDIR=%{buildroot} MANDIR=%{buildroot}%{_mandir} SBINDIR=%{_sbindir} SYSTEMD_UNITDIR=%{_unitdir}
 %{make} install_vendor
 %scstadmin_perl_process_packlist
 rm -rf %{buildroot}/var/adm/perl-modules/scst
@@ -71,10 +73,20 @@ rm -f /usr/local/man/man3/SCST::SCST.3pm*
 rm -f /usr/local/man/man5/scst.5*
 rm -f /usr/local/man/man5/scst.conf.5*
 
+%post
+%systemd_post scst.service
+
+%preun
+%systemd_preun scst.service
+
+%postun
+%systemd_postun scst.service
+
 %files
 %defattr(-,root,root,0755)
 %config(noreplace) /etc/default/scst
 /etc/init.d/scst
+%{_unitdir}/scst.service
 %{_sbindir}/scstadmin
 %{perl_vendorlib}/SCST
 %{perl_vendorarch}/auto/SCST_SCST
