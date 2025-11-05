@@ -977,7 +977,7 @@ sub checkDriverDynamicAttributes {
 	if (!defined($available)) {
 		my $rc = $self->driverExists($driver);
 		return SCST_C_DRV_NO_DRIVER if (!$rc);
-		return $rc if (!$rc > 1);
+		return $rc if ($rc > 1);
 
 		return SCST_C_FATAL_ERROR;
 	}
@@ -1220,7 +1220,7 @@ sub checkTargetDynamicAttributes {
 	if (!defined($available)) {
 		my $rc = $self->driverExists($driver);
 		return SCST_C_DRV_NO_DRIVER if (!$rc);
-		return $rc if (!$rc > 1);
+		return $rc if ($rc > 1);
 
 		return SCST_C_FATAL_ERROR;
 	}
@@ -3844,7 +3844,7 @@ sub checkDeviceCreateAttributes {
 	if (!defined($available)) {
 		my $rc = $self->handlerExists($handler);
 		return SCST_C_HND_NO_HANDLER if (!$rc);
-		return $rc if (!$rc > 1);
+		return $rc if ($rc > 1);
 		return SCST_C_FATAL_ERROR;
 	}
 
