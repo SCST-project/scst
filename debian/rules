@@ -42,14 +42,7 @@ build:
 	export BUILD_2X_MODULE=y &&					\
 	export CONFIG_SCSI_QLA_FC=y &&					\
 	export CONFIG_SCSI_QLA2XXX_TARGET=y &&				\
-	for d in $(SUBDIRS); do $(MAKE) -C $$d; done &&			\
-	{								\
-		echo dkms.conf &&					\
-		echo Makefile &&					\
-		for d in fcst iscsi-scst $(QLA_INI_DIR) scst scst_local srpt; do\
-			echo $$d;					\
-		done;							\
-	} | sed "s,^,usr/src/scst-$(VERSION)/," >debian/scst-dkms.install
+	for d in $(SUBDIRS); do $(MAKE) -C $$d; done
 
 build-indep: build
 
@@ -74,6 +67,13 @@ install:
 	make $(PKG_BUILD_MODE) &&					\
 	rm -f "$(DESTDIR)"/lib/modules/*/[Mm]odule* &&			\
 	mkdir -p $(DESTDIR)/usr/src/scst-$(VERSION) &&			\
+	{								\
+		echo dkms.conf &&					\
+		echo Makefile &&					\
+		for d in fcst iscsi-scst $(QLA_INI_DIR) scst scst_local srpt; do\
+			echo $$d;					\
+		done;							\
+	} | sed "s,^,usr/src/scst-$(VERSION)/," >debian/scst-dkms.install &&\
 	for f in scst.dkms scst-dkms.postinst scst-dkms.prerm; do	\
 		sed "s/\$${PACKAGE_VERSION}/$(VERSION)/;		\
 		     s/\$${PKG_BUILD_MODE}/$(PKG_BUILD_MODE)/"		\
