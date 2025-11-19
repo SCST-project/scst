@@ -8564,7 +8564,10 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 
 			TRACE_DBG("len %zd, bytes %zd, offset %zd", len, bytes, offset);
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 7) ||	\
+	 RHEL_RELEASE_CODE -0 == RHEL_RELEASE_VERSION(10, 0))
 			rc = bio_add_pc_page(q, bio, page, bytes, offset);
 #else
 			rc = bio_add_page(bio, page, bytes, offset);
