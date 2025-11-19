@@ -14,8 +14,11 @@
 #include <linux/slab.h>
 #include <linux/workqueue.h>
 #include <linux/version.h>
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0) && \
-	LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 9, 0) &&		\
+	LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0) &&	\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 7) ||	\
+	 RHEL_RELEASE_CODE -0 == RHEL_RELEASE_VERSION(10, 0))
 #include <linux/blk-mq-pci.h>
 #endif
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
@@ -8186,7 +8189,10 @@ static MAP_QUEUES_RET qla2xxx_map_queues(struct Scsi_Host *shost)
 	if (USER_CTRL_IRQ(vha->hw) || !vha->hw->mqiobase)
 		blk_mq_map_queues(qmap);
 	else
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 7) ||	\
+	 RHEL_RELEASE_CODE -0 == RHEL_RELEASE_VERSION(10, 0))
 		blk_mq_pci_map_queues(qmap, vha->hw->pdev, vha->irq_offset);
 #else
 		blk_mq_map_hw_queues(qmap, &vha->hw->pdev->dev,
