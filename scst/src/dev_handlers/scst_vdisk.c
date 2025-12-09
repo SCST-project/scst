@@ -6540,7 +6540,9 @@ static int vdisk_create_bioset(struct scst_vdisk_dev *virt_dev)
 		return res;
 	}
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 1))
 	/*
 	 * See also commit 105ca2a2c2ff ("block: split struct bio_integrity_payload") #v6.15.
 	 */
