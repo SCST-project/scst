@@ -70,7 +70,7 @@ static void scst_no_dlm_res_lock(struct scst_device *dev,
 				 struct scst_lksb *pr_lksb)
 	__acquires(&dev->dev_lock)
 {
-	EXTRACHECKS_BUG_ON(in_irq() || irqs_disabled());
+	EXTRACHECKS_BUG_ON(in_hardirq() || irqs_disabled());
 	spin_lock_bh(&dev->dev_lock);
 }
 

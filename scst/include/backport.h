@@ -37,6 +37,7 @@
 #include <linux/jiffies.h>
 #include <linux/iocontext.h>
 #include <linux/kobject_ns.h>
+#include <linux/preempt.h>
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/shrinker.h>
 #include <linux/slab.h>		/* kmalloc() */
@@ -1021,6 +1022,15 @@ static inline void *vcalloc(size_t n, size_t size)
 {
 	return vzalloc(n * size);
 }
+#endif
+
+/* <linux/preempt.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0)
+/*
+ * See also commit 15115830c887 ("preempt: Cleanup the macro maze a bit") # v5.11.
+ */
+#define in_hardirq()	(hardirq_count())
 #endif
 
 /* <linux/shrinker.h> */

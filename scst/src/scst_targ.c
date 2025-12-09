@@ -815,7 +815,7 @@ void scst_cmd_init_done(struct scst_cmd *cmd, enum scst_exec_context pref_contex
 	PRINT_BUFF_FLAG(TRACE_SCSI, "CDB", cmd->cdb, cmd->cdb_len);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
-	if (unlikely((in_irq() || irqs_disabled())) &&
+	if (unlikely((in_hardirq() || irqs_disabled())) &&
 	    (pref_context == SCST_CONTEXT_DIRECT || pref_context == SCST_CONTEXT_DIRECT_ATOMIC)) {
 		PRINT_ERROR("Wrong context %d in IRQ from target %s, use SCST_CONTEXT_THREAD instead",
 			    pref_context, cmd->tgtt->name);
@@ -1632,7 +1632,7 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status, enum scst_exec_context p
 		  status);
 
 #ifdef CONFIG_SCST_EXTRACHECKS
-	if ((in_irq() || irqs_disabled()) &&
+	if ((in_hardirq() || irqs_disabled()) &&
 	    (pref_context == SCST_CONTEXT_DIRECT || pref_context == SCST_CONTEXT_DIRECT_ATOMIC)) {
 		PRINT_ERROR("Wrong context %d in IRQ from target %s, use SCST_CONTEXT_THREAD instead",
 			    pref_context, cmd->tgtt->name);
@@ -1894,7 +1894,7 @@ void scst_rx_data(struct scst_cmd *cmd, int status, enum scst_exec_context pref_
 	cmd->cmd_hw_pending = 0;
 
 #ifdef CONFIG_SCST_EXTRACHECKS
-	if ((in_irq() || irqs_disabled()) &&
+	if ((in_hardirq() || irqs_disabled()) &&
 	    (pref_context == SCST_CONTEXT_DIRECT || pref_context == SCST_CONTEXT_DIRECT_ATOMIC)) {
 		PRINT_ERROR("Wrong context %d in IRQ from target %s, use SCST_CONTEXT_THREAD instead",
 			    pref_context, cmd->tgtt->name);
@@ -4452,7 +4452,7 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 	 * can safely ignore this warning since in_atomic() is used here only
 	 * for debugging purposes.
 	 */
-	EXTRACHECKS_BUG_ON(in_irq() || irqs_disabled());
+	EXTRACHECKS_BUG_ON(in_hardirq() || irqs_disabled());
 	EXTRACHECKS_WARN_ON((in_atomic() || in_interrupt()) && !atomic);
 
 	cmd->atomic = atomic;
