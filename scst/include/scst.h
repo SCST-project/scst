@@ -3987,7 +3987,7 @@ static inline bool scst_cmd_prelim_completed(struct scst_cmd *cmd)
 
 static inline enum scst_exec_context __scst_estimate_context(bool atomic)
 {
-	if (in_irq())
+	if (in_hardirq())
 		return SCST_CONTEXT_TASKLET;
 /*
  * We come here from many non reliable places, like the block layer, and don't

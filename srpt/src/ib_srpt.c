@@ -3531,7 +3531,7 @@ static int srpt_xfer_data(struct srpt_rdma_ch *ch,
 			scst_copy_sg(cmd, SCST_SG_COPY_FROM_TARGET);
 		}
 		scst_rx_data(cmd, SCST_RX_STATUS_SUCCESS,
-			     in_irq() ? SCST_CONTEXT_TASKLET :
+			     in_hardirq() ? SCST_CONTEXT_TASKLET :
 			     in_softirq() ? SCST_CONTEXT_DIRECT_ATOMIC :
 			     SCST_CONTEXT_DIRECT);
 		ret = 0;
@@ -3746,7 +3746,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	pr_debug("tsk_mgmt_done for tag= %lld status=%d\n", ioctx->tsk_mgmt.tag,
 		 scst_mgmt_cmd_get_status(mcmnd));
 
-	WARN_ON(in_irq());
+	WARN_ON(in_hardirq());
 
 	srpt_set_cmd_state(ioctx, SRPT_STATE_MGMT_RSP_SENT);
 	WARN_ON(ioctx->state == SRPT_STATE_DONE);

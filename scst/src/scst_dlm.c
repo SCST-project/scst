@@ -1158,7 +1158,7 @@ static void scst_dlm_pr_write_unlock(struct scst_device *dev,
 
 static bool scst_dlm_reserved(struct scst_device *dev)
 {
-	WARN_ON_ONCE(in_irq() || irqs_disabled());
+	WARN_ON_ONCE(in_hardirq() || irqs_disabled());
 
 	get_lockspace(dev);
 	return dev->reserved_by || dev->pr_dlm->reserved_by_nodeid;
@@ -1171,7 +1171,7 @@ static void scst_dlm_res_lock(struct scst_device *dev,
 	struct scst_pr_dlm_data *const pr_dlm = dev->pr_dlm;
 	dlm_lockspace_t *ls;
 
-	WARN_ON_ONCE(in_irq() || irqs_disabled());
+	WARN_ON_ONCE(in_hardirq() || irqs_disabled());
 	memset(pr_lksb, 0, sizeof(*pr_lksb));
 	ls = get_lockspace(dev);
 	if (!ls)
