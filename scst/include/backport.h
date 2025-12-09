@@ -34,6 +34,7 @@
 #include <linux/debugfs.h>
 #include <linux/dmapool.h>
 #include <linux/eventpoll.h>
+#include <linux/jiffies.h>
 #include <linux/iocontext.h>
 #include <linux/kobject_ns.h>
 #include <linux/scatterlist.h>	/* struct scatterlist */
@@ -666,6 +667,15 @@ kernel_write_backport(struct file *file, const void *buf, size_t count,
 }
 
 #define kernel_write kernel_write_backport
+#endif
+
+/* <linux/jiffies.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
+/*
+ * See also commit b35108a51cf7 ("jiffies: Define secs_to_jiffies()") # v6.13.
+ */
+#define secs_to_jiffies(_secs) (unsigned long)((_secs) * HZ)
 #endif
 
 /* <linux/iocontext.h> */
