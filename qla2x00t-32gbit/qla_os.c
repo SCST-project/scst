@@ -1971,7 +1971,9 @@ qla2x00_abort_all_cmds(scsi_qla_host_t *vha, int res)
 }
 
 static int
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 1))
 qla2xxx_slave_alloc(struct scsi_device *sdev)
 #else
 qla2xxx_sdev_init(struct scsi_device *sdev)
@@ -1988,7 +1990,9 @@ qla2xxx_sdev_init(struct scsi_device *sdev)
 }
 
 static int
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 1))
 qla2xxx_slave_configure(struct scsi_device *sdev)
 #else
 qla2xxx_sdev_configure(struct scsi_device *sdev, struct queue_limits *lim)
@@ -2013,7 +2017,9 @@ qla2xxx_sdev_configure(struct scsi_device *sdev, struct queue_limits *lim)
 }
 
 static void
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 1))
 qla2xxx_slave_destroy(struct scsi_device *sdev)
 #else
 qla2xxx_sdev_destroy(struct scsi_device *sdev)
@@ -8239,7 +8245,9 @@ struct scsi_host_template qla2xxx_driver_template = {
 	.eh_bus_reset_handler	= qla2xxx_eh_bus_reset,
 	.eh_host_reset_handler	= qla2xxx_eh_host_reset,
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 1))
 	.slave_configure	= qla2xxx_slave_configure,
 	.slave_alloc		= qla2xxx_slave_alloc,
 	.slave_destroy		= qla2xxx_slave_destroy,

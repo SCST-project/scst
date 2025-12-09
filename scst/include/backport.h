@@ -1041,7 +1041,9 @@ register_shrinker_backport(struct shrinker *shrinker, const char *fmt, ...)
 
 /* <linux/module.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 1))
 #define SCST_NAMESPACE		SCST
 #define SCST_QLA16_NAMESPACE	QLA16GB
 #define SCST_QLA32_NAMESPACE	QLA32GB
