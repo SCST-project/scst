@@ -4678,11 +4678,13 @@ qla2xxx_pci_slot_reset(struct pci_dev *pdev)
 	ql_dbg(ql_dbg_aer, base_vha, 0x9004,
 	    "Slot Reset.\n");
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 18, 0)
 	/* Workaround: qla2xxx driver which access hardware earlier
 	 * needs error state to be pci_channel_io_online.
 	 * Otherwise mailbox command timesout.
 	 */
 	pdev->error_state = pci_channel_io_normal;
+#endif
 
 	pci_restore_state(pdev);
 
