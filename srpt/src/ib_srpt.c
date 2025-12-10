@@ -4562,7 +4562,11 @@ static int __init srpt_init_module(void)
 		goto out;
 	}
 
-	srpt_wq = alloc_workqueue("srpt", WQ_SYSFS, 0);
+	srpt_wq = alloc_workqueue("srpt", 0
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
+				  | WQ_PERCPU
+#endif
+				  | WQ_SYSFS, 0);
 	if (!srpt_wq) {
 		pr_err("Couldn't allocate the ib_srpt workqueue\n");
 		ret = -ENOMEM;

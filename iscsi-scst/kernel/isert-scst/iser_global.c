@@ -138,7 +138,11 @@ int isert_global_init(void)
 	spin_lock_init(&isert_glob.portal_lock);
 	init_waitqueue_head(&isert_glob.portal_wq);
 
-	isert_glob.conn_wq = alloc_workqueue("isert_conn_wq", 0, 1);
+	isert_glob.conn_wq = alloc_workqueue("isert_conn_wq", 0
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
+					     | WQ_PERCPU
+#endif
+					     , 1);
 	if (!isert_glob.conn_wq) {
 		PRINT_ERROR("Failed to alloc iser conn work queue");
 		return -ENOMEM;
@@ -164,7 +168,6 @@ free_cmnd_cache:
 
 free_wq:
 	destroy_workqueue(isert_glob.conn_wq);
-
 	return -ENOMEM;
 }
 
