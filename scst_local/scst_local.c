@@ -1352,7 +1352,6 @@ static struct scst_tgt_template scst_local_targ_tmpl = {
 	.name			= "scst_local",
 	.sg_tablesize		= 0xffff,
 	.xmit_response_atomic	= 1,
-	.multithreaded_init_done = 1,
 	.enabled_attr_not_needed = 1,
 	.tgtt_attrs		= scst_local_tgtt_attrs,
 	.tgt_attrs		= scst_local_tgt_attrs,

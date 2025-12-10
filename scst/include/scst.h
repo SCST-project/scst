@@ -756,12 +756,6 @@ struct scst_tgt_template {
 	unsigned enabled_attr_not_needed:1;
 
 	/*
-	 * True, if this target adapter can call scst_cmd_init_done() from
-	 * several threads at the same time.
-	 */
-	unsigned multithreaded_init_done:1;
-
-	/*
 	 * True, if this target driver supports T10-PI (DIF), i.e. sending and
 	 * receiving DIF PI tags. If false, SCST will not allow to add
 	 * DIF-enabled devices to this target driver's initiator groups.
@@ -2033,10 +2027,7 @@ struct scst_order_data {
 	atomic_t *cur_sn_slot;
 	atomic_t sn_slots[15];
 
-	/*
-	 * Used to serialized scst_cmd_init_done() if the corresponding
-	 * session's target template has multithreaded_init_done set
-	 */
+	/* Used to serialize scst_cmd_init_done(). */
 	spinlock_t init_done_lock;
 };
 
@@ -3590,8 +3581,6 @@ void scst_cmd_init_done(struct scst_cmd *cmd, enum scst_exec_context pref_contex
  * SCST done the command's preprocessing preprocessing_done() function
  * should be called. The second argument sets preferred command execution
  * context. See SCST_CONTEXT_* constants for details.
- *
- * See comment for scst_cmd_init_done() for the serialization requirements.
  */
 static inline void scst_cmd_init_stage1_done(struct scst_cmd *cmd,
 					     enum scst_exec_context pref_context, int set_sn)

@@ -783,20 +783,6 @@ out_redirect:
  *    initialization and also that the command is ready for execution. The
  *    second argument sets the preferred command execution context. See also
  *    SCST_CONTEXT_* constants for more information.
- *
- *    !!IMPORTANT!!
- *
- *    If cmd->set_sn_on_restart_cmd has not been set, this function, as well
- *    as scst_cmd_init_stage1_done() and scst_restart_cmd(), must not be
- *    called simultaneously for the same session (more precisely, for the same
- *    session/LUN, i.e. tgt_dev), i.e. they must be somehow externally
- *    serialized. This is needed to have lock free fast path in
- *    scst_cmd_set_sn(). For majority of targets those functions are naturally
- *    serialized by the single source of commands. Only some, like iSCSI
- *    immediate commands with multiple connections per session or scst_local,
- *    are exceptions. For it, some mutex/lock must be used for the
- *    serialization. Or, alternatively, multithreaded_init_done can be set in
- *    the target's template.
  */
 void scst_cmd_init_done(struct scst_cmd *cmd, enum scst_exec_context pref_context)
 {
@@ -1618,9 +1604,6 @@ static int scst_preprocessing_done(struct scst_cmd *cmd)
  *
  *    The second argument sets completion status
  *    (see SCST_PREPROCESS_STATUS_* constants for details)
- *
- *    See also comment for scst_cmd_init_done() for the serialization
- *    requirements.
  */
 void scst_restart_cmd(struct scst_cmd *cmd, int status, enum scst_exec_context pref_context)
 {
@@ -1652,10 +1635,8 @@ void scst_restart_cmd(struct scst_cmd *cmd, int status, enum scst_exec_context p
 		} else {
 			scst_set_cmd_state(cmd, SCST_CMD_STATE_TGT_PRE_EXEC);
 		}
-		if (cmd->set_sn_on_restart_cmd) {
-			EXTRACHECKS_BUG_ON(cmd->tgtt->multithreaded_init_done);
+		if (cmd->set_sn_on_restart_cmd)
 			scst_cmd_set_sn(cmd);
-		}
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
 		if (cmd->op_flags & SCST_TEST_IO_IN_SIRQ_ALLOWED)
 			break;
@@ -3848,7 +3829,7 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 
 	EXTRACHECKS_BUG_ON(cmd->sn_set || cmd->hq_cmd_inced);
 
-	/* Optimized for lockless fast path of sequence of SIMPLE commands */
+	/* Optimized for fast path of sequence of SIMPLE commands */
 
 	scst_check_debug_sn(cmd);
 
@@ -3869,6 +3850,8 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd)
 			cmd->queue_type = SCST_CMD_QUEUE_ORDERED;
 		}
 	}
+
+	spin_lock_irqsave(&order_data->init_done_lock, flags);
 
 again:
 	switch (cmd->queue_type) {
@@ -3927,7 +3910,7 @@ ordered:
 		} else {
 			order_data->prev_cmd_ordered = 1;
 
-			spin_lock_irqsave(&order_data->sn_lock, flags);
+			spin_lock(&order_data->sn_lock); /* irqs already off */
 
 			/*
 			 * If no commands are going to reach
@@ -3948,7 +3931,7 @@ ordered:
 					scst_inc_expected_sn_idle(order_data);
 				}
 			}
-			spin_unlock_irqrestore(&order_data->sn_lock, flags);
+			spin_unlock(&order_data->sn_lock);
 		}
 
 		cmd->sn = order_data->curr_sn;
@@ -3957,9 +3940,9 @@ ordered:
 
 	case SCST_CMD_QUEUE_HEAD_OF_QUEUE:
 		TRACE_SN("HQ cmd %p (op %s)", cmd, scst_get_opcode_name(cmd));
-		spin_lock_irqsave(&order_data->sn_lock, flags);
+		spin_lock(&order_data->sn_lock); /* irqs already off */
 		order_data->hq_cmd_count++;
-		spin_unlock_irqrestore(&order_data->sn_lock, flags);
+		spin_unlock(&order_data->sn_lock);
 		cmd->hq_cmd_inced = 1;
 		goto out;
 
@@ -3977,6 +3960,7 @@ ordered:
 		 order_data->cur_sn_slot - order_data->sn_slots);
 
 out:
+	spin_unlock_irqrestore(&order_data->init_done_lock, flags);
 	TRACE_EXIT();
 }
 
@@ -4226,18 +4210,8 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 		if (cmd->completed)
 			goto out;
 
-		if (!cmd->set_sn_on_restart_cmd) {
-			if (!cmd->tgtt->multithreaded_init_done) {
-				scst_cmd_set_sn(cmd);
-			} else {
-				struct scst_order_data *order_data = cmd->cur_order_data;
-				unsigned long flags;
-
-				spin_lock_irqsave(&order_data->init_done_lock, flags);
-				scst_cmd_set_sn(cmd);
-				spin_unlock_irqrestore(&order_data->init_done_lock, flags);
-			}
-		}
+		if (!cmd->set_sn_on_restart_cmd)
+			scst_cmd_set_sn(cmd);
 	} else if (res < 0) {
 		TRACE_DBG("Finishing cmd %p", cmd);
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_lun_not_supported));
