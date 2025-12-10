@@ -15747,7 +15747,9 @@ int __init scst_lib_init(void)
 
 	scst_scsi_op_list_init();
 
-	scst_release_acg_wq = alloc_workqueue("scst_release_acg", 0, 1);
+	scst_release_acg_wq = alloc_workqueue("scst_release_acg", 0
+					      | WQ_UNBOUND,
+					      0);
 	if (unlikely(!scst_release_acg_wq)) {
 		PRINT_ERROR("Failed to allocate scst_release_acg_wq");
 		res = -ENOMEM;

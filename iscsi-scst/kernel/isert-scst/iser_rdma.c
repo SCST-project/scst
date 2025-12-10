@@ -973,8 +973,11 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 		cq_desc->idx = i;
 		INIT_WORK(&cq_desc->cq_comp_work, isert_cq_comp_work_cb);
 
-		cq_desc->cq_workqueue = alloc_workqueue("isert_cq_%p",
-							WQ_CPU_INTENSIVE | WQ_MEM_RECLAIM, 1,
+		cq_desc->cq_workqueue = alloc_workqueue("isert_cq_%p", 0
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
+							| WQ_PERCPU
+#endif
+							| WQ_CPU_INTENSIVE | WQ_MEM_RECLAIM, 1,
 							cq_desc);
 		if (unlikely(!cq_desc->cq_workqueue)) {
 			PRINT_ERROR("Failed to alloc iser cq work queue for dev:%s",
