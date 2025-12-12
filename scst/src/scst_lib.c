@@ -6135,7 +6135,7 @@ void scst_release_bdev(struct scst_bdev_descriptor *bdev_desc)
 	struct file *bdev_file = bdev_desc->priv;
 
 	if (bdev_file)
-		fput(bdev_file);
+		bdev_fput(bdev_file);
 #endif
 
 	bdev_desc->bdev = NULL;
