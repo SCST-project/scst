@@ -3,10 +3,10 @@ name: Run regression tests
 on:
   push:
     branches:
-      - master
+      - 3.10.x
   pull_request:
     branches:
-      - master
+      - 3.10.x
 
 jobs:
   regression_tests:

@@ -4,7 +4,7 @@ name: Mailing list
 on:
   push:
     branches:
-      - master
+      - 3.10.x
 
 jobs:
   send_mails:
