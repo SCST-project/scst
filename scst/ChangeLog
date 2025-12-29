@@ -1,3 +1,31 @@
+Summary of changes between versions 3.9 and 3.10
+------------------------------------------------
+- iscsi-scst: Added SHA256 and SHA3-256 support to CHAP, using AF_ALG and
+  negotiating algorithms during login.
+- iscsi-scst: Added transport name to sysfs entries for connections.
+- iscsi-scstd: Moved the PID file path to /run (instead of /var/run) for
+  better systemd compatibility; fixed GCC 15 build.
+- scst: Fixed a possible command lockup by removing the lockless fast path in
+  scst_cmd_set_sn() and applying locking consistently.
+- scst: Fixed an out-of-bounds read when parsing the SCSI CDB control byte for
+  vendor-specific / unknown-length opcodes; also fixed SCST_USER_PARSE_EXCEPTION
+  handling by treating negative generic_parse() errors as final.
+- scst: Export scst_tgt->sg_tablesize via sysfs for target mode, matching what
+  is available in initiator mode via /sys/class/scsi_host/hostN/sg_tablesize.
+- scst: Extended build metadata exposed in dmesg/sysfs/modinfo (kernel
+  version, build date, git hash, build number, arch).
+- qla2x00t-32gbit driver: Significant reliability and safety updates (SRR/SLER
+  support reintroduced and improved; better abort/timeout handling; fixes for
+  TMR failure handling, lost interrupts, big CDB handling).
+- qla2x00t-32gbit driver: Updated from Linux version v6.12 to v6.18.
+- Improved Debian and RPM packaging.
+
+The kernel versions supported by this release are:
+* Kernel.org kernel versions v3.10..v6.18.
+* Debian / Ubuntu kernels based on upstream kernel versions v3.10..v6.18.
+* RHEL / CentOS / AlmaLinux 7.x, 8.0..8.10, 9.0..9.7 and 10.0..10.1 kernels.
+* UEK version 4, 5, 6, 7 and 8 kernels.
+
 Summary of changes between versions 3.8 and 3.9
 -----------------------------------------------
 - scst_vdisk: Added active attributes support to vdisk_fileio.
