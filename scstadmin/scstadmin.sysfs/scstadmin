@@ -3,7 +3,7 @@
 use strict;
 use warnings;
 
-my $Version  = 'SCST Configurator v3.10.0-pre';
+my $Version  = 'SCST Configurator v3.10.0';
 
 # Configures SCST
 #

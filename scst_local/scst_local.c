@@ -71,7 +71,7 @@ README file for details.
 static unsigned long scst_local_trace_flag = SCST_LOCAL_DEFAULT_LOG_FLAGS;
 #endif
 
-#define SCST_LOCAL_VERSION "3.10.0-pre"
+#define SCST_LOCAL_VERSION "3.10.0"
 static const char *scst_local_version_date = "20110901";
 
 /* Some statistics */
