@@ -21,6 +21,7 @@
  */
 
 #include <linux/version.h>
+#include <generated/utsrelease.h>
 #ifndef RHEL_RELEASE_VERSION
 #define RHEL_RELEASE_VERSION(a, b) (((a) << 8) + (b))
 #endif
@@ -1749,7 +1750,12 @@ static inline int timer_delete_sync(struct timer_list *timer)
 	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 91)) &&		\
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||			\
 	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 9 ||			\
-	 RHEL_MAJOR -0 == 9 && RHEL_MINOR -0 < 3)
+	 RHEL_MAJOR -0 == 9 && RHEL_MINOR -0 < 3) &&			\
+	(!defined(UTS_UBUNTU_RELEASE_ABI) ||				\
+	 ((LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 15, 0) >> 8 ||	\
+	  UTS_UBUNTU_RELEASE_ABI -0 < 93) &&				\
+	 (LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 4, 0) >> 8 ||	\
+	  UTS_UBUNTU_RELEASE_ABI -0 < 206)))
 /*
  * See also commit bb663f0f3c39 ("timers: Rename del_timer() to timer_delete()") # v6.2.
  * See also commit b086d1e82fcd # v6.1.91.
