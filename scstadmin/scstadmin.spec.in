@@ -91,11 +91,9 @@ rm -f /usr/local/man/man5/scst.conf.5*
 %{perl_vendorlib}/SCST
 %{perl_vendorarch}/auto/SCST_SCST
 %{scstadmin_perl_installvendorman3dir}/SCST::SCST.3pm*
-%if %([ "$(readlink scstadmin)" = scstadmin.sysfs ]; echo -n $((1-$?)))
 %{_mandir}/man1/scstadmin.1*
 %{_mandir}/man5/scst.5*
 %{_mandir}/man5/scst.conf.5*
-%endif
 
 %changelog
 * Fri Oct 04 2013 Bart Van Assche <bvanassche@acm.org>
