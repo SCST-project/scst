@@ -380,7 +380,7 @@ chap_calc_digest_af_alg(char *alg, char chap_id,
 		goto out;
 	}
 
-	memcpy(digest, buffer, MIN(res, digest_len));
+	memcpy(digest, buffer, MIN(bytes, digest_len));
 
 out:
 	close(datafd);
