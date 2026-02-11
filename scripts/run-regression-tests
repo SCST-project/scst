@@ -114,7 +114,6 @@ function make_rpm {
 function make_dpkg {
     local outputfile="${outputdir}/make-dpkg-output.txt"
 
-    outputfile="${outputdir}/make-${t}-output.txt"
     echo "Testing whether 'make dpkg' works fine ..."
     if make dpkg > "${outputfile}" 2>&1; then
 	echo "OK"

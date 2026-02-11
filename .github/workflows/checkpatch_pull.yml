@@ -5,21 +5,34 @@ on:
     branches:
       - master
 
+permissions:
+  contents: read
+
+concurrency:
+  group: checkpatch-pull-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+env:
+  CHECKPATCH_LINUX_REF: v6.18
+
 jobs:
   checkpatch:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - name: Checkout code
-        uses: actions/checkout@main
+        uses: actions/checkout@v6
         with:
           ref: ${{github.event.pull_request.head.sha}}
           fetch-depth: 0
 
       - name: Download checkpatch.pl
         run: |
-          curl https://raw.githubusercontent.com/torvalds/linux/master/scripts/checkpatch.pl -o checkpatch.pl
-          curl https://raw.githubusercontent.com/torvalds/linux/master/scripts/spelling.txt -o spelling.txt
-          curl https://raw.githubusercontent.com/torvalds/linux/master/scripts/const_structs.checkpatch -o const_structs.checkpatch
+          set -euxo pipefail
+          base_url="https://raw.githubusercontent.com/torvalds/linux/${CHECKPATCH_LINUX_REF}/scripts"
+          curl -fsSL "${base_url}/checkpatch.pl" -o checkpatch.pl
+          curl -fsSL "${base_url}/spelling.txt" -o spelling.txt
+          curl -fsSL "${base_url}/const_structs.checkpatch" -o const_structs.checkpatch
           chmod +x checkpatch.pl
 
       - name: Run checkpatch.pl

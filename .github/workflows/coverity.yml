@@ -5,13 +5,21 @@ on:
     branches:
       - master
 
+permissions:
+  contents: read
+
+concurrency:
+  group: coverity-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   coverity:
     if: github.repository == 'SCST-project/scst'
     runs-on: ubuntu-latest
+    timeout-minutes: 120
     steps:
       - name: Checkout Project
-        uses: actions/checkout@main
+        uses: actions/checkout@v6
 
       - name: Get version
         id: get_version
@@ -68,7 +76,7 @@ jobs:
           # Command to pass to cov-build.
           #
           # Default: 'make'
-          command: 'make -i cov-build'
+          command: 'make cov-build'
 
           # (Informational) The source version being built.
           #
