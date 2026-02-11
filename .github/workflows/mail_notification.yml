@@ -6,18 +6,22 @@ on:
     branches:
       - master
 
+permissions:
+  contents: read
+
 jobs:
   send_mails:
     name: ${{matrix.commit.message}}
     if: github.repository == 'SCST-project/scst'
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       max-parallel: 1
       matrix:
         commit: ${{github.event.commits}}
     steps:
       - name: Checkout Project
-        uses: actions/checkout@main
+        uses: actions/checkout@v6
         with:
           ref: ${{matrix.commit.id}}
           fetch-depth: 2
@@ -58,7 +62,7 @@ jobs:
           fi
 
       - name: Send mail
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@v9
         with:
           # Required mail server address:
           server_address: smtp.yandex.com

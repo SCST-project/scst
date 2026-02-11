@@ -69,7 +69,14 @@ FCST_DIR = fcst
 EMULEX_DIR = emulex
 ISCSI_DIR = iscsi-scst
 
+ifdef SOURCE_DATE_EPOCH
+BUILD_DATE := $(shell							\
+	date -u -d "@$(SOURCE_DATE_EPOCH)" '+%Y/%m/%d-%H:%M:%S-%Z%:z'	\
+		2>/dev/null ||					\
+	date -u -r "$(SOURCE_DATE_EPOCH)" '+%Y/%m/%d-%H:%M:%S-%Z%:z')
+else
 BUILD_DATE := $(shell date -u '+%Y/%m/%d-%H:%M:%S-%Z%:z')
+endif
 GIT_COMMIT := $(shell git rev-parse --short=12 HEAD 2>/dev/null)
 
 ifndef BUILD_NUMBER
@@ -177,6 +184,8 @@ help:
 	@echo "		rpm-dkms              : make both SCST DKMS and scstadmin RPM packages"
 	@echo ""
 	@echo "		dpkg                  : make SCST dpkg packages"
+	@echo "		ci                    : CI-like release build (2release + all)"
+	@echo "		ci-package            : CI-like Debian package build (dpkg)"
 	@echo ""
 	@echo "		2perf                 : changes debug state to full performance"
 	@echo "		2release              : changes debug state to release"
@@ -189,21 +198,28 @@ tags:
 	find . -type f -name "*.[ch]" | ctags --c-kinds=+p --fields=+iaS --extra=+q -e -L-
 
 cov-build:
-	-for d in $(SCST_DIR) $(ISCSI_DIR) $(OLD_QLA_DIR) $(NEW_QLA_DIR) $(SRP_DIR)  \
+	@for d in $(SCST_DIR) $(ISCSI_DIR) $(OLD_QLA_DIR) $(NEW_QLA_DIR) $(SRP_DIR)  \
 		$(SCST_LOCAL_DIR) $(FCST_DIR) $(USR_DIR) $(SCSTADM_DIR); do	     \
 		if [[ $$d = $(OLD_QLA_DIR) || $$d = $(NEW_QLA_DIR) ]]; then	     \
-			BUILD_2X_MODULE=y $(MAKE) -j$$(nproc) -C "$$d" all || break; \
+			BUILD_2X_MODULE=y $(MAKE) -j$$(nproc) -C "$$d" all || exit $$?; \
 		else								     \
-			$(MAKE) -j$$(nproc) -C "$$d" all || break;		     \
+			$(MAKE) -j$$(nproc) -C "$$d" all || exit $$?;		     \
 		fi								     \
 	done
 
 all clean extraclean install uninstall:
-	-if [ $@ = extraclean ]; then rm -f TAGS tags cscope.out; fi
-	-for d in $(SCST_DIR) $(ISCSI_DIR) $(QLA_DIR) $(SRP_DIR)	    \
+	@if [ "$@" = extraclean ]; then rm -f TAGS tags cscope.out; fi
+	@for d in $(SCST_DIR) $(ISCSI_DIR) $(QLA_DIR) $(SRP_DIR)	    \
 		$(SCST_LOCAL_DIR) $(FCST_DIR) $(USR_DIR) $(SCSTADM_DIR); do \
-		$(MAKE) -j$$(nproc) -C "$$d" $@ || break;		    \
+		$(MAKE) -j$$(nproc) -C "$$d" "$@" || exit $$?;		    \
 	done
+
+ci:
+	$(MAKE) 2release
+	$(MAKE) all
+
+ci-package:
+	$(MAKE) dpkg
 
 scst:
 	cd $(SCST_DIR) && $(MAKE) all
@@ -528,5 +544,5 @@ multiple-release-archives:
 	fcst fcst_clean fcst_extraclean fcst_install fcst_uninstall \
 	scst_local scst_local_clean scst_local_extraclean scst_local_install scst_local_uninstall \
 	usr usr_clean usr_extraclean usr_install usr_uninstall \
-	scst-rpm scst-dkms-rpm scstadm-rpm rpm rpm-dkms dpkg \
+	scst-rpm scst-dkms-rpm scstadm-rpm rpm rpm-dkms dpkg ci ci-package \
 	2perf 2release 2debug

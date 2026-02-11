@@ -1,27 +1,177 @@
 name: CI
 
-on: [push, pull_request]
+on:
+  pull_request:
+    branches:
+      - master
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+env:
+  CCACHE_DIR: ${{ github.workspace }}/.ccache
+  CCACHE_MAXSIZE: 500M
 
 jobs:
   build:
+    name: build-${{ matrix.compiler }}
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     strategy:
+      fail-fast: false
       matrix:
         compiler: [gcc, clang]
-        arch: [x86_64]
+    continue-on-error: ${{ matrix.compiler == 'clang' }}
     steps:
-      - uses: actions/checkout@main
-      - name: Install build-essential
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
         run: |
+          set -euxo pipefail
           sudo apt-get update
-          sudo apt-get install -y build-essential debhelper devscripts dpkg-dev quilt
-      - name: Install multilib
+          sudo apt-get install -y \
+            build-essential \
+            ccache \
+            clang \
+            debhelper \
+            devscripts \
+            dpkg-dev \
+            libelf-dev \
+            libsqlite3-dev \
+            quilt \
+            sparse
+          if ! [ -e "/lib/modules/$(uname -r)/build/Makefile" ]; then
+            sudo apt-get install -y "linux-headers-$(uname -r)" || \
+              sudo apt-get install -y linux-headers-generic
+          fi
+
+      - name: Restore ccache
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ runner.os }}-${{ matrix.compiler }}-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-${{ matrix.compiler }}-${{ github.ref_name }}-
+            ccache-${{ runner.os }}-${{ matrix.compiler }}-
+
+      - name: Print toolchain and kernel headers
         run: |
-          sudo apt-get install -y gcc-multilib g++-multilib
-        if: ${{ matrix.arch == 'x86' }}
-      - name: Build
+          set -euxo pipefail
+          uname -a
+          gcc --version | head -n 1
+          clang --version | head -n 1
+          ccache --version | head -n 1
+          printf 'KDIR=%s\n' "$(readlink -f /lib/modules/$(uname -r)/build || echo missing)"
+          make --version | head -n 1
+
+      - name: Build modules and userspace
         env:
           CC: ${{ matrix.compiler }}
-          CFLAGS: -Werror ${{ matrix.arch == 'x86' && '-m32' || '' }}
-          LDFLAGS: ${{ matrix.arch == 'x86' && '-m32' || '' }}
-        run: make CC=${{matrix.compiler}} dpkg
+          PASS_CC_TO_MAKE: "1"
+        run: |
+          set -euxo pipefail
+          export PATH="/usr/lib/ccache:${PATH}"
+          mkdir -p artifacts
+          ccache --set-config=max_size="${CCACHE_MAXSIZE}"
+          ccache --zero-stats
+
+          make 2release
+          make all 2>&1 | tee "artifacts/build-${CC}.log"
+          build_rc=${PIPESTATUS[0]}
+
+          ccache --show-stats | tee "artifacts/ccache-${CC}.txt"
+          exit "${build_rc}"
+
+      - name: Upload build logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ci-${{ matrix.compiler }}-logs
+          path: artifacts/
+          if-no-files-found: error
+
+      - name: Job summary
+        if: always()
+        run: |
+          {
+            echo "### Build profile"
+            echo "- Compiler: \`${{ matrix.compiler }}\`"
+            echo "- KDIR: \`$(readlink -f /lib/modules/$(uname -r)/build || echo missing)\`"
+            echo "- ccache dir: \`${CCACHE_DIR}\`"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  package-deb:
+    name: package-deb
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    needs: build
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Install dependencies
+        run: |
+          set -euxo pipefail
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            ccache \
+            debhelper \
+            devscripts \
+            dpkg-dev \
+            quilt
+          if ! [ -e "/lib/modules/$(uname -r)/build/Makefile" ]; then
+            sudo apt-get install -y "linux-headers-$(uname -r)" || \
+              sudo apt-get install -y linux-headers-generic
+          fi
+
+      - name: Restore ccache
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.CCACHE_DIR }}
+          key: ccache-${{ runner.os }}-gcc-packages-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            ccache-${{ runner.os }}-gcc-packages-${{ github.ref_name }}-
+            ccache-${{ runner.os }}-gcc-packages-
+
+      - name: Build Debian packages
+        env:
+          CC: gcc
+          PASS_CC_TO_MAKE: "1"
+        run: |
+          set -euxo pipefail
+          export PATH="/usr/lib/ccache:${PATH}"
+          mkdir -p artifacts
+          ccache --set-config=max_size="${CCACHE_MAXSIZE}"
+
+          make dpkg 2>&1 | tee artifacts/dpkg.log
+          build_rc=${PIPESTATUS[0]}
+
+          if [ -d dpkg ]; then
+            find dpkg -maxdepth 1 -type f -printf '%P\n' | sort > artifacts/dpkg-files.txt
+          fi
+
+          exit "${build_rc}"
+
+      - name: Upload package artifacts
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ci-deb-packages
+          path: |
+            artifacts/
+            dpkg/
+          if-no-files-found: warn
