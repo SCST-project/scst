@@ -22,7 +22,23 @@ export QLA_DIR=$(DEB_QLA_DIR_SET)
 export QLA_INI_DIR=$(DEB_QLA_INI_DIR_SET)
 export PKG_BUILD_MODE=$(DEB_PKG_BUILD_MODE)
 
-SUBDIRS=scst $(shell grep -qw '^CONFIG_LIBFC' /boot/config-$(KVER) && echo fcst) iscsi-scst $(QLA_DIR) scst_local scstadmin srpt
+# Default to building optional modules (override by changing specific ?=m to =n)
+CONFIG_SCST_LOCAL?=m
+CONFIG_SCST_SRPT?=m
+CONFIG_SCST_TAPE?=m
+CONFIG_SCST_CDROM?=m
+CONFIG_SCST_MODISK?=m
+CONFIG_SCST_CHANGER?=m
+CONFIG_SCST_RAID?=m
+CONFIG_SCST_PROCESSOR?=m
+CONFIG_SCST_USER?=m
+export CONFIG_SCST_LOCAL CONFIG_SCST_SRPT CONFIG_SCST_TAPE CONFIG_SCST_CDROM CONFIG_SCST_MODISK CONFIG_SCST_CHANGER CONFIG_SCST_RAID CONFIG_SCST_PROCESSOR CONFIG_SCST_USER
+
+FCST=$(shell grep -qw '^CONFIG_LIBFC' /boot/config-$(KVER) && echo fcst)
+ISCSI_SCST=iscsi-scst
+SCST_LOCAL=$(shell [ "${CONFIG_SCST_LOCAL}" != "n" ] && echo scst_local)
+SCST_SRPT=$(shell [ "${CONFIG_SCST_SRPT}" != "n" ] && echo srpt)
+SUBDIRS=scst $(FCST) $(ISCSI_SCST) $(QLA_DIR) $(SCST_LOCAL) scstadmin $(SCST_SRPT)
 DESTDIR=$(CURDIR)/debian/tmp
 VERSION:=$(shell head -n1 debian/changelog | sed 's/.*(\([0-9.]*\).*).*/\1/')
 
@@ -70,7 +86,7 @@ install:
 	{								\
 		echo dkms.conf &&					\
 		echo Makefile &&					\
-		for d in fcst iscsi-scst $(QLA_INI_DIR) scst scst_local srpt; do\
+		for d in fcst iscsi-scst $(QLA_INI_DIR) scst $(SCST_LOCAL) $(SCST_SRPT); do\
 			echo $$d;					\
 		done;							\
 	} | sed "s,^,usr/src/scst-$(VERSION)/," >debian/scst-dkms.install &&\
@@ -82,7 +98,7 @@ install:
 	cp debian/scst.dkms						\
 		$(DESTDIR)/usr/src/scst-$(VERSION)/dkms.conf &&		\
 	scripts/list-source-files |					\
-	grep -E '^Makefile$$|^(fcst|iscsi-scst|$(QLA_INI_DIR)|scst|scst_local|srpt)/'|\
+	grep -E '^Makefile$$|^(fcst|iscsi-scst|$(QLA_INI_DIR)|scst|$(SCST_LOCAL)|$(SCST_SRPT))/'|\
 	tar -T- -cf- |							\
 	tar -C $(DESTDIR)/usr/src/scst-$(VERSION) -xf- &&		\
 	find $(DESTDIR) -type f -print0 | xargs -0 -r chmod 0644 &&	\

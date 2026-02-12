@@ -17,5 +17,23 @@ ccflags-y :=	-I$(src)/../../include			\
 
 #ccflags-y += -DCONFIG_DEBUG_EXT_COPY_REMAP
 
-obj-m := scst_cdrom.o scst_changer.o scst_disk.o scst_modisk.o scst_tape.o \
-	scst_vdisk.o scst_raid.o scst_processor.o scst_user.o
+# Default to building optional modules unless explicitly disabled via environment
+CONFIG_SCST_CDROM ?= m
+CONFIG_SCST_CHANGER ?= m
+CONFIG_SCST_MODISK ?= m
+CONFIG_SCST_TAPE ?= m
+CONFIG_SCST_RAID ?= m
+CONFIG_SCST_PROCESSOR ?= m
+CONFIG_SCST_USER ?= m
+
+# Core handlers (always built)
+obj-m := scst_disk.o scst_vdisk.o
+
+# Optional handlers (controlled by CONFIG variables)
+obj-$(CONFIG_SCST_CDROM) += scst_cdrom.o
+obj-$(CONFIG_SCST_CHANGER) += scst_changer.o
+obj-$(CONFIG_SCST_MODISK) += scst_modisk.o
+obj-$(CONFIG_SCST_TAPE) += scst_tape.o
+obj-$(CONFIG_SCST_RAID) += scst_raid.o
+obj-$(CONFIG_SCST_PROCESSOR) += scst_processor.o
+obj-$(CONFIG_SCST_USER) += scst_user.o
