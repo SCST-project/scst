@@ -7921,6 +7921,8 @@ static void qla_pci_error_cleanup(scsi_qla_host_t *vha)
 
 static void qla2xxx_set_affinity_nobalance(struct pci_dev *pdev, bool flag)
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0) ||	\
+	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7)
 	int irq, i;
 
 	for (i = 0; i < QLA_BASE_VECTORS; i++) {
@@ -7931,6 +7933,7 @@ static void qla2xxx_set_affinity_nobalance(struct pci_dev *pdev, bool flag)
 		else
 			irq_clear_status_flags(irq, IRQ_NO_BALANCING);
 	}
+#endif
 }
 
 static pci_ers_result_t
