@@ -1748,6 +1748,8 @@ static inline int timer_delete_sync(struct timer_list *timer)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0) &&			\
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 1, 0) >> 8 ||	\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 91)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 15, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 200)) &&		\
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||			\
 	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 9 ||			\
 	 RHEL_MAJOR -0 == 9 && RHEL_MINOR -0 < 3) &&			\
@@ -1759,6 +1761,7 @@ static inline int timer_delete_sync(struct timer_list *timer)
 /*
  * See also commit bb663f0f3c39 ("timers: Rename del_timer() to timer_delete()") # v6.2.
  * See also commit b086d1e82fcd # v6.1.91.
+ * See also commit 29d5751350cd # v5.15.200.
  */
 static inline int timer_delete(struct timer_list *timer)
 {
