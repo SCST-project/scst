@@ -4108,7 +4108,7 @@ create:
 	if (dedicated) {
 		count = 1;
 	} else if (!cpu_mask) {
-		count = blk_mq_num_online_queues(2);
+		count = max_t(int, blk_mq_num_online_queues(0), 2);
 	} else {
 		count = 0;
 		for_each_cpu(i, cpu_mask)
