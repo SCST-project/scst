@@ -2611,3 +2611,225 @@ skip:
 
 	TRACE_EXIT();
 }
+
+/*
+ * --- PR state serialisation / deserialisation ---
+ *
+ * Text format (version 1):
+ *   version 1
+ *   generation <decimal>
+ *   reservation <type_hex2> <scope_hex2>    (only present when pr_is_set)
+ *   registrant <rel_tgt_id_dec> <key_hex16> <holder_0_or_1> <tid_len_dec> <tid_hex>
+ *   ...
+ *
+ * The generation counter is preserved so initiators that cached the previous
+ * value are not confused by a generation reset after failover.
+ *
+ * PAGE_SIZE (4096 bytes) supports approximately 20-50 registrants depending
+ * on initiator identity length.  Sufficient for typical deployments
+ * (WSFC 2-16 nodes, VMware RDM with a handful of hosts).
+ */
+
+/**
+ * scst_pr_state_show - serialise in-memory PR state to a text buffer.
+ * @dev:      SCST device whose PR state to serialise.
+ * @buf:      Destination buffer, must be at least PAGE_SIZE bytes.
+ * @buf_size: Size of @buf in bytes.
+ *
+ * Must be called under dev_pr_mutex.
+ * Returns the number of bytes written (not including NUL terminator),
+ * or a negative error code.
+ */
+ssize_t scst_pr_state_show(struct scst_device *dev, char *buf, size_t buf_size)
+{
+	ssize_t pos = 0;
+	struct scst_dev_registrant *reg;
+
+	scst_assert_pr_mutex_held(dev);
+
+	pos += scnprintf(buf + pos, buf_size - pos, "version 1\n");
+	pos += scnprintf(buf + pos, buf_size - pos, "generation %u\n",
+			 dev->pr_generation);
+
+	if (dev->pr_is_set)
+		pos += scnprintf(buf + pos, buf_size - pos,
+				 "reservation %02x %02x\n",
+				 (unsigned int)dev->pr_type,
+				 (unsigned int)dev->pr_scope);
+
+	list_for_each_entry(reg, &dev->dev_registrants_list,
+			    dev_registrants_list_entry) {
+		u32 tid_size = scst_tid_size(reg->transport_id);
+		u8 holder = scst_pr_is_holder(dev, reg) ? 1 : 0;
+		u32 i;
+
+		pos += scnprintf(buf + pos, buf_size - pos,
+				 "registrant %u %016llx %u %u ",
+				 (unsigned int)reg->rel_tgt_id,
+				 be64_to_cpu(reg->key),
+				 (unsigned int)holder,
+				 tid_size);
+
+		for (i = 0; i < tid_size; i++)
+			pos += scnprintf(buf + pos, buf_size - pos,
+					 "%02x", reg->transport_id[i]);
+
+		pos += scnprintf(buf + pos, buf_size - pos, "\n");
+	}
+
+	return pos;
+}
+EXPORT_SYMBOL(scst_pr_state_show);
+
+/**
+ * scst_pr_state_store - restore PR state from text produced by scst_pr_state_show().
+ * @dev:   SCST device to apply the state to.
+ * @buf:   Text buffer in pr_state format.
+ * @count: Length of @buf in bytes.
+ *
+ * Must be called under scst_mutex but not dev_pr_mutex.  The device must not
+ * be exported (no active I_T nexuses) at the time of the call.
+ *
+ * Clears any existing PR state and replaces it with the state described in
+ * @buf.  Returns 0 on success, negative errno on failure.
+ */
+int scst_pr_state_store(struct scst_device *dev, const char *buf, size_t count)
+{
+	int res = 0;
+	unsigned int version = 0, generation = 0;
+	bool has_reservation = false;
+	u8 pr_type = 0, pr_scope = 0;
+	struct scst_dev_registrant *holder_reg = NULL;
+	char *kbuf, *p, *line;
+
+	/* Work on a mutable NUL-terminated copy. */
+	kbuf = kmemdup(buf, count + 1, GFP_KERNEL);
+	if (!kbuf)
+		return -ENOMEM;
+	kbuf[count] = '\0';
+
+	p = kbuf;
+
+	/* The first non-empty line must be "version N". */
+	line = strsep(&p, "\n");
+	if (!line || sscanf(line, "version %u", &version) != 1 || version != 1) {
+		PRINT_ERROR("%s: pr_state: invalid or missing version line",
+			    dev->virt_name);
+		res = -EINVAL;
+		goto out_free;
+	}
+
+	res = mutex_lock_interruptible(&dev->dev_pr_mutex);
+	if (res != 0)
+		goto out_free;
+
+	/* Clear any existing PR state before applying the new one. */
+	scst_pr_remove_registrants(dev);
+	dev->pr_is_set = 0;
+	dev->pr_holder = NULL;
+
+	while ((line = strsep(&p, "\n")) != NULL) {
+		unsigned int rel_tgt_id, holder, tid_len;
+		unsigned long long key_ll;
+		int consumed = 0;
+		u8 *tid;
+		u32 i;
+		struct scst_dev_registrant *reg;
+		__be64 key;
+		const char *tid_hex;
+		unsigned int byte_val;
+
+		if (line[0] == '\0')
+			continue;
+
+		if (sscanf(line, "generation %u", &generation) == 1)
+			continue;
+
+		if (sscanf(line, "reservation %hhx %hhx",
+			   &pr_type, &pr_scope) == 2) {
+			has_reservation = true;
+			continue;
+		}
+
+		/*
+		 * "registrant <rel_tgt_id> <key_hex16> <holder> <tid_len> <tid_hex>"
+		 * %n is not counted in the sscanf return value.
+		 */
+		if (sscanf(line, "registrant %u %016llx %u %u %n",
+			   &rel_tgt_id, &key_ll, &holder,
+			   &tid_len, &consumed) < 4) {
+			PRINT_WARNING("%s: pr_state: unrecognized line: %.80s",
+				      dev->virt_name, line);
+			continue;
+		}
+
+		if (tid_len == 0 || tid_len > 512) {
+			PRINT_ERROR("%s: pr_state: invalid tid_len %u",
+				    dev->virt_name, tid_len);
+			res = -EINVAL;
+			goto out_unlock;
+		}
+
+		tid_hex = line + consumed;
+		if (strlen(tid_hex) < tid_len * 2) {
+			PRINT_ERROR("%s: pr_state: tid hex shorter than tid_len indicates",
+				    dev->virt_name);
+			res = -EINVAL;
+			goto out_unlock;
+		}
+
+		tid = kmalloc(tid_len, GFP_KERNEL);
+		if (!tid) {
+			res = -ENOMEM;
+			goto out_unlock;
+		}
+
+		for (i = 0; i < tid_len; i++) {
+			if (sscanf(tid_hex + 2 * i, "%02x", &byte_val) != 1) {
+				PRINT_ERROR("%s: pr_state: bad hex byte %u in tid",
+					    dev->virt_name, i);
+				kfree(tid);
+				res = -EINVAL;
+				goto out_unlock;
+			}
+			tid[i] = (u8)byte_val;
+		}
+
+		key = cpu_to_be64(key_ll);
+		reg = scst_pr_add_registrant(dev, tid, (u16)rel_tgt_id,
+					     key, false);
+		kfree(tid);
+		if (!reg) {
+			res = -ENOMEM;
+			goto out_unlock;
+		}
+
+		if (holder)
+			holder_reg = reg;
+	}
+
+	dev->pr_generation = generation;
+
+	if (has_reservation) {
+		bool is_all_reg =
+			(pr_type == TYPE_WRITE_EXCLUSIVE_ALL_REG ||
+			 pr_type == TYPE_EXCLUSIVE_ACCESS_ALL_REG);
+
+		if (!is_all_reg && !holder_reg) {
+			PRINT_ERROR("%s: pr_state: non-ALL_REG reservation but no holder",
+				    dev->virt_name);
+			res = -EINVAL;
+			goto out_unlock;
+		}
+
+		scst_pr_set_holder(dev, is_all_reg ? NULL : holder_reg,
+				   pr_scope, pr_type);
+	}
+
+out_unlock:
+	mutex_unlock(&dev->dev_pr_mutex);
+
+out_free:
+	kfree(kbuf);
+	return res;
+}
