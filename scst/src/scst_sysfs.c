@@ -3280,6 +3280,93 @@ static struct kobj_attribute dev_dump_prs_attr =
 
 #endif /* defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING) */
 
+/*
+ * pr_state attribute: read/write serialised PR state for failover save/restore.
+ * See scst_pr_state_show() / scst_pr_state_store() in scst_pres.c for the
+ * text format description.
+ */
+
+static ssize_t scst_dev_sysfs_pr_state_show(struct kobject *kobj,
+					    struct kobj_attribute *attr,
+					    char *buf)
+{
+	struct scst_device *dev;
+	ssize_t res;
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	res = mutex_lock_interruptible(&dev->dev_pr_mutex);
+	if (res != 0)
+		return res;
+
+	res = scst_pr_state_show(dev, buf, PAGE_SIZE);
+
+	mutex_unlock(&dev->dev_pr_mutex);
+	return res;
+}
+
+static int scst_dev_sysfs_pr_state_process_store(struct scst_sysfs_work_item *work)
+{
+	struct scst_device *dev = work->dev;
+	int res;
+
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res != 0)
+		goto out;
+
+	if (scst_device_is_exported(dev)) {
+		PRINT_ERROR("%s: pr_state write refused: device has active sessions",
+			    dev->virt_name);
+		res = -EBUSY;
+		goto out_unlock;
+	}
+
+	res = scst_pr_state_store(dev, work->buf, strlen(work->buf));
+
+out_unlock:
+	mutex_unlock(&scst_mutex);
+out:
+	kobject_put(&dev->dev_kobj);
+	return res;
+}
+
+static ssize_t scst_dev_sysfs_pr_state_store(struct kobject *kobj,
+					     struct kobj_attribute *attr,
+					     const char *buf, size_t count)
+{
+	struct scst_sysfs_work_item *work;
+	struct scst_device *dev;
+	char *state_buf;
+	int res;
+
+	dev = container_of(kobj, struct scst_device, dev_kobj);
+
+	state_buf = kasprintf(GFP_KERNEL, "%.*s", (int)count, buf);
+	if (!state_buf)
+		return -ENOMEM;
+
+	res = scst_alloc_sysfs_work(scst_dev_sysfs_pr_state_process_store,
+				    false, &work);
+	if (res != 0) {
+		kfree(state_buf);
+		return res;
+	}
+
+	kobject_get(&dev->dev_kobj);
+	work->dev = dev;
+	work->buf = state_buf; /* ownership transferred; freed by work destructor */
+
+	res = scst_sysfs_queue_wait_work(work);
+	if (res == 0)
+		res = count;
+
+	return res;
+}
+
+static struct kobj_attribute dev_pr_state_attr =
+	__ATTR(pr_state, 0644, scst_dev_sysfs_pr_state_show,
+	       scst_dev_sysfs_pr_state_store);
+
 static int scst_process_dev_sysfs_threads_data_store(struct scst_device *dev, int threads_num,
 						     enum scst_dev_type_threads_pool_type threads_pool_type)
 {
@@ -3772,6 +3859,7 @@ static struct attribute *scst_dev_attrs[] = {
 	&dev_max_tgt_dev_commands_attr.attr,
 	&dev_numa_node_id_attr.attr,
 	&dev_block_attr.attr,
+	&dev_pr_state_attr.attr,
 	NULL,
 };
 

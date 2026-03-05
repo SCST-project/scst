@@ -152,6 +152,9 @@ void scst_pr_clear_holder(struct scst_device *dev);
 
 void scst_pr_sync_device_file(struct scst_device *dev);
 
+ssize_t scst_pr_state_show(struct scst_device *dev, char *buf, size_t buf_size);
+int scst_pr_state_store(struct scst_device *dev, const char *buf, size_t count);
+
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 void scst_pr_dump_prs(struct scst_device *dev, bool force);
 #else
