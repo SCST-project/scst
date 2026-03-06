@@ -15408,6 +15408,7 @@ void scst_vfs_unlink_and_put(struct path *path)
 #endif
 	path_put(path);
 }
+EXPORT_SYMBOL(scst_vfs_unlink_and_put);
 
 int scst_copy_file(const char *src, const char *dest)
 {

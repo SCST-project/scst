@@ -1498,6 +1498,16 @@ struct scst_dev_type {
 	int (*attach)(struct scst_device *dev);
 
 	/*
+	 * Called just before a device is unregistered, while the PR state is
+	 * still intact.  This fires before the core clears in-memory PR state
+	 * (scst_pr_clear_dev) and before detach() is called, so it is the
+	 * correct place to snapshot or dump PR state.
+	 *
+	 * OPTIONAL
+	 */
+	void (*pre_unregister)(struct scst_device *dev);
+
+	/*
 	 * Called when a device is detaching from the dev handler.
 	 *
 	 * OPTIONAL
@@ -5689,6 +5699,7 @@ int scst_remove_file(const char *name);
 void scst_set_tp_soft_threshold_reached_UA(struct scst_tgt_dev *tgt_dev);
 
 int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode, const char *cl_dev_id);
+void scst_vfs_unlink_and_put(struct path *path);
 int scst_pr_init_dev(struct scst_device *dev);
 void scst_pr_clear_dev(struct scst_device *dev);
 

@@ -1122,6 +1122,9 @@ static void scst_unregister_device(struct scsi_device *scsidp)
 
 	list_del_init(&dev->dev_list_entry);
 
+	if (dev->handler->pre_unregister)
+		dev->handler->pre_unregister(dev);
+
 	/* For forwarding sources (see also tgt_forward_src). */
 	scst_pr_clear_dev(dev);
 
@@ -1404,6 +1407,9 @@ void scst_unregister_virtual_device(int id,
 	scst_cm_on_dev_unregister(dev);
 
 	list_del_init(&dev->dev_list_entry);
+
+	if (dev->handler->pre_unregister)
+		dev->handler->pre_unregister(dev);
 
 	scst_pr_clear_dev(dev);
 
