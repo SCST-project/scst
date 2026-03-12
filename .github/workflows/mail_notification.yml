@@ -58,7 +58,7 @@ jobs:
           fi
 
       - name: Send mail
-        uses: dawidd6/action-send-mail@v3
+        uses: dawidd6/action-send-mail@master
         with:
           # Required mail server address:
           server_address: smtp.yandex.com
