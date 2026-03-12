@@ -23,7 +23,7 @@ jobs:
           echo "version=$version" >> $GITHUB_OUTPUT
 
       - name: Run Coverity Build
-        uses: vapier/coverity-scan-action@v1
+        uses: vapier/coverity-scan-action@main
         with:
           # Project name in Coverity Scan.
           #
