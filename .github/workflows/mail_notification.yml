@@ -73,8 +73,9 @@ jobs:
             [${{steps.get_short_ref.outputs.short_ref}}] ${{steps.get_commit_message.outputs.commit_message}}
           # Required recipients' addresses:
           to: scst-svn@lists.sourceforge.net
-          # Required sender full name (address can be skipped):
-          from: ${{matrix.commit.committer.name}}
+          # Required sender (quote it because of '<' and '>'):
+          from: '"SCST GitHub" <${{ secrets.MAIL_SERVER_USERNAME }}>'
+          envelope_from: ${{ secrets.MAIL_SERVER_USERNAME }}
           # Optional whether this connection use TLS (default is true if server_port is 465)
           # secure: true
 
