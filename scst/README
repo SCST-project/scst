@@ -608,6 +608,12 @@ SCST dev handlers can have the following common entries:
  - dump_prs - allows to dump persistent reservations information in the
    kernel log.
 
+ - pr_state - allows to save and restore the complete Persistent
+   Reservation state (registrants, active reservation, generation
+   counter).  On read, serialises the state to a text format.  On write,
+   restores state into the device; this should be done before the device
+   starts serving I/O.
+
  - type - SCSI type of this device
 
  - max_tgt_dev_commands - maximum number of SCSI commands any session to
@@ -2524,6 +2530,15 @@ host:channel:id:lun numbers from this dev handler.
 
 As usually, on read the "mgmt" file returns small help about available
 commands.
+
+The dev_disk handler also exposes the following attribute in its root
+subdirectory:
+
+ - pr_dump_dir - when set to a directory path, causes each dev_disk
+   device to write its PR state to <dir>/<serial> at unregistration
+   time, after all in-flight commands have completed.  The default value
+   is an empty string (dump disabled).  The filename is the device's
+   SCSI Unit Serial Number.  The file format is the same as pr_state.
 
 You need to manually assign each your real SCSI device to the
 corresponding pass-through dev handler using the "add_device" command,
