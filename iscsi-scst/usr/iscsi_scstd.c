@@ -858,6 +858,18 @@ static void init_max_params(void)
 	return;
 }
 
+static void suspend_logins(int sig)
+{
+	(void)sig;
+	logins_suspended = 1;
+}
+
+static void resume_logins(int sig)
+{
+	(void)sig;
+	logins_suspended = 0;
+}
+
 int main(int argc, char **argv)
 {
 	int ch, longindex;
@@ -881,6 +893,14 @@ int main(int argc, char **argv)
 	 */
 	struct sigaction act = (struct sigaction) { .sa_handler = SIG_IGN };
 	int rc = sigaction(SIGPIPE, &act, NULL);
+	assert(rc == 0);
+
+	act = (struct sigaction) { .sa_handler = suspend_logins };
+	rc = sigaction(SIGUSR1, &act, NULL);
+	assert(rc == 0);
+
+	act = (struct sigaction) { .sa_handler = resume_logins };
+	rc = sigaction(SIGUSR2, &act, NULL);
 	assert(rc == 0);
 
 	while ((ch = getopt_long(argc, argv, "c:fd:s:u:g:a:p:vh", long_options, &longindex)) >= 0) {
