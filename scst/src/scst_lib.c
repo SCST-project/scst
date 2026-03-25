@@ -4771,6 +4771,34 @@ out:
 	return res;
 }
 
+struct scst_async_repl_work {
+	struct work_struct work;
+	struct list_head tgt_dev_list;
+};
+
+static void scst_wait_and_free_tgt_devs(struct list_head *tgt_dev_list)
+{
+	struct scst_tgt_dev *tgt_dev, *tt;
+
+	scst_wait_for_tgt_devs(tgt_dev_list);
+	synchronize_rcu();
+
+	mutex_lock(&scst_mutex);
+	list_for_each_entry_safe(tgt_dev, tt, tgt_dev_list,
+				 extra_tgt_dev_list_entry)
+		scst_free_tgt_dev(tgt_dev);
+	mutex_unlock(&scst_mutex);
+}
+
+static void scst_async_repl_work_fn(struct work_struct *work)
+{
+	struct scst_async_repl_work *w =
+		container_of(work, struct scst_async_repl_work, work);
+
+	scst_wait_and_free_tgt_devs(&w->tgt_dev_list);
+	kfree(w);
+}
+
 /* Either add or replace a LUN according to flags argument */
 int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 		      struct scst_device *dev, uint64_t lun,
@@ -4778,7 +4806,7 @@ int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 {
 	struct scst_acg_dev *acg_dev;
 	bool del_gen_ua = false;
-	struct scst_tgt_dev *tgt_dev, *tt;
+	struct scst_tgt_dev *tgt_dev;
 	struct list_head tgt_dev_list;
 	int res = -EINVAL;
 
@@ -4805,13 +4833,23 @@ int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 	}
 	mutex_unlock(&scst_mutex);
 
-	scst_wait_for_tgt_devs(&tgt_dev_list);
-	synchronize_rcu();
+	if (acg_dev && READ_ONCE(scst_async_lun_replace)) {
+		struct scst_async_repl_work *w =
+			kzalloc(sizeof(*w), GFP_KERNEL);
+		if (w) {
+			INIT_WORK(&w->work, scst_async_repl_work_fn);
+			INIT_LIST_HEAD(&w->tgt_dev_list);
+			list_splice_init(&tgt_dev_list, &w->tgt_dev_list);
+			schedule_work(&w->work);
+			goto relock;
+		}
+		/* fall back to synchronous path on allocation failure */
+	}
 
+	scst_wait_and_free_tgt_devs(&tgt_dev_list);
+
+relock:
 	mutex_lock(&scst_mutex);
-	list_for_each_entry_safe(tgt_dev, tt, &tgt_dev_list, extra_tgt_dev_list_entry)
-		scst_free_tgt_dev(tgt_dev);
-
 	if (acg_dev)
 		scst_free_acg_dev(acg_dev);
 

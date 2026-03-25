@@ -7084,6 +7084,28 @@ out:
 static struct kobj_attribute scst_measure_latency_attr =
 	__ATTR(measure_latency, 0644, scst_measure_latency_show, scst_measure_latency_store);
 
+static ssize_t scst_async_lun_replace_show(struct kobject *kobj,
+					   struct kobj_attribute *attr,
+					   char *buf)
+{
+	return sysfs_emit(buf, "%d\n", READ_ONCE(scst_async_lun_replace) ? 1 : 0);
+}
+
+static ssize_t scst_async_lun_replace_store(struct kobject *kobj,
+					    struct kobj_attribute *attr,
+					    const char *buf, size_t count)
+{
+	bool val;
+
+	if (kstrtobool(buf, &val))
+		return -EINVAL;
+	WRITE_ONCE(scst_async_lun_replace, val);
+	return count;
+}
+
+static struct kobj_attribute scst_async_lun_replace_attr =
+	__ATTR(async_lun_replace, 0644, scst_async_lun_replace_show, scst_async_lun_replace_store);
+
 static ssize_t scst_threads_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
 	ssize_t ret;
@@ -7658,6 +7680,7 @@ static struct kobj_attribute scst_cluster_name_attr =
 
 static struct attribute *scst_sysfs_root_def_attrs[] = {
 	&scst_measure_latency_attr.attr,
+	&scst_async_lun_replace_attr.attr,
 	&scst_threads_attr.attr,
 	&scst_setup_id_attr.attr,
 	&scst_max_tasklet_cmd_attr.attr,

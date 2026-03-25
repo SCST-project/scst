@@ -188,6 +188,11 @@ module_param_named(auto_cm_assignment, scst_auto_cm_assignment, bool, 0644);
 MODULE_PARM_DESC(auto_cm_assignment,
 		 "Enables the copy managers auto registration. (default: true)");
 
+bool scst_async_lun_replace;
+module_param_named(async_lun_replace, scst_async_lun_replace, bool, 0644);
+MODULE_PARM_DESC(async_lun_replace,
+		 "If enabled, LUN replace operations do not wait synchronously for in-flight commands on the old tgt_dev to drain; cleanup is deferred to a workqueue. (default: false)");
+
 struct scst_dev_type scst_null_devtype = {
 	.name = "none",
 	.threads_num = -1,
