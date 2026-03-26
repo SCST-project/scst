@@ -427,7 +427,14 @@ static inline void be32_to_cpu_array(u32 *dst, const __be32 *src, size_t len)
  * 230fa253df6352af12ad0a16128760b5cb3f92df).
  */
 #define READ_ONCE(x) (*(volatile typeof(x) *)&(x))
+#endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 19, 0) && !defined(WRITE_ONCE)
+/*
+ * See also patch "Change ASSIGN_ONCE(val, x) to WRITE_ONCE(x, val)" (commit ID
+ * 43239cbe79fc369f5d2160bd7f69e28b5c50a58c).
+ */
+#define WRITE_ONCE(x, val) (*(volatile typeof(x) *)&(x) = (val))
 #endif
 
 /* <linux/compiler_attributes.h> */
