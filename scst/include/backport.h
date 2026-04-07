@@ -2242,4 +2242,9 @@ static inline int fc_block_rport(struct fc_rport *rport)
 #define TCM_ACA_TAG	0x24
 #endif
 
+/* ef951599074b lib: move strtobool() to kstrtobool() */
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 6, 0)
+#define kstrtobool strtobool
+#endif
+
 #endif /* _SCST_BACKPORT_H_ */
