@@ -257,10 +257,11 @@ static void qla2xxx_sdev_destroy(struct scsi_device *sdev);
 static int qla2xxx_scan_finished(struct Scsi_Host *, unsigned long time);
 static void qla2xxx_scan_start(struct Scsi_Host *);
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
-static int qla2xxx_queuecommand_lck(struct scsi_cmnd *cmd,
-		void (*fn)(struct scsi_cmnd *));
-#else
+static int qla2xxx_queuecommand_lck(struct scsi_cmnd *cmd, void (*done)(struct scsi_cmnd *));
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 static int qla2xxx_queuecommand_lck(struct scsi_cmnd *cmd);
+#else
+static enum scsi_qc_status qla2xxx_queuecommand_lck(struct scsi_cmnd *cmd);
 #endif
 static DEF_SCSI_QCMD(qla2xxx_queuecommand);
 static int qla2xxx_eh_abort(struct scsi_cmnd *);
@@ -690,10 +691,11 @@ qla2x00_sp_compl(void *data, void *ptr, int res)
 }
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)
-static int
-qla2xxx_queuecommand_lck(struct scsi_cmnd *cmd, void (*done)(struct scsi_cmnd *))
+static int qla2xxx_queuecommand_lck(struct scsi_cmnd *cmd, void (*done)(struct scsi_cmnd *))
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+static int qla2xxx_queuecommand_lck(struct scsi_cmnd *cmd);
 #else
-static int qla2xxx_queuecommand_lck(struct scsi_cmnd *cmd)
+static enum scsi_qc_status qla2xxx_queuecommand_lck(struct scsi_cmnd *cmd)
 #endif
 {
 	scsi_qla_host_t *vha = shost_priv(cmd->device->host);

@@ -839,8 +839,11 @@ static int scst_local_send_resp(struct scsi_cmnd *cmnd,
  * This does the heavy lifting ... we pass all the commands on to the
  * target driver and have it do its magic ...
  */
-static int scst_local_queuecommand(struct Scsi_Host *host,
-				   struct scsi_cmnd *scmd)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+static int scst_local_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *scmd)
+#else
+static enum scsi_qc_status scst_local_queuecommand(struct Scsi_Host *host, struct scsi_cmnd *scmd)
+#endif
 {
 	struct scst_local_sess *sess;
 	struct scatterlist *sgl = NULL;
