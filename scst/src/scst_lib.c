@@ -8846,11 +8846,6 @@ out:
 	return res;
 }
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&	\
-	!defined(CONFIG_SUSE_KERNEL)
-static void scsi_end_async(struct request *req, int error)
-#else
-
 /*
  * See also commit de671d6116b5 ("block: change request end_io handler to pass
  * back a return value") # v6.1.
@@ -8863,7 +8858,17 @@ static void scsi_end_async(struct request *req, int error)
 #define RQ_END_IO_RET enum rq_end_io_ret
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&	\
+	!defined(CONFIG_SUSE_KERNEL)
+static RQ_END_IO_RET scsi_end_async(struct request *req, int error)
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 static RQ_END_IO_RET scsi_end_async(struct request *req, blk_status_t error)
+#else
+/*
+ * See also commit 5e2fde1a9433 ("block: pass io_comp_batch to rq_end_io_fn callback") # v7.0.
+ */
+static RQ_END_IO_RET scsi_end_async(struct request *req, blk_status_t error,
+				    const struct io_comp_batch *iob)
 #endif
 {
 	struct scsi_io_context *sioc = req->end_io_data;
