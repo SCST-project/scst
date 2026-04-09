@@ -8461,7 +8461,11 @@ int __init qlt_init(void)
 		goto out_plogi_cachep;
 	}
 
-	qla_tgt_wq = alloc_workqueue("qla_tgt_wq", 0, 0);
+	qla_tgt_wq = alloc_workqueue("qla_tgt_wq", 0
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 19, 0)
+				     | WQ_PERCPU
+#endif
+				     , 0);
 	if (!qla_tgt_wq) {
 		ql_log(ql_log_fatal, NULL, 0xe06f,
 		    "alloc_workqueue for qla_tgt_wq failed\n");
