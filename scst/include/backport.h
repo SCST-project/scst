@@ -38,6 +38,13 @@
 #include <linux/iocontext.h>
 #include <linux/jiffies.h>
 #include <linux/kobject_ns.h>
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
+#include <linux/overflow.h>
+#endif
+#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7 ||	\
+	LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
+#include <linux/percpu-refcount.h>
+#endif
 #include <linux/preempt.h>
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/shrinker.h>
@@ -1137,12 +1144,122 @@ struct nvmefc_fcp_req {
 } __aligned(sizeof(u64));	/* alignment for other things alloc'd with */
 #endif
 
-/* <linux/percpu-refcount.h> */
+/* <linux/overflow.h> */
 
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7 ||	\
-	LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
-#include <linux/percpu-refcount.h>
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
+/*
+ * See also commit f0907827a8a9 ("compiler.h: enable builtin overflow checkers
+ * and add fallback code") # v4.18.
+ */
+static __always_inline bool __must_check __must_check_overflow(bool overflow)
+{
+	return unlikely(overflow);
+}
+
+#define check_mul_overflow(a, b, d)	\
+	__must_check_overflow(__builtin_mul_overflow(a, b, d))
+
+#define check_add_overflow(a, b, d)	\
+	__must_check_overflow(__builtin_add_overflow(a, b, d))
 #endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 18, 0) &&			\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 15, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 86)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 10, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 201)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 4, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 283)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(4, 19, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 321)) &&		\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||			\
+	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 10 ||			\
+	 RHEL_MAJOR -0 == 9 && RHEL_MINOR -0 < 3) &&			\
+	(!defined(UEK_KABI_RENAME) ||					\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
+/*
+ * See also commit e1be43d9b5d0 ("overflow: Implement size_t saturating
+ * arithmetic helpers") # v5.18.
+ * See also commit 30f20ceb87f7 # v5.15.86.
+ * See also commit 2b46db3bb73d # v5.10.201.
+ * See also commit 1ab137a90eea # v5.4.283.
+ * See also commit 1f5cbd781779 # v4.19.321.
+ */
+static __always_inline size_t __must_check size_mul(size_t factor1, size_t factor2)
+{
+	size_t bytes;
+
+	if (check_mul_overflow(factor1, factor2, &bytes))
+		return SIZE_MAX;
+
+	return bytes;
+}
+
+static __always_inline size_t __must_check size_add(size_t addend1, size_t addend2)
+{
+	size_t bytes;
+
+	if (check_add_overflow(addend1, addend2, &bytes))
+		return SIZE_MAX;
+
+	return bytes;
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
+/*
+ * See also commit 3c8ba0d61d04 ("kernel.h: Retain constant expression output
+ * for max()/min()") # v4.17.
+ */
+#define __is_constexpr(x) \
+	(sizeof(int) == sizeof(*(8 ? ((void *)((long)(x) * 0l)) : (int *)8)))
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
+/*
+ * See also commit 610b15c50e86 ("overflow.h: Add allocation size calculation
+ * helpers") # v4.18.
+ */
+#define flex_array_size(p, member, count)				\
+	__builtin_choose_expr(__is_constexpr(count),			\
+		(count) * sizeof(*(p)->member) + __must_be_array((p)->member),	\
+		size_mul(count, sizeof(*(p)->member) + __must_be_array((p)->member)))
+
+#define struct_size(p, member, count)					\
+	__builtin_choose_expr(__is_constexpr(count),			\
+		sizeof(*(p)) + flex_array_size(p, member, count),	\
+		size_add(sizeof(*(p)), flex_array_size(p, member, count)))
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0)
+/*
+ * See also commit d67790ddf021 ("overflow: Add struct_size_t() helper") # v6.5.
+ */
+#define struct_size_t(type, member, count)					\
+	struct_size((type *)NULL, member, count)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+/*
+ * See also commit 81cee9166a90 ("compiler_types: Introduce __flex_counter()
+ * and family") # v7.0.
+ */
+
+#if defined(__has_builtin) && __has_builtin(__builtin_counted_by_ref)
+#define __flex_counter(FAM)	__builtin_counted_by_ref(FAM)
+#else
+#define __flex_counter(FAM)	((void *)NULL)
+#endif
+
+#define __set_flex_counter(FAM, COUNT)				\
+({								\
+	*_Generic(__flex_counter(FAM),				\
+		  void *:  &(size_t){ 0 },			\
+		  default: __flex_counter(FAM)) = (COUNT);	\
+})
+#endif
+
+/* <linux/percpu-refcount.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 3, 0) &&	\
 	(!defined(RHEL_RELEASE_CODE) ||				\
@@ -1528,6 +1645,66 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 			__alignof__(struct __struct), (__flags),	\
 			offsetof(struct __struct, __field),		\
 			sizeof_field(struct __struct, __field), NULL)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+/*
+ * See also commit e19e1b480ac7 ("add default_gfp() helper macro and use it
+ * in the new *alloc_obj() helpers") # v7.0.
+ */
+#define __default_gfp(a,...) a
+#define default_gfp(...) __default_gfp(__VA_ARGS__ __VA_OPT__(,) GFP_KERNEL)
+
+/*
+ * See also commit 2932ba8d9c99 ("slab: Introduce kmalloc_obj() and family") # v7.0.
+ * See also commit e4c8b46b924e ("slab: Introduce kmalloc_flex() and family") # v7.0.
+ */
+#define __alloc_objs(KMALLOC, GFP, TYPE, COUNT)				\
+({									\
+	const size_t __obj_size = size_mul(sizeof(TYPE), COUNT);	\
+	(TYPE *)KMALLOC(__obj_size, GFP);				\
+})
+
+#define __alloc_flex(KMALLOC, GFP, TYPE, FAM, COUNT)			\
+({									\
+	const size_t __count = (COUNT);					\
+	const size_t __obj_size = struct_size_t(TYPE, FAM, __count);	\
+	TYPE *__obj_ptr = KMALLOC(__obj_size, GFP);			\
+	if (__obj_ptr)							\
+		__set_flex_counter(__obj_ptr->FAM, __count);		\
+	__obj_ptr;							\
+})
+
+#define kmalloc_obj(VAR_OR_TYPE, ...) \
+	__alloc_objs(kmalloc, default_gfp(__VA_ARGS__), typeof(VAR_OR_TYPE), 1)
+#define kmalloc_objs(VAR_OR_TYPE, COUNT, ...) \
+	__alloc_objs(kmalloc, default_gfp(__VA_ARGS__), typeof(VAR_OR_TYPE), COUNT)
+#define kmalloc_flex(VAR_OR_TYPE, FAM, COUNT, ...) \
+	__alloc_flex(kmalloc, default_gfp(__VA_ARGS__), typeof(VAR_OR_TYPE), FAM, COUNT)
+
+/* All kzalloc aliases for kmalloc_(obj|objs|flex). */
+#define kzalloc_obj(P, ...) \
+	__alloc_objs(kzalloc, default_gfp(__VA_ARGS__), typeof(P), 1)
+#define kzalloc_objs(P, COUNT, ...) \
+	__alloc_objs(kzalloc, default_gfp(__VA_ARGS__), typeof(P), COUNT)
+#define kzalloc_flex(P, FAM, COUNT, ...)		\
+	__alloc_flex(kzalloc, default_gfp(__VA_ARGS__), typeof(P), FAM, COUNT)
+
+/* All kvmalloc aliases for kmalloc_(obj|objs|flex). */
+#define kvmalloc_obj(P, ...) \
+	__alloc_objs(kvmalloc, default_gfp(__VA_ARGS__), typeof(P), 1)
+#define kvmalloc_objs(P, COUNT, ...) \
+	__alloc_objs(kvmalloc, default_gfp(__VA_ARGS__), typeof(P), COUNT)
+#define kvmalloc_flex(P, FAM, COUNT, ...) \
+	__alloc_flex(kvmalloc, default_gfp(__VA_ARGS__), typeof(P), FAM, COUNT)
+
+/* All kvzalloc aliases for kmalloc_(obj|objs|flex). */
+#define kvzalloc_obj(P, ...) \
+	__alloc_objs(kvzalloc, default_gfp(__VA_ARGS__), typeof(P), 1)
+#define kvzalloc_objs(P, COUNT, ...) \
+	__alloc_objs(kvzalloc, default_gfp(__VA_ARGS__), typeof(P), COUNT)
+#define kvzalloc_flex(P, FAM, COUNT, ...) \
+	__alloc_flex(kvzalloc, default_gfp(__VA_ARGS__), typeof(P), FAM, COUNT)
 #endif
 
 /* <linux/sockptr.h> */
