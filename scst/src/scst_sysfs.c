@@ -346,7 +346,7 @@ int scst_alloc_sysfs_work(int (*sysfs_work_fn)(struct scst_sysfs_work_item *),
 
 	*res_work = NULL;
 
-	work = kzalloc(sizeof(*work), GFP_KERNEL);
+	work = kzalloc_obj(*work);
 	if (!work) {
 		PRINT_ERROR("Unable to alloc sysfs work (size %zd)",
 			    sizeof(*work));
@@ -5720,7 +5720,7 @@ int scst_acn_sysfs_create(struct scst_acn *acn)
 
 	acn->acn_attr = NULL;
 
-	attr = kzalloc(sizeof(*attr), GFP_KERNEL);
+	attr = kzalloc_obj(*attr);
 	if (!attr) {
 		PRINT_ERROR("Unable to allocate attributes for initiator '%s'",
 			    acn->name);
@@ -7793,7 +7793,7 @@ int scst_sysfs_user_add_info(struct scst_sysfs_user_info **out_info)
 
 	TRACE_ENTRY();
 
-	info = kzalloc(sizeof(*info), GFP_KERNEL);
+	info = kzalloc_obj(*info);
 	if (!info) {
 		PRINT_ERROR("Unable to allocate sysfs user info (size %zd)",
 			    sizeof(*info));

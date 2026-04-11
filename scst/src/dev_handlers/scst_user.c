@@ -1215,9 +1215,8 @@ static int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff, int
 
 	ucmd->num_data_pages = num_pg;
 
-	ucmd->data_pages = kmalloc_array(ucmd->num_data_pages,
-					 sizeof(*ucmd->data_pages),
-					 GFP_KERNEL);
+	ucmd->data_pages = kmalloc_objs(*ucmd->data_pages,
+					ucmd->num_data_pages);
 	if (!ucmd->data_pages) {
 		TRACE(TRACE_OUT_OF_MEM, "Unable to allocate data_pages array (num_data_pages=%d)",
 		      ucmd->num_data_pages);
@@ -1503,7 +1502,7 @@ static int dev_user_process_reply_ext_copy_remap(struct scst_user_cmd *ucmd,
 		goto out_hw_err_free_buf;
 	}
 
-	left = kmalloc_array(count, sizeof(*left), GFP_KERNEL);
+	left = kmalloc_objs(*left, count);
 	if (unlikely(!left)) {
 		PRINT_ERROR("Unable to alloc leftover remap descriptors (size %zd, count %d)",
 			    sizeof(*left) * count, count);
@@ -1657,7 +1656,7 @@ static int dev_user_process_ws_reply(struct scst_user_cmd *ucmd,
 		goto out_free_buf;
 	}
 
-	where = kmalloc_array(count, sizeof(*where), GFP_KERNEL);
+	where = kmalloc_objs(*where, count);
 	if (unlikely(!where)) {
 		PRINT_ERROR("Unable to alloc WS descriptors where (size %zd)",
 			    sizeof(*where) * count);
@@ -2443,7 +2442,7 @@ static long dev_user_ioctl(struct file *file, unsigned int cmd, unsigned long ar
 		struct scst_user_dev_desc *dev_desc;
 
 		TRACE_DBG("REGISTER_DEVICE");
-		dev_desc = kmalloc(sizeof(*dev_desc), GFP_KERNEL);
+		dev_desc = kmalloc_obj(*dev_desc);
 		if (!dev_desc) {
 			res = -ENOMEM;
 			goto out;

@@ -171,14 +171,14 @@ static int isert_alloc_for_rdma(struct isert_cmnd *pdu, int sge_cnt,
 	int i, ret = 0;
 	int wr_cnt;
 
-	sg_pool = kmalloc_array(sge_cnt, sizeof(*sg_pool), GFP_KERNEL);
+	sg_pool = kmalloc_objs(*sg_pool, sge_cnt);
 	if (unlikely(!sg_pool)) {
 		ret = -ENOMEM;
 		goto out;
 	}
 
 	wr_cnt = DIV_ROUND_UP(sge_cnt, isert_conn->max_sge);
-	wr = kmalloc_array(wr_cnt, sizeof(*wr), GFP_KERNEL);
+	wr = kmalloc_objs(*wr, wr_cnt);
 	if (unlikely(!wr)) {
 		ret = -ENOMEM;
 		goto out_free_sg_pool;

@@ -559,7 +559,7 @@ static void ft_recv_cmd(struct ft_sess *sess, struct fc_frame *fp)
 	if (!sp)
 		goto busy;
 
-	fcmd = kzalloc(sizeof(*fcmd), GFP_ATOMIC);
+	fcmd = kzalloc_obj(*fcmd, GFP_ATOMIC);
 	if (!fcmd)
 		goto busy;
 	fcmd->max_payload = sess->max_payload;

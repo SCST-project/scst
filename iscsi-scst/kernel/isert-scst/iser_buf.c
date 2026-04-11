@@ -49,8 +49,7 @@ static int isert_buf_alloc_pg(struct ib_device *ib_dev,
 	struct page *page;
 
 	isert_buf->sg_cnt = DIV_ROUND_UP(size, PAGE_SIZE);
-	isert_buf->sg = kmalloc_array(isert_buf->sg_cnt, sizeof(*isert_buf->sg),
-				      GFP_KERNEL);
+	isert_buf->sg = kmalloc_objs(*isert_buf->sg, isert_buf->sg_cnt);
 	if (unlikely(!isert_buf->sg)) {
 		PRINT_ERROR("Failed to allocate buffer SG");
 		res = -ENOMEM;
@@ -109,7 +108,7 @@ static int isert_buf_malloc(struct ib_device *ib_dev,
 	int res = 0;
 
 	isert_buf->sg_cnt = 1;
-	isert_buf->sg = kmalloc(sizeof(isert_buf->sg[0]), GFP_KERNEL);
+	isert_buf->sg = kmalloc_obj(isert_buf->sg[0]);
 	if (unlikely(!isert_buf->sg)) {
 		PRINT_ERROR("Failed to allocate buffer SG");
 		res = -ENOMEM;

@@ -286,7 +286,7 @@ try_retry:
 
 	/* Wait before retry */
 
-	retry = kzalloc(sizeof(*retry), GFP_KERNEL);
+	retry = kzalloc_obj(*retry);
 	if (!retry) {
 		PRINT_ERROR("Unable to allocate retry struct");
 		scst_set_busy(cmd);
@@ -817,7 +817,7 @@ static int scst_cm_add_to_internal_cmd_list(struct scst_cmd *cmd, struct scst_cm
 
 	EXTRACHECKS_BUG_ON(ec_cmd == cmd);
 
-	p = kzalloc(sizeof(*p), GFP_KERNEL);
+	p = kzalloc_obj(*p);
 	if (!p) {
 		PRINT_ERROR("Unable to alloc scst_cm_internal_cmd_priv (size %d)",
 			    (int)sizeof(*p));
@@ -2396,7 +2396,7 @@ static int scst_cm_send_init_inquiry(struct scst_device *dev, unsigned int unpac
 	}
 
 	if (!priv) {
-		priv = kzalloc(sizeof(*priv), GFP_KERNEL);
+		priv = kzalloc_obj(*priv);
 		if (!priv) {
 			PRINT_ERROR("Unable to alloc priv");
 			res = -ENOMEM;
@@ -3104,7 +3104,7 @@ static int scst_cm_add_to_descr_list(struct scst_cmd *ec_cmd, struct scst_tgt_de
 		}
 	}
 
-	e = kzalloc(sizeof(*e), GFP_KERNEL);
+	e = kzalloc_obj(*e);
 	if (!e) {
 		PRINT_ERROR("Unable to allocate scst_cm_dev_entry (size %d)",
 			    (int)sizeof(*e));
@@ -3461,7 +3461,7 @@ int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd)
 
 	TRACE_DBG("tgt_cnt %d", tgt_cnt);
 
-	tgt_descrs = kcalloc(tgt_cnt, sizeof(*tgt_descrs), GFP_KERNEL);
+	tgt_descrs = kzalloc_objs(*tgt_descrs, tgt_cnt);
 	if (!tgt_descrs) {
 		TRACE(TRACE_OUT_OF_MEM, "Unable to allocate tgt_descrs (count %d, size %zd)",
 		      tgt_cnt, sizeof(*tgt_descrs) * tgt_cnt);

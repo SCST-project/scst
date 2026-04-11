@@ -1167,7 +1167,7 @@ static int scst_local_report_aen(struct scst_aen *aen)
 		/*
 		 * Allocate a work item and place it on the queue
 		 */
-		work_item = kzalloc(sizeof(*work_item), GFP_KERNEL);
+		work_item = kzalloc_obj(*work_item);
 		if (!work_item) {
 			PRINT_ERROR("Unable to allocate work item to handle AEN!");
 			return -ENOMEM;
@@ -1587,7 +1587,7 @@ static int __scst_local_add_adapter(struct scst_local_tgt *tgt, const char *init
 	TRACE_ENTRY();
 
 	/* It's read-mostly, so cache alignment isn't needed */
-	sess = kzalloc(sizeof(*sess), GFP_KERNEL);
+	sess = kzalloc_obj(*sess);
 	if (!sess) {
 		PRINT_ERROR("Unable to alloc scst_lcl_host (size %zu)",
 			    sizeof(*sess));
@@ -1682,7 +1682,7 @@ static int scst_local_add_target(const char *target_name, struct scst_local_tgt 
 
 	TRACE_ENTRY();
 
-	tgt = kzalloc(sizeof(*tgt), GFP_KERNEL);
+	tgt = kzalloc_obj(*tgt);
 	if (!tgt) {
 		PRINT_ERROR("Unable to alloc tgt (size %zu)", sizeof(*tgt));
 		res = -ENOMEM;

@@ -84,7 +84,7 @@ static int iscsi_target_create(struct iscsi_kern_target_info *info, u32 tid,
 		goto out;
 	}
 
-	target = kzalloc(sizeof(*target), GFP_KERNEL);
+	target = kzalloc_obj(*target);
 	if (!target) {
 		err = -ENOMEM;
 		goto out_put;
@@ -157,7 +157,7 @@ int __add_target(struct iscsi_kern_target_info *info)
 		goto out;
 	}
 
-	add_info = kmalloc(sizeof(*add_info), GFP_KERNEL);
+	add_info = kmalloc_obj(*add_info);
 	if (!add_info) {
 		PRINT_ERROR("Unable to allocate additional info (size %zd)",
 			    sizeof(*add_info));

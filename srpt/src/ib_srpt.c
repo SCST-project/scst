@@ -845,7 +845,7 @@ static struct srpt_ioctx **srpt_alloc_ioctx_ring(struct srpt_device *sdev, int r
 	WARN_ON(ioctx_size != sizeof(struct srpt_recv_ioctx) &&
 		ioctx_size != sizeof(struct srpt_send_ioctx));
 
-	ring = kvmalloc_array(ring_size, sizeof(ring[0]), GFP_KERNEL);
+	ring = kvmalloc_objs(ring[0], ring_size);
 	if (!ring)
 		goto out;
 	for (i = 0; i < ring_size; ++i) {
@@ -1142,8 +1142,8 @@ static int srpt_get_desc_tbl(struct srpt_recv_ioctx *recv_ioctx,
 		if (ioctx->n_rbuf == 1) {
 			ioctx->rbufs = &ioctx->single_rbuf;
 		} else {
-			ioctx->rbufs = kmalloc_array(ioctx->n_rbuf,
-						     sizeof(*db), GFP_ATOMIC);
+			ioctx->rbufs = kmalloc_objs(*db, ioctx->n_rbuf,
+						    GFP_ATOMIC);
 			if (!ioctx->rbufs) {
 				ioctx->n_rbuf = 0;
 				return -ENOMEM;
@@ -1212,7 +1212,7 @@ static int srpt_init_ch_qp(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 
 	WARN_ON_ONCE(ch->using_rdma_cm);
 
-	attr = kzalloc(sizeof(*attr), GFP_KERNEL);
+	attr = kzalloc_obj(*attr);
 	if (!attr)
 		return -ENOMEM;
 
@@ -1249,7 +1249,7 @@ static int srpt_ch_qp_rtr(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 
 	WARN_ON_ONCE(ch->using_rdma_cm);
 
-	attr = kzalloc(sizeof(*attr), GFP_KERNEL);
+	attr = kzalloc_obj(*attr);
 	if (!attr)
 		return -ENOMEM;
 
@@ -1282,7 +1282,7 @@ static int srpt_ch_qp_rts(struct srpt_rdma_ch *ch, struct ib_qp *qp)
 
 	WARN_ON_ONCE(ch->using_rdma_cm);
 
-	attr = kzalloc(sizeof(*attr), GFP_KERNEL);
+	attr = kzalloc_obj(*attr);
 	if (!attr)
 		return -ENOMEM;
 
@@ -1309,7 +1309,7 @@ static int srpt_ch_qp_err(struct srpt_rdma_ch *ch)
 	struct ib_qp_attr *attr;
 	int ret;
 
-	attr = kzalloc(sizeof(*attr), GFP_KERNEL);
+	attr = kzalloc_obj(*attr);
 	if (!attr)
 		return -ENOMEM;
 
@@ -2226,7 +2226,7 @@ static int srpt_create_ch_ib(struct srpt_rdma_ch *ch)
 	EXTRACHECKS_WARN_ON(ch->rq_size < 1);
 
 	ret = -ENOMEM;
-	qp_init = kzalloc(sizeof(*qp_init), GFP_KERNEL);
+	qp_init = kzalloc_obj(*qp_init);
 	if (!qp_init)
 		goto out;
 
@@ -2442,7 +2442,7 @@ static struct srpt_nexus *srpt_get_nexus(struct srpt_port *sport,
 
 		if (nexus)
 			break;
-		tmp_nexus = kzalloc(sizeof(*nexus), GFP_KERNEL);
+		tmp_nexus = kzalloc_obj(*nexus);
 		if (!tmp_nexus) {
 			nexus = ERR_PTR(-ENOMEM);
 			break;
@@ -2565,9 +2565,9 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	}
 
 	ret = -ENOMEM;
-	rsp = kzalloc(sizeof(*rsp), GFP_KERNEL);
-	rej = kzalloc(sizeof(*rej), GFP_KERNEL);
-	rep_param = kzalloc(sizeof(*rep_param), GFP_KERNEL);
+	rsp = kzalloc_obj(*rsp);
+	rej = kzalloc_obj(*rej);
+	rep_param = kzalloc_obj(*rep_param);
 	if (!rsp || !rej || !rep_param)
 		goto out;
 
@@ -2594,7 +2594,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	}
 
 	ret = -ENOMEM;
-	ch = kzalloc(sizeof(*ch), GFP_KERNEL);
+	ch = kzalloc_obj(*ch);
 	if (!ch) {
 		rej->reason = cpu_to_be32(SRP_LOGIN_REJ_INSUFFICIENT_RESOURCES);
 		pr_err("rejected SRP_LOGIN_REQ because out of memory.\n");
@@ -3794,7 +3794,7 @@ static int srpt_get_initiator_port_transport_id(struct scst_tgt *tgt, struct scs
 	BUILD_BUG_ON(sizeof(*tr_id) != 24);
 
 	res = -ENOMEM;
-	tr_id = kzalloc(sizeof(*tr_id), GFP_KERNEL);
+	tr_id = kzalloc_obj(*tr_id);
 	if (!tr_id)
 		goto out;
 
@@ -4264,7 +4264,7 @@ static int srpt_add_one(struct ib_device *device)
 
 	pr_debug("device = %p\n", device);
 
-	sdev = kzalloc(sizeof(*sdev), GFP_KERNEL);
+	sdev = kzalloc_obj(*sdev);
 	if (!sdev) {
 		ret = -ENOMEM;
 		goto err;

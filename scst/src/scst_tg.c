@@ -476,7 +476,7 @@ static int scst_tg_accept_transitioning(struct scst_cmd *cmd)
 
 		TRACE_DBG("ALUA transitioning: delaying cmd %p", cmd);
 
-		retry = kzalloc(sizeof(*retry), GFP_KERNEL);
+		retry = kzalloc_obj(*retry);
 		if (!retry) {
 			TRACE_DBG("Unable to allocate ALUA retry struct, failing cmd %p", cmd);
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_alua_transitioning));
@@ -658,7 +658,7 @@ int scst_tg_tgt_add(struct scst_target_group *tg, const char *name)
 	BUG_ON(!tg);
 	BUG_ON(!name);
 	res = -ENOMEM;
-	tg_tgt = kzalloc(sizeof(*tg_tgt), GFP_KERNEL);
+	tg_tgt = kzalloc_obj(*tg_tgt);
 	if (!tg_tgt)
 		goto out;
 	tg_tgt->tg = tg;
@@ -784,7 +784,7 @@ int scst_tg_add(struct scst_dev_group *dg, const char *name)
 
 	TRACE_ENTRY();
 	res = -ENOMEM;
-	tg = kzalloc(sizeof(*tg), GFP_KERNEL);
+	tg = kzalloc_obj(*tg);
 	if (!tg)
 		goto out;
 	kobject_init(&tg->kobj, &scst_tg_ktype);
@@ -1185,7 +1185,7 @@ int scst_dg_dev_add(struct scst_dev_group *dg, const char *name)
 	int res;
 
 	res = -ENOMEM;
-	dgdev = kzalloc(sizeof(*dgdev), GFP_KERNEL);
+	dgdev = kzalloc_obj(*dgdev);
 	if (!dgdev)
 		goto out;
 
@@ -1309,7 +1309,7 @@ int scst_dg_add(struct kobject *parent, const char *name)
 	TRACE_ENTRY();
 
 	res = -ENOMEM;
-	dg = kzalloc(sizeof(*dg), GFP_KERNEL);
+	dg = kzalloc_obj(*dg);
 	if (!dg)
 		goto out;
 	kobject_init(&dg->kobj, &scst_dg_ktype);
@@ -1776,7 +1776,7 @@ static int scst_emit_stpg_event(struct scst_cmd *cmd, struct scst_dev_group *dg,
 		goto out;
 	}
 
-	wait = kzalloc(sizeof(*wait), GFP_KERNEL);
+	wait = kzalloc_obj(*wait);
 	if (!wait) {
 		PRINT_ERROR("Unable to allocate STPG wait struct (size %zd)",
 			    sizeof(*wait));
@@ -1889,7 +1889,7 @@ int scst_tg_set_group_info(struct scst_cmd *cmd)
 
 	TRACE_DBG("tpg_desc_count %d", tpg_desc_count);
 
-	osi = kcalloc(tpg_desc_count, sizeof(*osi), GFP_KERNEL);
+	osi = kzalloc_objs(*osi, tpg_desc_count);
 	if (!osi) {
 		res = -ENOMEM;
 		scst_set_busy(cmd);

@@ -373,16 +373,14 @@ static int qla2x00_alloc_queues(struct qla_hw_data *ha, struct req_que *req,
 				struct rsp_que *rsp)
 {
 	scsi_qla_host_t *vha = pci_get_drvdata(ha->pdev);
-	ha->req_q_map = kcalloc(ha->max_req_queues, sizeof(struct req_que *),
-				GFP_KERNEL);
+	ha->req_q_map = kzalloc_objs(struct req_que *, ha->max_req_queues);
 	if (!ha->req_q_map) {
 		ql_log(ql_log_fatal, vha, 0x003b,
 		    "Unable to allocate memory for request queue ptrs.\n");
 		goto fail_req_map;
 	}
 
-	ha->rsp_q_map = kcalloc(ha->max_rsp_queues, sizeof(struct rsp_que *),
-				GFP_KERNEL);
+	ha->rsp_q_map = kzalloc_objs(struct rsp_que *, ha->max_rsp_queues);
 	if (!ha->rsp_q_map) {
 		ql_log(ql_log_fatal, vha, 0x003c,
 		    "Unable to allocate memory for response queue ptrs.\n");
@@ -2416,7 +2414,7 @@ qla2x00_probe_one(struct pci_dev *pdev, const struct pci_device_id *id)
 	pci_enable_pcie_error_reporting(pdev);
 #endif
 
-	ha = kzalloc(sizeof(struct qla_hw_data), GFP_KERNEL);
+	ha = kzalloc_obj(struct qla_hw_data);
 	if (!ha) {
 		ql_log_pci(ql_log_fatal, pdev, 0x0009,
 		    "Unable to allocate memory for ha.\n");
@@ -3260,9 +3258,8 @@ qla2x00_mem_alloc(struct qla_hw_data *ha, uint16_t req_len, uint16_t rsp_len,
 
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 	if (IS_FWI2_CAPABLE(ha)) {
-		ha->tgt_vp_map = kcalloc(MAX_MULTI_ID_FABRIC,
-					 sizeof(struct qla_tgt_vp_map),
-					 GFP_KERNEL);
+		ha->tgt_vp_map = kzalloc_objs(struct qla_tgt_vp_map,
+					      MAX_MULTI_ID_FABRIC);
 		if (!ha->tgt_vp_map)
 			goto fail_free_init_cb;
 
@@ -3367,7 +3364,7 @@ qla2x00_mem_alloc(struct qla_hw_data *ha, uint16_t req_len, uint16_t rsp_len,
 	}
 
 	/* Allocate memory for request ring */
-	*req = kzalloc(sizeof(struct req_que), GFP_KERNEL);
+	*req = kzalloc_obj(struct req_que);
 	if (!*req) {
 		ql_log_pci(ql_log_fatal, ha->pdev, 0x0028,
 		    "Failed to allocate memory for req.\n");
@@ -3383,7 +3380,7 @@ qla2x00_mem_alloc(struct qla_hw_data *ha, uint16_t req_len, uint16_t rsp_len,
 		goto fail_req_ring;
 	}
 	/* Allocate memory for response ring */
-	*rsp = kzalloc(sizeof(struct rsp_que), GFP_KERNEL);
+	*rsp = kzalloc_obj(struct rsp_que);
 	if (!*rsp) {
 		ql_log_pci(ql_log_fatal, ha->pdev, 0x002a,
 		    "Failed to allocate memory for rsp.\n");
@@ -3408,9 +3405,8 @@ qla2x00_mem_alloc(struct qla_hw_data *ha, uint16_t req_len, uint16_t rsp_len,
 	    (*rsp)->ring);
 	/* Allocate memory for NVRAM data for vports */
 	if (ha->nvram_npiv_size) {
-		ha->npiv_info = kcalloc(ha->nvram_npiv_size,
-					sizeof(struct qla_npiv_entry),
-					GFP_KERNEL);
+		ha->npiv_info = kzalloc_objs(struct qla_npiv_entry,
+					     ha->nvram_npiv_size);
 		if (!ha->npiv_info) {
 			ql_log_pci(ql_log_fatal, ha->pdev, 0x002d,
 			    "Failed to allocate memory for npiv_info.\n");
@@ -3719,7 +3715,7 @@ qla2x00_alloc_work(struct scsi_qla_host *vha, enum qla_work_type type)
 	if (bail)
 		return NULL;
 
-	e = kzalloc(sizeof(struct qla_work_evt), GFP_ATOMIC);
+	e = kzalloc_obj(struct qla_work_evt, GFP_ATOMIC);
 	if (!e) {
 		QLA_VHA_MARK_NOT_BUSY(vha);
 		return NULL;

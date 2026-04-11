@@ -1225,7 +1225,7 @@ struct scatterlist *scst_alloc_sg(int size, gfp_t gfp_mask, int *count)
 		}
 	}
 
-	res = kmalloc_array(pages, sizeof(*res), gfp_mask);
+	res = kmalloc_objs(*res, pages, gfp_mask);
 	if (!res) {
 		TRACE(TRACE_OUT_OF_MEM,
 		      "Unable to allocate sg for %d pages", pages);
@@ -2090,7 +2090,7 @@ int scst_add_sgv_kobj(struct kobject *parent, const char *name)
 
 	WARN_ON(scst_sgv_kobj);
 	res = -ENOMEM;
-	scst_sgv_kobj = kzalloc(sizeof(*scst_sgv_kobj), GFP_KERNEL);
+	scst_sgv_kobj = kzalloc_obj(*scst_sgv_kobj);
 	if (!scst_sgv_kobj)
 		goto out;
 	res = kobject_init_and_add(scst_sgv_kobj, &sgv_ktype, parent, "%s", name);

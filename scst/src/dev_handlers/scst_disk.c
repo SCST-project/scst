@@ -164,7 +164,7 @@ static int disk_attach(struct scst_device *dev)
 		 * Store serial in a disk_dh_priv struct on dh_priv.
 		 * Failure is OK.
 		 */
-		struct disk_dh_priv *priv = kzalloc(sizeof(*priv), GFP_KERNEL);
+		struct disk_dh_priv *priv = kzalloc_obj(*priv);
 
 		if (!priv) {
 			PRINT_ERROR("Memory allocation failure for device %s",

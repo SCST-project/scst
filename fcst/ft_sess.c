@@ -56,7 +56,7 @@ static struct ft_tport *ft_tport_create(struct fc_lport *lport)
 		return tport;
 	}
 
-	tport = kzalloc(sizeof(*tport), GFP_KERNEL);
+	tport = kzalloc_obj(*tport);
 	if (!tport) {
 		FT_SESS_DBG("tport alloc %s failed\n", name);
 		return NULL;
@@ -214,7 +214,7 @@ static int ft_sess_create(struct ft_tport *tport, struct fc_rport_priv *rdata,
 		}
 	}
 
-	sess = kzalloc(sizeof(*sess), GFP_KERNEL);
+	sess = kzalloc_obj(*sess);
 	if (!sess)
 		return FC_SPP_RESP_RES;		/* out of resources */
 
@@ -316,7 +316,7 @@ int ft_get_transport_id(struct scst_tgt *tgt, struct scst_session *scst_sess, ui
 	if (!scst_sess)
 		return SCSI_TRANSPORTID_PROTOCOLID_FCP2;
 
-	id = kzalloc(sizeof(*id), GFP_KERNEL);
+	id = kzalloc_obj(*id);
 	if (!id)
 		return -ENOMEM;
 

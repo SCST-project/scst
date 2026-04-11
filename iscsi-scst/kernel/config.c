@@ -184,7 +184,7 @@ static int add_session(void __user *ptr)
 
 	lockdep_assert_held(&target_mgmt_mutex);
 
-	info = kzalloc(sizeof(*info), GFP_KERNEL);
+	info = kzalloc_obj(*info);
 	if (!info) {
 		PRINT_ERROR("Can't alloc info (size %zd)", sizeof(*info));
 		err = -ENOMEM;
@@ -227,7 +227,7 @@ static int del_session(void __user *ptr)
 
 	TRACE_ENTRY();
 
-	info = kzalloc(sizeof(*info), GFP_KERNEL);
+	info = kzalloc_obj(*info);
 	if (!info) {
 		PRINT_ERROR("Can't alloc info (size %zd)", sizeof(*info));
 		err = -ENOMEM;
@@ -522,7 +522,7 @@ int iscsi_add_attr(struct iscsi_target *target, const struct iscsi_kern_attr *at
 	TRACE_DBG("Adding %s's attr %s with mode %x", name,
 		  attr_info->name, attr_info->mode);
 
-	tgt_attr = kzalloc(sizeof(*tgt_attr), GFP_KERNEL);
+	tgt_attr = kzalloc_obj(*tgt_attr);
 	if (!tgt_attr) {
 		PRINT_ERROR("Unable to allocate user (size %zd)",
 			    sizeof(*tgt_attr));
@@ -699,7 +699,7 @@ static int add_target(void __user *ptr)
 
 	TRACE_ENTRY();
 
-	info = kzalloc(sizeof(*info), GFP_KERNEL);
+	info = kzalloc_obj(*info);
 	if (!info) {
 		PRINT_ERROR("Can't alloc info (size %zd)", sizeof(*info));
 		err = -ENOMEM;

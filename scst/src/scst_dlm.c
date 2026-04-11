@@ -1501,7 +1501,7 @@ static int scst_pr_dlm_init(struct scst_device *dev, const char *cl_dev_id)
 			    dev_registrants_list_entry)
 		scst_dlm_pr_init_reg(dev, reg);
 
-	pr_dlm = kzalloc(sizeof(*dev->pr_dlm), GFP_KERNEL);
+	pr_dlm = kzalloc_obj(*dev->pr_dlm);
 	if (!pr_dlm)
 		goto out;
 	dev->pr_dlm = pr_dlm;
@@ -1618,7 +1618,7 @@ static struct scst_dlm_rem_ua *scst_dlm_alloc_rem_ua(void)
 {
 	struct scst_dlm_rem_ua *ua = NULL;
 
-	ua = kzalloc(sizeof(struct scst_dlm_rem_ua), GFP_KERNEL);
+	ua = kzalloc_obj(struct scst_dlm_rem_ua);
 	if (ua == NULL) {
 		PRINT_ERROR("Unable to allocate unit attention");
 		goto out;

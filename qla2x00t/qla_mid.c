@@ -691,7 +691,7 @@ qla25xx_create_req_que(struct qla_hw_data *ha, uint16_t options,
 	uint16_t que_id = 0;
 	uint32_t cnt;
 
-	req = kzalloc(sizeof(struct req_que), GFP_KERNEL);
+	req = kzalloc_obj(struct req_que);
 	if (req == NULL) {
 		ql_log(ql_log_fatal, base_vha, 0x00d9,
 		    "Failed to allocate memory for request queue.\n");
@@ -807,7 +807,7 @@ qla25xx_create_rsp_que(struct qla_hw_data *ha, uint16_t options,
 	uint16_t que_id = 0;
 	device_reg_t __iomem *reg;
 
-	rsp = kzalloc(sizeof(struct rsp_que), GFP_KERNEL);
+	rsp = kzalloc_obj(struct rsp_que);
 	if (rsp == NULL) {
 		ql_log(ql_log_warn, base_vha, 0x0066,
 		    "Failed to allocate memory for response queue.\n");

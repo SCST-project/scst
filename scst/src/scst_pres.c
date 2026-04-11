@@ -418,7 +418,7 @@ struct scst_dev_registrant *scst_pr_add_registrant(struct scst_device *dev,
 		goto out;
 	}
 
-	reg = kzalloc(sizeof(*reg), gfp_flags);
+	reg = kzalloc_obj(*reg, gfp_flags);
 	if (!reg) {
 		PRINT_ERROR("Unable to allocate registration record");
 		goto out;

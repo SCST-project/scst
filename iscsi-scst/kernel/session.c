@@ -156,7 +156,7 @@ int __add_session(struct iscsi_target *target, struct iscsi_kern_session_info *i
 		goto out_err_unlock;
 	}
 
-	params_info = kmalloc(sizeof(*params_info), GFP_KERNEL);
+	params_info = kmalloc_obj(*params_info);
 	if (!params_info) {
 		PRINT_ERROR("Unable to allocate params info (size %zd)",
 			    sizeof(*params_info));

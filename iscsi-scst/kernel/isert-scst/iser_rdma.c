@@ -905,7 +905,7 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 
 	TRACE_ENTRY();
 
-	isert_dev = kzalloc(sizeof(*isert_dev), GFP_KERNEL);
+	isert_dev = kzalloc_obj(*isert_dev);
 	if (unlikely(!isert_dev)) {
 		PRINT_ERROR("Failed to allocate iser dev");
 		err = -ENOMEM;
@@ -924,9 +924,8 @@ static struct isert_device *isert_device_create(struct ib_device *ib_dev)
 
 	isert_dev->num_cqs = blk_mq_num_online_queues(ib_dev->num_comp_vectors);
 
-	isert_dev->cq_qps = kcalloc(isert_dev->num_cqs,
-				    sizeof(*isert_dev->cq_qps),
-				    GFP_KERNEL);
+	isert_dev->cq_qps = kzalloc_objs(*isert_dev->cq_qps,
+					 isert_dev->num_cqs);
 	if (unlikely(!isert_dev->cq_qps)) {
 		PRINT_ERROR("Failed to allocate %d iser cq_qps",
 			    isert_dev->num_cqs);
@@ -1780,7 +1779,7 @@ struct isert_portal *isert_portal_create(struct sockaddr *sa, size_t addr_len)
 		goto out;
 	}
 
-	portal = kzalloc(sizeof(*portal), GFP_KERNEL);
+	portal = kzalloc_obj(*portal);
 	if (unlikely(!portal)) {
 		PRINT_ERROR("Unable to allocate struct portal");
 		portal = ERR_PTR(-ENOMEM);

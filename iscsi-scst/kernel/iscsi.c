@@ -4119,7 +4119,7 @@ create:
 
 	for (j = 0; j < 2; j++) {
 		for (i = 0; i < count; i++) {
-			t = kmalloc(sizeof(*t), GFP_KERNEL);
+			t = kmalloc_obj(*t);
 			if (!t) {
 				res = -ENOMEM;
 				PRINT_ERROR("Failed to allocate thread (size %zd)",

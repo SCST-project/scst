@@ -790,7 +790,7 @@ static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
 	PRINT_INFO("sqatgt(%ld/%d): Registering initiator: pwwn=%8phC",
 		   vha->host_no, vha->vp_idx, fc_wwpn);
 
-	se_sess = kzalloc(sizeof(*se_sess), GFP_KERNEL);
+	se_sess = kzalloc_obj(*se_sess);
 	if (!se_sess)
 		return res;
 
@@ -1327,7 +1327,7 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 	if (res)
 		goto done;
 
-	sqa_tgt = kzalloc(sizeof(*sqa_tgt), GFP_KERNEL);
+	sqa_tgt = kzalloc_obj(*sqa_tgt);
 	if (!sqa_tgt) {
 		PRINT_ERROR("sqatgt(%ld/%d): alloc sqa_tgt failed",
 		    vha->host_no, vha->vp_idx);
@@ -2083,7 +2083,7 @@ static void sqa_on_abort_cmd(struct scst_cmd *scst_cmd)
 	 * acquired in the reverse order elsewhere.  Use a workqueue to avoid
 	 * acquiring the locks in the wrong order here.
 	 */
-	abort_work = kmalloc(sizeof(*abort_work), GFP_ATOMIC);
+	abort_work = kmalloc_obj(*abort_work, GFP_ATOMIC);
 	if (!abort_work)
 		return;
 	scst_cmd_get(scst_cmd);

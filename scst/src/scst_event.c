@@ -874,7 +874,7 @@ static int scst_event_create_priv(struct file *file)
 		goto out;
 	}
 
-	priv = kzalloc(sizeof(*priv), GFP_KERNEL);
+	priv = kzalloc_obj(*priv);
 	if (!priv) {
 		PRINT_ERROR("Unable to allocate priv (size %zd)",
 			    sizeof(*priv));

@@ -1244,7 +1244,7 @@ retry:
 
 	TRACE_DBG("loop_id 0x%x", loop_id);
 
-	fcport = kzalloc(sizeof(*fcport), GFP_KERNEL);
+	fcport = kzalloc_obj(*fcport);
 	if (fcport == NULL) {
 		PRINT_ERROR("qla2x00t(%ld): Allocation of tmp FC port failed",
 			vha->host_no);
@@ -1749,7 +1749,7 @@ static int q2t_sched_sess_work(struct q2t_tgt *tgt, int type,
 
 	TRACE_ENTRY();
 
-	prm = kzalloc(sizeof(*prm), GFP_ATOMIC);
+	prm = kzalloc_obj(*prm, GFP_ATOMIC);
 	if (prm == NULL) {
 		PRINT_ERROR("qla2x00t(%ld): Unable to create session "
 			"work, command will be refused", tgt->vha->host_no);
@@ -3561,7 +3561,7 @@ static int q2t_prepare_srr_ctio(scsi_qla_host_t *vha, struct q2t_cmd *cmd,
 
 	scst_update_hw_pending_start(&cmd->scst_cmd);
 
-	sc = kzalloc(sizeof(*sc), GFP_ATOMIC);
+	sc = kzalloc_obj(*sc, GFP_ATOMIC);
 	if (sc != NULL) {
 		sc->cmd = cmd;
 		/* IRQ is already OFF */
@@ -4560,7 +4560,7 @@ static int q2t_cut_cmd_data_head(struct q2t_cmd *cmd, unsigned int offset)
 		first_sg, first_page, first_page_offs, cmd->bufflen,
 		cmd->sg_cnt);
 
-	sg = kmalloc_array(cnt, sizeof(sg[0]), GFP_KERNEL);
+	sg = kmalloc_objs(sg[0], cnt);
 	if (sg == NULL) {
 		PRINT_ERROR("qla2x00t(%ld): Unable to allocate cut "
 			"SG (len %zd)", cmd->tgt->vha->host_no,
@@ -4959,7 +4959,7 @@ static void q2t_prepare_srr_imm(scsi_qla_host_t *vha, void *iocb)
 
 	TRACE(TRACE_MGMT, "qla2x00t(%ld): SRR received", vha->host_no);
 
-	imm = kzalloc(sizeof(*imm), GFP_ATOMIC);
+	imm = kzalloc_obj(*imm, GFP_ATOMIC);
 	if (imm != NULL) {
 		memcpy(&imm->imm.notify_entry, iocb,
 			sizeof(imm->imm.notify_entry));
@@ -5806,7 +5806,7 @@ retry:
 		}
 	}
 
-	fcport = kzalloc(sizeof(*fcport), GFP_KERNEL);
+	fcport = kzalloc_obj(*fcport);
 	if (fcport == NULL) {
 		PRINT_ERROR("qla2x00t(%ld): Allocation of tmp FC port failed",
 			vha->host_no);
