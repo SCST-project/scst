@@ -787,7 +787,9 @@ static inline long get_user_pages_backport(unsigned long start,
 #define time_is_before_jiffies64(a) time_after64(get_jiffies_64(), a)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0) &&	\
+	(!defined(UEK_KABI_RENAME) ||			\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 /*
  * See also commit b35108a51cf7 ("jiffies: Define secs_to_jiffies()") # v6.13.
  */
