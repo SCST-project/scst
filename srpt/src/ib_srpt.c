@@ -4579,7 +4579,11 @@ static int __init srpt_init_module(void)
 		goto destroy_wq;
 	}
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 	srpt_net_ns = kobj_ns_grab_current(KOBJ_NS_TYPE_NET);
+#else
+	srpt_net_ns = to_net_ns(kobj_ns_grab_current(KOBJ_NS_TYPE_NET));
+#endif
 
 	if (rdma_cm_port) {
 		struct sockaddr_in addr;
@@ -4623,7 +4627,11 @@ destroy_id:
 		rdma_destroy_id(rdma_cm_id);
 
 drop_ns:
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 	kobj_ns_drop(KOBJ_NS_TYPE_NET, srpt_net_ns);
+#else
+	kobj_ns_drop(KOBJ_NS_TYPE_NET, to_ns_common(srpt_net_ns));
+#endif
 	srpt_net_ns = NULL;
 	ib_unregister_client(&srpt_client);
 
@@ -4642,7 +4650,11 @@ static void __exit srpt_cleanup_module(void)
 	if (rdma_cm_id)
 		rdma_destroy_id(rdma_cm_id);
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 	kobj_ns_drop(KOBJ_NS_TYPE_NET, srpt_net_ns);
+#else
+	kobj_ns_drop(KOBJ_NS_TYPE_NET, to_ns_common(srpt_net_ns));
+#endif
 	srpt_net_ns = NULL;
 
 	ib_unregister_client(&srpt_client);

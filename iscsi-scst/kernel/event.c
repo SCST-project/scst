@@ -171,7 +171,11 @@ out_unlock:
 
 int __init event_init(void)
 {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 	iscsi_net_ns = kobj_ns_grab_current(KOBJ_NS_TYPE_NET);
+#else
+	iscsi_net_ns = to_net_ns(kobj_ns_grab_current(KOBJ_NS_TYPE_NET));
+#endif
 
 	{
 		struct netlink_kernel_cfg cfg = {
@@ -188,7 +192,11 @@ int __init event_init(void)
 
 drop_ns:
 	PRINT_ERROR("%s", "netlink_kernel_create() failed");
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 	kobj_ns_drop(KOBJ_NS_TYPE_NET, iscsi_net_ns);
+#else
+	kobj_ns_drop(KOBJ_NS_TYPE_NET, to_ns_common(iscsi_net_ns));
+#endif
 	iscsi_net_ns = NULL;
 	return -ENOMEM;
 }
@@ -196,6 +204,10 @@ drop_ns:
 void event_exit(void)
 {
 	netlink_kernel_release(nl);
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 	kobj_ns_drop(KOBJ_NS_TYPE_NET, iscsi_net_ns);
+#else
+	kobj_ns_drop(KOBJ_NS_TYPE_NET, to_ns_common(iscsi_net_ns));
+#endif
 	iscsi_net_ns = NULL;
 }
