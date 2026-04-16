@@ -399,6 +399,65 @@ blkdev_issue_discard_backport(struct block_device *bdev, sector_t sector,
 #define blkdev_issue_discard blkdev_issue_discard_backport
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0) &&			\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 15, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 4)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 10, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 81)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 4, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 189)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(4, 19, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 238)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(4, 14, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 276)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(4, 9, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 311)) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||					\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 0)) &&		\
+	(!defined(UEK_KABI_RENAME) ||					\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
+/*
+ * See also commit 570b1cac4776 ("block: Add a helper to validate
+ * the block size") # v5.16.
+ * See also commit 1f124a661191 # v5.15.4.
+ * See also commit 79ff56c613c1 # v5.10.81.
+ * See also commit 40f282870d6c # v5.4.189.
+ * See also commit 602210ebc391 # v4.19.238.
+ * See also commit cb55a760a24b # v4.14.276.
+ * See also commit 35076e0847b7 # v4.9.311.
+ */
+static inline int blk_validate_block_size(unsigned int bsize)
+{
+	if (bsize < 512 || bsize > PAGE_SIZE || !is_power_of_2(bsize))
+		return -EINVAL;
+
+	return 0;
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0) &&			\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 14, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 9)) &&		\
+	(!defined(UEK_KABI_RENAME) ||					\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
+/*
+ * See also commit e03463d247dd ("block: hoist block size validation code
+ * to a separate function") # v6.15.
+ * See also commit 38dc0472de33 # v6.14.9.
+ */
+static inline int bdev_validate_blocksize(struct block_device *bdev, int block_size)
+{
+	if (blk_validate_block_size(block_size))
+		return -EINVAL;
+
+	/* Size cannot be smaller than the size supported by the device */
+	if (block_size < bdev_logical_block_size(bdev))
+		return -EINVAL;
+
+	return 0;
+}
+#endif
+
 /* <linux/byteorder/generic.h> */
 /*
  * See also f2f2efb807d3 ("byteorder: Move {cpu_to_be32, be32_to_cpu}_array()
@@ -1148,7 +1207,20 @@ struct nvmefc_fcp_req {
 
 /* <linux/overflow.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
+/*
+ * See also commit 3c8ba0d61d04 ("kernel.h: Retain constant expression output
+ * for max()/min()") # v4.17.
+ */
+#define __is_constexpr(x) \
+	(sizeof(int) == sizeof(*(8 ? ((void *)((long)(x) * 0l)) : (int *)8)))
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0) &&			\
+	(!defined(RHEL_RELEASE_CODE) ||					\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(7, 9)) &&		\
+	(!defined(UEK_KABI_RENAME) ||					\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 /*
  * See also commit f0907827a8a9 ("compiler.h: enable builtin overflow checkers
  * and add fallback code") # v4.18.
@@ -1163,6 +1235,20 @@ static __always_inline bool __must_check __must_check_overflow(bool overflow)
 
 #define check_add_overflow(a, b, d)	\
 	__must_check_overflow(__builtin_add_overflow(a, b, d))
+
+/*
+ * See also commit 610b15c50e86 ("overflow.h: Add allocation size calculation
+ * helpers") # v4.18.
+ */
+#define flex_array_size(p, member, count)				\
+	__builtin_choose_expr(__is_constexpr(count),			\
+		(count) * sizeof(*(p)->member) + __must_be_array((p)->member),	\
+		size_mul(count, sizeof(*(p)->member) + __must_be_array((p)->member)))
+
+#define struct_size(p, member, count)					\
+	__builtin_choose_expr(__is_constexpr(count),			\
+		sizeof(*(p)) + flex_array_size(p, member, count),	\
+		size_add(sizeof(*(p)), flex_array_size(p, member, count)))
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 18, 0) &&			\
@@ -1206,31 +1292,6 @@ static __always_inline size_t __must_check size_add(size_t addend1, size_t adden
 
 	return bytes;
 }
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0)
-/*
- * See also commit 3c8ba0d61d04 ("kernel.h: Retain constant expression output
- * for max()/min()") # v4.17.
- */
-#define __is_constexpr(x) \
-	(sizeof(int) == sizeof(*(8 ? ((void *)((long)(x) * 0l)) : (int *)8)))
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0)
-/*
- * See also commit 610b15c50e86 ("overflow.h: Add allocation size calculation
- * helpers") # v4.18.
- */
-#define flex_array_size(p, member, count)				\
-	__builtin_choose_expr(__is_constexpr(count),			\
-		(count) * sizeof(*(p)->member) + __must_be_array((p)->member),	\
-		size_mul(count, sizeof(*(p)->member) + __must_be_array((p)->member)))
-
-#define struct_size(p, member, count)					\
-	__builtin_choose_expr(__is_constexpr(count),			\
-		sizeof(*(p)) + flex_array_size(p, member, count),	\
-		size_add(sizeof(*(p)), flex_array_size(p, member, count)))
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0)

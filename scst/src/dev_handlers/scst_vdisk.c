@@ -1308,16 +1308,27 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 	if (res) {
 		scst_release_bdev(&virt_dev->bdev_desc);
 		virt_dev->fd = NULL;
-		goto out;
+		return res;
 	}
 
-	/*
-	 * For block devices, get the optimal I/O size from the block device
-	 * characteristics.
-	 */
-	if (virt_dev->blockio && !virt_dev->opt_trans_len_set)
-		virt_dev->opt_trans_len = bdev_io_opt(virt_dev->bdev_desc.bdev) ? :
-					  virt_dev->opt_trans_len;
+	if (virt_dev->blockio) {
+		struct block_device *bdev = virt_dev->bdev_desc.bdev;
+
+		res = bdev_validate_blocksize(bdev, virt_dev->dev->block_size);
+		if (res) {
+			PRINT_ERROR("virt device %s: block_size %u is incompatible with backend %s logical block size %u",
+				    virt_dev->name, virt_dev->dev->block_size, virt_dev->filename,
+				    bdev_logical_block_size(bdev));
+			goto out_close_fd;
+		}
+
+		/*
+		 * For block devices, get the optimal I/O size from the block device
+		 * characteristics.
+		 */
+		if (!virt_dev->opt_trans_len_set)
+			virt_dev->opt_trans_len = bdev_io_opt(bdev) ?: virt_dev->opt_trans_len;
+	}
 
 	if (virt_dev->dif_filename) {
 		virt_dev->dif_fd = vdev_open_fd(virt_dev, virt_dev->dif_filename, read_only);
@@ -1331,8 +1342,7 @@ static int vdisk_open_fd(struct scst_vdisk_dev *virt_dev, bool read_only)
 	TRACE_DBG("virt_dev %s: fd %p %p open (dif_fd %p)", virt_dev->name,
 		  virt_dev->fd, virt_dev->bdev_desc.bdev, virt_dev->dif_fd);
 
-out:
-	return res;
+	return 0;
 
 out_close_fd:
 	if (virt_dev->blockio) {
@@ -1341,7 +1351,8 @@ out_close_fd:
 		filp_close(virt_dev->fd, NULL);
 		virt_dev->fd = NULL;
 	}
-	goto out;
+
+	return res;
 }
 
 static void vdisk_close_fd(struct scst_vdisk_dev *virt_dev)
