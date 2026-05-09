@@ -7099,7 +7099,7 @@ static ssize_t scst_async_lun_replace_store(struct kobject *kobj,
 
 	if (kstrtobool(buf, &val))
 		return -EINVAL;
-	WRITE_ONCE(scst_async_lun_replace, val);
+	scst_async_lun_replace_set(val);
 	return count;
 }
 

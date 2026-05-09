@@ -418,6 +418,8 @@ int scst_alloc_space(struct scst_cmd *cmd);
 int scst_lib_init(void);
 void scst_lib_exit(void);
 
+void scst_async_lun_replace_set(bool val);
+
 struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(gfp_t gfp_mask);
 void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd);
 void scst_done_cmd_mgmt(struct scst_cmd *cmd);
