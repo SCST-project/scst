@@ -4774,7 +4774,20 @@ out:
 struct scst_async_repl_work {
 	struct work_struct work;
 	struct list_head tgt_dev_list;
+	struct list_head pending_list_entry;
 };
+
+/*
+ * When scst_async_lun_replace is non-zero, scst_acg_repl_lun() parks the
+ * cleanup of old tgt_devs on this list instead of scheduling it on a
+ * workqueue immediately. The intent is that the orchestrating layer
+ * (e.g. the failover state machine) holds parked work until any cluster
+ * coordination (such as DLM peer eviction) that the cleanup depends on has
+ * completed, then writes 0 to the async_lun_replace sysfs knob to release
+ * the parked work in a batch.
+ */
+static LIST_HEAD(scst_pending_async_repl_works);
+static DEFINE_SPINLOCK(scst_pending_async_repl_lock);
 
 static void scst_wait_and_free_tgt_devs(struct list_head *tgt_dev_list)
 {
@@ -4797,6 +4810,51 @@ static void scst_async_repl_work_fn(struct work_struct *work)
 
 	scst_wait_and_free_tgt_devs(&w->tgt_dev_list);
 	kfree(w);
+}
+
+/*
+ * Either schedule the work immediately or park it on
+ * scst_pending_async_repl_works, depending on the state of
+ * scst_async_lun_replace at the moment of decision. The decision is taken
+ * under scst_pending_async_repl_lock to make it atomic with respect to a
+ * concurrent transition of the flag from non-zero to zero (which drains
+ * the list).
+ */
+static void scst_schedule_or_park_async_repl_work(struct scst_async_repl_work *w)
+{
+	spin_lock(&scst_pending_async_repl_lock);
+	if (READ_ONCE(scst_async_lun_replace)) {
+		list_add_tail(&w->pending_list_entry,
+			      &scst_pending_async_repl_works);
+		spin_unlock(&scst_pending_async_repl_lock);
+	} else {
+		spin_unlock(&scst_pending_async_repl_lock);
+		schedule_work(&w->work);
+	}
+}
+
+/*
+ * Update scst_async_lun_replace and, on a 1->0 transition, release any
+ * parked async_repl works to the workqueue. Setting to the same value as
+ * before (1->1 or 0->0) is a no-op other than the WRITE_ONCE.
+ */
+void scst_async_lun_replace_set(bool val)
+{
+	struct scst_async_repl_work *w, *tmp;
+	LIST_HEAD(local);
+	bool was_set;
+
+	spin_lock(&scst_pending_async_repl_lock);
+	was_set = scst_async_lun_replace;
+	WRITE_ONCE(scst_async_lun_replace, val);
+	if (was_set && !val)
+		list_splice_init(&scst_pending_async_repl_works, &local);
+	spin_unlock(&scst_pending_async_repl_lock);
+
+	list_for_each_entry_safe(w, tmp, &local, pending_list_entry) {
+		list_del(&w->pending_list_entry);
+		schedule_work(&w->work);
+	}
 }
 
 /* Either add or replace a LUN according to flags argument */
@@ -4838,8 +4896,9 @@ int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 		if (w) {
 			INIT_WORK(&w->work, scst_async_repl_work_fn);
 			INIT_LIST_HEAD(&w->tgt_dev_list);
+			INIT_LIST_HEAD(&w->pending_list_entry);
 			list_splice_init(&tgt_dev_list, &w->tgt_dev_list);
-			schedule_work(&w->work);
+			scst_schedule_or_park_async_repl_work(w);
 			goto relock;
 		}
 		/* fall back to synchronous path on allocation failure */
@@ -15820,6 +15879,14 @@ free_wq:
 
 void scst_lib_exit(void)
 {
+	/*
+	 * Release any async_repl works that were still parked because
+	 * scst_async_lun_replace was left non-zero. In a well-behaved
+	 * orchestration this list is already empty by the time we get
+	 * here; this is defense-in-depth for crash/abort paths.
+	 */
+	scst_async_lun_replace_set(false);
+
 	/* All pending works will be drained by destroy_workqueue() */
 	destroy_workqueue(scst_release_acg_wq);
 
