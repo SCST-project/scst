@@ -393,6 +393,7 @@ Collecting current configuration: done.
 	Device CREATE attributes available
 	----------------------------------
 	async
+	bind_alua_state
 	blocksize
 	cluster_mode
 	dif_filename

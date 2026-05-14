@@ -6217,9 +6217,9 @@ static enum compl_status_e nullio_exec_verify(struct vdisk_cmd_params *p)
 	return CMD_SUCCEEDED;
 }
 
-static void blockio_on_alua_state_change_start(struct scst_device *dev,
-					       enum scst_tg_state old_state,
-					       enum scst_tg_state new_state)
+static void vdev_on_alua_state_change_start(struct scst_device *dev,
+					    enum scst_tg_state old_state,
+					    enum scst_tg_state new_state)
 {
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	const bool close = virt_dev->dev_active &&
@@ -6246,9 +6246,9 @@ static void blockio_on_alua_state_change_start(struct scst_device *dev,
 	TRACE_EXIT();
 }
 
-static void blockio_on_alua_state_change_finish(struct scst_device *dev,
-						enum scst_tg_state old_state,
-						enum scst_tg_state new_state)
+static void vdev_on_alua_state_change_finish(struct scst_device *dev,
+					     enum scst_tg_state old_state,
+					     enum scst_tg_state new_state)
 {
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	const bool open = !virt_dev->dev_active &&
@@ -7052,6 +7052,8 @@ static int vdev_fileio_add_device(const char *device_name, char *params)
 	virt_dev->wt_flag = DEF_WRITE_THROUGH;
 	virt_dev->nv_cache = DEF_NV_CACHE;
 	virt_dev->o_direct_flag = DEF_O_DIRECT;
+	/* Opt-in for fileio; preserves pre-existing behavior on upgrade. */
+	virt_dev->bind_alua_state = 0;
 
 	res = vdev_parse_add_dev_params(virt_dev, params, NULL);
 	if (res != 0)
@@ -9263,7 +9265,12 @@ static ssize_t vdev_sysfs_bind_alua_state_show(struct kobject *kobj,
 
 	ret = sysfs_emit(buf, "%d\n", bind_alua_state);
 
-	if (bind_alua_state != DEF_BIND_ALUA_STATE)
+	/*
+	 * Per-backing default: blockio defaults to 1 (close/reopen FD on ALUA
+	 * state change), fileio defaults to 0 (opt-in). Mark non-default so
+	 * scstadmin knows to persist explicit settings.
+	 */
+	if (bind_alua_state != (virt_dev->blockio ? 1 : 0))
 		ret += sysfs_emit_at(buf, ret, "%s\n", SCST_SYSFS_KEY_MARK);
 
 	TRACE_EXIT_RES(ret);
@@ -9502,6 +9509,7 @@ static struct scst_trace_log vdisk_local_trace_tbl[] = {
 
 static const struct attribute *vdisk_fileio_attrs[] = {
 	&vdev_active_attr.attr,
+	&vdev_bind_alua_state_attr.attr,
 	&vdev_size_ro_attr.attr,
 	&vdev_size_mb_ro_attr.attr,
 	&vdisk_blocksize_attr.attr,
@@ -9537,6 +9545,7 @@ static const struct attribute *vdisk_fileio_attrs[] = {
 static const char *const fileio_add_dev_params[] = {
 	"active",
 	"async",
+	"bind_alua_state",
 	"blocksize",
 	"cluster_mode",
 	"dif_filename",
@@ -9576,6 +9585,8 @@ static struct scst_dev_type vdisk_file_devtype = {
 	.parse =		fileio_parse,
 	.exec =			fileio_exec,
 	.on_free_cmd =		fileio_on_free_cmd,
+	.on_alua_state_change_start = vdev_on_alua_state_change_start,
+	.on_alua_state_change_finish = vdev_on_alua_state_change_finish,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
 #ifdef CONFIG_DEBUG_EXT_COPY_REMAP
 	.ext_copy_remap =	vdev_ext_copy_remap,
@@ -9662,8 +9673,8 @@ static struct scst_dev_type vdisk_blk_devtype = {
 	.detach_tgt =		vdisk_detach_tgt,
 	.parse =		non_fileio_parse,
 	.exec =			blockio_exec,
-	.on_alua_state_change_start = blockio_on_alua_state_change_start,
-	.on_alua_state_change_finish = blockio_on_alua_state_change_finish,
+	.on_alua_state_change_start = vdev_on_alua_state_change_start,
+	.on_alua_state_change_finish = vdev_on_alua_state_change_finish,
 	.task_mgmt_fn_done =	vdisk_task_mgmt_fn_done,
 	.get_supported_opcodes = vdisk_get_supported_opcodes,
 	.devt_priv =		(void *)blockio_ops,
