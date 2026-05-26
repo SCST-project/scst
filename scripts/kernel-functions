@@ -131,7 +131,7 @@ function extract_kernel_tree {
 function patch_kernel {
     case "$1" in
 	*^*)
-            # RHEL / CentOS or UEK.
+            # RHEL-compatible distro or UEK.
             ;;
 	*)
 	    # See also commit f153b82121b0 ("Sanitize gcc version header
@@ -837,7 +837,7 @@ function download_and_extract_distro_rpm {
 			      tr '\n' ' ')"
 	for url in "${urls[@]}"; do
 	    case "$distro" in
-		CentOS|AlmaLinux)
+		CentOS|AlmaLinux|RockyLinux|Rocky)
 		    wget -q -nc "${url}/kernel-${kver}.src.rpm" && break
 		    ;;
 		UEK)
@@ -852,7 +852,7 @@ function download_and_extract_distro_rpm {
     (
 	cd "${tmpdir}" &&
 	    case "$distro" in
-		CentOS|AlmaLinux)
+		CentOS|AlmaLinux|RockyLinux|Rocky)
 		    rpm2cpio "${kernel_downloads}/kernel-${kver}.src.rpm" |
 			cpio -i --make-directories --quiet &&
 			tar xaf "linux-${kver}"*.tar.* &&
