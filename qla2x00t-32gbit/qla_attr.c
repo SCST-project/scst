@@ -17,7 +17,9 @@ static int qla24xx_vport_disable(struct fc_vport *, bool);
 
 static ssize_t
 qla2x00_sysfs_read_fw_dump(struct file *filp, struct kobject *kobj,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 2))
 			   struct bin_attribute *bin_attr,
 #else
 			   const struct bin_attribute *bin_attr,
@@ -62,7 +64,9 @@ qla2x00_sysfs_read_fw_dump(struct file *filp, struct kobject *kobj,
 
 static ssize_t
 qla2x00_sysfs_write_fw_dump(struct file *filp, struct kobject *kobj,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 2))
 			    struct bin_attribute *bin_attr,
 #else
 			    const struct bin_attribute *bin_attr,
@@ -188,7 +192,9 @@ static const struct bin_attribute sysfs_fw_dump_attr = {
 
 static ssize_t
 qla2x00_sysfs_read_nvram(struct file *filp, struct kobject *kobj,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 2))
 			 struct bin_attribute *bin_attr,
 #else
 			 const struct bin_attribute *bin_attr,
@@ -232,7 +238,9 @@ skip:
 
 static ssize_t
 qla2x00_sysfs_write_nvram(struct file *filp, struct kobject *kobj,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 2))
 			  struct bin_attribute *bin_attr,
 #else
 			  const struct bin_attribute *bin_attr,
@@ -310,7 +318,9 @@ static const struct bin_attribute sysfs_nvram_attr = {
 
 static ssize_t
 qla2x00_sysfs_read_optrom(struct file *filp, struct kobject *kobj,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 2))
 			  struct bin_attribute *bin_attr,
 #else
 			  const struct bin_attribute *bin_attr,
@@ -338,7 +348,9 @@ out:
 
 static ssize_t
 qla2x00_sysfs_write_optrom(struct file *filp, struct kobject *kobj,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 2))
 			   struct bin_attribute *bin_attr,
 #else
 			   const struct bin_attribute *bin_attr,
@@ -380,7 +392,9 @@ static const struct bin_attribute sysfs_optrom_attr = {
 
 static ssize_t
 qla2x00_sysfs_write_optrom_ctl(struct file *filp, struct kobject *kobj,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 2))
 			       struct bin_attribute *bin_attr,
 #else
 			       const struct bin_attribute *bin_attr,
@@ -568,7 +582,9 @@ static const struct bin_attribute sysfs_optrom_ctl_attr = {
 
 static ssize_t
 qla2x00_sysfs_read_vpd(struct file *filp, struct kobject *kobj,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 2))
 		       struct bin_attribute *bin_attr,
 #else
 		       const struct bin_attribute *bin_attr,
@@ -619,7 +635,9 @@ skip:
 
 static ssize_t
 qla2x00_sysfs_write_vpd(struct file *filp, struct kobject *kobj,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 2))
 			struct bin_attribute *bin_attr,
 #else
 			const struct bin_attribute *bin_attr,
@@ -690,7 +708,9 @@ static const struct bin_attribute sysfs_vpd_attr = {
 
 static ssize_t
 qla2x00_sysfs_read_sfp(struct file *filp, struct kobject *kobj,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 2))
 		       struct bin_attribute *bin_attr,
 #else
 		       const struct bin_attribute *bin_attr,
@@ -730,7 +750,9 @@ static const struct bin_attribute sysfs_sfp_attr = {
 
 static ssize_t
 qla2x00_sysfs_write_reset(struct file *filp, struct kobject *kobj,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 2))
 			struct bin_attribute *bin_attr,
 #else
 			const struct bin_attribute *bin_attr,
@@ -878,7 +900,9 @@ static const struct bin_attribute sysfs_reset_attr = {
 
 static ssize_t
 qla2x00_issue_logo(struct file *filp, struct kobject *kobj,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 2))
 			struct bin_attribute *bin_attr,
 #else
 			const struct bin_attribute *bin_attr,
@@ -925,7 +949,9 @@ static const struct bin_attribute sysfs_issue_logo_attr = {
 
 static ssize_t
 qla2x00_sysfs_read_xgmac_stats(struct file *filp, struct kobject *kobj,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 2))
 		       struct bin_attribute *bin_attr,
 #else
 		       const struct bin_attribute *bin_attr,
@@ -992,7 +1018,9 @@ static const struct bin_attribute sysfs_xgmac_stats_attr = {
 
 static ssize_t
 qla2x00_sysfs_read_dcbx_tlv(struct file *filp, struct kobject *kobj,
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 2))
 		       struct bin_attribute *bin_attr,
 #else
 		       const struct bin_attribute *bin_attr,
