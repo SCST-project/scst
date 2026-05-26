@@ -247,7 +247,9 @@ void blk_execute_rq_nowait_backport(struct request *rq, bool at_head)
 #define blk_execute_rq_nowait blk_execute_rq_nowait_backport
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 2))
 static inline unsigned int blk_mq_num_queues(const struct cpumask *mask,
 					     unsigned int max_queues)
 {
@@ -2046,7 +2048,10 @@ static inline int timer_delete(struct timer_list *timer)
  * See also commit 41cb08555c41 ("treewide, timers: Rename from_timer() to
  * timer_container_of()") # v6.16.
  */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) &&		\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 9 ||		\
+	 RHEL_MAJOR -0 == 9 && RHEL_MINOR -0 < 8 ||		\
+	 RHEL_MAJOR -0 == 10 && RHEL_MINOR -0 < 2)
 #define timer_container_of from_timer
 #endif
 
