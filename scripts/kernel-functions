@@ -822,12 +822,51 @@ EOF
     done
 }
 
+function rpm_payload_is_readable {
+    rpm2cpio "$1" >/dev/null 2>&1
+}
+
+function download_valid_rpm {
+    local rpmfile="$1"
+    local tmpfile="${rpmfile}.tmp.$$"
+    local url
+
+    shift
+
+    if [ "$(type -p rpm2cpio)" = "" ]; then
+	echo "Error: rpm2cpio has not been installed." >&2
+	return 1
+    fi
+
+    if [ -e "$rpmfile" ]; then
+	if rpm_payload_is_readable "$rpmfile"; then
+	    return 0
+	fi
+	echo "Removing invalid cached RPM ${kernel_downloads}/${rpmfile}." >&2
+	rm -f "$rpmfile"
+    fi
+
+    for url; do
+	rm -f "$tmpfile"
+	if wget -q -O "$tmpfile" "${url%/}/${rpmfile}"; then
+	    if rpm_payload_is_readable "$tmpfile"; then
+		mv "$tmpfile" "$rpmfile"
+		return 0
+	    fi
+	    echo "Downloaded RPM ${url%/}/${rpmfile} has an invalid payload." >&2
+	fi
+    done
+    rm -f "$tmpfile"
+    return 1
+}
+
 function download_and_extract_distro_rpm {
     [ -n "$1" ] || return $?
     set -- ${1//^/ }
     local kver=$1
     local distro=$2
     local release=$3
+    local rpmfile
 
     mkdir -p "${kernel_downloads}" || return $?
 
@@ -835,21 +874,25 @@ function download_and_extract_distro_rpm {
 	cd "${kernel_downloads}" || exit $?
 	read -a urls -r <<<"$(get_srpm_urls "$distro" "$release" x86_64 |
 			      tr '\n' ' ')"
-	for url in "${urls[@]}"; do
-	    case "$distro" in
-		CentOS|AlmaLinux|RockyLinux|Rocky)
-		    wget -q -nc "${url}/kernel-${kver}.src.rpm" && break
-		    ;;
-		UEK)
-		    wget -q -nc "${url}/kernel-uek-${kver}.src.rpm" && break
-		    ;;
-	    esac
-	done
-    )
+	case "$distro" in
+	    CentOS|AlmaLinux|RockyLinux|Rocky)
+		rpmfile="kernel-${kver}.src.rpm"
+		;;
+	    UEK)
+		rpmfile="kernel-uek-${kver}.src.rpm"
+		;;
+	    *)
+		echo "Error: unknown distro $distro" >&2
+		return 1
+		;;
+	esac
+	download_valid_rpm "$rpmfile" "${urls[@]}"
+    ) || return $?
     local tmpdir=kernel-tree-tmp-$$
     rm -rf "linux-$1" "${tmpdir}"
     mkdir "${tmpdir}" || return $?
     (
+	set -o pipefail
 	cd "${tmpdir}" &&
 	    case "$distro" in
 		CentOS|AlmaLinux|RockyLinux|Rocky)
