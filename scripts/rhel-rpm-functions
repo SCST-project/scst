@@ -41,6 +41,15 @@ function get_srpm_urls() {
 		    echo "https://repo.almalinux.org/vault/${releasever}/BaseOS/Source/Packages/";;
 	    esac
 	    ;;
+	"RockyLinux"|"Rocky")
+	    case $releasever in
+	        [89]*|10*)
+		    echo "https://dl.rockylinux.org/pub/rocky/${releasever}/BaseOS/source/tree/Packages/k/"
+		    echo "https://dl.rockylinux.org/pub/rocky/${releasever}/BaseOS/source/tree/Packages/"
+		    echo "https://dl.rockylinux.org/vault/rocky/${releasever}/BaseOS/source/tree/Packages/k/"
+		    echo "https://dl.rockylinux.org/vault/rocky/${releasever}/BaseOS/source/tree/Packages/";;
+	    esac
+	    ;;
 	"Oracle Linux Server"|"UEK")
 	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/${releaseverminor}/base/${arch}/getPackageSource"
 	    echo "http://public-yum.oracle.com/repo/OracleLinux/OL${releasevermajor}/latest/${arch}/getPackageSource"
@@ -99,6 +108,15 @@ function get_rpm_urls() {
 	    case $releasever in
 	        [89]*|10*)
 		    echo "https://mirror.yandex.ru/almalinux/${releasever}/BaseOS/${arch}/os/Packages/";;
+	    esac
+	    ;;
+	"RockyLinux"|"Rocky")
+	    case $releasever in
+	        [89]*|10*)
+		    echo "https://dl.rockylinux.org/pub/rocky/${releasever}/BaseOS/${arch}/os/Packages/k/"
+		    echo "https://dl.rockylinux.org/pub/rocky/${releasever}/BaseOS/${arch}/os/Packages/"
+		    echo "https://dl.rockylinux.org/vault/rocky/${releasever}/BaseOS/${arch}/os/Packages/k/"
+		    echo "https://dl.rockylinux.org/vault/rocky/${releasever}/BaseOS/${arch}/os/Packages/";;
 	    esac
 	    ;;
 	"Oracle Linux Server"|"UEK")
