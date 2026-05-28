@@ -860,6 +860,28 @@ function download_valid_rpm {
     return 1
 }
 
+function extract_rhel_kernel_archive {
+    local archive kver="$1" stripped_kver topdir
+
+    stripped_kver="${kver%.0.[0-9]*}"
+    for archive in "linux-${kver}"*.tar.* \
+		   "linux-${stripped_kver}"*.tar.* linux-*.tar.*; do
+	[ -e "$archive" ] || continue
+	topdir="$(tar tf "$archive" | sed -n '1{s,/.*,,;p;}')" ||
+	    return $?
+	if [ -z "$topdir" ]; then
+	    echo "Error: empty Linux source archive $archive." >&2
+	    return 1
+	fi
+	tar xaf "$archive" &&
+	    mv "$topdir" "../linux-${kver}"
+	return $?
+    done
+
+    echo "Error: no Linux source archive found for kernel $kver." >&2
+    return 1
+}
+
 function download_and_extract_distro_rpm {
     [ -n "$1" ] || return $?
     set -- ${1//^/ }
@@ -898,12 +920,7 @@ function download_and_extract_distro_rpm {
 		CentOS|AlmaLinux|RockyLinux|Rocky)
 		    rpm2cpio "${kernel_downloads}/kernel-${kver}.src.rpm" |
 			cpio -i --make-directories --quiet &&
-			tar xaf "linux-${kver}"*.tar.* &&
-			if [ -e "linux-${kver}" ]; then
-			    mv "linux-${kver}" ..
-			else
-			    mv "linux-${kver}"*[^z] "../linux-${kver}"
-			fi
+			extract_rhel_kernel_archive "$kver"
 		    ;;
 		UEK)
 		    rpm2cpio "${kernel_downloads}/kernel-uek-${kver}.src.rpm" |
