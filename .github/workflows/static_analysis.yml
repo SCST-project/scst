@@ -1,0 +1,306 @@
+name: Static analysis
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+    inputs:
+      kernel_version:
+        description: Kernel version to pass to scripts/run-regression-tests.
+        required: false
+        default: '7.0'
+        type: string
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ${{github.workflow}}-${{github.event.pull_request.number || github.ref}}
+  cancel-in-progress: true
+
+jobs:
+  sparse_smatch:
+    name: sparse and smatch
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      KERNEL_VERSION: ${{github.event.inputs.kernel_version || '7.0'}}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Select kernel version
+        id: kernel
+        run: |
+          artifact_kernel="$(printf '%s' "${KERNEL_VERSION}" |
+            tr -c 'A-Za-z0-9._-' '-')"
+
+          echo "artifact-name=static-analysis-${artifact_kernel}" \
+            >> "${GITHUB_OUTPUT}"
+          echo "Kernel version: ${KERNEL_VERSION}" >> "${GITHUB_STEP_SUMMARY}"
+
+      - name: Cache kernel sources
+        uses: actions/cache@v5
+        with:
+          path: ~/.cache/scst-kernels
+          key: scst-kernels-${{runner.os}}-${{env.KERNEL_VERSION}}
+          restore-keys: |
+            scst-kernels-${{runner.os}}-
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            bc \
+            bison \
+            build-essential \
+            flex \
+            libelf-dev \
+            libsqlite3-dev \
+            libssl-dev \
+            sparse \
+            wget \
+            xz-utils
+
+      - name: Install smatch
+        run: |
+          git clone --depth=1 https://github.com/error27/smatch.git
+          make -j"$(nproc)" -C smatch
+          sudo BINDIR=/bin SHAREDIR=/home/runner/share make -C smatch install
+
+      - name: Run sparse and smatch
+        run: |
+          set -u
+
+          workdir="${RUNNER_TEMP}/scst-static-analysis"
+          artifactdir="${RUNNER_TEMP}/scst-static-analysis-artifacts"
+          raw_log="${workdir}/run-regression-tests.log"
+          log="${artifactdir}/run-regression-tests.log"
+          path_list="${artifactdir}/scst-analysis-paths.txt"
+
+          append_summary() {
+            printf '%s\n' "$@" >> "${GITHUB_STEP_SUMMARY}"
+          }
+
+          print_progress_log() {
+            awk '
+              /^[[:space:]]*[0-9]+ errors? \/ [0-9]+ warnings?\.$/ {
+                next
+              }
+
+              / info:| warning:| warn:| error:/ {
+                next
+              }
+
+              /^make\[[0-9]+\]: (Entering|Leaving) directory/ {
+                next
+              }
+
+              /^[[:space:]]*(CC|CHECK|LD|MODPOST)[[:space:]\[]/ {
+                next
+              }
+
+              /^[[:space:]]*WARNING:/ {
+                next
+              }
+
+              {
+                print
+              }
+            '
+          }
+
+          build_scst_path_list() {
+            {
+              printf '%s\n' \
+                'drivers/scst/' \
+                'include/scst/' \
+                'dev_handlers/' \
+                'fcst/' \
+                'iscsi-scst/' \
+                'srpt/' \
+                'scst_local/'
+
+              while IFS= read -r -d '' patch; do
+                # shellcheck disable=SC2016
+                awk '
+                  function emit_path(path, alias) {
+                    if (path == "" || path == "/dev/null")
+                      return
+
+                    print path
+                    if (path !~ /[.][ch]$/)
+                      return
+
+                    alias = path
+                    sub(/^drivers\/scst\//, "", alias)
+                    if (alias != path)
+                      print alias
+
+                    alias = path
+                    sub(/^include\/scst\//, "", alias)
+                    if (alias != path)
+                      print alias
+
+                    alias = path
+                    sub(/^drivers\/scsi\/qla2xxx\//, "", alias)
+                    if (alias != path)
+                      print alias
+
+                    alias = path
+                    sub(/^.*\//, "", alias)
+                    if (alias != path)
+                      print alias
+                  }
+
+                  /^\+\+\+ / {
+                    path = $2
+                    sub(/^b\//, "", path)
+                    sub(/^linux-[^/]+\//, "", path)
+                    emit_path(path)
+                  }
+                ' "${patch}"
+              done < <(
+                find "${workdir}" -path "${workdir}/patchdir-*/*" \
+                  -type f -print0
+              )
+            } | sed '/^$/d' | sort -u > "${path_list}"
+          }
+
+          filter_scst_findings() {
+            awk '
+              FILENAME == ARGV[1] {
+                paths[++n] = $0
+                next
+              }
+
+              function normalize(line) {
+                gsub(/ error:/, " warning:", line)
+                gsub(/ warn:/, " warning:", line)
+                return line
+              }
+
+              function is_scst_line(line, i) {
+                for (i = 1; i <= n; i++)
+                  if (index(line, paths[i]) > 0)
+                    return 1
+                return 0
+              }
+
+              /^[[:space:]]*[0-9]+ errors? \/ [0-9]+ warnings?\.$/ {
+                next
+              }
+
+              / warning:| warn:| error:/ {
+                if (is_scst_line($0))
+                  print normalize($0)
+                next
+              }
+            ' "${path_list}" -
+          }
+
+          count_findings() {
+            grep -E -c ' warning:| warn:| error:' "$1" || true
+          }
+
+          rm -rf "${workdir}" "${artifactdir}"
+          mkdir -p "${workdir}" "${artifactdir}" "${HOME}/.cache/scst-kernels"
+
+          set +e
+          ./scripts/run-regression-tests \
+            -l \
+            -q \
+            -c "${HOME}/.cache/scst-kernels" \
+            -d "${workdir}" \
+            "${KERNEL_VERSION}-nc-nb" 2>&1 \
+            | tee "${raw_log}" \
+            | print_progress_log \
+            | tee "${log}"
+          status="${PIPESTATUS[0]}"
+          set -e
+
+          build_scst_path_list
+
+          append_summary "" "### sparse and smatch" ""
+
+          if [ "${status}" -ne 0 ]; then
+            printf '::warning title=Static analysis::%s\n' \
+              "run-regression-tests exited with status ${status}"
+            append_summary \
+              "run-regression-tests exited with status ${status}." \
+              ""
+          fi
+
+          found_outputs=false
+          for output in "${workdir}"/sparse-*-output.txt "${workdir}"/smatch-*-output.txt; do
+            [ -e "${output}" ] || continue
+
+            found_outputs=true
+            title="$(basename "${output}")"
+            analyzer="${title%%-*}"
+            filtered_all="${workdir}/${title%.txt}-scst-all.txt"
+            filtered="${artifactdir}/${title%.txt}-scst-only.txt"
+            filter_scst_findings < "${output}" > "${filtered_all}"
+            awk '!seen[$0]++' "${filtered_all}" > "${filtered}"
+            findings="$(awk 'END { print NR }' "${filtered}")"
+            scst_findings="$(awk 'END { print NR }' "${filtered_all}")"
+            total_findings="$(count_findings "${output}")"
+            duplicate_findings=$((scst_findings - findings))
+            suppressed_findings=$((total_findings - scst_findings))
+
+            printf '%s: %s SCST warnings (%s external, %s duplicates hidden)\n' \
+              "${analyzer}" \
+              "${findings}" \
+              "${suppressed_findings}" \
+              "${duplicate_findings}"
+            append_summary "- ${analyzer}: ${findings} warnings (${title})"
+            hidden_summary="  ${suppressed_findings} external and"
+            hidden_summary+=" ${duplicate_findings} duplicate warnings hidden."
+            append_summary "${hidden_summary}"
+            if [ "${findings}" -gt 0 ]; then
+              printf '===== %s SCST warnings =====\n' "${analyzer}"
+              head -100 "${filtered}"
+              printf '::warning title=%s::%s SCST warnings from %s; see logs.\n' \
+                "${analyzer}" "${findings}" "${analyzer}"
+            fi
+          done
+
+          if [ "${found_outputs}" = false ]; then
+            echo "::warning title=Static analysis::No sparse or smatch output files were produced."
+            append_summary "No sparse or smatch output files were produced."
+          fi
+
+          append_summary \
+            "" \
+            "<details><summary>First findings</summary>" \
+            "" \
+            '```text'
+          for output in "${artifactdir}"/sparse-*-scst-only.txt \
+            "${artifactdir}"/smatch-*-scst-only.txt; do
+            [ -e "${output}" ] || continue
+
+            {
+              printf '===== %s =====\n' "$(basename "${output}")"
+              head -100 "${output}"
+            } >> "${GITHUB_STEP_SUMMARY}"
+          done
+          append_summary '```' "</details>"
+
+          exit 0
+
+      - name: Upload analysis logs
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{steps.kernel.outputs.artifact-name}}
+          path: ${{runner.temp}}/scst-static-analysis-artifacts
+          if-no-files-found: warn
+          retention-days: 14
