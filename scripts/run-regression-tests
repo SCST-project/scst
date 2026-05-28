@@ -39,7 +39,7 @@
 # - Run 'make allmodconfig'.
 # - Run the sparse source code checker on the SCST directory.
 # - Run 'make headers_check'.
-# - Compile the kernel tree.
+# - Optionally compile the patched SCST kernel modules.
 # - Run 'make checkstack'.
 # - Run 'make namespacecheck'.
 # - Run 'make htmldocs'.
@@ -58,14 +58,26 @@
 source "$(dirname "$0")/kernel-functions"
 
 function usage {
-  echo "Usage: $0 [-c <dir>] [-d <dir>] [-f] [-h] [-j <jobs>] [-p <patchdir>] [-q] <kver1> <kver2> ..."
+  echo "Usage: $0 [-c <dir>] [-d <dir>] [-h] [-j <jobs>] [-k] [-l] [-p] [-q] <kver1> <kver2> ..."
   echo "        -c - cache directory for Linux kernel tarballs."
   echo "        -d - directory for temporary regression test files."
   echo "        -h - display this help information."
   echo "        -j - number of jobs that 'make' should run simultaneously."
   echo "        -k - remove temporary files before exiting."
+  echo "        -l - skip local SCST compilation and package build tests."
+  echo "        -p - generate multiple patches instead of one big patch."
   echo "        -q - download kernel sources silently."
   echo "        <kver1> <kver2> ... - kernel versions to test."
+  echo "        Per-kernel suffixes:"
+  echo "        -4 - disable IPv6."
+  echo "        -f - run full kernel checks."
+  echo "        -i - also run sparse on IBM VIO related SCSI code."
+  echo "        -nb - skip patched SCST kernel module compilation."
+  echo "        -nc - skip checkpatch."
+  echo "        -nm - skip smatch."
+  echo "        -ns - skip sparse."
+  echo "        -p - generate multiple patches for this kernel."
+  echo "        -u - enable GENERATING_UPSTREAM_PATCH."
 }
 
 # Test whether the *.patch files in the SCST top-level directory apply cleanly
@@ -652,6 +664,7 @@ do
   run_checkpatch="true"
   run_sparse="true"
   run_smatch="true"
+  run_module_compilation="true"
   ipv6="true"
   global_multiple_patches="${multiple_patches}"
   while true; do
@@ -664,6 +677,7 @@ do
       '-4')  ipv6="false";;
       '-f')  full_check="true";;
       '-i')  ibmvio="true";;
+      '-nb') run_module_compilation="false";;
       '-nc') run_checkpatch="false";;
       '-ns') run_sparse="false";;
       '-nm') run_smatch="false";;
@@ -718,7 +732,11 @@ do
   if [ "${run_smatch}" = "true" ]; then
     run_smatch "$k" "${subdirs[@]}"
   fi
-  compile_kernel "$k" "${subdirs[@]}"
+  if [ "${run_module_compilation}" = "true" ]; then
+    compile_kernel "$k" "${subdirs[@]}"
+  else
+    echo "Skipping patched SCST kernel module compilation."
+  fi
   if [ "${full_check}" = "true" ]; then
     run_headers_check "$k"
     compile_patched_kernel "$k"
