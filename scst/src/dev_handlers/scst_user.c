@@ -2732,6 +2732,17 @@ repeat:
 
 	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
+	/*
+	 * Flush again after unjamming. Unjamming calls sgv_pool_free(), which
+	 * caches the SGV object on the pool LRU instead of freeing it directly.
+	 * The pre-unjam flush above misses these objects. Without this second
+	 * flush, dev_user_free_sg_entries() never fires, the alloc_pages
+	 * ucmd_get() ref is never balanced, and the ucmd stays in ucmd_hash
+	 * indefinitely — causing dev_user_process_cleanup() to loop forever.
+	 */
+	sgv_pool_flush(dev->pool);
+	sgv_pool_flush(dev->pool_clust);
+
 	TRACE_EXIT_RES(res);
 	return res;
 }
