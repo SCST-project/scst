@@ -1719,17 +1719,80 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
  */
 #define __default_gfp(a,...) a
 #define default_gfp(...) __default_gfp(__VA_ARGS__ __VA_OPT__(,) GFP_KERNEL)
+#endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0) &&			\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 18, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 18, 33))
 /*
  * See also commit 2932ba8d9c99 ("slab: Introduce kmalloc_obj() and family") # v7.0.
- * See also commit e4c8b46b924e ("slab: Introduce kmalloc_flex() and family") # v7.0.
+ * See also commit 3bf5e19c804d # v6.18.33.
  */
 #define __alloc_objs(KMALLOC, GFP, TYPE, COUNT)				\
 ({									\
 	const size_t __obj_size = size_mul(sizeof(TYPE), COUNT);	\
 	(TYPE *)KMALLOC(__obj_size, GFP);				\
 })
+#endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+/*
+ * See also commit 2932ba8d9c99 ("slab: Introduce kmalloc_obj() and family") # v7.0.
+ * See also commit 3bf5e19c804d # v6.18.33.
+ */
+#ifdef kmalloc_obj
+#undef kmalloc_obj
+#endif
+#ifdef kmalloc_objs
+#undef kmalloc_objs
+#endif
+#ifdef kzalloc_obj
+#undef kzalloc_obj
+#endif
+#ifdef kzalloc_objs
+#undef kzalloc_objs
+#endif
+#ifdef kvmalloc_obj
+#undef kvmalloc_obj
+#endif
+#ifdef kvmalloc_objs
+#undef kvmalloc_objs
+#endif
+#ifdef kvzalloc_obj
+#undef kvzalloc_obj
+#endif
+#ifdef kvzalloc_objs
+#undef kvzalloc_objs
+#endif
+
+#define kmalloc_obj(VAR_OR_TYPE, ...) \
+	__alloc_objs(kmalloc, default_gfp(__VA_ARGS__), typeof(VAR_OR_TYPE), 1)
+#define kmalloc_objs(VAR_OR_TYPE, COUNT, ...) \
+	__alloc_objs(kmalloc, default_gfp(__VA_ARGS__), typeof(VAR_OR_TYPE), COUNT)
+
+/* All kzalloc aliases for kmalloc_(obj|objs). */
+#define kzalloc_obj(P, ...) \
+	__alloc_objs(kzalloc, default_gfp(__VA_ARGS__), typeof(P), 1)
+#define kzalloc_objs(P, COUNT, ...) \
+	__alloc_objs(kzalloc, default_gfp(__VA_ARGS__), typeof(P), COUNT)
+
+/* All kvmalloc aliases for kmalloc_(obj|objs). */
+#define kvmalloc_obj(P, ...) \
+	__alloc_objs(kvmalloc, default_gfp(__VA_ARGS__), typeof(P), 1)
+#define kvmalloc_objs(P, COUNT, ...) \
+	__alloc_objs(kvmalloc, default_gfp(__VA_ARGS__), typeof(P), COUNT)
+
+/* All kvzalloc aliases for kmalloc_(obj|objs). */
+#define kvzalloc_obj(P, ...) \
+	__alloc_objs(kvzalloc, default_gfp(__VA_ARGS__), typeof(P), 1)
+#define kvzalloc_objs(P, COUNT, ...) \
+	__alloc_objs(kvzalloc, default_gfp(__VA_ARGS__), typeof(P), COUNT)
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+/*
+ * See also commit e4c8b46b924e ("slab: Introduce kmalloc_flex() and family") # v7.0.
+ */
 #define __alloc_flex(KMALLOC, GFP, TYPE, FAM, COUNT)			\
 ({									\
 	const size_t __count = (COUNT);					\
@@ -1740,34 +1803,18 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 	__obj_ptr;							\
 })
 
-#define kmalloc_obj(VAR_OR_TYPE, ...) \
-	__alloc_objs(kmalloc, default_gfp(__VA_ARGS__), typeof(VAR_OR_TYPE), 1)
-#define kmalloc_objs(VAR_OR_TYPE, COUNT, ...) \
-	__alloc_objs(kmalloc, default_gfp(__VA_ARGS__), typeof(VAR_OR_TYPE), COUNT)
 #define kmalloc_flex(VAR_OR_TYPE, FAM, COUNT, ...) \
 	__alloc_flex(kmalloc, default_gfp(__VA_ARGS__), typeof(VAR_OR_TYPE), FAM, COUNT)
 
-/* All kzalloc aliases for kmalloc_(obj|objs|flex). */
-#define kzalloc_obj(P, ...) \
-	__alloc_objs(kzalloc, default_gfp(__VA_ARGS__), typeof(P), 1)
-#define kzalloc_objs(P, COUNT, ...) \
-	__alloc_objs(kzalloc, default_gfp(__VA_ARGS__), typeof(P), COUNT)
+/* All kzalloc aliases for kmalloc_(flex). */
 #define kzalloc_flex(P, FAM, COUNT, ...)		\
 	__alloc_flex(kzalloc, default_gfp(__VA_ARGS__), typeof(P), FAM, COUNT)
 
-/* All kvmalloc aliases for kmalloc_(obj|objs|flex). */
-#define kvmalloc_obj(P, ...) \
-	__alloc_objs(kvmalloc, default_gfp(__VA_ARGS__), typeof(P), 1)
-#define kvmalloc_objs(P, COUNT, ...) \
-	__alloc_objs(kvmalloc, default_gfp(__VA_ARGS__), typeof(P), COUNT)
+/* All kvmalloc aliases for kmalloc_(flex). */
 #define kvmalloc_flex(P, FAM, COUNT, ...) \
 	__alloc_flex(kvmalloc, default_gfp(__VA_ARGS__), typeof(P), FAM, COUNT)
 
-/* All kvzalloc aliases for kmalloc_(obj|objs|flex). */
-#define kvzalloc_obj(P, ...) \
-	__alloc_objs(kvzalloc, default_gfp(__VA_ARGS__), typeof(P), 1)
-#define kvzalloc_objs(P, COUNT, ...) \
-	__alloc_objs(kvzalloc, default_gfp(__VA_ARGS__), typeof(P), COUNT)
+/* All kvzalloc aliases for kmalloc_(flex). */
 #define kvzalloc_flex(P, FAM, COUNT, ...) \
 	__alloc_flex(kvzalloc, default_gfp(__VA_ARGS__), typeof(P), FAM, COUNT)
 #endif
