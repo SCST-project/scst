@@ -1310,9 +1310,13 @@ static __always_inline size_t __must_check size_add(size_t addend1, size_t adden
  * and family") # v7.0.
  */
 
-#if defined(__has_builtin) && __has_builtin(__builtin_counted_by_ref)
+#if defined(__has_builtin)
+#if __has_builtin(__builtin_counted_by_ref)
 #define __flex_counter(FAM)	__builtin_counted_by_ref(FAM)
-#else
+#endif
+#endif
+
+#ifndef __flex_counter
 #define __flex_counter(FAM)	((void *)NULL)
 #endif
 
