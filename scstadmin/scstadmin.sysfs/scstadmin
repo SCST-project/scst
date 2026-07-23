@@ -2838,9 +2838,15 @@ sub applyConfigEnableTargets {
 						$changes++;
 					}
 				} else {
-					if ($driver ne 'copy_manager') {
+					next if ($driver eq 'copy_manager');
+					next if (!defined($$t_attributes{'enabled'}) ||
+						 !$$t_attributes{'enabled'}->{'value'});
+					if ($deletions) {
 						setTargetAttribute($driver, $target, 'enabled', 0);
 						$changes++;
+					} else {
+						print "\t-> Driver/target '$driver/$target' is enabled ".
+						  "but not in configuration. Use -force to disable it.\n";
 					}
 				}
 			}
