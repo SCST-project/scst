@@ -1721,8 +1721,10 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
  * See also commit e19e1b480ac7 ("add default_gfp() helper macro and use it
  * in the new *alloc_obj() helpers") # v7.0.
  */
+#ifndef default_gfp
 #define __default_gfp(a,...) a
 #define default_gfp(...) __default_gfp(__VA_ARGS__ __VA_OPT__(,) GFP_KERNEL)
+#endif
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0) &&			\
@@ -1797,6 +1799,7 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 /*
  * See also commit e4c8b46b924e ("slab: Introduce kmalloc_flex() and family") # v7.0.
  */
+#ifndef __alloc_flex
 #define __alloc_flex(KMALLOC, GFP, TYPE, FAM, COUNT)			\
 ({									\
 	const size_t __count = (COUNT);					\
@@ -1806,6 +1809,7 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 		__set_flex_counter(__obj_ptr->FAM, __count);		\
 	__obj_ptr;							\
 })
+#endif
 
 #define kmalloc_flex(VAR_OR_TYPE, FAM, COUNT, ...) \
 	__alloc_flex(kmalloc, default_gfp(__VA_ARGS__), typeof(VAR_OR_TYPE), FAM, COUNT)
