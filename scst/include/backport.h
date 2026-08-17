@@ -1716,10 +1716,16 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 			sizeof_field(struct __struct, __field), NULL)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0) &&			\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 18, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 18, 39)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 12, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 97))
 /*
  * See also commit e19e1b480ac7 ("add default_gfp() helper macro and use it
  * in the new *alloc_obj() helpers") # v7.0.
+ * See also commit 50c26b461b8e # v6.18.39.
+ * See also commit 62554fc32b08 # v6.12.97.
  */
 #define __default_gfp(a,...) a
 #define default_gfp(...) __default_gfp(__VA_ARGS__ __VA_OPT__(,) GFP_KERNEL)
@@ -1793,9 +1799,15 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 	__alloc_objs(kvzalloc, default_gfp(__VA_ARGS__), typeof(P), COUNT)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0) &&			\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 18, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 18, 39)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 12, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 97))
 /*
  * See also commit e4c8b46b924e ("slab: Introduce kmalloc_flex() and family") # v7.0.
+ * See also commit 2dca62902eb3 # v6.18.39.
+ * See also commit 5be0caeeb9a3 # v6.12.97.
  */
 #define __alloc_flex(KMALLOC, GFP, TYPE, FAM, COUNT)			\
 ({									\
