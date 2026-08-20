@@ -9,202 +9,174 @@
 .SH "DESCRIPTION"
 /etc/iscsi-scstd.conf contains configuration information for the
 .B iscsi-scstd (8)
-command. This is the place, where you configure your iSCSI targets and daemon parameters.
+daemon. This is a legacy format for targets, CHAP accounts, iSNS and iSCSI
+negotiation parameters. Use scstadmin and /etc/scst.conf for new persistent
+configurations.
 .P
-Only lines starting with `#' are ignored. Putting '#' in the middle of a line is disallowed. A line may be extended across multiple lines by making the last character a backslash.
+Directives end at a newline or semicolon. A line whose first non-whitespace
+character is `#' is ignored. Inline comments and backslash continuations are
+not supported.
 .P
-The "Yes" and "No" for parameter values are case sensitive. The parameter names are case insensitive.
+Directive and parameter names are case insensitive. The "Yes" and "No"
+values for target negotiation parameters are case sensitive.
 .P
-The file consists of a global part and zero or more "Target" stanzas. Everything until the first target definition belongs to the global configuration.
+The file consists of a global part and zero or more "Target" stanzas.
+Everything before the first target definition belongs to the global
+configuration.
 
 Here is an example:
+.nf
 
-IncomingUser joe secret
-.br
-OutgoingUser jack secret2
+IncomingUser joe 12charsecret
+OutgoingUser jack 12charsecret2
 
 Target iqn.2007\-05.com.example:storage.disk2.sys1.xyz
-    IncomingUser jim othersecret
+    IncomingUser jim 12charsecret3
     OutgoingUser james yetanothersecret
-    Alias Test
     HeaderDigest None
     DataDigest None
-    MaxConnections 1
     InitialR2T No
     ImmediateData Yes
-    MaxRecvDataSegmentLength 1048576
-    MaxXmitDataSegmentLength 1048576
-    MaxBurstLength 1048576
-    FirstBurstLength 1048576
-    DefaultTime2Wait 2
-    DefaultTime2Retain 20
-    MaxOutstandingR2T 20
-    DataPDUInOrder Yes
-    DataSequenceInOrder Yes
-    ErrorRecoveryLevel 0
+    QueuedCommands 32
+.fi
 .P
-Stanzas start with the word "Target" and the target name. This name must be a globally unique name, as defined by the iSCSI standard : the "iSCSI Qualified Name". The daemon brings the targets up in the order listed.
+Stanzas start with the word "Target" and a globally unique iSCSI target name.
+Use a name format defined by the current iSCSI specification. The daemon
+creates targets in the order listed.
 .SH "GLOBAL OPTIONS"
-Global Options are case sensitive.
+Option names are case insensitive.
 .TP
 .B [IncomingUser <username> <password>]
-The
-.I <username>
-and
-.I <password>
-used during discovery sessions to authenticate iSCSI initiators. Several of those can be specified for discovery. If no
-.B IncomingUser
-is specified, any initiator is allowed to open a discovery session.
-.RS
-HINT: RFC 3720 requires
-.I <password>
-to be 12 characters long. This is enforced e.g. by MS Initiator.
-.RE
+Authenticate initiators during discovery. Multiple incoming accounts are
+supported. If none is specified, discovery sessions do not require
+authentication. The secret must contain at least 12 bytes.
 .TP
 .B [OutgoingUser <username> <password>]
-The
-.I <username>
-and
-.I <password>
-used during discovery sessions to authenticate the target to initiators. Only one outgoing
-.I <username>/<password>
-combination may be specified.
-.RS
-HINT: RFC 3720 requires
-.I <password>
-to be 12 characters long. This is enforced e.g. by MS Initiator.
-.RE
+Authenticate the target to initiators during mutual CHAP discovery. Only one
+outgoing account is supported. A later entry replaces the previous one. The
+secret must contain at least 12 bytes.
 .TP
-.B Target iqn.<yyyy\-mm>.<tld.domain.some.host>[:<identifier>]
-A target definition and the target name. The targets name (the
-.B iSCSI Qualified Name
-) must be a globally unique name (as defined by the iSCSI standard) and has to start with
-.I iqn
-followed by a single dot. The EUI\-64 form is not supported.
-.I <yyyy\-mm>
-is the date (year and month) at which the domain is valid. This has to be followed by a single dot and the reversed domain name.
-The optional
-.I <identifier>
-\- which is freely selectable \- has to be separated by a single colon. For further details please check the iSCSI spec.
-
-Here is an example:
-
-Target iqn.2007\-05.com.example.host:storage.disk2.sys1.xyz
+.B [iSNSServer <address>]
+Configure the iSNS server name or address.
+.TP
+.B [iSNSAccessControl <Yes|No>]
+Enable or disable iSNS access control. The default is
+.BR No .
+.TP
+.B Target <name>
+Start a target stanza. The target name should be a globally unique name in a
+format defined by the current iSCSI specification.
 .SH "TARGET OPTIONS"
-Target options are also case sensitive.
+Option names are case insensitive. The
+.B Yes
+and
+.B No
+values are case sensitive.
 .TP
 .B [IncomingUser <username> <password>]
-The
-.I <username>
-and
-.I <password>
-used to authenticate the iSCSI initiators to this target. It may be different from the username and password in section GLOBAL OPTIONS, which is used for discovery. If you omit the
-.B IncomingUser
-Option, connections are allowed without authentication. A
-.I <password>
-has to be provided, if there is a
-.I <username>
-given. Specifying several different
-.B IncomingUser
-accounts is supported.
+Authenticate initiators logging in to this target. Multiple incoming accounts
+are supported. If none is specified, target login does not require
+authentication. The secret must contain at least 12 bytes.
 .TP
 .B [OutgoingUser <username> <password>]
-The
-.I <username>
-and
-.I <password>
-used to authenticate this iSCSI target to initiators. Only one
-.B
-OutgoingUser
-per target is supported. It may be different from the username and password in section GLOBAL OPTIONS, which is used for discovery. A
-.I <password>
-has to be provided, if there is a
-.I <username>
-given.
+Authenticate this target to initiators during mutual CHAP login. Only one
+outgoing account is supported. A later entry replaces the previous one. The
+secret must contain at least 12 bytes.
 .TP
 .B [Alias <aliasname>]
-This assigns an optional
-.I <aliasname>
-to the target.
+Accepted for compatibility but ignored by the current legacy parser. Configure
+the target alias through scstadmin or the iSCSI sysfs interface.
 .TP
-.B [HeaderDigest <CRC32C|None>]
-Optional. If set to "CRC32C" and the initiator is configured accordingly, the integrity of an iSCSI PDU's header segments will be protected by a CRC32C checksum. The default is "None". Note that header digests are not supported during discovery sessions.
+.B [HeaderDigest <CRC32C|None|CRC32C,None>]
+Offer header digest negotiation. The default is
+.BR None .
+Header digests are not implemented for discovery sessions.
 .TP
-.B [DataDigest <CRC32C|None>]
-Optional. If set to "CRC32C" and the initiator is configured accordingly, the integrity of an iSCSI PDU's data segment will be protected by a CRC32C checksum. The default is "None". Note that data digests are not supported during discovery sessions.
+.B [DataDigest <CRC32C|None|CRC32C,None>]
+Offer data digest negotiation. The default is
+.BR None .
+Data digests are not implemented for discovery sessions.
 .TP
 .B [MaxConnections <value>]
-Optional. The number of connections within a session. Has to be set to "1" (in words: one), which is also the default since MC/S is not supported.
+The fixed and default value is 1; multiple connections per session are not
+supported.
 .TP
 .B [InitialR2T <Yes|No>]
-Optional. If set to "Yes", the initiator has to wait for the target to solicit SCSI data before sending it. Setting it to "No" (default) allows the initiator to send a burst of
-.B FirstBurstLength
-bytes unsolicited right after and/or (depending on the setting of
-.B ImmediateData
-) together with the command. Thus setting it to "No" may improve performance.
+Control whether an initiator must wait for an R2T before sending SCSI data.
+The default is
+.BR No .
 .TP
 .B [ImmediateData <Yes|No>]
-Optional. This allows the initiator to append unsolicited data to a command. To achieve better performance, this should be set to "Yes". Which is the default.
+Control whether an initiator may include unsolicited data with a command.
+The default is
+.BR Yes .
 .TP
 .B [MaxRecvDataSegmentLength <value>]
-Optional. Sets the maximum data segment length that can be received. The
-.I <value>
-should be set to multiples of PAGE_SIZE. Configuring too large values may lead to problems allocating sufficient memory, which in turn may lead to SCSI commands timing out at the initiator host. The default value is the highes possible for current platform (1 or 2 MB).
+Set the maximum received data segment length. The minimum is 512 bytes. The
+default and upper limit are reported by the registered kernel component.
 .TP
 .B [MaxXmitDataSegmentLength <value>]
-Optional. Sets the maximum data segment length that can be sent. The
-.I <value>
-actually used is the minimum of
-.B MaxXmitDataSegmentLength
-and the
-.B MaxRecvDataSegmentLength
-announced by the initiator. The
-.I <value>
-should be set to multiples of PAGE_SIZE. Configuring too large values may lead to problems allocating sufficient memory, which in turn may lead to SCSI commands timing out at the initiator host. The default value is the highes possible for current platform (1 or 2 MB).
+Set the maximum transmitted data segment length. The minimum is 512 bytes.
+The default and upper limit are reported by the registered kernel component;
+the negotiated value is also limited by the initiator.
 .TP
 .B [MaxBurstLength <value>]
-Optional. Sets the maximum amount of either unsolicited or solicited data the initiator may send in a single burst. Any amount of data exceeding this value must be explicitly solicited by the target. The
-.I <value>
-should be set to multiples of PAGE_SIZE. Configuring too large values may lead to problems allocating sufficient memory, which in turn may lead to SCSI commands timing out at the initiator host. The default value is the highes possible for current platform (1 or 2 MB).
+Set the maximum data burst length. The minimum is 512 bytes. The default and
+upper limit are reported by the registered kernel component.
 .TP
 .B [FirstBurstLength <value>]
-Optional. Sets the amount of unsolicited data the initiator may transmit in the first burst of a transfer either with and/or right after the command, depending on the settings of
-.B InitialR2T
-and
-.B ImmediateData
-.
-.I <value>
-should be set to multiples of PAGE_SIZE. Configuring too large values may lead to problems allocating sufficient memory, which in turn may lead to SCSI commands timing out at the initiator host. The default value is the highes possible for current platform (1 or 2 MB).
+Set the maximum unsolicited first burst length. The minimum is 512 bytes. The
+default is 65536 bytes, limited by the maximum reported by the registered
+kernel component.
 .TP
 .B [DefaultTime2Wait <value>]
-Currently not supported.
+The only configurable value is 0.
 .TP
 .B [DefaultTime2Retain <value>]
-Currently not supported.
+The only configurable value is 0.
 .TP
 .B [MaxOutstandingR2T <value>]
-Optional. Controls the maximum number of data transfers the target may request at once, each of up to
-.B MaxBurstLength
-bytes. The default is 20.
+Set the maximum number of outstanding R2T requests. The default is 32 and the
+valid range is 1 through 65535.
 .TP
 .B [DataPDUInOrder <Yes|No>]
-Optional. Has to be set to "Yes" \- which is also the default.
+Control data PDU ordering. The local default is
+.BR No .
 .TP
 .B [DataSequenceInOrder <Yes|No>]
-Optional. Has to be set to "Yes" \- which is also the default.
+Control data sequence ordering. The local default is
+.BR No .
 .TP
 .B [ErrorRecoveryLevel <value>]
-Optional. Has to be set to "0" (in words: zero), which is also the default.
+The fixed and default value is 0.
 .TP
 .B [QueuedCommands <value>]
-Optional. This parameter defines a window of commands an initiator may send and that will be buffered by the target. Depending on your hardware and your (expected) workload, the
-.I value
-may be carefully adjusted. The default value of 32 should be sufficient for most purposes.
-.SH "KNOWN BUGS/LIMITATIONS"
-Currently (as of 0.4.11) not all iSCSI target parameters are used. Header and data digests are not supported during discovery sessions.
-.SH "SEE ALSO"
-.B iscsi-scstd (8)
+Set the command window for each session. The default is 32 and the configured
+range is 1 through 2048, further limited by the registered kernel component.
 .TP
-You should have a look at
-.B RFC 3720
-for all the glory details.
+.B [RspTimeout <value>]
+Set the command response timeout in seconds. The default is 90 and the valid
+range is 2 through 65535.
+.TP
+.B [NopInInterval <value>]
+Set the idle interval in seconds between NOP-In requests. The default is 30,
+the valid range is 0 through 65535, and 0 disables NOP-In requests.
+.TP
+.B [NopInTimeout <value>]
+Set the NOP-In response timeout in seconds. The default is 30 and the valid
+range is 2 through 65535. It should not exceed
+.BR RspTimeout .
+.TP
+.B [MaxSessions <value>]
+Set the maximum concurrent sessions for the target. The default value 0 means
+no limit; the valid range is 0 through 65535.
+.SH "LIMITATIONS"
+Header and data digests are not implemented for discovery sessions.
+.SH "SECURITY"
+This file can contain CHAP secrets and should have restricted ownership and
+permissions. Without an applicable
+.B IncomingUser
+entry, discovery or target login does not require authentication.
+.SH "SEE ALSO"
+.BR iscsi-scstd (8),
+.BR "RFC 7143"
