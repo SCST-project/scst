@@ -27,7 +27,8 @@ and supply the following two config files:
     local current directory ($PWD).
   ABT_JOBS: allows parallel builds -- it's passed as the argument to "make
     -j" when building SCST and the tests.  The default is 1.
-  ABT_KERNELS: kernel version numbers to test SCST against.
+  ABT_KERNELS: kernel version numbers to test SCST against. The maintained
+    project list is in conf/nightly.conf.
   ABT_TMPDIR: absolute path in which temporary files will be stored.
 
 - conf/<tag>.sendmail:  this should be a script that sends an email to the

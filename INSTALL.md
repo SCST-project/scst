@@ -12,11 +12,18 @@ If the following packages have not yet been installed, install these now:
     libelf-dev, libelf-devel or elfutils-libelf-devel
     libperl-dev or perl-devel
     make
+    openssl (if CONFIG_MODULE_SIG is enabled in the target kernel)
     perl
     perl-Data-Dumper
     perl-ExtUtils-MakeMaker (not needed on Debian systems)
     rpm-build (only on RPM-based systems)
     tar
+
+## Supported kernel versions
+
+The maintained list of supported upstream and distribution kernels is the
+`ABT_KERNELS` list in `nightly/conf/nightly.conf`. The GitHub Actions
+regression matrix is a subset and is not the complete support list.
 
 ## Building SCST
 
@@ -75,8 +82,13 @@ following information is present in /etc/scst.conf:
 For more information about scst.conf, see also
 scstadmin/scstadmin.sysfs/man5/scst.conf.5.
 
-Loading the SCST kernel modules and applying the /etc/scst.conf configuration
-file is possible as follows:
+On systems that use systemd, load the SCST kernel modules and apply the
+/etc/scst.conf configuration as follows:
+
+    systemctl restart scst
+
+The installed systemd unit delegates these operations to the SCST init script.
+On systems without systemd, use the init script directly:
 
     /etc/init.d/scst restart
 

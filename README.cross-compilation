@@ -1,6 +1,6 @@
 Cross-compilation is the process of compiling code for one architecture (often
 called the target) on a different system, usually called the host.
-Cross-compilation of SCST is possible as follows:
+Cross-compilation of the SCST kernel modules is possible as follows:
 1. Download the Linux kernel source code and also the SCST source code.
 2. Install the appropriate cross-compiler, e.g. as follows:
 
@@ -17,8 +17,16 @@ Cross-compilation of SCST is possible as follows:
      cd $HOME/software/linux-kernel
      make
 
-5. Cross-compile SCST using any of the supported build methods. An example:
+5. Cross-compile the SCST core modules with the same toolchain. For example:
 
      export KDIR=$HOME/software/linux-kernel
+     export PASS_CC_TO_MAKE=1
+     export CC=${CROSS_COMPILE}gcc
      cd scst.git
-     make rpm
+     make scst
+
+`ARCH` and `CROSS_COMPILE` configure the kernel build. They do not configure
+the user-space build: programs under usr/ use `CC` directly and scstadmin uses
+Perl MakeMaker. Cross-compiling the entire repository or building packages
+therefore also requires a target-aware user-space toolchain and packaging
+environment. `make rpm` by itself is not a generic cross-compilation method.
