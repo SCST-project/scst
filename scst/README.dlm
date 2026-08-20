@@ -14,134 +14,43 @@ scst_dlm.c uses the DLM to keep PR data synchronized across all nodes in
 a cluster.
 
 
-Software Components
--------------------
+Dependencies and deployment
+---------------------------
 
-The following software components are needed by the code in scst_dlm.c:
-* The DLM kernel driver (dlm.ko). This driver is only built if CONFIG_DLM
-  has been set.
-* The DLM control daemon (dlm_controld.pcmk). This daemon passes cluster
-  node IDs and IP addresses to the DLM kernel driver via the configfs
-  interface of the DLM kernel driver.
-* Corosync to manage cluster membership of the cluster nodes and to assign
-  a node ID to each cluster node.
-* A facility to start the DLM control daemon, e.g. Pacemaker.
+The SCST DLM integration requires a kernel built with DLM support and a
+working DLM userspace and cluster-membership stack. SCST consumes the DLM
+interfaces; it does not configure membership, quorum or fencing. Follow the
+documentation shipped with the selected distribution and cluster stack for
+those parts of the deployment.
 
-On most Linux distributions the software packages that contain this software
-have the names kernel, dlm, corosync and pacemaker.
+Do not disable quorum handling or fencing merely to bring up an example.
+Incorrect membership or failed-node exclusion can allow multiple nodes to
+write shared storage without the required coordination and can corrupt data.
+Validate fencing and recovery on a disposable cluster before exporting real
+storage.
 
-NOTE! You might need to apply a DLM bugfix patch, see scst-devel mailing list
-thread https://sourceforge.net/p/scst/mailman/scst-devel/thread/CADHfD59FK6seaammL8b9LM3U3tw5HvYp3kPTk_r1OYkPR7bPhg@mail.gmail.com/#msg34761854
-for more details.
-
-
-DLM Configuration
------------------
-
-The DLM kernel module supports the TCP and SCTP communication protocols. An
-advantage of SCTP for H.A. purposes is that it supports multihoming. One of
-these protocols can be selected via the -r <proto> option of dlm_controld.
-That option can be set via the "args" argument of the Pacemaker dlm_controld
-resource. For more information, see also:
-* The dlm_controld(8) man page.
-* In the "Pacemaker 1.1, Clusters from Scratch" guide, the section "Configure
-  the Cluster for the DLM".
-* The dlm_controld resource agent: /usr/lib/ocf/resource.d/pacemaker/controld
-
-Here is an example of how to set up a cluster with two nodes and how to
-configure and start the DLM control daemon:
- 1. If a network switch is present between the two nodes, enable IPv4 multicast
-    on that switch.
- 2. Copy /etc/corosync/corosync.conf.example into /etc/corosync/corosync.conf
-    and edit that file.
- 3. If a file /etc/default/corosync exists, enable Corosync in that file.
- 4. Start Corosync:
-      systemctl start corosync || /etc/init.d/corosync start
- 5. Check that all configured Corosync rings have two members:
-      corosync-cfgtool -s && { corosync-cmapctl | grep members; }
- 6. Start pcsd:
-      systemctl start pcsd || /etc/init.d/pcsd start
- 7. Set up cluster authentication:
-      pcs cluster auth centos7-vm centos7b-vm
- 8. Start Pacemaker:
-      systemctl start pacemaker || /etc/init.d/pacemaker start
- 9. If the cluster has only two nodes, disable the Pacemaker quorum policy and
-    disable STONITH:
-      crm_attribute -t crm_config -n no-quorum-policy -v ignore
-      crm_attribute -t crm_config -n stonith-enabled -v false
-10. Check the cluster status:
-      pcs status
-11. Create a Pacemaker resource for dlm_controld:
-      pcs resource delete dlm
-      pcs resource create dlm ocf:pacemaker:controld \
-        args="-q0 -f0" allow_stonith_disabled=true \
-        op monitor timeout=60 \
-	--clone interleave=true
-12. Check the Pacemaker status:
-      pcs status
+Every node that accesses the same logical device must use the same stable
+t10_dev_id. Enabling cluster_mode selects DLM-backed persistent-reservation
+handling and may create or join the lockspace derived from that identifier.
 
 
-Startup and Shutdown
---------------------
+Startup and shutdown ordering
+-----------------------------
 
-The startup sequence is as follows:
-* Load the DLM kernel module. If not loaded explicitly, "modprobe scst" will
-  load the DLM kernel module implicitly.
-* Load and configure SCST with all target ports disabled.
-* Enable cluster mode for all SCST devices that can be accessed through more
-  than one cluster node:
-    for x in /sys/kernel/scst_tgt/handlers/*/*/; do
-        echo 1 >$x/cluster_mode &
-    done
-    wait
-* Start Corosync and Pacemaker.
-* Wait until Pacemaker has reached the idle state:
-    pacemaker_dc_status() {
-	local dc
+Use the following ordering as an integration constraint, not as a deployment
+script:
+* Configure and validate cluster membership, quorum, fencing and DLM according
+  to the current cluster-stack documentation.
+* Configure SCST while its target ports remain disabled.
+* Enable cluster_mode only for shared devices and verify that every node uses
+  the same t10_dev_id before enabling target ports.
+* During shutdown, disable target ports and wait for initiator sessions and
+  commands to drain before disabling cluster_mode.
+* Stop the DLM and cluster stack only after SCST has released its lockspaces.
 
-	dc="$(crmadmin -D 2>/dev/null | sed 's/Designated Controller is: //')"
-	[ -n "$dc" ] &&
-	crmadmin -S "$dc" 2>/dev/null |
-	sed 's/^Status of crmd@[^[:blank:]]*:[[:blank:]]\([^[:blank:]]*\).*/\1/'
-    }
-    timeout=300
-    for ((i=0;i<timeout;i++)); do
-	if [ "$(pacemaker_dc_status)" = "S_IDLE" ]; then
-	    echo "Pacemaker reached idle state after $i s"
-	    break
-	fi
-	sleep 1
-    done
-    if [ "$i" = "$timeout" ]; then
-	echo "Pacemaker did not reach the IDLE state in $i s"
-    fi
-* Enable SCST target ports.
-* If no DLM resource has been configured in Pacemaker, start dlm_controld.pcmk
-  explicitly.
-
-The proper shutdown order is as follows:
-* Tell SCST to stop accepting SCSI commands and wait until all initiators have
-  logged out:
-    for x in $(find /sys/kernel/scst_tgt/targets/ -name enabled); do
-        echo 0 > $x &
-    done
-    wait
-    while ls -Ad /sys/kernel/scst_tgt/targets/*/*/sessions/* 2>&1 |
-          grep -vE '/sys/kernel/scst_tgt/targets/(copy_manager|scst_local)/'; do
-        sleep 1
-    done
-* Tell SCST to release the DLM lockspaces:
-    while grep -q '^1$' /sys/kernel/scst_tgt/devices/*/cluster_mode 2>/dev/null
-    do
-        for x in /sys/kernel/scst_tgt/devices/*/cluster_mode; do
-            { [ -e "$x" ] && echo 0 > "$x"; } &
-        done
-        wait
-        sleep 1
-    done
-* Stop Pacemaker and Corosync
-* Unload the SCST kernel modules
-* Unload the DLM kernel driver
+Loading modules, writing cluster_mode, enabling targets and exercising failover
+all change live storage or cluster state. Perform them only with an explicit
+host, device, fencing and recovery plan.
 
 
 Lockspace names
