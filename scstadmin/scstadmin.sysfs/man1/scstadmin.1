@@ -2,7 +2,7 @@
 .\" Copyright 2011 Bart Van Assche <bvanassche@acm.org>. All rights reserved.
 .\" Permission is granted to copy, distribute and/or modify this document
 .\" under the terms of the GNU General Public License, version 2 (GPLv2).
-.TH scstadmin 1 "July 2011" "scstadmin 2.0.0"
+.TH scstadmin 1 "August 2026" "scstadmin 3.11.0-pre"
 .SH NAME
 scstadmin \- administer the configuration of SCST
 .SH SYNOPSIS
@@ -11,9 +11,9 @@ scstadmin \- administer the configuration of SCST
 .SH DESCRIPTION
 SCST consists of multiple kernel modules: the SCST core, SCST target drivers
 and SCST device handlers. The state of each of these kernel modules is
-configurable at runtime. Scstadmin allows query the current state, to modify
-the current state, to save the current state to a file and to restore the SCST
-state from a file. The relevant SCST concepts are:
+configurable at runtime. Scstadmin can query the current state, modify the
+current state, save it to a file and restore it from a file. The relevant SCST
+concepts are:
 .TP
 .B device
 An SCST device represents local storage that is exported via SCST. An SCST
@@ -25,7 +25,7 @@ such device handlers are dev_disk, vdisk_blockio and vdisk_fileio.
 .B target
 An SCST target is an interface that allows a remote system to access the
 storage exported via SCST. Each target is controlled by a target
-driver. Examples of target drivers are iscsi_scst, qla2x00t, ib_srpt and
+driver. Examples of target drivers are iscsi, qla2x00t, ib_srpt and
 scst_local.
 .TP
 .B ALUA
@@ -51,6 +51,16 @@ When writing a config file or listing attributes, include non-key attributes.
 .TP
 .B -noprompt
 Do not prompt for confirmation before modifying the SCST state.
+.TP
+.B -cont_on_err
+Continue processing after an error instead of stopping at the first error.
+.TP
+.B -lip
+Issue a Fibre Channel LIP after configuration changes that support it.
+.TP
+.B -no_lip
+Suppress the LIP requested by
+.BR -issue_lip .
 .PP
 <COMMAND> is one of:
 .TP
@@ -64,7 +74,9 @@ Identical to -h.
 Read and apply the specified configuration file.
 .TP
 .B -check_config <file>
-Verify the syntax of the specified configuration file.
+Parse the specified configuration and validate it against the currently loaded
+SCST sysfs interface without applying the requested configuration. This command
+requires root access and a live SCST sysfs hierarchy.
 .TP
 .B -write_config <file>
 Save the current configuration to the specified file.
@@ -117,6 +129,9 @@ and also the names of all device creation attributes.
 .B -list_dev_attr <device>
 Show name and value of all attributes of the specified device.
 .TP
+.B -list_dgrp_attr <dgrp>
+Show name and value of all attributes of the specified ALUA device group.
+.TP
 .B -list_drv_attr <driver>
 Show name and value of all attributes of the specified target driver.
 .TP
@@ -130,6 +145,9 @@ Show name and value of all attributes of the specified initiator group.
 Show name and value of all attributes of the specified LUN. The LUN number
 either refers to a LUN associated with a target or to a LUN associated with
 an initiator group of a target.
+.TP
+.B -list_init_attr <init> -driver <driver> -target <target> -group <group>
+Show name and value of all attributes of the specified initiator entry.
 .TP
 .B -list_sessions
 Show all active sessions for all targets.
@@ -159,6 +177,9 @@ Set the value of one or more device handler attributes.
 .B -set_dev_attr <device> -attributes <p=v,...>
 Set the value of one or more device attributes.
 .TP
+.B -set_dgrp_attr <dgrp> -attributes <p=v,...>
+Set the value of one or more ALUA device group attributes.
+.TP
 .B -set_drv_attr <driver> -attributes <p=v,...>
 Set the value of one or more target driver attributes.
 .TP
@@ -172,6 +193,10 @@ Set the value of one or more initiator group attributes.
 Set the value of one or more LUN attributes. The LUN number either refers to a
 LUN associated with a target or to a LUN associated with an initiator group of
 a target.
+.TP
+.B -set_init_attr <init> -driver <driver> -target <target> -group <group> \
+     -attributes <p=v,...>
+Set one or more attributes of the specified initiator entry.
 .TP
 .B -add_drv_attr <driver> -attributes <p=v,...>
 Add one or more new attributes to the specified target driver and set these to
@@ -202,6 +227,30 @@ initiator to be notified about the capacity change event.
 .TP
 .B -close_dev <device> -handler <handler>
 Remove the specified device from SCST.
+.TP
+.B -add_dgrp <dgrp>
+Add an ALUA device group.
+.TP
+.B -rem_dgrp <dgrp>
+Remove an ALUA device group.
+.TP
+.B -add_dgrp_dev <device> -dev_group <dgrp>
+Add an SCST device to an ALUA device group.
+.TP
+.B -rem_dgrp_dev <device> -dev_group <dgrp>
+Remove an SCST device from an ALUA device group.
+.TP
+.B -add_tgrp <tgrp> -dev_group <dgrp>
+Add an ALUA target group to a device group.
+.TP
+.B -rem_tgrp <tgrp> -dev_group <dgrp>
+Remove an ALUA target group from a device group.
+.TP
+.B -add_tgrp_tgt <tgt> -dev_group <dgrp> -tgt_group <tgrp>
+Add a target to an ALUA target group.
+.TP
+.B -rem_tgrp_tgt <tgt> -dev_group <dgrp> -tgt_group <tgrp>
+Remove a target from an ALUA target group.
 .TP
 .B -add_target <target> -driver <driver>
 Add a target to a target driver.

@@ -2,13 +2,15 @@
 .\" Copyright 2011 Bart Van Assche <bvanassche@acm.org>. All rights reserved.
 .\" Permission is granted to copy, distribute and/or modify this document
 .\" under the terms of the GNU General Public License, version 2 (GPLv2).
-.TH scst 5 "July 2011" "scstadmin 2.0.0"
+.TH scst 5 "August 2026" "scstadmin 3.11.0-pre"
 .SH NAME
-/etc/default/scst \- Configuration file read by /etc/init.d/scst.
+/etc/default/scst \- Environment file for the SCST service.
 .SH DESCRIPTION
 /etc/default/scst is a configuration file read by the SCST startup script
-/etc/init.d/scst. It contains zero or more variables that control the behavior
-of that startup script. The recognized variables are:
+/etc/init.d/scst. The systemd service also reads this file before invoking the
+startup script. The installer uses /etc/conf.d/scst instead on Gentoo systems.
+The file contains zero or more variables that control service behavior. The
+recognized variable is:
 .TP
 .B ISCSID_OPTIONS
 Specifies which command-line options will be passed to iscsi-scstd by the SCST
@@ -16,13 +18,13 @@ init script when SCST is started. This variable is ignored if no iSCSI target
 entries have been defined in /etc/scst.conf. See also the iscsi-scstd man page
 for more information about the supported command-line options.
 .P
-The format of the /etc/default/scst file is as follows:
+The init script sources this file as a shell fragment. Keep its contents to
+variable assignments and comments. The supported format is as follows:
 .br
 - Blank lines and lines starting with a hash sign (#) are ignored.
 .br
 - All other lines must contain a variable definition using the syntax
-<name>=<value>. If <value> contains blanks, it must be
-surrounded with double quotes.
+<name>=<value>. Quote values that contain blanks or shell metacharacters.
 .P
 An example:
 .IP
@@ -36,5 +38,7 @@ ISCSID_OPTIONS="-u0 -g0 -p3260"
 .IP /etc/default/scst
 Configuration file that controls the behavior of some aspects of
 /etc/init.d/scst.
+.IP /etc/conf.d/scst
+Installation path used instead on Gentoo systems.
 .SH "SEE ALSO"
 scstadmin(1), scst.conf(5), iscsi-scstd(8)
