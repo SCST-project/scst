@@ -1,159 +1,20 @@
 ==============================================
-SCST 3.x Installation on Gentoo Linux
+Historical SCST installation guide for Gentoo
 ==============================================
 
-This howto will get you a working SCST installation on Gentoo Linux, it
-will follow the official howto as much as possible with a few exceptions
-because of Gentoo specifics or my preferences. Most of it will also work
-on other Linux Distributions so my changes from the official howto might
-help you get SCST working on another distro.
+This document previously described an SCST 3.x installation on Gentoo. It is
+retained only as a pointer and is not a current installation procedure. The
+old SVN locations, SCST 3.0 branch, Grsecurity/PaX source workaround, GRUB 1
+assumptions, and host-specific tuning examples were tied to the original
+environment and must not be assumed to describe the current repository.
 
-Prerequisites:
-- A working and up2date Gentoo Linux installation
-- Free storage space
-- Installation of the following packages: gentoo-sources, subversion
-- User with root privileges
-- Read the official iSCSI-SCST howto for more options and information
+Use ../../INSTALL.md for current prerequisites, build, installation, and
+service guidance. Use ../README and iscsi-scst-howto.txt for current iSCSI
+configuration and access-control guidance. Obtain source and release archives
+through the locations documented in ../../README.md and
+iscsi-scst-howto.txt.
 
-Assumptions for the examples used in this howto:
-- User logged on as root
-- Manual build kernel without initramfs
-- Gentoo AMD64 version
-- Grub 1 bootloader (use of GRUB2 should be an easy change)
-- /boot on a separate partition
-- One iSCSI target with 2 LUNS, both LUNS virtual disk files
-- One iSCSI target with one LUN, LUN is a real device
-
-When the above options differ from your environment/setup you will need
-to change some of the commands provided in this howto for things to
-work.
-
-1. Download SCST.
-
-Choose to download a specific branch or the latest development version
-
-a) Latest development version
-  cd /root
-  svn checkout svn://svn.code.sf.net/p/scst/svn/trunk scst
-
-b) Specific branch (3.0 used in example)
-  cd /root
-  svn checkout svn://svn.code.sf.net/p/scst/svn/branches/3.0.x scst
-
-
-2. Build SCST
-
-  ! Important: SCST 3.1.x and trunk: Gentoo Hardened kernels uses
-  Grsec/PaX patchset. If you happen to use one of those kernels
-  (sys-kernel/hardened-sources) you need to change every call
-  "object_is_on_stack" to "object_starts_on_stack" to compile SCST
-  successfully. At the time of writing this there is a single such call
-  in scst/src/scst_lib.c
-
-  cd /root/scst
-  make 2perf
-  make scst scst_install
-  make iscsi iscsi_install
-  make scstadm scstadm_install
-
-
-3. Make a clean config and start SCST
-
-  echo "HANDLER vdisk_fileio {" >> /etc/scst.conf
-  echo "}" >> /etc/scst.conf
-  echo ""  >> /etc/scst.conf
-  echo "TARGET_DRIVER iscsi {"  >> /etc/scst.conf
-  echo "      	enabled 0"  >> /etc/scst.conf
-  echo "}"  >> /etc/scst.conf
-  /etc/init.d/scst start
-
-
-4. Configure SCST
-
-In this example disk01 is a virtual disk that is stored in the file
-/vdisks/vdisk1 and is mounted read_only, disk02 is the same as disk01
-but with file /vdisks/vdisk2 and it has its blocksize increased from 512
-to 4096 (see notes below), and finally disk03 is a real disk used as a
-blockdevice. Both disk01 and disk02 are connected to the same target
-with different luns and disk03 is connected to a different target as
-LUN0, if the allowed_target atttribute is not set the target is open
-to all ip's
-
-  scstadmin -open_dev disk01 -handler vdisk_fileio -attributes filename=/vdisks/vdisk1,read_only
-  scstadmin -open_dev disk02 -handler vdisk_fileio -attributes filename=/vdisks/vdisk2,blocksize=4096
-  scstadmin -open_dev disk03 -handler vdisk_blockio -attributes filename=/dev/sdc1
-  scstadmin -add_target iqn.2011-08.nl.feka:storage.vdisk1 -driver iscsi
-  scstadmin -add_target iqn.2011-08.nl.feka:storage.vdisk2 -driver iscsi
-  scstadmin -add_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -device disk01
-  scstadmin -add_lun 1 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -device disk02
-  scstadmin -add_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk2 -device disk03
-  scstadmin -enable_target iqn.2011-08.nl.feka:storage.vdisk1 -driver iscsi
-  scstadmin -enable_target iqn.2011-08.nl.feka:storage.vdisk2 -driver iscsi
-  scstadmin -set_drv_attr iscsi -attributes enabled=1
-  scstadmin -write_config /etc/scst.conf
-
-
-5. Run SCST automatically at startup
-
-  rc-update add scst default
-
-
-6. Using SCST accesscontrol (optional)
-
-SCST listens on all the targets IP addresses and allows access to any
-initiators per default. There are a couple of ways to restrict access and
-here I will give some examples. For the full documentation see the
-README file in the scst/iscsi-scst/ directory
-
-To make a target accessible on only one IP address do:
-  scstadmin -set_tgt_attr iqn.2011-08.nl.feka:storage.vdisk1 -driver iscsi -attributes allowed_portal=192.168.100.15
-(Remember the IP address is the address of the target machine, not of
- the allowed initiator, you can add multiple entries on the same target
- by repeating the above command, you can also use the wild cards * and ?
- where the ? stands for any single digit)
-
-To make targets only accessible by specific inititators add a group to
-each target and define the allowed inititiators on each group and add
-the lun to the group instead of the target:
-(remove the old lun if it already exists directly under the target)
-  scstadmin -add_group vCenter -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk2
-  scstadmin -add_group ESXi -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1
-  scstadmin -add_init iqn.2011-08.nl.feka:vcenterserver  -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk2 -group vCenter
-  scstadmin -add_init iqn.1998-01.com.vmware:esx1-47f53b1d -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -group ESXi
-  scstadmin -add_init iqn.1998-01.com.vmware:esx2-23e64b45 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -group ESXi
-  scstadmin -rem_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -device disk01
-  scstadmin -rem_lun 1 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -device disk02
-  scstadmin -rem_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk2 -device disk03
-  scstadmin -add_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -group ESXi -device disk01
-  scstadmin -add_lun 1 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk1 -group ESXi -device disk02
-  scstadmin -add_lun 0 -driver iscsi -target iqn.2011-08.nl.feka:storage.vdisk2 -group vCenter -device disk03
-
-
-==============================================
-Notes
-==============================================
-
-SCST's vdisk_fileio handler will use a default blocksize of 512b, this
-is the only safe option for VMware ESXi or older windows versions, for
-best performance with newer windows versions a blocksize of 4096 will be
-much faster.
-
-If you have an Intel CPU that supports SSE4.2 make sure to add the
-crc32c-intel module to the kernel, so iSCSI-SCST will do all digest
-calculations with hardware acceleration. You can find this option in the
-kernel Cryptographic API -> CRC32c INTEL hardware acceleration
-
-It is recommended to increase the read ahead size to at least 512KB on
-the initiators and the target. To do this for dev/sdb and /dev/sdc on
-the scst target do this:
-
-  nano -w /etc/local.d/blockdev.start
-    blockdev --setra 1024 /dev/sdb
-    blockdev --setra 1024 /dev/sdc
-  chmod 775 /etc/local.d/blockdev.start
-(--setra 1024 means 1024x512bytes)
-
-When running a firewall you need to open TCP Port 3260 on the required
-interface, see below example for iptables.
-iptables -A INPUT -p TCP -i eth0 --dport 3260 -m state --state NEW -j ACCEPT
-
+Consult current Gentoo documentation for package, kernel, bootloader, firewall,
+and service integration. Do not apply historical block-device, network, or live
+target configuration commands without reviewing them for the exact host,
+devices, and deployment.
