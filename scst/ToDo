@@ -18,8 +18,6 @@ To be done
    backstorage speed comparing to the target link for current IO
    pattern.
 
- - Fix in-kernel O_DIRECT mode.
-
  - Close integration with Linux initiator SCSI mid-level, including
    queue types (simple, ordered, etc.) and local initiators (sd, st, sg,
    etc.) support. Requires modifications of the kernel.
@@ -37,5 +35,4 @@ To be done
    command was successfully sent to the target card, but later it was
    returned by the card with BUSY completion status).
 
- - Advanced SCSI commands support: COPY, EXTENDED COPY, third party
-   RESERVE, etc.
+ - Advanced SCSI commands support: COPY, third party RESERVE, etc.
