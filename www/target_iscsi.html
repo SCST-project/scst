@@ -55,12 +55,13 @@
 				<a href="http://iscsitarget.sourceforge.net/">IET</a>, but then became a deep rework of it with a lot of fixes and improvements in all areas of
 				performance, stability and functionality.</p>
 
-				<p>The latest improvement was addition of iSER support,
-				thanks a lot to Yan Burman and Mellanox Technologies!</p>
+				<p>iSCSI-SCST also supports iSER, originally contributed by
+				Yan Burman and Mellanox Technologies.</p>
 
-				<p>If you are an IET user before installation carefully read README files of both iSCSI-SCST and
-				the SCST core. You can also use a migration tool developed by Scalable Informatics Inc., which will
-				convert your IET machine to an iSCSI-SCST machine. See README for more details.</p>
+				<p>When migrating from IET, translate the configuration to the current
+				scst.conf grammar and verify device, LUN, authentication and access-control
+				semantics. This repository does not contain or validate an IET-to-SCST
+				conversion tool. See the current iSCSI-SCST README for safety details.</p>
 
 				<p>You can find the latest development version
 				of this driver in the SCST Git repository. See
@@ -75,9 +76,9 @@
 				Starboard Storage.</p>
 
 				<p class="post-footer align-right">
-					<a href="iscsi-scst-howto.txt" class="readmore">HOWTO</a>
-					<a href="http://community.mellanox.com/docs/DOC-1479" class="readmore">iSER HOWTO</a>
-					<a href="SCST_Gentoo_HOWTO.txt" class="readmore">Gentoo HOWTO</a>
+					<a href="https://github.com/SCST-project/scst/blob/master/iscsi-scst/doc/iscsi-scst-howto.txt" class="readmore">HOWTO</a>
+					<a href="https://github.com/SCST-project/scst/blob/master/iscsi-scst/README.iser" class="readmore">iSER README</a>
+					<a href="https://github.com/SCST-project/scst/blob/master/iscsi-scst/doc/SCST_Gentoo_HOWTO.txt" class="readmore">Gentoo note</a>
 					<a href="downloads.html" class="readmore">Download</a>
 					<a href="https://github.com/SCST-project/scst" class="readmore">SCST Git Repository</a>
 				</p>
