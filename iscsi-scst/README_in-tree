@@ -14,15 +14,15 @@ See for more info http://iscsi-scst.sourceforge.net.
 Usage
 -----
 
-See in http://iscsi-scst.sourceforge.net/iscsi-scst-howto.txt how to
-configure iSCSI-SCST.
+See iscsi-scst/doc/iscsi-scst-howto.txt in the SCST source tree for
+configuration instructions.
 
 If you want to use Intel CRC32 offload and have corresponding hardware,
 you should load crc32c-intel module. Then iSCSI-SCST will do all digest
 calculations using this facility.
 
-In 2.0.0 usage of iscsi-scstd.conf as well as iscsi-scst-adm utility is
-obsolete. Use the sysfs interface facilities instead.
+iscsi-scstd.conf and iscsi-scst-adm are legacy interfaces retained for
+compatibility. Use scstadmin and the sysfs interface for new configurations.
 
 The flow of iSCSI-SCST inialization should be as the following:
 
@@ -64,36 +64,26 @@ is /sys/kernel/scst_tgt/targets/iscsi. It has the following entries:
    "AccessControl" attribute, which allows to enable iSNS access
    control. Empty by default.
 
- - allowed_portal[num] - optional attribute, which specifies, on which
-   portals (target's IP addresses) this target will be available. If not
-   specified (default) the target will be available on all portals.
-   As soon as at least one allowed_portal specified, the target will be
-   accessible for initiators only on the specified portals. There might
-   be any number of the allowed_portal attributes. The portals
-   specification in the allowed_portal attributes can be a simple
-   DOS-type patterns, containing '*' and '?' symbols. '*' means match
-   all any symbols, '?' means match only any single symbol. For
-   instance, "10.170.77.2" will match "10.170.7?.*". Additionally, you
-   can use negative sign '!' to revert the value of the pattern. For
-   instance, "10.170.67.2" will match "!10.170.7?.*". See examples
-   below.
+ - isns_entity_name - specifies the source iSCSI name used for iSNS
+   registrations. If empty, the first target name is used.
 
  - enabled - using this attribute you can enable or disable iSCSI-SCST
    accept new connections. It allows to finish configuring global
    iSCSI-SCST attributes before it starts accepting new connections. 0
    by default.
 
+ - internal_portal - May designate one or more existing portals as being
+   internal.  This will eliminate the need to supply a CHAP user/secret
+   during discovery or target login to any targets configured on those
+   portals.  This is particularly useful for internal targets used as
+   part of ALUA configuration.  Multiple addresses may be supplied,
+   separated by space characters.  Empty by default.
+
+ - link_local - if set, makes the response to an IPv6 SendTargets include
+   any link local addresses. Default is set.
+
  - open_state - read-only attribute, which allows to see if the user
    space part of iSCSI-SCST connected to the kernel part.
-
- - per_portal_acl - if set, makes iSCSI-SCST work in the per-portal
-   access control mode. In this mode iSCSI-SCST registers all initiators
-   in SCST core as "initiator_name#portal_IP_address" pattern, like
-   "iqn.2006-10.net.vlnb:ini#10.170.77.2" for initiator
-   iqn.2006-10.net.vlnb connected through portal 10.170.77.2. This mode
-   allows to make particular initiators be able to use only particular
-   portals on the target and don't see/be able to connect through
-   others. See below for more details.
 
  - trace_level - allows to enable and disable various tracing
    facilities. See content of this file for help how to use it.
@@ -129,12 +119,38 @@ Each target subdirectory contains the following entries:
    for outgoing user name. Not exist by default and can be added through
    the "mgmt" entry, see above.
 
+ - allowed_portal[num] - optional attribute, which specifies, on which
+   portals (target's IP addresses) this target will be available. If not
+   specified (default) the target will be available on all portals.
+   As soon as at least one allowed_portal specified, the target will be
+   accessible for initiators only on the specified portals. There might
+   be any number of the allowed_portal attributes. The portals
+   specification in the allowed_portal attributes can be a simple
+   DOS-type patterns, containing '*' and '?' symbols. '*' means match
+   all any symbols, '?' means match only any single symbol. For
+   instance, "10.170.77.2" will match "10.170.7?.*". Additionally, you
+   can use negative sign '!' to revert the value of the pattern. For
+   instance, "10.170.67.2" will match "!10.170.7?.*". See examples
+   below.
+
+ - per_portal_acl - if set, makes iSCSI-SCST work in the per-portal
+   access control mode. In this mode iSCSI-SCST registers all initiators
+   in SCST core as "initiator_name#portal_IP_address" pattern, like
+   "iqn.2006-10.net.vlnb:ini#10.170.77.2" for initiator
+   iqn.2006-10.net.vlnb connected through portal 10.170.77.2. This mode
+   allows to make particular initiators be able to use only particular
+   portals on the target and don't see/be able to connect through
+   others. See below for more details.
+
  - Entries defining default iSCSI parameters values used during iSCSI
    parameters negotiation. Only entries which can be changed or make
    sense are listed there.
 
  - QueuedCommands - defines maximum number of commands queued to any
    session of this target. Default is 32 commands.
+
+ - MaxSessions - defines the maximum number of concurrent sessions for
+   this target. The default value 0 means no limit.
 
  - NopInInterval - defines interval between NOP-In requests, which the
    target will send on idle connections to check if the initiator is
@@ -165,6 +181,10 @@ Each target subdirectory contains the following entries:
    will temporarily redirect login to portal 10.170.77.2 and port 32600.
 
  - tid - TID of this target.
+
+ - alias - TargetAlias of this target.  If not set, it will default to the
+   empty string and no TargetAlias will be reported in LOGIN RESPONSE or iSNS
+   for this target.
 
 Subdirectory "sessions" contains one subdirectory for each connected
 session with name equal to name of the connected initiator.
@@ -212,6 +232,12 @@ Each initiator group subdirectory contains:
 
 See SCST README for info about other attributes.
 
+WARNING: The examples below load kernel modules, start the iSCSI daemon, write
+live SCST sysfs state, create targets and export writable backing paths.
+They include a real SCSI device and /dev/sda5. Do not run them until the
+host, backing storage, initiators, portals and credentials have been
+identified and approved. Replace every example value before use.
+
 Below is a sample script, which configures 1 virtual disk "disk1" using
 /disk1 image and one target iqn.2006-10.net.vlnb:tgt with all default
 parameters:
@@ -223,7 +249,8 @@ modprobe scst_vdisk
 
 echo "add_device disk1 filename=/disk1; nv_cache=1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
 
-service iscsi-scst start
+modprobe iscsi-scst
+iscsi-scstd
 
 echo "add_target iqn.2006-10.net.vlnb:tgt" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
 echo "add disk1 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/luns/mgmt
@@ -241,7 +268,8 @@ modprobe scst_disk
 
 echo "add_device 0:0:1:0" >/sys/kernel/scst_tgt/handlers/dev_disk/mgmt
 
-service iscsi-scst start
+modprobe iscsi-scst
+iscsi-scstd
 
 echo "add_target iqn.2006-10.net.vlnb:tgt" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
 echo "add 0:0:1:0 0" >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt/luns/mgmt
@@ -269,7 +297,8 @@ echo "add_device blockio filename=/dev/sda5" >/sys/kernel/scst_tgt/handlers/vdis
 echo "add_device nullio" >/sys/kernel/scst_tgt/handlers/vdisk_nullio/mgmt
 echo "add_device cdrom" >/sys/kernel/scst_tgt/handlers/vcdrom/mgmt
 
-service iscsi-scst start
+modprobe iscsi-scst
+iscsi-scstd
 
 echo "192.168.1.16 AccessControl" >/sys/kernel/scst_tgt/targets/iscsi/iSNSServer
 echo "add_attribute IncomingUser joeD 12charsecret" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
@@ -307,8 +336,9 @@ echo 1 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.vlnb:tgt1/enabled
 
 echo 1 >/sys/kernel/scst_tgt/targets/iscsi/enabled
 
-The resulting overall SCST sysfs hierarchy with an initiator connected to
-both iSCSI-SCST targets will look like:
+The following example shows the overall SCST sysfs hierarchy with an initiator
+connected to both iSCSI-SCST targets. The exact set of entries depends on the
+configured devices, targets and sessions:
 
 /sys/kernel/scst_tgt
 |-- devices
@@ -352,6 +382,8 @@ both iSCSI-SCST targets will look like:
 |   |   |-- resync_size
 |   |   |-- size_mb
 |   |   |-- t10_dev_id
+|   |   |-- threads_num
+|   |   |-- threads_pool_type
 |   |   |-- type
 |   |   |-- usn
 |   |   `-- write_through
@@ -368,8 +400,6 @@ both iSCSI-SCST targets will look like:
 |   |   |-- resync_size
 |   |   |-- size_mb
 |   |   |-- t10_dev_id
-|   |   |-- threads_num
-|   |   |-- threads_pool_type
 |   |   |-- threads_num
 |   |   |-- threads_pool_type
 |   |   |-- type
@@ -423,7 +453,9 @@ both iSCSI-SCST targets will look like:
 |       |-- IncomingUser
 |       |-- OutgoingUser
 |       |-- enabled
+|       |-- internal_portal
 |       |-- iSNSServer
+|       |-- isns_entity_name
 |       |-- iqn.2006-10.net.vlnb:tgt
 |       |   |-- DataDigest
 |       |   |-- FirstBurstLength
@@ -433,10 +465,13 @@ both iSCSI-SCST targets will look like:
 |       |   |-- MaxBurstLength
 |       |   |-- MaxOutstandingR2T
 |       |   |-- MaxRecvDataSegmentLength
+|       |   |-- MaxSessions
 |       |   |-- MaxXmitDataSegmentLength
 |       |   |-- NopInInterval
+|       |   |-- NopInTimeout
 |       |   |-- QueuedCommands
 |       |   |-- RspTimeout
+|       |   |-- alias
 |       |   |-- enabled
 |       |   |-- ini_groups
 |       |   |   `-- mgmt
@@ -472,7 +507,8 @@ both iSCSI-SCST targets will look like:
 |       |   |       |-- initiator_name
 |       |   |       |-- luns -> ../../luns
 |       |   |       |-- reinstating
-|       |   |       `-- sid
+|       |   |       |-- sid
+|       |   |       `-- thread_pid
 |       |   `-- tid
 |       |-- iqn.2006-10.net.vlnb:tgt1
 |       |   |-- DataDigest
@@ -485,11 +521,14 @@ both iSCSI-SCST targets will look like:
 |       |   |-- MaxBurstLength
 |       |   |-- MaxOutstandingR2T
 |       |   |-- MaxRecvDataSegmentLength
+|       |   |-- MaxSessions
 |       |   |-- MaxXmitDataSegmentLength
 |       |   |-- OutgoingUser
 |       |   |-- NopInInterval
+|       |   |-- NopInTimeout
 |       |   |-- QueuedCommands
 |       |   |-- RspTimeout
+|       |   |-- alias
 |       |   |-- enabled
 |       |   |-- ini_groups
 |       |   |   |-- mgmt
@@ -534,8 +573,10 @@ both iSCSI-SCST targets will look like:
 |       |   |       |-- initiator_name
 |       |   |       |-- luns -> ../../ini_groups/special_ini/luns
 |       |   |       |-- reinstating
-|       |   |       `-- sid
+|       |   |       |-- sid
+|       |   |       `-- thread_pid
 |       |   `-- tid
+|       |-- link_local
 |       |-- mgmt
 |       |-- open_state
 |       |-- trace_level
@@ -553,10 +594,9 @@ of your target and its portals (IP addresses) to remote initiators. This
 control includes both the target's portals SendTargets discovery as well
 as regular LUNs access.
 
-This facility supersedes the obsolete initiators.[allow,deny] method,
-which is going to be removed in one of the future versions.
-
-This facility is available only in the sysfs build of iSCSI-SCST.
+This facility supersedes the legacy initiators.allow and initiators.deny
+files. The current daemon still reads those files, but new configurations
+should use initiator groups and transport access-control attributes.
 
 By default, all portals are available for the initiators.
 
@@ -634,11 +674,11 @@ all target iqn.2006-10.net.vlnb:tgt portals.
 Troubleshooting
 ---------------
 
-If you have any problems, start troubleshooting from looking at the
-kernel and system logs. In the kernel log iSCSI-SCST and SCST core send
-their messages, in the system log iscsi-scstd sends its messages. In
-most Linux distributions both those logs are put to /var/log/messages
-file.
+Start troubleshooting with the kernel and daemon logs. The iSCSI-SCST kernel
+component and SCST core report through the kernel log. iscsi-scstd reports
+through syslog when daemonized and through standard error in foreground mode.
+The journal or file that stores these messages is determined by the host's
+logging configuration; do not assume /var/log/messages.
 
 Then, it might be helpful to increase level of logging. For kernel
 modules you should make the debug build by enabling CONFIG_SCST_DEBUG.
@@ -662,80 +702,29 @@ Also see SCST README file for more details about that issue and ways to
 prevent it.
 
 
-Performance advices
--------------------
+Performance guidance
+--------------------
 
-1. If you use Windows XP or Windows 2003+ as initiators, you can
-consider to decrease TcpAckFrequency parameter to 1. See
-http://support.microsoft.com/kb/328890/ or google for "TcpAckFrequency"
-for more details.
+Measure local backing storage, the storage network, a nullio target, and the
+initiator-visible result separately before tuning. The SCST source
+distribution's README.performance describes this workflow.
 
-2. See how to get the maximum throughput from iSCSI, for instance, at
-http://virtualgeek.typepad.com/virtual_geek/2009/01/a-multivendor-post-to-help-our-mutual-iscsi-customers-using-vmware.html.
-It's about VMware, but its recommendations apply to other environments
-as well.
+QueuedCommands, session and MPIO layout, IRQ and CPU affinity, NIC offloads,
+and initiator TCP settings are workload-, kernel-, and hardware-specific.
+Establish a baseline, change one variable at a time, and validate the result on
+the intended initiators. Do not carry operating-system or adapter tuning from
+an old deployment into a current host without revalidation.
 
-3. ISCSI initiators built in pre-CentOS/RHEL 5 reported to have some
-performance problems. If you use it, it is strongly advised to upgrade.
+Build diagnostics
+-----------------
 
-4. If you are going to use your target in an VM environment, for
-instance as a shared storage with VMware, make sure all your VMs
-connected to the target via *separate* sessions, i.e. each VM has own
-connection to the target, not all VMs connected using a single
-connection. You can check it using SCST sysfs interface. If you
-miss it, you can greatly loose performance of parallel access to your
-target from different VMs. This isn't related to the case if your VMs
-are using the same shared storage, like with VMFS, for instance. In this
-case all your VM hosts will be connected to the target via separate
-sessions, which is enough.
+Select CONFIG_SCST_DEBUG, CONFIG_SCST_TRACING, and CONFIG_SCST_EXTRACHECKS
+through the SCST Kconfig entries. Debugging, tracing, and extra checks add
+logging or validation overhead and should be enabled deliberately.
 
-5. Many dual port network adapters are not able to transfer data
-simultaneously on both ports, i.e. they transfer data via both ports on
-the same speed as via any single port. Thus, using such adapters in MPIO
-configuration can't improve performance. To allow MPIO to have double
-performance you should either use separate network adapters, or find a
-dual-port adapter capable to transfer data simultaneously on both
-ports. You can check it by running 2 iperf's through both ports in
-parallel.
-
-6. Since network offload works much better in the write direction, than
-for reading (simplifying, in the read direction often there's additional
-data copy) in many cases with 10GbE in a single initiator-target pair
-the initiator's CPU is a bottleneck, so you can see the initiator can
-read data on much slower rate, than write. You can check it by watching
-*each particular* CPU load to find out if any of them is close to 100%
-load, including IRQ processing load. Note, many tools like vmstat give
-aggregate load on all CPUs, so with 4 cores 25% corresponds to 100% load
-of any single CPU.
-
-7. For high speed network adapters it can be better if you configure
-them to serve connections, e.g., from initiator on CPU0 and from
-initiator Y on CPU1. Then you can bind threads processing them also to
-CPU0 and CPU1 correspondingly using cpu_mask attribute of their targets
-or security groups. In NUMA-like configurations it can signficantly
-boost IOPS performance.
-
-8. See SCST core's README for more advices. Especially pay attention to
-have io_grouping_type option set correctly.
-
-
-Compilation options
--------------------
-
-There are the following compilation options, that could be commented
-in/out in the kernel's module Makefile:
-
- - CONFIG_SCST_DEBUG - turns on some debugging code, including some logging.
-   Makes the driver considerably bigger and slower, producing large amount of
-   log data.
-
- - CONFIG_SCST_TRACING - turns on ability to log events. Makes the driver
-   considerably bigger and leads to some performance loss.
-
- - CONFIG_SCST_EXTRACHECKS - adds extra validity checks in the various places.
-
- - CONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES - simulates digest failures in
-   random places.
+CONFIG_SCST_ISCSI_DEBUG_DIGEST_FAILURES is an iSCSI Kconfig option that injects
+digest failures for testing initiator recovery. It is not a normal diagnostic
+setting.
 
 
 Credits
@@ -755,4 +744,3 @@ Thanks to:
  * Bart Van Assche <bvanassche@acm.org> for a lot of help
 
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net
-

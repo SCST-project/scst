@@ -128,40 +128,47 @@
 .rm #[ #] #H #V #F C
 .\" ========================================================================
 .\"
-.IX Title "ISCSI_SCST_ADM 1"
+.IX Title "ISCSI_SCST_ADM 8"
 .TH ISCSI_SCST_ADM 8 "2007-05" "iSCSI SCST Target admin" "User Manuals"
 .SH "NAME"
-iscsi-scst-adm \- iSCSI SCST Target Administration Utility.
+iscsi-scst-adm \- legacy iSCSI-SCST runtime administration utility
 .SH "SYNOPSIS"
 .IX Header "SYNOPSIS"
-\&\fBiscsi-scst-adm \-\-op [operation] \-\-tid=[id] [\-\-sid [id]] [\-\-params [key=value,...]]\fR
+\&\fBiscsi-scst-adm [OPTION]\fR
 .SH "DESCRIPTION"
 .IX Header "DESCRIPTION"
-iscsi-scst-adm is used to monitor and modify in real-time the iSCSI SCST Target
-targets.
+iscsi-scst-adm is a legacy client for monitoring and modifying the runtime
+state held by iscsi-scstd. The daemon accepts requests only from clients whose
+user and group IDs are both zero.
+.PP
+The utility does not update /etc/iscsi-scstd.conf, so runtime changes can be
+lost when iscsi-scstd is restarted. Use scstadmin and /etc/scst.conf for new
+configurations.
+.PP
+Account operations place CHAP passwords in process arguments. Take care not to
+expose them through local process inspection or command history.
 .SH "USAGE"
 .IX Header "USAGE"
-You'll have to get target and sessions ids from /proc/scsi_tgt/iscsi.
-Some usage examples can be :
+The utility addresses targets and sessions by numeric ID. Target IDs are
+available under /sys/kernel/scst_tgt/targets/iscsi/*/tid and active session
+IDs under /sys/kernel/scst_tgt/targets/iscsi/*/sessions/*/sid.
+.PP
+For example:
 .PP
 \&\fBiscsi-scst-adm \-\-op show \-\-tid=1\fR
 .PP
-display status of target 1 (see /proc/scsi_tgt/iscsi to get the matching target name)
+display the parameters of target 1.
 .PP
-\&\fBiscsi-scst-adm \-\-op new \-\-tid=2\fR
+\&\fBiscsi-scst-adm \-\-op new \-\-tid=2 \-\-params Name=iqn.2007-05.com.example:target\fR
 .PP
-create dynamically a new target, numbered 2. \s-1CAUTION\s0 : the target will disappear if you restart iscsi-scstd, you'll have to edit /etc/iscsi-scstd.conf to make it permanent!
-.SH "ERROR MESSAGES"
-.IX Header "ERROR MESSAGES"
-iscsi-scst-adm misses error messages. Look carefully at the \s-1STDERR\s0 output : in case of error
-it will send a 3 number error code, ending with \-1, for instance :
-.PP
-iscsi-scstd_request 203 3 \-1
+create runtime target 2 with the specified name. Add it to the persistent
+configuration separately if it must survive a daemon restart.
 .SH "OPTIONS"
 .IX Header "OPTIONS"
 \&\fB\-\-op new \-\-tid=[id] \-\-params Name=[name]\fR
 .PP
-add a new target with [id]. If [id] is zero, the lowest free [id] is allocated automatically to the new target.
+add a new target with [id]. If [id] is zero, the lowest free [id] is
+allocated automatically to the new target.
 .PP
 \&\fB\-\-op delete \-\-tid=[id]\fR
 .PP
@@ -186,15 +193,10 @@ If the session has no connections after
 the operation, the session will be deleted
 automatically.
 .PP
-\&\fB\-\-op delete\fR
-.PP
-stop all activity.
-.PP
 \&\fB\-\-op update \-\-tid=[id] \-\-params=key1=value1,key2=value2,...\fR
 .PP
-change iSCSI \s-1SCST\s0 target parameters of specific
-target with [id]. You can use parameters in iscsi-scstd.conf
-as a key.
+change iSCSI-SCST parameters for target [id]. Parameter names from
+iscsi-scstd.conf can be used as keys.
 .PP
 \&\fB\-\-op new \-\-tid=[id] \-\-user \-\-params=[user]=[name],Password=[pass]\fR
 .PP
@@ -206,13 +208,15 @@ you add a new account for discovery sessions.
 \&\fB\-\-op show \-\-tid=[id] \-\-user\fR
 .PP
 show a list of CHAP accounts.
-If \-\-tid is omitted or [id] is \*(L"0\*(R" (zero), discovery accounts are displayed.
+If \-\-tid is omitted or [id] is \*(L"0\*(R" (zero), discovery accounts
+are displayed.
 .PP
 \&\fB\-\-op show \-\-tid=[id] \-\-user \-\-params=[user]=[name]\fR
 .PP
 show CHAP account information for the account specified by [name].
 [user] can be [IncomingUser] or [OutgoingUser].
-If \-\-tid is omitted or [id] is \*(L"0\*(R" (zero), [name] is supposed to be a discovery account name.
+If \-\-tid is omitted or [id] is \*(L"0\*(R" (zero), [name] is treated as
+a discovery account name.
 .PP
 \&\fB\-\-op delete \-\-tid=[id] \-\-user \-\-params=[user]=[name]\fR
 .PP
@@ -228,22 +232,19 @@ display version and exit
 .PP
 \&\fB\-\-help\fR
 .PP
-display a list of available options and exits
-.SH "KNOWN ISSUES"
-.IX Header "KNOWN ISSUES"
-.IP "\(bu" 4
-iscsi-scst-adm doesn't return any human-readable error message, only error codes.
-.IP "\(bu" 4
-iscsi-scst-adm doesn't modify or read the /etc/iscsi-scstd.conf iscsi-scstd configuration file.
-.IP "\(bu" 4
-iscsi-scst-adm can't use target names or aliases, only the tid found in /proc/scsi_tgt/iscsi.
-.IP "\(bu" 4
-/proc/scsi_tgt/iscsi may list inactive sessions if the initiator doesn't logout properly.
-.PP
+display a list of available options and exit
+.SH "LIMITATIONS"
+.IX Header "LIMITATIONS"
+iscsi-scst-adm accepts numeric target IDs, not target names or aliases, and
+does not read or modify /etc/iscsi-scstd.conf.
+.SH "REPORTING BUGS"
+.IX Header "REPORTING BUGS"
 Report bugs to <scst\-devel@lists.sourceforge.net>.
 .SH "FILES"
 .IX Header "FILES"
-/proc/scsi_tgt/iscsi
+/sys/kernel/scst_tgt/targets/iscsi/*/tid
+.PP
+/sys/kernel/scst_tgt/targets/iscsi/*/sessions/*/sid
 .SH "SEE ALSO"
 .IX Header "SEE ALSO"
 \&\fIiscsi-scstd\fR\|(8),\fIiscsi-scstd.conf\fR\|(5)
