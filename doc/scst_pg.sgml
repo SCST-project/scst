@@ -23,6 +23,12 @@ unified consistent interface between SCSI target drivers, backend device
 handlers and Linux kernel as well as simplifies target drivers
 development as much as possible.
 
+This guide describes SCST architecture. Exact structure layouts, callback
+contracts, execution contexts and state sequences must be taken from the
+current <it>scst/include/scst.h</it> and implementation. For the management
+interface, consult <it>scst/SysfsRules</it> and the current sysfs
+implementation.
+
 It has the following features:
 
 <itemize>
@@ -142,7 +148,9 @@ interaction between SCST, its drivers and Linux SCSI subsystem.
 <p>
 To work with SCST a target driver must register its template in SCST by
 calling <bf/scst_register_target_template()/. The template lets SCST know the
-target driver's entry points. It is defined as the following:
+target driver's entry points. The following historical outline shows the
+main kinds of fields involved. It is not a current complete declaration;
+use <it>scst/include/scst.h</it> for the current layout and callback contracts:
 
 <verb>
 struct scst_tgt_template
@@ -157,8 +165,6 @@ struct scst_tgt_template
 	unsigned xmit_response_atomic:1;
 	unsigned rdy_to_xfer_atomic:1;
 
-	unsigned no_proc_entry:1;
-
 	int max_hw_pending_time;
 
 	int threads_num;
@@ -172,7 +178,7 @@ struct scst_tgt_template
 
 	void (*on_free_cmd) (struct scst_cmd *cmd);
 
-	int (*alloc_data_buf) (struct scst_cmd *cmd);
+	int (*tgt_alloc_data_buf) (struct scst_cmd *cmd);
 
 	void (*preprocessing_done) (struct scst_cmd *cmd);
 
@@ -182,10 +188,6 @@ struct scst_tgt_template
 	void (*task_mgmt_fn_done)(struct scst_mgmt_cmd *mgmt_cmd);
 
 	int (*report_aen) (struct scst_aen *aen);
-
-	int (*read_proc) (struct seq_file *seq, struct scst_tgt *tgt);
-	int (*write_proc) (char *buffer, char **start, off_t offset,
-		int length, int *eof, struct scst_tgt *tgt);
 
 	int (*get_initiator_port_transport_id) (struct scst_session *sess,
 		uint8_t **transport_id);
@@ -215,8 +217,6 @@ SG-vector clustering
 <item><bf/xmit_response_atomic/, <bf/rdy_to_xfer_atomic/ - true, if the
 corresponding function supports execution in the atomic (non-sleeping)
 context.
-
-<item> <bf/no_proc_entry/ - true, if this template doesn't need the entry in /proc
 
 <item> <bf/max_hw_pending_time/ - The maximum time in seconds cmd can
 stay inside the target hardware, i.e. after rdy_to_xfer() and
@@ -264,15 +264,15 @@ called to notify the driver that the command is about to be freed.
 Necessary, because for aborted commands xmit_response() could not be
 called. Could be used on IRQ context. Must be defined.
 
-<item> <bf/int (*alloc_data_buf) (struct scst_cmd *cmd)/ - this function
+<item> <bf/int (*tgt_alloc_data_buf) (struct scst_cmd *cmd)/ - this function
 allows target driver to handle data buffer allocations on its own.
 Target driver doesn't have to always allocate buffer in this function,
 but if it decided to do it, it must check that
 scst_cmd_get_data_buff_alloced() returns 0, otherwise to avoid double
-buffer allocation and memory leaks alloc_data_buf() shall fail. Returns
+buffer allocation and memory leaks tgt_alloc_data_buf() shall fail. Returns
 0 in case of success or < 0 (preferably -ENOMEM) in case of error, or >
 0 if the regular SCST allocation should be done. In case of returning
-successfully, scst_cmd->tgt_data_buf_alloced will be set by SCST. It is
+successfully, scst_cmd->tgt_i_data_buf_alloced will be set by SCST. It is
 possible that both target driver and dev handler request own memory
 allocation. If allocation in atomic context, i.e. scst_cmd_atomic() is
 true, and < 0 is returned, this function will be recalled in thread
@@ -324,15 +324,6 @@ scst_unregister_session() and unreg_done_fn() callback called or before
 scst_unregister_session() returned, if its called in the blocking mode.
 AENs for such sessions should be ignored. Must be defined, if low-level
 protocol supports AENs.
-
-<item> <bf/int (*read_proc) (struct seq_file *seq, struct scst_tgt
-*tgt), int (*write_proc) (char *buffer, char **start, off_t offset,
-int length, int *eof, struct scst_tgt *tgt)/ - those functions can be
-used to export the driver's statistics and other infos to the world
-outside the kernel as well as to get some management commands from it.
-If the driver needs to create additional files in its /proc
-subdirectory, it can use <it/scst_proc_get_tgt_root()/ function to get
-the root proc_dir_entry.
 
 <item> <bf/int (*get_initiator_port_transport_id) (struct scst_session
 *sess, uint8_t **transport_id)/ - this function returns in tr_id the
@@ -541,7 +532,9 @@ requests to them.
 <sect1>Structure <bf/scst_dev_type/
 
 <p>
-Structure <bf/scst_dev_type/ is defined as the following:
+The following historical outline shows the main kinds of fields in
+<bf/scst_dev_type/. It is not a current complete declaration; use
+<it>scst/include/scst.h</it> for the current layout and callback contracts:
 
 <verb>
 struct scst_dev_type
@@ -550,10 +543,8 @@ struct scst_dev_type
 	int type;
 
 	unsigned parse_atomic:1;
-	unsigned alloc_data_buf_atomic:1;
+	unsigned dev_alloc_data_buf_atomic:1;
 	unsigned dev_done_atomic:1;
-
-	unsigned no_proc:1;
 
 	unsigned pr_cmds_notifications:1;
 
@@ -563,21 +554,20 @@ struct scst_dev_type
 	int (*attach) (struct scst_device *dev);
 	void (*detach) (struct scst_device *dev);
 
-	int (*attach_tgt) (struct scst_tgt_device *tgt_dev);
-	void (*detach_tgt) (struct scst_tgt_device *tgt_dev);
+	int (*attach_tgt) (struct scst_tgt_dev *tgt_dev);
+	void (*detach_tgt) (struct scst_tgt_dev *tgt_dev);
 
 	int (*parse) (struct scst_cmd *cmd);
-	int (*alloc_data_buf) (struct scst_cmd *cmd);
+	int (*dev_alloc_data_buf) (struct scst_cmd *cmd);
 	int (*exec) (struct scst_cmd *cmd);
 	int (*dev_done) (struct scst_cmd *cmd);
 	int (*on_free_cmd) (struct scst_cmd *cmd);
 
-	int (*task_mgmt_fn) (struct scst_mgmt_cmd *mgmt_cmd,
+	void (*task_mgmt_fn_received) (struct scst_mgmt_cmd *mgmt_cmd,
+		struct scst_tgt_dev *tgt_dev);
+	void (*task_mgmt_fn_done) (struct scst_mgmt_cmd *mgmt_cmd,
 		struct scst_tgt_dev *tgt_dev);
 
-	int (*read_proc) (struct seq_file *seq, struct scst_dev_type *dev_type);
-	int (*write_proc) (char *buffer, char **start, off_t offset,
-		int length, int *eof, struct scst_dev_type *dev_type);
 }
 </verb>
 
@@ -590,12 +580,9 @@ unique.
 
 <item><bf/type/ - SCSI type of the supported device. Must be defined.
 
-<item><bf/parse_atomic/, <bf/alloc_data_buf_atomic/,
+<item><bf/parse_atomic/, <bf/dev_alloc_data_buf_atomic/,
 <bf/dev_done_atomic/ - true, if the corresponding callback supports
 execution in the atomic (non-sleeping) context.
-
-<item> <bf/no_proc/ - true, if no /proc files should be automatically
-created by SCST for this dev handler
 
 <item> <bf/pr_cmds_notifications/ - should be set if the device wants to
 receive notification of Persistent Reservation commands (PR OUT only)
@@ -625,14 +612,14 @@ device is being attached to the device handler
 <item><bf/void (*detach) (struct scst_device *dev)/ - called when new
 device is being detached from the device handler
 
-<item><bf/int (*attach_tgt) (struct scst_tgt_device *tgt_dev)/ - called
+<item><bf/int (*attach_tgt) (struct scst_tgt_dev *tgt_dev)/ - called
 when new tgt_dev (session) is being attached to the device handler
 
-<item><bf/void (*detach_tgt) (struct scst_tgt_device *tgt_dev)/ - called
+<item><bf/void (*detach_tgt) (struct scst_tgt_dev *tgt_dev)/ - called
 when tgt_dev (session) is being detached from the device handler
 
-<item><bf/int (*parse) (struct scst_cmd *cmd, const struct scst_info_cdb
-*cdb_info)/ - called to parse CDB from the cmd and initialize
+<item><bf/int (*parse) (struct scst_cmd *cmd)/ - called to parse CDB from
+the cmd and initialize
 <it/cmd->bufflen/ and <it/cmd->data_direction/ (both - REQUIRED). Returns the
 command's <it/next state/ or <it/SCST_CMD_STATE_DEFAULT/, if the next default
 state should be used, or <it/SCST_CMD_STATE_NEED_THREAD_CTX/ if the function
@@ -644,7 +631,7 @@ attribute of the cmd, which can be get by scst_cmd_atomic(). It is true
 if the function called in the atomic (non-sleeping) context. Must be
 defined.
 
-<item><bf/int (*alloc_data_buf) (struct scst_cmd *cmd)/ - this function
+<item><bf/int (*dev_alloc_data_buf) (struct scst_cmd *cmd)/ - this function
 allows dev handler to handle data buffer allocations on its own. Returns
 the command's <it/next state/ or <it/SCST_CMD_STATE_DEFAULT/, if the
 next default state should be used, or
@@ -682,7 +669,7 @@ called inside it just before the actual command's execution./
 device handler about the result of the command's execution and perform
 some post processing. If <it/parse()/ function is called, dev_done() is
 <it/guaranteed/ to be called as well. The command's fields
-<it/tgt_resp_flags/ and <it/resp_data_len/ should be set by this
+<it/is_send_status/ and <it/resp_data_len/ should be set by this
 function, but SCST offers good defaults. Pay attention to "atomic"
 attribute of the command, which can be get via scst_cmd_atomic(). It is
 true if the function called in the atomic (non-sleeping) context.
@@ -696,34 +683,12 @@ recalled in the thread context, where sleeping is allowed.
 device handler that the command is about to be freed. Could be called on
 IRQ context.
 
-<item><bf/int (*task_mgmt_fn) (struct scst_mgmt_cmd *mgmt_cmd,  struct
-scst_tgt_dev *tgt_dev)/ - called to execute a task management command.
-Returns:
-
-	<itemize>
-
-	<item><bf/SCST_MGMT_STATUS_SUCCESS/ - the command is done
-	with success, no further actions required
-
-	<item><bf/SCST_MGMT_STATUS_*/ - the command is failed,
-	no further actions required
-
-	<item><bf/SCST_DEV_TM_NOT_COMPLETED/ - regular standard actions
-	for the command should be done
-
-	</itemize>
-
-<bf/NOTE/: for <bf/SCST_ABORT_TASK/ it is called under spinlock!
-
-<item> <bf/int (*read_proc) (struct seq_file *seq, struct scst_tgt
-*tgt), int (*write_proc) (char *buffer, char **start, off_t offset,
-int length, int *eof, struct scst_tgt *tgt)/ - those functions can be
-used to export the driver's statistics and other infos to the world
-outside the kernel as well as to get some management commands from it.
-If the driver needs to create additional files in its /proc
-subdirectory, it can use <it/scst_proc_get_dev_type_root()/ function to
-get the root proc_dir_entry.
-
+<item><bf/task_mgmt_fn_received()/ and <bf/task_mgmt_fn_done()/ notify the
+device handler before and after core task-management processing. They do
+not return a status. Use <it/scst_mgmt_cmd_set_status()/ when the done
+callback detects a problem. The current locking and execution-context
+requirements are documented with these callbacks in
+<it/scst/include/scst.h</it>.
 
 </itemize>
 
@@ -848,7 +813,7 @@ Where:
 <item><bf/initiator_name/ - remote initiator's name, any NULL-terminated
 string, e.g. iSCSI name, which used as the key to found appropriate
 access control group. Could be NULL, then "default" group is used.  The
-groups are set up via /proc interface.
+groups are set up through the SCST sysfs interface.
 
 <item> <bf/tgt_priv/ - pointer to target driver's private data
 
@@ -945,7 +910,7 @@ registration/initialization.
 <p>
 Consider simplified commands processing example. It assumes that target
 driver doesn't need own memory allocation, i.e. not defined
-alloc_data_buf() callback. Example of such target driver is qla2x00t.
+tgt_alloc_data_buf() callback. Example of such target driver is qla2x00t.
 
 The commands processing by SCST started when target driver calls
 <bf/scst_rx_cmd()/. This function returns SCST's command. Then the
@@ -1746,7 +1711,7 @@ to track and limit allocated by one or more SGV caches memory.
 
 <p>
  SGV cache runtime information and statistics is available in
-<it>/proc/scsi_tgt/sgv</it>.
+<it>/sys/kernel/scst_tgt/sgv</it>.
 
 
 <sect> Target driver qla2x00t
@@ -1795,18 +1760,16 @@ some common processing.
 <sect1> Driver initialization
 
 <p>
-On initialization, qla2x00tgt registers its SCST template tgt2x_template
-in the SCST core. Then during template registration SCST core calls
-detect() callback which is function q2t_target_detect().
+On initialization, qla2x00tgt registers its callbacks in qla2xxx by
+calling q2t_target_driver_reg(), which calls
+qla2xxx_tgt_register_driver(). Qla2xxx_tgt_register_driver() stores the
+registered callbacks in variable qla_target.
 
-In this function qla2x00tgt registers its callbacks in qla2xxx by
-calling qla2xxx_tgt_register_driver(). Qla2xxx_tgt_register_driver()
-stores pointer to the being registered callbacks in variable qla_target.
-
-Then q2t_target_detect() calls qla2xxx_add_targets(), which calls for
-each known local FC port (HBA instance) qla_target.tgt_host_action()
-callback with ADD_TARGET action. Then q2t_host_action() calls
-q2t_add_target() which registers SCST target for this FC port.
+Qla2x00tgt then registers its SCST template tgt2x_template in the SCST
+core and calls qla2xxx_add_targets(). The latter calls, for each known
+local FC port (HBA instance), qla_target.tgt_host_action() with the
+ADD_TARGET action. Then q2t_host_action() calls q2t_add_target(), which
+registers the SCST target for this FC port.
 
 If later a new FC port is hot added, qla2x00_probe_one() will also call
 for all new local ports qla_target.tgt_host_action() with ADD_TARGET
@@ -1956,38 +1919,36 @@ are 3 types of builds:
 
 <itemize>
 
-<item> <bf/release/ - has basic amount of logging, suitable for basic
-tracing. Extra checking is disabled in this mode. This is the default
-mode.
+<item> <bf/release/ - has tracing enabled and extra checking disabled.
 
 <item> <bf/debug/ - has full amount of logging and extrachecks enabled.
 Has slower and much bigger binary code, but suitable for advanced
 tracing and debugging. Also in this mode more logging is enabled by
-default.
+default. This is the default mode for a source checkout.
 
-<item> <bf/perf/ - has all logging and extrachecks disables. Intended to
-performance measuremens, including measurements of overhead introduced
-by the logging and extrachecks facilities.
+<item> <bf/perf/ - has tracing, debug logging and extra checks disabled.
+It is intended for performance measurements, including measurements of
+overhead introduced by the logging and extra-checking facilities.
 
 </itemize>
 
-Switch between build modes is done by calling "make x2y", where "x" -
-current build mode and "y" - desired build mode. For instance, to switch
-from release to debug mode you should run "make release2debug".
+Select a build mode with <it/make 2debug/, <it/make 2release/ or
+<it/make 2perf/. The target does not depend on the current build mode.
 
 <sect1> Logging levels management
 
 <p>
-Logging levels management is done using "trace_level" file located in the
-driver's proc interface subdirectory. Each SCST driver has it, except in
-the perf build mode. For instance, for SCST core it's located in
-/proc/scsi_tgt/. For qla2x00t it's located in /proc/scsi_tgt/qla2x00tgt/.
+Logging levels are managed through "trace_level" sysfs attributes when
+tracing or debugging is compiled in. The SCST core attribute is
+<it>/sys/kernel/scst_tgt/trace_level/. Target-driver and device-handler
+attributes are in their respective roots below
+<it>/sys/kernel/scst_tgt/targets/ and <it>/sys/kernel/scst_tgt/handlers/.
 
-Reading from it you can find currently enabled logging levels.
+Reading an attribute shows the currently enabled logging levels.
 
 You can change them by writing in this file, like:
 
-# echo "add scsi" >/proc/scsi_tgt/trace_level
+# echo "add scsi" >/sys/kernel/scst_tgt/trace_level
 
 The following commands are available:
 
@@ -1997,7 +1958,7 @@ The following commands are available:
 
 <item> <bf/del trace_level/ - deletes (disables) the corresponding trace level
 
-<item> <bf/set mask/ - sets all trace levels at ones using a mask, e.g.
+<item> <bf/value mask/ - sets all trace levels at once using a mask, e.g.
 0x1538
 
 <item> <bf/all/ - enables all trace levels
@@ -2006,10 +1967,10 @@ The following commands are available:
 
 <item> <bf/default/ - sets all trace levels in the default value
 
-<item> <bf/dump_prs dev_name/ - dumps Persistent Reservations states for
-device "dev_name"
-
 </itemize>
+
+Persistent Reservation state dumping is exposed separately through the
+per-device <it/dump_prs/ sysfs attribute.
 
 The following trace levels are common for all drivers:
 
@@ -2080,53 +2041,29 @@ available in the release build.
 <sect1> Preparing a debug kernel
 
 <p>
-SCST logging can produce huge amount of logging, which default kernel
-configuration can't cope with, so it needs some extra adjustments.
-
-For that you should change in lib/Kconfig.debug or init/Kconfig
-depending from your kernel version LOG_BUF_SHIFT from "12 21" to "12 25".
-
-Then you should in your .config set CONFIG_LOG_BUF_SHIFT to 25.
+SCST logging can produce a huge amount of output, so size the printk ring
+buffer using facilities supported by the exact target kernel. Current
+kernels document CONFIG_LOG_BUF_SHIFT and the log_buf_len boot parameter
+in Documentation/admin-guide/kernel-parameters.rst. Do not modify a
+kernel Kconfig limit solely to force a historical buffer size.
 
 Also, Linux kernel has a lot of helpful debug facilities, like lockdep,
 which allows to catch various deadlocks, or memory allocation debugging.
 It is recommended to enable them during SCST debugging.
 
-The following options are recommended to be enabled (available depending
-from your kernel version): CONFIG_SLUB_DEBUG, CONFIG_PRINTK_TIME,
-CONFIG_MAGIC_SYSRQ, CONFIG_DEBUG_FS, CONFIG_DEBUG_KERNEL,
-CONFIG_DEBUG_SHIRQ, CONFIG_DETECT_SOFTLOCKUP, CONFIG_DETECT_HUNG_TASK,
-CONFIG_SLUB_DEBUG_ON, CONFIG_SLUB_STATS, CONFIG_DEBUG_PREEMPT,
-CONFIG_DEBUG_RT_MUTEXES, CONFIG_DEBUG_PI_LIST, CONFIG_DEBUG_SPINLOCK,
-CONFIG_DEBUG_MUTEXES, CONFIG_DEBUG_LOCK_ALLOC, CONFIG_PROVE_LOCKING,
-CONFIG_LOCKDEP, CONFIG_LOCK_STAT, CONFIG_DEBUG_SPINLOCK_SLEEP,
-CONFIG_STACKTRACE, CONFIG_DEBUG_BUGVERBOSE, CONFIG_DEBUG_VM,
-CONFIG_DEBUG_VIRTUAL, CONFIG_DEBUG_WRITECOUNT, CONFIG_DEBUG_MEMORY_INIT,
-CONFIG_DEBUG_LIST, CONFIG_DEBUG_SG, CONFIG_DEBUG_NOTIFIERS,
-CONFIG_FRAME_POINTER, CONFIG_FAULT_INJECTION, CONFIG_FAILSLAB,
-CONFIG_FAIL_PAGE_ALLOC, CONFIG_FAIL_MAKE_REQUEST,
-CONFIG_FAIL_IO_TIMEOUT, CONFIG_FAULT_INJECTION_DEBUG_FS,
-CONFIG_FAULT_INJECTION_STACKTRACE_FILTER.
+Select the lock, memory, watchdog, stack-trace and fault-injection
+facilities relevant to the problem from the target kernel's own Kconfig.
+Option names and dependencies differ across kernels supported by SCST;
+consult that kernel's Kconfig help and documentation instead of copying a
+fixed symbol list.
 
 <sect1> Preparing logging subsystem
 
 <p>
-It is recommended that you system logger daemon on the target configured:
-
-<itemize>
-
-<item> To store kernel logs in separate files on the fastest disk you
-have. It will be better if this disk is dedicated for logging or, at
-least, doesn't contain your LUNs data.
-
-<item> To write the kernel logs to the disk in asynchronous manner, i.e.
-without calling fsync() after each written message. Usually, you can
-achieve it, if you add a '-' sign before the corresponding file path in
-your syslog daemon conf file, like:
-
-kern.*                          -/var/log/kern.log
-
-</itemize>
+Configure the target's active journal or syslog implementation to persist
+kernel messages without filtering SCST output. Log paths and
+configuration syntax are distribution-specific. Verify that the complete
+boot log is retained before reproducing the problem.
 
 <sect1> Decoding OOPS messages
 
