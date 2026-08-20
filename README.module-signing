@@ -8,50 +8,49 @@ The purpose of kernel module signatures is to only allow those kernel modules
 to be loaded that have been signed with an approved key. A signed kernel
 module is a kernel module with a digital signature embedded into the module
 stating the owner of the signature created that kernel module. This is a
-security mechanism that was introduced in kernel v3.7. If this mechanism is
-enabled the signature of a kernel module is verified against the public keys
-embedded in the kernel and also against the UEFI public keys. This mechanism
-restricts kernel module loading such that only kernel modules signed with
-certain keys can be loaded.
+security mechanism that was introduced in kernel v3.7. Module signatures are
+verified against trusted public keys available to the running kernel. Whether
+unsigned modules are rejected depends on the kernel configuration, command
+line and platform security policy.
 
 Module Signing and SCST
 -----------------------
-There are two options when using SCST in combination with a kernel that has
-signed kernel modules:
+On systems that use shim and the Machine Owner Key (MOK) mechanism, the
+preferred approach is to keep signature verification enabled and enroll the
+public certificate generated during the SCST build.
 
-* Disable the signature verification mechanism by adding module.sig_enforce=0
-  at the end of GRUB_CMDLINE_LINUX in /etc/default/grub, by updating grub.cfg
-  and by rebooting. grub.cfg can be updated by running e.g. the following
-  command:
-
-  update-bootloader || update-grub || grub2-mkconfig -o /boot/grub2/grub.cfg
-
-* Enable the signature verification mechanism and load the public key that
-  was generated during the SCST build process into the UEFI keyring.
+Permissive module loading is only available if the kernel and platform policy
+allow it. In particular, `module.sig_enforce=0` does not override a kernel
+built with `CONFIG_MODULE_SIG_FORCE`. Follow the distribution-specific Secure
+Boot and module-signing documentation before changing the boot configuration.
 
 Signing SCST Kernel Modules
 ---------------------------
-Build and install SCST as usual. During the build process a public/private
-key pair will be generated in the scst/src/certs directory:
+If `CONFIG_MODULE_SIG=y` is set in the target kernel configuration, the SCST
+build uses openssl to generate a public/private key pair in the scst/src/certs
+directory:
 
 ls -l scst/src/certs/scst_module_key*
--rw-------. 1 bart users 1325 Sep 28 16:42 scst/src/certs/scst_module_key.der
--rw-------. 1 bart users 3272 Sep 28 16:42 scst/src/certs/scst_module_key.priv
 
-Start the process of importing the public key into the UEFI key repository
-as follows:
+The `.der` file is the public certificate and the `.priv` file is the private
+key. Keep the private key secret and never pass it to mokutil. During
+installation, `scripts/sign-modules` signs modules with the target kernel's
+`scripts/sign-file`. If `sign-file` is unavailable, the script reports that
+the modules are not being signed and continues; check the installation output
+before relying on signature enforcement.
+
+On systems that use shim and the Machine Owner Key (MOK) mechanism, start
+importing the public certificate as follows:
 
 mokutil --import scst/src/certs/scst_module_key.der
 
-The mokutil software will ask which password should be used for this key
-during the import process. Since this password will be short-lived, any
-simple password works. Next, verify with mokutil --list-new whether the
-import process has been started. If this is the case, reboot. The bootloader
-will start the EFI MOK manager. Use the menus on the screen to activate the
-SCST kernel module key. After booting has finished, verify whether loading
-and unloading of the main SCST kernel module works:
-
-modprobe scst && modprobe -r scst
+The mokutil software asks for a temporary enrollment password. Next, verify
+with `mokutil --list-new` that the import is pending and reboot. The bootloader
+starts MokManager, where the certificate can be enrolled. Before loading SCST
+modules, use `modinfo -F signer <module.ko>` to inspect the embedded signer.
+This confirms that signer metadata is present; it does not prove that the
+running kernel trusts the certificate. Only test module loading on a host
+where changing SCST module and service state is safe.
 
 See Also
 --------

@@ -10,7 +10,7 @@ follows with clang:
      cd $HOME/software/linux-kernel
      make CC=clang modules_prepare
 
-5. Build SCST using any of the supported build methods. An example:
+4. Build SCST using any of the supported build methods. An example:
 
      export KDIR=$HOME/software/linux-kernel
      export PASS_CC_TO_MAKE=1
