@@ -25,8 +25,9 @@ feature virtual SCSI devices in the SCST environment.
 This document assumes that the reader is familiar with the SCST
 architecture and the states through which SCSI commands go during
 processing in SCST. Module scst_user basically only provides hooks to
-them. Their description could be found on the SCST web page on
-http://scst.sf.net.
+them. See doc/scst_pg.sgml for an architecture overview and verify current
+lifecycle details against scst/include/scst.h and
+scst/src/dev_handlers/scst_user.c.
 
 
 <sect> User space API
@@ -50,21 +51,23 @@ following system calls available:
 
 Device /dev/scst_user could be opened in blocking or non-blocking mode
 using O_NONBLOCK flag. In the blocking mode ioctl()
-SCST_USER_REPLY_GET_CMD function blocks until there is a new subcommand
+SCST_USER_REPLY_AND_GET_CMD function blocks until there is a new subcommand
 to process. In the non-blocking mode if there are no pending subcommands
-SCST_USER_REPLY_GET_CMD function returns immediately with EAGAIN error
+SCST_USER_REPLY_AND_GET_CMD function returns immediately with EAGAIN error
 code, and the user space device handler can use poll() call to get
 notification about new subcommands arrival. The blocking mode is the
 default.
 
-The module scst_user API is defined in scst_user.h file.
+The module scst_user ABI is defined by scst/include/scst_user.h. Structure
+definitions in this document are explanatory copies; use the installed header
+when building a handler and update this document whenever that header changes.
 
 <sect> IOCTL() functions
 
 <p>
-There are following IOCTL functions available. All of them has one
-argument. They all, except SCST_USER_REGISTER_DEVICE return 0 for
-success or -1 in case of error, and errno is set appropriately.
+The following IOCTL functions are available. Their arguments, where
+applicable, are described below. They return 0 for success or -1 in case
+of error, and errno is set appropriately.
 
 <sect1> SCST_USER_REGISTER_DEVICE
 
@@ -82,12 +85,12 @@ struct scst_user_dev_desc
 	uint8_t sgv_disable_clustered_pool;
 	int32_t sgv_single_alloc_pages;
 	int32_t sgv_purge_interval;
-	uint8_t has_own_order_mgmt;
 	struct scst_user_opt opt;
 	uint32_t block_size;
+	uint8_t enable_pr_cmds_notifications;
 	char name[SCST_MAX_NAME];
 	char sgv_name[SCST_MAX_NAME];
-},
+};
 </verb>
 
 where:
@@ -96,11 +99,9 @@ where:
 
 <item> <bf/version_str/ - protocol version, shall be DEV_USER_VERSION.
 
-<item> <bf/license_str/ - license of this module, for instance, "GPL", "GPL v2", or
-   "Proprietary". This field serves the same purpose as macroses
-   EXPORT_SYMBOL/EXPORT_SYMBOL_GPL of the Linux kernel. You can find
-   more info about it, if you ask at license@scst-tgt.com e-mail
-   address.
+<item> <bf/license_str/ - pointer to the handler license string. The kernel
+   accepts only the GPL-compatible strings enumerated by
+   dev_user_check_version() in scst_user.c; usr/fileio uses "GPL".
 
 <item> <bf/type/ - SCSI type of the device.
 
@@ -118,8 +119,8 @@ where:
 <item> <bf/sgv_single_alloc_pages/ - if 0, then the SGV cache for this device will
    work in the set of power 2 size buffers mode. If >0, then the SGV
    cache will work in the fixed size buffers mode. In this case it sets
-   the size of each buffer in pages. See the SGV cache documentation
-   (http://scst.sourceforge.net/sgv_cache.txt) for more details.
+   the size of each buffer in pages. See the SGV cache section in
+   doc/scst_pg.sgml for more details.
 
 <item> <bf/sgv_purge_interval/ - sets the SGV cache purging interval. I.e. an SG
    buffer will be freed if it's unused for time t purge_interval <= t <
@@ -128,24 +129,23 @@ where:
    purging will be disabled. Shrinking by the system's demand will also
    be disabled.
 
-<item> <bf/has_own_order_mgmt/ - set it in non-zero, if device implements own
-   ORDERED commands management, i.e. guarantees commands execution order
-   requirements, specified by SAM.
-
 <item> <bf/opt/ - device options, see SCST_USER_SET_OPTIONS/SCST_USER_GET_OPTIONS below
 
 <item> <bf/block_size/ - block size, shall be divisible by 512 for block devices
+
+<item> <bf/enable_pr_cmds_notifications/ - if nonzero, successful PERSISTENT
+   RESERVE OUT commands are passed to the user-space handler for notification.
 
 <item> <bf/name/ - name of the device
 
 <item> <bf/sgv_name/ - name of SGV cache for this device
 </itemize>
 
-SCST_USER_REGISTER_DEVICE returns registered device's handler or -1
-in case of error, and errno is set appropriately.
+SCST_USER_REGISTER_DEVICE returns 0 on success or -1 in case of error,
+and errno is set appropriately. The registration is associated with the
+open file descriptor.
 
-In order to unregister the device, either call SCST_USER_UNREGISTER_DEVICE
-function, or close on its file descriptor.
+Close the device's file descriptor to unregister it.
 
 
 <sect1> SCST_USER_UNREGISTER_DEVICE
@@ -171,16 +171,20 @@ struct scst_user_opt
 	uint8_t on_free_cmd_type;
 	uint8_t memory_reuse_type;
 	uint8_t partial_transfers_type;
-	uint32_t partial_len;
+	int32_t partial_len;
 
 	uint8_t tst;
+	uint8_t tmf_only;
 	uint8_t queue_alg;
+	uint8_t qerr;
 	uint8_t tas;
 	uint8_t swp;
 	uint8_t d_sense;
 
 	uint8_t has_own_order_mgmt;
-},
+
+	uint8_t ext_copy_remap_supported;
+};
 </verb>
 
 where:
@@ -233,18 +237,12 @@ where:
   <item> <bf/SCST_USER_MEM_REUSE_ALL/ - unlimited memory reuse is possible.
   </itemize>
 
-<item> <bf/partial_transfers_type/ - defines if the user space handler supports
-   partial data transfers, when a SCSI command, which required big data
-   transfer, is broken on several subcommands with smaller data
-   transfers. This allows to improve performance by simultaneous data
-   transfers from/to remote initiator and to/from the underlying storage
-   device as well as lower allocation memory requirements for each
-   (sub)command. All subcommands will have the same unique value in
-   "parent_cmd_h" field and SCST_USER_SUBCOMMAND flag in "partial" field
-   of struct scst_user_scsi_cmd_exec. The final subcommand will also
-   have in that field SCST_USER_SUBCOMMAND_FINAL flag. All the
-   subcommands will have the original unmodified CDB. Possible values
-   are:
+<item> <bf/partial_transfers_type/ and <bf/partial_len/ are retained in
+   the ABI for partial-transfer support. The current implementation does
+   not split SCSI commands into subcommands, so only
+   SCST_USER_PARTIAL_TRANSFERS_NOT_SUPPORTED describes its behavior. The
+   header still defines and the setter accepts these other values, but
+   they do not enable splitting:
 
   <itemize>
   <item> <bf/SCST_USER_PARTIAL_TRANSFERS_NOT_SUPPORTED/ - the partial data
@@ -258,13 +256,16 @@ where:
      are supported without limitations.
   </itemize>
 
-<item> <bf/tst/, <bf/queue_alg/, <bf/tas/, <bf/swp/, <bf/d_sense/ - set values for TST,
-   QUEUE ALGORITHM MODIFIER, TAS, SWP and D_SENSE fields from control mode page correspondingly,
-   see SPC.
+<item> <bf/tst/, <bf/tmf_only/, <bf/queue_alg/, <bf/qerr/, <bf/tas/,
+   <bf/swp/, <bf/d_sense/ - set the corresponding fields from the SCSI control
+   mode page; see SPC.
 
 <item> <bf/has_own_order_mgmt/ - true, if the user space handler has full
    commands execution order management, i.e. guarantees commands execution
    order as required by SAM. False otherwise.
+
+<item> <bf/ext_copy_remap_supported/ - if nonzero, the handler supports
+   SCST_USER_EXT_COPY_REMAP subcommands.
 </itemize>
 
 Flags <it/parse_type/ and <it/on_free_cmd_type/ are designed to improve
@@ -301,7 +302,7 @@ struct scst_user_get_cmd
 	uint32_t cmd_h;
 	uint32_t subcode;
 	union {
-		uint64_t preply;
+		aligned_u64 preply;
 		struct scst_user_sess sess;
 		struct scst_user_scsi_cmd_parse parse_cmd;
 		struct scst_user_scsi_cmd_alloc_mem alloc_cmd;
@@ -309,8 +310,9 @@ struct scst_user_get_cmd
 		struct scst_user_scsi_on_free_cmd on_free_cmd;
 		struct scst_user_on_cached_mem_free on_cached_mem_free;
 		struct scst_user_tm tm_cmd;
+		struct scst_user_ext_copy_remap remap_cmd;
 	};
-},
+};
 </verb>
 
 where:
@@ -350,8 +352,9 @@ struct scst_user_get_multi {
 	int16_t replies_cnt;
 	int16_t replies_done;
 	int16_t cmds_cnt;
-	struct scst_user_get_cmd cmds[0];
-},
+	int16_t pad;
+	struct scst_user_get_cmd cmds[];
+};
 </verb>
 
 where:
@@ -396,8 +399,9 @@ struct scst_user_reply_cmd
 		struct scst_user_scsi_cmd_reply_parse parse_reply;
 		struct scst_user_scsi_cmd_reply_alloc_mem alloc_reply;
 		struct scst_user_scsi_cmd_reply_exec exec_reply;
+		struct scst_user_ext_copy_reply_remap remap_reply;
 	};
-},
+};
 </verb>
 
 where:
@@ -417,20 +421,33 @@ where:
 <verb>
 struct scst_user_scsi_cmd_reply_parse
 {
-	uint8_t queue_type;
-	uint8_t data_direction;
-	uint16_t cdb_len;
-	aligned_i64 lba;
-	uint32_t op_flags;
-	aligned_i64 data_len;
-	int32_t bufflen;
-	int32_t out_bufflen;
-},
+	uint8_t status;
+	union {
+		struct {
+			uint8_t queue_type;
+			uint8_t data_direction;
+			uint16_t cdb_len;
+			aligned_i64 lba;
+			aligned_i64 data_len;
+			int32_t bufflen;
+			uint32_t op_flags;
+			int32_t out_bufflen;
+		};
+		struct {
+			uint8_t sense_len;
+			aligned_u64 psense_buffer;
+		};
+	};
+};
 </verb>
 
 where:
 
 <itemize>
+<item> <bf/status/ - zero for a successful parse. A nonzero value is the SAM
+   status to return; sense_len and psense_buffer then describe optional sense
+   data.
+
 <item> <bf/queue_type/ - SCSI task attribute (queue type). NOTE! In current
    implementation setting changing this field from the provided value
    affects commands execution only when then produced by iSCSI-SCST
@@ -457,6 +474,11 @@ where:
 <item> <bf/bufflen/ - command's buffer length
 
 <item> <bf/out_bufflen/ - command's out buffer length (for bidirectional commands)
+
+<item> <bf/sense_len/ - length of sense data in psense_buffer for a nonzero
+   status
+
+<item> <bf/psense_buffer/ - pointer to sense data for a nonzero status
 </itemize>
 
 <bf/OR/
@@ -464,8 +486,8 @@ where:
 <verb>
 struct scst_user_scsi_cmd_reply_alloc_mem
 {
-	uint64_t pbuf;
-},
+	aligned_u64 pbuf;
+};
 </verb>
 
 where:
@@ -477,22 +499,41 @@ where:
 <bf/OR/
 
 <verb>
+struct scst_user_data_descriptor
+{
+	aligned_u64 usdd_lba;
+	aligned_u64 usdd_blocks;
+};
+
 struct scst_user_scsi_cmd_reply_exec
 {
 	int32_t resp_data_len;
-	uint64_t pbuf;
+	aligned_u64 pbuf;
 
 	uint8_t reply_type;
 
 	uint8_t status;
-	uint8_t sense_len;
-	aligned_u64 psense_buffer;
-},
+	union {
+		struct {
+			uint8_t sense_len;
+			aligned_u64 psense_buffer;
+		};
+		struct {
+			uint16_t ws_descriptors_len;
+			aligned_u64 ws_descriptors;
+		};
+	};
+};
 </verb>
 
 where:
 
 <itemize>
+<item> <bf/usdd_lba/ - first LBA of a WRITE SAME range
+
+<item> <bf/usdd_blocks/ - number of blocks in the range. The descriptor array
+   must end with an entry whose usdd_blocks value is zero.
+
 <item> <bf/resp_data_len/ - length of the response data
 
 <item> <bf/pbuf/ - pointer to command's data buffer. Used only when in the
@@ -519,6 +560,11 @@ where:
        memory can be safely reused for other needs.
 
    <item> <bf/SCST_EXEC_REPLY_COMPLETED/ - the user space handler completed the command
+
+   <item> <bf/SCST_EXEC_REPLY_DO_WRITE_SAME/ - asks SCST to process a WRITE
+       SAME command using the array of scst_user_data_descriptor entries
+       referenced by ws_descriptors. This value is valid only for WRITE SAME
+       commands and requires a zero status.
    </itemize>
 
 <item> <bf/status/ - SAM status of the commands execution
@@ -526,6 +572,11 @@ where:
 <item> <bf/sense_len/ - length of sense data in psense_buffer, if any
 
 <item> <bf/psense_buffer/ - pointed to sense buffer
+
+<item> <bf/ws_descriptors_len/ - size in bytes of the WRITE SAME descriptor
+   array
+
+<item> <bf/ws_descriptors/ - pointer to the WRITE SAME descriptor array
 </itemize>
 
 
@@ -574,7 +625,7 @@ SCST_USER_GET_EXTENDED_CDB has the following arguments:
 struct scst_user_get_ext_cdb {
 	uint32_t cmd_h;
 	aligned_u64 ext_cdb_buffer;
-},
+};
 </verb>
 
 where:
@@ -600,7 +651,7 @@ It has the following arguments:
 union scst_user_prealloc_buffer {
 	struct scst_user_prealloc_buffer_in in;
 	struct scst_user_prealloc_buffer_out out;
-},
+};
 </verb>
 
 where:
@@ -618,7 +669,7 @@ struct scst_user_prealloc_buffer_in {
 	aligned_u64 pbuf;
 	uint32_t bufflen;
 	uint8_t for_clust_pool;
-},
+};
 </verb>
 
 where:
@@ -638,7 +689,7 @@ Structure <it/scst_user_prealloc_buffer_out/ has the following definition:
 <verb>
 struct scst_user_prealloc_buffer_out {
 	uint32_t cmd_h;
-}
+};
 </verb>
 
 where:
@@ -663,15 +714,15 @@ contains struct scst_user_sess, which is defined as the following:
 <verb>
 struct scst_user_sess
 {
-	uint64_t sess_h;
-	uint64_t lun;
+	aligned_u64 sess_h;
+	aligned_u64 lun;
 	uint16_t threads_num;
 	uint8_t rd_only;
 	uint16_t scsi_transport_version;
 	uint16_t phys_transport_version;
-	char initiator_name[SCST_MAX_NAME];
-	char target_name[SCST_MAX_NAME];
-},
+	char initiator_name[SCST_MAX_EXTERNAL_NAME];
+	char target_name[SCST_MAX_EXTERNAL_NAME];
+};
 </verb>
 
 where:
@@ -739,17 +790,17 @@ the following:
 <verb>
 struct scst_user_scsi_cmd_parse
 {
-	uint64_t sess_h;
+	aligned_u64 sess_h;
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
 	uint16_t cdb_len;
 
 	aligned_i64 lba;
 
-	uint32_t timeout;
-	int32_t bufflen;
 	aligned_i64 data_len;
+	int32_t bufflen;
 	int32_t out_bufflen;
+	int32_t timeout;
 
 	uint32_t op_flags;
 
@@ -762,7 +813,7 @@ struct scst_user_scsi_cmd_parse
 	int32_t expected_out_transfer_len;
 
 	uint32_t sn;
-},
+};
 </verb>
 
 where:
@@ -808,10 +859,14 @@ where:
 <item> <bf/sn/ - command's SN, which might be used for task management
 </itemize>
 
-Bits of scst_cdb_flags can be:
+The bit values are defined by enum scst_cdb_flags in
+scst/include/scst_const.h. Treat that header as authoritative; the common
+parsing flags below are not an exhaustive copy of the enum:
 
 <itemize>
 <item> <bf/SCST_TRANSFER_LEN_TYPE_FIXED/ - this command uses fixed blocks addressing
+
+<item> <bf/SCST_UNKNOWN_LBA/ - the parser could not determine the command LBA
 
 <item> <bf/SCST_SMALL_TIMEOUT/ - this command needs small timeout
 
@@ -821,6 +876,8 @@ Bits of scst_cdb_flags can be:
 
 <item> <bf/SCST_INFO_VALID/ - bits of op_flags are valid
 
+<item> <bf/SCST_LBA_NOT_VALID/ - the command does not have an LBA
+
 <item> <bf/SCST_IMPLICIT_HQ/ - this command is an implicit HEAD OF QUEUE command
 
 <item> <bf/SCST_SKIP_UA/ - Unit Attentions shouldn't be delivered for this command
@@ -829,6 +886,9 @@ Bits of scst_cdb_flags can be:
    forbidden for read-only devices
 
 <item> <bf/SCST_LOCAL_CMD/ - this command can be processed by SCST core.
+
+<item> <bf/SCST_FULLY_LOCAL_CMD/ - the command is handled entirely by the SCST
+   core without device-handler parse or completion callbacks
 </itemize>
 
 In the PARSE state of SCSI commands processing the user space device
@@ -863,7 +923,7 @@ as the following:
 <verb>
 struct scst_user_scsi_cmd_alloc_mem
 {
-	uint64_t sess_h;
+	aligned_u64 sess_h;
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
 	uint16_t cdb_len;
@@ -874,7 +934,7 @@ struct scst_user_scsi_cmd_alloc_mem
 	uint8_t data_direction;
 
 	uint32_t sn;
-},
+};
 </verb>
 
 where:
@@ -912,8 +972,7 @@ caches unused SG vectors for future allocations to improve performance.
 Then, after some time of inactivity or when the system is under memory
 pressure, the cache entries will be freed and the user space handler
 will be notified using SCST_USER_ON_CACHED_MEM_FREE. See the SGV cache
-documentation <url url="http://scst.sourceforge.net/sgv_cache.txt"> for more
-details.
+section in doc/scst_pg.sgml for more details.
 
 Since the SGV cache caches SG vectors, which can be bigger, than actual
 data sizes of SCSI commands, alloc_len field could also be bigger, than
@@ -969,7 +1028,7 @@ following:
 <verb>
 struct scst_user_scsi_cmd_exec
 {
-	uint64_t sess_h;
+	aligned_u64 sess_h;
 
 	uint8_t cdb[SCST_MAX_CDB_SIZE];
 	uint16_t cdb_len;
@@ -979,11 +1038,11 @@ struct scst_user_scsi_cmd_exec
 	aligned_i64 data_len;
 	int32_t bufflen;
 	int32_t alloc_len;
-	uint64_t pbuf;
+	aligned_u64 pbuf;
 	uint8_t queue_type;
 	uint8_t data_direction;
 	uint8_t partial;
-	uint32_t timeout;
+	int32_t timeout;
 
 	aligned_u64 p_out_buf;
 	int32_t out_bufflen;
@@ -993,7 +1052,7 @@ struct scst_user_scsi_cmd_exec
 	uint32_t parent_cmd_h;
 	int32_t parent_cmd_data_len;
 	uint32_t partial_offset;
-},
+};
 </verb>
 
 where:
@@ -1024,14 +1083,8 @@ where:
 <item> <bf/data_direction/ - command's data flow direction, one of SCST_DATA_*
    constants
 
-<item> <bf/partial/ - specifies, if the command is a partial subcommand, could
-   have the following OR'ed flags:
-
-  <itemize>
-  <item> <bf/SCST_USER_SUBCOMMAND/ - set if the command is a partial subcommand
-
-  <item> <bf/SCST_USER_SUBCOMMAND_FINAL/ - set if the subcommand is a final one
-  </itemize>
+<item> <bf/partial/ - reserved for partial-transfer metadata. The current
+   implementation sets it to zero.
 
 <item> <bf/timeout/ - CDB execution timeout
 
@@ -1044,24 +1097,86 @@ where:
 
 <item> <bf/sn/ - command's SN, which might be used for task management
 
-<item> <bf/parent_cmd_h/ - has the same unique value for all partial data
-   transfers subcommands of one original (parent) command
-
-<item> <bf/parent_cmd_data_len/ - for partial data transfers subcommand has the
-   size of the overall data transfer of the original (parent) command
-
-<item> <bf/partial_offset/ - has offset of the subcommand in the original
-   (parent) command
+<item> <bf/parent_cmd_h/, <bf/parent_cmd_data_len/, and
+   <bf/partial_offset/ - reserved for partial-transfer metadata and not
+   populated by the current implementation.
 </itemize>
 
 It is guaranteed that only commands of the same queue_type per session
 can be returned simultaneously.
 
 In case of any error it should be reported via appropriate SAM status
-and sense. If it happens for a subcommand of a partial data transfers
-command, all other subcommands of this command, which already passed the
-the user space handler or will be passed in the future, will be aborted
-by scst_user, the user space handler should ignore them.
+and sense.
+
+
+<sect1> SCST_USER_EXT_COPY_REMAP
+
+<p>
+SCST_USER_EXT_COPY_REMAP asks a handler that advertised
+ext_copy_remap_supported to remap an EXTENDED COPY segment. The payload
+contains the current device session, source and destination sessions, and the
+range to remap:
+
+<verb>
+struct scst_user_ext_copy_data_descr
+{
+	aligned_u64 src_lba;
+	aligned_u64 dst_lba;
+	int32_t data_len;
+};
+
+struct scst_user_ext_copy_remap
+{
+	aligned_u64 sess_h;
+	aligned_u64 src_sess_h;
+	aligned_u64 dst_sess_h;
+	struct scst_user_ext_copy_data_descr data_descr;
+};
+</verb>
+
+where:
+
+<itemize>
+<item> <bf/sess_h/ - session handle of the EXTENDED COPY command
+
+<item> <bf/src_sess_h/ - session handle for the source device
+
+<item> <bf/dst_sess_h/ - session handle for the destination device
+
+<item> <bf/src_lba/ - first source LBA
+
+<item> <bf/dst_lba/ - first destination LBA
+
+<item> <bf/data_len/ - length of the range in bytes
+</itemize>
+
+The corresponding reply payload is:
+
+<verb>
+struct scst_user_ext_copy_reply_remap
+{
+	aligned_u64 remap_descriptors;
+	uint16_t remap_descriptors_len;
+	uint8_t status;
+	uint8_t sense_len;
+	aligned_u64 psense_buffer;
+};
+</verb>
+
+<itemize>
+<item> <bf/remap_descriptors/ - pointer to an array of
+   scst_user_ext_copy_data_descr entries for ranges the handler did not remap
+
+<item> <bf/remap_descriptors_len/ - size of that array in bytes. A zero length
+   reports that the entire segment was remapped.
+
+<item> <bf/status/ - SAM status. A nonzero status reports a remap error instead
+   of leftover ranges.
+
+<item> <bf/sense_len/ - length of optional sense data for a nonzero status
+
+<item> <bf/psense_buffer/ - pointer to the optional sense data
+</itemize>
 
 
 <sect1> SCST_USER_ON_FREE_CMD
@@ -1081,13 +1196,13 @@ as the following:
 <verb>
 struct scst_user_scsi_on_free_cmd
 {
-	uint64_t pbuf;
+	aligned_u64 pbuf;
 	int32_t resp_data_len;
 	uint8_t buffer_cached;
 	uint8_t aborted;
 	uint8_t status;
 	uint8_t delivery_status;
-},
+};
 </verb>
 
 where:
@@ -1111,6 +1226,8 @@ where:
   <item> <bf/SCST_CMD_DELIVERY_SUCCESS/ - delivery succeeded
 
   <item> <bf/SCST_CMD_DELIVERY_FAILED/ - delivery failed
+
+  <item> <bf/SCST_CMD_DELIVERY_ABORTED/ - delivery was aborted
   </itemize>
 </itemize>
 
@@ -1129,10 +1246,10 @@ Payload contains struct scst_user_on_cached_mem_free, which is defined
 as the following:
 
 <verb>
-struct scst_user_scsi_cmd_alloc_mem
+struct scst_user_on_cached_mem_free
 {
-	uint64_t pbuf;
-},
+	aligned_u64 pbuf;
+};
 </verb>
 
 where:
@@ -1152,12 +1269,12 @@ is defined as the following:
 <verb>
 struct scst_user_tm
 {
-	uint64_t sess_h;
+	aligned_u64 sess_h;
 	uint32_t fn;
 	uint32_t cmd_h_to_abort;
 	uint32_t cmd_sn;
 	uint8_t cmd_sn_set;
-},
+};
 </verb>
 
 where:
