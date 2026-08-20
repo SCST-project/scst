@@ -5,6 +5,11 @@ A question that is asked often is how to tune performance. This means how to
 improve the IOPS and/or bandwidth measured at the initiator side. In this
 README it is explained how to optimize storage performance.
 
+WARNING: The examples below issue direct I/O, create and export LUNs, create
+initiator sessions and may activate multipath. Run them only with explicit
+authorization for the target and initiator hosts, transports, configuration
+and disposable backing devices. Verify every placeholder before use.
+
 Local storage
 -------------
 Start with measuring the performance of the local block device(s). IOPS can be
