@@ -1,19 +1,20 @@
-SCST_SCST is a perl module for querying and configuring SCST.
+SCST_SCST is the Perl module used by scstadmin to query and configure SCST
+through sysfs.
 
 
 AVAILABILITY
 
-Currently SCST_SCST ships with SCST itself available from
-http://scst.sourceforge.net.
+SCST_SCST ships in the SCST source tree:
+https://github.com/SCST-project/scst.
 
 
 INSTALLATION
 
-Install SCST_SCST as you would any other perl module:
+The parent scstadmin Makefile builds and installs this module as part of
+scstadmin. To build the module directly, use the standard MakeMaker workflow:
 
    perl Makefile.PL
    make
    make install
 
-NOTE: This version (0.9.00+) requires SCST to be
-compiled with sysfs support!
+At runtime, the SCST core must be loaded and expose /sys/kernel/scst_tgt.

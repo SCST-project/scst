@@ -1,4 +1,6 @@
-# Sample SCST configuration file for scstadmin v2.0.
+# SCST configuration syntax example.
+# Replace every path and fabric identifier before use. Applying this file
+# changes live SCST state and can export the named backing storage.
 
 setup_id 0x1234
 

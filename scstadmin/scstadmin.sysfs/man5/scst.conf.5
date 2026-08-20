@@ -2,7 +2,7 @@
 .\" Copyright 2011 Bart Van Assche <bvanassche@acm.org>. All rights reserved.
 .\" Permission is granted to copy, distribute and/or modify this document
 .\" under the terms of the GNU General Public License, version 2 (GPLv2).
-.TH scst.conf 5 "July 2011" "scstadmin 2.0.0"
+.TH scst.conf 5 "August 2026" "scstadmin 3.11.0-pre"
 .SH NAME
 scst.conf \- Main SCST configuration file.
 .SH DESCRIPTION
@@ -22,14 +22,20 @@ file is as follows:
 .RB ( # )
 are ignored.
 .br
+- Elsewhere, an unescaped hash sign starts a trailing comment. The hash sign,
+the remainder of the line and the character immediately before the hash sign
+are removed. Precede a literal hash sign with a backslash. A backslash used for
+escaping is removed before the configuration is parsed.
+.br
 - All other lines either define an attribute, mark the start of a new section
 or the end of a section.
 .br
 - An attribute definition consists of an attribute name and an attribute
 value.
 .br
-- Attribute names consist of a sequence of letters, numbers and underscore
-characters (_). Attribute names must not contain blanks.
+- Attribute names must not contain blanks. Names and values are validated
+against the interfaces exported by the currently loaded SCST modules when the
+configuration is checked or applied.
 .br
 - An attribute name may occur several times in a section with different values.
 .br
@@ -44,19 +50,20 @@ marks the start of a new section.
 .B }
 marks the end of a section.
 .P
-The recognized section names and their arguments are:
+The recognized entries and their arguments are:
 .TP
 .B "HANDLER <handler>"
 Defines device handler attributes and also which devices are associated with
 the specified device handler. <handler> is the name of an SCST device handler.
 .TP
 .B "DEVICE <name>"
-Defines the name and attributes of an SCST device.  <name> is either a H:C:I:L
-quadruplet referring to a local SCSI device or an SCST device name. A
-.B DEVICE
-section is a subsection of a
+Within a
 .B HANDLER
-section.
+section, associates a device with the handler and optionally defines its
+attributes. <name> is either a H:C:I:L quadruplet referring to a local SCSI
+device or an SCST device name. Within a
+.B DEVICE_GROUP
+section, this entry references an SCST device defined elsewhere in the file.
 .TP
 .B "TARGET_DRIVER <driver>"
 Defines target driver attributes and also which targets are associated with
@@ -89,7 +96,7 @@ Associates an initiator name with an initiator group.  <ini> is either an
 initiator name or a wildcard pattern matching zero or more initiator
 names. The supported wildcard characters are:
 .BR ! ", " * " and " ? ". An " INITIATOR
-section is a subsection of a
+entry belongs to a
 .B GROUP
 section.
 .TP
@@ -103,9 +110,12 @@ section is a subsection of a
 .B DEVICE_GROUP
 section.
 .P
-An example:
+The following is a syntax example. Device paths, target names, initiator names,
+and fabric identifiers are placeholders. Applying a configuration changes live
+SCST state and can export the named backing storage; do not apply this example
+unchanged.
 .IP
-# Sample SCST configuration file for scstadmin v2.0.
+# Sample SCST configuration file.
 .IP
 setup_id 0x1234
 .IP
