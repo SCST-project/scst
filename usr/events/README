@@ -1,2 +1,43 @@
-This is test/demo application for SCST events subsystem. For more
-information about this subsystem, see scst_event.h file.
+SCST events example
+===================
+
+events is a test and demonstration consumer for the SCST event ABI. The
+authoritative ioctl definitions, wildcard rules, event codes, and payload
+layouts are in scst/include/scst_event.h and scst/src/scst_event.c. The
+example's current behavior is implemented in usr/events/events.c.
+
+Build
+-----
+
+The example is intentionally omitted from the default "make usr" build and
+install targets. Build it explicitly with "make -C usr/events". Installing or
+running it is not required for normal SCST operation.
+
+Usage
+-----
+
+events opens /dev/scst_event, registers one or more filters, and prints the
+events it receives.
+
+events [OPTIONS]
+
+ - -e, --allowed_event=CODE: allow CODE; zero matches any event code
+ - -i, --allowed_issuer=ISSUER: allow ISSUER; "*" matches any issuer
+ - -n, --non_blocking: use nonblocking event retrieval
+ - -v, --version: print the program version
+ - -h, --help: print usage information
+
+The -d/--debug option is present only when tracing or debugging is compiled
+in. Repeat an event-code/issuer pair to add filters, up to the implementation
+limit. With no filter options, the program subscribes to every event code from
+every issuer.
+
+Safety
+------
+
+Do not run this example on a live target or alongside a production event
+consumer such as stpgd. Its default wildcard subscription can receive an
+event that requires SCST_EVENT_NOTIFY_DONE, while the example only sends a
+completion for its synthetic event code 0x12345. A real completion-bearing
+event can therefore be diverted from its intended consumer and remain pending
+until the kernel timeout.

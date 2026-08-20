@@ -1,9 +1,61 @@
-This is stpgd service called by the SCST core upon receiving SET TARGET
-PORT GROUPS command via SCST events subsystem. In turn, stpgd calls
-external script to actually modify ALUA state as requested by the SET
-TARGET PORT GROUPS command via cluster manager and SCST sysfs. You can
-find example of such script in scst_on_stpg file.
+stpgd explicit ALUA helper
+==========================
 
-Reason why such dual stage approach is used is, because there is no way
-from inside the kernel to control execution of external programs and
-there is no way to write a service calling IOCTLs on shell.
+stpgd is the user-space consumer for explicit ALUA state-transition events.
+It opens the SCST event device, subscribes to events issued by the SCST core,
+and handles SCST_EVENT_STPG_USER_INVOKE by executing an external helper once
+for each target-port-group descriptor. The helper's exit status is reported
+back to the kernel through SCST_EVENT_NOTIFY_DONE.
+
+The event payload and ioctl ABI are defined in scst/include/scst_event.h.
+The current event filtering, helper invocation, timeout handling, and
+command-line parsing are implemented in usr/stpgd/stpgd_main.c.
+
+Build and invocation
+--------------------
+
+From the repository root, "make usr" builds stpgd and fileio_tgt. To build
+only this daemon, run "make -C usr/stpgd". Installation is a separate,
+privileged operation.
+
+stpgd [OPTIONS]
+
+ - -f, --foreground: do not daemonize
+ - -p, --path=PATH: absolute path to the executable transition helper
+ - -t, --timeout=SECONDS: helper timeout; the default is 17 seconds
+ - -v, --version: print the program version
+ - -h, --help: print usage information
+
+The -d/--debug option is present only when tracing or debugging is compiled
+in. Without -p, the daemon uses /usr/local/bin/scst/scst_on_stpg. If a
+different installation prefix is used, pass the installed helper path
+explicitly.
+
+Helper interface
+----------------
+
+The helper receives these five positional arguments, in order:
+
+ 1. SCST device name
+ 2. previous ALUA state
+ 3. requested ALUA state
+ 4. device-group name
+ 5. target-group name
+
+The same values are supplied as SCST_DEVICE_NAME, SCST_PREV_ALUA_STATE,
+SCST_ALUA_STATE, SCST_DEVICE_GROUP, and SCST_TARGET_GROUP in the helper's
+environment. The daemon supplies a restricted PATH containing /bin,
+/usr/bin, /sbin, and /usr/sbin.
+
+Safety
+------
+
+usr/stpgd/scst_on_stpg is only a minimal example. It writes the requested
+state directly to the target group's live SCST sysfs attribute; it does not
+coordinate replication, fencing, failover, or cluster-manager state. Do not
+run stpgd or deploy that helper until the transition workflow has been adapted
+and validated for the exact hosts, storage, target groups, and HA stack.
+
+SCST blocks the affected devices around the explicit transition event, as
+described in the explicit ALUA section of scst/README. The external helper is
+still responsible for performing every site-specific transition safely.

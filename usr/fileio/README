@@ -2,82 +2,69 @@ User space FILEIO handler
 =========================
 
 Version 3.11.0-pre, 29 December 2025
-----------------------------
+------------------------------------
 
-User space program fileio_tgt uses interface of SCST's scst_user dev
-handler and allows to see how it works in various modes. Fileio_tgt
-provides mostly the same functionality as the kernel space SCST's
-scst_vdisk handler with the only exceptions that it supports O_DIRECT
-mode and doesn't support BLOCKIO one. O_DIRECT mode is basically the
-same as BLOCKIO, but also supports files, so for some loads it could be
-significantly faster, than the regular FILEIO access. All the words
-about BLOCKIO mode from SCST's README file apply to O_DIRECT mode as
-well.
+fileio_tgt is a user-space disk handler that demonstrates and exercises the
+SCST scst_user interface. The interface is defined by
+scst/include/scst_user.h and documented in doc/scst_user_spec.sgml.
 
-Installation
-------------
+Build
+-----
 
-Make sure you have installed SCST core, if not, see its README file for
-details how to do it.
-
-Then run "make all install"
-
-For the best performance make sure you don't have any debug options
-(i.e. lines like "CFLAGS += -DDEBUG" containing "-DDEBUG*" string)
-enabled in the Makefile.
+From the repository root, "make usr" builds fileio_tgt and stpgd. To build
+only this program, run "make -C usr/fileio". Installation is a separate,
+privileged operation; use the corresponding install target only when system
+installation is intended.
 
 Usage
 -----
 
-Load scst_user module using modprobe or insmod, then start fileio_tgt
-program. It can be used as the following:
+The scst_user kernel module must be loaded before fileio_tgt is started.
+Running fileio_tgt registers live SCST devices and opens every supplied
+backing path. Unless read-only mode is selected, initiators can cause writes
+to those paths. Do not use a real block device or valuable backing file
+without an explicitly prepared test configuration.
 
-fileio_tgt [OPTION] name path
+fileio_tgt [OPTIONS] name path [name path] ...
 
-Where:
-
- - OPTION - one or several not required options, see below.
-
- - name - name of the virtual device as it will be seen by SCST and used
-   in the subsequent access management using the corresponding SCST interface.
-
- - path - path to the device file.
+Each name is the SCST device name used by later access-management operations.
+Each path is the backing file or device from which the handler determines the
+virtual device size. Up to the implementation limit, multiple name/path pairs
+can be registered by one process.
 
 The following options are supported:
 
- -b or --block=size: block size, must be power of 2 and >=512
+ - -b, --block=size: block size; it must be a power of two and at least 512
+ - -e, --threads=count: number of worker threads
+ - -t, --write_through: write-through mode
+ - -r, --read_only: read-only mode
+ - -o, --direct: open the backing path with O_DIRECT for data I/O
+ - -n, --nullio: NULLIO mode; see scst/README for its safety warning
+ - -c, --nv_cache: NV_CACHE mode; see scst/README for its semantics
+ - -p, --parse=type: "std" (default), "call", or "excpt"
+ - -f, --on_free=type: "ignore" (default) or "call"
+ - -m, --mem_reuse=type: "all" (default), "read", "write", or "none"
+ - -l, --non_blocking: use nonblocking scst_user operations
+ - -I, --vdisk_id=ID: virtual disk ID for multi-target setups
+ - -F, --flush=n: flush the SGV cache every n seconds
+ - -s, --sgv_shared: share the first device's SGV cache
+ - -S, --sgv_single_cache=n: use a single-entry SGV cache with n pages
+ - -P, --sgv_purge_interval=n: set the SGV purge interval in seconds
+ - -u, --unreg_before_close: exercise the obsolete unregister ioctl
+ - -D, --sgv_disable_clustered_pool: disable the clustered SGV pool
+ - -R, --prealloc_buffers=n: preallocate n buffers
+ - -Z, --prealloc_buffer_size=n: preallocated buffer size in KiB
+ - -M, --multi_cmd=v: enable or disable multi-command processing (default 1)
+ - -v, --version: print the program version
+ - -h, --help: print usage information
 
- -e or --threads=count: number of threads
+The following options are present only when their corresponding tracing or
+debug feature is compiled in:
 
- -t or --write_through: write through mode
+ - -d, --debug=level: tracing level
+ - -g, --debug_tm_ignore: enable the DEBUG_TM_IGNORE test feature
 
- -r or --read_only: read only
-
- -o or --direct: O_DIRECT mode, see above for details
-
- -n or --nullio: NULLIO mode, see SCST's README file for details
-
- -c or --nv_cache: NV_CACHE mode, see SCST's README file for details
-
- -p or --parse=type: parse type, one of "std" (default), "call" or "excpt"
-
- -f or --on_free=type: on free call type, one of "ignore" (default) or "call"
-
- -m or --mem_reuse=type: Memory reuse type, one of "all" (default), "read",
-  "write" or "none"
-
- -s or --prio_thread: Use separate thread for mgmt (prio) commands
-
- -l or --non_blocking: Use non-blocking operations
-
-Also in the debug builds the following options are supported:
-
- -d or --debug=level: debug tracing level
-
- -g or --debug_tm_ignore: turn on DEBUG_TM_IGNORE, one of the task management
-  debugging features
-
-If you don't understand some these options, don't use them, default
-values provide the best performance.
+The current option parser and usage() output in usr/fileio/fileio.c are the
+authoritative command-line reference.
 
 Vladislav Bolkhovitin <vst@vlnb.net>, http://scst.sourceforge.net
