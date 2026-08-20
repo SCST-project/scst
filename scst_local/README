@@ -21,6 +21,12 @@ To build, simply issue 'make' in the scst_local directory.
 
 Try 'modinfo scst_local' for a listing of module parameters so far.
 
+WARNING: The example below loads kernel modules, writes approximately 16 GB
+to the selected backing path, changes the live SCST sysfs configuration, and
+exports a writable LUN back to the same host. Run it only on an isolated test
+system with a verified disposable backing path. The mounting and swap
+restrictions above still apply.
+
 Here is how I have used it so far:
 
 1. Load up scst:
@@ -35,7 +41,7 @@ Here is how I have used it so far:
 
 3. Load the scst_local driver:
 
-  insmod scst_local
+  insmod ./scst_local.ko
   echo "add vm_disk1 0" >/sys/kernel/scst_tgt/targets/scst_local/scst_local_tgt/luns/mgmt
 
 4. Check what you have
@@ -69,20 +75,20 @@ TARGET_DRIVER scst_local {
 
 then:
 
-  insmod scst_local
+  insmod ./scst_local.ko
   scstadmin -config conf_file.cfg
 
 More advanced examples:
 
 For (3) you can:
 
-  insmod scst_local add_default_tgt=0
-  echo "add_target scst_local_tgt session_name=scst_local_host" >/sys/kernel/scst_tgt/targets/scst_local//mgmt
+  insmod ./scst_local.ko add_default_tgt=0
+  echo "add_target scst_local_tgt session_name=scst_local_host" >/sys/kernel/scst_tgt/targets/scst_local/mgmt
   echo "add vm_disk1 0" >/sys/kernel/scst_tgt/targets/scst_local/scst_local_tgt/luns/mgmt
 
-Scst_local module's parameter add_default_tgt disables creation of
-default target "scst_local_tgt" and session "scst_local_host", so you
-needed to create it manually.
+Setting the scst_local module parameter add_default_tgt=0 disables creation
+of the default target "scst_local_tgt" and session "scst_local_host", so they
+must be created manually.
 
 There can be any number of targets and sessions created. Each SCST
 session corresponds to SCSI host. You can change which LUNs assigned to
@@ -107,14 +113,8 @@ TARGET_DRIVER scst_local {
 
 then:
 
-  insmod scst_local add_default_tgt=0
+  insmod ./scst_local.ko add_default_tgt=0
   scstadmin -config conf_file.cfg
-
-NOTE! Although scstadmin allows to create scst_local's sessions using
-"session_name" expression, it doesn't save existing sessions during
-writing config file by "write_config" command. If you need this
-functionality, feel free to send a request for it in SCST development
-mailing list.
 
 5. Have fun.
 
@@ -134,7 +134,9 @@ Sysfs interface
 See SCST's README for a common SCST sysfs description.
 
 Root of this driver is /sys/kernel/scst_tgt/targets/scst_local. It has
-the following additional entry:
+the following additional entries:
+
+ - version - read-only driver version and build mode information.
 
  - stats - read-only attribute with some statistical information.
 
@@ -151,6 +153,8 @@ Each target subdirectory contains the following additional entries:
    default, it is SAS.
 
 Each session subdirectory contains the following additional entries:
+
+ - host_no - contains the number of the corresponding local SCSI host.
 
  - transport_id - contains this host's TransportID. This TransportID
    used to identify initiator in Persisten Reservation commands. If you
@@ -265,4 +269,3 @@ V0.9 30-Nov-2008 (Mtn View) Cleaned up an additional problem with symbols not
 V1.0 10-Sep-2010 (Moscow)   Sysfs management added. Reviewed and cleaned up.
 
 V2.1                        Update for kernels up to 3.0. Cleanups.
-
