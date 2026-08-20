@@ -1,6 +1,12 @@
 Setup details
 =============
 
+These are historical results captured in 2011 with the exact hardware and
+software listed below. They are not a current SRPT performance baseline.
+See ../README.performance for the repository's current measurement workflow;
+its commands perform I/O and change live target configuration, so use only
+explicitly authorized, disposable devices and exports.
+
 Initiator system hardware:
 * IB HCA: QDR Mellanox ConnectX MT26428.
 * CPU: Intel Core2 Duo E8400 @ 3.00 GHz.

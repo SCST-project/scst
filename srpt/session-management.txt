@@ -2,7 +2,7 @@
             ==============================
 
 The following actions related to SRP sessions can all occur concurrently:
-* The communication manager invokes either srpt_ib_cm_handler() or
+* The communication manager invokes either srpt_cm_handler() or
   srpt_rdma_cm_handler().
 * HCA driver invokes the queue pair (QP) completion handler srpt_completion().
 * HCA driver invokes the QP async event handler srpt_qp_event().
@@ -37,4 +37,3 @@ The actions that occur over the lifetime of a session are as follows:
 - srpt_unreg_sess() destroys the CM ID and decrements the channel refcount.
 - Once the channel refcount drops to zero srpt_free_ch() is invoked which
   frees the queue pair and other IB resources.
-
