@@ -553,7 +553,7 @@ driver MUST have "mgmt" attribute, which MUST support
 "add_target_attribute" and "del_target_attribute" commands as specified
 above.
 
-6. Both target drivers and targets MAY support "enable" attribute. If
+6. Both target drivers and targets MAY support "enabled" attribute. If
 supported, after configuring the corresponding target driver or target
 "1" MUST be written to this attribute in the following order: at first,
 for all targets of the target driver, then for the target driver.

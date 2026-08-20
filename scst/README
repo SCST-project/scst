@@ -47,48 +47,11 @@ can find on http://scst.sourceforge.net/comparison.html.
 Installation
 ------------
 
-Only vanilla kernels from kernel.org and RHEL/CentOS 5.2 kernels are
-supported, but SCST should work on other (vendors') kernels, if you
-manage to successfully compile on them. The main problem with vendors'
-kernels is that they often contain patches, which will appear only in
-the next version of the vanilla kernel, therefore it's quite hard to
-track such changes. Thus, if during compilation for some vendor kernel
-your compiler complains about redefinition of some symbol, you should
-either switch to vanilla kernel, or add or change as necessary the
-corresponding to that symbol "#if LINUX_VERSION_CODE" statement.
+For current prerequisites, supported kernels, build and installation
+workflows, and installation paths, see ../INSTALL.md. The maintained
+kernel support list is ABT_KERNELS in ../nightly/conf/nightly.conf.
 
-Kernel version 2.6.26 and higher are supported.
-
-At first, make sure that the link "/lib/modules/`you_kernel_version`/build"
-points to the source code for your currently running kernel.
-
-Then you should consider to apply necessary kernel patches. SCST has the
-following patches for the kernel in the "kernel" subdirectory. All of
-them are optional, so, if you don't need the corresponding
-functionality, you may not apply them.
-
-1. readahead-2.6.X.patch. This patch fixes problem in Linux readahead
-subsystem and greatly improves performance for software RAIDs. See
-http://sourceforge.net/mailarchive/forum.php?thread_name=a0272b440906030714g67eabc5k8f847fb1e538cc62%40mail.gmail.com&forum_name=scst-devel
-thread for more details. It is included in the mainstream kernels 2.6.33
-and 2.6.32.11.
-
-2. readahead-context-2.6.X.patch. This is backported from 2.6.31 version
-of the context readahead patch http://lkml.org/lkml/2009/4/12/9, big
-thanks to Wu Fengguang. This is a performance improvement patch. It is
-included in the mainstream kernel 2.6.31.
-
-Then, to compile SCST type 'make scst'. It will build SCST itself and its
-device handlers. To install them type 'make scst_install'. The driver
-modules will be installed in '/lib/modules/`you_kernel_version`/extra'.
-In addition, scst.h, scst_debug.h as well as Module.symvers or
-Modules.symvers will be copied to '/usr/local/include/scst'. The first
-file contains all SCST's public data definition, which are used by
-target drivers. The other ones support debug messages logging and build
-process.
-
-Then you can load any module by typing 'modprobe module_name'. The names
-are:
+The modules provided by this directory are:
 
  - scst - SCST itself
  - scst_disk - device handler for disks (type 0)
@@ -154,21 +117,13 @@ IMPORTANT: In the current version simultaneous access to local SCSI devices
 	   devices READ/WRITE commands using direct disk handler are
 	   generally safe.
 
-To uninstall, type 'make scst_uninstall'.
-
-
 Creating a kernel patch or patched kernel
 -----------------------------------------
 
-You can use generate-kernel-patch or generate-patched-kernel scripts in
-the scripts/ subdirectory to convert SCST source tree as it exists
-in the Subversion repository to a Linux kernel patch or generate a
-kernel source tree with the SCST patches applied correspondingly. This
-subdirectory exists only in the SVN tree.
-
-Example how to use generate-kernel-patch you can find at "How To install
-SCST on Ubutuntu 15.04 with in-tree kernel patches"
-https://gist.github.com/chrwei/42f8bbb687290b04b598, thanks to Chris Weiss.
+Use ../scripts/generate-kernel-patch to convert the current SCST source
+tree into a Linux kernel patch, or ../scripts/generate-patched-kernel to
+generate a kernel source tree with the SCST patches applied. Consult the
+scripts themselves for their current inputs and generated output.
 
 
 Migration from the obsolete proc interface
@@ -219,10 +174,9 @@ mid-level via scsi_do_req()/scsi_execute_async() has advantage that data
 are transferred via system cache, so it is possible to fully benefit
 from caching and read ahead performed by Linux's VM subsystem. The only
 disadvantage here that in the FILEIO mode there is superfluous data
-copying between the cache and SCST's buffers. This issue is going to be
-addressed in one of the future releases. Virtual CDROM's are useful for
-remote installation. See below for details how to setup and use VDISK
-device handler.
+copying between the cache and SCST's buffers. Virtual CDROM's are useful
+for remote installation. See below for details how to setup and use
+VDISK device handler.
 
 SCST user space device handler provides an interface between SCST and
 the user space, which allows to create pure user space devices. The
@@ -245,8 +199,12 @@ NOTE: Since "perf" device handlers on READ operations don't touch the
 Compilation options
 -------------------
 
-There are the following compilation options, that could be commented
-in/out in Makefile and scst.h:
+CONFIG_SCST_DEBUG, CONFIG_SCST_TRACING and CONFIG_SCST_EXTRACHECKS are
+selected consistently for the core and its consumers by the top-level
+2debug, 2release and 2perf build modes. Other core-only experimental
+options below are disabled definitions in src/Kbuild or include/scst.h.
+Check those current files before changing an option and rebuild all
+affected modules together.
 
  - CONFIG_SCST_DEBUG - if defined, turns on some debugging code,
    including some logging. Makes the driver considerably bigger and slower,
@@ -282,7 +240,7 @@ in/out in Makefile and scst.h:
    debugging, when on LUN 6 some of the commands will be delayed for
    about 60 sec., so making the remote initiator send TM functions, eg
    ABORT TASK and TARGET RESET. Also define
-   CONFIG_SCST_TM_DBG_GO_OFFLINE symbol in the Makefile if you want that
+   CONFIG_SCST_TM_DBG_GO_OFFLINE in include/scst.h if you want that
    the device eventually become completely unresponsive, or otherwise to
    circle around ABORTs and RESETs code. Needs CONFIG_SCST_DEBUG turned
    on.
@@ -302,10 +260,7 @@ in/out in Makefile and scst.h:
    cases. The current SCSI core in Linux doesn't allow to abort all
    commands reliably if they sent asynchronously to a stateful device.
    Turned off by default, turn it on if you use stateful device(s) and
-   need as much error recovery reliability as possible. As a side effect
-   of CONFIG_SCST_STRICT_SERIALIZING, on kernels below 2.6.30 no kernel
-   patching is necessary for pass-through device handlers (scst_disk,
-   etc.).
+   need as much error recovery reliability as possible.
 
  - CONFIG_SCST_TEST_IO_IN_SIRQ - if defined, allows SCST to submit selected
    SCSI commands (TUR and READ/WRITE) from soft-IRQ context (tasklets).
@@ -383,6 +338,10 @@ Module scst supports the following parameters:
    to be consumed by all SCSI commands of a device at any given time. By
    default, it is approximately 2/5 of scst_max_cmd_mem.
 
+ - forcibly_close_sessions - if enabled, closes sessions associated with
+   an access control group when that group is deleted through sysfs instead
+   of returning EBUSY. Disabled by default.
+
  - auto_cm_assignment - enables the copy managers auto registration.
    If a device is not registered in the copy manager, it can not be
    source or target of EXTENDED COPY commands. Enabled by default.
@@ -393,14 +352,20 @@ Module scst supports the following parameters:
    by manually deleting the corresponding copy manager LUN via sysfs interface
    (/sys/kernel/scst_tgt/targets/copy_manager/copy_manager_tgt/luns/mgmt).
 
+ - async_lun_replace - orchestration gate for coordinated LUN replacement.
+   When enabled and memory allocation succeeds, cleanup of the old target
+   device is parked instead of waiting synchronously. After the required
+   cluster coordination completes, write 0 to
+   /sys/kernel/scst_tgt/async_lun_replace to schedule all parked cleanup work.
+   Writing 0 through /sys/module/scst/parameters/async_lun_replace bypasses
+   this release logic. If memory allocation fails, replacement falls back to
+   synchronous cleanup. Disabled by default.
+
 
 SCST sysfs interface
 --------------------
 
-Starting from 2.0.0 SCST has sysfs interface. It supports only kernels
-2.6.26 and higher, because in 2.6.26 internal kernel's sysfs interface
-had a major change, which made it heavily incompatible with pre-2.6.26
-version.
+SCST exposes its control interface through sysfs.
 
 SCST sysfs interface designed to be self descriptive and self
 containing. This means that a high level management tool for it can be
@@ -772,12 +737,13 @@ Every target should have at least the following entries:
    threads_pool_type "per_initiator".
 
  - io_grouping_type - defines how I/O from sessions to this target are
-   grouped together. This I/O grouping is very important for
-   performance. By setting this attribute in a right value, you can
-   considerably increase performance of your setup. This grouping is
-   performed only if you use CFQ I/O scheduler on the target and for
-   devices with threads_num >= 0 and, if threads_num > 0, with
-   threads_pool_type "per_initiator". Possible values:
+   assigned to shared Linux I/O contexts. This was designed primarily
+   for CFQ on older kernels. scst/include/backport.h disables I/O
+   context sharing on Linux 5.0 and later and on RHEL major version 8
+   and later; the attribute does not provide this optimization there.
+   On supported older kernels it applies to devices with threads_num >=
+   0 and, if threads_num > 0, with threads_pool_type "per_initiator".
+   Possible values:
    "this_group_only", "never", "auto", or I/O group number >0. When the
    value is "this_group_only" all I/O from all sessions in this target
    will be grouped together. When the value is "never", I/O from
@@ -1143,7 +1109,12 @@ are one or more param_name=value pairs separated by ';'.
 Handler vdisk_fileio provides FILEIO mode to create virtual devices.
 This mode uses as backend files and accesses to them using regular
 read()/write() file calls. This allows to use full power of Linux page
-cache. The following parameters possible for vdisk_fileio:
+cache. The management interface advertises the following creation
+parameters for vdisk_fileio: active, async, bind_alua_state, blocksize,
+cluster_mode, dif_filename, dif_mode, dif_static_app_tag, dif_type,
+filename, numa_node_id, nv_cache, o_direct, read_only, removable,
+rotational, thin_provisioned, tst, t10_dev_id and write_through. The
+main configuration options are described below.
 
  - filename - specifies path and file name of the backend file. The path
    must be absolute.
@@ -1187,12 +1158,10 @@ cache. The following parameters possible for vdisk_fileio:
    disable all write-back cache workarounds used by initiators. Use with
    extreme caution, since in this mode after a crash of the target
    journaled file systems don't guarantee the consistency after journal
-   recovery, therefore manual fsck MUST be ran. Note, that since usually
-   the journal barrier protection (see "IMPORTANT" note below) turned
-   off, enabling NV_CACHE could change nothing from data protection
-   point of view, since no data synchronization with media operations
-   will go from the initiator. This option overrides "write_through"
-   option. Disabled by default.
+   recovery, therefore manual fsck MUST be run. This option overrides
+   "write_through" and suppresses synchronization with the backing
+   media. Enable it only when acknowledged data is genuinely
+   non-volatile across the complete target. Disabled by default.
 
  - thin_provisioned - enables thin provisioning facility, when remote
    initiators can unmap blocks of storage, if they don't need them
@@ -1208,9 +1177,6 @@ cache. The following parameters possible for vdisk_fileio:
 
  - rotational - if set, this device reported as rotational. Otherwise,
    it is reported as non-rotational (SSD, etc.)
-
- - zero_copy - obsolete. For zero-copy I/O, set the async flag and
-   possibly also the o_direct flag and use Linux kernel v4.10 or later.
 
  - dif_mode - specifies which T10-PI, or DIF, mode this device will use.
    See SCSI standards from more info about T10-PI. Available DIF modes
@@ -1268,10 +1234,12 @@ storage HBAs and for applications that either do not need caching
 between application and disk or need the large block throughput. See
 below for more info.
 
-The following parameters possible for vdisk_blockio: filename,
-blocksize, nv_cache, read_only, removable, rotational, thin_provisioned,
-tst, dif_mode, dif_type, dif_static_app_tag, dif_filename. See
-vdisk_fileio above for description of those parameters.
+The management interface advertises the following creation parameters
+for vdisk_blockio: active, bind_alua_state, blocksize, cluster_mode,
+dif_filename, dif_mode, dif_static_app_tag, dif_type, filename,
+numa_node_id, nv_cache, read_only, removable, rotational,
+thin_provisioned, tst, t10_dev_id and write_through. See vdisk_fileio
+above for descriptions of shared parameters.
 
 vdisk_fileio and vdisk_blockio devices have the following two additional
 attributes:
@@ -1300,9 +1268,12 @@ attributes:
 Handler vdisk_nullio provides NULLIO mode to create virtual devices. In
 this mode no real I/O is done, but success returned to initiators.
 Intended to be used for performance measurements at the same way as
-"*_perf" handlers. The following parameters possible for vdisk_nullio:
-blocksize, read_only, removable, tst. See vdisk_fileio above for
-description of those parameters.
+"*_perf" handlers. The management interface advertises the following
+creation parameters for vdisk_nullio: blocksize, cluster_mode, dif_mode,
+dif_static_app_tag, dif_type, dummy, numa_node_id, read_only, removable,
+rotational, size, size_mb, tst and t10_dev_id. The size parameter is in
+bytes and size_mb is in MiB. See vdisk_fileio above for descriptions of
+shared parameters.
 
 vdisk_nullio devices have the following two additional attributes:
 
@@ -1330,8 +1301,10 @@ echo "add_device disk1 filename=/disk1; blocksize=4096; nv_cache=1" >/sys/kernel
 will create a FILEIO virtual device disk1 with backend file /disk1
 with block size 4K and NV_CACHE enabled.
 
-Each vdisk_fileio's device has the following attributes in
-/sys/kernel/scst_tgt/devices/device_name:
+The handler-specific attribute set for vdisk_fileio devices is defined
+by vdisk_fileio_attrs in src/dev_handlers/scst_vdisk.c. Common device
+attributes are described above. Selected attributes in
+/sys/kernel/scst_tgt/devices/device_name are described below:
 
  - filename - contains path and file name of the backend file.
 
@@ -1360,7 +1333,7 @@ Each vdisk_fileio's device has the following attributes in
    The default value for this field is the SCST device name.
 
  - prod_rev_lvl - PRODUCT REVISION LEVEL as reported via the INQUIRY
-   response. The default value for this field is " 300".
+   response. The default is SCST_FIO_REV as defined in scst_vdisk.c.
 
  - scsi_device_name - optional SCSI target device name to which this
    SCST device belongs to (in SCSI terminology all SCST devices called
@@ -1392,9 +1365,8 @@ Each vdisk_fileio's device has the following attributes in
  - t10_dev_id - contains and allows to set T10 vendor specific
    identifier for Device Identification VPD page (0x83) of INQUIRY data.
    By default VDISK handler always generates t10_dev_id for every new
-   created device at creation time based on the device name and
-   scst_vdisk_ID scst_vdisk.ko module parameter for procfs (see below)
-   or the SCST setup_id when using the sysfs interface (see above).
+   device at creation time based on the device name and the SCST setup_id
+   (see above).
    Note: some initiators, e.g. VMware's ESXi or MS Hyper-V, only looks
    at the first eight characters of t10_dev_id. You have to make sure
    that these first eight characters are unique or VMware will consider
@@ -1432,9 +1404,8 @@ Each vdisk_fileio's device has the following attributes in
    vdisk_block devices and "SCST_FIO" for vdisk_fileio devices.
 
  - usn - contains the virtual device's serial number of INQUIRY data. It
-   is created at the device creation time based on the device name and
-   scst_vdisk_ID scst_vdisk.ko module parameter for procfs (see below)
-   or the SCST setup_id when using the sysfs interface (see above).
+   is created at device creation time based on the device name and the
+   SCST setup_id (see above).
 
  - type - contains SCSI type of this virtual device.
 
@@ -1476,24 +1447,16 @@ For example:
 |-- usn
 `-- write_through
 
-Each vdisk_blockio's device has the following attributes in
-/sys/kernel/scst_tgt/devices/device_name: blocksize, filename, nv_cache,
-read_only, removable, resync_size, rotational, size_mb, t10_dev_id,
-thin_provisioned, gen_tp_soft_threshold_reached_UA, threads_num,
-threads_pool_type, tst, type, usn. See above description of those
-parameters.
+The handler-specific attribute sets for vdisk_blockio and vdisk_nullio
+devices are defined by vdisk_blockio_attrs and vdisk_nullio_attrs in
+src/dev_handlers/scst_vdisk.c. They share many attributes with
+vdisk_fileio; see the descriptions above and the common device
+attributes described earlier.
 
-Each vdisk_nullio's device has the following attributes in
-/sys/kernel/scst_tgt/devices/device_name: blocksize, read_only,
-removable, size_mb, t10_dev_id, threads_num, threads_pool_type, type,
-tst, usn, dummy. See above description of those parameters.
-
-Each vcdrom's device has the following attributes in
-/sys/kernel/scst_tgt/devices/device_name: filename, size_mb,
-t10_dev_id, threads_num, threads_pool_type, type, usn, tst. See above
-description of those parameters. Exception is filename attribute. For
-vcdrom it is writable. Writing to it allows to virtually insert or
-change virtual CD media in the virtual CDROM device. For example:
+The handler-specific attribute set for vcdrom devices is defined by
+vcdrom_attrs in src/dev_handlers/scst_vdisk.c. Its filename attribute is
+writable. Writing to it allows to virtually insert or change virtual CD
+media in the virtual CDROM device. For example:
 
  - echo "/image.iso" >/sys/kernel/scst_tgt/devices/cdrom/filename - will
    insert file /image.iso as virtual media to the virtual CDROM cdrom.
@@ -1565,20 +1528,17 @@ If you want to enable using "trace_level" file logging levels, which
 produce a lot of events, like "debug", to not loose logged events you
 should also:
 
-  * Increase in .config of your kernel CONFIG_LOG_BUF_SHIFT variable
-    to much bigger value, then recompile it. For example, value 25 will
-    provide good protection from logging overflow even under high volume
-    of logging events. To use it you will need to modify the maximum
-    allowed value for CONFIG_LOG_BUF_SHIFT in the corresponding Kconfig
-    file to 25 as well.
+  * Size the printk ring buffer using the facilities supported by the
+    exact kernel. Current kernels document CONFIG_LOG_BUF_SHIFT and the
+    log_buf_len boot parameter in
+    Documentation/admin-guide/kernel-parameters.rst. Do not modify a
+    kernel Kconfig limit solely to copy the historical value from this
+    README.
 
-  * Change in your /etc/syslog.conf or other config file of your favorite
-    logging program to store kernel logs in async manner. For example,
-    you can add in rsyslog.conf line "kern.info -/var/log/kernel" and
-    add "kern.none" in line for /var/log/messages, so the resulting line
-    would looks like:
-
-    "*.info;kern.none;mail.none;authpriv.none;cron.none /var/log/messages"
+  * Configure the host's active journal or syslog implementation to
+    persist kernel messages without filtering SCST output. Log paths and
+    configuration syntax are distribution-specific. Verify that the
+    complete boot log is retained before reproducing the problem.
 
 
 Persistent Reservations
@@ -2074,7 +2034,8 @@ echo "add_device aa filename=/dev/drbd1" >/sys/kernel/scst_tgt/handlers/vdisk_bl
 DEVICE=10:0:0:0
 echo add_device $DEVICE >/sys/kernel/scst_tgt/handlers/dev_disk/mgmt
 
-service iscsi-scst start
+modprobe iscsi-scst
+iscsi-scstd
 
 # This is a regular, user-visible target
 echo "add_target iqn.2006-10.net.v:tgt " >/sys/kernel/scst_tgt/targets/iscsi/mgmt
@@ -2123,7 +2084,8 @@ echo "add_device aa filename=/dev/drbd1" >/sys/kernel/scst_tgt/handlers/vdisk_bl
 DEVICE=10:0:0:0
 echo add_device $DEVICE >/sys/kernel/scst_tgt/handlers/dev_disk/mgmt
 
-service iscsi-scst start
+modprobe iscsi-scst
+iscsi-scstd
 
 echo "add_target iqn.2006-10.net.v:tgt1" >/sys/kernel/scst_tgt/targets/iscsi/mgmt
 echo 2 >/sys/kernel/scst_tgt/targets/iscsi/iqn.2006-10.net.v:tgt1/rel_tgt_id
@@ -2334,76 +2296,29 @@ Caching
 By default for performance reasons VDISK FILEIO devices use write back
 caching policy.
 
-Generally, write back caching is safe for use and danger of it is
-greatly overestimated, because most modern (especially, Enterprise
-level) applications are well prepared to work with write back cached
-storage. Particularly, such are all transactions-based applications.
-Those applications flush cache to completely avoid ANY data loss on a
-crash or power failure. For instance, journaled file systems flush cache
-on each meta data update, so they survive power/hardware/software
-failures pretty well.
+Write-back caching is durable only when applications and initiators
+issue the required synchronization commands and every layer propagates
+and honors them. Transactional applications and journaled filesystems
+depend on those semantics, but they do not make a volatile target or
+device cache non-volatile. Data acknowledged before a successful flush
+can still be lost on a crash or power failure.
 
-Since locally on initiators write back caching is always on, if an
-application cares about its data consistency, it does flush the cache
-when necessary or on any write, if open files with O_SYNC. If it doesn't
-care, it doesn't flush the cache. As soon as the cache flushes
-propagated to the storage, write back caching on it doesn't make any
-difference. If application doesn't flush the cache, it's doomed to loose
-data in case of a crash or power failure doesn't matter where this cache
-located, locally or on the storage.
+Do not use a local copy-and-sync example or the presence of drive caches
+as proof of target durability. Validate application recovery, cache
+reporting, synchronization behavior and power-loss protection for the
+complete deployment.
 
-To illustrate that consider, for example, a user who wants to copy /src
-directory to /dst directory reliably, i.e. after the copy finished no
-power failure or software/hardware crash could lead to a loss of the
-data in /dst. There are 2 ways to achieve this. Let's suppose for
-simplicity cp opens files for writing with O_SYNC flag, hence bypassing
-the local cache.
+Durability requires end-to-end handling of cache flushes and FUA by the
+initiator, SCST mode, target filesystem or block layer and every backing
+device. A volatile device cache also requires working power-loss
+protection. Do not infer durability from historical filesystem barrier
+defaults or mount options; verify the active kernel, filesystem and
+device guarantees for the exact deployment.
 
-1. Slow. Make the device behind /dst working in write through caching
-mode and then run "cp -a /src /dst".
-
-2. Fast. Let the device behind /dst working in write back caching mode
-and then run "cp -a /src /dst; sync". The reliability of the result is
-the same, but it's much faster than (1). Nobody would care if a crash
-happens during the copy, because after recovery simply leftovers from
-the not completed attempt would be deleted and the operation would be
-restarted from the very beginning.
-
-So, you can see in (2) there is no danger of ANY data loss from the
-write back caching. Moreover, since on practice cp doesn't open files
-for writing with O_SYNC flag, to get the copy done reliably, sync
-command must be called after cp anyway, so enabling write back caching
-wouldn't make any difference for reliability.
-
-Also you can consider it from another side. Modern HDDs have at least
-16MB of cache working in write back mode by default, so for a 10 drives
-RAID it is 160MB of a write back cache. How many people are happy with
-it and how many disabled write back cache of their HDDs? Almost all and
-almost nobody correspondingly? Moreover, many HDDs lie about state of
-their cache and report write through while working in write back mode.
-They are also successfully used.
-
-Note, Linux I/O subsystem guarantees to propagated cache flushes to the
-storage only using data protection barriers, which usually turned off by
-default (see http://lwn.net/Articles/283161). Without barriers enabled
-Linux doesn't provide a guarantee that after sync()/fsync() all written
-data really hit permanent storage. They can be stored in the cache of
-your backstorage devices and, hence, lost on a power failure event.
-Thus, ever with write-through cache mode, you still either need to
-enable barriers on your backend file system on the target (for direct
-/dev/sdX devices this is, indeed, impossible), or need a good UPS to
-protect yourself from not committed data loss. Some info about barriers
-from the XFS point of view could be found at
-http://xfs.org/index.php/XFS_FAQ#Write_barrier_support. On Linux
-initiators for Ext3 and ReiserFS file systems the barrier protection
-could be turned on using "barrier=1" and "barrier=flush" mount options
-correspondingly. You can check if the barriers turn on or off by looking
-in /proc/mounts. Windows and, AFAIK, other UNIX'es don't need any
-special explicit options and do necessary barrier actions on write-back
-caching devices by default.
-
-To limit this data loss with write back caching you can use files in
-/proc/sys/vm to limit amount of unflushed data in the system cache.
+The /proc/sys/vm dirty-page settings can change how much data remains in
+the page cache and for how long, but they do not replace correct flush
+handling or power-loss protection. Tune them only for the measured
+workload and current kernel.
 
 If you for some reason have to use VDISK FILEIO devices in write through
 caching mode, don't forget to disable internal caching on their backend
@@ -2482,12 +2397,6 @@ IMPORTANT: Since data in BLOCKIO and FILEIO modes are not consistent between
 	   simultaneously, you will almost instantly corrupt your data
 	   on that device.
 
-IMPORTANT: Some kernels starting from 2.6.32 have a problem, which
-=========  prevents BLOCKIO from working correctly with RAID5/DM. See
-	   http://lkml.org/lkml/2010/7/28/315. That problem was fixed in
-	   2.6.32.19, 2.6.34.4, 2.6.35.2 and 2.6.36-rc1. It is strongly
-	   recommended to not use affected kernels with BLOCKIO.
-
 IMPORTANT: In SCST 1.x BLOCKIO worked by default in NV_CACHE mode, when
 =========  each device reported to remote initiators as having write through
            caching. But if your backend block device has internal write
@@ -2498,9 +2407,9 @@ IMPORTANT: In SCST 1.x BLOCKIO worked by default in NV_CACHE mode, when
 	   initiators as having write back caching, and synchronizes the
 	   internal device's cache on each SYNCHRONIZE_CACHE command
 	   from the initiators. It might lead to some *PERFORMANCE LOSS*,
-	   so if you are are sure in your power supply and want to
-	   restore the 1.x behavior, your should recreate your BLOCKIO
-	   devices in NV_CACHE mode.
+	   but power supply alone does not make the complete cache path
+	   non-volatile. Do not restore the 1.x behavior unless the
+	   NV_CACHE durability requirements above are satisfied.
 
 
 Pass-through mode
@@ -2576,22 +2485,16 @@ applications, so, if you experience large transfers stalls, you should
 check documentation for your application how to limit the transfer
 sizes.
 
-Another way to solve this issue is to build SG entries with more than 1
-page each. See the following patch as an example:
-http://scst.sourceforge.net/sgv_big_order_alloc.diff
-
-
 User space mode using scst_user dev handler
 -------------------------------------------
 
 User space program fileio_tgt uses interface of scst_user dev handler
-and allows to see how it works in various modes. Fileio_tgt provides
-mostly the same functionality as scst_vdisk handler with the most
-noticeable difference that it supports O_DIRECT mode. O_DIRECT mode is
-basically the same as BLOCKIO, but also supports files, so for some
-loads it could be significantly faster, than the regular FILEIO access.
-All the words about BLOCKIO from above apply to O_DIRECT as well. See
-fileio_tgt's README file for more details.
+and demonstrates user-space handling in its supported modes, including
+O_DIRECT. The in-kernel scst_vdisk file handler also supports O_DIRECT
+when asynchronous I/O is enabled, so O_DIRECT is no longer a
+fileio_tgt-only distinction. See ../usr/fileio/README and the current
+vdisk_fileio attributes above for their separate interfaces and safety
+requirements.
 
 
 Performance
@@ -2612,51 +2515,17 @@ are very much dependent from your type of load, so it is crucial that
 you choose access mode (FILEIO, BLOCKIO, O_DIRECT, pass-through), which
 suits your needs the best.
 
-In order to get the maximum performance you should:
+Use the top-level "make 2release" build mode for normal deployments.
+Use "make 2perf" only for controlled performance comparisons: it also
+disables tracing and removes useful diagnostics. The build mode is
+generated by scst/Makefile and shared by the core, device handlers and
+target drivers. Do not edit Makefiles or generated build_mode.h to set
+these options independently. See ../README.performance for the current
+measurement workflow.
 
-1. For SCST:
-
- - Disable in Makefile and scst.h CONFIG_SCST_STRICT_SERIALIZING,
-   CONFIG_SCST_EXTRACHECKS, CONFIG_SCST_TRACING, CONFIG_SCST_DEBUG*,
-   CONFIG_SCST_STRICT_SECURITY.
-
-2. For target drivers:
-
- - Disable in Makefiles CONFIG_SCST_EXTRACHECKS, CONFIG_SCST_TRACING,
-   CONFIG_SCST_DEBUG*
-
-3. For device handlers, including VDISK:
-
- - Disable in Makefile CONFIG_SCST_TRACING and CONFIG_SCST_DEBUG.
-
-Note, by disabling CONFIG_SCST_TRACING and CONFIG_SCST_DEBUG you are
-disabling many useful SCST diagnostic messages, which can significantly
-help in many troubleshooting cases. So, if you may consider to keep
-CONFIG_SCST_TRACING, its performance impact is very limited.
-
-IMPORTANT: The development version of SCST in the SVN is optimized for
-=========  development and bug hunting, not for performance. This means
-           it is MUCH slower (multiple times). To reconfigure SCST for
-	   release you should run "make 2release" command in the root of
-	   your source code (e.g. trunk/). It will set the above options
-	   as needed. The only option it doesn't set is
-	   CONFIG_SCST_TEST_IO_IN_SIRQ, so, if needed, you should change
-	   it manually. There is also so called "performance" build
-	   mode, which you can activate by "make 2perf" command. The
-	   only difference it has comparing to release build mode is
-	   disabled CONFIG_SCST_TRACING option. Because of that, you
-	   won't be able to see many important SCST run time logging
-	   messages. This mode is intended to evaluate impact of
-	   CONFIG_SCST_TRACING on performance and not recommended for
-	   production.
-
-IMPORTANT: You can't use debug SCST drivers with non-debug SCST core.
-=========  So, after disabling both CONFIG_SCST_TRACING and CONFIG_SCST_DEBUG
-	   for SCST core you have to disable them for all SCST drivers
-	   you are using as well.
-
-4. Make sure you have io_grouping_type option set correctly, especially
-in the following cases:
+1. On kernels where scst/include/backport.h enables I/O context sharing,
+make sure you have io_grouping_type set correctly, especially in the
+following cases:
 
  - Several initiators share your target's backstorage. It can be a
    shared LU using some cluster FS, like VMFS, as well as can be
@@ -2683,9 +2552,10 @@ in the following cases:
       important only that all the targets/security groups use the same
       value.
 
-Don't forget, io_grouping_type makes sense only if you use CFQ I/O
-scheduler on the target and for devices with threads_num >= 0 and, if
-threads_num > 0, with threads_pool_type "per_initiator".
+This tuning was designed primarily for CFQ and is not active on Linux
+5.0 and later or RHEL major version 8 and later. On supported older
+kernels it also requires devices with threads_num >= 0 and, if
+threads_num > 0, threads_pool_type "per_initiator".
 
 You can check if in your setup io_grouping_type set correctly as well as
 if the "auto" io_grouping_type value works for you by tests like the
@@ -2725,10 +2595,11 @@ sessions, which is enough.
 
 6. For other target and initiator software parts:
 
- - Make sure you applied on your kernel all available SCST patches.
-   If for your kernel version this patch doesn't exist, it is strongly
-   recommended to upgrade your kernel to version, for which this patch
-   exists.
+ - Do not apply historical SCST performance patches individually. Use
+   the out-of-tree workflow from ../INSTALL.md or generate a complete
+   in-tree patch with ../scripts/generate-kernel-patch as described
+   earlier in this README. The tested kernel list is maintained in
+   ../nightly/conf/nightly.conf.
 
  - Don't enable debug/hacking features in the kernel, i.e. use them as
    they are by default.
@@ -2776,16 +2647,17 @@ sessions, which is enough.
    directory, they also affect performance. If you find the best values,
    please share them with us.
 
- - On the target use CFQ IO scheduler. In most cases it has performance
-   advantage over other IO schedulers, sometimes huge (2+ times
-   aggregate throughput increase).
+ - Select the target I/O scheduler only after measuring the intended
+   workload. Linux 5.0 and later do not provide CFQ, and the available
+   schedulers depend on the kernel and device. Inspect the scheduler
+   list for each backing device instead of treating CFQ as a default.
 
  - It is recommended to turn the kernel preemption off, i.e. set
    the kernel preemption model to "No Forced Preemption (Server)".
 
- - Looks like XFS is the best filesystem on the target to store device
-   files, because it allows considerably better linear write throughput,
-   than ext3.
+ - Select the backing filesystem from measurements with the intended
+   kernel, storage and durability requirements. The historical XFS and
+   ext3 comparison is not a current filesystem policy.
 
 7. For hardware on target.
 
@@ -2835,8 +2707,9 @@ CPUs. Consider using cpu_mask attribute for devices with
 threads_pool_type "per_initiator" or Linux CPU affinity facilities for
 other threads_pool_types. No IRQ processing should be done on those
 CPUs. Check that using /proc/interrupts. See taskset command and
-Documentation/IRQ-affinity.txt in your kernel's source tree for how to
-assign IRQ affinity to tasks and IRQs.
+Documentation/core-api/irq/irq-affinity.rst in a current kernel source
+tree for task and IRQ affinity. Older supported kernels may use the
+historical Documentation/IRQ-affinity.txt path.
 
 The reason for that is that processing of coming commands in SIRQ
 context might be done on the same CPUs as SSD devices' threads doing data
@@ -2896,11 +2769,10 @@ http://lkml.org/lkml/2008/2/27/96 (check the whole thread as well).
 
 Thus, in such situations simply processing of one or more commands takes
 too long time, hence initiator decides that they are stuck on the target
-and tries to recover. Particularly, it is known that the default amount
-of simultaneously queued commands (48) is sometimes too high if you do
-intensive writes from VMware on a target disk, which uses LVM in the
-snapshot mode. In this case value like 16 or even 8-10 depending of your
-backstorage speed could be more appropriate.
+and tries to recover. Particularly, the default amount of simultaneously
+queued commands may be too high if you do intensive writes from VMware
+on a target disk which uses LVM in snapshot mode. In this case a lower
+value may be more appropriate depending on your backstorage speed.
 
 There are 6 possible actions, which you can do to workaround or fix such
 issues:
@@ -2910,11 +2782,10 @@ not too many of them, so average performance isn't hurt and the
 corresponding device isn't getting put offline, i.e. if the backstorage
 isn't a way too slow.
 
-2. Decrease /sys/block/sdX/device/queue_depth on the initiator in case
-if it's Linux (see below how) or/and SCST_MAX_TGT_DEV_COMMANDS constant
-in scst_priv.h file until you stop seeing incoming TM commands.
-ISCSI-SCST driver also has its own iSCSI specific parameter for that,
-see its README file.
+2. Decrease /sys/block/sdX/device/queue_depth on a Linux initiator (see
+below) and/or the SCST device's max_tgt_dev_commands sysfs attribute
+until you stop seeing incoming TM commands. ISCSI-SCST also has an
+iSCSI-specific parameter for this; see its README file.
 
 To decrease device queue depth on Linux initiators you can run command:
 
@@ -2957,10 +2828,10 @@ or (7): increase speed of the link between target and initiator.
 
 Note, that logged messages about QUEUE_FULL status are quite different
 by nature. This is a normal work, just SCSI flow control in action.
-Simply don't enable "mgmt_minor" logging level, or, alternatively, if
-you are confident in the worst case performance of your back-end storage
-or initiator-target link, you can increase SCST_MAX_TGT_DEV_COMMANDS in
-scst_priv.h to 64. Usually initiators don't try to push more commands on
+Simply don't enable the "mgmt_minor" logging level or, if you are
+confident in the worst-case performance of your back-end storage or
+initiator-target link, increase the SCST device's max_tgt_dev_commands
+sysfs attribute. Usually initiators do not try to push more commands on
 the target.
 
 IMPORTANT

@@ -59,7 +59,7 @@ dif_mode=scst|dev_store, dif_type=1, dif_filename=/var/lib/scst/dif_tags/rd1_dif
 
 dif_mode=scst, dif_type=2 - SCST level only check, type 2 (32-byte commands)
 
-dif_mode=tag|scst|dev_check|dev_store, dif_type=1 - all levels check
+dif_mode=tgt|scst|dev_check|dev_store, dif_type=1 - all levels check
 	storing tags using block integrity extensions, type 1
 
 
@@ -77,8 +77,9 @@ like:
 
 1. No extra actions until xmit_response() stage*
 
-2. On xmit_response() stage call scst_cmd_get_dif_sg(cmd)**. If returned
-value is NULL, no further PI actions are needed.
+2. On xmit_response() stage call scst_cmd_get_dif_sg(cmd) and
+scst_cmd_get_dif_sg_cnt(cmd)**. If the SG pointer is NULL, no further PI
+actions are needed.
 
 3. Otherwise, call scst_get_read_dif_tgt_actions(cmd) to find out what
 PI actions are needed. The return value has encoded 2 types of actions:
@@ -117,8 +118,9 @@ like:
 
 1. No extra actions until rdy_to_xfer() stage*
 
-2. On rdy_to_xfer() stage call scst_cmd_get_dif_sg(cmd)**. If returned
-value is NULL, no further PI actions are needed.
+2. On rdy_to_xfer() stage call scst_cmd_get_dif_sg(cmd) and
+scst_cmd_get_dif_sg_cnt(cmd)**. If the SG pointer is NULL, no further PI
+actions are needed.
 
 3. Otherwise, call scst_get_write_dif_tgt_actions(cmd) to find out what
 PI actions are needed.
@@ -127,13 +129,12 @@ PI actions are needed.
 dif_sg together with regular data**.
 
 
-(*) If the target driver uses custom data buffer, on this stage it must
-together with data sg by scst_cmd_set_tgt_dif_sg() function also set the
-corresponding PI sg.
+(*) If the target driver uses a custom data buffer, at this stage it must
+also set the corresponding PI SG and entry count with
+scst_cmd_set_tgt_dif_sg().
 
-(**) The PI SG returned by scst_cmd_get_dif_sg() does not have the
-corresponding SG-segments counter, because it is strictly bound to
-number of blocks in the data SG.
+(**) scst_cmd_get_dif_sg_cnt() returns the number of entries in the PI
+SG.
 
 
 You can find full external SCST T10-PI interface if you look in scst.h
