@@ -11,6 +11,19 @@ published by the Free Software Foundation.
 If you find this program useful or if you modify it, please write me a
 mail.
 
+STATUS AND SAFETY
+
+These files are legacy example OCF resource agents. They are not built or
+exercised by this repository's CI. Review them against the current SCST sysfs
+interface and the OCF implementation used by the cluster before installing
+them.
+
+The agents perform privileged live operations. They load and unload kernel
+modules, start and stop iscsi-scstd, write SCST sysfs state, and force-close
+sessions. SCSTTarget also clears the active SCST configuration when it starts
+its own daemon. Do not run these agents without authorization for the exact
+host, targets, sessions, and backing devices.
+
 INSTALLATION
 
 Place files SCSTTarget and SCSTLun into pacemaker ocf directory (usually
@@ -52,17 +65,16 @@ order OR_DRBD_BEFORE_ISCSI inf: MS_DRBD_VOLUME:promote GR_ISCSI:start
 
 
 
-CURRENT LIMITATIONS
+ORIGINAL TEST SCOPE
 
-Scripts are tested only with straight drbd or lvm over drbd as backing device,
-using vdisk_fileio, with one lun per target.
+The original testing covered DRBD or LVM over DRBD as the backing device,
+vdisk_fileio, and one LUN per target. This repository does not provide an
+automated validation environment for these agents.
 
-CHAP authentication is configurable, but not yet tested. My current version of SCST
-throws an error while adding chap parameters.
+The agents contain CHAP configuration paths, but these are not validated here.
 
 
 
-GIT REPOSITORY
+ORIGINAL GIT REPOSITORY
 
-You can find the latest version in git repository https://github.com/rbicelli/scst-ocf.git
-
+The agents were originally maintained at https://github.com/rbicelli/scst-ocf.git
