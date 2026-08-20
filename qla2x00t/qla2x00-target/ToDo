@@ -1,7 +1,7 @@
 Known issues and unimplemented features
 ---------------------------------------
 
- - NPIV targets not quite work. If you need NPIV, use QLogic git driver
+ - NPIV target mode is disabled. Use qla2x00t-32gbit for NPIV.
 
  - Minor "ToDo"'s spread in the code.
 
