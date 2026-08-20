@@ -19,4 +19,9 @@ the previous version of the SCST QLogic target driver are:
 	{ PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2281) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2089) },
 	{ PCI_DEVICE(PCI_VENDOR_ID_QLOGIC, PCI_DEVICE_ID_QLOGIC_ISP2289) },
-- Works in combination with Linux kernel v3.15 and later.
+- The repository-supported kernel list is the ABT_KERNELS list in
+  ../../nightly/conf/nightly.conf. For generated in-tree patches,
+  ../../scripts/generate-kernel-patch selects the legacy QLogic tree for
+  kernels before v3.18 and this tree otherwise. For out-of-tree builds,
+  use the current compatibility guards and ../../scst/include/backport.h
+  rather than this driver's historical Linux v5.1 base as policy.

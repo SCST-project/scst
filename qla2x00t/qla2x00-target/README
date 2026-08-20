@@ -1,16 +1,15 @@
-Target driver for QLogic 2[2-6]xx/8[1-3]xx Fibre Channel cards
-==============================================================
+Target driver for QLogic Fibre Channel adapters
+================================================
 
 Version 3.11.0-pre, 29 December 2025
 ----------------------------
 
-This is target driver for QLogic 2[2-6]xx/8[1-3]xx Fibre Channel cards.
-Particularly, this driver supports 16G Hilda QLogic chip based adapters
-(however, post-Hilda QLogic chips not supported). This driver should
-also support FCoE, but that has never been verified. It has passed
-intensive internal SanDisk tests. It is stable and production ready.
-This driver is in stable maintenance mode in favor of the QLogic git
-driver, which has support for all the latest QLogic adapters.
+This is the legacy target driver for the QLogic Fibre Channel adapters
+matched by qla2xxx_pci_tbl[] in ../qla_os.c. It should also support
+FCoE, but that has never been verified. It has passed intensive internal
+SanDisk tests. It is stable and production ready. This driver is in
+stable maintenance mode in favor of the default qla2x00t-32gbit tree,
+which supports newer QLogic adapters.
 
 This driver consists from two parts: the target mode driver itself and
 the changed initiator driver from Linux kernel, which is, particularly,
@@ -20,10 +19,10 @@ necessary callbacks, but it's still capable to work as initiator only.
 Mode, when a host acts as the initiator and the target simultaneously,
 is supported as well.
 
-This version is compatible with SCST core version 3.2.0 and higher and
-Linux kernel 2.6.26 and higher. Sorry, kernels below 2.6.26 are not
-supported, because it's too hard to backport used initiator driver to
-older kernels.
+This source is maintained and tested with the SCST core in this
+repository. The current supported and tested kernel set is maintained
+in ../../nightly/conf/nightly.conf; do not infer current support from
+historical minimum-version statements.
 
 See also "ToDo" file for list of known issues and unimplemented
 features.
@@ -32,57 +31,30 @@ features.
 Installation
 ------------
 
-Only vanilla kernels from kernel.org and RHEL/CentOS 5.2 kernels are
-supported, but SCST should work on other (vendors') kernels, if you
-manage to successfully compile it on them. The main problem with
-vendors' kernels is that they often contain patches, which will appear
-only in the next version of the vanilla kernel, therefore it's quite
-hard to track such changes. Thus, if during compilation for some vendor
-kernel your compiler complains about redefinition of some symbol, you
-should either switch to vanilla kernel, or add or change as necessary
-the corresponding to that symbol "#if LINUX_VERSION_CODE" statement.
+Follow ../../INSTALL.md for prerequisites and source or package
+workflows. This legacy tree is not selected by default. For a source
+build from the repository root, select it together with the matching
+out-of-tree initiator driver:
 
-Before installation make sure that the link
-"/lib/modules/`you_kernel_version`/build" points to the source code for
-your currently running kernel.
+BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y \
+CONFIG_SCSI_QLA2XXX_TARGET=y QLA_32GBIT=no make all
 
-If your kernel version is <2.6.28, then you should consider applying
-kernel patch scst_fc_vport_create.patch from the "kernel" subdirectory.
-Without it, creating and removing NPIV targets using SCST sysfs
-interface will be disabled. NOTE: you will still be able to create and
-remove NPIV targets using the standard Linux interface (i.e. echoing
-wwpn:wwnn into /sys/class/fc_host/hostX/vport_create and
-/sys/class/fc_host/hostX/vport_delete).
-
-Then you should replace (or link) by the initiator driver from this
-package "qla2xxx" subdirectory in kernel_source/drivers/scsi/ of the
-currently running kernel and using your favorite kernel configuration
-tool enable in the QLogic QLA2XXX Fibre Channel driver target mode
-support (CONFIG_SCSI_QLA2XXX_TARGET). Then rebuild the kernel and its
-modules. During this step you will compile the initiator driver. To
-install it, install the built kernel and its modules.
-
-Then edit qla2x00-target/Makefile and set SCST_INC_DIR variable to point
-to the directory, where SCST's public include files are located. If you
-install QLA2x00 target driver's source code in the SCST's directory,
-then SCST_INC_DIR will be set correctly for you.
-
-Also you can set SCST_DIR variable to the directory, where SCST was
-built, but this is optional. If you don't set it or set incorrectly,
-during the compilation you will get a bunch of harmless warnings like
-"WARNING: "scst_rx_data" [/XXX/qla2x00tgt.ko] undefined!"
-
-To compile the target driver, type 'make' in qla2x00-target/
-subdirectory. It will build qla2x00tgt.ko module.
-
-To install the target driver, type 'make install' in qla2x00-target/
-subdirectory. The target driver will be installed in
-/lib/modules/`you_kernel_version`/extra. To uninstall it, type 'make
-uninstall'.
+The build produces the matching qla2xxx_scst initiator/HBA module and
+qla2x00tgt target adapter with the required SCST symbol dependencies.
+Do not copy these sources into a kernel tree or edit Makefile include
+paths. Installation is a separate privileged operation; use
+../../INSTALL.md for the current procedure.
 
 
 Usage
 -----
+
+WARNING: The commands in this section act on live kernel, HBA, Fibre
+Channel fabric and storage state. Do not run them until the exact host,
+ports, initiators and backing devices have been identified and approved.
+The examples load or reload modules, issue a LIP, write sysfs, enable a
+target and export writable storage; they are not safe production
+defaults.
 
 After the drivers are loaded and adapters successfully initialized by
 the initiator driver, including firmware image load, you should
@@ -93,36 +65,31 @@ purpose.
 Then target mode should be enabled via a sysfs interface on a per card
 basis, like:
 
-echo "1" >/sys/kernel/scst_tgt/targets/qla2x00t/target/enabled
+echo "1" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/enabled
 
 See below for full description of the driver's sysfs interface.
 
-With the obsolete proc interface you should instead use
-target_mode_enabled under the appropriate scsi_host entry, like:
-
-echo "1" >/sys/class/scsi_host/host0/target_mode_enabled
-
-You can find some installation and configuration HOWTOs in
-http://scst.sourceforge.net/qla2x00t-howto.html and
-https://forums.openfiler.com/viewtopic.php?id=3422.
+See ../doc/qla2x00t-howto.html for the in-tree installation and
+configuration HOWTO.
 
 
 IMPORTANT USAGE NOTES
 ---------------------
 
-1. It is strongly recommended to use firmware version 5.x or higher for
-24xx/25xx adapters. See
-http://sourceforge.net/mailarchive/forum.php?thread_name=4B4CD39F.6020401%40vlnb.net&forum_name=scst-devel
-for more details why. Recent report also suggest that openSUSE ships FW
-8.6.0 that leads to severe "scst: TM fn ABORT_TASK/0" errors on the
-target side, but using the latest 8.7.0 firmware from QLogic works well.
+1. Obtain firmware from current vendor or distribution support for the
+exact board model. The ql2xfwloadbin module parameter and the
+FW_FILE_* definitions in ../qla_os.c describe the driver's firmware
+source selection and exact request_firmware() names. See the in-tree
+HOWTO for the safety requirements.
 
-2. If you reload qla2x00tgt module, you should also reload qla2xxx
-module, otherwise your initiators could not see the target, when it is
-enabled after qla2x00tgt module load.
+2. The qla2x00tgt target adapter and qla2xxx_scst initiator/HBA module
+are a matched pair. Do not reload only one of them. Unloading either
+module is a live storage operation and requires all affected targets,
+sessions and initiator use to be stopped first.
 
-3. You need to issue LIP after you enabled a target, if you enabled it
-after one or more its initiators already started.
+3. If a target is enabled after its initiators have started, use the
+discovery procedure for the initiator driver and exact fabric port. A
+LIP is a live fabric operation, not a safe generic discovery command.
 
 
 Initiator and target modes
@@ -154,81 +121,54 @@ In all the modes you can at any time use sysfs attribute
 ini_mode_force_reverse to force enable or disable initiator mode on any
 particular port. Setting this attribute to 1 will reverse current status
 of the initiator mode from enabled to disabled and vice versa.
+Changing this attribute requests an ISP abort and waits for the HBA to
+return online.
 
 
 Explicit confirmation
 ---------------------
 
-This option should (actually, almost always must) be enabled by echoing
-"1" in /sys/kernel/scst_tgt/targets/qla2x00t/target/host/explicit_conform_enabled,
-if a target card exports at least one stateful SCSI device, like tape,
+This option should (actually, almost always must) be enabled by writing
+"1" to the explicit_confirmation attribute in the target port
+subdirectory under /sys/kernel/scst_tgt/targets/qla2x00t if a target
+card exports at least one stateful SCSI device, like tape,
 and class 2 isn't used, otherwise link-level errors could lead to loss
 of the target/initiator state synchronization. Also check if initiator
 supports this feature, it is reported in the kernel logs ("confirmed
 completion supported" or not). No major performance degradation was
 noticed, if it is enabled. Supported only for 23xx+. Disabled by
-default.
-
-For NPIV targets this option is set on their parent targets and shared
-among all NPIV targets on this hardware target.
-
+default. Changing this attribute requests an ISP abort and waits for the
+HBA to return online.
 
 Class 2
 -------
 
 Class 2 is the close equivalent of TCP in the network world. If you
 enable it, all the Fibre Channel packets will be acknowledged. By
-default, class 3 is used, which is UDP-like. Enable class 2 by echoing
-"1" in /sys/kernel/scst_tgt/targets/qla2x00t/target/host/class2_enabled.
-This option needs a special firmware with class 2 support. Disabled by
-default.
+default, class 3 is used, which is UDP-like. Enable class 2 by writing
+"1" to class2_enabled through the target's host link. This option needs
+a special firmware with class 2 support. Disabled by default. Changing
+it requests an ISP abort.
 
 
 N_Port ID Virtualization
 ------------------------
 
-Unfortunately, due to severe problems in the original qla2xxx driver,
-NPIV in this version is not supported. If you need NPIV, you can use
-previous version 2.1 of this driver.
-
-
-N_Port ID Virtualization (NPIV) is a Fibre Channel facility allowing
-multiple N_Port IDs to share a single physical N_Port. NPIV is fully
-supported by this driver. You must have 24xx+ ISPs with NPIV-supporting
-and NPIV-switches switch(es) to use this facility.
-
-You can add NPIV targets by echoing:
-
-add_target target_name node_name=node_name_value; parent_host=parent_host_value
-
-in /sys/kernel/scst_tgt/targets/qla2x00t/mgmt.
-
-Removing NPIV targets is done by echoing:
-
-del_target target_name
-
-in/sys/kernel/scst_tgt/targets/qla2x00t/mgmt.
-
-Also, you can create and remove NPIV targets using the standard Linux
-interface (i.e. echoing wwpn:wwnn into /sys/class/fc_host/hostX/vport_create
-and /sys/class/fc_host/hostX/vport_delete).
-
-It is recommended to use scstadmin utility and its config file to
-configure virtual NPIV targets instead of the above direct interface.
+NPIV target mode is disabled in this driver. The target template does not
+register add_target or del_target callbacks, and no qla2x00t management file
+for virtual targets is created. Do not use instructions from older releases
+to create NPIV targets with this driver.
 
 
 Compilation options
 -------------------
 
-There are the following compilation options, that could be commented
-in/out in Makefile:
-
- - CONFIG_SCST_DEBUG - turns on some debugging code, including some logging.
-   Makes the driver considerably bigger and slower, producing large amount of
-   log data.
-
- - CONFIG_SCST_TRACING - turns on ability to log events. Makes the driver
-   considerably bigger and leads to some performance loss.
+CONFIG_SCST_DEBUG and CONFIG_SCST_TRACING are selected consistently for
+the core and its consumers by the repository build mode; use the
+top-level 2debug, 2release or 2perf target instead of editing this
+driver's Makefile. The QLogic-only options below are disabled ccflags-y
+definitions in qla2x00-target/Kbuild and require an intentional source
+configuration change and rebuild.
 
  - CONFIG_QLA_TGT_DEBUG_WORK_IN_THREAD - makes SCST process incoming
    commands from the qla2x00t target driver and call the driver's
@@ -253,22 +193,21 @@ entries:
  - None, one or more subdirectories for targets with name equal to port
    names of the corresponding targets.
 
- - trace_level - allows to enable and disable various tracing
-   facilities. See content of this file for help how to use it.
+ - trace_level - when tracing or debugging support is built, allows
+   tracing facilities to be changed. Read the file for usage help.
 
  - version - read-only attribute, which allows to see version of
    this driver and enabled optional features.
 
- - mgmt - main management entry, which allows to configure NPIV targets.
-   See content of this file for help how to use it.
-
- - hw_target (hardware target only) - read-only attribute with value 1.
-   It allows to distinguish hardware and virtual targets.
-
-Each target subdirectory contains the following entries:
+Each target subdirectory contains selected entries described below.
+The complete common target interface is defined by ../../scst/SysfsRules
+and the current SCST sysfs implementation.
 
  - host - link pointing on the corresponding scsi_host of the initiator
    driver
+
+ - hw_target - read-only attribute with value 1. It identifies a
+   hardware target.
 
  - ini_groups - subdirectory defining initiator groups for this target,
    used to define per-initiator access control. See SCST core README for
@@ -286,6 +225,14 @@ Each target subdirectory contains the following entries:
  - explicit_confirmation - allows to enable explicit confirmations, see
    above.
 
+ - abort_isp - write-only recovery attribute. Any write requests an ISP
+   abort and waits for the HBA to return online. This can disrupt live
+   Fibre Channel traffic.
+
+ - node_name and port_name - read or override the hardware target WWNs.
+   Changing either while the target is enabled requests an ISP abort and
+   HBA reinitialization.
+
  - rel_tgt_id - allows to read or write SCSI Relative Target Port
    Identifier attribute. This identifier is used to identify SCSI Target
    Ports by some SCSI commands, mainly by Persistent Reservations
@@ -294,12 +241,6 @@ Each target subdirectory contains the following entries:
    rel_tgt_id. In this case SCST will not allow to enable this target
    until rel_tgt_id becomes unique. This attribute initialized unique by
    SCST by default.
-
- - node_name (NPIV targets only) - read-only attribute, which allows to see
-   the target World Wide Node Name.
-
- - parent_host (NPIV target only) - read-only attribute, which allows to see
-   the parent HBA World Wide Port Name (WWPN).
 
 Subdirectory "sessions" contains one subdirectory for each connected
 session with name equal to port name of the connected initiator.
@@ -313,28 +254,11 @@ Each session subdirectory contains the following entries:
 
  - commands - contains overall number of SCSI commands in this session.
 
-Below is a sample script, which configures 2 virtual disk "disk1" using
-/disk1 image for usage with 25:00:00:f0:98:87:92:f3 hardware target, and
-"disk2" using /disk2 image for usage with 50:50:00:00:00:00:00:11 NPIV
-target. All initiators connected to this targets will see those devices.
-
-#!/bin/bash
-
-modprobe scst
-modprobe scst_vdisk
-
-echo "add_device disk1 filename=/disk1; nv_cache=1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
-echo "add_device disk2 filename=/disk2; nv_cache=1" >/sys/kernel/scst_tgt/handlers/vdisk_fileio/mgmt
-
-modprobe qla2x00tgt
-
-echo "add_target 50:50:00:00:00:00:00:11 node_name=50:50:00:00:00:00:00:00;parent_host=25:00:00:f0:98:87:92:f3" >\
-/sys/kernel/scst_tgt/targets/qla2x00t/mgmt
-
-echo "add disk1 0" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/luns/mgmt
-echo "add disk2 0" >/sys/kernel/scst_tgt/targets/qla2x00t/50:50:00:00:00:00:00:11/luns/mgmt
-echo 1 >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/enabled
-echo 1 >/sys/kernel/scst_tgt/targets/qla2x00t/50:50:00:00:00:00:00:11/enabled
+WARNING: The scripts below perform live module and sysfs operations,
+enable an FC target and export hard-coded SCSI devices, backing paths
+and WWNs. They are interface examples, not runnable defaults. Do not
+use them without substituting an approved test configuration and
+following the scstadmin workflow referenced above.
 
 Below is another sample script, which configures 1 real local SCSI disk
 0:0:1:0 for usage with 25:00:00:f0:98:87:92:f3 target:
@@ -380,8 +304,8 @@ echo "add 25:00:00:f0:99:87:94:a3" >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:
 
 echo 1 >/sys/kernel/scst_tgt/targets/qla2x00t/25:00:00:f0:98:87:92:f3/enabled
 
-The resulting overall SCST sysfs hierarchy with initiator
-25:00:00:f0:99:87:94:a3 connected will look like:
+An abridged view of the resulting SCST sysfs hierarchy with initiator
+25:00:00:f0:99:87:94:a3 connected looks like:
 
 /sys/kernel/scst_tgt
 |-- devices
@@ -494,9 +418,11 @@ The resulting overall SCST sysfs hierarchy with initiator
 |-- targets
 |   `-- qla2x00t
 |       |-- 25:00:00:f0:98:87:92:f3
+|       |   |-- abort_isp
 |       |   |-- enabled
 |       |   |-- explicit_confirmation
 |       |   |-- host -> ../../../../../class/scsi_host/host4
+|       |   |-- hw_target
 |       |   |-- ini_groups
 |       |   |   |-- 25:00:00:f0:99:87:94:a3
 |       |   |   |   |-- initiators
@@ -522,8 +448,9 @@ The resulting overall SCST sysfs hierarchy with initiator
 |       |   |   |   |-- device -> ../../../../../devices/cdrom
 |       |   |   |   `-- read_only
 |       |   |   `-- mgmt
+|       |   |-- node_name
+|       |   |-- port_name
 |       |   |-- rel_tgt_id
-|	|   |-- hw_target
 |       |   `-- sessions
 |       |       `-- 25:00:00:f0:99:87:94:a3
 |       |           |-- active_commands
@@ -532,7 +459,6 @@ The resulting overall SCST sysfs hierarchy with initiator
 |       |           `-- luns -> ../../ini_groups/25:00:00:f0:99:87:94:a3/luns
 |       |-- trace_level
 |       |-- version
-|	`-- mgmt
 |-- threads
 |-- trace_level
 `-- version
@@ -544,13 +470,12 @@ Performance advices
 1. If you are going to use your target in an VM environment, for
 instance as a shared storage with VMware, make sure all your VMs
 connected to the target via *separate* sessions. You can check it using
-SCST proc or sysfs interface. You should use available facilities, like
-NPIV, to make separate sessions for each VM. If you miss it, you can
-greatly loose performance of parallel access to your target from
-different VMs. This isn't related to the case if your VMs are using the
-same shared storage, like with VMFS, for instance. In this case all your
-VM hosts will be connected to the target via separate sessions, which is
-enough.
+the SCST sysfs interface. Use the facilities available in the fabric
+and initiators to make separate sessions for each VM; this legacy target
+driver does not provide NPIV. Without separate sessions, parallel access
+from different VMs can lose considerable performance. This does not
+apply when VM hosts using shared storage such as VMFS already connect
+through separate sessions.
 
 2. See SCST core's README for more advices. Especially pay attention to
 have io_grouping_type option set correctly.

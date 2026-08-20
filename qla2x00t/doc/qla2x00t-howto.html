@@ -4,7 +4,7 @@
 <head>
 <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
 <title>
-QLogic FC Target Driver How-to for 22xx/23xx/24xx/25xx/26xx Adapters
+QLogic FC Target Driver How-to
 </title>
 <style type="text/css">
 pre {color:brown;}
@@ -13,109 +13,70 @@ body > ol > li {padding-bottom:1ex;}
 <body>
 
   <div style="text-align: center;">
-    <strong>How to Configure the FC QLogic Target Driver for
-      22xx/23xx/24xx/25xx/26xx Adapters</strong></div>
+    <strong>How to Configure the FC QLogic Target Driver</strong></div>
   <br><br>
+
+  <p><strong>WARNING:</strong> This procedure changes live kernel, HBA,
+  firmware, boot, Fibre Channel fabric and storage state. It unloads and
+  blacklists drivers, can flash HBA firmware, rebuilds an initial RAM disk,
+  writes sysfs, enables target ports and exports writable storage. Do not run
+  it without authorization for the exact host, HBA ports, firmware image,
+  fabric, initiators and backing devices. Verify recovery and rollback plans
+  before changing firmware or boot configuration.</p>
 
   <div style="text-align: center;"> <strong>TARGET SYSTEM</strong></div>
   <br><br>
 
 <ol>
 <li>
-  Look up the model numbers of the FC HBA and of the FC HBA RISC controller. If
-  it is not easy to access the label printed on the HBA, one way to look up
-  these model numbers is as follows:
-<pre>[root@proj ]# dmesg -c &gt;/dev/null
-[root@proj ]# rmmod qla2xxx
-[root@proj ]# modprobe qla2xxx
-[root@proj ]# dmesg | grep -E 'qla2xxx .* QLogic | Found an ISP'
-qla2xxx [0000:01:00.0]-001d: Found an ISP2532 irq 16 iobase 0xffffc9000413e000.
-qla2xxx [0000:01:00.0]-00fb:164: QLogic QLE2562 - PCI-Express Dual Channel 8Gb Fibre Channel HBA.
-qla2xxx [0000:01:00.1]-001d: Found an ISP2532 irq 17 iobase 0xffffc9000417c000.
-qla2xxx [0000:01:00.1]-00fb:165: QLogic QLE2562 - PCI-Express Dual Channel 8Gb Fibre Channel HBA.</pre>
-  The above information not only contains the HBA model number (QLE2562) but
-  also the RISC controller ID (ISP2532).
-</li>
-<li>(Optional) Download the Linux version of the QConvergeConsoleCLI software package
-  from <a href="http://driverdownloads.qlogic.com/">http://driverdownloads.qlogic.com/</a>
-  and install that software package.
+  Identify the exact HBA PCI device, board model and firmware from existing
+  hardware inventory, read-only sysfs attributes and retained kernel logs.
+  Do not clear the kernel log or unload and reload a storage driver merely to
+  identify the adapter. The current supported PCI IDs are defined by
+  <code>qla2xxx_pci_tbl[]</code> in the selected tree's
+  <a href="../qla_os.c">legacy</a> or
+  <a href="../../qla2x00t-32gbit/qla_os.c">newer</a> qla2xxx source.
 </li>
 <li>
-   Download the appropriate firmware for your QLogic card from
-   <a href="http://driverdownloads.qlogic.com/">http://driverdownloads.qlogic.com/</a>.
-   It is strongly recommended to use firmware version 5.x or higher for
-   24xx/25xx adapters. More information about this subject can be found in
-   the following e-mail thread: Vladislav Bolkhovitin and Artur Piechocki,
-   <a href="http://sourceforge.net/mailarchive/forum.php?thread_name=4B4CD39F.6020401%40vlnb.net&amp;forum_name=scst-devel"><em>FC
-   session gets closed with qla2x00t</em></a>, scst-devel mailing list, January 2010.
-
-   <br><br>
-
-   If no firmware image is available when the QLogic kernel module is loaded,
-   the following error message will appear in the system log
-   (/var/log/messages or /var/log/syslog):
-
-<pre>qla2xxx 0000:13:00.0: Firmware image unavailable.
-qla2xxx 0000:13:00.0: Failed to initialize adapter</pre>
-</li>
-
-<li>
-  Copy the firmware image (.BIN) file to the /lib/firmware directory and
-  rename it such that the kernel driver can find it. The file name that should
-  be used for the firmware file depends on the RISC controller ID:
-  <table border="1" summary="">
-    <tr><th><b>ISP Model</b></th><th><b>Firmware file<br>name</b></th></tr>
-    <tr><td>ISP 21XX</td><td>ql2100_fw.bin</td></tr>
-    <tr><td>ISP 22XX</td><td>ql2200_fw.bin</td></tr>
-    <tr><td>ISP 2300</td><td>ql2300_fw.bin</td></tr>
-    <tr><td>ISP 2322</td><td>ql2322_fw.bin</td></tr>
-    <tr><td>ISP 24XX</td><td>ql2400_fw.bin</td></tr>
-    <tr><td>ISP 25XX</td><td>ql2500_fw.bin</td></tr>
-    <tr><td>ISP 2031</td><td>ql2600_fw.bin</td></tr>
-    <tr><td>ISP 27XX</td><td>ql2700_fw.bin</td></tr>
-  </table>
+  Obtain firmware and any management utility from current vendor or
+  distribution support for the exact PCI and board model. Do not treat the
+  historical version recommendation in this document as current vendor
+  policy.
 </li>
 <li>
-  Update the firmware image in the HBA. Although the QLogic kernel driver is
-  able to load the firmware from /lib/firmware, QLogic recommends to update
-  the firmware image that resides in the HBA (see also Quinn Tran,
-  <a href="http://sourceforge.net/p/scst/mailman/message/32801228/"><em>Re:
-  [ANNOUNCE]: qla2x00t QLogic git integration into the SCST build
-  tree</em></a>, scst-devel mailing list, September 5, 2014). An example:
-  <pre>[root@proj ]# /opt/QLogic_Corporation/QConvergeConsoleCLI/qaucli -fc -b all /lib/firmware/ql2500_fw.bin</pre>
+  The <code>ql2xfwloadbin</code> module parameter controls whether the driver
+  requests a firmware file, loads firmware from adapter flash or uses its
+  default semantics. When file loading is selected, use the exact
+  <code>FW_FILE_*</code> name defined by the selected tree's
+  <a href="../qla_os.c">legacy</a> or
+  <a href="../../qla2x00t-32gbit/qla_os.c">newer</a> qla2xxx source. Do not
+  rename an arbitrary firmware image according to a historical model table.
 </li>
-<li>Install the necessary kernel development packages. On a Debian system
-these packages can be installed as follows:
-<pre>[root@proj ]# apt-get install gcc linux-headers-`uname -r` lsscsi patch subversion</pre>
-On RHEL/CentOS/SL systems these packages can be installed as follows:
-<pre>[root@proj ]# yum install gcc kernel-devel lsscsi patch subversion</pre>
-And on SUSE systems these packages can be installed by running the following command:
-<pre>[root@proj ]# zypper install gcc kernel-devel lsscsi patch subversion</pre>
+<li>
+  If the approved deployment requires updating firmware stored in the HBA,
+  follow the current vendor or distribution procedure for the exact board
+  model. Perform the update in a maintenance window with a tested recovery
+  plan. SCST does not define a universal HBA flash command.
+</li>
+<li>
+  Install the current build prerequisites listed in
+  <a href="../../INSTALL.md">INSTALL.md</a>. Distribution package names and
+  supported kernel versions change over time; the lists in that document and
+  <code>nightly/conf/nightly.conf</code> are authoritative.
 </li>
 
 <li>
-  Download the SCST source code. That source code can be downloaded either
-  from the <a href="http://scst.sourceforge.net/downloads.html">SCST
-  downloads page</a> or from the SCST Subversion source code
-  repository.<br><br>
-
-  In what follows it is assumed that the SCST trunk has been retrieved
-  via Subversion. Installing a released SCST version is identical to
-  installing the trunk after all downloaded SCST source code archives have
-  been extracted in a single directory. The structure of that directory will
-  be identical to that of the SCST trunk.
-
-<pre>[root@proj ]# svn co https://svn.code.sf.net/p/scst/svn/trunk scst</pre>
-
-  After the above command finished a directory called 'scst' will have been
-  created in the current directory, which is /root in this how-to.
+  Obtain a current SCST release or Git checkout as described by the project
+  <a href="../../README.md">README</a>. The remaining relative paths assume
+  commands are run from the root of that source tree.
 </li>
 
 <li>
-  If you want to use the latest QLogic SCST target driver from the QLogic git,
-  use the driver from the qla2x00t-32gbit directory. Please note that this
-  driver has not yet reached the same maturity level as the driver in the
-  qla2x00t directory.
+  The top-level build selects <code>qla2x00t-32gbit</code>, the newer QLogic
+  tree, by default. Set <code>QLA_32GBIT=no</code> for both build and install
+  only when selecting the alternative legacy <code>qla2x00t</code> tree. Do
+  not mix an initiator/HBA module from one tree with the target adapter from
+  the other.
 </li>
 
 <li id="blacklist">
@@ -125,92 +86,35 @@ Unload the qla2xxx kernel module provided by your Linux distribution and blackli
 </li>
 
 <li id="release">
-  Select a build mode that suits your needs, e.g. optimal performance or
-  debugging SCST. The default mode is debug mode. Here is how to switch to
-  release mode:
-<pre>[root@proj scst ]# pwd
-/root/scst
-[root@proj scst ]# make 2release</pre>
+  Select the build mode from the source-tree root. For example, select the
+  release mode before compiling:
+<pre>[root@proj scst ]# make 2release</pre>
 </li>
 
 <li>
-  Now build the SCST kernel modules. But first verify that the link
-  "/lib/modules/`uname -r`/build" points to the kernel headers of the
-  currently running kernel. Build and install SCST, e.g. as follows:
-<pre>[root@proj ]# cd /root/scst
-[root@proj scst ]# BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y CONFIG_SCSI_QLA2XXX_TARGET=y make all install</pre>
-
-  Verify that compilation and installation succeeded:
-	<pre>[root@proj scst]# ls -l /lib/modules/`uname -r`/extra/qla2*
--rw-r--r--  1 root root  36756 Jun 20 18:46 qla2x00tgt.ko
--rw-r--r--  1 root root 160192 Jun 20 18:46 qla2xxx_scst.ko
-</pre>
+  Build and install SCST by following
+  <a href="../../INSTALL.md">INSTALL.md</a>. For a source build, keep
+  <code>BUILD_2X_MODULE=y</code>, <code>CONFIG_SCSI_QLA_FC=y</code> and
+  <code>CONFIG_SCSI_QLA2XXX_TARGET=y</code> consistent across the separate
+  build and privileged install commands. Also keep the same
+  <code>QLA_32GBIT</code> selection in both commands.
 </li>
 
 <li>
-  Insert the kernel modules.<br>  The kernel modules have been installed in
-  '/lib/modules/`your_kernel_version`/extra'.<br>  In addition, scst.h,
-  scst_debug.h as well as Module.symvers or Modules.symvers have been copied
-  to '/usr/local/include/scst'.<br> The first file contains all SCST's public
-  interfaces used by target drivers. The other files allow target drivers to
-  generate debug messages and support the kernel module build process.
-
-<pre>[root@proj scst]# ls -l /lib/modules/`uname -r`/extra
-total 232
-drwxr-xr-x  2 root root   4096 Jun 20 18:43 dev_handlers
--rw-r--r--  1 root root  36756 Jun 20 18:46 qla2x00tgt.ko
--rw-r--r--  1 root root 160192 Jun 20 18:46 qla2xxx_scst.ko
--rw-r--r--  1 root root 190848 Jun 20 18:43 scst.ko
-
-[root@proj scst]# ls -l /lib/modules/`uname -r`/extra/dev_handlers
-total 192
--rw-r--r--  1 root root 11757 Jun 20 18:43 scst_cdrom.ko
--rw-r--r--  1 root root 10111 Jun 20 18:43 scst_changer.ko
--rw-r--r--  1 root root 12420 Jun 20 18:43 scst_disk.ko
--rw-r--r--  1 root root 12449 Jun 20 18:43 scst_modisk.ko
--rw-r--r--  1 root root 10131 Jun 20 18:43 scst_processor.ko
--rw-r--r--  1 root root 10081 Jun 20 18:43 scst_raid.ko
--rw-r--r--  1 root root 12563 Jun 20 18:43 scst_tape.ko
--rw-r--r--  1 root root 37937 Jun 20 18:43 scst_user.ko
--rw-r--r--  1 root root 50194 Jun 20 18:43 scst_vdisk.ko</pre>
-
-where:
-<ul>
-<li>scst - SCST itself.</li>
-<li>scst_disk - device handler for disks (type 0).</li>
-<li>scst_tape - device handler for tapes (type 1).</li>
-<li>scst_processor - device handler for processors (type 3).</li>
-<li>scst_cdrom - device handler for CDROMs (type 5).</li>
-<li>scst_modisk - device handler for MO disks (type 7).</li>
-<li>scst_changer - device handler for medium changers (type 8).</li>
-<li>scst_raid - device handler for storage array controller (e.g. raid) (type C).</li>
-<li>scst_vdisk - device handler for virtual disks (file, device or ISO CD image)..</li>
-<li>scst_user - user space device handler.</li>
-</ul>
-<br>
-
-  You can insert any of these kernel modules with the 'modprobe' program. As
-  you can see, I've inserted all SCST kernel modules !!!
-<pre>[root@proj ]# for m in scst qla2xxx_scst qla2x00tgt scst_vdisk scst_user scst_disk ...; do modprobe $m; done</pre>
-
-  This will result in the following dmesg output:
-
-<pre>scst: SCST version 2.0.0 loaded successfully (max mem for commands 16251MB, per device 6500MB)
-scst: Enabled features: TRACING
-scst: Target template qla2x00tgt registered successfully
-scst: Virtual device handler vdisk for type 0 registered successfully
-scst: Virtual device handler "scst_user" registered successfully</pre>
+  Load only the modules required by the approved configuration, using the
+  service or manual workflow documented in <a href="../../INSTALL.md">
+  INSTALL.md</a>. The <code>qla2xxx_scst</code> initiator/HBA module and
+  <code>qla2x00tgt</code> target adapter must come from the same selected
+  source tree. Do not use historical module sizes or log transcripts to
+  validate the installation.
 </li>
 
 <li>
-Back up and rebuild the initial RAM disk such that the qla2xxx kernel module in
-that RAM disk will be replaced by qla2xxx_scst. How to do this depends on your
-Linux distribution. The initial RAM disk can be rebuilt e.g. as follows:
-<pre>[root@proj ]# type update-initrd >/dev/null 2>&amp;1 &amp;&amp; update-initrd -c -k `uname -r`
-[root@proj ]# type update-initramfs >/dev/null 2>&amp;1 &amp;&amp; update-initramfs -c -k `uname -r`
-[root@proj ]# if type mkinitrd >/dev/null 2>&amp;1; then
-if { rpm -q sles-release || rpm -q openSUSE-release; } >/dev/null 2>&amp;1;
-then mkinitrd; else mkinitrd -f /boot/initramfs-`uname -r`.img `uname -r`; fi; fi</pre>
+If the approved deployment requires <code>qla2xxx_scst</code> in the initial
+RAM disk, back up the current image and follow the distribution's procedure
+for the exact installed kernel. Verify that the replacement modules are
+present before rebuilding and retain a bootable recovery entry. There is no
+portable SCST command that can safely select or replace an initial RAM disk.
 </li>
 
 <li>
@@ -227,8 +131,11 @@ Now let's create our virtual device:
 /mnt/disk1: data</pre>
 </li>
 
-<li>The next step is to install scstadmin:
-  <pre>[root@proj ]# make -C scstadmin -s install</pre>
+<li>
+  The repository-wide source or package installation workflow includes
+  <code>scstadmin</code>. Verify that the installed command matches the SCST
+  version before applying the configuration below; do not perform a second
+  uncoordinated installation from this HOWTO.
 </li>
 
 <li id="qlini_mode"> Initiator and target modes <br><br>
@@ -249,11 +156,16 @@ Now let's create our virtual device:
   Use mode "enabled" if you need your QLA adapters to work in both initiator and target modes at the same time.<br>
   You can always see which modes are currently active in active_mode sysfs attribute.<br>
   In all the modes you can at any time use sysfs attribute ini_mode_force_reverse to force enable or disable initiator mode on any particular port. Setting this attribute to 1 will reverse current status of the initiator mode from enabled to disabled and vice versa.<br>
+  Changing ini_mode_force_reverse requests an ISP abort and waits for the HBA
+  to return online.<br>
 <br>
 <b>qla2x00t-32gbit</b> (new qlogic driver): <br><br>
   Use mode "dual" if you need your QLA adapters to work in both initiator and target modes at the same time. In this mode, each qlogic host has individual <b>qlini_mode</b>, <b>ql2xexchoffld</b>, <b>ql2xiniexchg</b> attributes that can be changed dynamically.<br>
   For example, you can change qlini_mode to "disabled" for specific qlogic host:
-  <pre>echo "disabled" > /sys/devices/pci0000:80/0000:80:02.0/0000:81:00.0/host1/scsi_host/host1/qlini_mode</pre>
+  <pre>echo "disabled" > /sys/class/scsi_host/host1/qlini_mode</pre>
+  An accepted dynamic mode change can request an ISP abort, and some
+  transitions are rejected while target mode is active. Check the target
+  state and kernel log before and after changing the attribute.
 </li>
 
 <li id="target-mode">
@@ -264,11 +176,11 @@ Now let's create our virtual device:
   The simplest way to do that is to generate an scstadmin config file, e.g. as
   follows:
 
-<pre>modprobe qla2x00tgt
-find /sys/kernel/scst_tgt/targets/qla2x00t -name enabled | \
-while read f; do echo 1 >$f &amp; done; wait
-find /sys -name issue_lip | while read f; do echo 1 >$f &amp; done; wait
-{
+  <strong>WARNING:</strong> This template enumerates every discovered QLogic
+  target port and maps LUN 0 without initiator groups. Restrict the generated
+  targets and access controls before applying it.
+
+<pre>{
 cat &lt;&lt;EOF
 HANDLER vdisk_fileio {
         DEVICE disk1 {
@@ -291,24 +203,15 @@ EOF
 done
 } >scst.conf</pre>
 
-Check the generated config file. If it looks fine to you, move it to the
-default location:
-<pre>mv -i scst.conf /etc/scst.conf</pre>
+Review the generated file against the current configuration, restrict its
+targets and initiators and preserve a backup before placing it at
+<code>/etc/scst.conf</code>. Do not replace an existing configuration by
+following an unreviewed example.
 
-The SCST configuration in that file can be applied via scstadmin:
+Applying the file is a live operation that opens the backing file, maps the
+LUN and enables each configured target:
 
-<pre>[root@proj ]# scstadmin -config /etc/scst.conf
-
-Collecting current configuration: done.
-
--> Checking configuration file 'qq' for errors.
-	-> Done, 0 warnings found.
-
-	-> Opening device 'disk1' using handler 'vdisk_fileio': done.
-	-> Adding device 'disk1' at LUN 0 to driver/target 'qla2x00t/25:00:00:f0:98:87:92:f3': done.
-	-> Enabling driver/target 'qla2x00t/25:00:00:f0:98:87:92:f3': done.
-
-	All done.</pre>
+<pre>[root@proj ]# scstadmin -config /etc/scst.conf</pre>
 
 
 The same can be done directly via the sysfs interface of SCST:
@@ -340,24 +243,15 @@ The same can be done directly via the sysfs interface of SCST:
 
 <ol>
 <li>
-  A quote from the SCST README:<blockquote><em> Without loading appropriate
-  device handler, corresponding device will be invisible for remote
-  initiators, hence we have to add them manually.</em></blockquote>  But as
-  I've already loaded the device handler (scst_vdisk) on the target, I don't
-  have to perform any additional steps.
-</li>
-
-<li>
   After <a href="#target-mode">enabling the target mode</a> on the target, to
-  see new targets and devices on the initiator you need have to trigger a
-  rescan on the initiator. That is possible either by rebooting the initiator
-  or by unloading and reloading the initiator kernel module.  Automatic
-  discovery isn't supported by all known initiators, so you need a way to make
-  SCSI subsystem on the initiator to do the new devices discovery and hence be
-  able to see the new devices attached.
+  see new targets and devices on the initiator, use the discovery procedure
+  for that initiator driver and the exact fabric port. Do not use a reboot or
+  module unload as a generic discovery method: either can disrupt unrelated
+  sessions and storage. A LIP or other fabric rediscovery is also a live
+  operation and must be scoped to the intended port.
 
-  Alternatively, if your initiator already connected to the target and you
-  simply added new devices to it, you can try to run a manual rescan as follows:
+  If the initiator is already connected and only new LUNs were added, rescan
+  the corresponding SCSI host as follows:
 
 <pre>[root@initiator ]# echo "- - -" >/sys/class/scsi_host/hostX/scan</pre>
 where X is the host number.
