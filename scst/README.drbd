@@ -1,6 +1,13 @@
 SCST, DRBD and Dual Primary Mode
 ********************************
 
+Scope and safety
+----------------
+This document describes SCST requirements for a dual-primary DRBD setup. It is
+not a complete deployment recipe. Validate the DRBD, cluster-manager, fencing,
+and initiator configuration against the documentation for the versions in use
+before exporting real storage.
+
 Introduction
 ------------
 One possible approach to build a highly available storage solution is to
@@ -26,20 +33,23 @@ settings for each DRBD block device exported via SCST:
 
 DRBD Configuration
 ------------------
-As documented in the DRBD manual, dual primary mode only works with the DRBD
-replication protocol C and not with protocol A nor with protocol B.
+As documented in the DRBD 9 User's Guide, dual-primary mode requires
+synchronous replication protocol C and suitable fencing. Protocols A and B do
+not provide the required completion semantics.
 
 Initiator Configuration
 -----------------------
-When using VMware, do NOT use multipath I/O in round-robin mode. This mode
-namely depends on persistent reservations to guarantee data
-consistency. When running an SCST cluster, the SCST persistent reservation
-state is not shared between the two nodes.
+Do not select a multipath policy that permits concurrent access until the
+complete configuration has been validated. In particular, enable SCST
+cluster_mode for every shared device, use the same stable t10_dev_id on both
+nodes, and verify persistent-reservation synchronization and fencing on every
+path. Also follow the current initiator vendor's requirements; these are not
+defined by SCST.
 
 References
 ----------
-* DRBD authors, [Dual Primary Mode], DRBD Manual, 2011.
-* VMware, [iSCSI SAN Configuration Guide 4.1], VMware website, September 2010.
+* LINBIT, DRBD 9 User's Guide:
+  https://linbit.com/drbd-user-guide/drbd-guide-9_0-en/
 * Phil White, [VMware ESX, MPIO, SCST and DRBD in Dual Primary Mode], SCST
   Developers Mailing List, June 2010.
 * Stefan Berger, [SCST and DRBD in Dual Primary Mode], DRBD users mailing
