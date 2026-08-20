@@ -1,6 +1,17 @@
 SCSI RDMA Protocol (SRP) Target driver for Linux
 =================================================
 
+Historical OFED 1.5.1 procedure
+-------------------------------
+
+This document describes an OFED 1.5.1 installation from 2010. Its download,
+package and service names and its distribution-driver replacement steps are
+not current general OFED guidance. Do not run the driver removal or install
+commands below on a production host. For current SCST build and installation
+workflows, use ../INSTALL.md. For an installed OFED release, follow that
+vendor's matching documentation; srpt/Makefile selects the available RDMA
+headers and runs compatibility conftests.
+
 Introduction
 ------------
 

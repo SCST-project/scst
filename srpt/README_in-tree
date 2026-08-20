@@ -1,6 +1,15 @@
 SCSI RDMA Protocol (SRP) Target driver for Linux
 =================================================
 
+Historical procfs procedure
+---------------------------
+
+The procedure below predates removal of the SCST procfs control interface.
+Its /proc/scsi_tgt commands cannot configure current SCST and its examples
+would expose or access live storage. Do not follow them. Use ../INSTALL.md
+and README for current build and SRPT guidance, and use the scstadmin
+documentation for current sysfs-based target configuration.
+
 The SRP Target driver is designed to work directly on top of the
 OpenFabrics OFED-1.x software stack (http://www.openfabrics.org) or
 the Infiniband drivers in the Linux kernel tree
@@ -93,19 +102,16 @@ of a single CPU load for data transfers in their internal threads, to
 maximize IOPS it can be needed to assign for those threads dedicated
 CPUs using Linux CPU affinity facilities. No IRQ processing should be
 done on those CPUs. Check that using /proc/interrupts. See taskset
-command and Documentation/IRQ-affinity.txt in your kernel's source tree
-for how to assign CPU affinity to tasks and IRQs.
+command and Documentation/core-api/irq/irq-affinity.rst in your kernel's
+source tree for how to assign CPU affinity to tasks and IRQs.
 
 The reason for that is that processing of coming commands in SIRQ context
 can be done on the same CPUs as SSD devices' threads doing data
 transfers. As the result, those threads won't receive all the CPU power
 and perform worse.
 
-Alternatively to CPU affinity assignment, you can try to enable SRP
-target's internal thread. It will allows Linux CPU scheduler to better
-distribute load among available CPUs. To enable SRP target driver's
-internal thread you should load ib_srpt module with parameter
-"thread=1".
+The ib_srpt thread parameter was removed when its former thread=1 mode
+became unconditional. No module option is needed to select that mode.
 
 
 Send questions about this driver to scst-devel@lists.sourceforge.net, CC:
