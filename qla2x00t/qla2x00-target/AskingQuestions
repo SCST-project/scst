@@ -24,8 +24,9 @@ So, as a bottom line, don't ask questions answers on which you can find
 out yourself by a simple documentation reading and minimal thinking
 effort.
 
-If you experience kernel crash, hang, etc., you should follow
-REPORTING-BUGS file from your kernel source tree.
+If you experience a kernel crash, hang, etc., follow
+Documentation/admin-guide/reporting-issues.rst from the current kernel
+source tree in addition to the SCST-specific guidance below.
 
 For most questions it is very desirable if you attach to your message
 full kernel log from the target since it's booted. Note, *SINCE IT
@@ -72,6 +73,10 @@ possible reasons for it, he expected others to do that for him. He even
 didn't bothered to look in the kernel log, where, very probably, the
 reason of the error was logged.
 
+
+The reports below are preserved as examples of useful problem detail.
+Their kernel versions, module names, paths and configuration commands
+are historical and must not be used as setup instructions.
 
 Here are three examples of good questions:
 
