@@ -19,6 +19,13 @@ Building and Installing
 FCST is a kernel module that depends on libfc and SCST to provide FC target
 support.
 
+WARNING: The procedure below installs system packages, creates an FCoE
+interface, loads kernel modules, changes live SCST sysfs state, exposes LUNs,
+and may reset an initiator interface. Use it only with authorization for the
+exact host, Ethernet fabric, CNA, initiators, and backing storage. Substitute
+and verify every interface name, port name, and SCST device before running a
+command.
+
 1.  Build and install scst, fcst and scstadmin following the instructions
     in the top-level INSTALL.md file.
 
@@ -39,8 +46,8 @@ support.
     over a full-duplex loss-less link (enable pause on both sides).
     Alternatively, the other end can be an FCoE switch.
 
-5.  Use fcc (part of the open-fcoe contrib tools in step 7) to see the
-    initiator setup.  To get the FCoE port name for eth3
+5.  Use fcc from the open-fcoe contrib tools to inspect the initiator
+    setup and obtain the FCoE port name for eth3:
 
 	# fcc
 	FC HBAs:
@@ -58,8 +65,8 @@ support.
 
 	modprobe fcst
 
-7.  Add any disks (configured in step 8) you want to export
-     Note that you must have a LUN 0.
+7.  Add the SCST devices configured in step 3 that you want to export.
+    Many initiators require a LUN 0.
 
 	LPORT=20:00:00:1b:21:06:58:21		# the local Port_Name
 
@@ -67,9 +74,9 @@ support.
 	echo add disk-name 0 > luns/mgmt
 	echo add disk-name 1 > luns/mgmt
 
-8.  Enable the initiator:
+8.  Enable the target:
 
-	echo 1 > $LPORT/enabled
+	echo 1 > enabled
 
 9.  As a temporary workaround, you may need to reset the interface
     on the initiator side so it sees the SCST device as a target and
