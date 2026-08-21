@@ -269,18 +269,15 @@ static bool scst_copy_res_from_dlm(struct scst_device *dev, struct pr_lvb *lvb)
 	pr_dlm->reserved_by_nodeid = be32_to_cpu(lvb->reserved_by_nodeid);
 	if (dev->reserved_by &&
 	    pr_dlm->reserved_by_nodeid != pr_dlm->local_nodeid) {
-		PRINT_WARNING("%s: dropping SPC-2 reservation for %s (due to"
-			      " split-brain ?) because node %d holds a"
-			      " reservation", dev->virt_name,
+		PRINT_WARNING("%s: dropping SPC-2 reservation for %s (due to split-brain ?) because node %d holds a reservation",
+			      dev->virt_name,
 			      dev->reserved_by->initiator_name,
 			      pr_dlm->reserved_by_nodeid);
 		swap(dev->reserved_by, dropped_res);
 	}
 	if (!dev->reserved_by &&
 	    pr_dlm->reserved_by_nodeid == pr_dlm->local_nodeid) {
-		PRINT_WARNING("%s: dropping SPC-2 reservation (due to restart"
-			      " or split-brain ?) and triggering LVB update"
-			      " because of inconstency (holder %d / not rsrvd)",
+		PRINT_WARNING("%s: dropping SPC-2 reservation (due to restart or split-brain ?) and triggering LVB update because of inconstency (holder %d / not rsrvd)",
 			      dev->virt_name, pr_dlm->reserved_by_nodeid);
 		pr_dlm->reserved_by_nodeid = 0;
 		lvb->reserved_by_nodeid = 0;
@@ -945,7 +942,6 @@ static void dump_lockspace(const char *cl_dev_id)
 		NULL
 	};
 
-
 	if (!argv[0] || !argv[1] || !argv[2] || !envp[0]) {
 		PRINT_ERROR("%s: out of memory", __func__);
 		goto out;
@@ -980,8 +976,8 @@ static void release_lockspace(dlm_lockspace_t *ls, const char *cl_dev_id)
 		 */
 		res = dlm_release_lockspace(ls, 2);
 		if (res)
-			PRINT_ERROR("forcibly releasing lockspace for %s"
-				    " failed: %d", cl_dev_id, res);
+			PRINT_ERROR("forcibly releasing lockspace for %s failed: %d",
+				    cl_dev_id, res);
 	}
 	if (res == 0)
 		PRINT_INFO("released lockspace for %s", cl_dev_id);
