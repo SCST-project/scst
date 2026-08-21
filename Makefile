@@ -433,8 +433,8 @@ debian/changelog: debian/changelog.in
 	  <debian/changelog.in >debian/changelog
 
 debian/compat:
-	dpkg-query -W --showformat='$${Version}\n' debhelper 2>/dev/null | \
-	sed 's/\..*//' >$@
+	version=$$(dpkg-query -W --showformat='$${Version}\n' debhelper) && \
+	printf '%s\n' "$${version%%.*}" >$@
 
 ../scst_$(VERSION).orig.tar.gz: debian/changelog debian/compat Makefile	\
 		$(SCST_SOURCE_FILES)
@@ -447,8 +447,8 @@ debian/compat:
 	mv "scst-$(VERSION).tar.xz" "$@"
 
 dpkg: ../scst_$(VERSION).orig.tar.gz
-	@[ -z "$$DEBEMAIL" ] || export DEBEMAIL=bvanassche@acm.org &&	\
-	[ -z "$$DEBFULLNAME" ] || export DEBFULLNAME="Bart Van Assche" &&\
+	@[ -n "$$DEBEMAIL" ] || export DEBEMAIL=bvanassche@acm.org &&	\
+	[ -n "$$DEBFULLNAME" ] || export DEBFULLNAME="Bart Van Assche" &&\
 	echo "KDIR=$(KDIR)" &&						\
 	echo "KVER=$(KVER)" &&						\
 	sed 's/%{scst_version}/$(VERSION)/'				\
