@@ -564,8 +564,8 @@ scriptsdir="$(dirname "$0")"
 if [ "${scriptsdir:0:1}" != "/" ]; then
   scriptsdir="$PWD/${scriptsdir}"
 fi
-# Where to store persistenly downloaded kernel tarballs and kernel patches.
-kernel_sources="$HOME/software/downloads"
+# Where to store persistently downloaded kernel tarballs and kernel patches.
+kernel_downloads="$HOME/software/downloads"
 kernel_versions=""
 # Directory in which the regression test output files will be stored. Must be
 # an absolute path.
@@ -583,7 +583,7 @@ quiet_download="false"
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
-    '-c') kernel_sources="$2"; shift; shift;;
+    '-c') kernel_downloads="$2"; shift; shift;;
     '-d') outputdir="$2"; shift; shift;;
     '-h') usage; exit 1;;
     '-j') export MAKEFLAGS="-j$2"; shift; shift;;
