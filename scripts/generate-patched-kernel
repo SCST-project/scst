@@ -41,7 +41,6 @@ fi
 
 target="linux-$1"
 kernel_version="$(kernel_version "$1")"
-patchlevel="$(patchlevel "$1")"
 
 download_and_extract_kernel_tree "$1" || exit $?
 
@@ -51,9 +50,6 @@ cd "${target}" || exit $?
   grep -- "-${kernel_version}.*.patch$" |
   grep -v /in-tree/ |
   while read -r p; do
-    if [ "${p/readahead-2.6.32.below11.patch//}" = "$p" ] ||
-       [ "${patchlevel:-0}" -lt 11 ]; then
-      echo "==== $p"
-      patch -p1 <"${scst_dir}/$p"
-    fi
+    echo "==== $p"
+    patch -p1 <"${scst_dir}/$p"
   done
