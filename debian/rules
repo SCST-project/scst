@@ -58,7 +58,7 @@ build:
 	export BUILD_2X_MODULE=y &&					\
 	export CONFIG_SCSI_QLA_FC=y &&					\
 	export CONFIG_SCSI_QLA2XXX_TARGET=y &&				\
-	for d in $(SUBDIRS); do $(MAKE) -C $$d; done
+	for d in $(SUBDIRS); do $(MAKE) -C $$d || exit $$?; done
 
 build-indep: build
 
@@ -74,10 +74,10 @@ install:
 	export CONFIG_SCSI_QLA2XXX_TARGET=y &&				\
 	for d in $(SUBDIRS); do						\
 	    if [ $$d = scst ]; then					\
-		{ $(MAKE) -C $$d install || break; }			\
+		$(MAKE) -C $$d install || exit $$?;			\
 	    else							\
-		{ INSTALL_MOD_PATH="$(DESTDIR)" $(MAKE) -C $$d install; } ||\
-		    break;						\
+		INSTALL_MOD_PATH="$(DESTDIR)" $(MAKE) -C $$d install ||	\
+		    exit $$?;						\
 	    fi;								\
 	done &&								\
 	make $(PKG_BUILD_MODE) &&					\

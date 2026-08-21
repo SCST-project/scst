@@ -6,6 +6,8 @@ ifndef PREFIX
 	PREFIX=/usr/local
 endif
 
+SHELL=/bin/bash
+
 SCST_DIR := $(shell echo "$$PWD")/../scst/src
 
 ifeq ($(KVER),)
@@ -158,11 +160,18 @@ check:
 clean:
 	rm -rf conftest/pre_cflags conftest/kcflags
 	rm -rf conftest/*/{build-output,result}*.txt
+	status=0; pids=();						\
 	for d in conftest/* src; do					\
-	  [ -d "$$d" ] && $(MAKE) -C $(KDIR) M=$(shell pwd)/$$d $@ &	\
-	  rm -f $$d/result*.txt;					\
+	  if [ -d "$$d" ]; then					\
+	    $(MAKE) -C $(KDIR) M=$(shell pwd)/$$d $@ &		\
+	    pids+=("$$!");						\
+	  fi;								\
+	  rm -f $$d/result*.txt || status=$$?;			\
 	done;								\
-	wait
+	for pid in "$${pids[@]}"; do					\
+	  wait "$$pid" || status=$$?;				\
+	done;								\
+	exit $$status
 
 extraclean: clean
 	rm -f *.orig *.rej

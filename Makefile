@@ -186,18 +186,19 @@ tags:
 	find . -type f -name "*.[ch]" | ctags --c-kinds=+p --fields=+iaS --extra=+q -e -L-
 
 cov-build:
-	-for d in $(SCST_DIR) $(ISCSI_DIR) $(OLD_QLA_DIR) $(NEW_QLA_DIR)   \
+	for d in $(SCST_DIR) $(ISCSI_DIR) $(OLD_QLA_DIR) $(NEW_QLA_DIR)    \
 		$(SRP_DIR) $(SCST_LOCAL_DIR) $(FCST_DIR) $(USR_DIR)	   \
 		$(SCSTADM_DIR); do					   \
 		BUILD_2X_MODULE=y CONFIG_SCSI_QLA_FC=y			   \
-		CONFIG_SCSI_QLA2XXX_TARGET=y $(MAKE) -j$$(nproc) -C "$$d"; \
+		CONFIG_SCSI_QLA2XXX_TARGET=y $(MAKE) -j$$(nproc) -C "$$d" || \
+			exit $$?;					   \
 	done
 
 all clean extraclean install uninstall:
-	-if [ $@ = extraclean ]; then rm -f TAGS tags cscope.out; fi
-	-for d in $(SCST_DIR) $(ISCSI_DIR) $(QLA_DIR) $(SRP_DIR)	    \
+	if [ $@ = extraclean ]; then rm -f TAGS tags cscope.out; fi
+	for d in $(SCST_DIR) $(ISCSI_DIR) $(QLA_DIR) $(SRP_DIR)	     \
 		$(SCST_LOCAL_DIR) $(FCST_DIR) $(USR_DIR) $(SCSTADM_DIR); do \
-		$(MAKE) -j$$(nproc) -C "$$d" $@ || break;		    \
+		$(MAKE) -j$$(nproc) -C "$$d" $@ || exit $$?;	    \
 	done
 
 scst:
