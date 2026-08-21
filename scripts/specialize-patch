@@ -56,14 +56,14 @@ function evaluate(stmnt, pattern, arg, op, result) {
   gsub("[[:blank:]]*\\/\\*[^*]*\\*\\/[[:blank:]]*", "", stmnt)
 
   # Remove the spaces before the #-sign.
-  gsub("^+[[:blank:]]*#[[:blank:]]*", "+#", stmnt)
+  gsub("^\\+[[:blank:]]*#[[:blank:]]*", "+#", stmnt)
 
-  if (match(stmnt, "^+#ifdef (.*)$", arg))
+  if (match(stmnt, "^\\+#ifdef (.*)$", arg))
   {
     stmnt = "+#if defined(" arg[1] ")"
   }
 
-  if (match(stmnt, "^+#ifndef (.*)$", arg))
+  if (match(stmnt, "^\\+#ifndef (.*)$", arg))
   {
     stmnt = "+#if !defined(" arg[1] ")"
   }
@@ -356,19 +356,19 @@ function evaluate(stmnt, pattern, arg, op, result) {
       sub(pattern, 0, stmnt)
     }
 
-    pattern="^+#(if|elif)[[:blank:]]*([01])[[:blank:]]*&&[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))$"
+    pattern="^\\+#(if|elif)[[:blank:]]*([01])[[:blank:]]*&&[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))$"
     while (match(stmnt, pattern, op) != 0)
     {
       stmnt = "+#" op[1] " " (op[2] != 0 ? op[3] : op[2])
     }
 
-    pattern="^+#(if|elif)[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))&&[[:blank:]]*([01])[[:blank:]]*$"
+    pattern="^\\+#(if|elif)[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))&&[[:blank:]]*([01])[[:blank:]]*$"
     while (match(stmnt, pattern, op) != 0)
     {
       stmnt = "+#" op[1] " " (op[3] != 0 ? op[2] : op[3])
     }
 
-    pattern="^+#(if|elif)[[:blank:]]*(!*[[:blank:]]*[A-Za-z0-9_]*)[[:blank:]]*&&[[:blank:]]*([01])[[:blank:]]*$"
+    pattern="^\\+#(if|elif)[[:blank:]]*(!*[[:blank:]]*[A-Za-z0-9_]*)[[:blank:]]*&&[[:blank:]]*([01])[[:blank:]]*$"
     while (match(stmnt, pattern, op) != 0)
     {
       stmnt = "+#" op[1] " " (op[3] != 0 ? op[2] : op[3])
@@ -380,7 +380,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
       sub(pattern, (op[1] != 0) || (op[2] != 0), stmnt)
     }
 
-    pattern="^+#(if|elif)[[:blank:]]*([01])[[:blank:]]*\\|\\|[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))$"
+    pattern="^\\+#(if|elif)[[:blank:]]*([01])[[:blank:]]*\\|\\|[[:blank:]]*(!*[[:blank:]]*defined[[:blank:]]*\\([[:blank:]]*[A-Za-z0-9_]*[[:blank:]]*\\))$"
     while (match(stmnt, pattern, op) != 0)
     {
       stmnt = "+#" op[1] " " (op[2] == 0 ? op[3] : op[2])
@@ -409,7 +409,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
 
 # Evaluate !stmnt
 function invert(stmnt) {
-  return evaluate(gensub("^+#if (.*)$", "+#if !(\\1)", "g", stmnt))
+  return evaluate(gensub("^\\+#if (.*)$", "+#if !(\\1)", "g", stmnt))
 }
 
 
@@ -472,7 +472,7 @@ function handle_if(evaluated)
   if (debug)
     printf "/* debug specialize-patch: (d) %s -> %s */\n", $0, evaluated
 
-  if (evaluated ~ "^+#if")
+  if (evaluated ~ "^\\+#if")
   {
     if_stmnt[if_nesting_level] = evaluated
     any_section_output[if_nesting_level] = 0
@@ -484,13 +484,13 @@ function handle_if(evaluated)
   }
   else
   {
-    sub("^+#elif ",
+    sub("^\\+#elif ",
         sprintf("+#if %s \\&\\& ", substr(inv_decision[if_nesting_level], 6)),
         evaluated)
     if (debug)
       printf "/* debug specialize-patch: (e) %s */\n", evaluated
     evaluated = evaluate(evaluated)
-    sub("^+#if", "+#elif", evaluated);
+    sub("^\\+#if", "+#elif", evaluated);
     decision[if_nesting_level] = evaluated
     inv_decision[if_nesting_level] \
       = evaluate(sprintf("+#if %s && !%s", \
@@ -510,26 +510,26 @@ function process_preprocessor_statement(evaluated, condition) {
   evaluated = evaluate($0)
   condition = 1
   ei = evaluated_if_stmnt[if_nesting_level];
-  if (evaluated ~ "^+#if")
+  if (evaluated ~ "^\\+#if")
   {
     if_nesting_level++
     evaluated_if_stmnt[if_nesting_level] = evaluated
     evaluated = handle_if(evaluated)
   }
-  else if (evaluated ~ "^+#elif")
+  else if (evaluated ~ "^\\+#elif")
   {
     if (if_discarded[if_nesting_level]) {
-      sub("^+#elif", "+#if", input_line[0])
+      sub("^\\+#elif", "+#if", input_line[0])
       if (debug)
         printf "/* debug specialize-patch: (g0) -> %s */\n", evaluated
     }
     evaluated = handle_if(evaluated)
   }
-  else if (evaluated ~ "^+#else")
+  else if (evaluated ~ "^\\+#else")
   {
     decision[if_nesting_level] = inv_decision[if_nesting_level]
   }
-  else if (evaluated ~ "^+#endif")
+  else if (evaluated ~ "^\\+#endif")
   {
     if_nesting_level--
   }
@@ -547,7 +547,7 @@ function process_preprocessor_statement(evaluated, condition) {
       if (debug)
         printf "/* debug specialize-patch: (g1b) %s: decision[%d] = %s */\n", \
           evaluated, i, decision[i]
-      output = output && decision[i] !~ "^+#(if|elif) 0($| &&)"
+      output = output && decision[i] !~ "^\\+#(if|elif) 0($| &&)"
     }
     if (output)
       any_section_output[if_nesting_level] = 1
@@ -556,13 +556,13 @@ function process_preprocessor_statement(evaluated, condition) {
         evaluated, output
   }
   if (output && (!condition || \
-                 decision[if_nesting_level + (evaluated ~ "^+#endif$")] \
-                 !~ "^+#(el|)if [01]"))
+                 decision[if_nesting_level + (evaluated ~ "^\\+#endif$")] \
+                 !~ "^\\+#(el|)if [01]"))
   {
     if (evaluated == "+#if undecided"                           \
-        || (evaluated !~ "^+#if"                                \
-            && evaluated !~ "^+#elif"                           \
-            && evaluated !~ "^+#endif"))
+        || (evaluated !~ "^\\+#if"                                \
+            && evaluated !~ "^\\+#elif"                           \
+            && evaluated !~ "^\\+#endif"))
     {
       for (i = 0; i < input_line_count; i++)
         line[lines++] = input_line[i]
@@ -570,14 +570,14 @@ function process_preprocessor_statement(evaluated, condition) {
       # If the statement being processed is an #else or #endif that is not a
       # header file include guard and if that statement has a trailing comment,
       # replace that comment by the partially evaluated matching #if expression.
-      if (evaluated ~ "^+#else" || evaluated ~ "^+#endif") {
+      if (evaluated ~ "^\\+#else" || evaluated ~ "^\\+#endif") {
         if ($0 ~ "\\*/") {
           if ($0 ~ "_H_* \\*/$") {
             evaluated = $0
           } else {
-            if (ei ~ "^+#if ")
+            if (ei ~ "^\\+#if ")
               ei = substr(ei, 6)
-            else if (ei ~ "^+#ifdef")
+            else if (ei ~ "^\\+#ifdef")
               ei = substr(ei, 9)
             match($0, "([^/ ]*)[[:blank:]]*/\\*[^*]*\\*/[[:blank:]]*", arg)
             evaluated = sprintf("%s /* %s */", arg[1], ei);
@@ -604,7 +604,7 @@ function process_preprocessor_statement(evaluated, condition) {
       delete_next_blank_line = 1
   }
 
-  if (evaluated ~ "^+#if")
+  if (evaluated ~ "^\\+#if")
     if_discarded[if_nesting_level] = discard
 }
 
@@ -686,7 +686,7 @@ BEGIN {
 
   if (!process_file)
   {
-    sub("^+#ifdef INSIDE_KERNEL_TREE$", "+#if 1")
+    sub("^\\+#ifdef INSIDE_KERNEL_TREE$", "+#if 1")
     print
     next
   }
@@ -700,7 +700,7 @@ BEGIN {
     sub("[ \t]*\\\\$", "", previous_line)
     getline
     input_line[input_line_count++] = $0
-    sub("^+[ \t]*", "", $0)
+    sub("^\\+[ \t]*", "", $0)
     $0 = previous_line " " $0
   }
 
@@ -709,7 +709,7 @@ BEGIN {
   # that were stored in the array line[] since the last hunk header was read.
   if (match($0, "^@@ -([0-9]*),([0-9]*) \\+([0-9]*),([0-9]*) @@(.*)$"))
   {
-    /* print h[1], h[2], h[3], h[4], h[5] */
+    # print h[1], h[2], h[3], h[4], h[5]
     dump_lines()
     reset_hunk_state_variables()
     match($0, "^@@ -([0-9]*),([0-9]*) \\+([0-9]*),([0-9]*) @@(.*)$", h)
@@ -730,7 +730,7 @@ BEGIN {
   else
   {
     delete_next_blank_line = 0
-    if (match($0, "^+ *#"))
+    if (match($0, "^\\+ *#"))
     {
       if (debug)
         printf "/* debug specialize-patch: line %d: %s*/\n", NR, $0
@@ -758,14 +758,14 @@ BEGIN {
     {
       if (blank_deleted_code)
       {
-        if (input_line[i] ~ "^+")
+        if (input_line[i] ~ "^\\+")
           line[lines++] = "+"
         else
           line[lines++] = input_line[i]
       }
       else
       {
-        if (input_line[i] ~ "^+")
+        if (input_line[i] ~ "^\\+")
           lines_less_added++
         else if (input_line[i] ~ "^-")
           lines_less_deleted++
