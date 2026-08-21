@@ -2,6 +2,18 @@
 
 full_kver="$1"
 
+function generate_patch {
+  local status
+
+  {
+    diff -up "$1" "$2"
+    status=$?
+    if [ "$status" -gt 1 ]; then
+      return "$status"
+    fi
+  } > "$3"
+}
+
 if [ "$full_kver" = "" ]; then
   echo "Error: missing kernel version argument."
   exit 1
@@ -21,9 +33,9 @@ for g in Kconfig *.[ch]; do
   f3="in-tree-patches/${krel}/$g.patch"
   if [ "$f1" -nt "$f3" -o "$f2" -nt "$f3" ]; then
     if [ -e "$f1" ]; then
-      diff -up "$f1" "$f2" > "$f3"
+      generate_patch "$f1" "$f2" "$f3" || exit $?
     else
-      diff -up /dev/null "$f2" > "$f3"
+      generate_patch /dev/null "$f2" "$f3" || exit $?
     fi
   fi
 done
@@ -34,9 +46,9 @@ for g in include/trace/events/qla.h; do
   f3="in-tree-patches/${krel}/${g#include/trace/events/}.patch"
   if [ "$f1" -nt "$f3" -o "$f2" -nt "$f3" ]; then
     if [ -e "$f1" ]; then
-      diff -up "$f1" "$f2" > "$f3"
+      generate_patch "$f1" "$f2" "$f3" || exit $?
     else
-      diff -up /dev/null "$f2" > "$f3"
+      generate_patch /dev/null "$f2" "$f3" || exit $?
     fi
   fi
 done
@@ -46,6 +58,6 @@ for g in Makefile; do
   f2="${g}_in-tree"
   f3="in-tree-patches/${krel}/$g.patch"
   if [ "$f1" -nt "$f3" -o "$f2" -nt "$f3" ]; then
-    diff -up "$f1" "$f2" > "$f3"
+    generate_patch "$f1" "$f2" "$f3" || exit $?
   fi
 done
