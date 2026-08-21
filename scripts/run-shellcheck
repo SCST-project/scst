@@ -1,0 +1,30 @@
+#!/bin/bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+
+if ! command -v shellcheck >/dev/null 2>&1; then
+  echo "Error: shellcheck has not been installed." >&2
+  exit 1
+fi
+
+source_files="$("$script_dir/list-source-files" "$script_dir")"
+
+cd "$script_dir"
+
+bash_scripts=()
+while IFS= read -r file; do
+  [ -n "$file" ] || continue
+  IFS= read -r first_line < "$file" || first_line=
+  case "$first_line" in
+    '#!'*bash*) bash_scripts+=("$file");;
+  esac
+done <<<"$source_files"
+
+if [ "${#bash_scripts[@]}" -eq 0 ]; then
+  echo "Error: no Bash scripts found under scripts/." >&2
+  exit 1
+fi
+
+shellcheck -x -P SCRIPTDIR "${bash_scripts[@]}"

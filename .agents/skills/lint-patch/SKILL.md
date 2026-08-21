@@ -38,9 +38,14 @@ Run at least these components:
 2. Run `./scripts/checkpatch_commits "$base"`. This is the tracked SCST
    entry point for every commit in `base..HEAD`; the preflight makes
    `HEAD == head`. Do not invent options or use an untracked helper.
-3. Manually verify Linux kernel coding style for every changed kernel C and
+3. If the range changes a tracked Bash script in `scripts/`,
+   `scripts/run-shellcheck` itself, or the `shellcheck` target in the
+   top-level `Makefile`, run `./scripts/run-shellcheck` from the repository
+   root. A missing `shellcheck` is `BLOCKED` in that case; report
+   `NOT_APPLICABLE` for other ranges.
+4. Manually verify Linux kernel coding style for every changed kernel C and
    header file. Use the diff plus enough surrounding code to judge context.
-4. Inspect every commit as an independently reviewable semantic unit. Check
+5. Inspect every commit as an independently reviewable semantic unit. Check
    its subject and body against applicable repository rules and current SCST
    history, including concise imperative wording and established prefixes.
 
@@ -79,6 +84,7 @@ End with exactly one marker block:
 LINT_EXECUTOR: main
 DIFF_CHECK: <PASS|FAIL|BLOCKED>
 CHECKPATCH: <PASS|WAIVED|FAIL|NOT_APPLICABLE|BLOCKED>
+SHELLCHECK: <PASS|FAIL|NOT_APPLICABLE|BLOCKED>
 CODE_STYLE: <PASS|FAIL|NOT_APPLICABLE|BLOCKED>
 COMMIT_STYLE: <PASS|FAIL|BLOCKED>
 LINT_BASELINE: <CLEAN|PRESENT|BLOCKED>

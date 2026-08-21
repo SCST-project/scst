@@ -102,6 +102,7 @@ SCST_SOURCE_FILES = $(shell if [ -e scripts/list-source-files ]; then	\
 help:
 	@echo "		tags                  : make tags"
 	@echo "		cov-build             : make coverity build"
+	@echo "		shellcheck            : check Bash scripts"
 	@echo ""
 	@echo "		all                   : make all"
 	@echo "		clean                 : clean files"
@@ -193,6 +194,9 @@ cov-build:
 		CONFIG_SCSI_QLA2XXX_TARGET=y $(MAKE) -j$$(nproc) -C "$$d" || \
 			exit $$?;					   \
 	done
+
+shellcheck:
+	scripts/run-shellcheck
 
 all clean extraclean install uninstall:
 	if [ $@ = extraclean ]; then rm -f TAGS tags cscope.out; fi
@@ -513,7 +517,7 @@ multiple-release-archives:
 2debug:
 	cd $(SCST_DIR) && $(MAKE) $@
 
-.PHONY: help tags cov-build all clean extraclean install uninstall \
+.PHONY: help tags cov-build shellcheck all clean extraclean install uninstall \
 	scst scst_clean scst_extraclean scst_install scst_uninstall \
 	docs docs_clean docs_extraclean \
 	scstadm scstadm_clean scstadm_extraclean scstadm_install scstadm_uninstall \
