@@ -55,7 +55,7 @@ static struct sgv_pool *sgv_norm_pool_global[NR_CPUS];
 
 static struct sgv_pool *sgv_norm_clust_pool_main, *sgv_norm_pool_main, *sgv_dma_pool_main;
 
-#if defined(CONFIG_LOCKDEP) && !defined(CONFIG_SCST_PROC)
+#ifdef CONFIG_LOCKDEP
 static struct lock_class_key scst_pool_key;
 static struct lockdep_map scst_pool_dep_map =
 	STATIC_LOCKDEP_MAP_INIT("scst_pool_kref", &scst_pool_key);
