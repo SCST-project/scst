@@ -1,7 +1,9 @@
 #!/bin/bash
 
+set -o pipefail
+
 usage() {
-    echo "Usage: $(basename "$0") name version"
+    echo "Usage: $(basename "$0") name version [file ...]"
 }
 
 if [ $# -lt 2 ]; then
@@ -12,17 +14,22 @@ fi
 scriptdir="$(dirname "$0")"
 name="$1"; shift
 version="$1"; shift
-files="$*"
-if [ -z "$files" ]; then
-    read -d\\n -r -a files < <("$scriptdir/list-source-files")
+files=("$@")
+if [ "${#files[@]}" -eq 0 ]; then
+    file_list="$("$scriptdir/list-source-files")" || exit $?
+    if [ -z "$file_list" ]; then
+	echo "Error: no source files found." >&2
+	exit 1
+    fi
+    mapfile -t files <<< "$file_list"
     if [ -e build_mode ]; then
 	files+=(build_mode)
     fi
 fi
 
-result=../$name-$version.tar.bz2
+result="../$name-$version.tar.bz2"
 rm -f "${result}"
-for f in "${files[@]}"; do echo "$f"; done | \
+printf '%s\n' "${files[@]}" | \
     tar --owner=root --group=root --transform="s|^|$name-$version/|;s|^$name-$version/../scst/include/backport.h$|../scst/include/backport.h|;s|^$name-$version/scstadmin.sysfs$|scstadmin.sysfs|" \
 	-cjf "${result}" -T- &&
     ls -l "${result}"
