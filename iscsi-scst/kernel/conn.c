@@ -29,7 +29,7 @@
 #undef DEFAULT_SYMBOL_NAMESPACE
 #define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
 
-#if defined(CONFIG_LOCKDEP) && !defined(CONFIG_SCST_PROC)
+#ifdef CONFIG_LOCKDEP
 static struct lock_class_key scst_conn_key;
 static struct lockdep_map scst_conn_dep_map =
 	STATIC_LOCKDEP_MAP_INIT("iscsi_conn_kref", &scst_conn_key);

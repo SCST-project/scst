@@ -330,9 +330,6 @@ struct iscsi_pdu {
 	unsigned int datasize;
 };
 
-typedef void (iscsi_show_info_t)(struct seq_file *seq,
-				 struct iscsi_target *target);
-
 /** Commands' states **/
 
 /* New command and SCST processes it */
@@ -602,7 +599,6 @@ void __iscsi_del_attr(struct iscsi_target *target, struct iscsi_attr *tgt_attr);
 /* session.c */
 extern const struct attribute *iscsi_sess_attrs[];
 extern const struct attribute *iscsi_acg_attrs[];
-extern const struct file_operations session_seq_fops;
 
 struct iscsi_session *session_lookup(struct iscsi_target *target, u64 sid);
 void sess_reinst_finished(struct iscsi_session *session);

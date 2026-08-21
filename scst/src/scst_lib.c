@@ -4636,7 +4636,7 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 
 	PRINT_INFO("Added device %s to group %s (LUN %lld, "
 		"flags 0x%x) to target %s", dev->virt_name, acg->acg_name,
-		lun, flags, acg->tgt ? acg->tgt->tgt_name : "?");
+		lun, flags, acg->tgt->tgt_name);
 
 	if (out_acg_dev != NULL)
 		*out_acg_dev = acg_dev;
@@ -4709,7 +4709,7 @@ static struct scst_acg_dev *__scst_acg_del_lun(struct scst_acg *acg,
 	scst_del_acg_dev(acg_dev, true, true);
 
 	PRINT_INFO("Removed LUN %lld from group %s (target %s)",
-		lun, acg->acg_name, acg->tgt ? acg->tgt->tgt_name : "?");
+		lun, acg->acg_name, acg->tgt->tgt_name);
 
 out:
 	return acg_dev;
@@ -5035,8 +5035,7 @@ static void scst_free_acg(struct scst_acg *acg)
 
 	lockdep_assert_held(&scst_mutex);
 
-	/* For procfs acg->tgt could be NULL */
-	TRACE_DBG("Freeing acg %s/%s", tgt ? tgt->tgt_name : "(tgt=NULL)", acg->acg_name);
+	TRACE_DBG("Freeing acg %s/%s", tgt->tgt_name, acg->acg_name);
 
 	list_for_each_entry_safe(acg_dev, acg_dev_tmp, &acg->acg_dev_list, acg_dev_list_entry) {
 		list_for_each_entry_safe(tgt_dev, tt, &acg_dev->dev->dev_tgt_dev_list,
@@ -5906,7 +5905,7 @@ int scst_acg_add_acn(struct scst_acg *acg, const char *name)
 out:
 	if (res == 0) {
 		PRINT_INFO("Added name %s to group %s (target %s)", name,
-			acg->acg_name, acg->tgt ? acg->tgt->tgt_name : "?");
+			acg->acg_name, acg->tgt->tgt_name);
 		scst_check_reassign_sessions();
 	}
 

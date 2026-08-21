@@ -65,8 +65,6 @@
 /* Flags to be used in SCST debug tracing statements. */
 #define DEFAULT_SRPT_TRACE_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR \
 				  | TRACE_MGMT | TRACE_SPECIAL)
-/* Name of the entry that will be created under /proc/scsi_tgt/ib_srpt. */
-#define SRPT_PROC_TRACE_LEVEL_NAME	"trace_level"
 #endif
 
 #define DEFAULT_SRPT_ID_STRING	"SCST SRP target"

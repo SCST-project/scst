@@ -3917,8 +3917,7 @@ static int iscsi_target_release(struct scst_tgt *scst_tgt)
 	return 0;
 }
 
-#if !defined(CONFIG_SCST_PROC) && \
-	(defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING))
+#if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 static struct scst_trace_log iscsi_local_trace_tbl[] = {
 	{ TRACE_D_WRITE,		"d_write" },
 	{ TRACE_CONN_OC,		"conn" },
@@ -3958,11 +3957,8 @@ struct scst_tgt_template iscsi_template = {
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	.default_trace_flags = ISCSI_DEFAULT_LOG_FLAGS,
 	.trace_flags = &trace_flag,
-#if !defined(CONFIG_SCST_PROC) && \
-	(defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING))
 	.trace_tbl = iscsi_local_trace_tbl,
 	.trace_tbl_help = ISCSI_TRACE_TBL_HELP,
-#endif
 #endif
 	.release = iscsi_target_release,
 	.xmit_response = iscsi_xmit_response,

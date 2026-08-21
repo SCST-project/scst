@@ -102,9 +102,6 @@ static DEVICE_ATTR(class2_enabled,
 
 #ifdef CONFIG_SCSI_QLA2XXX_TARGET
 
-/* #define CONFIG_SCST_PROC */
-
-
 static ssize_t
 qla2x00_show_ini_mode_force_reverse(struct device *dev,
 	struct device_attribute *attr, char *buffer)

@@ -255,8 +255,6 @@ else
   scst_makefile="Makefile.scst"
 fi
 
-specialize_patch_options+=(-v "config_scst_proc_undefined=1")
-
 if [ "${debug_specialize}" = "true" ]; then
   specialize_patch_options+=(-v "debug=1")
 fi

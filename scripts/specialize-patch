@@ -273,10 +273,6 @@ function evaluate(stmnt, pattern, arg, op, result) {
     gsub("defined[[:blank:]]*\\([[:blank:]]*CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION[[:blank:]]*\\)", 0, stmnt)
   }
 
-  gsub("defined[[:blank:]]+CONFIG_SCST_PROC", !config_scst_proc_undefined, stmnt)
-  gsub("defined[[:blank:]]*\\([[:blank:]]*CONFIG_SCST_PROC[[:blank:]]*\\)", !config_scst_proc_undefined,
-       stmnt)
-
   if (debug)
     printf "/* debug specialize-patch: (b) %s */\n", stmnt
 
@@ -424,7 +420,6 @@ function handle_if(evaluated)
   # Only act on preprocessor conditional expressions with regard to the Linux
   # kernel version, and do not interpret other expressions.
   if ($0 ~ "LINUX_VERSION_CODE"						\
-      || $0 ~ "CONFIG_SCST_PROC"					\
       || $0 ~ "CONFIG_SCST_STRICT_SERIALIZING"				\
       || $0 ~ "CREATE_SEND_MAD_HAS_AH_ARG"				\
       || $0 ~ "CREATE_SEND_MAD_HAS_BASE_ARG"				\
@@ -466,7 +461,6 @@ function handle_if(evaluated)
       || generating_upstream_patch_defined				\
          && $0 ~ "GENERATING_UPSTREAM_PATCH"				\
       || $0 ~ "CONFIG_TCP_ZERO_COPY_TRANSFER_COMPLETION_NOTIFICATION"	\
-      || ($0 ~ "CONFIG_SCST_PROC" && config_scst_proc_undefined)	\
       || ($0 ~ "SCST_IO_CONTEXT" && SCST_IO_CONTEXT != ""))
   {
   }
@@ -673,9 +667,6 @@ BEGIN {
     generating_upstream_patch_defined = 0
   if (config_tcp_zero_copy_transfer_completion_notification_undefined != 0 && config_tcp_zero_copy_transfer_completion_notification_undefined != 1)
     config_tcp_zero_copy_transfer_completion_notification_undefined = 0
-  if (config_scst_proc_undefined != 0 && config_scst_proc_undefined != 1)
-    config_scst_proc_undefined = 0
-
   # Variable initialization.
   process_file = 0
   reset_hunk_state_variables()
@@ -700,14 +691,6 @@ BEGIN {
     next
   }
 
-  if (!config_scst_proc_undefined)
-  {
-    gsub("^+/\\* #define CONFIG_SCST_PROC \\*/$", "+#define CONFIG_SCST_PROC")
-  }
-  else
-  {
-    gsub("^+/\\* #define CONFIG_SCST_PROC \\*/$", "+")
-  }
   input_line[0] = $0
   input_line_count = 1
   # Join continued lines before processing these.

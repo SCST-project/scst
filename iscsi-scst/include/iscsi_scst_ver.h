@@ -13,8 +13,4 @@
  *  GNU General Public License for more details.
  */
 
-/* #define CONFIG_SCST_PROC */
-
-#define ISCSI_VERSION_STRING_SUFFIX
-
-#define ISCSI_VERSION_STRING	"3.11.0-pre" ISCSI_VERSION_STRING_SUFFIX
+#define ISCSI_VERSION_STRING	"3.11.0-pre"
