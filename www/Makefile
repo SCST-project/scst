@@ -8,3 +8,5 @@ check:
 		tidy -e "$$f" || status=$$?; \
 	done; \
 	exit $$status
+
+.PHONY: check
