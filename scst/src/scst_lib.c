@@ -2176,7 +2176,6 @@ static void scst_fill_field_pointer_sense(uint8_t *fp_sense, int field_offs,
 	if ((bit_offs & SCST_INVAL_FIELD_BIT_OFFS_VALID) != 0)
 		fp_sense[0] |= (8 | (bit_offs & 7));
 	put_unaligned_be16(field_offs, &fp_sense[1]);
-	return;
 }
 
 static int scst_set_invalid_field_in(struct scst_cmd *cmd, int field_offs,
@@ -2481,7 +2480,6 @@ void scst_check_convert_sense(struct scst_cmd *cmd)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL(scst_check_convert_sense);
 
@@ -2530,7 +2528,6 @@ void scst_set_busy(struct scst_cmd *cmd)
 	}
 
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL(scst_set_busy);
 
@@ -2583,7 +2580,6 @@ void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
 	rcu_read_unlock();
 
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL(scst_set_initial_UA);
 
@@ -2621,7 +2617,6 @@ void scst_free_aen(struct scst_aen *aen)
 	mempool_free(aen, scst_aen_mempool);
 
 	TRACE_EXIT();
-	return;
 }
 
 #ifdef CONFIG_SCST_EXTRACHECKS
@@ -2697,7 +2692,6 @@ queue_ua:
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -2731,7 +2725,6 @@ void scst_capacity_data_changed(struct scst_device *dev)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL_GPL(scst_capacity_data_changed);
 
@@ -2820,7 +2813,6 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 	local_bh_enable();
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_report_luns_changed_sess(struct scst_session *sess)
@@ -2888,7 +2880,6 @@ queue_ua:
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 void scst_report_luns_changed(struct scst_acg *acg)
@@ -2907,7 +2898,6 @@ void scst_report_luns_changed(struct scst_acg *acg)
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -2963,7 +2953,6 @@ out_free:
 	scst_free_aen(aen);
 
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL(scst_aen_done);
 
@@ -2988,7 +2977,6 @@ void scst_requeue_ua(struct scst_cmd *cmd, const uint8_t *buf, int size)
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 void scst_dev_inquiry_data_changed(struct scst_device *dev)
@@ -3011,7 +2999,6 @@ void scst_dev_inquiry_data_changed(struct scst_device *dev)
 	scst_cm_update_dev(dev);
 
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL(scst_dev_inquiry_data_changed);
 
@@ -3167,7 +3154,6 @@ next:
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 /* The activity supposed to be suspended and scst_mutex held */
@@ -3191,7 +3177,6 @@ void scst_check_reassign_sessions(void)
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 int scst_get_cmd_abnormal_done_state(struct scst_cmd *cmd)
@@ -3355,7 +3340,6 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 #endif
 
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL_GPL(scst_set_cmd_abnormal_done_state);
 
@@ -3402,7 +3386,6 @@ next:
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 /**
@@ -3502,7 +3485,6 @@ static void scst_adjust_sg(struct scst_cmd *cmd, bool reg_sg,
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 /**
@@ -3728,7 +3710,6 @@ void scst_set_resp_data_len(struct scst_cmd *cmd, int resp_data_len)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL_GPL(scst_set_resp_data_len);
 
@@ -3743,7 +3724,6 @@ void scst_limit_sg_write_len(struct scst_cmd *cmd)
 	scst_adjust_sg(cmd, false, cmd->write_len);
 
 	TRACE_EXIT();
-	return;
 }
 
 static int scst_full_len_to_data_len(u32 full_len, u32 block_shift)
@@ -3836,7 +3816,6 @@ void scst_adjust_resp_data_len(struct scst_cmd *cmd)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -3890,7 +3869,6 @@ void scst_cmd_set_write_not_received_data_len(struct scst_cmd *cmd,
 
 out:
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL(scst_cmd_set_write_not_received_data_len);
 
@@ -3912,7 +3890,6 @@ void scst_cmd_set_write_no_data_received(struct scst_cmd *cmd)
 	scst_cmd_set_write_not_received_data_len(cmd, w);
 
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -4019,7 +3996,6 @@ void scst_queue_retry_cmd(struct scst_cmd *cmd)
 	spin_unlock_irqrestore(&tgt->tgt_lock, flags);
 
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -4043,7 +4019,6 @@ void scst_update_hw_pending_start(struct scst_cmd *cmd)
 	spin_unlock_irqrestore(&cmd->sess->sess_list_lock, flags);
 
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL_GPL(scst_update_hw_pending_start);
 
@@ -4142,7 +4117,6 @@ restart:
 	spin_unlock_irqrestore(&sess->sess_list_lock, flags);
 
 	TRACE_EXIT();
-	return;
 }
 
 static bool __scst_is_relative_target_port_id_unique(uint16_t id,
@@ -4283,7 +4257,6 @@ void scst_free_tgt(struct scst_tgt *tgt)
 	kmem_cache_free(scst_tgt_cachep, tgt);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_init_order_data(struct scst_order_data *order_data)
@@ -4299,7 +4272,6 @@ static void scst_init_order_data(struct scst_order_data *order_data)
 	for (i = 0; i < ARRAY_SIZE(order_data->sn_slots); i++)
 		atomic_set(&order_data->sn_slots[i], 0);
 	spin_lock_init(&order_data->init_done_lock);
-	return;
 }
 
 static void scst_ext_blocking_done_fn(struct work_struct *work);
@@ -4498,7 +4470,6 @@ static void scst_del_free_acg_dev(struct scst_acg_dev *acg_dev, bool del_sysfs)
 	scst_del_acg_dev(acg_dev, true, del_sysfs);
 	scst_free_acg_dev(acg_dev);
 	TRACE_EXIT();
-	return;
 }
 
 static int scst_check_dif_compatibility(const struct scst_acg *acg,
@@ -5471,7 +5442,6 @@ static void scst_aic_keeper_release(struct kref *kref)
 	kfree(aic_keeper);
 
 	TRACE_EXIT();
-	return;
 }
 
 /* scst_mutex supposed to be held */
@@ -5505,7 +5475,6 @@ out_deinit:
 	tgt_dev->active_cmd_threads = NULL;
 
 	TRACE_EXIT();
-	return;
 }
 
 static __be16 scst_dif_crc_fn(const void *data, unsigned int len);
@@ -5735,7 +5704,6 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev)
@@ -5798,7 +5766,6 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	percpu_ref_put(&dev->refcnt);
 
 	TRACE_EXIT();
-	return;
 }
 
 /* scst_mutex supposed to be held */
@@ -5938,7 +5905,6 @@ void scst_del_free_acn(struct scst_acn *acn, bool reassign)
 	scst_acn_sysfs_del(acn);
 	scst_free_acn(acn, reassign);
 	TRACE_EXIT();
-	return;
 }
 
 /* The activity supposed to be suspended and scst_mutex held */
@@ -6069,7 +6035,6 @@ static void scst_prelim_finish_internal_cmd(struct scst_cmd *cmd)
 	__scst_cmd_put(cmd);
 
 	TRACE_EXIT();
-	return;
 }
 
 struct scst_request_sense_priv {
@@ -6184,7 +6149,6 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 	spin_unlock_irq(&orig_cmd->cmd_threads->cmd_list_lock);
 
 	TRACE_EXIT();
-	return;
 }
 
 int scst_open_bdev_by_path(const char *path, blk_mode_t mode, void *holder,
@@ -6644,7 +6608,6 @@ static void scst_ws_finished(struct scst_write_same_priv *wsp)
 	ws_cmd->scst_cmd_done(ws_cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_THREAD);
 
 	TRACE_EXIT();
-	return;
 }
 
 /* Must be called in a thread context and no locks */
@@ -7043,7 +7006,6 @@ static void scst_cwr_finished(struct scst_cwr_priv *cwrp)
 	cwr_cmd->scst_cmd_done(cwr_cmd, SCST_CMD_STATE_DEFAULT, SCST_CONTEXT_THREAD);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_cwr_write_cmd_finished(struct scst_cmd *cmd)
@@ -7080,7 +7042,6 @@ static void scst_cwr_write_cmd_finished(struct scst_cmd *cmd)
 	scst_cwr_finished(cwrp);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_cwr_read_cmd_finished(struct scst_cmd *cmd)
@@ -7374,7 +7335,6 @@ static void scst_send_release(struct scst_device *dev)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 /* scst_mutex supposed to be held */
@@ -7398,7 +7358,6 @@ static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev)
 		scst_send_release(dev);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_sess_release(struct percpu_ref *ref)
@@ -7526,7 +7485,6 @@ void scst_free_session(struct scst_session *sess)
 	kmem_cache_free(scst_sess_cachep, sess);
 
 	TRACE_EXIT();
-	return;
 }
 
 void scst_free_session_callback(struct scst_session *sess)
@@ -7556,7 +7514,6 @@ void scst_free_session_callback(struct scst_session *sess)
 		complete_all(c);
 
 	TRACE_EXIT();
-	return;
 }
 
 void scst_sched_session_free(struct scst_session *sess)
@@ -7579,7 +7536,6 @@ void scst_sched_session_free(struct scst_session *sess)
 	wake_up(&scst_mgmt_waitQ);
 
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -7775,7 +7731,6 @@ static void scst_destroy_cmd(struct scst_cmd *cmd)
 		kmem_cache_free(scst_cmd_cachep, cmd);
 
 	TRACE_EXIT();
-	return;
 }
 
 /* No locks */
@@ -7828,7 +7783,6 @@ void scst_stpg_del_unblock_next(struct scst_cmd *cmd)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL_GPL(scst_stpg_del_unblock_next);
 
@@ -7898,7 +7852,6 @@ void scst_free_cmd(struct scst_cmd *cmd)
 		scst_destroy_cmd(cmd);
 
 	TRACE_EXIT();
-	return;
 }
 
 /* No locks supposed to be held. */
@@ -7937,7 +7890,6 @@ void scst_check_retries(struct scst_tgt *tgt)
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_tgt_retry_timer_fn(struct timer_list *timer)
@@ -7963,7 +7915,6 @@ static void scst_tgt_retry_timer_fn(struct timer_list *timer)
 	spin_unlock_irqrestore(&tgt->tgt_lock, flags);
 
 	TRACE_EXIT();
-	return;
 }
 
 struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(gfp_t gfp_mask)
@@ -8005,7 +7956,6 @@ void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 	mempool_free(mcmd, scst_mgmt_mempool);
 
 	TRACE_EXIT();
-	return;
 }
 
 static bool scst_on_sg_tablesize_low(struct scst_cmd *cmd, bool out)
@@ -8066,7 +8016,6 @@ static void scst_restore_dif_sg(struct scst_cmd *cmd)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 int scst_alloc_space(struct scst_cmd *cmd)
@@ -8223,7 +8172,6 @@ out_zero:
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 struct blk_kern_sg_work {
@@ -8248,7 +8196,6 @@ static void blk_free_kern_sg_work(struct blk_kern_sg_work *bw)
 
 	sg_free_table(sgt);
 	kfree(bw);
-	return;
 }
 
 static inline void scst_free_bio(struct bio *bio);
@@ -8284,7 +8231,6 @@ static void blk_bio_map_kern_endio(struct bio *bio)
 	}
 
 	scst_free_bio(bio);
-	return;
 }
 
 /*
@@ -9414,7 +9360,6 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL_GPL(scst_copy_sg);
 
@@ -9560,7 +9505,6 @@ void scst_put_buf_full(struct scst_cmd *cmd, uint8_t *buf)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL(scst_put_buf_full);
 
@@ -9719,7 +9663,6 @@ static void scst_check_fail_ref_tag(struct scst_cmd *cmd)
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
 	}
-	return;
 }
 
 static void scst_check_fail_guard_tag(struct scst_cmd *cmd)
@@ -9734,7 +9677,6 @@ static void scst_check_fail_guard_tag(struct scst_cmd *cmd)
 		scst_set_cmd_error(cmd,
 			SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
 	}
-	return;
 }
 #endif
 
@@ -10491,7 +10433,6 @@ static void scst_init_dif_checks(struct scst_device *dev)
 		WARN_ON(1);
 		break;
 	}
-	return;
 }
 
 /*
@@ -10509,7 +10450,6 @@ void scst_dev_set_dif_static_app_tag_combined(
 	if (dev->dev_dif_type == 3)
 		dev->dev_dif_static_app_ref_tag = cpu_to_be32((a >> 16) & 0xFFFFFFFF);
 	scst_init_dif_checks(dev);
-	return;
 }
 EXPORT_SYMBOL_GPL(scst_dev_set_dif_static_app_tag_combined);
 
@@ -13000,7 +12940,6 @@ static void scst_set_cdb_lba1(struct scst_cmd *cmd, int64_t lba)
 	cmd->cdb[cmd->lba_off] = lba;
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_set_cdb_lba2(struct scst_cmd *cmd, int64_t lba)
@@ -13010,7 +12949,6 @@ static void scst_set_cdb_lba2(struct scst_cmd *cmd, int64_t lba)
 	put_unaligned_be16(lba, &cmd->cdb[cmd->lba_off]);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_set_cdb_lba3(struct scst_cmd *cmd, int64_t lba)
@@ -13020,7 +12958,6 @@ static void scst_set_cdb_lba3(struct scst_cmd *cmd, int64_t lba)
 	put_unaligned_be24(lba, &cmd->cdb[cmd->lba_off]);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_set_cdb_lba4(struct scst_cmd *cmd, int64_t lba)
@@ -13030,7 +12967,6 @@ static void scst_set_cdb_lba4(struct scst_cmd *cmd, int64_t lba)
 	put_unaligned_be32(lba, &cmd->cdb[cmd->lba_off]);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_set_cdb_lba8(struct scst_cmd *cmd, int64_t lba)
@@ -13040,7 +12976,6 @@ static void scst_set_cdb_lba8(struct scst_cmd *cmd, int64_t lba)
 	put_unaligned_be64(lba, &cmd->cdb[cmd->lba_off]);
 
 	TRACE_EXIT();
-	return;
 }
 
 static const scst_set_cdb_lba_fn_t scst_set_cdb_lba_fns[9] = {
@@ -13078,7 +13013,6 @@ static void scst_set_cdb_transf_len1(struct scst_cmd *cmd, int len)
 	cmd->cdb[cmd->len_off] = len;
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_set_cdb_transf_len2(struct scst_cmd *cmd, int len)
@@ -13088,7 +13022,6 @@ static void scst_set_cdb_transf_len2(struct scst_cmd *cmd, int len)
 	put_unaligned_be16(len, &cmd->cdb[cmd->len_off]);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_set_cdb_transf_len3(struct scst_cmd *cmd, int len)
@@ -13098,7 +13031,6 @@ static void scst_set_cdb_transf_len3(struct scst_cmd *cmd, int len)
 	put_unaligned_be24(len, &cmd->cdb[cmd->len_off]);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_set_cdb_transf_len4(struct scst_cmd *cmd, int len)
@@ -13108,7 +13040,6 @@ static void scst_set_cdb_transf_len4(struct scst_cmd *cmd, int len)
 	put_unaligned_be32(len, &cmd->cdb[cmd->len_off]);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_set_cdb_transf_len8(struct scst_cmd *cmd, int len)
@@ -13118,7 +13049,6 @@ static void scst_set_cdb_transf_len8(struct scst_cmd *cmd, int len)
 	put_unaligned_be64(len, &cmd->cdb[cmd->len_off]);
 
 	TRACE_EXIT();
-	return;
 }
 
 static const scst_set_cdb_transf_len_fn_t scst_set_cdb_transf_len_fns[9] = {
@@ -13163,7 +13093,6 @@ static void scst_check_internal_sense(struct scst_device *dev, int result,
 		scst_dev_check_set_UA(dev, NULL, sense, sense_len);
 
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -13280,7 +13209,6 @@ void scst_process_reset(struct scst_device *dev,
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 /* Caller must hold tgt_dev->tgt_dev_lock. */
@@ -13491,7 +13419,6 @@ static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 /* tgt_dev_lock supposed to be held and BH off */
@@ -13521,7 +13448,6 @@ static void __scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 		scst_alloc_set_UA(tgt_dev, sense, len, flags);
 
 	TRACE_EXIT();
-	return;
 }
 
 void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
@@ -13534,7 +13460,6 @@ void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 	spin_unlock_bh(&tgt_dev->tgt_dev_lock);
 
 	TRACE_EXIT();
-	return;
 }
 
 /* Called under dev_lock and BH off */
@@ -13555,7 +13480,6 @@ void scst_dev_check_set_local_UA(struct scst_device *dev,
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -13598,8 +13522,6 @@ void scst_dev_check_set_UA(struct scst_device *dev,
 
 	if (rc)
 		scst_unblock_aborted_cmds(NULL, NULL, dev);
-
-	return;
 }
 
 void scst_set_tp_soft_threshold_reached_UA(struct scst_tgt_dev *tgt_dev)
@@ -13615,7 +13537,6 @@ void scst_set_tp_soft_threshold_reached_UA(struct scst_tgt_dev *tgt_dev)
 	scst_check_set_UA(tgt_dev, sense, len, 0);
 
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL_GPL(scst_set_tp_soft_threshold_reached_UA);
 
@@ -13637,7 +13558,6 @@ static void scst_free_all_UA(struct scst_tgt_dev *tgt_dev)
 	clear_bit(SCST_TGT_DEV_UA_PENDING, &tgt_dev->tgt_dev_flags);
 
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -13799,7 +13719,6 @@ void scst_unblock_deferred(struct scst_order_data *order_data,
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 /* dev_lock supposed to be held and BH disabled */
@@ -13937,7 +13856,6 @@ void scst_unblock_dev(struct scst_device *dev)
 	sBUG_ON(dev->block_count < 0);
 
 	TRACE_EXIT();
-	return;
 }
 
 /**
@@ -14129,7 +14047,6 @@ void scst_on_hq_cmd_response(struct scst_cmd *cmd)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 void scst_store_sense(struct scst_cmd *cmd)
@@ -14160,7 +14077,6 @@ void scst_store_sense(struct scst_cmd *cmd)
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 /* dev_lock supposed to be locked and BHs off */
@@ -14189,7 +14105,6 @@ static void scst_abort_cmds_tgt_dev(struct scst_tgt_dev *tgt_dev,
 	spin_unlock_irq(&sess->sess_list_lock);
 
 	TRACE_EXIT();
-	return;
 }
 
 /* dev_lock supposed to be locked and BHs off */
@@ -14228,7 +14143,6 @@ static void scst_abort_cmds_dev(struct scst_device *dev,
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 /* No locks */
@@ -14276,7 +14190,6 @@ static void scst_process_qerr(struct scst_cmd *cmd)
 		scst_unblock_aborted_cmds(cmd->tgt, cmd->sess, dev);
 
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -14417,7 +14330,6 @@ void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -14610,7 +14522,6 @@ next:
 
 out:
 	TRACE_EXIT();
-	return;
 }
 EXPORT_SYMBOL(scst_reassign_retained_sess_states);
 
@@ -14654,7 +14565,6 @@ void scst_restore_token_str(char *prev_lexem, char *token_str)
 {
 	if (&prev_lexem[strlen(prev_lexem)] != token_str)
 		prev_lexem[strlen(prev_lexem)] = ' ';
-	return;
 }
 EXPORT_SYMBOL_GPL(scst_restore_token_str);
 
@@ -14779,7 +14689,6 @@ static void scst_free_unmap_descriptors(struct scst_cmd *cmd)
 	cmd->cmd_data_descriptors = NULL;
 
 	TRACE_EXIT();
-	return;
 }
 
 int scst_parse_descriptors(struct scst_cmd *cmd)
@@ -14820,7 +14729,6 @@ static void scst_free_descriptors(struct scst_cmd *cmd)
 	}
 
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -15263,7 +15171,6 @@ static void scst_ext_blocking_done_fn(struct work_struct *work)
 	spin_unlock_bh(&dev->dev_lock);
 
 	TRACE_EXIT();
-	return;
 }
 
 /* Must be called under dev_lock and BHs off */
@@ -15283,7 +15190,6 @@ void scst_ext_blocking_done(struct scst_device *dev)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_sync_ext_blocking_done(struct scst_device *dev,
@@ -15297,7 +15203,6 @@ static void scst_sync_ext_blocking_done(struct scst_device *dev,
 	wake_up_all(w);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void scst_dev_ext_block(struct scst_device *dev, bool block_stpg)
@@ -15483,7 +15388,6 @@ out_unlock:
 	spin_unlock_bh(&dev->dev_lock);
 
 	TRACE_EXIT();
-	return;
 }
 
 /* Abstract vfs_unlink() for different kernel versions (as possible) */
@@ -15837,7 +15741,6 @@ static void __init scst_scsi_op_list_init(void)
 		sizeof(scst_scsi_op_list));
 
 	TRACE_EXIT();
-	return;
 }
 
 int __init scst_lib_init(void)
@@ -15979,7 +15882,6 @@ static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev)
 			tgt_dev->sess->initiator_name, tgt_dev);
 		spin_unlock_irqrestore(&scst_tm_dbg_lock, flags);
 	}
-	return;
 }
 
 static void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev)
@@ -15993,7 +15895,6 @@ static void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev)
 		tm_dbg_tgt_dev = NULL;
 		spin_unlock_irqrestore(&scst_tm_dbg_lock, flags);
 	}
-	return;
 }
 
 static void tm_dbg_timer_fn(struct timer_list *timer)
@@ -16001,7 +15902,6 @@ static void tm_dbg_timer_fn(struct timer_list *timer)
 	TRACE_MGMT_DBG("%s", "delayed cmd timer expired");
 	tm_dbg_flags.tm_dbg_release = 1;
 	wake_up_all(&tm_dbg_tgt_dev->active_cmd_threads->cmd_list_waitQ);
-	return;
 }
 
 /* Called under scst_tm_dbg_lock and IRQs off */
@@ -16049,7 +15949,6 @@ static void tm_dbg_delay_cmd(struct scst_cmd *cmd)
 	spin_unlock(&cmd->cmd_threads->cmd_list_lock);
 	cmd->tm_dbg_delayed = 1;
 	tm_dbg_delayed_cmds_count++;
-	return;
 }
 
 /* No locks */
@@ -16109,7 +16008,6 @@ static void tm_dbg_change_state(unsigned long *flags)
 	spin_unlock_irqrestore(&scst_tm_dbg_lock, *flags);
 	timer_delete_sync(&tm_dbg_timer);
 	spin_lock_irqsave(&scst_tm_dbg_lock, *flags);
-	return;
 }
 
 /* No locks */
@@ -16187,7 +16085,6 @@ void tm_dbg_release_cmd(struct scst_cmd *cmd)
 		}
 	}
 	spin_unlock_irqrestore(&scst_tm_dbg_lock, flags);
-	return;
 }
 
 /* Might be called under scst_mutex */
@@ -16254,7 +16151,6 @@ void scst_check_debug_sn(struct scst_cmd *cmd)
 	if (old != cmd->queue_type)
 		TRACE_SN("DbgSN queue type changed for cmd %p from %d to %d",
 			cmd, old, cmd->queue_type);
-	return;
 }
 #endif /* CONFIG_SCST_DEBUG_SN */
 
