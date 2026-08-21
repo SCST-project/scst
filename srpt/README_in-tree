@@ -1,14 +1,11 @@
 SCSI RDMA Protocol (SRP) Target driver for Linux
 =================================================
 
-Historical procfs procedure
----------------------------
+Configuration
+-------------
 
-The procedure below predates removal of the SCST procfs control interface.
-Its /proc/scsi_tgt commands cannot configure current SCST and its examples
-would expose or access live storage. Do not follow them. Use ../INSTALL.md
-and README for current build and SRPT guidance, and use the scstadmin
-documentation for current sysfs-based target configuration.
+Use ../INSTALL.md and README for current build and SRPT guidance. Configure
+SCST devices, targets and LUNs through the sysfs interface with scstadmin.
 
 The SRP Target driver is designed to work directly on top of the
 OpenFabrics OFED-1.x software stack (http://www.openfabrics.org) or
@@ -17,55 +14,7 @@ the Infiniband drivers in the Linux kernel tree
 the generic SCSI target mid-level driver called SCST
 (http://scst.sourceforge.net).
 
-How-to run
------------
-
-A. On srp target machine
-1. Please refer to SCST's README for loading scst driver and its
-dev_handlers drivers (scst_disk, scst_vdisk block or file IO mode, nullio, ...)
-
-Example 1: working with real back-end scsi disks
-a. modprobe scst
-b. modprobe scst_disk
-c. cat /proc/scsi_tgt/scsi_tgt
-
-ibstor00:~ # cat /proc/scsi_tgt/scsi_tgt
-Device (host:ch:id:lun or name)                             Device handler
-0:0:0:0                                                     dev_disk
-4:0:0:0                                                     dev_disk
-5:0:0:0                                                     dev_disk
-6:0:0:0                                                     dev_disk
-7:0:0:0                                                     dev_disk
-
-Now you want to exclude the first scsi disk and expose the last 4 scsi disks as
-IB/SRP luns for I/O
-echo "add 4:0:0:0 0" >/proc/scsi_tgt/groups/Default/devices
-echo "add 5:0:0:0 1" >/proc/scsi_tgt/groups/Default/devices
-echo "add 6:0:0:0 2" >/proc/scsi_tgt/groups/Default/devices
-echo "add 7:0:0:0 3" >/proc/scsi_tgt/groups/Default/devices
-
-Example 2: working with VDISK FILEIO mode (using md0 device and file 10G-file)
-a. modprobe scst
-b. modprobe scst_vdisk
-c. echo "open vdisk0 /dev/md0" > /proc/scsi_tgt/vdisk/vdisk
-d. echo "open vdisk1 /10G-file" > /proc/scsi_tgt/vdisk/vdisk
-e. echo "add vdisk0 0" >/proc/scsi_tgt/groups/Default/devices
-f. echo "add vdisk1 1" >/proc/scsi_tgt/groups/Default/devices
-
-Example 3: working with VDISK BLOCKIO mode (using md0 device, sda, and cciss/c1d0)
-a. modprobe scst
-b. modprobe scst_vdisk
-c. echo "open vdisk0 /dev/md0 BLOCKIO" > /proc/scsi_tgt/vdisk/vdisk
-d. echo "open vdisk1 /dev/sda BLOCKIO" > /proc/scsi_tgt/vdisk/vdisk
-e. echo "open vdisk2 /dev/cciss/c1d0 BLOCKIO" > /proc/scsi_tgt/vdisk/vdisk
-f. echo "add vdisk0 0" >/proc/scsi_tgt/groups/Default/devices
-g. echo "add vdisk1 1" >/proc/scsi_tgt/groups/Default/devices
-h. echo "add vdisk2 2" >/proc/scsi_tgt/groups/Default/devices
-
-2. modprobe ib_srpt
-
-
-B. On initiator machines you can manually do the following steps:
+On initiator machines you can manually do the following steps:
 1. modprobe ib_srp
 2. ibsrpdm -c (to discover new SRP target)
 3. echo <new target info> > /sys/class/infiniband_srp/srp-mthca0-1/add_target
