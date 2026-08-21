@@ -2,19 +2,6 @@
 
 export LC_ALL=C
 
-prefix_matches() {
-  local f
-
-  f="$1"
-  shift
-  for s in "$@"; do
-    if [ "$f" = "$s" ] || [ "${f#"$s/"}" != "$f" ]; then
-      return 0
-    fi
-  done
-  return 1
-}
-
 for d in "${@-.}"; do
 (
   cd "$d" &&
@@ -26,23 +13,6 @@ for d in "${@-.}"; do
       done
     while { read -r g; } <&3; do echo "$g"; done
     exec 3<&-
-  elif hg branch >&/dev/null; then
-    subrepos=$(if [ -e .hgsub ]; then sed 's/ = .*//' .hgsub; fi)""
-    exec 3< <(find . -type f | cut -c3- | grep -Ev '^$|^\.hg/' | sort)
-    hg locate |
-      sort |
-      while read -r f; do
-        while { read -r g; } <&3 && [ "$g" '<' "$f" ]; do
-          if ! prefix_matches "$g" "$subrepos"; then
-            echo "$g"
-          fi
-        done
-      done
-    while { read -r g; } <&3; do echo "$g"; done
-    exec 3<&-
-    for s in $subrepos; do
-      $0 "$s"
-    done
   else
     echo "Ignored directory $PWD"
   fi
