@@ -40,7 +40,13 @@ interval=10
 # Argument processing   #
 #########################
 
-set -- $(/usr/bin/getopt "hi:" "$@")
+getopt_args=$(/usr/bin/getopt -o "hi:" -- "$@") || {
+  usage
+  exit 1
+}
+# GNU getopt emits shell-quoted arguments; eval restores them losslessly.
+# shellcheck disable=SC2294
+eval set -- "$getopt_args"
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -63,7 +69,7 @@ interval="${interval#"${interval%%[!0]*}"}"
 
 printf "%-10s " "Time"
 cat /proc/meminfo |
-  while read -r label number unit
+  while read -r label number _
   do
     printf " %10s" "${label%:}"
   done
@@ -73,7 +79,7 @@ while true
 do
   printf "%-10d" "$(date +%s)"
   cat /proc/meminfo |
-    while read -r label number unit
+    while read -r label number _
     do
       printf " %10d" "${number}"
     done
