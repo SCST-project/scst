@@ -107,10 +107,14 @@ EOF
 # passed via stdin and send the specialized patch to stdout.
 function specialize_patch {
   local ao
+  # Split the kernel^distro^release triplet into positional parameters.
+  # shellcheck disable=SC2086
   set -- ${1//^/ }
   local kver=$1
   local distro=$2
   local release=$3
+  # Split the distribution release into major and minor components.
+  # shellcheck disable=SC2086
   set -- ${release//./ }
   local releasevermajor="$1"
   local releaseverminor="$2"
@@ -130,6 +134,8 @@ function specialize_patch {
 	  ;;
   esac
   local kver3
+  # Split the kernel release into numeric components.
+  # shellcheck disable=SC2086
   set -- ${kver//[.-]/ }
   if [ -n "$3" ]; then
       kver3=$1.$2.$3

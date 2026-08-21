@@ -45,10 +45,13 @@ usage() {
 
 # Compute two raised to the power $1.
 pow2() {
-  if [ $1 = 0 ]; then
+  local exponent="$1" previous
+
+  if [ "$exponent" = 0 ]; then
     echo 1
   else
-    echo $((2 * $(pow2 $(($1 - 1)) ) ))
+    previous="$(pow2 "$((exponent - 1))")"
+    echo "$((2 * previous))"
   fi
 }
 
@@ -64,7 +67,7 @@ drop_caches() {
     echo 3 > /proc/sys/vm/drop_caches
   fi
   if [ "${target_login}" != "" ]; then
-    ssh -n ${target_login} 'sync; if [ -w /proc/sys/vm/drop_caches ]; then echo 3 > /proc/sys/vm/drop_caches; fi'
+    ssh -n "${target_login}" 'sync; if [ -w /proc/sys/vm/drop_caches ]; then echo 3 > /proc/sys/vm/drop_caches; fi'
   fi
 }
 
@@ -73,23 +76,24 @@ drop_caches() {
 # provided.
 set_frequency_scaling() {
   local syscpu=/sys/devices/system/cpu
-  if [ ! -e $syscpu/cpufreq ]; then
+  local governor cpuinfo_max_freq scaling_min_freq scaling_max_freq
+
+  if [ ! -e "$syscpu/cpufreq" ]; then
     return
   fi
-  local governor=$(cat $syscpu/cpu0/cpufreq/scaling_governor)
-  local cpuinfo_min_freq=$(cat $syscpu/cpu0/cpufreq/cpuinfo_min_freq)
-  local cpuinfo_max_freq=$(cat $syscpu/cpu0/cpufreq/cpuinfo_max_freq)
-  local scaling_min_freq=$(cat $syscpu/cpu0/cpufreq/scaling_min_freq)
-  local scaling_max_freq=$(cat $syscpu/cpu0/cpufreq/scaling_max_freq)
-  if [ -w $syscpu/cpu0/cpufreq/scaling_governor ]; then
-    for d in $syscpu/cpu*/cpufreq
+  governor="$(<"$syscpu/cpu0/cpufreq/scaling_governor")"
+  cpuinfo_max_freq="$(<"$syscpu/cpu0/cpufreq/cpuinfo_max_freq")"
+  scaling_min_freq="$(<"$syscpu/cpu0/cpufreq/scaling_min_freq")"
+  scaling_max_freq="$(<"$syscpu/cpu0/cpufreq/scaling_max_freq")"
+  if [ -w "$syscpu/cpu0/cpufreq/scaling_governor" ]; then
+    for d in "$syscpu"/cpu*/cpufreq
     do
       echo "${1:-userspace}"         >"$d/scaling_governor"
       echo "${2:-$cpuinfo_max_freq}" >"$d/scaling_min_freq"
       echo "${3:-$cpuinfo_max_freq}" >"$d/scaling_max_freq"
     done
   fi
-  echo $governor $scaling_min_freq $scaling_max_freq
+  echo "$governor" "$scaling_min_freq" "$scaling_max_freq"
 }
 
 # Read times in seconds from stdin, one number per line, echo each number
@@ -101,45 +105,57 @@ echo_and_calc_avg() {
 }
 
 time_write() {
+  local block_size="$1" count="$2"
+  local -a dd_oflags fio_flags
+
   if [ "${use_fio}" = "true" ]; then
     if [ "${iotype}" = "direct" ]; then
-      fio_flags="--direct=1"
+      fio_flags=(--direct=1)
     else
-      fio_flags="--direct=0 --end_fsync=1"
+      fio_flags=(--direct=0 --end_fsync=1)
     fi
-    fio  --rw=write --filename="${device}" --bs=$1 --size=$(($1*$2)) --ioengine=psync --end_fsync=1 --invalidate=1 ${fio_flags} --name=writeperftest \
+    fio --rw=write --filename="${device}" --bs="$block_size" \
+      --size="$((block_size * count))" --ioengine=psync --end_fsync=1 \
+      --invalidate=1 "${fio_flags[@]}" --name=writeperftest \
     | sed -n 's/.*runt= *\([0-9]*\)msec.*/\1/p' \
     | awk '{print $1/1000}'
   else
     drop_caches
     if [ "${iotype}" = "direct" ]; then
-      dd_oflags="oflag=direct conv=notrunc"
+      dd_oflags=(oflag=direct conv=notrunc)
     else
-      dd_oflags=""
+      dd_oflags=()
     fi
-    { dd if=/dev/zero of="${device}" bs=$1 count=$2 ${dd_oflags} 2>&1; sync; } \
+    { dd if=/dev/zero of="${device}" "bs=$block_size" "count=$count" \
+      "${dd_oflags[@]}" 2>&1; sync; } \
       | sed -n -e 's/.* \([0-9.]*\) s[econds]*,.*/\1/p' | sed 's/^$/0/'
   fi
 }
 
 time_read() {
+  local block_size="$1" count="$2"
+  local -a dd_iflags fio_flags
+
   if [ "${use_fio}" = "true" ]; then
     if [ "${iotype}" = "direct" ]; then
-      fio_flags="--direct=1"
+      fio_flags=(--direct=1)
     else
-      fio_flags="--direct=0"
+      fio_flags=(--direct=0)
     fi
-    fio  --rw=read --filename="${device}" --bs=$1 --size=$(($1*$2)) --ioengine=psync --end_fsync=1 --invalidate=1 ${fio_flags} --name=readperftest \
+    fio --rw=read --filename="${device}" --bs="$block_size" \
+      --size="$((block_size * count))" --ioengine=psync --end_fsync=1 \
+      --invalidate=1 "${fio_flags[@]}" --name=readperftest \
     | sed -n 's/.*runt= *\([0-9]*\)msec.*/\1/p' \
     | awk '{print $1/1000}'
   else
     drop_caches
     if [ "${iotype}" = "direct" ]; then
-      dd_iflags="iflag=direct"
+      dd_iflags=(iflag=direct)
     else
-      dd_iflags=""
+      dd_iflags=()
     fi
-    dd if="${device}" of=/dev/null bs=$1 count=$2 ${dd_iflags} 2>&1 \
+    dd if="${device}" of=/dev/null "bs=$block_size" "count=$count" \
+      "${dd_iflags[@]}" 2>&1 \
       | sed -n -e 's/.* \([0-9.]*\) s[econds]*,.*/\1/p' | sed 's/^$/0/'
   fi
 }
@@ -160,13 +176,20 @@ perform_write_test=true
 target_login=""
 use_fio=false
 verify_device_data=true
+frequency_scaling_params=()
 
 
 #########################
 # Argument processing   #
 #########################
 
-set -- $(/usr/bin/getopt "adfhi:jm:M:nrs:t:w" "$@")
+getopt_args=$(/usr/bin/getopt -o "adfhi:jm:M:nrs:t:w" -- "$@") || {
+  usage
+  exit 1
+}
+# GNU getopt emits shell-quoted arguments; eval restores them losslessly.
+# shellcheck disable=SC2294
+eval set -- "$getopt_args"
 while [ "$1" != "${1#-}" ]
 do
   case "$1" in
@@ -204,21 +227,25 @@ if [ ! -e "${device}" ]; then
   exit 1
 fi
 
-if [ "${perform_write_test}" = "true" -a ! -w "${device}" ]; then
+if [ "${perform_write_test}" = "true" ] && [ ! -w "${device}" ]; then
   echo "Error: device ${device} is not writeable."
   exit 1
 fi
 
-if [ "${perform_read_test}" = "true" -a                              \
-     "$(($(cat /sys/class/block/$(basename $device)/size) * 512))" -lt $(pow2 $log2_io_size) ]
-then
-  echo "Error: device ${device} contains less than $(pow2 $log2_io_size) bytes."
-  exit 1
+io_size="$(pow2 "$log2_io_size")"
+if [ "${perform_read_test}" = "true" ]; then
+  device_name="$(basename "$device")"
+  block_count="$(<"/sys/class/block/${device_name}/size")"
+  if [ "$((block_count * 512))" -lt "$io_size" ]; then
+    echo "Error: device ${device} contains less than ${io_size} bytes."
+    exit 1
+  fi
 fi
 
-if [ "${perform_write_test}" = "true" -a "${verify_device_data}" = "true" ] \
+if [ "${perform_write_test}" = "true" ] \
+   && [ "${verify_device_data}" = "true" ] \
    && [ "${force}" != "true" ] \
-   && ! cmp -s -n $(pow2 $log2_io_size) "${device}" /dev/zero
+   && ! cmp -s -n "$io_size" "${device}" /dev/zero
 then
   echo "Error: device ${device} still contains data."
   exit 1
@@ -234,7 +261,7 @@ fi
 # Disable frequency scaling
 if [ -e /sys/devices/system/cpu/cpu0/cpufreq ]; then
   if [ -w /sys/devices/system/cpu/cpu0/cpufreq/scaling_governor ]; then
-    frequency_scaling_params="$(set_frequency_scaling)"
+    read -r -a frequency_scaling_params <<<"$(set_frequency_scaling)"
   else
     echo ""
     echo "WARNING: insufficient privileges to disable CPU frequency scaling"
@@ -246,14 +273,14 @@ fi
 # Header, line 1
 printf "%9s " blocksize
 i=0
-while [ $i -lt ${iterations} ]
+while [ "$i" -lt "${iterations}" ]
 do
   printf "%8s " "W"
   i=$((i+1))
 done
 printf "%8s %8s %8s " "W(avg," "W(std," "W"
 i=0
-while [ $i -lt ${iterations} ]
+while [ "$i" -lt "${iterations}" ]
 do
   printf "%8s " "R"
   i=$((i+1))
@@ -264,14 +291,14 @@ printf "\n"
 # Header, line 2
 printf "%9s " "(bytes)"
 i=0
-while [ $i -lt ${iterations} ]
+while [ "$i" -lt "${iterations}" ]
 do
   printf "%8s " "(s)"
   i=$((i+1))
 done
 printf "%8s %8s %8s " "MB/s)" "MB/s)" "(IOPS)"
 i=0
-while [ $i -lt ${iterations} ]
+while [ "$i" -lt "${iterations}" ]
 do
   printf "%8s " "(s)"
   i=$((i+1))
@@ -281,40 +308,40 @@ printf "\n"
 
 # Measurements
 log2_blocksize=${log2_max_blocksize}
-while [ ! $log2_blocksize -lt $log2_min_blocksize ]
+while [ "$log2_blocksize" -ge "$log2_min_blocksize" ]
 do
-  if [ $log2_blocksize -gt $log2_io_size ]; then
+  if [ "$log2_blocksize" -gt "$log2_io_size" ]; then
     log2_blocksize=$((log2_blocksize - 1))
     continue
   fi
-  iosize=$(pow2 $log2_io_size)
-  bs=$(pow2 $log2_blocksize)
-  count=$(pow2 $(($log2_io_size - $log2_blocksize)))
-  printf "%9d " ${bs}
+  iosize="$io_size"
+  bs="$(pow2 "$log2_blocksize")"
+  count="$(pow2 "$((log2_io_size - log2_blocksize))")"
+  printf "%9d " "${bs}"
   i=0
-  while [ $i -lt ${iterations} ]
+  while [ "$i" -lt "${iterations}" ]
   do
     if [ "${perform_write_test}" = "true" ]; then
-      time_write ${bs} ${count}
+      time_write "${bs}" "${count}"
     else
       echo " 0 s,"
     fi
     i=$((i+1))
-  done | echo_and_calc_avg "%8.3f " ${iosize} ${bs}
+  done | echo_and_calc_avg "%8.3f " "${iosize}" "${bs}"
 
   i=0
-  while [ $i -lt ${iterations} ]
+  while [ "$i" -lt "${iterations}" ]
   do
     if [ "${perform_read_test}" = "true" ]; then
-      time_read ${bs} ${count}
+      time_read "${bs}" "${count}"
     else
       echo " 0 s,"
     fi
     i=$((i+1))
-  done | echo_and_calc_avg "%8.3f " ${iosize} ${bs}
+  done | echo_and_calc_avg "%8.3f " "${iosize}" "${bs}"
   printf "\n"
   log2_blocksize=$((log2_blocksize - 1))
 done
 
 # Restore frequency scaling
-set_frequency_scaling ${frequency_scaling_params} >/dev/null
+set_frequency_scaling "${frequency_scaling_params[@]}" >/dev/null
