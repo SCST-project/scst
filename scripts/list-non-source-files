@@ -8,7 +8,7 @@ prefix_matches() {
   f="$1"
   shift
   for s in "$@"; do
-    if [ "$f" = "$s" ] || [ "${f#s/}" != "$f" ]; then
+    if [ "$f" = "$s" ] || [ "${f#"$s/"}" != "$f" ]; then
       return 0
     fi
   done

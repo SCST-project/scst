@@ -28,7 +28,7 @@ script_dir="$(dirname "$0")"
 if [ "${script_dir#/}" = "${script_dir}" ]; then
   script_dir="$PWD/$script_dir"
 fi
-scriptdir="${scriptdir%/.}"
+script_dir="${script_dir%/.}"
 scst_dir="$(dirname "${script_dir}")"
 
 # shellcheck source=./kernel-functions
@@ -51,5 +51,5 @@ cd "${target}" || exit $?
   grep -v /in-tree/ |
   while read -r p; do
     echo "==== $p"
-    patch -p1 <"${scst_dir}/$p"
+    patch -p1 <"${scst_dir}/$p" || exit $?
   done

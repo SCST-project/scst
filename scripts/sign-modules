@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -o pipefail
+
 # Parse modules.order and sign the modules found in that file.
 
 if [ -z "$KDIR" ]; then
