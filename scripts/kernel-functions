@@ -39,16 +39,46 @@ function check_kernel_version {
   fi
 }
 
-# Download the file from URL $1 and save it in the current directory.
+# Verify that a downloaded file is nonempty and, based on $2 or its own name,
+# that XZ data is intact.
+function download_is_readable {
+  local filename="${2:-$1}"
+
+  [ -s "$1" ] || return 1
+  case "$filename" in
+    *.xz) xz -t "$1" >/dev/null 2>&1;;
+  esac
+}
+
+# Download the file from URL $1 and save it atomically in the current
+# directory.
 function download_file {
-  if [ ! -e "$(basename "$1")" ]; then
-    if [ "${quiet_download}" = "false" ]; then
-      { wget -q -nc -O- "$1" 2>/dev/null | grep -q .; } \
-        && echo "Downloading $1 ..."
+  local filename tmpfile
+
+  filename="$(basename "$1")"
+
+  if [ -e "$filename" ]; then
+    if download_is_readable "$filename"; then
+      return 0
     fi
-    wget -q -nc "$1"
+    echo "Removing invalid cached download $filename." >&2
+    rm -f "$filename" || return $?
   fi
-  [ -e "$(basename "$1")" ]
+
+  if [ "${quiet_download}" = "false" ]; then
+    echo "Downloading $1 ..."
+  fi
+  tmpfile="$(mktemp "${filename}.tmp.XXXXXX")" || return $?
+  if ! wget -q -O "$tmpfile" "$1" ||
+     ! download_is_readable "$tmpfile" "$filename"; then
+    echo "Error: download $1 is incomplete or invalid." >&2
+    rm -f "$tmpfile"
+    return 1
+  fi
+  if ! mv "$tmpfile" "$filename"; then
+    rm -f "$tmpfile"
+    return 1
+  fi
 }
 
 # Make sure the kernel tarball and patch file are present in directory
@@ -83,9 +113,13 @@ function extract_kernel_archive {
   local series="$1"
 
   if [ -e "${kernel_downloads}/linux-$1.tar.xz" ]; then
-    xz -cd "${kernel_downloads}/linux-$1.tar.xz" | tar xf -
+    ( set -o pipefail
+      xz -cd "${kernel_downloads}/linux-$1.tar.xz" | tar xf -
+    )
   elif [ -e "${kernel_downloads}/linux-$kver.tar.xz" ]; then
-    xz -cd "${kernel_downloads}/linux-$kver.tar.xz" | tar xf - &&
+    ( set -o pipefail
+      xz -cd "${kernel_downloads}/linux-$kver.tar.xz" | tar xf -
+    ) &&
       mv "linux-$kver" "linux-$1"
   elif [ -e "${kernel_downloads}/linux-$1.tar.bz2" ]; then
     tar xjf "${kernel_downloads}/linux-$1.tar.bz2"
@@ -112,8 +146,10 @@ function extract_kernel_tree {
        [ -e "${kernel_downloads}/patch-$1.xz" ]; then
       extract_kernel_archive "$kver" || return $?
       mv "linux-$kver" "linux-$1"
-      ( cd "linux-$1" && xz -cd "${kernel_downloads}/patch-$1.xz" \
-        | patch -p1 -f -s; ) \
+      ( set -o pipefail
+        cd "linux-$1" && xz -cd "${kernel_downloads}/patch-$1.xz" \
+          | patch -p1 -f -s
+      ) \
         || return $?
     else
 	extract_kernel_archive "$1" ||
