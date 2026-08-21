@@ -516,8 +516,7 @@ target reconfiguration in a PnP-like manner)</b></td>			<td> + </td>		<td> - </t
 		       Also LIO in pass-through mode doesn't do necessary sense processing for tape devices to
 		       correctly return residual information, so tapes can used with it with limited functionality.</p>
 
-<p><A NAME="15"></A> 15. You can find a proposal how to implement zero-copy FILEIO in SCST on the <a href="contributing.html#ZC_READ">
-		       Contributing</a> page.</p>
+<p><A NAME="15"></A> 15. The page-cache based zero-copy FILEIO implementation was removed.</p>
 
 <p><A NAME="16"></A> 16. Doesn't need any kernel patch, except in the case, when used with user space backend.</p>
 
@@ -544,17 +543,5 @@ target reconfiguration in a PnP-like manner)</b></td>			<td> + </td>		<td> - </t
 	   Design by: <b><font color="#EC981F">Daniel Fernandes</font></b>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;</p>
 </div>
 <!-- footer ends here -->
-<!-- Piwik -->
-<script type="text/javascript">
-var pkBaseURL = (("https:" == document.location.protocol) ? "https://apps.sourceforge.net/piwik/scst/" : "http://apps.sourceforge.net/piwik/scst/");
-document.write(unescape("%3Cscript src='" + pkBaseURL + "piwik.js' type='text/javascript'%3E%3C/script%3E"));
-</script><script type="text/javascript">
-piwik_action_name = '';
-piwik_idsite = 1;
-piwik_url = pkBaseURL + "piwik.php";
-piwik_log(piwik_action_name, piwik_idsite, piwik_url);
-</script>
-<object><noscript><p><img src="http://apps.sourceforge.net/piwik/scst/piwik.php?idsite=1" alt="piwik"></p></noscript></object>
-<!-- End Piwik Tag -->
 </body>
 </html>
