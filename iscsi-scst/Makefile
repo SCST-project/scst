@@ -194,11 +194,18 @@ uninstall:
 clean:
 	rm -rf include/iscsi_scst_itf_ver.h
 	rm -rf conftest/*/{build-output,result}*.txt
+	status=0; pids=();						\
 	for d in conftest/* kernel kernel/isert-scst; do		\
-	  [ -d "$$d" ] && $(MAKE) -C $(KDIR) M=$(shell pwd)/$$d $@ &	\
-	  rm -f $$d/result*.txt;					\
+	  if [ -d "$$d" ]; then					\
+	    $(MAKE) -C $(KDIR) M=$(shell pwd)/$$d $@ &		\
+	    pids+=("$$!");						\
+	  fi;								\
+	  rm -f $$d/result*.txt || status=$$?;			\
 	done;								\
-	wait
+	for pid in "$${pids[@]}"; do					\
+	  wait "$$pid" || status=$$?;				\
+	done;								\
+	exit $$status
 	$(MAKE) -C usr $@
 
 extraclean: clean
