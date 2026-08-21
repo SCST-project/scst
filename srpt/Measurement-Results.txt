@@ -54,7 +54,7 @@ Target system software configuration:
 Measurement results
 ===================
 
-Numer of read IOPS reported by fio with block size 4 KB and I/O depth 32:
+Number of read IOPS reported by fio with block size 4 KB and I/O depth 32:
 197000
 
 + blockdev-perftest -f -j -d -s 30 -m 12 /dev/sdb

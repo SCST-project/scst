@@ -494,7 +494,7 @@ static enum scst_exec_res disk_exec(struct scst_cmd *cmd)
 	 * If we are passing thru a INQUIRY VPD=0x83 (device identification) then
 	 * we will call scst_replace_port_info on success in scst_pass_through_cmd_done.
 	 * This will run in interrupt context, so we should not perform operations that
-	 * involve mutexes.  Call scst_lookup_tg_id here intead and save the output.
+	 * involve mutexes.  Call scst_lookup_tg_id here instead and save the output.
 	 */
 	if (unlikely(scst_cmd_inquired_dev_ident(cmd)))
 		cmd->tg_id = scst_lookup_tg_id(dev, tgt);

@@ -982,7 +982,7 @@ and luns as well as the following attributes: addr_method, cpu_mask and
 io_grouping_type, black_hole. See above description of them.
 
 Each "initiators" subdirectory contains list of added to this groups
-initiator as well as as well as file "mgmt". This file has the following
+initiator as well as file "mgmt". This file has the following
 commands, which you can send to it, for instance, using "echo" shell
 command. You can always get a small help about supported commands by
 looking inside this file.
