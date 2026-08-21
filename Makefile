@@ -26,9 +26,6 @@ SHELL := /bin/bash
 # are not defined by the user, the current running kernel version is
 # used to define KVER.
 
-#export KDIR=/usr/src/linux-2.6
-#export KVER=2.6.x
-
 ifdef KDIR
     ifndef KVER
         KVER = $(strip $(shell						\
