@@ -3185,8 +3185,7 @@ static ssize_t iscsi_tcp_get_initiator_ip(struct iscsi_conn *conn, char *buf, in
 		break;
 #if defined(CONFIG_IPV6) || defined(CONFIG_IPV6_MODULE)
 	case AF_INET6:
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 13, 0) && !defined(RHEL_MAJOR)
 		pos = scnprintf(buf, size, "[%pI6]", &inet6_sk(sk)->daddr);
 #else
 		pos = scnprintf(buf, size, "[%pI6]", &sk->sk_v6_daddr);

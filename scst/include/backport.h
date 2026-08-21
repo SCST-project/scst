@@ -25,6 +25,15 @@
 #ifndef RHEL_RELEASE_VERSION
 #define RHEL_RELEASE_VERSION(a, b) (((a) << 8) + (b))
 #endif
+
+#if defined(RHEL_MAJOR) && RHEL_MAJOR - 0 <= 6
+#error RHEL 6 is no longer supported. Please upgrade to RHEL 7 or later.
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
+#error SCST does not support kernels older than 3.10.0.
+#endif
+
 #include <linux/bio.h>
 #include <linux/blkdev.h>	/* struct request_queue */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0) || \
@@ -466,7 +475,7 @@ static inline int bdev_validate_blocksize(struct block_device *bdev, int block_s
  * from Thunderbolt to core") # v4.15.
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
+	(!defined(RHEL_MAJOR) ||			\
 	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 5) &&	\
 	(!defined(UEK_KABI_RENAME) ||			\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
@@ -613,8 +622,7 @@ static inline struct dentry *debugfs_create_file_backport(const char *name, umod
 
 /* <linux/dmapool.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) && !defined(RHEL_MAJOR)
 /* See also ad82362b2def ("mm: add dma_pool_zalloc() call to DMA API") # v4.3 */
 static inline void *dma_pool_zalloc(struct dma_pool *pool, gfp_t mem_flags,
 				    dma_addr_t *handle)
@@ -892,8 +900,7 @@ static inline void kobj_ns_drop_backport(enum kobj_ns_type type, void *ns)
 
 /* <linux/ktime.h> */
 
-#if (LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0)) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0) && !defined(RHEL_MAJOR)
 /**
  * ktime_before - Compare if a ktime_t value is smaller than another one.
  * @cmp1:	comparable1
@@ -985,7 +992,7 @@ static inline void mempool_destroy_backport(mempool_t *pool)
 /* <linux/mm.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
+	(!defined(RHEL_MAJOR) ||			\
 	 (RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 5)) &&	\
 	!defined(_COMPAT_LINUX_MM_H)
 #if !defined(UEK_KABI_RENAME)
@@ -1056,7 +1063,7 @@ static inline void *kvmalloc_array(size_t n, size_t size, gfp_t flags)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
+	(!defined(RHEL_MAJOR) ||			\
 	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 7) &&	\
 	!defined(CONFIG_SUSE_KERNEL) &&			\
 	!defined(_COMPAT_LINUX_MM_H) &&			\
@@ -1072,7 +1079,7 @@ static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) &&		       \
 	!(LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(3, 12, 0) >> 8 &&  \
 	  LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 41)) &&	       \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
+	!defined(RHEL_MAJOR)
 /*
  * See also commit 39f1f78d53b9 ("nick kvfree() from apparmor") # v3.15.
  * See also commit fb6a2a8ebe27 ("nick kvfree() from apparmor") # v3.12.41.
@@ -1168,8 +1175,7 @@ register_shrinker_backport(struct shrinker *shrinker, const char *fmt, ...)
 
 /* <linux/nvme-fc.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) && !defined(RHEL_MAJOR)
 #define FC_TYPE_NVME 0x28
 #endif
 
@@ -1344,8 +1350,7 @@ static __always_inline size_t __must_check size_add(size_t addend1, size_t adden
 #define PERCPU_COUNT_BIAS (1U << 31)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0) && !defined(RHEL_MAJOR)
 typedef unsigned int percpu_count_t;
 #define READ_REF_COUNT(ref) atomic_read(&(ref)->count)
 #else
@@ -1503,7 +1508,7 @@ static inline bool percpu_ref_tryget_live(struct percpu_ref *ref)
 #endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0) */
 
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
+	(!defined(RHEL_MAJOR) ||			\
 	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 5)
 
 struct percpu_ref;
@@ -1607,7 +1612,7 @@ static inline unsigned long percpu_ref_read(struct percpu_ref *ref)
 /* <linux/rcupdate.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
+	(!defined(RHEL_MAJOR) ||			\
 	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 7)
 /*
  * See also commit 546a9d8519ed ("rcu: Export debug_init_rcu_head() and
@@ -1867,7 +1872,7 @@ static inline void __user *KERNEL_SOCKPTR(void *p)
 /* <linux/string.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 5, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7) &&	\
+	!defined(RHEL_MAJOR) &&				\
 	(!defined(UEK_KABI_RENAME) || !defined(USB_QUIRK_NO_LPM))
 /* See also commit e9d408e107db ("new helper: memdup_user_nul()") # v4.5 */
 static inline void *memdup_user_nul(const void __user *src, size_t len)
@@ -1932,8 +1937,7 @@ static inline ssize_t strscpy(char *dest, const char *src, size_t count)
 
 /* <linux/sysfs.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0) && !defined(RHEL_MAJOR)
 /* See also commit b9b3259746d7 ("sysfs.h: add __ATTR_RW() macro") # v3.11. */
 #define __ATTR_RW(_name) __ATTR(_name, 0644, _name##_show, _name##_store)
 #endif
@@ -2237,7 +2241,7 @@ static inline int scsi_bidi_cmnd(struct scsi_cmnd *cmd)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 7 ||	\
+	(!defined(RHEL_MAJOR) ||			\
 	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 7)
 /* See also commit b54197c43db8 ("virtio_scsi: use cmd_size") # v3.16. */
 static inline void *scsi_cmd_priv(struct scsi_cmnd *cmd)
@@ -2433,8 +2437,7 @@ static inline void *bsg_job_sense(struct bsg_job *job)
 
 /* <scsi/scsi_transport_fc.h> */
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 6)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) && !defined(RHEL_MAJOR)
 /*
  * See also commit 624f28be8109 ("[SCSI] scsi_transport_fc: Add 32Gbps speed
  * definition.") # v3.15.

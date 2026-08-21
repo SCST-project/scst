@@ -914,7 +914,6 @@ static enum scsi_qc_status scst_local_queuecommand(struct Scsi_Host *host, struc
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
 	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 3))
-		/* Some of these symbols are only defined after 2.6.24 */
 		dir = SCST_DATA_BIDI;
 		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(scmd));
 		scst_cmd_set_expected_out_transfer_len(scst_cmd, scsi_in(scmd)->length);
@@ -1045,9 +1044,7 @@ static int scst_local_slave_alloc(struct scsi_device *sdev)
 #ifdef QUEUE_FLAG_BIDI
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 17, 0) &&	\
 	!defined(CONFIG_SUSE_KERNEL)
-#if !defined(RHEL_MAJOR) || RHEL_MAJOR -0 >= 6
 	queue_flag_set_unlocked(QUEUE_FLAG_BIDI, q);
-#endif
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0)
 	blk_queue_flag_set(QUEUE_FLAG_BIDI, q);
 #endif
@@ -1459,12 +1456,6 @@ static int scst_local_driver_probe(struct device *dev)
 	hpnt->max_id = 1;        /* Don't want more than one id */
 	hpnt->max_lun = SCST_MAX_LUN + 1;
 
-	/*
-	 * Because of a change in the size of this field at 2.6.26
-	 * we use this check ... it allows us to work on earlier
-	 * kernels. If we don't,  max_cmd_size gets set to 4 (and we get
-	 * a compiler warning) so a scan never occurs.
-	 */
 	hpnt->max_cmd_len = 260;
 
 	ret = scsi_add_host(hpnt, &sess->dev);
@@ -1563,9 +1554,6 @@ static void scst_local_release_adapter(struct device *dev)
 	 * To prevent a race between us and AEN handling we must flush the
 	 * workqueue before we clean up the AEN list (calling scst_process_aens
 	 * with cleanup_only set to true) and then unregister the session.
-	 *
-	 * For kernels after 2.6.22 it is sufficient to cancel any outstanding
-	 * work.
 	 */
 
 	cancel_work_sync(&sess->aen_work);
