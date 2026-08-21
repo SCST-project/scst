@@ -58,12 +58,15 @@
 source "$(dirname "$0")/kernel-functions"
 
 function usage {
-  echo "Usage: $0 [-c <dir>] [-d <dir>] [-f] [-h] [-j <jobs>] [-p <patchdir>] [-q] <kver1> <kver2> ..."
+  echo "Usage: $0 [-c <dir>] [-d <dir>] [-h] [-j <jobs>] [-k] [-l]" \
+       "[-p] [-q] <kver1> <kver2> ..."
   echo "        -c - cache directory for Linux kernel tarballs."
   echo "        -d - directory for temporary regression test files."
   echo "        -h - display this help information."
   echo "        -j - number of jobs that 'make' should run simultaneously."
   echo "        -k - remove temporary files before exiting."
+  echo "        -l - skip local SCST compilation."
+  echo "        -p - generate separate kernel patches."
   echo "        -q - download kernel sources silently."
   echo "        <kver1> <kver2> ... - kernel versions to test."
 }
@@ -83,15 +86,18 @@ function test_scst_tree_patches {
   if [ "${rc}" = 0 ]; then
     echo "OK"
   fi
+  return "${rc}"
 }
 
 # Copy the entire SCST source code tree from "$1" into the current directory.
 # Only copy those files which are administered by Subversion.
 function duplicate_scst_source_tree {
   if [ -e "$1/AskingQuestions" ]; then
-    "${scriptsdir}"/list-source-files "$1" |
-      tar -C "$1" --files-from=- -c -f - |
-      tar -x -f -
+    ( set -o pipefail
+      "${scriptsdir}"/list-source-files "$1" |
+        tar -C "$1" --files-from=- -c -f - |
+        tar -x -f -
+    )
   else
     return 1
   fi
@@ -114,7 +120,6 @@ function make_rpm {
 function make_dpkg {
     local outputfile="${outputdir}/make-dpkg-output.txt"
 
-    outputfile="${outputdir}/make-${t}-output.txt"
     echo "Testing whether 'make dpkg' works fine ..."
     if make dpkg > "${outputfile}" 2>&1; then
 	echo "OK"
@@ -210,9 +215,11 @@ function generate_kernel_patch {
   kver="$(kernel_version "${1/^*}")"
   driver_options=(-l)
 
-  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" "$2" "$1" > "${patchfile}"
+  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" "$2" "$1" \
+    > "${patchfile}" || return $?
 
-  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" -n "$2" "$1" > "${patchfile_m}"
+  "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" -n "$2" "$1" \
+    > "${patchfile_m}" || return $?
 
   "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" -p "${outputdir}/${patchdir}" "$2" "$1"
 }
@@ -339,7 +346,8 @@ CONFIG_LTO_CLANG				\
         rm -f "${patchoutput}"
         for p in "${outputdir}/${patchdir}"/*; do
             echo "==== $p" >>"${patchoutput}"
-            patch -p1 -f -s <"${p}" >>"${patchoutput}" 2>&1
+            patch -p1 -f -s <"${p}" >>"${patchoutput}" 2>&1 ||
+		exit $?
         done
     fi &&
     make -s allmodconfig &>"${outputdir}/make-config-output.txt" &&
@@ -620,10 +628,11 @@ fi
 
 if ! mkdir -p "${outputdir}"; then
   if [ -e "${outputdir}" ]; then
-    echo "Error: directory ${outputdir} already exists."
+    echo "Error: path ${outputdir} exists and is not a directory."
   else
     echo "Error: could not create directory ${outputdir}."
   fi
+  exit 1
 fi
 
 test_scst_tree_patches || exit $?
@@ -640,8 +649,10 @@ if [ "${run_local_compilation}" = "true" ]; then
   fi
 fi
 
+global_multiple_patches="${multiple_patches}"
 for kv in ${kernel_versions}
 do
+  multiple_patches="${global_multiple_patches}"
   echo "=========================="
   printf "= kernel %-15s =\n" "${kv}"
   echo "=========================="
@@ -653,13 +664,12 @@ do
   run_sparse="true"
   run_smatch="true"
   ipv6="true"
-  global_multiple_patches="${multiple_patches}"
   while true; do
     kv_without_opt="${kv%-?}"
     if [ "${kv_without_opt}" = "${kv}" ]; then
       kv_without_opt="${kv%-??}"
     fi
-    kopt="${kv#${kv_without_opt}}"
+    kopt="${kv#"${kv_without_opt}"}"
     case "${kopt}" in
       '-4')  ipv6="false";;
       '-f')  full_check="true";;
