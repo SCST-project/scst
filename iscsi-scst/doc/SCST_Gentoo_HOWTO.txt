@@ -4,7 +4,7 @@ Historical SCST installation guide for Gentoo
 
 This document previously described an SCST 3.x installation on Gentoo. It is
 retained only as a pointer and is not a current installation procedure. The
-old SVN locations, SCST 3.0 branch, Grsecurity/PaX source workaround, GRUB 1
+obsolete source locations, SCST 3.0 branch, Grsecurity/PaX workaround, GRUB 1
 assumptions, and host-specific tuning examples were tied to the original
 environment and must not be assumed to describe the current repository.
 

@@ -1,6 +1,6 @@
 Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
 Upstream-Name: SCST
-Source: <https://sourceforge.net/p/scst/svn/HEAD/tree/trunk/>
+Source: <https://github.com/SCST-project/scst>
 
 Files: *
 Copyright: 2008-2017, Bart Van Assche <bvanassche@acm.org>
