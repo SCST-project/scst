@@ -50,10 +50,11 @@ do
   esac
 done
 
-if [ "$#" != 0 ] || [ "${interval}" -le 0 ]; then
+if [ "$#" != 0 ] || ! [[ "${interval}" =~ ^0*[1-9][0-9]*$ ]]; then
   usage
   exit 1
 fi
+interval="${interval#"${interval%%[!0]*}"}"
 
 
 ####################
