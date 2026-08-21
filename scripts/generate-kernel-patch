@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -o pipefail
+
 ############################################################################
 #
 # Script for converting the SCST source tree as it exists in the Subversion
@@ -153,17 +155,19 @@ function specialize_patch {
 # and write the output either to stdout or to the file $1 (if not empty),
 # depending on the value of the variable ${multiple_patches}.
 function process_patch {
-  local tmppatch
+  local status tmppatch
   if [ "${multiple_patches}" = "true" ]; then
     if [ "$1" != "" ]; then
       if [ -e "${patchdir}/$1" ]; then
         echo "Warning: overwriting ${patchdir}/$1"
       fi
-      tmppatch="$(/bin/mktemp)"
-      (
-        specialize_patch "${full_kver}"
-      ) >"${tmppatch}"
-      touch "${tmppatch}"
+      tmppatch="$(/bin/mktemp)" || return $?
+      specialize_patch "${full_kver}" >"${tmppatch}"
+      status=$?
+      if [ "${status}" -ne 0 ]; then
+	rm -f "${tmppatch}"
+	return "${status}"
+      fi
       {
         if [ -e /usr/bin/diffstat ]; then
           awk 'BEGIN{h=1}/^diff/{h=0}/^---/{h=0}h!=0{print}' < "${tmppatch}"
@@ -171,10 +175,14 @@ function process_patch {
           diffstat "${tmppatch}"
           echo ""
           awk 'BEGIN{h=1}/^diff/{h=0}/^---/{h=0}h==0{print}' < "${tmppatch}"
+	else
+	  cat "${tmppatch}"
         fi
       } \
         > "${patchdir}/$(basename "$1")"
+      status=$?
       rm -f "${tmppatch}"
+      return "${status}"
     else
       # echo "Discarded $(wc -l) lines."
       true
@@ -271,6 +279,7 @@ if [ "${multiple_patches}" = "true" ]; then
   mkdir -p "${patchdir}"
   if [ ! -d "${patchdir}" ]; then
     echo "Error: ${patchdir} is not a directory."
+    exit 1
   fi
 fi
 
@@ -337,7 +346,7 @@ else
             "drivers/Makefile"
 fi
 ) \
-| process_patch "scst_01_drivers_kbuild.diff"
+| process_patch "scst_01_drivers_kbuild.diff" || exit $?
 
 
 # Directory drivers/scst/
@@ -356,7 +365,7 @@ add_file "$tmp_Makefile" "drivers/scst/Makefile"
 
 rm -rf "${tmpdir}"
 ) \
-| process_patch "scst_02_scst_kbuild.diff"
+| process_patch "scst_02_scst_kbuild.diff" || exit $?
 
 for s in ${separate_patches}
 do
@@ -385,7 +394,7 @@ EOF
       rm -f "$tmp_itf_ver"
     fi
   } |
-  process_patch "${s}.diff"
+  process_patch "${s}.diff" || exit $?
 done
 
 {
@@ -393,18 +402,18 @@ done
     add_file "scst/README_in-tree" "Documentation/scst/README.scst"
   fi
   add_file "scst/SysfsRules" "Documentation/scst/SysfsRules"
-} | process_patch "scst_11_core_doc.diff"
+} | process_patch "scst_11_core_doc.diff" || exit $?
 
 
 # Directory drivers/scst/dev_handlers/
 if [ -e "scst/kernel/in-tree/Makefile.dev_handlers-${kver}" ]; then
   add_file "scst/kernel/in-tree/Makefile.dev_handlers-${kver}" \
            "drivers/scst/dev_handlers/Makefile" \
-  | process_patch "scst_11_dev_handlers_makefile.diff"
+  | process_patch "scst_11_dev_handlers_makefile.diff" || exit $?
 else
   add_file "scst/kernel/in-tree/Makefile.dev_handlers" \
            "drivers/scst/dev_handlers/Makefile" \
-  | process_patch "scst_11_dev_handlers_makefile.diff"
+  | process_patch "scst_11_dev_handlers_makefile.diff" || exit $?
 fi
 
 for f in scst/src/dev_handlers/*.[ch]; do
@@ -413,7 +422,7 @@ for f in scst/src/dev_handlers/*.[ch]; do
     add_file "${f}" "drivers/scst/dev_handlers/${f#scst/src/dev_handlers/}"
   fi
 done \
-| process_patch "scst_14_passthrough.diff"
+| process_patch "scst_14_passthrough.diff" || exit $?
 
 
 # Directory drivers/scst/fcst/
@@ -436,16 +445,16 @@ done \
     [ -e "$f" ] || continue
     add_file "${f}" "drivers/scst/fcst/${f#fcst/}"
   done
-) | process_patch "fcst.diff"
+) | process_patch "fcst.diff" || exit $?
 
 add_file "fcst/README" "Documentation/scst/README.fcst" \
-| process_patch "fcst-doc.diff"
+| process_patch "fcst-doc.diff" || exit $?
 
 
 # Directory drivers/scst/iscsi-scst/
 
 # Make sure the file iscsi-scst/iscsi_scst_itf_ver.h is up to date.
-make -s -C iscsi-scst include/iscsi_scst_itf_ver.h
+make -s -C iscsi-scst include/iscsi_scst_itf_ver.h || exit $?
 
 (
 for f in iscsi-scst/include/*h; do
@@ -480,10 +489,10 @@ for f in iscsi-scst/kernel/isert-scst/*.[ch]; do
 done
 add_file "iscsi-scst/kernel/isert-scst/Makefile.in-kernel" "drivers/scst/iscsi-scst/isert-scst/Makefile"
 add_file "iscsi-scst/kernel/isert-scst/Kconfig" "drivers/scst/iscsi-scst/isert-scst/Kconfig"
-) | process_patch "iscsi-scst.diff"
+) | process_patch "iscsi-scst.diff" || exit $?
 
 add_file "iscsi-scst/README_in-tree" "Documentation/scst/README.iscsi" \
-| process_patch "iscsi-scst-doc.diff"
+| process_patch "iscsi-scst-doc.diff" || exit $?
 
 
 # Directory drivers/scsi/qla2xxx/
@@ -512,7 +521,7 @@ if [ "${qla2x00t}" = "true" ]; then
 
   add_file "qla2x00t/qla2x00-target/README" \
            "Documentation/scst/README.qla2x00t" \
-  | process_patch "qla2x00t-doc.diff"
+  | process_patch "qla2x00t-doc.diff" || exit $?
 
 elif [ "${qla2x00t_32gbit}" = "true" ]; then
 
@@ -539,9 +548,9 @@ elif [ "${qla2x00t_32gbit}" = "true" ]; then
 
   add_file "qla2x00t-32gbit/qla2x00-target/README" \
            "Documentation/scst/README.qla2x00t" \
-  | process_patch "qla2x00t-doc.diff"
+  | process_patch "qla2x00t-doc.diff" || exit $?
 
-fi | process_patch "qla2x00t.diff"
+fi | process_patch "qla2x00t.diff" || exit $?
 
 
 # Directory drivers/scst/srpt
@@ -584,7 +593,7 @@ else
   add_empty_file "drivers/scst/srpt/Makefile"
 
 fi \
-} | process_patch "scst_17_srpt.diff"
+} | process_patch "scst_17_srpt.diff" || exit $?
 
 
 # Directory drivers/scst/scst_local
@@ -601,4 +610,4 @@ fi \
   fi
 
   add_file "scst_local/scst_local.c" "drivers/scst/scst_local/scst_local.c"
-) | process_patch "scst_16_local.diff"
+) | process_patch "scst_16_local.diff" || exit $?
