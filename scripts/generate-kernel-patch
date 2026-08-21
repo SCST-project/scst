@@ -236,6 +236,7 @@ fi
 
 # Strip patch level from the kernel version number.
 full_kver="$1"
+check_kernel_version "$full_kver" || exit $?
 kver="$(kernel_version "${full_kver}")"
 krel=${full_kver/^*}
 
