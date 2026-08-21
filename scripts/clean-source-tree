@@ -7,20 +7,10 @@ usage() {
     exit 1
 }
 
-word_in_list() {
-    local a word=$1
-
-    shift
-    for a in "$@"; do
-	[ "$word" = "$a" ] && return 0
-    done
-    return 1
-}
-
 remove_empty_directories() {
     find . -depth -type d |
         sed 's|^\./||' |
-        grep -Ev '^\.$|^\.svn/|/\.svn/|/\.svn$|^\.hg/|^\.hg$|^\.git/|^\.git$' |
+        grep -Ev '^\.$|^\.git/|^\.git$' |
         while read -r d; do
 	    for f in "$d"/{*,.*}; do
 		if ! [ -e "$f" ]; then
@@ -31,13 +21,11 @@ remove_empty_directories() {
 	done
 }
 
-exclude=("TAGS")
 git_options=(-e TAGS)
 
 while [ "${1#-}" != "$1" ]; do
     case "$1" in
 	-x)
-	    exclude+=("$2")
 	    git_options+=(-e "$2")
 	    shift; shift;;
 	*)
@@ -55,14 +43,8 @@ for d in "${@-.}"; do
         fi
         git clean -f -d -x "${git_options[@]}" >/dev/null
         remove_empty_directories
-      elif [ -e .hg ] || [ -e ../.hg ]; then
-        if ! type -p hg >&/dev/null; then
-          echo "$0: hg: not found."
-          exit 0
-        fi
-        hg purge --all
       else
-        echo "$0: $d: not administered by Subversion, Git or Mercurial."
+        echo "$0: $d: not administered by Git."
       fi
     fi
   )

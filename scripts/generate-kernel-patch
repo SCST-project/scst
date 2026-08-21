@@ -4,7 +4,7 @@ set -o pipefail
 
 ############################################################################
 #
-# Script for converting the SCST source tree as it exists in the Subversion
+# Script for converting the SCST source tree as it exists in the Git
 # repository to a Linux kernel patch.
 #
 # Copyright (C) 2008-2020 Bart Van Assche <bvanassche@acm.org>
@@ -214,7 +214,7 @@ srpt="true"
 
 if [ ! -e scst ] || [ ! -e iscsi-scst ] || [ ! -e srpt ] ||
        [ ! -e scst_local ]; then
-  echo "Please run this script from inside the SCST subversion source tree."
+  echo "Please run this script from inside the SCST Git source tree."
   exit 1
 fi
 

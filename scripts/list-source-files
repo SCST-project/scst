@@ -5,8 +5,7 @@ list_source_files() {
 
   d="$(cd "$1" && echo "$PWD")"
   r="$d"
-  while [ "$r" != "/" ] && [ ! -e "$r/.git" ] &&
-	[ ! -e "$r/.hg" ]; do
+  while [ "$r" != "/" ] && [ ! -e "$r/.git" ]; do
     r="$(dirname "$r")"
   done
 
@@ -16,14 +15,6 @@ list_source_files() {
       ( cd "$d" && git ls-tree --name-only -r HEAD ) | sed "s|^$subdir/||"
     else
       echo "Ignored directory $1" >&2
-    fi
-  elif [ -e "$r/.hg" ]; then
-    subdir="${d#"${r}"}"
-    if [ -n "${subdir}" ]; then
-      subdir="${subdir#/}/"
-      hg manifest | sed -n "s|^$subdir||p"
-    else
-      hg manifest
     fi
   else
     (

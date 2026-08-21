@@ -90,7 +90,7 @@ function test_scst_tree_patches {
 }
 
 # Copy the entire SCST source code tree from "$1" into the current directory.
-# Only copy those files which are administered by Subversion.
+# Only copy files tracked by Git.
 function duplicate_scst_source_tree {
   if [ -e "$1/AskingQuestions" ]; then
     ( set -o pipefail
@@ -564,7 +564,7 @@ function run_make_htmldocs {
 export LC_ALL=C
 
 if [ ! -e scst ] || [ ! -e iscsi-scst ] || [ ! -e srpt ]; then
-  echo "Please run this script from inside the SCST subversion source tree."
+  echo "Please run this script from inside the SCST Git source tree."
   exit 1
 fi
 
