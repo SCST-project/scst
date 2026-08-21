@@ -336,6 +336,12 @@ font.names { color: #EC981F ; }
 	text-align: left;
 	padding: 10px 10px 10px 10px;
 }
+.company-name {
+	display: inline-block;
+	padding: 20px 0;
+	font-size: 1.2em;
+	font-weight: bold;
+}
 
 
 /* Alignment classes */
@@ -352,6 +358,5 @@ font.names { color: #EC981F ; }
 .hide   { display: none; }	
 .orange { color: #FFA600; }
 .tab { padding: 0px 0px 0px 16px; }
-
 
 
