@@ -22,6 +22,20 @@ project includes:
 Instructions for building and installing SCST are available in the INSTALL.md
 file.
 
+## Current master packages
+
+Prebuilt x86_64 packages from the latest successfully published `master`
+build are available in the rolling
+[`master-rpm` prerelease](https://github.com/SCST-project/scst/releases/tag/master-rpm).
+These are development snapshots, not SCST releases.
+
+The snapshot contains RPM bundles for Rocky Linux 10.2, 9.8 and 8.10 and
+Oracle Linux UEK 10, 9 and 8. It also contains an Ubuntu 24.04 bundle with
+`scst-dkms`, `scstadmin` and `iscsi-scst` binary packages and their Debian
+source package files. Every `.tar.gz` bundle has a matching `.sha256` file.
+The complete snapshot is replaced after each successful package workflow for
+the current `master` commit.
+
 ## QLogic target driver
 
 Two QLogic target drivers are included in the SCST project.

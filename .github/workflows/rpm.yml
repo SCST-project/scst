@@ -112,3 +112,139 @@ jobs:
             dpkg/*.orig.tar.*
           if-no-files-found: error
 
+  publish_master:
+    name: Publish master package snapshot
+    if: >-
+      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.ref == 'refs/heads/master' &&
+      github.repository == 'SCST-project/scst'
+    needs: [prepare_matrix, build_rpm, build_deb]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: write
+    concurrency:
+      group: packages-master-release
+      cancel-in-progress: false
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+
+      - name: Download RPM packages
+        uses: actions/download-artifact@main
+        with:
+          pattern: scst-rpm-*-x86_64-${{ github.sha }}
+          path: package-artifacts/rpm
+
+      - name: Download DEB packages
+        uses: actions/download-artifact@main
+        with:
+          name: scst-deb-ubuntu-24.04-x86_64-${{ github.sha }}
+          path: package-artifacts/deb
+
+      - name: Prepare release assets
+        env:
+          RPM_MATRIX: ${{ needs.prepare_matrix.outputs.rpm }}
+          RELEASE_OUTPUT_DIR: ${{ runner.temp }}/master-package-release
+        run: bash scripts/prepare-package-release
+
+      - name: Publish rolling master snapshot
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_OUTPUT_DIR: ${{ runner.temp }}/master-package-release
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          readonly tag=master-rpm
+          get_master_sha() {
+            gh api "repos/${GITHUB_REPOSITORY}/git/ref/heads/master" \
+              --jq '.object.sha'
+          }
+
+          delete_tag_releases() {
+            local release_ids release_id
+
+            release_ids="$(
+              gh api --paginate \
+                "repos/${GITHUB_REPOSITORY}/releases?per_page=100" \
+                --jq '.[] | select(.tag_name == "master-rpm") | .id'
+            )"
+            while IFS= read -r release_id; do
+              [[ -n "${release_id}" ]] || continue
+              gh api --method DELETE \
+                "repos/${GITHUB_REPOSITORY}/releases/${release_id}"
+            done <<<"${release_ids}"
+          }
+
+          delete_release_tag() {
+            local tag_status
+
+            tag_status="$(
+              curl --silent --show-error --output /dev/null \
+                --write-out '%{http_code}' \
+                --header 'Accept: application/vnd.github+json' \
+                --header "Authorization: Bearer ${GH_TOKEN}" \
+                --header 'X-GitHub-Api-Version: 2022-11-28' \
+                "${GITHUB_API_URL}/repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}"
+            )"
+            case "${tag_status}" in
+              200)
+                gh api --method DELETE \
+                  "repos/${GITHUB_REPOSITORY}/git/refs/tags/${tag}"
+                ;;
+              404) ;;
+              *)
+                echo "Unable to inspect ${tag} (HTTP ${tag_status})." >&2
+                return 1
+                ;;
+            esac
+          }
+
+          master_sha="$(get_master_sha)"
+          if [[ "${master_sha}" != "${GITHUB_SHA}" ]]; then
+            echo "Skipping stale package snapshot for ${GITHUB_SHA}."
+            exit 0
+          fi
+
+          delete_tag_releases
+          delete_release_tag
+
+          shopt -s nullglob
+          assets=("${RELEASE_OUTPUT_DIR}"/scst-master-*)
+          [[ ${#assets[@]} -gt 0 ]] || {
+            echo 'No release assets were prepared.' >&2
+            exit 1
+          }
+
+          notes="$(printf '%s\n\n%s\n%s\n' \
+            'Automated development package snapshot from the master branch.' \
+            "Commit: ${GITHUB_SHA}" \
+            "Workflow: ${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}")"
+          gh release create "${tag}" "${assets[@]}" \
+            --target "${GITHUB_SHA}" \
+            --title 'Latest master package snapshot' \
+            --notes "${notes}" \
+            --prerelease \
+            --latest=false \
+            --draft
+
+          master_sha="$(get_master_sha)"
+          if [[ "${master_sha}" != "${GITHUB_SHA}" ]]; then
+            echo "Discarding stale package snapshot for ${GITHUB_SHA}."
+            delete_tag_releases
+            delete_release_tag
+            exit 0
+          fi
+
+          gh release edit "${tag}" \
+            --draft=false \
+            --prerelease \
+            --latest=false
+
+          master_sha="$(get_master_sha)"
+          if [[ "${master_sha}" != "${GITHUB_SHA}" ]]; then
+            echo "Removing stale package snapshot for ${GITHUB_SHA}."
+            delete_tag_releases
+            delete_release_tag
+          fi
