@@ -1,0 +1,208 @@
+#!/bin/bash
+
+set -euo pipefail
+
+root_dir="$(readlink -f "$(dirname "$0")/..")"
+readonly root_dir
+readonly nightly_config="${SCST_NIGHTLY_CONFIG:-${root_dir}/nightly/conf/nightly.conf}"
+readonly github_config="${SCST_GITHUB_MATRIX_CONFIG:-${root_dir}/.github/kernel-matrix.conf}"
+
+# shellcheck source=../nightly/conf/nightly.conf
+source "${nightly_config}"
+# shellcheck source=../.github/kernel-matrix.conf
+source "${github_config}"
+
+: "${ABT_KERNELS:?ABT_KERNELS is not defined in ${nightly_config}}"
+: "${GITHUB_REGRESSION_KERNEL_SELECTORS:?GITHUB_REGRESSION_KERNEL_SELECTORS is not defined in ${github_config}}"
+: "${GITHUB_RPM_TARGETS:?GITHUB_RPM_TARGETS is not defined in ${github_config}}"
+command -v jq >/dev/null 2>&1 || {
+	echo "Error: jq is required." >&2
+	exit 1
+}
+
+read -r -a raw_kernel_entries <<<"${ABT_KERNELS}"
+
+strip_kernel_options() {
+	stripped_kernel="$1"
+
+	while true; do
+		case "${stripped_kernel}" in
+			*-nc) stripped_kernel="${stripped_kernel%-nc}" ;;
+			*-ns) stripped_kernel="${stripped_kernel%-ns}" ;;
+			*-nm) stripped_kernel="${stripped_kernel%-nm}" ;;
+			*-4) stripped_kernel="${stripped_kernel%-4}" ;;
+			*-f) stripped_kernel="${stripped_kernel%-f}" ;;
+			*-i) stripped_kernel="${stripped_kernel%-i}" ;;
+			*-u) stripped_kernel="${stripped_kernel%-u}" ;;
+			*-p) stripped_kernel="${stripped_kernel%-p}" ;;
+			*) return ;;
+		esac
+	done
+}
+
+canonical_kernel_entries=()
+for raw_kernel in "${raw_kernel_entries[@]}"; do
+	strip_kernel_options "${raw_kernel}"
+	IFS='^' read -r -a kernel_parts <<<"${stripped_kernel}"
+	if [[ ${#kernel_parts[@]} -ne 1 && ${#kernel_parts[@]} -ne 3 ]]; then
+		echo "Error: invalid ABT_KERNELS entry: ${raw_kernel}" >&2
+		exit 1
+	fi
+	canonical_kernel_entries+=("${stripped_kernel}")
+done
+readonly -a canonical_kernel_entries
+
+version_matches_series() {
+	local version="$1"
+	local series="$2"
+
+	[[ "${version}" == "${series}" ||
+	   "${version}" == "${series}."* ||
+	   "${version}" == "${series}-"* ]]
+}
+
+resolve_kernel() {
+	local selector="$1"
+	local entry version distro release
+	local -a selector_parts entry_parts matches=()
+
+	IFS='^' read -r -a selector_parts <<<"${selector}"
+	if [[ ${#selector_parts[@]} -lt 1 || ${#selector_parts[@]} -gt 3 ]]; then
+		echo "Error: invalid kernel selector: ${selector}" >&2
+		return 1
+	fi
+
+	for entry in "${canonical_kernel_entries[@]}"; do
+		IFS='^' read -r -a entry_parts <<<"${entry}"
+		version="${entry_parts[0]}"
+		distro="${entry_parts[1]:-}"
+		release="${entry_parts[2]:-}"
+
+		if [[ ${#selector_parts[@]} -eq 1 ]]; then
+			if [[ -z "${distro}" ]] &&
+			   version_matches_series "${version}" "${selector_parts[0]}"; then
+				matches+=("${entry}")
+			fi
+		elif [[ "${distro}" == "${selector_parts[0]}" &&
+		        "${release}" == "${selector_parts[1]}" ]]; then
+			if [[ ${#selector_parts[@]} -eq 2 ]] ||
+			   version_matches_series "${version}" "${selector_parts[2]}"; then
+				matches+=("${entry}")
+			fi
+		fi
+	done
+
+	if [[ ${#matches[@]} -ne 1 ]]; then
+		echo "Error: selector ${selector} matched ${#matches[@]} ABT_KERNELS entries." >&2
+		return 1
+	fi
+	resolved_kernel="${matches[0]}"
+}
+
+emit_regression_matrix() {
+	local selector kernel
+	local -a versions=()
+	local -A seen_selectors=()
+
+	for selector in ${GITHUB_REGRESSION_KERNEL_SELECTORS}; do
+		if [[ -n "${seen_selectors[${selector}]+present}" ]]; then
+			echo "Error: duplicate regression selector: ${selector}" >&2
+			return 1
+		fi
+		seen_selectors["${selector}"]=1
+		resolve_kernel "${selector}" || return 1
+		kernel="${resolved_kernel}"
+		versions+=("${kernel}")
+	done
+
+	printf '%s\n' "${versions[@]}" |
+		jq -Rsc 'split("\n") | map(select(length > 0)) | {version: .}'
+}
+
+emit_rpm_matrix() {
+	local line target selector name base_image kernel_package kernel_repository extra
+	local kernel kernel_version row
+	local -a rows=()
+	local -A seen_targets=() seen_selectors=()
+
+	while IFS= read -r line; do
+		[[ -n "${line}" ]] || continue
+		IFS='|' read -r target selector name base_image kernel_package \
+			kernel_repository extra <<<"${line}"
+		if [[ -z "${target}" || -z "${selector}" || -z "${name}" ||
+		      -z "${base_image}" || -z "${kernel_package}" || -n "${extra:-}" ]]; then
+			echo "Error: invalid RPM target: ${line}" >&2
+			return 1
+		fi
+		if [[ -n "${seen_targets[${target}]+present}" ]]; then
+			echo "Error: duplicate RPM target: ${target}" >&2
+			return 1
+		fi
+		if [[ -n "${seen_selectors[${selector}]+present}" ]]; then
+			echo "Error: duplicate RPM selector: ${selector}" >&2
+			return 1
+		fi
+		seen_targets["${target}"]=1
+		seen_selectors["${selector}"]=1
+
+		resolve_kernel "${selector}" || return 1
+		kernel="${resolved_kernel}"
+		kernel_version="${kernel%%^*}"
+		row="$(
+			jq -cn \
+				--arg name "${name}" \
+				--arg target "${target}" \
+				--arg base_image "${base_image}" \
+				--arg kernel_package "${kernel_package}" \
+				--arg kernel_version "${kernel_version}" \
+				--arg kernel_repository "${kernel_repository}" \
+				'{name: $name, target: $target, base_image: $base_image,
+				  kernel_package: $kernel_package,
+				  kernel_version: $kernel_version,
+				  kernel_repository: $kernel_repository}'
+		)" || return 1
+		rows+=("${row}")
+	done <<<"${GITHUB_RPM_TARGETS}"
+
+	printf '%s\n' "${rows[@]}" | jq -cs '{include: .}'
+}
+
+emit_rpm_field() {
+	local target="$1"
+	local field="$2"
+	local matrix
+
+	case "${field}" in
+		name|base_image|kernel_package|kernel_version|kernel_repository)
+			;;
+		*)
+		echo "Error: unsupported RPM matrix field: ${field}" >&2
+		return 1
+		;;
+	esac
+
+	matrix="$(emit_rpm_matrix)" || return 1
+	jq -er \
+		--arg target "${target}" \
+		--arg field "${field}" '
+		[.include[] | select(.target == $target)] |
+		if length == 1 then .[0][$field]
+		else error("RPM target \($target) matched \(length) entries") end
+	' <<<"${matrix}"
+}
+
+case "${1:-}" in
+	regression) emit_regression_matrix ;;
+	rpm) emit_rpm_matrix ;;
+	rpm-field)
+		if [[ $# -ne 3 ]]; then
+			echo "Usage: $0 rpm-field <target> <field>" >&2
+			exit 2
+		fi
+		emit_rpm_field "$2" "$3"
+		;;
+	*)
+		echo "Usage: $0 {regression|rpm|rpm-field}" >&2
+		exit 2
+		;;
+esac
