@@ -1,0 +1,116 @@
+#!/bin/bash
+
+set -euo pipefail
+
+die() {
+	echo "Error: $*" >&2
+	exit 1
+}
+
+: "${RPM_MATRIX:?RPM_MATRIX is not set}"
+: "${GITHUB_SHA:?GITHUB_SHA is not set}"
+: "${RELEASE_OUTPUT_DIR:?RELEASE_OUTPUT_DIR is not set}"
+
+readonly rpm_artifact_root="${RPM_ARTIFACT_ROOT:-package-artifacts/rpm}"
+readonly deb_artifact_dir="${DEB_ARTIFACT_DIR:-package-artifacts/deb}"
+readonly release_output_dir="${RELEASE_OUTPUT_DIR}"
+
+[[ "${GITHUB_SHA}" =~ ^[0-9a-fA-F]{40,64}$ ]] ||
+	die "GITHUB_SHA is not a full Git object ID."
+jq -e '.include | type == "array" and length > 0' \
+	<<<"${RPM_MATRIX}" >/dev/null || die "RPM_MATRIX is invalid."
+
+mapfile -t rpm_targets < <(jq -r '.include[].target' <<<"${RPM_MATRIX}")
+declare -A seen_targets=()
+for target in "${rpm_targets[@]}"; do
+	[[ "${target}" =~ ^[a-z0-9][a-z0-9._-]*$ ]] ||
+		die "Invalid RPM target: ${target}"
+	[[ -z "${seen_targets[${target}]+present}" ]] ||
+		die "Duplicate RPM target: ${target}"
+	seen_targets["${target}"]=1
+done
+
+if [[ -e "${release_output_dir}" && ! -d "${release_output_dir}" ]]; then
+	die "Release output path is not a directory: ${release_output_dir}"
+fi
+mkdir -p -- "${release_output_dir}"
+if [[ -n "$(find "${release_output_dir}" -mindepth 1 -maxdepth 1 -print -quit)" ]]; then
+	die "Release output directory is not empty: ${release_output_dir}"
+fi
+
+create_bundle() {
+	local source_dir="$1"
+	local bundle_name="$2"
+	shift 2
+
+	tar --sort=name --mtime='UTC 1970-01-01' \
+		--owner=0 --group=0 --numeric-owner \
+		-C "${source_dir}" -cf - "$@" |
+		gzip -n >"${release_output_dir}/${bundle_name}"
+	(
+		cd "${release_output_dir}"
+		sha256sum "${bundle_name}" >"${bundle_name}.sha256"
+	)
+}
+
+for target in "${rpm_targets[@]}"; do
+	artifact_name="scst-rpm-${target}-x86_64-${GITHUB_SHA}"
+	artifact_dir="${rpm_artifact_root}/${artifact_name}"
+	[[ -d "${artifact_dir}/RPMS" ]] ||
+		die "Missing RPMS directory in ${artifact_name}."
+	[[ -d "${artifact_dir}/SRPMS" ]] ||
+		die "Missing SRPMS directory in ${artifact_name}."
+	[[ -f "${artifact_dir}/SHA256SUMS" ]] ||
+		die "Missing SHA256SUMS in ${artifact_name}."
+	[[ -n "$(find "${artifact_dir}/RPMS" -type f -name '*.rpm' -print -quit)" ]] ||
+		die "No binary RPM packages found in ${artifact_name}."
+	[[ -n "$(find "${artifact_dir}/SRPMS" -type f -name '*.rpm' -print -quit)" ]] ||
+		die "No source RPM packages found in ${artifact_name}."
+	(
+		cd "${artifact_dir}"
+		sha256sum --check SHA256SUMS
+	) || die "RPM checksum verification failed for ${artifact_name}."
+
+	create_bundle "${artifact_dir}" \
+		"scst-master-${target}-x86_64.tar.gz" \
+		RPMS SRPMS SHA256SUMS
+done
+
+[[ -d "${deb_artifact_dir}" ]] ||
+	die "Missing DEB artifact directory: ${deb_artifact_dir}"
+
+find_one_deb_file() {
+	local pattern="$1"
+	local -a matches=()
+
+	mapfile -d '' -t matches < <(
+		find "${deb_artifact_dir}" -maxdepth 1 -type f \
+			-name "${pattern}" -print0
+	)
+	[[ ${#matches[@]} -eq 1 ]] ||
+		die "Expected one DEB artifact matching ${pattern}, found ${#matches[@]}."
+	deb_files+=("${matches[0]##*/}")
+}
+
+declare -a deb_files=()
+find_one_deb_file 'scst-dkms_*.deb'
+find_one_deb_file 'scstadmin_*.deb'
+find_one_deb_file 'iscsi-scst_*.deb'
+find_one_deb_file '*.dsc'
+find_one_deb_file '*.debian.tar.*'
+find_one_deb_file '*.orig.tar.*'
+
+mapfile -d '' -t all_deb_packages < <(
+	find "${deb_artifact_dir}" -maxdepth 1 -type f -name '*.deb' -print0
+)
+[[ ${#all_deb_packages[@]} -eq 3 ]] ||
+	die "Expected exactly three binary DEB packages, found ${#all_deb_packages[@]}."
+
+create_bundle "${deb_artifact_dir}" \
+	"scst-master-ubuntu-24.04-x86_64.tar.gz" "${deb_files[@]}"
+
+expected_files="$(((${#rpm_targets[@]} + 1) * 2))"
+actual_files="$(find "${release_output_dir}" -maxdepth 1 -type f |
+	wc -l)"
+[[ "${actual_files}" -eq "${expected_files}" ]] ||
+	die "Expected ${expected_files} release assets, found ${actual_files}."
