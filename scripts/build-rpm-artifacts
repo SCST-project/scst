@@ -1,0 +1,96 @@
+#!/bin/bash
+
+set -euo pipefail
+
+readonly source_dir="${RPM_ARTIFACT_SOURCE_DIR:-$PWD}"
+readonly output_dir="${RPM_ARTIFACT_OUTPUT_DIR:-$PWD/rpm-artifacts}"
+readonly kernel_devel_package="${RPM_ARTIFACT_KERNEL_DEVEL_PACKAGE:-kernel-devel}"
+
+if ! git -C "${source_dir}" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+	echo "Error: ${source_dir} is not an SCST Git worktree." >&2
+	exit 1
+fi
+
+if [[ ! -d "${output_dir}" || ! -w "${output_dir}" ]]; then
+	echo "Error: ${output_dir} is not a writable output directory." >&2
+	exit 1
+fi
+
+mapfile -t kernel_releases < <(
+	rpm -q --qf '%{VERSION}-%{RELEASE}.%{ARCH}\n' \
+		"${kernel_devel_package}" 2>/dev/null | sort -V
+)
+if [[ ${#kernel_releases[@]} -ne 1 ]]; then
+	echo "Error: expected exactly one ${kernel_devel_package} package." >&2
+	printf 'Found kernel releases: %s\n' "${kernel_releases[*]:-none}" >&2
+	exit 1
+fi
+
+readonly kernel_release="${kernel_releases[0]}"
+readonly kernel_dir="/usr/src/kernels/${kernel_release}"
+if [[ ! -d "${kernel_dir}" ]]; then
+	echo "Error: kernel build directory ${kernel_dir} does not exist." >&2
+	exit 1
+fi
+
+tmp_dir="$(mktemp -d)"
+readonly tmp_dir
+artifact_stage=""
+cleanup() {
+	rm -rf -- "${tmp_dir}"
+	if [[ -n "${artifact_stage}" ]]; then
+		rm -rf -- "${artifact_stage}"
+	fi
+}
+trap cleanup EXIT
+
+readonly build_dir="${tmp_dir}/scst"
+readonly rpm_topdir="${tmp_dir}/rpmbuild"
+mkdir -p "${build_dir}" "${rpm_topdir}"
+
+git -C "${source_dir}" ls-files -z -- |
+	tar --directory="${source_dir}" --null --files-from=- --create --file=- |
+	tar --directory="${build_dir}" --extract --file=-
+
+git_commit="${GIT_COMMIT:-$(git -C "${source_dir}" rev-parse --short=12 HEAD)}"
+build_number="${BUILD_NUMBER:-$(git -C "${source_dir}" rev-list --count HEAD)}"
+revision="${REVISION:-${build_number}.${git_commit}}"
+readonly git_commit build_number revision
+
+make -C "${build_dir}" \
+	BUILD_NUMBER="${build_number}" \
+	GIT_COMMIT="${git_commit}" \
+	REVISION="${revision}" \
+	KDIR="${kernel_dir}" \
+	KVER="${kernel_release}" \
+	RPMTOPDIR="${rpm_topdir}" \
+	rpm
+
+mapfile -d '' -t rpm_files < <(
+	find "${rpm_topdir}/RPMS" "${rpm_topdir}/SRPMS" \
+		-type f -name '*.rpm' -print0 | sort -z
+)
+if [[ ${#rpm_files[@]} -eq 0 ]]; then
+	echo "Error: the RPM build produced no packages." >&2
+	exit 1
+fi
+rpm --checksig --nosignature "${rpm_files[@]}"
+
+artifact_stage="$(mktemp -d "${output_dir}/.scst-rpm.XXXXXX")"
+cp -a "${rpm_topdir}/RPMS" "${rpm_topdir}/SRPMS" "${artifact_stage}/"
+(
+	cd "${artifact_stage}"
+	find RPMS SRPMS -type f -name '*.rpm' -print0 |
+		sort -z | xargs -0 sha256sum >SHA256SUMS
+)
+
+rm -rf -- "${output_dir}/RPMS" "${output_dir}/SRPMS"
+rm -f -- "${output_dir}/SHA256SUMS"
+mv "${artifact_stage}/RPMS" "${artifact_stage}/SRPMS" \
+	"${artifact_stage}/SHA256SUMS" "${output_dir}/"
+rmdir "${artifact_stage}"
+artifact_stage=""
+
+echo "Built SCST RPM packages for kernel ${kernel_release}:"
+find "${output_dir}/RPMS" "${output_dir}/SRPMS" \
+	-type f -name '*.rpm' -print | sort

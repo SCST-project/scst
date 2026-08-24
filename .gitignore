@@ -38,6 +38,7 @@ debian/scst.dkms
 debian/scst/
 debian/scstadmin/
 debian/tmp/
+docker-rpmbuilddir/
 dpkg/
 fcst/build_mode
 iscsi-scst/conftest/*/result-*.txt
@@ -58,6 +59,7 @@ nightly/old.verbose
 nightly/sendmail.log
 qla2x00t/in-tree-patches/
 qla2x00t/qla2xxx-orig/
+rpm-artifacts/
 rpmbuilddir/
 scst.spec
 scst/build_mode
