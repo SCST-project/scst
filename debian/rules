@@ -21,6 +21,17 @@ export CC=$(DEB_CC_SET)
 export QLA_DIR=$(DEB_QLA_DIR_SET)
 export QLA_INI_DIR=$(DEB_QLA_INI_DIR_SET)
 export PKG_BUILD_MODE=$(DEB_PKG_BUILD_MODE)
+DEB_WERROR_SET?=n
+export WERROR=$(DEB_WERROR_SET)
+ifeq ($(WERROR),y)
+ifeq ($(filter -Werror,$(CFLAGS)),)
+override CFLAGS += -Werror
+endif
+ifeq ($(filter -Werror,$(KCFLAGS)),)
+override KCFLAGS += -Werror
+endif
+export CFLAGS KCFLAGS
+endif
 
 # Default to building optional modules (override by changing specific ?=m to =n)
 CONFIG_SCST_LOCAL?=m

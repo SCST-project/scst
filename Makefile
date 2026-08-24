@@ -42,6 +42,26 @@ endif
 
 PKG_BUILD_MODE ?= 2release
 
+WERROR ?= n
+ifneq ($(words $(strip $(WERROR))),1)
+$(error WERROR must be one of: y n (got '$(WERROR)'))
+endif
+ifneq ($(filter y n,$(strip $(WERROR))),$(strip $(WERROR)))
+$(error WERROR must be one of: y n (got '$(WERROR)'))
+endif
+override WERROR := $(strip $(WERROR))
+export WERROR
+
+ifeq ($(WERROR),y)
+ifeq ($(filter -Werror,$(CFLAGS)),)
+override CFLAGS += -Werror
+endif
+ifeq ($(filter -Werror,$(KCFLAGS)),)
+override KCFLAGS += -Werror
+endif
+export CFLAGS KCFLAGS
+endif
+
 OLD_QLA_INI_DIR = qla2x00t
 OLD_QLA_DIR = $(OLD_QLA_INI_DIR)/qla2x00-target
 
@@ -117,6 +137,9 @@ SCST_SOURCE_FILES = $(shell if [ -e scripts/list-source-files ]; then	\
 			fi)
 
 help:
+	@echo "Build variables:"
+	@echo "		WERROR=y|n            : treat warnings as errors (default: n)"
+	@echo ""
 	@echo "		tags                  : make tags"
 	@echo "		cov-build             : make coverity build"
 	@echo "		shellcheck            : check Bash scripts"
@@ -478,6 +501,7 @@ docker-rpm: docker-rpm-image
 	$(DOCKER) run --rm \
 		--user "$$(id -u):$$(id -g)" \
 		--env HOME=/tmp \
+		--env WERROR="$(WERROR)" \
 		--mount "type=bind,source=$(CURDIR),target=/source,readonly" \
 		--mount "type=bind,source=$${git_common_dir},target=$${git_common_dir},readonly" \
 		--mount "type=bind,source=$(DOCKER_RPM_OUTPUT),target=/output" \
@@ -536,8 +560,9 @@ dpkg: ../scst_$(VERSION).orig.tar.gz
 	else								\
 	  buildopts+=(-j4);						\
 	fi &&								\
-	DEB_CC_SET="$(CC)" DEB_KVER_SET=$(KVER) DEB_KDIR_SET=$(KDIR) DEB_QLA_DIR_SET=$(QLA_DIR) \
-	   DEB_QLA_INI_DIR_SET=$(QLA_INI_DIR) DEB_PKG_BUILD_MODE=$(PKG_BUILD_MODE) \
+	DEB_CC_SET="$(CC)" DEB_KVER_SET=$(KVER) DEB_KDIR_SET=$(KDIR) \
+	   DEB_QLA_DIR_SET=$(QLA_DIR) DEB_QLA_INI_DIR_SET=$(QLA_INI_DIR) \
+	   DEB_PKG_BUILD_MODE=$(PKG_BUILD_MODE) DEB_WERROR_SET="$(WERROR)" \
 	   debuild "$${buildopts[@]}" --lintian-opts --profile debian && \
 	mkdir -p dpkg &&						\
 	for f in "$${output_files[@]}" ../scst_$(VERSION).orig.tar.[gx]z; do\

@@ -57,6 +57,26 @@
 # shellcheck source=./kernel-functions
 source "$(dirname "$0")/kernel-functions"
 
+readonly WERROR="${WERROR-n}"
+case "${WERROR}" in
+  y|n) ;;
+  *)
+    echo "Error: WERROR must be one of: y n (got '${WERROR}')." >&2
+    exit 2
+    ;;
+esac
+if [ "${WERROR}" = y ]; then
+  case " ${CFLAGS:-} " in
+    *" -Werror "*) ;;
+    *) CFLAGS="${CFLAGS:+${CFLAGS} }-Werror" ;;
+  esac
+  case " ${KCFLAGS:-} " in
+    *" -Werror "*) ;;
+    *) KCFLAGS="${KCFLAGS:+${KCFLAGS} }-Werror" ;;
+  esac
+  export CFLAGS KCFLAGS
+fi
+
 function usage {
   echo "Usage: $0 [-c <dir>] [-d <dir>] [-h] [-j <jobs>] [-k] [-l]" \
        "[-p] [-q] <kver1> <kver2> ..."
@@ -321,6 +341,7 @@ CONFIG_TRACER_MAX_TRACE				\
 CONFIG_TRACE_BRANCH_PROFILING			\
 CONFIG_TRACING					\
 CONFIG_UNWINDER_ORC				\
+CONFIG_WERROR					\
 CONFIG_X86_32					\
 CONFIG_X86_X32					\
 CONFIG_X86_KERNEL_IBT				\
