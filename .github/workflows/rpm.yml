@@ -5,6 +5,9 @@ on: [push, pull_request, workflow_dispatch]
 permissions:
   contents: read
 
+env:
+  WERROR: 'y'
+
 jobs:
   prepare_matrix:
     name: Prepare RPM matrix
