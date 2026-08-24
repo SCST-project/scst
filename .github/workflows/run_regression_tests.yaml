@@ -9,67 +9,29 @@ on:
       - master
 
 jobs:
+  prepare_matrix:
+    name: Prepare kernel matrix
+    runs-on: ubuntu-latest
+    outputs:
+      regression: ${{ steps.matrix.outputs.regression }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+
+      - name: Resolve kernel matrix
+        id: matrix
+        shell: bash
+        run: |
+          matrix="$(bash scripts/kernel-matrix regression)"
+          printf 'regression=%s\n' "${matrix}" >>"${GITHUB_OUTPUT}"
+
   regression_tests:
     name: ${{matrix.version}}
+    needs: prepare_matrix
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
-      matrix:
-        version: [
-                  '7.2',
-                  '7.1.8',
-                  '7.0.14',
-                  '6.19.14',
-                  '6.18.44',
-                  '6.17.13',
-                  '6.16.12',
-                  '6.15.11',
-                  '6.14.11',
-                  '6.13.12',
-                  '6.12.103',
-                  '6.11.11',
-                  '6.10.14',
-                  '6.9.12',
-                  '6.8.12',
-                  '6.7.12',
-                  '6.6.151',
-                  '6.1.182',
-                  '5.15.215',
-                  '5.10.264',
-                  '5.4.302',
-                  '4.19.325',
-                  '4.14.336',
-                  '4.9.337',
-                  '3.18.140',
-                  '3.10.108',
-                  '6.12.0-211.47.1.el10_2^Rocky^10.2',
-                  '6.12.0-124.56.1.el10_1^Rocky^10.1',
-                  '5.14.0-687.39.1.el9_8^Rocky^9.8',
-                  '5.14.0-611.55.1.el9_7^Rocky^9.7',
-                  '4.18.0-553.155.1.el8_10^Rocky^8.10',
-                  '6.12.0-55.43.1.el10_0^AlmaLinux^10.0',
-                  '5.14.0-570.62.1.el9_6^AlmaLinux^9.6',
-                  '5.14.0-503.40.1.el9_5^AlmaLinux^9.5',
-                  '5.14.0-427.42.1.el9_4^AlmaLinux^9.4',
-                  '5.14.0-362.24.1.el9_3^AlmaLinux^9.3',
-                  '5.14.0-284.30.1.el9_2^AlmaLinux^9.2',
-                  '5.14.0-162.23.1.el9_1^AlmaLinux^9.1',
-                  '5.14.0-70.30.1.el9_0^AlmaLinux^9.0',
-                  '4.18.0-513.24.1.el8_9^AlmaLinux^8.9',
-                  '4.18.0-477.13.1.el8_8^AlmaLinux^8.8',
-                  '4.18.0-425.19.2.el8_7^AlmaLinux^8.7',
-                  '4.18.0-372.32.1.el8_6^AlmaLinux^8.6',
-                  '4.18.0-348.23.1.el8_5^AlmaLinux^8.5',
-                  '4.18.0-305.25.1.el8_4^AlmaLinux^8.4',
-                  '4.18.0-240.22.1.el8_3^AlmaLinux^8.3',
-                  '3.10.0-1160.118.1.el7^CentOS^7.9.2009',
-                  '3.10.0-862.14.4.el7^CentOS^7.5.1804',
-                  '6.12.0-205.92.4.2.el10uek^UEK^10',
-                  '5.15.0-323.211.3.4.el9uek^UEK^9',
-                  '5.4.17-2136.358.2.1.el8uek^UEK^8',
-                  '4.14.35-2047.543.3.1.el7uek^UEK^7',
-                  '4.1.12-124.93.1.el7uek^UEK^7'
-                 ]
+      matrix: ${{ fromJSON(needs.prepare_matrix.outputs.regression) }}
     steps:
       - name: Checkout code
         uses: actions/checkout@main
