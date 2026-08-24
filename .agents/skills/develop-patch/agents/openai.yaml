@@ -1,8 +1,8 @@
 interface:
   display_name: "Develop Patch"
-  short_description: "Develop focused SCST patches through review"
-  default_prompt: "Use $develop-patch to implement a focused SCST change
-    through committed lint and independent review."
+  short_description: "Develop focused SCST patches with mandatory lint"
+  default_prompt: "Use $develop-patch to implement a focused SCST change with
+    committed lint and either required or explicitly deferred independent review."
 
 policy:
   allow_implicit_invocation: true
