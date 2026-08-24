@@ -2,6 +2,9 @@ name: CI
 
 on: [push, pull_request]
 
+env:
+  WERROR: 'y'
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -22,6 +25,6 @@ jobs:
       - name: Build
         env:
           CC: ${{ matrix.compiler }}
-          CFLAGS: -Werror ${{ matrix.arch == 'x86' && '-m32' || '' }}
+          CFLAGS: ${{ matrix.arch == 'x86' && '-m32' || '' }}
           LDFLAGS: ${{ matrix.arch == 'x86' && '-m32' || '' }}
         run: make CC=${{matrix.compiler}} dpkg

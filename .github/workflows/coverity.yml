@@ -5,6 +5,9 @@ on:
     branches:
       - master
 
+env:
+  WERROR: 'n'
+
 jobs:
   coverity:
     if: github.repository == 'SCST-project/scst'
