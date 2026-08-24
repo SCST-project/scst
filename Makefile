@@ -93,6 +93,23 @@ VERSION := $(RELEASE_VERSION).$(REVISION)
 DEBIAN_REVISION := 1.1
 RPMTOPDIR ?= $(shell if [ $$(id -u) = 0 ]; then echo /usr/src/packages;\
 		else echo $$PWD/rpmbuilddir; fi)
+DOCKER ?= docker
+DOCKER_RPM_TARGET ?= rocky-10.2
+DOCKER_RPM_CONTEXT ?= docker/rpm
+DOCKER_RPM_DOCKERFILE ?= $(DOCKER_RPM_CONTEXT)/Dockerfile
+DOCKER_RPM_IMAGE ?= scst-rpm-builder:$(DOCKER_RPM_TARGET)
+DOCKER_RPM_OUTPUT ?= $(CURDIR)/docker-rpmbuilddir/$(DOCKER_RPM_TARGET)
+DOCKER_RPM_BASE_IMAGE ?= $(shell bash scripts/kernel-matrix rpm-field \
+		"$(DOCKER_RPM_TARGET)" base_image)
+DOCKER_RPM_KERNEL_PACKAGE ?= $(shell bash scripts/kernel-matrix rpm-field \
+		"$(DOCKER_RPM_TARGET)" kernel_package)
+DOCKER_RPM_KERNEL_VERSION ?= $(shell bash scripts/kernel-matrix rpm-field \
+		"$(DOCKER_RPM_TARGET)" kernel_version)
+DOCKER_RPM_KERNEL_REPOSITORY ?= $(shell bash scripts/kernel-matrix rpm-field \
+		"$(DOCKER_RPM_TARGET)" kernel_repository)
+RPM_ARTIFACT_SOURCE_DIR ?= $(CURDIR)
+RPM_ARTIFACT_OUTPUT_DIR ?= $(CURDIR)/rpm-artifacts
+RPM_ARTIFACT_KERNEL_DEVEL_PACKAGE ?= kernel-devel
 SCST_SOURCE_FILES = $(shell if [ -e scripts/list-source-files ]; then	\
 				scripts/list-source-files;		\
 			else						\
@@ -173,6 +190,9 @@ help:
 	@echo "		scstadm-rpm           : make scstadmin RPM packages"
 	@echo "		rpm                   : make both SCST and scstadmin RPM packages"
 	@echo "		rpm-dkms              : make both SCST DKMS and scstadmin RPM packages"
+	@echo "		rpm-artifacts         : build verified RPM artifacts"
+	@echo "		docker-rpm-image      : build the RPM builder Docker image"
+	@echo "		docker-rpm            : build RPM packages in Docker"
 	@echo ""
 	@echo "		dpkg                  : make SCST dpkg packages"
 	@echo ""
@@ -432,6 +452,41 @@ rpm-dkms:
 	    find -name '*.rpm';				\
 	fi
 
+rpm-artifacts:
+	mkdir -p "$(RPM_ARTIFACT_OUTPUT_DIR)"
+	RPM_ARTIFACT_SOURCE_DIR="$(RPM_ARTIFACT_SOURCE_DIR)" \
+	RPM_ARTIFACT_OUTPUT_DIR="$(RPM_ARTIFACT_OUTPUT_DIR)" \
+	RPM_ARTIFACT_KERNEL_DEVEL_PACKAGE="$(RPM_ARTIFACT_KERNEL_DEVEL_PACKAGE)" \
+		bash "$(CURDIR)/scripts/build-rpm-artifacts"
+
+docker-rpm-image:
+	test -n "$(DOCKER_RPM_BASE_IMAGE)"
+	test -n "$(DOCKER_RPM_KERNEL_PACKAGE)"
+	test -n "$(DOCKER_RPM_KERNEL_VERSION)"
+	$(DOCKER) build --file "$(DOCKER_RPM_DOCKERFILE)" \
+		--build-arg "BASE_IMAGE=$(DOCKER_RPM_BASE_IMAGE)" \
+		--build-arg "KERNEL_PACKAGE=$(DOCKER_RPM_KERNEL_PACKAGE)" \
+		--build-arg "KERNEL_VERSION=$(DOCKER_RPM_KERNEL_VERSION)" \
+		--build-arg \
+			"KERNEL_REPOSITORY=$(DOCKER_RPM_KERNEL_REPOSITORY)" \
+		--tag "$(DOCKER_RPM_IMAGE)" "$(DOCKER_RPM_CONTEXT)"
+
+docker-rpm: docker-rpm-image
+	mkdir -p "$(DOCKER_RPM_OUTPUT)"
+	git_common_dir="$$(git rev-parse --path-format=absolute \
+		--git-common-dir)" && \
+	$(DOCKER) run --rm \
+		--user "$$(id -u):$$(id -g)" \
+		--env HOME=/tmp \
+		--mount "type=bind,source=$(CURDIR),target=/source,readonly" \
+		--mount "type=bind,source=$${git_common_dir},target=$${git_common_dir},readonly" \
+		--mount "type=bind,source=$(DOCKER_RPM_OUTPUT),target=/output" \
+		"$(DOCKER_RPM_IMAGE)" \
+		make -C /source rpm-artifacts \
+			RPM_ARTIFACT_SOURCE_DIR=/source \
+			RPM_ARTIFACT_OUTPUT_DIR=/output \
+			RPM_ARTIFACT_KERNEL_DEVEL_PACKAGE="$(DOCKER_RPM_KERNEL_PACKAGE)-devel"
+
 debian/changelog: debian/changelog.in
 	sed 's/%{scst_version}/$(VERSION)-$(DEBIAN_REVISION)/'		\
 	  <debian/changelog.in >debian/changelog
@@ -528,5 +583,6 @@ multiple-release-archives:
 	fcst fcst_clean fcst_extraclean fcst_install fcst_uninstall \
 	scst_local scst_local_clean scst_local_extraclean scst_local_install scst_local_uninstall \
 	usr usr_clean usr_extraclean usr_install usr_uninstall \
-	scst-rpm scst-dkms-rpm scstadm-rpm rpm rpm-dkms dpkg \
+	scst-rpm scst-dkms-rpm scstadm-rpm rpm rpm-dkms rpm-artifacts \
+	docker-rpm-image docker-rpm dpkg \
 	2perf 2release 2debug

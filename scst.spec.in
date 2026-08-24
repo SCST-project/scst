@@ -59,8 +59,13 @@
 # UEK 7
 %define kernel_devel_rpm kernel-uek-devel
 %else
+%if %([ %{kernel_rpm} = kernel-uek-modules-core ]; echo $((1-$?)))
+# UEK 8
+%define kernel_devel_rpm kernel-uek-devel
+%else
 # Other Linux distros
 %define kernel_devel_rpm %{kernel_rpm}-devel
+%endif
 %endif
 %endif
 %endif
