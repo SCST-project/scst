@@ -1,0 +1,114 @@
+name: Packages
+
+on: [push, pull_request, workflow_dispatch]
+
+permissions:
+  contents: read
+
+jobs:
+  prepare_matrix:
+    name: Prepare RPM matrix
+    runs-on: ubuntu-latest
+    outputs:
+      rpm: ${{ steps.matrix.outputs.rpm }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+
+      - name: Resolve RPM matrix
+        id: matrix
+        shell: bash
+        run: |
+          matrix="$(bash scripts/kernel-matrix rpm)"
+          printf 'rpm=%s\n' "${matrix}" >>"${GITHUB_OUTPUT}"
+
+  build_rpm:
+    name: ${{ matrix.name }} x86_64
+    needs: prepare_matrix
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.prepare_matrix.outputs.rpm) }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+        with:
+          fetch-depth: 0
+
+      - name: Build RPM packages
+        run: |
+          make docker-rpm \
+            DOCKER_RPM_TARGET=${{ matrix.target }} \
+            DOCKER_RPM_BASE_IMAGE=${{ matrix.base_image }} \
+            DOCKER_RPM_KERNEL_PACKAGE=${{ matrix.kernel_package }} \
+            DOCKER_RPM_KERNEL_VERSION=${{ matrix.kernel_version }} \
+            DOCKER_RPM_KERNEL_REPOSITORY=${{ matrix.kernel_repository }}
+
+      - name: Upload RPM packages
+        uses: actions/upload-artifact@main
+        with:
+          name: scst-rpm-${{ matrix.target }}-x86_64-${{ github.sha }}
+          path: |
+            docker-rpmbuilddir/${{ matrix.target }}/RPMS/**/*.rpm
+            docker-rpmbuilddir/${{ matrix.target }}/SRPMS/*.rpm
+            docker-rpmbuilddir/${{ matrix.target }}/SHA256SUMS
+          if-no-files-found: error
+
+  build_deb:
+    name: Ubuntu 24.04 DKMS and user space x86_64
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@main
+        with:
+          fetch-depth: 0
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            debhelper \
+            devscripts \
+            dpkg-dev \
+            lintian \
+            "linux-headers-$(uname -r)" \
+            quilt
+
+      - name: Build DEB packages
+        run: make dpkg
+
+      - name: Verify published DEB set
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          patterns=(
+            'dpkg/scst-dkms_*.deb'
+            'dpkg/scstadmin_*.deb'
+            'dpkg/iscsi-scst_*.deb'
+            'dpkg/*.dsc'
+            'dpkg/*.debian.tar.*'
+            'dpkg/*.orig.tar.*'
+          )
+          for pattern in "${patterns[@]}"; do
+            mapfile -t matches < <(compgen -G "${pattern}" || true)
+            if [[ ${#matches[@]} -ne 1 ]]; then
+              echo "Expected one package matching ${pattern}, found ${#matches[@]}." >&2
+              exit 1
+            fi
+          done
+
+      - name: Upload DEB packages
+        uses: actions/upload-artifact@main
+        with:
+          name: scst-deb-ubuntu-24.04-x86_64-${{ github.sha }}
+          path: |
+            dpkg/scst-dkms_*.deb
+            dpkg/scstadmin_*.deb
+            dpkg/iscsi-scst_*.deb
+            dpkg/*.dsc
+            dpkg/*.debian.tar.*
+            dpkg/*.orig.tar.*
+          if-no-files-found: error
+
