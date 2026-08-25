@@ -65,28 +65,62 @@ jobs:
           if-no-files-found: error
 
   build_deb:
-    name: Ubuntu 24.04 DKMS and user space x86_64
-    runs-on: ubuntu-24.04
+    name: Ubuntu ${{ matrix.ubuntu }} DKMS and user space x86_64
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        ubuntu: ['20.04', '24.04']
+    container:
+      image: ubuntu:${{ matrix.ubuntu }}
+      env:
+        DEBIAN_FRONTEND: noninteractive
+    defaults:
+      run:
+        shell: bash
     steps:
+      - name: Install build dependencies
+        run: |
+          apt-get update
+          apt-get install -y \
+            build-essential \
+            ca-certificates \
+            debhelper \
+            devscripts \
+            dpkg-dev \
+            git \
+            libelf-dev \
+            lintian \
+            linux-headers-generic \
+            openssl \
+            quilt
+
       - name: Checkout code
         uses: actions/checkout@main
         with:
           fetch-depth: 0
 
-      - name: Install build dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            build-essential \
-            debhelper \
-            devscripts \
-            dpkg-dev \
-            lintian \
-            "linux-headers-$(uname -r)" \
-            quilt
-
       - name: Build DEB packages
-        run: make dpkg
+        run: |
+          mapfile -t kernel_dirs < <(
+            find /usr/src -maxdepth 1 -type d \
+              -name 'linux-headers-*-generic' -print | sort -V
+          )
+          if [[ ${#kernel_dirs[@]} -ne 1 ]]; then
+            echo "Expected one generic kernel header tree, found ${#kernel_dirs[@]}." >&2
+            exit 1
+          fi
+
+          kernel_dir="${kernel_dirs[0]}"
+          kernel_release="${kernel_dir##*/linux-headers-}"
+          if [[ ! -f "${kernel_dir}/.config" ]]; then
+            echo "Missing kernel configuration: ${kernel_dir}/.config" >&2
+            exit 1
+          fi
+          install -D -m 0644 "${kernel_dir}/.config" \
+            "/boot/config-${kernel_release}"
+
+          make KDIR="${kernel_dir}" KVER="${kernel_release}" dpkg
 
       - name: Verify published DEB set
         shell: bash
@@ -112,7 +146,7 @@ jobs:
       - name: Upload DEB packages
         uses: actions/upload-artifact@main
         with:
-          name: scst-deb-ubuntu-24.04-x86_64-${{ github.sha }}
+          name: scst-deb-ubuntu-${{ matrix.ubuntu }}-x86_64-${{ github.sha }}
           path: |
             dpkg/scst-dkms_*.deb
             dpkg/scstadmin_*.deb
@@ -149,7 +183,7 @@ jobs:
       - name: Download DEB packages
         uses: actions/download-artifact@main
         with:
-          name: scst-deb-ubuntu-24.04-x86_64-${{ github.sha }}
+          pattern: scst-deb-ubuntu-*-x86_64-${{ github.sha }}
           path: package-artifacts/deb
 
       - name: Prepare release assets
