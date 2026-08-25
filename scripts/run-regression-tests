@@ -637,16 +637,6 @@ fi
 # Regression tests #
 ####################
 
-if [ "$(type -p sparse)" = "" ]; then
-  echo "Error: sparse has not yet been installed."
-  echo "See also http://www.kernel.org/pub/software/devel/sparse/."
-fi
-
-if [ "$(type -p smatch)" = "" ]; then
-  echo "Error: smatch has not yet been installed."
-  echo "See also http://smatch.sourceforge.net/."
-fi
-
 if ! mkdir -p "${outputdir}"; then
   if [ -e "${outputdir}" ]; then
     echo "Error: path ${outputdir} exists and is not a directory."
@@ -736,18 +726,28 @@ do
   export KCFLAGS
   subdirs=(drivers/scst drivers/scsi/qla2xxx)
   if [ "${run_sparse}" = "true" ]; then
-    run_sparse "$k" "${subdirs[@]}"
-    mv "${outputdir}/sparse-$k-output.txt" \
-       "${outputdir}/sparse-$k-scst-output.txt"
-    if [ "${ibmvio}" = "true" ]; then
-      run_sparse "$k" drivers/scsi libsrp.ko scsi_sysfs.ko \
-                                 scsi_transport_fc.ko scsi_transport_srp.ko
+    if [ "$(type -p sparse)" = "" ]; then
+      echo "Error: sparse has not yet been installed."
+      echo "See also http://www.kernel.org/pub/software/devel/sparse/."
+    else
+      run_sparse "$k" "${subdirs[@]}"
       mv "${outputdir}/sparse-$k-output.txt" \
-         "${outputdir}/sparse-$k-scsi-output.txt"
+         "${outputdir}/sparse-$k-scst-output.txt"
+      if [ "${ibmvio}" = "true" ]; then
+        run_sparse "$k" drivers/scsi libsrp.ko scsi_sysfs.ko \
+                                   scsi_transport_fc.ko scsi_transport_srp.ko
+        mv "${outputdir}/sparse-$k-output.txt" \
+           "${outputdir}/sparse-$k-scsi-output.txt"
+      fi
     fi
   fi
   if [ "${run_smatch}" = "true" ]; then
-    run_smatch "$k" "${subdirs[@]}"
+    if [ "$(type -p smatch)" = "" ]; then
+      echo "Error: smatch has not yet been installed."
+      echo "See also http://smatch.sourceforge.net/."
+    else
+      run_smatch "$k" "${subdirs[@]}"
+    fi
   fi
   compile_kernel "$k" "${subdirs[@]}"
   if [ "${full_check}" = "true" ]; then
