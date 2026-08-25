@@ -17,14 +17,35 @@ readonly release_output_dir="${RELEASE_OUTPUT_DIR}"
 
 [[ "${GITHUB_SHA}" =~ ^[0-9a-fA-F]{40,64}$ ]] ||
 	die "GITHUB_SHA is not a full Git object ID."
-jq -e '.include | type == "array" and length > 0' \
+jq -e '
+	.include |
+	type == "array" and length > 0 and
+	all(.[];
+		((.target | type) == "string" and (.target | length) > 0) and
+		((.kernel_version | type) == "string" and
+		 (.kernel_version | length) > 0))
+' \
 	<<<"${RPM_MATRIX}" >/dev/null || die "RPM_MATRIX is invalid."
 
 mapfile -t rpm_targets < <(jq -r '.include[].target' <<<"${RPM_MATRIX}")
+mapfile -t rpm_kernel_versions < <(
+	jq -r '.include[].kernel_version' <<<"${RPM_MATRIX}"
+)
+[[ ${#rpm_targets[@]} -eq ${#rpm_kernel_versions[@]} ]] ||
+	die "RPM_MATRIX contains invalid target or kernel version fields."
+
+rpm_archive_kernel_versions=()
 declare -A seen_targets=()
-for target in "${rpm_targets[@]}"; do
+for index in "${!rpm_targets[@]}"; do
+	target="${rpm_targets[index]}"
+	kernel_version="${rpm_kernel_versions[index]}"
 	[[ "${target}" =~ ^[a-z0-9][a-z0-9._-]*$ ]] ||
 		die "Invalid RPM target: ${target}"
+	[[ "${kernel_version}" =~ ^[A-Za-z0-9][A-Za-z0-9._+-]*$ ]] ||
+		die "Invalid RPM kernel version: ${kernel_version}"
+	[[ "${kernel_version}" =~ ^(.+)\.el[0-9]+(_[0-9]+|uek)?$ ]] ||
+		die "Unsupported RPM kernel version: ${kernel_version}"
+	rpm_archive_kernel_versions[index]="${BASH_REMATCH[1]}"
 	[[ -z "${seen_targets[${target}]+present}" ]] ||
 		die "Duplicate RPM target: ${target}"
 	seen_targets["${target}"]=1
@@ -53,7 +74,9 @@ create_bundle() {
 	)
 }
 
-for target in "${rpm_targets[@]}"; do
+for index in "${!rpm_targets[@]}"; do
+	target="${rpm_targets[index]}"
+	archive_kernel_version="${rpm_archive_kernel_versions[index]}"
 	artifact_name="scst-rpm-${target}-x86_64-${GITHUB_SHA}"
 	artifact_dir="${rpm_artifact_root}/${artifact_name}"
 	[[ -d "${artifact_dir}/RPMS" ]] ||
@@ -72,7 +95,7 @@ for target in "${rpm_targets[@]}"; do
 	) || die "RPM checksum verification failed for ${artifact_name}."
 
 	create_bundle "${artifact_dir}" \
-		"scst-master-${target}-x86_64.tar.gz" \
+		"scst-master-${target}-kernel-${archive_kernel_version}-x86_64.tar.gz" \
 		RPMS SRPMS SHA256SUMS
 done
 
