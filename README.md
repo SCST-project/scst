@@ -29,12 +29,13 @@ build are available in the rolling
 [`master-rpm` prerelease](https://github.com/SCST-project/scst/releases/tag/master-rpm).
 These are development snapshots, not SCST releases.
 
-The snapshot contains RPM bundles for Rocky Linux 10.2, 9.8 and 8.10 and
-Oracle Linux UEK 10, 9 and 8. It also contains an Ubuntu 24.04 bundle with
-`scst-dkms`, `scstadmin` and `iscsi-scst` binary packages and their Debian
-source package files. Every `.tar.gz` bundle has a matching `.sha256` file.
-The complete snapshot is replaced after each successful package workflow for
-the current `master` commit.
+The snapshot contains RPM bundles for selected Rocky Linux and Oracle Linux
+UEK kernels. It also contains Ubuntu LTS bundles with `scst-dkms`, `scstadmin`
+and `iscsi-scst` binary packages and their Debian source package files. Exact
+distribution releases and RPM kernel versions are included in the asset names.
+Every `.tar.gz` bundle has a matching `.sha256` file. The complete snapshot is
+replaced after each successful package workflow for the current `master`
+commit.
 
 ## QLogic target driver
 
