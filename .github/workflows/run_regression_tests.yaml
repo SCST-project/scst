@@ -42,18 +42,7 @@ jobs:
       - name: Install libelf-dev
         run: |
           sudo apt-get update
-          sudo apt-get install -y libelf-dev libsqlite3-dev
-
-      - name: Install sparse
-        run: |
-          sudo apt-get install sparse
-
-      - name: Install smatch
-        run: |
-          git clone https://github.com/error27/smatch.git
-          cd smatch
-          make -j
-          sudo BINDIR=/bin SHAREDIR=/home/runner/share make install
+          sudo apt-get install -y libelf-dev
 
       - name: Run regression tests
         run: |
