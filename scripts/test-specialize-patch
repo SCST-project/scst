@@ -1,0 +1,116 @@
+#!/bin/bash
+
+set -euo pipefail
+
+script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+scst_dir="$(dirname -- "$script_dir")"
+test_dir="$(mktemp -d)"
+
+trap 'rm -rf -- "$test_dir"' EXIT
+
+mkdir -p "$test_dir/orig"
+
+cat > "$test_dir/orig/qla.h" <<'EOF'
+/* SPDX-License-Identifier: GPL-2.0 */
+#if !defined(_TRACE_QLA_H_) || defined(TRACE_HEADER_MULTI_READ)
+#define _TRACE_QLA_H_
+
+#include <linux/tracepoint.h>
+
+#undef TRACE_SYSTEM
+#define TRACE_SYSTEM qla
+
+#define QLA_MSG_MAX 256
+
+#pragma GCC diagnostic push
+#ifndef __clang__
+#pragma GCC diagnostic ignored "-Wsuggest-attribute=format"
+#endif
+
+DECLARE_EVENT_CLASS(qla_log_event,
+	TP_PROTO(const char *buf,
+		struct va_format *vaf),
+
+	TP_ARGS(buf, vaf),
+
+	TP_STRUCT__entry(
+		__string(buf, buf)
+		__vstring(msg, vaf->fmt, vaf->va)
+	),
+	TP_fast_assign(
+		__assign_str(buf);
+		__assign_vstr(msg, vaf->fmt, vaf->va);
+	),
+
+	TP_printk("%s %s", __get_str(buf), __get_str(msg))
+);
+
+#pragma GCC diagnostic pop
+
+DEFINE_EVENT(qla_log_event, ql_dbg_log,
+	TP_PROTO(const char *buf, struct va_format *vaf),
+	TP_ARGS(buf, vaf)
+);
+
+#endif /* _TRACE_QLA_H */
+
+#define TRACE_INCLUDE_FILE qla
+
+#include <trace/define_trace.h>
+EOF
+
+if diff -up "$test_dir/orig/qla.h" \
+  "$scst_dir/qla2x00t-32gbit/include/trace/events/qla.h" \
+  > "$test_dir/qla.raw.patch"; then
+  echo "Error: qla.h test inputs do not differ." >&2
+  exit 1
+else
+  diff_status=$?
+  if [ "$diff_status" -gt 1 ]; then
+    exit "$diff_status"
+  fi
+fi
+
+for kernel_version in 7.1 7.2; do
+  mkdir -p "$test_dir/linux-$kernel_version/include/trace/events"
+  cp "$test_dir/orig/qla.h" \
+    "$test_dir/linux-$kernel_version/include/trace/events/qla.h"
+
+  sed -e "s:^--- [^ ]*:--- linux-$kernel_version/include/trace/events/qla.h:" \
+    -e "s:^+++ [^ ]*:+++ linux-$kernel_version/include/trace/events/qla.h:" \
+    < "$test_dir/qla.raw.patch" > "$test_dir/qla-$kernel_version.patch"
+
+  cat >> "$test_dir/qla-$kernel_version.patch" <<EOF
+--- linux-$kernel_version/drivers/scst/next.c 2026-08-26 00:00:00.000000000 +0300
++++ linux-$kernel_version/drivers/scst/next.c 2026-08-26 00:00:00.000000000 +0300
+@@ -1,1 +1,1 @@
+-old
++new
+EOF
+
+  mkdir -p "$test_dir/linux-$kernel_version/drivers/scst"
+  echo old > "$test_dir/linux-$kernel_version/drivers/scst/next.c"
+
+  "$script_dir/specialize-patch" -v delete_disabled_code=1 \
+    -v kernel_version="$kernel_version" -v SCST_IO_CONTEXT=0 \
+    < "$test_dir/qla-$kernel_version.patch" \
+    > "$test_dir/qla-$kernel_version.specialized.patch"
+
+  grep -qF '@@ -9,8 +9,8 @@' \
+    "$test_dir/qla-$kernel_version.specialized.patch"
+  grep -qF '@@ -32,13 +32,15 @@' \
+    "$test_dir/qla-$kernel_version.specialized.patch"
+
+  patch --dry-run -f -s -p0 -d "$test_dir" \
+    < "$test_dir/qla-$kernel_version.specialized.patch"
+
+  "$script_dir/specialize-patch" -v blank_deleted_code=1 \
+    -v kernel_version="$kernel_version" -v SCST_IO_CONTEXT=0 \
+    < "$test_dir/qla-$kernel_version.patch" \
+    > "$test_dir/qla-$kernel_version.specialized-n.patch"
+
+  patch --dry-run -f -s -p0 -d "$test_dir" \
+    < "$test_dir/qla-$kernel_version.specialized-n.patch"
+done
+
+echo "specialize-patch qla.h regression: PASS"

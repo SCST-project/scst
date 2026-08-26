@@ -613,21 +613,48 @@ function reset_hunk_state_variables() {
 function dump_lines() {
   # Detect empty hunks
   first_modif = -1
+  last_modif = -1
   for (i = 0; i < lines; i++)
   {
     if (line[i] ~ "^[+-]")
     {
-      first_modif = i
-      break
+      if (first_modif < 0)
+        first_modif = i
+      last_modif = i
     }
   }
 
   # Dump line[] as a hunk, but only if the hunk is not empty.
   if (first_modif >= 0)
   {
-    if (h[0] != "")
-      printf "@@ -%d,%d +%d,%d @@%s\n",h[1],h[2]-lines_less_deleted,h[3],h[4]-lines_less_added,h[5]
-    for (i = 0; i < lines; i++) {
+    # Restore standard unified diff context after discarding added lines.
+    first_line = first_modif > context_lines ? first_modif - context_lines : 0
+    last_line = last_modif + context_lines < lines ? \
+      last_modif + context_lines : lines - 1
+
+    if (h[0] != "") {
+      old_start = h[1]
+      new_start = h[3] + new_line_adjustment
+      for (i = 0; i < first_line; i++) {
+        if (line[i] !~ "^\\+" && line[i] !~ "^\\\\")
+          old_start++
+        if (line[i] !~ "^-" && line[i] !~ "^\\\\")
+          new_start++
+      }
+
+      old_count = 0
+      new_count = 0
+      for (i = first_line; i <= last_line; i++) {
+        if (line[i] !~ "^\\+" && line[i] !~ "^\\\\")
+          old_count++
+        if (line[i] !~ "^-" && line[i] !~ "^\\\\")
+          new_count++
+      }
+
+      printf "@@ -%d,%d +%d,%d @@%s\n", old_start, old_count, \
+        new_start, new_count, h[5]
+    }
+    for (i = first_line; i <= last_line; i++) {
       modifier = (LINUX_VERSION_CODE < version_code("4.19.0") &&
                   (RHEL_MAJOR == "" ||
                    RHEL_MAJOR * 256 + RHEL_MINOR < 7 * 256 + 7 ||
@@ -638,6 +665,9 @@ function dump_lines() {
       print line[i]
     }
   }
+
+  if (h[0] != "")
+    new_line_adjustment += lines_less_deleted - lines_less_added
 }
 
 BEGIN {
@@ -660,6 +690,7 @@ BEGIN {
   if (config_tcp_zero_copy_transfer_completion_notification_undefined != 0 && config_tcp_zero_copy_transfer_completion_notification_undefined != 1)
     config_tcp_zero_copy_transfer_completion_notification_undefined = 0
   # Variable initialization.
+  context_lines = 3
   process_file = 0
   reset_hunk_state_variables()
 }
@@ -667,11 +698,13 @@ BEGIN {
 
 {
   if (match($0, "^diff[ \t]+[^ \t]+[ \t]+[^ \t]+[ \t]+([^ \t]+)$", filename) \
+      || match($0, "^---[ \t]+([^ \t]+)[ \t]+", filename) \
       || match($0, "^\\+\\+\\+[ \t]+([^ \t]+)[ \t]+", filename))
   {
     # Start of new file.
     dump_lines()
     reset_hunk_state_variables()
+    new_line_adjustment = 0
     process_file = match(filename[1], "\\.[ch]$") != 0 &&
       match(filename[1], "drivers/scsi/qla2xxx/") == 0
   }
