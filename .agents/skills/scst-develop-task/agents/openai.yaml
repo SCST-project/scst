@@ -1,0 +1,7 @@
+interface:
+  display_name: "Develop an SCST Task"
+  short_description: "Discuss and deliver an SCST task in one main agent"
+  default_prompt: "Use $scst-develop-task to discuss, define the task contract, implement, lint, and deliver one coherent SCST patch series owned by the main agent. Invoke independent review only when I explicitly request it."
+
+policy:
+  allow_implicit_invocation: false

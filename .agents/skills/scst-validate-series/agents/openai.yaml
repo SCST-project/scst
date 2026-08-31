@@ -1,0 +1,7 @@
+interface:
+  display_name: "Validate an SCST Series"
+  short_description: "Run all non-build gates on one SCST series"
+  default_prompt: "Use $scst-validate-series to run the full non-build gate bundle on my committed SCST patch series."
+
+policy:
+  allow_implicit_invocation: false

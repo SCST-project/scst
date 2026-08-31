@@ -34,6 +34,8 @@ user-space handlers and daemons.
   performance helpers. `doc/` contains design and ABI references; `www/`
   contains website material. `debian/`, spec templates, `nightly/`, and
   `.github/workflows/` own packaging, nightly, and CI integration.
+- `.agents/` contains repository skills, workflow references, and deterministic
+  harness helpers. `.codex/` contains project-scoped agent-role definitions.
 
 ## Cross-component contracts
 
@@ -114,6 +116,49 @@ the whole tree.
   to decide whether a compatibility path is still required. Preserve
   user-visible configuration and ABI behavior unless a deliberate
   compatibility change is in scope.
+
+## Agent workflow
+
+- `doc/AGENT_WORKFLOW.md` explains the AI-assisted development process to
+  developers and maintainers. Applicable repository, skill, and role
+  instructions remain normative.
+- `doc/AGENT_HARNESS.md` defines how maintainers keep agent instructions and
+  tools minimal, evidence-driven, and maintainable. Read it before reviewing or
+  changing the agent harness.
+- `doc/AGENT_HARNESS_CASES.md` is the evidence corpus for confirmed harness
+  incidents. It is not an instruction source.
+- CodeGraph may be used when an index and MCP access are available. It is an
+  optional aid for cross-component navigation and call-path discovery, never a
+  validation gate.
+
+### Optional isolated patch workflow
+
+- When an SCST Codex task starts in this repository, run
+  `git -C <root> symbolic-ref --quiet HEAD` before a later checkout change and
+  retain its full local branch ref as the task's default base. This records only
+  the initial symbolic local branch, not its commit, and does not create a
+  result branch. A failed command or non-local result means that later
+  development needs an explicit base.
+- Workflows under `.agents/skills/` are opt-in repository capabilities, not
+  repository-wide defaults. Users or user-scoped personal guidance select only
+  a user-facing entry point; internal skills are invoked by their owning
+  workflow.
+- When `$scst-develop-task` is selected for a request that modifies tracked
+  repository files, it invokes `$scst-develop-in-worktree` for the result-branch
+  and worktree lifecycle, which invokes `$scst-develop-patch` for implementation
+  and validation.
+- While that workflow is active, create and manage raw worktrees with Git. Do
+  not use Codex-managed worktree tasks, app handoff, or task archival for patch
+  development or result handling. Preserve tracked and untracked WIP and never
+  switch, detach, restore, or otherwise modify the stable checkout. Never infer
+  a replacement base from a later checkout or another worktree, or update the
+  selected base branch automatically.
+- Read the personal result-branch prefix only from the repository-local
+  `scst.chatBranchPrefix` Git configuration. A missing or invalid prefix blocks
+  branch creation; do not hard-code or infer a fallback prefix.
+- When changing human-visible agent roles or orchestration semantics, keep
+  `doc/AGENT_WORKFLOW.md` consistent with applicable skills and role
+  instructions in the same snapshot.
 
 ## Generated state
 
