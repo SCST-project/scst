@@ -1,7 +1,0 @@
-interface:
-  display_name: "Lint Patch"
-  short_description: "Lint exact committed SCST patch ranges"
-  default_prompt: "Use $lint-patch to lint an exact committed SCST patch range."
-
-policy:
-  allow_implicit_invocation: true
