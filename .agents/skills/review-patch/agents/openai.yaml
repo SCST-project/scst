@@ -1,8 +1,0 @@
-interface:
-  display_name: "Review Patch"
-  short_description: "Run independent exact-range SCST review"
-  default_prompt: "Use $review-patch to run an independent review of an exact
-    committed SCST patch range."
-
-policy:
-  allow_implicit_invocation: true
