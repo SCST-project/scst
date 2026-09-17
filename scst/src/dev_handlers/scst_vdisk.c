@@ -8278,6 +8278,12 @@ static int vdev_sysfs_process_filename_store(struct scst_sysfs_work_item *work)
 	}
 	swap(virt_dev->filename, fn);
 	kfree(fn);
+	/*
+	 * Re-check size, flush, and thin-provisioning against the new
+	 * backend on the next activate. Do not reexamine here: the device
+	 * is inactive, and ALUA-only activate cycles must stay unchanged.
+	 */
+	virt_dev->reexam_pending = 1;
 	PRINT_INFO("vdev %s: changed filename into \"%s\"", virt_dev->name,
 		   virt_dev->filename);
 	res = 0;
