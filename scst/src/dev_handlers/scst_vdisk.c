@@ -190,6 +190,14 @@ struct scst_vdisk_dev {
 	unsigned int opt_trans_len_set:1;
 	unsigned int lb_per_pb_exp:1;
 
+	/*
+	 * Thin provisioning (TP) state, protected by scst_alua_lock() after
+	 * attach. Keep it separate from the command-side bitfields above.
+	 */
+	bool tp_recheck_pending;
+	bool tp_ua_attr_created;
+	bool thin_provisioned_requested;
+
 	struct file *fd;
 	struct file *dif_fd;
 	struct scst_bdev_descriptor bdev_desc;
@@ -530,16 +538,45 @@ static bool vdisk_supports_active(const struct scst_vdisk_dev *virt_dev)
 	return !virt_dev->nullio;
 }
 
-static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
+struct vdisk_tp_state {
+	u32 unmap_opt_gran;
+	u32 unmap_align;
+	u32 unmap_max_lba_cnt;
+	bool thin_provisioned;
+	bool discard_zeroes_data;
+};
+
+static bool vdisk_tp_changed(const struct scst_vdisk_dev *virt_dev,
+			     const struct vdisk_tp_state *old)
 {
+	if (old->thin_provisioned != virt_dev->thin_provisioned)
+		return true;
+
+	if (!virt_dev->thin_provisioned)
+		return false;
+
+	return old->unmap_opt_gran != virt_dev->unmap_opt_gran ||
+	       old->unmap_align != virt_dev->unmap_align ||
+	       old->unmap_max_lba_cnt != virt_dev->unmap_max_lba_cnt ||
+	       old->discard_zeroes_data != virt_dev->discard_zeroes_data;
+}
+
+static int vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
+{
+	const struct vdisk_tp_state old = {
+		.unmap_opt_gran = virt_dev->unmap_opt_gran,
+		.unmap_align = virt_dev->unmap_align,
+		.unmap_max_lba_cnt = virt_dev->unmap_max_lba_cnt,
+		.thin_provisioned = virt_dev->thin_provisioned,
+		.discard_zeroes_data = virt_dev->discard_zeroes_data,
+	};
 	struct scst_bdev_descriptor bdev_desc;
 	struct file *fd = NULL;
+	bool dev_tp = false;
 	bool fd_open = false;
-	int res;
+	int res = 0;
 
 	TRACE_ENTRY();
-
-	virt_dev->dev_thin_provisioned = 0;
 
 	if (virt_dev->rd_only || !virt_dev->filename || !virt_dev->dev_active)
 		goto check;
@@ -559,7 +596,7 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 		else
 			PRINT_ERROR("opening %s failed: %d",
 				    virt_dev->filename, res);
-		goto check;
+		goto out;
 	}
 
 	fd_open = true;
@@ -568,23 +605,27 @@ static void vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
 	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
-		virt_dev->dev_thin_provisioned =
-			blk_queue_discard(bdev_get_queue(bdev_desc.bdev));
+		dev_tp = blk_queue_discard(bdev_get_queue(bdev_desc.bdev));
 #else
-		virt_dev->dev_thin_provisioned =
-			!!bdev_max_discard_sectors(bdev_desc.bdev);
+		dev_tp = !!bdev_max_discard_sectors(bdev_desc.bdev);
 #endif
 	} else {
-		virt_dev->dev_thin_provisioned = !!fd->f_op->fallocate;
+		dev_tp = !!fd->f_op->fallocate;
 	}
 
 check:
+	virt_dev->dev_thin_provisioned = dev_tp;
 	if (virt_dev->thin_provisioned_manually_set) {
-		if (virt_dev->thin_provisioned && !virt_dev->dev_thin_provisioned) {
+		if (virt_dev->thin_provisioned && !virt_dev->dev_thin_provisioned)
 			PRINT_WARNING("Device %s doesn't support thin provisioning, disabling it.",
 				      virt_dev->filename);
-			virt_dev->thin_provisioned = 0;
-		}
+
+		/*
+		 * Keep the requested setting across backend changes: a backend
+		 * without TP must not permanently turn an explicit 1 into 0.
+		 */
+		virt_dev->thin_provisioned = virt_dev->thin_provisioned_requested &&
+					     virt_dev->dev_thin_provisioned;
 	} else if (virt_dev->blockio) {
 		virt_dev->thin_provisioned = virt_dev->dev_thin_provisioned;
 		if (virt_dev->thin_provisioned)
@@ -594,14 +635,20 @@ check:
 
 	if (virt_dev->thin_provisioned) {
 		int block_shift = virt_dev->dev->block_shift;
-		int rc;
 
-		rc = sysfs_create_file(&virt_dev->dev->dev_kobj,
-				       &gen_tp_soft_threshold_reached_UA_attr.attr);
-		if (rc != 0)
-			PRINT_ERROR("Can't create attr %s for dev %s",
-				    gen_tp_soft_threshold_reached_UA_attr.attr.name,
-				    virt_dev->name);
+		/* The attribute survives TP disable until the device is removed. */
+		if (!virt_dev->tp_ua_attr_created) {
+			int rc;
+
+			rc = sysfs_create_file(&virt_dev->dev->dev_kobj,
+					       &gen_tp_soft_threshold_reached_UA_attr.attr);
+			if (rc != 0)
+				PRINT_ERROR("Can't create attr %s for dev %s",
+					    gen_tp_soft_threshold_reached_UA_attr.attr.name,
+					    virt_dev->name);
+			else
+				virt_dev->tp_ua_attr_created = true;
+		}
 
 		if (virt_dev->blockio) {
 			struct request_queue *q;
@@ -645,7 +692,15 @@ check:
 			filp_close(fd, NULL);
 	}
 
-	TRACE_EXIT();
+	/* Activation can hold scst_mutex; notify from the existing worker. */
+	if (virt_dev->tp_recheck_pending && vdisk_tp_changed(virt_dev, &old))
+		schedule_work(&virt_dev->vdev_inq_changed_work);
+
+	virt_dev->tp_recheck_pending = false;
+
+out:
+	TRACE_EXIT_RES(res);
+	return res;
 }
 
 /* Returns 0 on success and file size in *file_size, error code otherwise */
@@ -1074,7 +1129,7 @@ static int vdisk_reexamine(struct scst_vdisk_dev *virt_dev)
 		}
 		virt_dev->file_size = file_size;
 		vdisk_blockio_check_flush_support(virt_dev);
-		vdisk_check_tp_support(virt_dev);
+		res = vdisk_check_tp_support(virt_dev);
 	} else if (virt_dev->cdrom_empty) {
 		virt_dev->file_size = 0;
 	}
@@ -1404,12 +1459,24 @@ static int vdisk_activate_dev(struct scst_vdisk_dev *virt_dev, bool rd_only)
 
 	if (virt_dev->reexam_pending) {
 		rc = vdisk_reexamine(virt_dev);
-		WARN_ON(rc != 0);
+		if (rc)
+			goto out_close;
 		virt_dev->reexam_pending = 0;
+	}
+
+	if (virt_dev->tp_recheck_pending) {
+		rc = vdisk_check_tp_support(virt_dev);
+		if (rc)
+			goto out_close;
 	}
 
 out:
 	return rc;
+
+out_close:
+	vdisk_close_fd(virt_dev);
+	virt_dev->dev_active = 0;
+	goto out;
 }
 
 static void vdisk_disable_dev(struct scst_vdisk_dev *virt_dev)
@@ -6983,6 +7050,7 @@ static int vdev_parse_add_dev_params(struct scst_vdisk_dev *virt_dev, char *para
 			TRACE_DBG("TST %d", virt_dev->tst);
 		} else if (!strcasecmp("thin_provisioned", p)) {
 			virt_dev->thin_provisioned = ull_val;
+			virt_dev->thin_provisioned_requested = virt_dev->thin_provisioned;
 			virt_dev->thin_provisioned_manually_set = 1;
 			TRACE_DBG("THIN PROVISIONED %d",
 				  virt_dev->thin_provisioned);
@@ -8278,6 +8346,10 @@ static int vdev_sysfs_process_filename_store(struct scst_sysfs_work_item *work)
 	}
 	swap(virt_dev->filename, fn);
 	kfree(fn);
+
+	/* A filename change must not reset the exported size or cache mode. */
+	virt_dev->tp_recheck_pending = true;
+
 	PRINT_INFO("vdev %s: changed filename into \"%s\"", virt_dev->name,
 		   virt_dev->filename);
 	res = 0;
