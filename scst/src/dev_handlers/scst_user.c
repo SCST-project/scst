@@ -2738,7 +2738,8 @@ repeat:
 	 * The pre-unjam flush above misses these objects. Without this second
 	 * flush, dev_user_free_sg_entries() never fires, the alloc_pages
 	 * ucmd_get() ref is never balanced, and the ucmd stays in ucmd_hash
-	 * indefinitely — causing dev_user_process_cleanup() to loop forever.
+	 * indefinitely. A checked-out object cannot be flushed until its user
+	 * returns it; cleanup must allow that user to make progress.
 	 */
 	sgv_pool_flush(dev->pool);
 	sgv_pool_flush(dev->pool_clust);
@@ -3883,8 +3884,6 @@ static int dev_user_process_cleanup(struct scst_user_dev *dev)
 		TRACE_DBG("Cleanuping dev %p", dev);
 
 		rc1 = dev_user_unjam_dev(dev);
-		if (rc1 == 0 && rc == -EAGAIN && dev->cleanup_done)
-			break;
 
 		spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
@@ -3895,10 +3894,16 @@ static int dev_user_process_cleanup(struct scst_user_dev *dev)
 		spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 		if (rc == -EAGAIN) {
-			if (!dev->cleanup_done) {
-				TRACE_DBG("No more commands (dev %p)", dev);
+			if (!dev->cleanup_done || rc1 != 0) {
+				/*
+				 * An SGV object may still be checked out from a shared pool.
+				 * Let other devices finish cleanup before retrying this one.
+				 */
+				TRACE_DBG("Waiting for cleanup (dev %p, pending %d)",
+					  dev, rc1);
 				goto out;
 			}
+			break;
 		}
 	}
 
