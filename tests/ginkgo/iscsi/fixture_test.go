@@ -14,18 +14,24 @@ import (
 	. "github.com/onsi/gomega"
 
 	"scst-component-tests/internal/admin"
+	"scst-component-tests/internal/dataio"
 	"scst-component-tests/internal/initiator"
 	"scst-component-tests/internal/testcfg"
 )
 
 type fixture struct {
+	Backend                                         dataio.Backend
+	LUNs                                            map[int]string
+	BackingFiles                                    []string
 	Target, Initiator, Iface, Device                string
 	ifaceOwned, nodeOwned, targetOwned, deviceOwned bool
 }
 
 var sequence int
 
-func newFixture(ctx context.Context) *fixture {
+func newFixture(ctx context.Context) *fixture { return newProfileFixture(ctx, nil) }
+
+func newProfileFixture(ctx context.Context, profile *dataio.Profile) *fixture {
 	GinkgoHelper()
 	if pending.Load() != 0 {
 		AbortSuite("previous cleanup failed; inspect both hosts")
@@ -46,6 +52,11 @@ func newFixture(ctx context.Context) *fixture {
 		Iface:     fmt.Sprintf("scst_%s_%d", runID, sequence),
 		Device:    fmt.Sprintf("%s_%s_%d", cfg.NamePrefix, runID, sequence),
 	}
+	f.Backend.Handler = "vdisk_nullio"
+	if profile != nil {
+		f.Backend.Handler = profile.Handler
+	}
+	f.LUNs = map[int]string{0: f.Device}
 	data := must(json.MarshalIndent(f, "", "  "))
 	Expect(os.WriteFile(filepath.Join(artifactDir, f.Device+".json"), data, 0600)).To(Succeed())
 	pending.Add(1)
@@ -76,15 +87,36 @@ func newFixture(ctx context.Context) *fixture {
 	} {
 		f.update(ctx, setting[0], setting[1])
 	}
+	attrs := "dummy=1,size_mb=8"
+	if profile != nil {
+		f.Backend = must(dataio.PrepareBackend(ctx, cfg, artifactDir, dataio.DeviceID(f.Device), *profile,
+			cli.RunProgram, func(path string) { f.BackingFiles = append(f.BackingFiles, path) }))
+		attrs = f.Backend.Attributes
+	}
 	f.deviceOwned = true
-	do(ctx, "-open_dev", f.Device, "-handler", "vdisk_nullio", "-attributes", "dummy=1,size_mb=8")
+	do(ctx, "-open_dev", f.Device, "-handler", f.Backend.Handler, "-attributes", attrs)
+	if profile != nil {
+		do(ctx, "-set_dev_attr", f.Device, "-attributes", "usn="+f.Backend.Serial+",vend_specific_id="+f.Backend.Serial)
+	}
 	f.targetOwned = true
 	do(ctx, "-add_target", f.Target, "-driver", "iscsi")
 	do(ctx, "-set_tgt_attr", f.Target, "-driver", "iscsi", "-attributes", "per_portal_acl=0")
 	f.at(ctx, "", "-add_group", "access")
-	f.at(ctx, "access", "-add_lun", "0", "-device", f.Device)
+	lunAttrs := "read_only=0"
+	if profile != nil && profile.ReadOnly {
+		lunAttrs = "read_only=1"
+	}
+	f.at(ctx, "access", "-add_lun", "0", "-device", f.Device, "-attributes", lunAttrs)
+	if profile != nil && profile.ExtraLUNs {
+		f.at(ctx, "access", "-add_lun", "7", "-device", f.Device)
+		f.LUNs[7] = f.Device
+		f.at(ctx, "", "-add_group", "hidden")
+		f.at(ctx, "hidden", "-add_lun", "13", "-device", f.Device)
+	}
 	f.at(ctx, "access", "-add_init", f.Initiator)
 	do(ctx, "-enable_target", f.Target, "-driver", "iscsi")
+	data = must(json.MarshalIndent(f, "", "  "))
+	Expect(os.WriteFile(filepath.Join(artifactDir, f.Device+".json"), data, 0600)).To(Succeed())
 	return f
 }
 
@@ -146,7 +178,7 @@ func (f *fixture) login(ctx context.Context) {
 		g.Expect(sessions["iscsi/"+f.Target]).To(HaveLen(1))
 		// The public CLI shows the group's LUN map; this is not a data I/O check.
 		for _, s := range sessions["iscsi/"+f.Target] {
-			g.Expect(s.LUNs).To(Equal(map[int]string{0: f.Device}))
+			g.Expect(s.LUNs).To(Equal(f.LUNs))
 		}
 	}, testcfg.Duration(cfg.SettleTimeout), testcfg.Duration(cfg.PollInterval)).WithContext(ctx).Should(Succeed())
 }
@@ -193,9 +225,12 @@ func (f *fixture) cleanup(ctx context.Context) {
 	}
 	if f.deviceOwned {
 		if handler, present := must(cli.Devices(ctx))[f.Device]; present {
-			Expect(handler).To(Equal("vdisk_nullio"))
+			Expect(handler).To(Equal(f.Backend.Handler))
 			do(ctx, "-close_dev", f.Device, "-handler", handler)
 		}
 	}
 	Expect(empty(ctx)).To(Succeed())
+	for _, path := range f.BackingFiles {
+		Expect(os.Remove(path)).To(Succeed())
+	}
 }
