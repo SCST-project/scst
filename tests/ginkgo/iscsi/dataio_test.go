@@ -11,11 +11,11 @@ import (
 
 var _ = dataio.Register(func(ctx SpecContext, profile dataio.Profile) *dataio.Endpoint {
 	timeout := testcfg.Duration(cfg.CommandTimeout)
-	Expect(dataio.RequireTools(ctx, peer.Run, timeout)).To(Succeed())
+	Expect(dataio.RequireTools(ctx, peer.Run, timeout, profile.FIO)).To(Succeed())
 	f := newProfileFixture(ctx, &profile)
 	f.login(ctx)
-	e := &dataio.Endpoint{Run: peer.Run, Timeout: timeout,
-		Backend: f.Backend, ReadOnly: profile.ReadOnly, Artifacts: artifactDir, Name: f.Device}
+	e := &dataio.Endpoint{Run: peer.Run, Timeout: timeout, IOTimeout: testcfg.Duration(cfg.IO.Timeout),
+		Backend: f.Backend, ReadOnly: profile.ReadOnly, RegionMB: cfg.IO.RegionMB, Artifacts: artifactDir, Name: f.Device}
 	Eventually(func() error { return e.Discover(ctx) }, testcfg.Duration(cfg.SettleTimeout),
 		testcfg.Duration(cfg.PollInterval)).WithContext(ctx).Should(Succeed())
 	return e

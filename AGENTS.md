@@ -30,8 +30,8 @@ user-space handlers and daemons.
   ALUA state-change daemon, and event example.
 - `scstadmin/` owns the configuration grammar, sysfs discovery and mutation,
   service integration, and configuration application policy.
-- `tests/ginkgo/` owns SCST management component tests through `scstadmin`;
-  follow its component guidance for validation and live-host boundaries.
+- `tests/ginkgo/` owns management, SCSI and fio component tests; follow its
+  component guidance for interfaces, validation and live-host boundaries.
 - `scripts/` owns source, patch, release, checkpatch, regression, and
   performance helpers. `doc/` contains design and ABI references; `www/`
   contains website material. `debian/`, spec templates, `nightly/`, and

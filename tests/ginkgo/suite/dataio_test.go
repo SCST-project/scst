@@ -11,7 +11,7 @@ import (
 
 var _ = dataio.Register(func(ctx SpecContext, profile dataio.Profile) *dataio.Endpoint {
 	timeout := testcfg.Duration(cfg.CommandTimeout)
-	Expect(dataio.RequireTools(ctx, cli.RunProgram, timeout)).To(Succeed())
+	Expect(dataio.RequireTools(ctx, cli.RunProgram, timeout, profile.FIO)).To(Succeed())
 	f := newFixture()
 	backend := must(dataio.PrepareBackend(ctx, cfg, artifactDir, dataio.DeviceID(f.prefix), profile,
 		cli.RunProgram, func(path string) { f.backingFiles = append(f.backingFiles, path) }))
@@ -31,8 +31,8 @@ var _ = dataio.Register(func(ctx SpecContext, profile dataio.Profile) *dataio.En
 		f.at(ctx, target, "hidden", "-add_lun", "13", "-device", d)
 	}
 	f.at(ctx, target, "access", "-add_init", session)
-	e := &dataio.Endpoint{Run: cli.RunProgram, Timeout: timeout,
-		Backend: backend, ReadOnly: profile.ReadOnly, Artifacts: artifactDir, Name: f.name("io")}
+	e := &dataio.Endpoint{Run: cli.RunProgram, Timeout: timeout, IOTimeout: testcfg.Duration(cfg.IO.Timeout),
+		Backend: backend, ReadOnly: profile.ReadOnly, RegionMB: cfg.IO.RegionMB, Artifacts: artifactDir, Name: f.name("io")}
 	Eventually(func() error { return e.Discover(ctx) }, testcfg.Duration(cfg.SettleTimeout),
 		testcfg.Duration(cfg.PollInterval)).WithContext(ctx).Should(Succeed())
 	return e

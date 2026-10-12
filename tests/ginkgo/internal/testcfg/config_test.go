@@ -36,26 +36,32 @@ func TestLoadDefaultsAndPaths(t *testing.T) {
 
 func TestRejectMalformedConfiguration(t *testing.T) {
 	for name, input := range map[string]string{
-		"unknown key":         `{"commmand_timeout":"5s"}`,
-		"trailing object":     `{} {}`,
-		"trailing text":       `{} garbage`,
-		"null":                `null`,
-		"array":               `[]`,
-		"empty command":       `{"admin_command":[]}`,
-		"empty argument":      `{"admin_command":["sudo",""]}`,
-		"zero timeout":        `{"command_timeout":"0s"}`,
-		"negative timeout":    `{"cleanup_timeout":"-1s"}`,
-		"missing unit":        `{"suite_timeout":"123"}`,
-		"invalid prefix":      `{"name_prefix":"../../scst"}`,
-		"poll exceeds settle": `{"poll_interval":"20s","settle_timeout":"2s"}`,
-		"empty reports":       `{"report_dir":""}`,
-		"zero build jobs":     `{"build_jobs":0}`,
-		"negative build jobs": `{"build_jobs":-2}`,
-		"invalid build limit": `{"build_timeout":"never"}`,
-		"zero iterations":     `{"stress_iterations":0}`,
-		"too many iterations": `{"stress_iterations":1001}`,
-		"too few LUNs":        `{"scale_luns":1}`,
-		"too many LUNs":       `{"scale_luns":2049}`,
+		"relative block device": `{"io":{"block_device":"sdb"}}`,
+		"unsafe block path":     `{"io":{"block_device":"/dev/sdb,read_only=0"}}`,
+		"zero IO region":        `{"io":{"region_mb":0}}`,
+		"oversized IO region":   `{"io":{"region_mb":1025}}`,
+		"unbounded IO":          `{"io":{"timeout":"2h"}}`,
+		"unknown IO field":      `{"io":{"direct":1}}`,
+		"unknown key":           `{"commmand_timeout":"5s"}`,
+		"trailing object":       `{} {}`,
+		"trailing text":         `{} garbage`,
+		"null":                  `null`,
+		"array":                 `[]`,
+		"empty command":         `{"admin_command":[]}`,
+		"empty argument":        `{"admin_command":["sudo",""]}`,
+		"zero timeout":          `{"command_timeout":"0s"}`,
+		"negative timeout":      `{"cleanup_timeout":"-1s"}`,
+		"missing unit":          `{"suite_timeout":"123"}`,
+		"invalid prefix":        `{"name_prefix":"../../scst"}`,
+		"poll exceeds settle":   `{"poll_interval":"20s","settle_timeout":"2s"}`,
+		"empty reports":         `{"report_dir":""}`,
+		"zero build jobs":       `{"build_jobs":0}`,
+		"negative build jobs":   `{"build_jobs":-2}`,
+		"invalid build limit":   `{"build_timeout":"never"}`,
+		"zero iterations":       `{"stress_iterations":0}`,
+		"too many iterations":   `{"stress_iterations":1001}`,
+		"too few LUNs":          `{"scale_luns":1}`,
+		"too many LUNs":         `{"scale_luns":2049}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := Load(configFile(t, input)); err == nil {
@@ -111,5 +117,15 @@ func TestISCSIConfiguration(t *testing.T) {
 	}
 	if _, err := Load(configFile(t, `{"iscsi":{"unknown":true}}`)); err == nil {
 		t.Fatal("accepted unknown nested field")
+	}
+}
+
+func TestIOConfiguration(t *testing.T) {
+	c, err := Load(configFile(t, `{"io":{"block_device":"/dev/disk/by-id/test-disk"}}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.IO.BlockDevice != "/dev/disk/by-id/test-disk" || c.IO.RegionMB != 64 || c.IO.Timeout != "3m" {
+		t.Fatalf("IO config: %+v", c.IO)
 	}
 }

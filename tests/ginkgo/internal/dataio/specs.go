@@ -6,7 +6,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-// Register shares protocol assertions across transports;
+// Register shares protocol assertions and the fio profile across transports;
 // each suite owns its target/session lifecycle and supplies the exported disk.
 func Register(create func(SpecContext, Profile) *Endpoint) bool {
 	return Describe("Exported SCSI devices", func() {
@@ -25,5 +25,12 @@ func Register(create func(SpecContext, Profile) *Endpoint) bool {
 		It("rejects an out-of-range READ with ILLEGAL REQUEST and remains usable", Label("scsi", "negative"), func(ctx SpecContext) {
 			Expect(create(ctx, Profile{Handler: "vdisk_fileio"}).OutOfRange(ctx)).To(Succeed())
 		})
+		DescribeTable("verifies concurrent 4K, 64K and 128K fio jobs", Label("io", "fio"), func(ctx SpecContext, handler string) {
+			e := create(ctx, Profile{Handler: handler, FIO: true})
+			Expect(e.Capacity(ctx)).To(Succeed())
+			Expect(e.FIO(ctx)).To(Succeed())
+		},
+			Entry("buffered fileio with 512-byte sectors", Label("fileio"), "vdisk_fileio"),
+			Entry("direct blockio with 4096-byte sectors", Label("blockio"), "vdisk_blockio"))
 	})
 }

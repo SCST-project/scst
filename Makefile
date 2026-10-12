@@ -142,7 +142,7 @@ help:
 	@echo "  ginkgo-config: validate GINKGO_CONFIG (JSON file)"
 	@echo "  ginkgo-test: load built SCST modules, then run tests (root)"
 	@echo "  ginkgo-test-build: build and load SCST, then run tests (root)"
-	@echo "  GINKGO_LABEL selects test groups: local, iscsi, basic, stress, scsi"
+	@echo "  GINKGO_LABEL selects test groups: local, iscsi, basic, stress, scsi, io"
 	@echo ""
 	@echo "Build variables:"
 	@echo "		WERROR=y|n            : treat warnings as errors (default: n)"

@@ -1,8 +1,8 @@
 # SCST component tests
 
-Ginkgo/Gomega tests exercise management through `scstadmin` and SCSI commands
-through sg3_utils. Transports are `scst_local` and TCP iSCSI with a separate
-initiator controlled over SSH.
+Ginkgo/Gomega tests exercise management through `scstadmin`, SCSI commands
+through sg3_utils, and data verification through fio. Transports are
+`scst_local` and TCP iSCSI with a separate initiator controlled over SSH.
 
 ## Setup and run
 
@@ -45,13 +45,14 @@ runtime directories under `/var/lib/scst` remain.
 ## Select tests
 
 The default is `GINKGO_LABEL='local && basic'`. Combine `local` or `iscsi`
-with `basic` (management) or `scsi` (protocol checks).
+with `basic` (management), `scsi` or `io`; add `fileio` or `blockio` to narrow
+the backend. For example, `local && io && fileio` needs no physical disk.
 `GINKGO_FOCUS` additionally filters spec names by regexp.
 
 ```sh
 # List every spec and its labels without accessing either host:
 make ginkgo-list GINKGO_LABEL=''
-# All except the known-crash case; prepare both hosts first:
+# All except the known-crash case; prepare both hosts and a block device first:
 make ginkgo-test-build GINKGO_CONFIG=tests/ginkgo/config.local.json GINKGO_LABEL='!known-crash'
 ```
 
@@ -97,11 +98,29 @@ and set both `disposable_host` flags to `true`.
 The suite owns its target daemon and initiator sessions/node/iface records.
 It preserves existing records and leaves initiator services and modules loaded.
 
-## SCSI commands
+## SCSI and I/O
 
 Install Python 3, util-linux and sg3_utils on the command host: the target for
-`local`, the initiator for `iscsi`. Cases check identity, capacity, LUN
-visibility and rejection status/sense on temporary fileio exports.
+`local`, the initiator for `iscsi`. I/O also needs fio and kernel `io_uring`
+support there, plus `lsblk` and `wipefs` on the target for blockio preflight.
+
+SCSI cases check identity, capacity, LUN visibility and rejection status/sense
+on temporary fileio exports. Fio verifies CRC32C data using three concurrent
+4K, 64K and 128K jobs in disjoint regions; see the shared
+[profile](internal/dataio/verify.fio). It checks completed I/O, not performance.
+
+| fio backend | Sector size | Access |
+| --- | --- | --- |
+| `vdisk_fileio` | 512 bytes | `direct=0`, backend `o_direct=0`, temporary file |
+| `vdisk_blockio` | 4096 bytes | `direct=1`, configured target block device |
+
+Buffered runs flush and verify again with direct I/O. `io.region_mb` sets MiB
+per job (default 64); `io.timeout` limits each fio invocation (default `3m`).
+**Blockio overwrites the first `3 * io.region_mb` MiB (default 192 MiB) of
+`io.block_device` on the target, with no data restoration.** Set this device
+explicitly, preferably by `/dev/disk/by-id/`; missing configuration fails the
+selected tests. It must be writable, large enough, 4 KiB aligned in size and
+free of partitions, holders, mounts and signatures. No loop device is created.
 
 ## Checks and recovery
 
@@ -116,7 +135,7 @@ the run and may retain modules, files and the daemon. Inspect and recover the
 affected hosts before retrying; never remove a lock file to bypass a held lock.
 
 The printed artifact directory under `report_dir` contains effective config,
-command logs, JSON/JUnit reports and scenario inputs. iSCSI adds SSH, initiator
-and daemon logs, which may contain
+command logs, JSON/JUnit reports and scenario inputs. I/O adds rendered jobs
+and fio results; iSCSI adds SSH, initiator and daemon logs, which may contain
 test CHAP credentials. Kernel warnings are not collected: retain kernel logs
 when investigating failures.

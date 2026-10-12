@@ -33,7 +33,16 @@ type Config struct {
 	StressIterations       int      `json:"stress_iterations"`
 	ScaleLUNs              int      `json:"scale_luns"`
 	AllowKnownCrash        bool     `json:"allow_known_crash"`
+	IO                     IO       `json:"io"`
 	ISCSI                  *ISCSI   `json:"iscsi,omitempty"`
+}
+
+// IO configures bounded data verification. BlockDevice is an explicit,
+// destructive-test input on the target, never an initiator device path.
+type IO struct {
+	BlockDevice string `json:"block_device"`
+	RegionMB    int    `json:"region_mb"`
+	Timeout     string `json:"timeout"`
 }
 
 // ISCSI selects a local TCP target and a separate SSH initiator. Credentials
@@ -61,6 +70,7 @@ func Load(path string) (Config, error) {
 		CommandTimeout: "30s", CleanupTimeout: "2m", SettleTimeout: "10s",
 		PollInterval: "100ms", SuiteTimeout: "15m",
 		BuildTimeout: "10m", BuildJobs: 2,
+		IO:               IO{RegionMB: 64, Timeout: "3m"},
 		StressIterations: 8, ScaleLUNs: 256, FileioThinProvisioning: true,
 	}
 	f, err := os.Open(path)
@@ -141,6 +151,15 @@ func (c Config) Validate() error {
 	}
 	if c.ScaleLUNs < 2 || c.ScaleLUNs > 2048 {
 		return fmt.Errorf("scale_luns must be between 2 and 2048")
+	}
+	if c.IO.RegionMB < 1 || c.IO.RegionMB > 1024 {
+		return fmt.Errorf("io.region_mb must be between 1 and 1024")
+	}
+	if d, err := time.ParseDuration(c.IO.Timeout); err != nil || d <= 0 || d > time.Hour {
+		return fmt.Errorf("io.timeout must be positive and at most 1h")
+	}
+	if p := c.IO.BlockDevice; p != "" && (!strings.HasPrefix(p, "/dev/") || filepath.Clean(p) != p || strings.ContainsAny(p, " \t\r\n,;\"{}\\\x00")) {
+		return fmt.Errorf("io.block_device must be a clean absolute /dev path without attribute delimiters")
 	}
 	if c.ISCSI != nil {
 		i := c.ISCSI
