@@ -3130,7 +3130,7 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 	};
 	if (virt_dev->o_direct_flag)
 		iocb->ki_flags |= IOCB_DIRECT | IOCB_NOWAIT;
-	if (dir == WRITE && virt_dev->wt_flag && !virt_dev->nv_cache)
+	if (dir == WRITE && (p->fua || virt_dev->wt_flag) && !virt_dev->nv_cache)
 		iocb->ki_flags |= IOCB_DSYNC;
 	for (;;) {
 		if (dir == WRITE)
