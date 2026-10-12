@@ -1,0 +1,14 @@
+{
+  "admin_command": ["scstadmin"],
+  "disposable_host": false,
+  "name_prefix": "scsttest",
+  "report_dir": "results",
+  "lock_file": "/tmp/scst-ginkgo.lock",
+  "command_timeout": "30s",
+  "cleanup_timeout": "2m",
+  "settle_timeout": "10s",
+  "poll_interval": "100ms",
+  "suite_timeout": "15m",
+  "build_timeout": "10m",
+  "build_jobs": 2
+}

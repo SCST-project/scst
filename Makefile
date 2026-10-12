@@ -137,6 +137,12 @@ SCST_SOURCE_FILES = $(shell if [ -e scripts/list-source-files ]; then	\
 			fi)
 
 help:
+	@echo "Component tests (see tests/ginkgo/README.md):"
+	@echo "  ginkgo-check / ginkgo-list: checks / dry run without SCST access"
+	@echo "  ginkgo-config: validate GINKGO_CONFIG (JSON file)"
+	@echo "  ginkgo-test: load built SCST modules, then run tests (root)"
+	@echo "  ginkgo-test-build: build and load SCST, then run tests (root)"
+	@echo ""
 	@echo "Build variables:"
 	@echo "		WERROR=y|n            : treat warnings as errors (default: n)"
 	@echo ""
@@ -225,6 +231,16 @@ help:
 	@echo ""
 	@echo "	Note:"
 	@echo "		- install and uninstall may need root privileges"
+
+# Resolve the config relative to the caller, before entering tests/ginkgo.
+export GINKGO_CONFIG
+
+ginkgo-test-build: export SCST_TEST_KDIR := $(abspath $(KDIR))
+
+ginkgo-check ginkgo-list ginkgo-config ginkgo-test ginkgo-test-build:
+	@case "$$GINKGO_CONFIG" in ""|/*) ;; \
+		*) GINKGO_CONFIG="$$PWD/$$GINKGO_CONFIG" ;; esac; \
+	$(MAKE) -C tests/ginkgo $(patsubst ginkgo-%,%,$@) GINKGO_CONFIG="$$GINKGO_CONFIG"
 
 tags:
 	find . -type f -name "*.[ch]" | ctags --c-kinds=+p --fields=+iaS --extra=+q -e -L-
@@ -598,6 +614,7 @@ multiple-release-archives:
 	cd $(SCST_DIR) && $(MAKE) $@
 
 .PHONY: help tags cov-build shellcheck all clean extraclean install uninstall \
+	ginkgo-check ginkgo-list ginkgo-config ginkgo-test ginkgo-test-build \
 	scst scst_clean scst_extraclean scst_install scst_uninstall \
 	docs docs_clean docs_extraclean \
 	scstadm scstadm_clean scstadm_extraclean scstadm_install scstadm_uninstall \
