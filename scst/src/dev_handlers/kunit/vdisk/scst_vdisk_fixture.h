@@ -16,16 +16,10 @@ struct vdisk_test_file {
 	int sync_result;
 };
 
-enum vdisk_test_sync_op {
-	VDISK_TEST_WRITEBACK,
-	VDISK_TEST_FSYNC,
-};
-
 struct vdisk_test_flush {
 	struct file *file;
 	loff_t start;
 	loff_t end;
-	enum vdisk_test_sync_op op;
 };
 
 struct vdisk_test_fixture {

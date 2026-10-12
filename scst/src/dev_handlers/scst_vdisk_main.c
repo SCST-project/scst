@@ -1387,13 +1387,6 @@ static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev)
 }
 
 SCST_KUNIT_VISIBLE
-int vdisk_writeback_range(struct address_space *mapping, loff_t start, loff_t end)
-{
-	SCST_KUNIT_REDIRECT(vdisk_writeback_range, mapping, start, end);
-	return filemap_write_and_wait_range(mapping, start, end);
-}
-
-SCST_KUNIT_VISIBLE
 int __vdisk_fsync_fileio(loff_t loff, loff_t len, struct scst_device *dev,
 			 struct scst_cmd *cmd, struct file *file)
 {
@@ -1411,11 +1404,7 @@ int __vdisk_fsync_fileio(loff_t loff, loff_t len, struct scst_device *dev,
 	if (!len)
 		goto out;
 
-#if 0	/* For sparse files we might need to sync metadata as well */
-	res = generic_write_sync(file, loff, len);
-#else
-	res = vdisk_writeback_range(file->f_mapping, loff, loff + len - 1);
-#endif
+	res = vfs_fsync_range(file, loff, loff + len - 1, 1);
 	if (unlikely(res != 0)) {
 		PRINT_ERROR("sync range failed (%d)", res);
 		if (cmd) {
