@@ -10,7 +10,6 @@ struct vdisk_cmd_params;
 
 int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask, bool report_error,
 			struct scst_cmd *cmd, bool async);
-int vdisk_writeback_range(struct address_space *mapping, loff_t start, loff_t end);
 int __vdisk_fsync_fileio(loff_t loff, loff_t len, struct scst_device *dev,
 			 struct scst_cmd *cmd, struct file *file);
 int vdisk_fsync(loff_t loff, loff_t len, struct scst_device *dev, gfp_t gfp_flags,

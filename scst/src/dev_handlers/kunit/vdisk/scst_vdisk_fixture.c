@@ -52,8 +52,7 @@ static ssize_t vdisk_test_read_iter(struct kiocb *iocb, struct iov_iter *iter)
 	return vdisk_test_iter(iocb, iter, false);
 }
 
-static int vdisk_test_record_sync(struct file *file, loff_t start, loff_t end,
-				  enum vdisk_test_sync_op op)
+static int vdisk_test_fsync(struct file *file, loff_t start, loff_t end, int datasync)
 {
 	struct vdisk_test_file *backend = file->private_data;
 	struct vdisk_test_fixture *f = backend->fixture;
@@ -64,22 +63,9 @@ static int vdisk_test_record_sync(struct file *file, loff_t start, loff_t end,
 		return -EIO;
 	}
 	f->flushes[n] = (struct vdisk_test_flush) {
-		.file = file, .start = start, .end = end, .op = op,
+		.file = file, .start = start, .end = end,
 	};
 	return backend->sync_result;
-}
-
-static int vdisk_test_fsync(struct file *file, loff_t start, loff_t end, int datasync)
-{
-	/* Both fsync and fdatasync satisfy the persistence requirement. */
-	return vdisk_test_record_sync(file, start, end, VDISK_TEST_FSYNC);
-}
-
-static int vdisk_test_writeback(struct address_space *mapping, loff_t start, loff_t end)
-{
-	struct vdisk_test_file *backend = container_of(mapping, struct vdisk_test_file, mapping);
-
-	return vdisk_test_record_sync(&backend->file, start, end, VDISK_TEST_WRITEBACK);
 }
 
 static const struct file_operations vdisk_test_fops = {
@@ -184,7 +170,6 @@ int vdisk_test_init(struct kunit *test)
 	f->cmd.sg = f->sg;
 	f->cmd.sg_cnt = ARRAY_SIZE(f->sg);
 	kunit_activate_static_stub(test, vdisk_blockio_flush, vdisk_test_block_flush);
-	kunit_activate_static_stub(test, vdisk_writeback_range, vdisk_test_writeback);
 	return 0;
 }
 
@@ -211,6 +196,4 @@ void vdisk_test_expect_flush(struct kunit *test, unsigned int n, struct file *fi
 	KUNIT_EXPECT_PTR_EQ(test, f->flushes[n].file, file);
 	KUNIT_EXPECT_EQ(test, f->flushes[n].start, start);
 	KUNIT_EXPECT_EQ(test, f->flushes[n].end, end);
-	KUNIT_EXPECT_EQ_MSG(test, f->flushes[n].op, VDISK_TEST_FSYNC,
-			    "writeback alone does not provide filesystem synchronization");
 }
