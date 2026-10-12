@@ -14,12 +14,12 @@ help:
 	@echo "config : validate and print GINKGO_CONFIG; no SCST access"
 	@echo "test   : load built SCST modules from this checkout, then run tests (root)"
 	@echo "test-build: build and load SCST from this checkout, then run tests (root)"
-	@echo "GINKGO_LABEL selects groups, e.g. local or basic"
+	@echo "GINKGO_LABEL selects groups, e.g. local, iscsi, or basic"
 
 check:
 	$(GO) test -count=1 ./internal/... ./cmd/...
 	$(GO) vet ./...
-	$(GO) test -run='^$$' ./suite
+	$(GO) test -run='^$$' ./suite ./iscsi
 
 list:
 	$(GO) run ./cmd/run -list

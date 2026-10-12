@@ -19,6 +19,7 @@ type Options struct {
 	SourceDir      string
 	KernelDir      string
 	Build          bool
+	ISCSI          bool
 	Jobs           int
 	BuildTimeout   time.Duration
 	CommandTimeout time.Duration
@@ -70,8 +71,12 @@ func (m *Modules) Prepare(ctx context.Context, opts Options, run RunProgram, che
 		if !filepath.IsAbs(kdir) {
 			return fmt.Errorf("KDIR must be absolute")
 		}
-		// scst_local consumes the core's Module.symvers, so build in order.
-		for _, target := range []string{"scst", "scst_local", "scstadm"} {
+		// Target drivers consume the core's Module.symvers, so build in order.
+		driver := "scst_local"
+		if opts.ISCSI {
+			driver = "iscsi"
+		}
+		for _, target := range []string{"scst", driver, "scstadm"} {
 			fmt.Fprintf(progress, "Building %s for %s\n", target, release)
 			if _, err := command(opts.BuildTimeout, "make", "-C", opts.SourceDir,
 				fmt.Sprintf("-j%d", opts.Jobs), "KVER="+release, "KDIR="+kdir, target); err != nil {
@@ -83,6 +88,9 @@ func (m *Modules) Prepare(ctx context.Context, opts Options, run RunProgram, che
 		{"scst", "scst/src/scst.ko"},
 		{"scst_vdisk", "scst/src/dev_handlers/scst_vdisk.ko"},
 		{"scst_local", "scst_local/scst_local.ko"},
+	}
+	if opts.ISCSI {
+		modules[2].name, modules[2].path = "iscsi_scst", "iscsi-scst/kernel/iscsi-scst.ko"
 	}
 	dependencies := make([][]string, len(modules))
 	for i, m := range modules {

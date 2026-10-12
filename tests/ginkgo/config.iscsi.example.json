@@ -1,0 +1,20 @@
+{
+  "admin_command": ["scstadmin"],
+  "disposable_host": false,
+  "report_dir": "results",
+  "command_timeout": "45s",
+  "cleanup_timeout": "3m",
+  "iscsi": {
+    "target_address": "192.0.2.10",
+    "port": 3260,
+    "login_timeout": "15s",
+    "initiator": {
+      "host": "192.0.2.20",
+      "user": "root",
+      "port": 22,
+      "identity_file": "/root/.ssh/id_ed25519",
+      "lock_file": "/tmp/scst-ginkgo.lock",
+      "disposable_host": false
+    }
+  }
+}

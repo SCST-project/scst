@@ -22,7 +22,7 @@ var artifactDir, runID string
 var pendingCleanups atomic.Int64
 
 func TestSCST(t *testing.T) {
-	testrun.Run(t, "SCST through scstadmin", func(env testrun.Environment) {
+	testrun.Run(t, "SCST through scstadmin", false, func(env testrun.Environment) {
 		cfg, cli, artifactDir, runID = env.Config, env.Client, env.ArtifactDir, env.RunID
 	})
 }
