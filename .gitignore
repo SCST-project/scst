@@ -16,6 +16,7 @@
 *~
 .cache.mk
 .cache/
+.codegraph/
 .ctf
 .depend_adm
 .depend_d
@@ -23,6 +24,8 @@
 .directory
 .tmp_versions
 built-in.a
+codegraph.db
+codegraph.db-*
 debian/*.debhelper.log
 debian/*.substvars
 debian/.debhelper/
