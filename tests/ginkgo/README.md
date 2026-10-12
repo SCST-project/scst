@@ -1,7 +1,8 @@
 # SCST component tests
 
-Ginkgo/Gomega tests exercise SCST management through `scstadmin` on
-`scst_local` and TCP iSCSI with a separate initiator controlled over SSH.
+Ginkgo/Gomega tests exercise management through `scstadmin` and SCSI commands
+through sg3_utils. Transports are `scst_local` and TCP iSCSI with a separate
+initiator controlled over SSH.
 
 ## Setup and run
 
@@ -44,7 +45,7 @@ runtime directories under `/var/lib/scst` remain.
 ## Select tests
 
 The default is `GINKGO_LABEL='local && basic'`. Combine `local` or `iscsi`
-with `basic` (management) or other labels from the listing below.
+with `basic` (management) or `scsi` (protocol checks).
 `GINKGO_FOCUS` additionally filters spec names by regexp.
 
 ```sh
@@ -95,6 +96,12 @@ and set both `disposable_host` flags to `true`.
 
 The suite owns its target daemon and initiator sessions/node/iface records.
 It preserves existing records and leaves initiator services and modules loaded.
+
+## SCSI commands
+
+Install Python 3, util-linux and sg3_utils on the command host: the target for
+`local`, the initiator for `iscsi`. Cases check identity, capacity, LUN
+visibility and rejection status/sense on temporary fileio exports.
 
 ## Checks and recovery
 
