@@ -5475,7 +5475,7 @@ restart:
 out_sync:
 	/* O_DSYNC flag is used for WT devices */
 	if (p->fua)
-		vdisk_fsync(loff, scst_cmd_get_data_len(cmd), cmd->dev,
+		vdisk_fsync(p->loff, scst_cmd_get_data_len(cmd), cmd->dev,
 			    cmd->cmd_gfp_mask, cmd, false);
 out:
 	TRACE_EXIT();
