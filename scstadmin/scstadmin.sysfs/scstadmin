@@ -3854,7 +3854,7 @@ sub listDriverAttributes {
 
 		($attributes, $errorString) = $SCST->targetCreateAttributes($driver);
 		return TRUE if issueWarning($errorString);
-		return TRUE if (!scalar keys %{$attributes});
+		return FALSE if (!scalar keys %{$attributes});
 
 		print "\n\tTarget CREATE attributes available:\n";
 		print "\t-----------------------------------\n";
