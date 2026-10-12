@@ -15,18 +15,23 @@ import (
 // Config describes one local, disposable SCST host. There are no implicit
 // per-user overrides: the named file completely determines a run.
 type Config struct {
-	AdminCommand   []string `json:"admin_command"`
-	DisposableHost bool     `json:"disposable_host"`
-	NamePrefix     string   `json:"name_prefix"`
-	ReportDir      string   `json:"report_dir"`
-	LockFile       string   `json:"lock_file"`
-	CommandTimeout string   `json:"command_timeout"`
-	CleanupTimeout string   `json:"cleanup_timeout"`
-	SettleTimeout  string   `json:"settle_timeout"`
-	PollInterval   string   `json:"poll_interval"`
-	SuiteTimeout   string   `json:"suite_timeout"`
-	BuildTimeout   string   `json:"build_timeout"`
-	BuildJobs      int      `json:"build_jobs"`
+	AdminCommand           []string `json:"admin_command"`
+	DisposableHost         bool     `json:"disposable_host"`
+	NamePrefix             string   `json:"name_prefix"`
+	ReportDir              string   `json:"report_dir"`
+	LockFile               string   `json:"lock_file"`
+	CommandTimeout         string   `json:"command_timeout"`
+	CleanupTimeout         string   `json:"cleanup_timeout"`
+	SettleTimeout          string   `json:"settle_timeout"`
+	PollInterval           string   `json:"poll_interval"`
+	SuiteTimeout           string   `json:"suite_timeout"`
+	BuildTimeout           string   `json:"build_timeout"`
+	BuildJobs              int      `json:"build_jobs"`
+	BackingDir             string   `json:"backing_dir"`
+	FileioThinProvisioning bool     `json:"fileio_thin_provisioning"`
+	StressIterations       int      `json:"stress_iterations"`
+	ScaleLUNs              int      `json:"scale_luns"`
+	AllowKnownCrash        bool     `json:"allow_known_crash"`
 }
 
 func Load(path string) (Config, error) {
@@ -36,6 +41,7 @@ func Load(path string) (Config, error) {
 		CommandTimeout: "30s", CleanupTimeout: "2m", SettleTimeout: "10s",
 		PollInterval: "100ms", SuiteTimeout: "15m",
 		BuildTimeout: "10m", BuildJobs: 2,
+		StressIterations: 8, ScaleLUNs: 256, FileioThinProvisioning: true,
 	}
 	f, err := os.Open(path)
 	if err != nil {
@@ -65,6 +71,9 @@ func Load(path string) (Config, error) {
 		if !filepath.IsAbs(*p) {
 			*p = filepath.Join(base, *p)
 		}
+	}
+	if c.BackingDir != "" && !filepath.IsAbs(c.BackingDir) {
+		c.BackingDir = filepath.Join(base, c.BackingDir)
 	}
 	if strings.ContainsRune(c.AdminCommand[0], '/') && !filepath.IsAbs(c.AdminCommand[0]) {
 		c.AdminCommand[0] = filepath.Join(base, c.AdminCommand[0])
@@ -103,6 +112,12 @@ func (c Config) Validate() error {
 	}
 	if c.BuildJobs < 1 {
 		return fmt.Errorf("build_jobs must be positive")
+	}
+	if c.StressIterations < 1 || c.StressIterations > 1000 {
+		return fmt.Errorf("stress_iterations must be between 1 and 1000")
+	}
+	if c.ScaleLUNs < 2 || c.ScaleLUNs > 2048 {
+		return fmt.Errorf("scale_luns must be between 2 and 2048")
 	}
 	return nil
 }

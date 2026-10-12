@@ -17,7 +17,7 @@ func configFile(t *testing.T, input string) string {
 }
 
 func TestLoadDefaultsAndPaths(t *testing.T) {
-	path := configFile(t, `{"admin_command":["./bin/admin","literal argument"],"report_dir":"out","lock_file":"host.lock"}`)
+	path := configFile(t, `{"admin_command":["./bin/admin","literal argument"],"report_dir":"out","lock_file":"host.lock","backing_dir":"scratch"}`)
 	cfg, err := Load(path)
 	if err != nil {
 		t.Fatal(err)
@@ -28,6 +28,9 @@ func TestLoadDefaultsAndPaths(t *testing.T) {
 	}
 	if cfg.DisposableHost || cfg.CommandTimeout != "30s" || cfg.BuildJobs != 2 || cfg.BuildTimeout != "10m" {
 		t.Fatalf("unsafe or missing defaults: %+v", cfg)
+	}
+	if cfg.AllowKnownCrash || !cfg.FileioThinProvisioning || cfg.StressIterations != 8 || cfg.ScaleLUNs != 256 || cfg.BackingDir != filepath.Join(base, "scratch") {
+		t.Fatalf("unsafe or missing scenario defaults: %+v", cfg)
 	}
 }
 
@@ -49,11 +52,25 @@ func TestRejectMalformedConfiguration(t *testing.T) {
 		"zero build jobs":     `{"build_jobs":0}`,
 		"negative build jobs": `{"build_jobs":-2}`,
 		"invalid build limit": `{"build_timeout":"never"}`,
+		"zero iterations":     `{"stress_iterations":0}`,
+		"too many iterations": `{"stress_iterations":1001}`,
+		"too few LUNs":        `{"scale_luns":1}`,
+		"too many LUNs":       `{"scale_luns":2049}`,
 	} {
 		t.Run(name, func(t *testing.T) {
 			if _, err := Load(configFile(t, input)); err == nil {
 				t.Fatal("accepted invalid config")
 			}
 		})
+	}
+}
+
+func TestScenarioOverrides(t *testing.T) {
+	c, err := Load(configFile(t, `{"stress_iterations":12,"scale_luns":1000,"allow_known_crash":true,"fileio_thin_provisioning":false}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if c.StressIterations != 12 || c.ScaleLUNs != 1000 || !c.AllowKnownCrash || c.FileioThinProvisioning || c.BackingDir != "" {
+		t.Fatalf("scenario overrides lost: %+v", c)
 	}
 }

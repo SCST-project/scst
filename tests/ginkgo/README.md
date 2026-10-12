@@ -50,12 +50,13 @@ select other labels.
 ```sh
 # List every spec and its labels without accessing SCST:
 make ginkgo-list GINKGO_LABEL=''
-# Select rejection cases:
-make ginkgo-test-build GINKGO_CONFIG=tests/ginkgo/config.local.json GINKGO_LABEL=negative
+# All except the known-crash case:
+make ginkgo-test-build GINKGO_CONFIG=tests/ginkgo/config.local.json GINKGO_LABEL='!known-crash'
 ```
 
-An empty label filter selects all specs. `clear-config` tests invoke global
-`scstadmin -clear_config -force`.
+An empty label filter selects all specs. The `known-crash` case (sync on
+inactive fileio) also requires `allow_known_crash=true` and can crash affected
+kernels. `clear-config` tests invoke global `scstadmin -clear_config -force`.
 An empty selection or suite failure stops the run. Parallel runs are
 unsupported: use the same `lock_file` and runner user on the host.
 
@@ -68,6 +69,13 @@ Make invocation directory; relative config paths resolve against the JSON
 file, except interpreter arguments, which need absolute paths. Local profiles
 are ignored by Git.
 
+`backing_dir` selects an existing directory for temporary fileio images;
+empty uses the artifact directory. Tests never adopt existing backing files.
+Avoid whitespace, commas, semicolons, quotes, braces and backslashes in backing
+paths. Set `fileio_thin_provisioning=false` if the filesystem cannot support
+the TP-enabled case. `stress_iterations` and `scale_luns` control lifecycle
+repetition and many-LUN coverage.
+
 ## Checks and recovery
 
 `make ginkgo-check` runs framework unit tests, vet and suite compilation;
@@ -75,9 +83,9 @@ it does not access SCST. Neither it nor `ginkgo-list` proves
 live behavior. Use the Make targets for live runs: plain `go test` skips specs
 without `SCST_TEST_CONFIG` and needs `-count=1 -timeout=0` when running them.
 
-Cleanup removes owned sessions/configuration before closing devices and
-unloading modules. A failure or interrupted command stops the run and may
-retain modules. Inspect and recover the host before
+Cleanup removes owned sessions/configuration before closing devices, deleting
+backing files and unloading modules. A failure or interrupted command stops
+the run and may retain modules and files. Inspect and recover the host before
 retrying; never remove a lock file to bypass a held lock.
 
 The printed artifact directory under `report_dir` contains effective config,

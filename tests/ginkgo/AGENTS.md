@@ -11,9 +11,9 @@ and fixtures.
   necessarily a kernel check. Check operation errors even with exit status 0.
 - Use shared command runners with contexts, timeouts, logs and failure handling.
   Execution failures must not satisfy assertions for expected rejections.
-- Keep ownership and cleanup explicit for configuration, sessions and modules.
-  Restore changed global settings; global SCST clearing belongs only to
-  explicit clear-config tests.
+- Keep ownership and cleanup explicit for configuration, backing files,
+  sessions and modules. Restore changed global settings; global SCST clearing
+  belongs only to explicit clear-config tests.
 - Failed cleanup or uncertain command completion must stop subsequent specs.
   Preserve artifacts and residual resources for inspection instead of forcing
   cleanup.
