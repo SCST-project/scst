@@ -23,7 +23,7 @@ type Environment struct {
 	ArtifactDir, RunID string
 }
 
-func Run(t *testing.T, name string, assign func(Environment)) {
+func Run(t *testing.T, name string, iscsi bool, assign func(Environment)) {
 	var cfg testcfg.Config
 	var artifactDir, runID string
 	var cli *admin.Client
@@ -33,6 +33,9 @@ func Run(t *testing.T, name string, assign func(Environment)) {
 		t.Fatal("SCST component tests share host state; parallel execution is unsupported")
 	}
 	group := "local"
+	if iscsi {
+		group = "iscsi"
+	}
 	if directory := os.Getenv("SCST_TEST_PLAN_DIR"); directory != "" {
 		// Discover filters in a separate process, before config or host access.
 		// Do not reuse the previewed spec tree for the actual run.

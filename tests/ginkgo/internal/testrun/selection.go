@@ -13,6 +13,7 @@ import (
 // Groups run in order, with a complete teardown between transports.
 var Groups = []struct{ Name, Package string }{
 	{"local", "./suite"},
+	{"iscsi", "./iscsi"},
 }
 
 type Selection struct {
@@ -44,10 +45,21 @@ func ReadSelection(directory string) ([]Selection, error) {
 	return selected, nil
 }
 
-// Validate selected groups before starting the first live suite.
+// Validate every selected group before starting the first live suite. An
+// optional iSCSI section is harmless when only local specs are selected.
 func ValidateSelection(cfg testcfg.Config, selected []Selection) error {
 	if !cfg.DisposableHost {
 		return fmt.Errorf("disposable_host must be true: tests create exports and change SCST configuration")
+	}
+	for _, group := range selected {
+		if group.Group == "iscsi" {
+			if cfg.ISCSI == nil {
+				return fmt.Errorf("selected iSCSI specs require an iscsi section in GINKGO_CONFIG")
+			}
+			if !cfg.ISCSI.Initiator.DisposableHost {
+				return fmt.Errorf("iscsi.initiator.disposable_host must be true")
+			}
+		}
 	}
 	return nil
 }

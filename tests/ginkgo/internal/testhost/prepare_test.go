@@ -87,7 +87,7 @@ func (h *host) run(_ context.Context, limit time.Duration, args ...string) (admi
 			return r, fmt.Errorf("unexpected modinfo arguments: %q", args)
 		}
 	case "insmod":
-		h.modules[strings.TrimSuffix(filepath.Base(args[1]), ".ko")] = true
+		h.modules[strings.ReplaceAll(strings.TrimSuffix(filepath.Base(args[1]), ".ko"), "-", "_")] = true
 	case "rmmod":
 		if args[1] != h.keep {
 			delete(h.modules, args[1])
@@ -382,5 +382,36 @@ func TestUnloadStopsOnFailure(t *testing.T) {
 				t.Fatalf("continued after failure: %s", last)
 			}
 		})
+	}
+}
+
+func TestISCSIProfile(t *testing.T) {
+	h := new(host)
+	opts := options()
+	opts.ISCSI = true
+	m := new(Modules)
+	if err := m.Prepare(context.Background(), opts, h.run, h.empty, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(m.loaded, []string{"scst", "scst_vdisk", "iscsi_scst"}) {
+		t.Fatalf("wrong modules: %v", m.loaded)
+	}
+	var builds []string
+	for _, args := range h.calls {
+		if strings.Contains(strings.Join(args, " "), "scst_local") {
+			t.Fatalf("local driver in iSCSI profile: %v", args)
+		}
+		if args[0] == "make" {
+			builds = append(builds, args[len(args)-1])
+		}
+	}
+	if !reflect.DeepEqual(builds, []string{"scst", "iscsi", "scstadm"}) {
+		t.Fatalf("wrong build order: %v", builds)
+	}
+	if err := m.Unload(context.Background(), opts.CommandTimeout, h.run, h.empty, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	if h.modules["iscsi_scst"] || h.modules["scst"] {
+		t.Fatal("iSCSI modules remain loaded")
 	}
 }

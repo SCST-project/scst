@@ -74,3 +74,42 @@ func TestScenarioOverrides(t *testing.T) {
 		t.Fatalf("scenario overrides lost: %+v", c)
 	}
 }
+
+func TestISCSIConfiguration(t *testing.T) {
+	input := `{"iscsi":{"target_address":"192.0.2.10","port":3260,"login_timeout":"15s","initiator":{"host":"192.0.2.20","user":"root","port":22,"identity_file":"id_test","lock_file":"/tmp/scst-test.lock","disposable_host":false}}}`
+	path := configFile(t, input)
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.ISCSI.Initiator.DisposableHost || cfg.ISCSI.Initiator.IdentityFile != filepath.Join(filepath.Dir(path), "id_test") {
+		t.Fatalf("unsafe defaults or bad path: %+v", cfg.ISCSI)
+	}
+	for name, change := range map[string]func(*ISCSI){
+		"wildcard target":      func(i *ISCSI) { i.TargetAddress = "0.0.0.0" },
+		"localhost":            func(i *ISCSI) { i.TargetAddress = "127.0.0.1" },
+		"IPv6":                 func(i *ISCSI) { i.TargetAddress = "2001:db8::1" },
+		"target DNS":           func(i *ISCSI) { i.TargetAddress = "target" },
+		"bad port":             func(i *ISCSI) { i.Port = 65536 },
+		"bad SSH port":         func(i *ISCSI) { i.Initiator.Port = 0 },
+		"SSH option":           func(i *ISCSI) { i.Initiator.Host = "-oProxyCommand=bad" },
+		"SSH injection":        func(i *ISCSI) { i.Initiator.Host = "host; command" },
+		"nonroot":              func(i *ISCSI) { i.Initiator.User = "tester" },
+		"relative remote lock": func(i *ISCSI) { i.Initiator.LockFile = "host.lock" },
+		"long login":           func(i *ISCSI) { i.LoginTimeout = "31s" },
+		"fractional login":     func(i *ISCSI) { i.LoginTimeout = "1.5s" },
+	} {
+		t.Run(name, func(t *testing.T) {
+			invalid := cfg
+			value := *cfg.ISCSI
+			invalid.ISCSI = &value
+			change(invalid.ISCSI)
+			if invalid.Validate() == nil {
+				t.Fatal("accepted invalid iSCSI configuration")
+			}
+		})
+	}
+	if _, err := Load(configFile(t, `{"iscsi":{"unknown":true}}`)); err == nil {
+		t.Fatal("accepted unknown nested field")
+	}
+}

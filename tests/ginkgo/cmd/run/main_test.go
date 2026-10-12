@@ -32,7 +32,7 @@ func TestMain(m *testing.M) {
 			os.Exit(2)
 		}
 		for _, arg := range os.Args[1:] {
-			if arg == "./suite" {
+			if arg == "./suite" || arg == "./iscsi" {
 				if _, err := file.WriteString(arg + "\n"); err != nil {
 					os.Exit(2)
 				}
@@ -51,16 +51,18 @@ func TestMain(m *testing.M) {
 func TestSelectedPackagesRunInOrder(t *testing.T) {
 	for _, tc := range []struct {
 		name                 string
-		local                int
+		local, iscsi         int
 		failLocal, wantError bool
 		want                 string
 	}{
 		{name: "local", local: 31, want: "./suite\n"},
-		{name: "suite failure", local: 31, failLocal: true, wantError: true, want: "./suite\n"},
+		{name: "iscsi", iscsi: 8, want: "./iscsi\n"},
+		{name: "both", local: 31, iscsi: 7, want: "./suite\n./iscsi\n"},
+		{name: "failed cleanup stops next group", local: 31, iscsi: 7, failLocal: true, wantError: true, want: "./suite\n"},
 		{name: "empty filter", wantError: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			calls := stub(t, tc.local)
+			calls := stub(t, tc.local, tc.iscsi)
 			if tc.failLocal {
 				t.Setenv("SCST_STUB_FAIL_LOCAL", "1")
 			}
@@ -81,22 +83,22 @@ func TestSelectedPackagesRunInOrder(t *testing.T) {
 }
 
 func TestConfigurationRejectedBeforeAnySuiteRuns(t *testing.T) {
-	calls := stub(t, 31)
+	calls := stub(t, 31, 7)
 	config := filepath.Join(t.TempDir(), "config.json")
-	if err := os.WriteFile(config, []byte(`{"disposable_host":false}`), 0600); err != nil {
+	if err := os.WriteFile(config, []byte(`{"disposable_host":true}`), 0600); err != nil {
 		t.Fatal(err)
 	}
 	t.Setenv("SCST_TEST_CONFIG", config)
 	err := run(false)
-	if err == nil || !strings.Contains(err.Error(), "disposable_host") {
-		t.Fatalf("missing host preflight: %v", err)
+	if err == nil || !strings.Contains(err.Error(), "iscsi section") {
+		t.Fatalf("missing iSCSI preflight: %v", err)
 	}
 	if _, err := os.Stat(calls); !os.IsNotExist(err) {
 		t.Fatal("launched a suite before validating all selected groups")
 	}
 }
 
-func stub(t *testing.T, local int) string {
+func stub(t *testing.T, local, iscsi int) string {
 	t.Helper()
 	binary, err := os.Executable()
 	if err != nil {
@@ -106,7 +108,7 @@ func stub(t *testing.T, local int) string {
 	t.Setenv("SCST_LAUNCHER_STUB", "1")
 	t.Setenv("SCST_STUB_FAIL_LOCAL", "0")
 	t.Setenv("SCST_TEST_CONFIG", "/must/not/read/in/list/mode")
-	data, _ := json.Marshal([]testrun.Selection{{Group: "local", Specs: local}})
+	data, _ := json.Marshal([]testrun.Selection{{Group: "local", Specs: local}, {Group: "iscsi", Specs: iscsi}})
 	t.Setenv("SCST_STUB_SELECTION", string(data))
 	calls := filepath.Join(t.TempDir(), "calls")
 	t.Setenv("SCST_STUB_CALLS", calls)

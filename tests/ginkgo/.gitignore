@@ -1,3 +1,4 @@
 !go.mod
 /config.local.json
+/config.*.local.json
 /results/
