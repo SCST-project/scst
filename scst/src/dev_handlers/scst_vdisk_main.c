@@ -7492,24 +7492,72 @@ out_e_unlock:
 	goto out_resume;
 }
 
+/*
+ * For a live device, the caller must suspend activity and hold scst_mutex
+ * and the ALUA lock to prevent the backend from being closed or reopened.
+ */
 SCST_KUNIT_VISIBLE
-ssize_t vdisk_sysfs_sync_store(struct kobject *kobj, struct kobj_attribute *attr,
-			       const char *buf, size_t count)
+int vdisk_flush_backend(struct scst_device *dev)
 {
-	struct scst_device *dev =
-		container_of(kobj, struct scst_device, dev_kobj);
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+
+	/* Queued work can outlive removal of the handler's sysfs files. */
+	if (!virt_dev)
+		return -ENODEV;
+	if (virt_dev->nullio)
+		return 0;
+	if (!vdisk_is_open(virt_dev))
+		return -ENOMEDIUM;
+	if (virt_dev->blockio)
+		return vdisk_blockio_flush(virt_dev->bdev_desc.bdev, GFP_KERNEL, false,
+					   NULL, false);
+
+	return __vdisk_fsync_fileio(0, i_size_read(file_inode(virt_dev->fd)),
+				    dev, NULL, virt_dev->fd);
+}
+
+static int vdisk_sysfs_process_sync_store(struct scst_sysfs_work_item *work)
+{
+	struct scst_device *dev = work->dev;
 	int res;
 
-	if (virt_dev->nullio)
-		res = 0;
-	else if (virt_dev->blockio)
-		res = vdisk_blockio_flush(virt_dev->bdev_desc.bdev, GFP_KERNEL, false, NULL,
-					  false);
-	else
-		res = __vdisk_fsync_fileio(0, i_size_read(file_inode(virt_dev->fd)),
-					   dev, NULL, virt_dev->fd);
+	/* MODE SELECT and task management can also reopen the backing file. */
+	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
+	if (res)
+		goto out;
 
+	res = mutex_lock_interruptible(&scst_mutex);
+	if (res)
+		goto resume;
+
+	/* Serialize with target detach, activation and ALUA state changes. */
+	scst_alua_lock();
+	res = vdisk_flush_backend(dev);
+	scst_alua_unlock();
+	mutex_unlock(&scst_mutex);
+resume:
+	scst_resume_activity();
+out:
+	kobject_put(&dev->dev_kobj);
+	return res;
+}
+
+static ssize_t vdisk_sysfs_sync_store(struct kobject *kobj, struct kobj_attribute *attr,
+				      const char *buf, size_t count)
+{
+	struct scst_device *dev = container_of(kobj, struct scst_device, dev_kobj);
+	struct scst_sysfs_work_item *work;
+	int res;
+
+	res = scst_alloc_sysfs_work(vdisk_sysfs_process_sync_store, false, &work);
+	if (res)
+		return res;
+
+	work->dev = dev;
+	SCST_SET_DEP_MAP(work, &scst_dev_dep_map);
+	kobject_get(&dev->dev_kobj);
+
+	res = scst_sysfs_queue_wait_work(work);
 	return res ? : count;
 }
 
