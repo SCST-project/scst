@@ -15,5 +15,10 @@
   "fileio_thin_provisioning": true,
   "stress_iterations": 8,
   "scale_luns": 256,
-  "allow_known_crash": false
+  "allow_known_crash": false,
+  "io": {
+    "block_device": "",
+    "region_mb": 64,
+    "timeout": "3m"
+  }
 }

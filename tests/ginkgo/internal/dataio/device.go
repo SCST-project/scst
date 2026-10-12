@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"time"
@@ -15,6 +16,7 @@ import (
 )
 
 type Profile struct {
+	FIO       bool
 	Handler   string
 	ReadOnly  bool
 	ExtraLUNs bool
@@ -82,7 +84,7 @@ func listBlocks(ctx context.Context, run RunFunc, timeout time.Duration, path st
 // PrepareBackend owns only newly created files. The caller records them before
 // any fallible operation and removes them only after successful SCST cleanup.
 func PrepareBackend(ctx context.Context, cfg testcfg.Config, artifacts, id string, options Profile, run RunFunc, ownFile func(string)) (Backend, error) {
-	b := Backend{Handler: options.Handler, Serial: id, Bytes: 16 * 1024 * 1024, BlockSize: 512}
+	b := Backend{Handler: options.Handler, Serial: id, Bytes: uint64(cfg.IO.RegionMB) * 3 * 1024 * 1024, BlockSize: 512}
 	path := ""
 	switch options.Handler {
 	case "vdisk_fileio":
@@ -104,6 +106,54 @@ func PrepareBackend(ctx context.Context, cfg testcfg.Config, artifacts, id strin
 		if closeErr != nil {
 			return b, closeErr
 		}
+	case "vdisk_blockio":
+		if cfg.IO.BlockDevice == "" {
+			return b, fmt.Errorf("selected blockio test requires io.block_device on the target")
+		}
+		var err error
+		path, err = filepath.EvalSymlinks(cfg.IO.BlockDevice)
+		if err != nil {
+			return b, err
+		}
+		st, err := os.Stat(path)
+		if err != nil {
+			return b, err
+		}
+		if st.Mode()&os.ModeDevice == 0 || st.Mode()&os.ModeCharDevice != 0 {
+			return b, fmt.Errorf("%s is not a block device", path)
+		}
+		devices, err := listBlocks(ctx, run, testcfg.Duration(cfg.CommandTimeout), path)
+		if err != nil {
+			return b, err
+		}
+		if len(devices) != 1 || devices[0].Path != path {
+			return b, fmt.Errorf("ambiguous backing device %s", path)
+		}
+		disk := devices[0]
+		if err := unused(disk); err != nil {
+			return b, err
+		}
+		if disk.ReadOnly || disk.Size < b.Bytes || disk.Size%4096 != 0 {
+			return b, fmt.Errorf("backing device must be writable, at least %d bytes, and 4 KiB aligned", b.Bytes)
+		}
+		// Wipefs is read-only here; never remove existing signatures for a test.
+		r, err := run(ctx, testcfg.Duration(cfg.CommandTimeout), "wipefs", "--no-act", "--json", path)
+		if err != nil {
+			return b, err
+		}
+		var signatures struct {
+			Signatures []json.RawMessage `json:"signatures"`
+		}
+		if r.ExitCode != 0 {
+			return b, fmt.Errorf("wipefs: %s", r.String())
+		}
+		if err := json.Unmarshal([]byte(r.Stdout), &signatures); err != nil {
+			return b, err
+		}
+		if signatures.Signatures == nil || len(signatures.Signatures) != 0 {
+			return b, fmt.Errorf("%s has signatures or an invalid wipefs report", path)
+		}
+		b.Bytes, b.BlockSize = disk.Size, 4096
 	default:
 		return b, fmt.Errorf("unsupported data handler %q", options.Handler)
 	}
@@ -120,9 +170,10 @@ func PrepareBackend(ctx context.Context, cfg testcfg.Config, artifacts, id strin
 // Endpoint addresses only a fixture-owned exported disk, never its backing file.
 type Endpoint struct {
 	Run                   RunFunc
-	Timeout               time.Duration
+	Timeout, IOTimeout    time.Duration
 	Backend               Backend
 	ReadOnly              bool
+	RegionMB              int
 	Artifacts, Name, Path string
 }
 
@@ -177,8 +228,11 @@ func (e *Endpoint) sg(ctx context.Context, args ...string) ([]byte, error) {
 // DeviceID also supplies the vdisk USN, which is limited to 20 characters.
 func DeviceID(name string) string { return fmt.Sprintf("%x", sha256.Sum256([]byte(name)))[:20] }
 
-func RequireTools(ctx context.Context, run RunFunc, timeout time.Duration) error {
+func RequireTools(ctx context.Context, run RunFunc, timeout time.Duration, fio bool) error {
 	tools := []string{"python3", "lsblk", "sg_inq", "sg_readcap", "sg_luns", "sg_raw", "sg_turs", "sg_sync"}
+	if fio {
+		tools = append(tools, "fio")
+	}
 	for _, tool := range tools {
 		r, err := run(ctx, timeout, tool, "--version")
 		if err != nil {

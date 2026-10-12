@@ -16,5 +16,10 @@
       "lock_file": "/tmp/scst-ginkgo.lock",
       "disposable_host": false
     }
+  },
+  "io": {
+    "block_device": "",
+    "region_mb": 64,
+    "timeout": "3m"
   }
 }

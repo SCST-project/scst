@@ -9,9 +9,9 @@ Use [README.md](README.md) for setup, configuration, commands and recovery.
 - Management operations and assertions use `scstadmin`, never direct sysfs or
   Perl-library calls. A rejection covers the whole management chain, not
   necessarily a kernel check. Check operation errors even with exit status 0.
-- Initiator management uses `iscsiadm` over SSH; sg3_utils uses only
+- Initiator management uses `iscsiadm` over SSH; sg3_utils and fio use only
   fixture-owned exports. Preserve device identity and geometry checks before
-  writes.
+  writes, explicit block-backend selection and disjoint fio regions.
 - Use shared command runners with contexts, timeouts, logs and failure handling.
   Execution failures must not satisfy assertions for expected rejections;
   SCSI rejection tests must check status and sense.
