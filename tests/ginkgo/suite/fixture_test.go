@@ -5,7 +5,10 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
+	"slices"
+	"strings"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -16,6 +19,7 @@ import (
 type fixture struct {
 	prefix                         string
 	devices, targets, deviceGroups []string
+	backingFiles                   []string
 }
 
 var fixtureNumber int
@@ -55,17 +59,60 @@ func (f *fixture) reject(ctx context.Context, args ...string) {
 
 func (f *fixture) device(ctx context.Context, suffix string) string {
 	GinkgoHelper()
+	return f.openDevice(ctx, suffix, "vdisk_nullio", "dummy=1,size_mb=8")
+}
+
+func (f *fixture) openDevice(ctx context.Context, suffix, handler, attributes string) string {
+	GinkgoHelper()
 	d := f.name(suffix)
 	// Record ownership before invoking a mutation, including partial failures.
-	f.devices = append(f.devices, d)
-	f.do(ctx, "-open_dev", d, "-handler", "vdisk_nullio", "-attributes", "dummy=1,size_mb=8")
+	if !slices.Contains(f.devices, d) {
+		f.devices = append(f.devices, d)
+	}
+	f.do(ctx, "-open_dev", d, "-handler", handler, "-attributes", attributes)
 	return d
+}
+
+// Only newly created files belong to this fixture. Preserve them if SCST
+// cleanup fails: unlinking a still-open backing file would hide failure state.
+func (f *fixture) backingFile(suffix string) string {
+	GinkgoHelper()
+	dir := cfg.BackingDir
+	if dir == "" {
+		dir = artifactDir
+	}
+	file := must(os.CreateTemp(dir, f.name(suffix)+"-*.img"))
+	path := file.Name()
+	f.backingFiles = append(f.backingFiles, path)
+	err := file.Truncate(16 * 1024 * 1024)
+	closeErr := file.Close()
+	Expect(err).NotTo(HaveOccurred())
+	Expect(closeErr).NotTo(HaveOccurred())
+	Expect(strings.ContainsAny(path, " \t\r\n,;\"{}\\")).To(BeFalse(), "backing path must be usable in scstadmin attributes/configuration: %s", path)
+	return path
+}
+
+func (f *fixture) fileDevice(ctx context.Context, suffix, path string, attributes ...string) string {
+	GinkgoHelper()
+	return f.openDevice(ctx, suffix, "vdisk_fileio", strings.Join(append([]string{"filename=" + path}, attributes...), ","))
+}
+
+func (f *fixture) deviceAttr(ctx context.Context, device, attribute string) string {
+	GinkgoHelper()
+	return must(cli.Scalar(ctx, attribute, "-list_device", device))
+}
+
+func (f *fixture) setDevice(ctx context.Context, device, attributes string) {
+	GinkgoHelper()
+	f.do(ctx, "-set_dev_attr", device, "-attributes", attributes)
 }
 
 func (f *fixture) target(ctx context.Context, suffix string, attributes ...string) string {
 	GinkgoHelper()
 	t := f.name(suffix)
-	f.targets = append(f.targets, t)
+	if !slices.Contains(f.targets, t) {
+		f.targets = append(f.targets, t)
+	}
 	args := []string{"-add_target", t, "-driver", "scst_local"}
 	if len(attributes) != 0 {
 		args = append(args, "-attributes", attributes[0])
@@ -153,8 +200,8 @@ func (f *fixture) cleanup(ctx context.Context) error {
 		return errors.Join(append(problems, err)...)
 	}
 	for _, d := range f.devices {
-		if _, ok := devices[d]; ok {
-			remove("-close_dev", d, "-handler", "vdisk_nullio")
+		if handler, ok := devices[d]; ok {
+			remove("-close_dev", d, "-handler", handler)
 		}
 	}
 	if len(problems) != 0 {
@@ -175,6 +222,11 @@ func (f *fixture) cleanup(ctx context.Context) error {
 	}
 	if len(devices) != 0 || len(targets) != 0 || len(dgs) != 0 {
 		return fmt.Errorf("host is no longer empty: devices=%v targets=%v device_groups=%v", devices, targets, dgs)
+	}
+	for _, path := range f.backingFiles {
+		if err := os.Remove(path); err != nil {
+			return fmt.Errorf("remove backing file: %w", err)
+		}
 	}
 	return nil
 }

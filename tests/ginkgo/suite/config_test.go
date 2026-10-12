@@ -61,6 +61,16 @@ var _ = Describe("Configuration files", Label("basic", "config"), func() {
 	var f *fixture
 	BeforeEach(func() { f = newFixture() })
 
+	It("checks a valid configuration without applying it or changing existing objects", Label("issue-296"), func(ctx SpecContext) {
+		path := f.configuration()
+		d, t := f.device(ctx, "neighbor_disk"), f.target(ctx, "neighbor_target")
+		f.at(ctx, t, "", "-add_lun", "0", "-device", d)
+		f.do(ctx, "-check_config", path)
+		Expect(must(cli.Devices(ctx))).To(Equal(map[string]string{d: "vdisk_nullio"}))
+		Expect(must(cli.Targets(ctx))).To(Equal(map[string]string{t: "scst_local"}))
+		Expect(f.luns(ctx, t, "")).To(Equal(map[int]string{0: d}))
+	})
+
 	It("applies the same configuration twice without changing its graph", func(ctx SpecContext) {
 		path := f.configuration()
 		f.do(ctx, "-config", path)

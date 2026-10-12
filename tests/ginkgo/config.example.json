@@ -10,5 +10,10 @@
   "poll_interval": "100ms",
   "suite_timeout": "15m",
   "build_timeout": "10m",
-  "build_jobs": 2
+  "build_jobs": 2,
+  "backing_dir": "",
+  "fileio_thin_provisioning": true,
+  "stress_iterations": 8,
+  "scale_luns": 256,
+  "allow_known_crash": false
 }

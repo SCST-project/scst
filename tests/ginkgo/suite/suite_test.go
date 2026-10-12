@@ -52,7 +52,7 @@ var _ = BeforeSuite(func(ctx SpecContext) {
 	drivers, err := cli.Names(ctx, "Driver", "-list_driver")
 	Expect(err).NotTo(HaveOccurred(), "scstadmin must be able to query the modules loaded by the suite")
 	Expect(drivers).To(ContainElement("scst_local"), "prepare scst_local with add_default_tgt=0")
-	Expect(must(cli.Names(ctx, "Handler", "-list_handler"))).To(ContainElement("vdisk_nullio"))
+	Expect(must(cli.Names(ctx, "Handler", "-list_handler"))).To(ContainElements("vdisk_nullio", "vdisk_fileio"))
 	Expect(cli.RequireEmpty(ctx)).To(Succeed())
 })
 
