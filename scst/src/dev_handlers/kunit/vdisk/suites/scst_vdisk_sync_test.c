@@ -205,12 +205,6 @@ static void vdisk_backend_test(struct kunit *test)
 	struct vdisk_test_fixture *f = test->priv;
 	int ret;
 
-	/* Avoid dereferencing a closed backend until its lifetime is fixed. */
-	if (p->closed && !p->nullio) {
-		kunit_skip(test, "closed-backend sync needs a separate lifetime fix");
-		return;
-	}
-
 	f->vdev.dev_active = !p->inactive;
 	f->vdev.nullio = p->nullio;
 	f->vdev.blockio = p->blockio;
@@ -221,9 +215,9 @@ static void vdisk_backend_test(struct kunit *test)
 	f->block_flush_result = p->error;
 	f->sysfs_sync = true;
 
-	/* Exercise the existing store callback with an unregistered private device. */
-	ret = vdisk_sysfs_sync_store(&f->dev.dev_kobj, NULL, "1", 1);
-	KUNIT_EXPECT_EQ(test, ret, p->expected ? p->expected : 1);
+	/* Keep task-scoped backend stubs in the test thread on this private device. */
+	ret = vdisk_flush_backend(&f->dev);
+	KUNIT_EXPECT_EQ(test, ret, p->expected);
 	/* Empty files may still need metadata synchronization. */
 	if (!p->empty)
 		KUNIT_EXPECT_EQ(test, f->flush_count, p->files);
