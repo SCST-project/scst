@@ -30,6 +30,8 @@ user-space handlers and daemons.
   ALUA state-change daemon, and event example.
 - `scstadmin/` owns the configuration grammar, sysfs discovery and mutation,
   service integration, and configuration application policy.
+- `tests/ginkgo/` owns SCST management component tests through `scstadmin`;
+  follow its component guidance for validation and live-host boundaries.
 - `scripts/` owns source, patch, release, checkpatch, regression, and
   performance helpers. `doc/` contains design and ABI references; `www/`
   contains website material. `debian/`, spec templates, `nightly/`, and
@@ -139,7 +141,7 @@ the public certificate is an enrollment input.
   smatch workflow is `scripts/run-regression-tests` as configured by
   `.github/workflows/run_regression_tests.yaml`; it is heavyweight, downloads
   or prepares kernel trees, and is not a quick unit test.
-- There is no repository-wide lightweight unit-test target. Read a local
+- `make ginkgo-check` checks the component-test framework only. Read a local
   `AGENTS.md` before using a component `test` target. For instruction-only or
   documentation-only changes, inspect the full diff and run
   `git diff --check`; do not build merely to validate prose.
