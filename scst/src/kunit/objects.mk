@@ -3,4 +3,5 @@
 
 scst-kunit-scst := \
 	kunit/alua/suites/scst_kunit_alua.o \
-	kunit/lib/suites/scst_kunit_lib.o
+	kunit/lib/suites/scst_kunit_lib.o \
+	kunit/unmap/suites/scst_kunit_unmap.o
