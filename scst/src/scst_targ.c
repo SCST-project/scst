@@ -42,11 +42,11 @@
 #include "scst_local_cmd.h"
 #include "scst_priv.h"
 #include "scst_pres.h"
+#include "scst_targ_test.h"
 
 #undef DEFAULT_SYMBOL_NAMESPACE
 #define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
 
-static void scst_cmd_set_sn(struct scst_cmd *cmd);
 static int __scst_init_cmd(struct scst_cmd *cmd);
 static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess, uint64_t tag,
 					       bool to_abort);
@@ -233,7 +233,8 @@ static bool scst_cmd_overlap_atomic(struct scst_cmd *atomic_cmd, struct scst_cmd
 	return res;
 }
 
-static bool scst_cmd_overlap(struct scst_cmd *chk_cmd, struct scst_cmd *cmd)
+SCST_KUNIT_VISIBLE
+bool scst_cmd_overlap(struct scst_cmd *chk_cmd, struct scst_cmd *cmd)
 {
 	bool res = false;
 
@@ -4580,6 +4581,8 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 EXPORT_SYMBOL_GPL(scst_process_active_cmd);
 
 /* Called under cmd_list_lock and IRQs disabled */
+static void scst_cmd_set_sn(struct scst_cmd *cmd);
+
 static void scst_do_job_active(struct list_head *cmd_list, spinlock_t *cmd_list_lock, bool atomic)
 	__releases(cmd_list_lock)
 	__acquires(cmd_list_lock)
