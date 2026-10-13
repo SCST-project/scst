@@ -4,6 +4,9 @@
 scst-kunit-scst := \
 	kunit/alua/suites/scst_kunit_alua.o \
 	kunit/cdb/suites/scst_kunit_cdb.o \
+	kunit/event/scst_event_fixture.o \
+	kunit/event/suites/scst_kunit_event_import.o \
+	kunit/event/suites/scst_kunit_event_delivery.o \
 	kunit/lib/suites/scst_kunit_lib.o \
 	kunit/order/suites/scst_kunit_order.o \
 	kunit/unmap/suites/scst_kunit_unmap.o
