@@ -55,6 +55,14 @@
 #include "scst_priv.h"
 #include "scst_mem.h"
 #include "scst_pres.h"
+#include "scst_lib_test.h"
+
+#ifndef SCST_KUNIT_ENABLED
+static int scst_alloc_add_tgt_dev(struct scst_session *sess,
+				  struct scst_acg_dev *acg_dev, struct scst_tgt_dev **out_tgt_dev);
+static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev);
+static void scst_ext_blocking_done_fn(struct work_struct *work);
+#endif
 
 #undef DEFAULT_SYMBOL_NAMESPACE
 #define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
@@ -1636,7 +1644,6 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 #define SCST_CDB_TBL_SIZE	(ARRAY_SIZE(scst_scsi_op_table))
 
 static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev);
-static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev);
 static void scst_check_internal_sense(struct scst_device *dev, int result,
 	uint8_t *sense, int sense_len);
 static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
@@ -1648,8 +1655,6 @@ static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 static void scst_free_all_UA(struct scst_tgt_dev *tgt_dev);
 static void scst_release_space(struct scst_cmd *cmd);
 static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev);
-static int scst_alloc_add_tgt_dev(struct scst_session *sess,
-	struct scst_acg_dev *acg_dev, struct scst_tgt_dev **out_tgt_dev);
 static void scst_tgt_retry_timer_fn(struct timer_list *timer);
 
 #ifdef CONFIG_SCST_DEBUG_TM
@@ -4262,8 +4267,6 @@ static void scst_init_order_data(struct scst_order_data *order_data)
 	spin_lock_init(&order_data->init_done_lock);
 }
 
-static void scst_ext_blocking_done_fn(struct work_struct *work);
-
 static int scst_dif_none(struct scst_cmd *cmd);
 #ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
 static int scst_dif_none_type1(struct scst_cmd *cmd);
@@ -4452,7 +4455,8 @@ static void scst_free_acg_dev(struct scst_acg_dev *acg_dev)
  * The activity supposed to be suspended and scst_mutex held or the
  * corresponding target supposed to be stopped.
  */
-static void scst_del_free_acg_dev(struct scst_acg_dev *acg_dev, bool del_sysfs)
+SCST_KUNIT_VISIBLE
+void scst_del_free_acg_dev(struct scst_acg_dev *acg_dev, bool del_sysfs)
 {
 	TRACE_ENTRY();
 	scst_del_acg_dev(acg_dev, true, del_sysfs);
@@ -4530,6 +4534,42 @@ out:
 	return res;
 }
 
+/* Boundaries shared by LUN rollback and session teardown. */
+SCST_KUNIT_VISIBLE
+void scst_tgt_dev_grace_period(void)
+{
+	SCST_KUNIT_REDIRECT(scst_tgt_dev_grace_period);
+	synchronize_rcu();
+}
+
+SCST_KUNIT_VISIBLE
+int scst_lun_cm_add(struct scst_acg_dev *acg_dev, u64 lun, unsigned int *flags)
+{
+	SCST_KUNIT_REDIRECT(scst_lun_cm_add, acg_dev, lun, flags);
+	return scst_cm_on_add_lun(acg_dev, lun, flags);
+}
+
+SCST_KUNIT_VISIBLE
+void scst_lun_cm_del(struct scst_acg_dev *acg_dev)
+{
+	SCST_KUNIT_REDIRECT(scst_lun_cm_del, acg_dev);
+	scst_cm_on_del_lun(acg_dev, false);
+}
+
+SCST_KUNIT_VISIBLE
+int scst_lun_sysfs_create(struct scst_acg_dev *acg_dev, struct kobject *parent)
+{
+	SCST_KUNIT_REDIRECT(scst_lun_sysfs_create, acg_dev, parent);
+	return scst_acg_dev_sysfs_create(acg_dev, parent);
+}
+
+SCST_KUNIT_VISIBLE
+void scst_tgt_dev_sysfs_remove(struct scst_tgt_dev *tgt_dev)
+{
+	SCST_KUNIT_REDIRECT(scst_tgt_dev_sysfs_remove, tgt_dev);
+	scst_tgt_dev_sysfs_del(tgt_dev);
+}
+
 /* The caller must hold scst_mutex. */
 int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 	struct scst_device *dev, uint64_t lun, unsigned int flags,
@@ -4581,12 +4621,12 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 	}
 
 	if (!(flags & SCST_ADD_LUN_CM)) {
-		res = scst_cm_on_add_lun(acg_dev, lun, &flags);
+		res = scst_lun_cm_add(acg_dev, lun, &flags);
 		if (res != 0)
 			goto out_free;
 	}
 
-	res = scst_acg_dev_sysfs_create(acg_dev, parent);
+	res = scst_lun_sysfs_create(acg_dev, parent);
 	if (res != 0)
 		goto out_on_del;
 
@@ -4606,7 +4646,7 @@ out:
 
 out_on_del:
 	if (!(flags & SCST_ADD_LUN_CM))
-		scst_cm_on_del_lun(acg_dev, false);
+		scst_lun_cm_del(acg_dev);
 
 out_free:
 	list_for_each_entry_safe(tgt_dev, tt, &tmp_tgt_dev_list,
@@ -4617,7 +4657,7 @@ out_free:
 		scst_del_tgt_dev(tgt_dev);
 		mutex_unlock(&sess->tgt_dev_list_mutex);
 
-		synchronize_rcu();
+		scst_tgt_dev_grace_period();
 		scst_free_tgt_dev(tgt_dev);
 	}
 
@@ -4983,7 +5023,8 @@ static void scst_del_acg(struct scst_acg *acg)
  *
  * The caller must hold scst_mutex and activity must have been suspended.
  */
-static void scst_free_acg(struct scst_acg *acg)
+SCST_KUNIT_VISIBLE
+void scst_free_acg(struct scst_acg *acg)
 {
 	struct scst_acg_dev *acg_dev, *acg_dev_tmp;
 	struct scst_acn *acn, *acn_tmp;
@@ -4991,6 +5032,8 @@ static void scst_free_acg(struct scst_acg *acg)
 	struct scst_tgt *tgt = acg->tgt;
 	struct scst_tgt_dev *tgt_dev, *tt;
 	LIST_HEAD(tgt_dev_list);
+
+	SCST_KUNIT_REDIRECT(scst_free_acg, acg);
 
 	lockdep_assert_held(&scst_mutex);
 
@@ -5026,12 +5069,8 @@ static void scst_free_acg(struct scst_acg *acg)
 	kobject_put(&tgt->tgt_kobj);
 }
 
-struct scst_acg_release_work {
-	struct work_struct	work;
-	struct scst_acg		*acg;
-};
-
-static void scst_release_acg_work(struct work_struct *work)
+SCST_KUNIT_VISIBLE
+void scst_release_acg_work(struct work_struct *work)
 {
 	struct scst_acg_release_work *release_work =
 		container_of(work, typeof(*release_work), work);
@@ -5116,7 +5155,6 @@ int scst_del_free_acg(struct scst_acg *acg, bool close_sessions)
 	return 0;
 }
 
-
 /* The activity supposed to be suspended and scst_mutex held */
 struct scst_acg *scst_tgt_find_acg(struct scst_tgt *tgt, const char *name)
 {
@@ -5134,7 +5172,6 @@ struct scst_acg *scst_tgt_find_acg(struct scst_tgt *tgt, const char *name)
 	TRACE_EXIT();
 	return acg_ret;
 }
-
 
 /* scst_mutex supposed to be held */
 static struct scst_tgt_dev *scst_find_shared_io_tgt_dev(
@@ -5468,8 +5505,9 @@ static __be16 scst_dif_ip_fn(const void *data, unsigned int len);
  * session. May be invoked from inside scst_check_reassign_sessions() which
  * means that sess->acg can be NULL.
  */
-static int scst_alloc_add_tgt_dev(struct scst_session *sess,
-	struct scst_acg_dev *acg_dev, struct scst_tgt_dev **out_tgt_dev)
+SCST_KUNIT_VISIBLE
+int scst_alloc_add_tgt_dev(struct scst_session *sess,
+			   struct scst_acg_dev *acg_dev, struct scst_tgt_dev **out_tgt_dev)
 {
 	int res = 0;
 	struct scst_tgt_template *tgtt = sess->tgt->tgtt;
@@ -5479,6 +5517,8 @@ static int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	struct list_head *head;
 	int sl;
 	uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+
+	SCST_KUNIT_REDIRECT(scst_alloc_add_tgt_dev, sess, acg_dev, out_tgt_dev);
 
 	TRACE_ENTRY();
 
@@ -5703,7 +5743,7 @@ static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev)
 
 	list_del_rcu(&tgt_dev->sess_tgt_dev_list_entry);
 
-	scst_tgt_dev_sysfs_del(tgt_dev);
+	scst_tgt_dev_sysfs_remove(tgt_dev);
 }
 
 /*
@@ -5712,10 +5752,13 @@ static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev)
  * if another thread could still be accessing @tgt_dev from inside an RCU
  * read-side critical section.
  */
-static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
+SCST_KUNIT_VISIBLE
+void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_tgt_template *tgtt = tgt_dev->tgtt;
 	struct scst_device *dev = tgt_dev->dev;
+
+	SCST_KUNIT_REDIRECT(scst_free_tgt_dev, tgt_dev);
 
 	TRACE_ENTRY();
 
@@ -5750,7 +5793,8 @@ static void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 }
 
 /* scst_mutex supposed to be held */
-static void scst_sess_free_tgt_devs(struct scst_session *sess)
+SCST_KUNIT_VISIBLE
+void scst_sess_free_tgt_devs(struct scst_session *sess)
 {
 	int i;
 	struct scst_tgt_dev *tgt_dev, *tt;
@@ -5772,7 +5816,7 @@ static void scst_sess_free_tgt_devs(struct scst_session *sess)
 	}
 	mutex_unlock(&sess->tgt_dev_list_mutex);
 
-	synchronize_rcu();
+	scst_tgt_dev_grace_period();
 
 	list_for_each_entry_safe(tgt_dev, tt, &tgt_dev_list, extra_tgt_dev_list_entry)
 		scst_free_tgt_dev(tgt_dev);
@@ -15022,7 +15066,8 @@ static inline void scst_ext_blocker_release(struct kref *kref)
 	kfree(b);
 }
 
-static inline void scst_ext_blocker_put(struct scst_ext_blocker *b)
+SCST_KUNIT_VISIBLE_INLINE
+void scst_ext_blocker_put(struct scst_ext_blocker *b)
 {
 	kref_put(&b->refcount, scst_ext_blocker_release);
 }
@@ -15070,7 +15115,8 @@ static void __scst_ext_blocking_done(struct scst_device *dev)
 	TRACE_EXIT();
 }
 
-static void scst_ext_blocking_done_fn(struct work_struct *work)
+SCST_KUNIT_VISIBLE
+void scst_ext_blocking_done_fn(struct work_struct *work)
 {
 	struct scst_device *dev = container_of(work, struct scst_device,
 					ext_blockers_work);
@@ -15155,6 +15201,15 @@ static void scst_dev_ext_block(struct scst_device *dev, bool block_stpg)
 	TRACE_EXIT();
 }
 
+/* The caller holds dev_lock with BH disabled; the wait may drop the lock. */
+SCST_KUNIT_VISIBLE
+int scst_wait_ext_block_dev(struct scst_device *dev, wait_queue_head_t *w)
+{
+	SCST_KUNIT_REDIRECT(scst_wait_ext_block_dev, dev, w);
+	return scst_wait_event_interruptible_lock_bh(*w, dev->on_dev_cmd_count == 0,
+						    dev->dev_lock);
+}
+
 int scst_sync_ext_block_dev(struct scst_device *dev)
 {
 	struct scst_ext_blocker *b;
@@ -15192,7 +15247,7 @@ int scst_sync_ext_block_dev(struct scst_device *dev)
 	b->ext_blocker_done_fn = scst_sync_ext_blocking_done;
 	scst_ext_blocker_get(b);
 
-	res = scst_wait_event_interruptible_lock_bh(*w, dev->on_dev_cmd_count == 0, dev->dev_lock);
+	res = scst_wait_ext_block_dev(dev, w);
 
 	spin_unlock_bh(&dev->dev_lock);
 

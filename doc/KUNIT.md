@@ -60,7 +60,7 @@ validates the selection against the supplied `.ko` files.
 
 | Module | Labels |
 | --- | --- |
-| `scst.ko` | `ALUA CDB CM EVENT LIB ORDER UNMAP` |
+| `scst.ko` | `ALUA CDB CM EVENT LIB LIFECYCLE ORDER UNMAP` |
 
 The runner reads suite metadata from the modules and loads selected owners
 with their dependencies. Unselected suites are not counted as skipped.

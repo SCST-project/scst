@@ -9,5 +9,7 @@ scst-kunit-scst := \
 	kunit/event/suites/scst_kunit_event_import.o \
 	kunit/event/suites/scst_kunit_event_delivery.o \
 	kunit/lib/suites/scst_kunit_lib.o \
+	kunit/lifecycle/suites/scst_kunit_lifecycle.o \
+	kunit/lifecycle/suites/scst_kunit_blocking.o \
 	kunit/order/suites/scst_kunit_order.o \
 	kunit/unmap/suites/scst_kunit_unmap.o
