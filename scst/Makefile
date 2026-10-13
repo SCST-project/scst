@@ -98,3 +98,5 @@ help:
 	@echo "           driver. Read its README for details."
 
 .PHONY: all install uninstall clean extraclean help 2release 2debug 2perf
+
+include src/kunit/select.mk

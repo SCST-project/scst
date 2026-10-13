@@ -145,11 +145,13 @@ help:
 	@echo "  GINKGO_LABEL selects test groups: local, iscsi, basic, stress, scsi, io"
 	@echo ""
 	@echo "Build variables:"
+	@echo "		KUNIT_LABEL=<labels>  : select KUnit labels to list"
 	@echo "		WERROR=y|n            : treat warnings as errors (default: n)"
 	@echo ""
 	@echo "		tags                  : make tags"
 	@echo "		cov-build             : make coverity build"
 	@echo "		shellcheck            : check Bash scripts"
+	@echo "		kunit-list            : show KUnit labels and effective selection"
 	@echo ""
 	@echo "		all                   : make all"
 	@echo "		clean                 : clean files"
@@ -629,3 +631,5 @@ multiple-release-archives:
 	scst-rpm scst-dkms-rpm scstadm-rpm rpm rpm-dkms rpm-artifacts \
 	docker-rpm-image docker-rpm dpkg \
 	2perf 2release 2debug
+
+include scst/src/kunit/select.mk

@@ -51,4 +51,7 @@ scst-y +=	scst_copy_mgr.o		\
 		scst_targ.o		\
 		scst_tg.o
 
+scst-kunit-module := scst
+include $(src)/kunit/Makefile
+
 obj-$(CONFIG_SCST) += scst.o dev_handlers/

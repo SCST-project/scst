@@ -56,6 +56,7 @@ subjects retain their usual form.
 | `scstadmin` | Configuration utility, Perl library and service integration. |
 | `scripts` | Repository development and maintenance scripts. |
 | `tests` | Component tests and their framework. |
+| `kunit` | KUnit infrastructure, tooling and unit tests. |
 | `build` | Build system and packaging. |
 | `dpkg` | Debian package generation. |
 | `nightly build` | Nightly kernel matrix and automation. |

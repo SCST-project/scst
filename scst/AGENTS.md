@@ -98,8 +98,11 @@ the keys must not be committed, uploaded, or supplied to enrollment tools.
 The focused compile entry point is top-level `make scst` (or the component
 Makefile with the same `KDIR`/toolchain assumptions). Kernel-style and
 multi-kernel checks are the repository scripts and CI workflows named in the
-root instructions. No separate lightweight core unit-test target exists.
+root instructions.
 
 Never install/load the core or handlers, configure sysfs, attach/export
 devices, enable debug fault injection, or exercise DLM/HA/persistent-
 reservation state without explicit environment and device authorization.
+
+Before changing core or handler KUnit tests, read [the KUnit guide](../doc/KUNIT.md)
+for build and execution entry points, private interfaces and fixture cleanup.
