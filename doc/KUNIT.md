@@ -61,12 +61,15 @@ validates the selection against the supplied `.ko` files.
 | Module | Labels |
 | --- | --- |
 | `scst.ko` | `ALUA CDB CM EVENT LIB LIFECYCLE ORDER UNMAP` |
+| `scst_vdisk.ko` | `VDISK` |
 
-The runner reads suite metadata from the modules and loads selected owners
-with their dependencies. Unselected suites are not counted as skipped.
+The runner reads suite metadata and dependencies from the modules and loads selected
+owners in dependency order. Supply all required SCST modules from the same build;
+their argument order does not matter. For example, `KUNIT_LABEL=VDISK` loads core and vdisk
+but runs only VDISK suites. Unselected suites are not counted as skipped.
 
 ```sh
-sudo make kunit-run KUNIT_LABEL=LIB
+sudo make kunit-run KUNIT_LABEL="UNMAP VDISK"
 sudo make -j kunit-test KDIR=/path/to/kernel-build KUNIT_LABEL=LIB
 ```
 
@@ -81,7 +84,8 @@ Pass runner options through `KUNIT_ARGS`; `--help` lists them. For example:
 ```sh
 sudo make kunit-run KUNIT_ARGS='--timeout 120 --verbose'
 sudo make kunit-run KUNIT_ARGS='--config "/tmp/test settings.toml"'
-sudo make kunit-run KUNIT_LABEL=LIB KUNIT_ARGS='"/tmp/test modules/scst.ko"'
+sudo make kunit-run KUNIT_LABEL=VDISK \
+    KUNIT_ARGS='"/tmp/test modules/scst.ko" "/tmp/test modules/scst_vdisk.ko"'
 ```
 
 Copy [config.example.toml](../scripts/kunit/config.example.toml) to

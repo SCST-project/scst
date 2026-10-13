@@ -39,4 +39,11 @@ obj-$(CONFIG_SCST_PROCESSOR) += scst_processor.o
 obj-$(CONFIG_SCST_USER) += scst_user.o
 
 scst_vdisk-y := scst_vdisk_main.o
+
+scst-kunit-module := scst_vdisk
+include $(src)/../kunit/Makefile
+
 scst_user-y := scst_user_main.o
+
+scst-kunit-module := scst_user
+include $(src)/../kunit/Makefile
