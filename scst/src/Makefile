@@ -82,12 +82,15 @@ all: $(SCST_INTF_VER_FILE)
 	$(MAKE) -C certs KDIR=$(KDIR)					\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")
 	$(MAKE) -C $(KDIR) M=$(SCST_MOD_DIR)				\
+	  $(SCST_KUNIT_FLAGS)						\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")
 	$(MAKE) -C $(KDIR) M=$(SCST_DH_MOD_DIR)				\
+	  $(SCST_KUNIT_FLAGS)						\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")
 
 scst:
 	$(MAKE) -C $(KDIR) M=$(SCST_MOD_DIR)				\
+	  $(SCST_KUNIT_FLAGS)						\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")
 
 install: all
@@ -98,12 +101,14 @@ install: all
 	-rm -f $(INSTALL_DIR)/scsi_tgt.ko
 	KDIR=$(KDIR) ../../scripts/sign-modules
 	$(MAKE) -C $(KDIR) M=$(SCST_MOD_DIR)				\
+	  $(SCST_KUNIT_FLAGS)						\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)				\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
 	  CONFIG_MODULE_SIG_ALL= modules_install
 	(cd $(SCST_DH_MOD_DIR) && KDIR=$(KDIR) ../../../scripts/sign-modules)
 	$(MAKE) -C $(KDIR) M=$(SCST_DH_MOD_DIR)				\
+	  $(SCST_KUNIT_FLAGS)						\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)/dev_handlers		\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
@@ -143,10 +148,12 @@ uninstall:
 clean:
 	$(MAKE) -C $(DEV_HANDLERS_DIR) $@
 	rm -f $(SCST_INTF_VER_FILE)
-	$(MAKE) -C $(KDIR) M=$(SCST_MOD_DIR) $@
+	$(MAKE) -C $(KDIR) M=$(SCST_MOD_DIR) $(SCST_KUNIT_FLAGS) $@
 
 extraclean: clean
 	cd $(DEV_HANDLERS_DIR) && $(MAKE) $@
 	rm -f *.orig *.rej
 
 .PHONY: all install uninstall clean extraclean
+
+include kunit/select.mk

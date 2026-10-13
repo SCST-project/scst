@@ -29,7 +29,7 @@ jobs:
           printf 'regression=%s\n' "${matrix}" >>"${GITHUB_OUTPUT}"
 
   regression_tests:
-    name: ${{matrix.version}}
+    name: ${{ matrix.version }}
     needs: prepare_matrix
     runs-on: ubuntu-latest
     strategy:
