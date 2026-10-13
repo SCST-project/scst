@@ -22,7 +22,11 @@
 .depend_d
 .depend_f
 .directory
+.kunit-modules
+.kunit-modules.tmp
+.kunit-run.toml
 .tmp_versions
+__pycache__/
 built-in.a
 codegraph.db
 codegraph.db-*
@@ -48,6 +52,7 @@ iscsi-scst/conftest/*/result-*.txt
 iscsi-scst/include/iscsi_scst_itf_ver.h
 iscsi-scst/usr/iscsi-scst-adm
 iscsi-scst/usr/iscsi-scstd
+kunit-results/
 Module.markers
 Module.symvers
 modules.order

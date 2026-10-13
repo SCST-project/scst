@@ -137,103 +137,101 @@ SCST_SOURCE_FILES = $(shell if [ -e scripts/list-source-files ]; then	\
 			fi)
 
 help:
-	@echo "Component tests (see tests/ginkgo/README.md):"
-	@echo "  ginkgo-check / ginkgo-list: checks / dry run without SCST access"
-	@echo "  ginkgo-config: validate GINKGO_CONFIG (JSON file)"
-	@echo "  ginkgo-test: load built SCST modules, then run tests (root)"
-	@echo "  ginkgo-test-build: build and load SCST, then run tests (root)"
-	@echo "  GINKGO_LABEL selects test groups: local, iscsi, basic, stress, scsi, io"
-	@echo ""
-	@echo "Build variables:"
-	@echo "		KUNIT_LABEL=<labels>  : select KUnit labels to list"
-	@echo "		WERROR=y|n            : treat warnings as errors (default: n)"
-	@echo ""
-	@echo "		tags                  : make tags"
-	@echo "		cov-build             : make coverity build"
-	@echo "		shellcheck            : check Bash scripts"
-	@echo "		kunit-list            : show KUnit labels and effective selection"
-	@echo ""
-	@echo "		all                   : make all"
-	@echo "		clean                 : clean files"
-	@echo "		extraclean            : clean + clean dependencies"
-	@echo "		install               : install"
-	@echo "		uninstall             : uninstall"
-	@echo ""
-	@echo "		scst                  : make scst only"
-	@echo "		scst_clean            : scst: clean"
-	@echo "		scst_extraclean       : scst: clean + clean dependencies"
-	@echo "		scst_install          : scst: install"
-	@echo "		scst_uninstall        : scst: uninstall"
-	@echo ""
-	@echo "		docs                  : make docs"
-	@echo "		docs_clean            : docs: clean"
-	@echo "		docs_extraclean       : docs: clean + clean dependencies"
-	@echo ""
-	@echo "		scstadm               : make scstadmin"
-	@echo "		scstadm_clean         : scstadmin: clean"
-	@echo "		scstadm_extraclean    : scstadmin: clean + clean dependencies"
-	@echo "		scstadm_install       : scstadmin: install"
-	@echo "		scstadm_uninstall     : scstadmin: uninstall"
-	@echo ""
-	@echo "		qla                   : make QLA target driver"
-	@echo "		qla_clean             : qla target: clean"
-	@echo "		qla_extraclean        : qla target: clean + clean dependencies"
-	@echo "		qla_install           : qla target: install"
-	@echo "		qla_uninstall         : qla target: uninstall"
-	@echo ""
-	@echo "		iscsi                 : make iSCSI target"
-	@echo "		iscsi_clean           : ISCSI target: clean"
-	@echo "		iscsi_extraclean      : ISCSI target: clean + clean dependencies"
-	@echo "		iscsi_install         : ISCSI target: install"
-	@echo "		iscsi_uninstall       : ISCSI target: uninstall"
-	@echo ""
-	@echo "		emulex                : make Emulex target"
-	@echo "		emulex_clean          : Emulex target: clean"
-	@echo "		emulex_extraclean     : Emulex target: clean + clean dependencies"
-	@echo "		emulex_install        : Emulex target: install"
-	@echo "		emulex_uninstall      : Emulex target: uninstall"
-	@echo ""
-	@echo "		srpt                  : make SRP target"
-	@echo "		srpt_clean            : srp target: clean"
-	@echo "		srpt_extraclean       : srp target: clean + clean dependencies"
-	@echo "		srpt_install          : srp target: install"
-	@echo "		srpt_uninstall        : srp target: uninstall"
-	@echo ""
-	@echo "		fcst                  : make FCoE target"
-	@echo "		fcst_clean            : FCoE target: clean"
-	@echo "		fcst_extraclean       : FCoE target: clean + clean dependencies"
-	@echo "		fcst_install          : FCoE target: install"
-	@echo "		fcst_uninstall        : FCoE target: uninstall"
-	@echo ""
-	@echo "		scst_local	      : make scst_local target"
-	@echo "		scst_local_clean      : scst_local target: clean"
-	@echo "		scst_local_extraclean : scst_local target: clean + clean dependencies"
-	@echo "		scst_local_install    : scst_local target: install"
-	@echo "		scst_local_uninstall  : scst_local target: uninstall"
-	@echo ""
-	@echo "		usr                   : make user space targets"
-	@echo "		usr_clean             : usr target: clean"
-	@echo "		usr_extraclean        : usr target: clean + clean dependencies"
-	@echo "		usr_install           : usr target: install"
-	@echo "		usr_uninstall         : usr target: uninstall"
-	@echo ""
-	@echo "		scst-rpm              : make SCST RPM packages"
-	@echo "		scst-dkms-rpm         : make SCST DKMS RPM packages"
-	@echo "		scstadm-rpm           : make scstadmin RPM packages"
-	@echo "		rpm                   : make both SCST and scstadmin RPM packages"
-	@echo "		rpm-dkms              : make both SCST DKMS and scstadmin RPM packages"
-	@echo "		rpm-artifacts         : build verified RPM artifacts"
-	@echo "		docker-rpm-image      : build the RPM builder Docker image"
-	@echo "		docker-rpm            : build RPM packages in Docker"
-	@echo ""
-	@echo "		dpkg                  : make SCST dpkg packages"
-	@echo ""
-	@echo "		2perf                 : changes debug state to full performance"
-	@echo "		2release              : changes debug state to release"
-	@echo "		2debug                : changes debug state to full debug"
-	@echo ""
-	@echo "	Note:"
-	@echo "		- install and uninstall may need root privileges"
+	@printf '%s\n' \
+		'Component tests (see tests/ginkgo/README.md):' \
+		'  ginkgo-check                  check the framework without SCST access' \
+		'  ginkgo-list                   list tests without SCST access' \
+		'  ginkgo-config                 validate GINKGO_CONFIG (JSON file)' \
+		'  ginkgo-test                   load built modules, then run tests (root)' \
+		'  ginkgo-test-build             build and load modules, then run tests (root)' \
+		'  GINKGO_LABEL                  select local, iscsi, basic, stress, scsi or io' \
+		'  GINKGO_CONFIG                 component-test configuration file' \
+		'' \
+		'KUnit tests (see doc/KUNIT.md):' \
+		'  kunit-build                   build all SCST KUnit modules' \
+		'  kunit-clean                   clean test module builds; keep run reports' \
+		'  kunit-list                    show all source labels and suites' \
+		'  kunit-run                     run already-built modules (root)' \
+		'  kunit-test                    build, then run tests (root)' \
+		'  KUNIT_TEST=y|n                include all suites (default: n; kunit-build sets y)' \
+		'  KUNIT_LOG=y|n                 compile extra execution messages (default: n)' \
+		'  KUNIT_LABEL                   space-separated labels to run (default: ALL)' \
+		'  KUNIT_ARGS                    runner options and module paths; see --help' \
+		'' \
+		'Build variables:' \
+		'  WERROR=y|n                    treat warnings as errors (default: n)' \
+		'' \
+		'Build and maintenance targets:' \
+		'  tags                          make tags' \
+		'  cov-build                     make coverity build' \
+		'  shellcheck                    check Bash scripts' \
+		'  all                           make all' \
+		'  clean                         clean files' \
+		'  extraclean                    clean + clean dependencies' \
+		'  install                       install' \
+		'  uninstall                     uninstall' \
+		'  scst                          make scst only' \
+		'  scst_clean                    scst: clean' \
+		'  scst_extraclean               scst: clean + clean dependencies' \
+		'  scst_install                  scst: install' \
+		'  scst_uninstall                scst: uninstall' \
+		'  docs                          make docs' \
+		'  docs_clean                    docs: clean' \
+		'  docs_extraclean               docs: clean + clean dependencies' \
+		'  scstadm                       make scstadmin' \
+		'  scstadm_clean                 scstadmin: clean' \
+		'  scstadm_extraclean            scstadmin: clean + clean dependencies' \
+		'  scstadm_install               scstadmin: install' \
+		'  scstadm_uninstall             scstadmin: uninstall' \
+		'  qla                           make QLA target driver' \
+		'  qla_clean                     qla target: clean' \
+		'  qla_extraclean                qla target: clean + clean dependencies' \
+		'  qla_install                   qla target: install' \
+		'  qla_uninstall                 qla target: uninstall' \
+		'  iscsi                         make iSCSI target' \
+		'  iscsi_clean                   ISCSI target: clean' \
+		'  iscsi_extraclean              ISCSI target: clean + clean dependencies' \
+		'  iscsi_install                 ISCSI target: install' \
+		'  iscsi_uninstall               ISCSI target: uninstall' \
+		'  emulex                        make Emulex target' \
+		'  emulex_clean                  Emulex target: clean' \
+		'  emulex_extraclean             Emulex target: clean + clean dependencies' \
+		'  emulex_install                Emulex target: install' \
+		'  emulex_uninstall              Emulex target: uninstall' \
+		'  srpt                          make SRP target' \
+		'  srpt_clean                    srp target: clean' \
+		'  srpt_extraclean               srp target: clean + clean dependencies' \
+		'  srpt_install                  srp target: install' \
+		'  srpt_uninstall                srp target: uninstall' \
+		'  fcst                          make FCoE target' \
+		'  fcst_clean                    FCoE target: clean' \
+		'  fcst_extraclean               FCoE target: clean + clean dependencies' \
+		'  fcst_install                  FCoE target: install' \
+		'  fcst_uninstall                FCoE target: uninstall' \
+		'  scst_local                    make scst_local target' \
+		'  scst_local_clean              scst_local target: clean' \
+		'  scst_local_extraclean         scst_local target: clean + clean dependencies' \
+		'  scst_local_install            scst_local target: install' \
+		'  scst_local_uninstall          scst_local target: uninstall' \
+		'  usr                           make user space targets' \
+		'  usr_clean                     usr target: clean' \
+		'  usr_extraclean                usr target: clean + clean dependencies' \
+		'  usr_install                   usr target: install' \
+		'  usr_uninstall                 usr target: uninstall' \
+		'  scst-rpm                      make SCST RPM packages' \
+		'  scst-dkms-rpm                 make SCST DKMS RPM packages' \
+		'  scstadm-rpm                   make scstadmin RPM packages' \
+		'  rpm                           make both SCST and scstadmin RPM packages' \
+		'  rpm-dkms                      make both SCST DKMS and scstadmin RPM packages' \
+		'  rpm-artifacts                 build verified RPM artifacts' \
+		'  docker-rpm-image              build the RPM builder Docker image' \
+		'  docker-rpm                    build RPM packages in Docker' \
+		'  dpkg                          make SCST dpkg packages' \
+		'  2perf                         changes debug state to full performance' \
+		'  2release                      changes debug state to release' \
+		'  2debug                        changes debug state to full debug' \
+		'' \
+		'Installation and module execution may require root.'
 
 # Resolve the config relative to the caller, before entering tests/ginkgo.
 export GINKGO_CONFIG
@@ -633,3 +631,32 @@ multiple-release-archives:
 	2perf 2release 2debug
 
 include scst/src/kunit/select.mk
+
+PYTHON ?= python3
+
+.PHONY: kunit-build kunit-clean kunit-run kunit-test
+
+kunit-clean: scst-kunit-clean-files
+	@for target in $(SCST_KUNIT_COMPONENTS); do \
+		$(MAKE) -C "$$target" clean || exit $$?; \
+	done
+
+kunit-build:
+	@rm -f .kunit-modules .kunit-modules.tmp
+	@echo "Building all SCST KUnit tests"
+	@for target in $(SCST_KUNIT_COMPONENTS); do \
+		$(MAKE) -C "$$target" kunit-build KUNIT_TEST=y || exit $$?; \
+	done
+	@for module in $(SCST_KUNIT_MODULES); do \
+		test -f "$$module" || { echo "Missing built module: $$module"; exit 2; }; \
+	done
+	@printf '%s\n' $(SCST_KUNIT_MODULES) > .kunit-modules.tmp
+	@mv .kunit-modules.tmp .kunit-modules
+
+# Build and run sequentially even under make -j.
+kunit-test:
+	@$(MAKE) kunit-build
+	@$(MAKE) kunit-run
+
+kunit-run:
+	@$(PYTHON) scripts/kunit/run.py --labels "$(KUNIT_LABEL)" $(KUNIT_ARGS)

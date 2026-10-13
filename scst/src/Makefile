@@ -88,6 +88,16 @@ all: $(SCST_INTF_VER_FILE)
 	  $(SCST_KUNIT_FLAGS)						\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")
 
+scst-kunit-handlers = $(notdir $(filter scst/src/dev_handlers/%,$(SCST_KUNIT_MODULES_scst)))
+
+.PHONY: kunit-build
+kunit-build: $(SCST_INTF_VER_FILE)
+	$(MAKE) -C $(KDIR) M=$(SCST_MOD_DIR) $(SCST_KUNIT_FLAGS) \
+	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)") scst.ko
+	$(if $(scst-kunit-handlers),$(MAKE) -C $(KDIR) M=$(SCST_DH_MOD_DIR) \
+	  $(SCST_KUNIT_FLAGS) \
+	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)") $(scst-kunit-handlers),@:)
+
 scst:
 	$(MAKE) -C $(KDIR) M=$(SCST_MOD_DIR)				\
 	  $(SCST_KUNIT_FLAGS)						\
