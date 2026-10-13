@@ -17,6 +17,15 @@
 #endif
 #include "scst_priv.h"
 #include "scst_pres.h"
+#include "scst_copy_mgr_test.h"
+
+#ifndef SCST_KUNIT_ENABLED
+struct scst_cm_init_inq_priv;
+
+static int scst_cm_send_init_inquiry(struct scst_device *dev, unsigned int unpacked_lun,
+				     struct scst_cm_init_inq_priv *priv);
+static void scst_cm_update_dev_fini(struct scst_device *dev);
+#endif
 
 #undef DEFAULT_SYMBOL_NAMESPACE
 #define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
@@ -2238,9 +2247,6 @@ struct scst_cm_init_inq_priv {
 	struct scst_device *dev;
 };
 
-static int scst_cm_send_init_inquiry(struct scst_device *dev, unsigned int unpacked_lun,
-				     struct scst_cm_init_inq_priv *priv);
-
 static void scst_cm_inq_retry_fn(struct scst_cmd *cmd)
 {
 	struct scst_cm_init_inq_priv *priv = cmd->tgt_i_priv;
@@ -2253,8 +2259,6 @@ static void scst_cm_inq_retry_fn(struct scst_cmd *cmd)
 
 	TRACE_EXIT();
 }
-
-static void scst_cm_update_dev_fini(struct scst_device *dev);
 
 static void scst_cm_init_inq_finish(struct scst_cmd *cmd)
 {
@@ -2380,13 +2384,16 @@ out:
 	TRACE_EXIT();
 }
 
-static int scst_cm_send_init_inquiry(struct scst_device *dev, unsigned int unpacked_lun,
-				     struct scst_cm_init_inq_priv *priv)
+SCST_KUNIT_VISIBLE
+int scst_cm_send_init_inquiry(struct scst_device *dev, unsigned int unpacked_lun,
+			      struct scst_cm_init_inq_priv *priv)
 {
 	static const uint8_t inq_cdb[6] = { INQUIRY, 1, 0x83, 0x10, 0, 0 };
 	__be64 lun;
 	struct scst_cmd *cmd;
 	int res = 0;
+
+	SCST_KUNIT_REDIRECT(scst_cm_send_init_inquiry, dev, unpacked_lun, priv);
 
 	TRACE_ENTRY();
 
@@ -2458,10 +2465,13 @@ static bool scst_cm_is_lun_free(unsigned int lun)
 }
 
 /* scst_mutex supposed to be held */
-static unsigned int scst_cm_get_lun(const struct scst_device *dev)
+SCST_KUNIT_VISIBLE
+unsigned int scst_cm_get_lun(const struct scst_device *dev)
 {
 	unsigned int res = SCST_MAX_LUN;
 	int i;
+
+	SCST_KUNIT_REDIRECT(scst_cm_get_lun, dev);
 
 	TRACE_ENTRY();
 
@@ -2506,10 +2516,13 @@ static uint64_t scst_cm_get_free_lun(void)
 	return lun;
 }
 
-static int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
+SCST_KUNIT_VISIBLE
+int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
 {
 	int res;
 	struct scst_acg_dev *acg_dev;
+
+	SCST_KUNIT_REDIRECT(scst_cm_dev_register, dev, lun);
 
 	TRACE_ENTRY();
 
@@ -2561,9 +2574,12 @@ out_err:
 	goto out;
 }
 
-static void scst_cm_dev_free_designators(struct scst_device *dev)
+SCST_KUNIT_VISIBLE
+void scst_cm_dev_free_designators(struct scst_device *dev)
 {
 	struct scst_cm_desig *des, *t;
+
+	SCST_KUNIT_REDIRECT(scst_cm_dev_free_designators, dev);
 
 	TRACE_ENTRY();
 
@@ -2648,8 +2664,8 @@ out_unblock:
 	goto out_unlock;
 }
 
-static void
-scst_cm_update_dev_start(struct scst_device *dev)
+SCST_KUNIT_VISIBLE
+void scst_cm_update_dev_start(struct scst_device *dev)
 {
 	int update_req_cnt, rc;
 
@@ -2662,8 +2678,8 @@ scst_cm_update_dev_start(struct scst_device *dev)
 		atomic_set(&dev->cm_update_req_cnt, 0);
 }
 
-static void
-scst_cm_update_dev_fini(struct scst_device *dev)
+SCST_KUNIT_VISIBLE
+void scst_cm_update_dev_fini(struct scst_device *dev)
 {
 	int update_req_cnt, rc;
 
@@ -2765,6 +2781,13 @@ void scst_cm_on_del_acg(struct scst_acg *acg)
 	/* Nothing to do */
 }
 
+SCST_KUNIT_VISIBLE
+struct scst_acg *scst_cm_default_acg(void)
+{
+	SCST_KUNIT_REDIRECT(scst_cm_default_acg);
+	return scst_cm_tgt->default_acg;
+}
+
 /* scst_mutex supposed to be held */
 int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun, unsigned int *flags)
 {
@@ -2774,7 +2797,7 @@ int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun, unsigned int 
 
 	lockdep_assert_held(&scst_mutex);
 
-	if (acg_dev->acg != scst_cm_tgt->default_acg)
+	if (acg_dev->acg != scst_cm_default_acg())
 		goto out;
 
 	if (acg_dev->acg_dev_rd_only || acg_dev->dev->dev_rd_only) {
