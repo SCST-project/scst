@@ -1012,7 +1012,8 @@ static bool scst_bufflen_eq_expecten_len(struct scst_cmd *cmd)
 	return b == cmd->expected_transfer_len_full;
 }
 
-static int scst_parse_cmd(struct scst_cmd *cmd)
+SCST_KUNIT_VISIBLE
+int scst_parse_cmd(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_RES_CONT_SAME;
 	int state;

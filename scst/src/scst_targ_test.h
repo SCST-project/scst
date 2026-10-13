@@ -9,6 +9,7 @@
 struct scst_cmd;
 
 bool scst_cmd_overlap(struct scst_cmd *chk_cmd, struct scst_cmd *cmd);
+int scst_parse_cmd(struct scst_cmd *cmd);
 
 #endif /* SCST_KUNIT_ENABLED */
 #endif /* SCST_TARG_TEST_H */
