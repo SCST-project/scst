@@ -273,10 +273,13 @@ out_put:
 	TRACE_EXIT();
 }
 
-static int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask, bool report_error,
-			       struct scst_cmd *cmd, bool async)
+SCST_KUNIT_VISIBLE
+int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask, bool report_error,
+			struct scst_cmd *cmd, bool async)
 {
 	int res = 0;
+
+	SCST_KUNIT_REDIRECT(vdisk_blockio_flush, bdev, gfp_mask, report_error, cmd, async);
 
 	TRACE_ENTRY();
 
@@ -1383,8 +1386,16 @@ static void vdisk_detach_tgt(struct scst_tgt_dev *tgt_dev)
 	TRACE_EXIT();
 }
 
-static int __vdisk_fsync_fileio(loff_t loff, loff_t len, struct scst_device *dev,
-				struct scst_cmd *cmd, struct file *file)
+SCST_KUNIT_VISIBLE
+int vdisk_writeback_range(struct address_space *mapping, loff_t start, loff_t end)
+{
+	SCST_KUNIT_REDIRECT(vdisk_writeback_range, mapping, start, end);
+	return filemap_write_and_wait_range(mapping, start, end);
+}
+
+SCST_KUNIT_VISIBLE
+int __vdisk_fsync_fileio(loff_t loff, loff_t len, struct scst_device *dev,
+			 struct scst_cmd *cmd, struct file *file)
 {
 	int res;
 
@@ -1400,7 +1411,7 @@ static int __vdisk_fsync_fileio(loff_t loff, loff_t len, struct scst_device *dev
 #if 0	/* For sparse files we might need to sync metadata as well */
 	res = generic_write_sync(file, loff, len);
 #else
-	res = filemap_write_and_wait_range(file->f_mapping, loff, len);
+	res = vdisk_writeback_range(file->f_mapping, loff, len);
 #endif
 	if (unlikely(res != 0)) {
 		PRINT_ERROR("sync range failed (%d)", res);
@@ -1482,8 +1493,9 @@ done:
 	return res;
 }
 
-static int vdisk_fsync(loff_t loff, loff_t len, struct scst_device *dev, gfp_t gfp_flags,
-		       struct scst_cmd *cmd, bool async)
+SCST_KUNIT_VISIBLE
+int vdisk_fsync(loff_t loff, loff_t len, struct scst_device *dev, gfp_t gfp_flags,
+		struct scst_cmd *cmd, bool async)
 {
 	int res = 0;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
@@ -3169,7 +3181,8 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 }
 #endif
 
-static void vdisk_on_free_cmd_params(const struct vdisk_cmd_params *p)
+SCST_KUNIT_VISIBLE
+void vdisk_on_free_cmd_params(const struct vdisk_cmd_params *p)
 {
 	if (!p->execute_async) {
 		if (p->sync.kvec != p->sync.small_kvec)
@@ -5332,7 +5345,8 @@ static enum compl_status_e fileio_exec_var_len_cmd(struct vdisk_cmd_params *p)
  * RUNNING_ASYNC the SCST command may already have completed before this
  * function returns.
  */
-static enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
+SCST_KUNIT_VISIBLE
+enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
 	struct scst_device *dev = cmd->dev;
@@ -5958,7 +5972,8 @@ static enum compl_status_e blockio_exec_read(struct vdisk_cmd_params *p)
 	return RUNNING_ASYNC;
 }
 
-static enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
+SCST_KUNIT_VISIBLE
+enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
 	loff_t loff = p->loff;
@@ -7477,8 +7492,9 @@ out_e_unlock:
 	goto out_resume;
 }
 
-static ssize_t vdisk_sysfs_sync_store(struct kobject *kobj, struct kobj_attribute *attr,
-				      const char *buf, size_t count)
+SCST_KUNIT_VISIBLE
+ssize_t vdisk_sysfs_sync_store(struct kobject *kobj, struct kobj_attribute *attr,
+			       const char *buf, size_t count)
 {
 	struct scst_device *dev =
 		container_of(kobj, struct scst_device, dev_kobj);
