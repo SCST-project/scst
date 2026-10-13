@@ -2,4 +2,5 @@
 # Test objects relative to each owning module; shared by both Kbuild modes.
 
 scst-kunit-scst := \
+	kunit/alua/suites/scst_kunit_alua.o \
 	kunit/lib/suites/scst_kunit_lib.o
