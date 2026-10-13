@@ -2,11 +2,9 @@
 
 ## Scope and context
 
-This file supplies repository-wide context. Before changing a file, read every
-`AGENTS.md` from the repository root down to that file; a nested file adds
-component-specific rules and does not replace this one. Start by checking
-`git status` and preserve unrelated tracked, untracked, ignored, and generated
-worktree state.
+Before editing, read applicable `AGENTS.md` files from the repository root to
+the changed files. Nested guidance adds to this file. Check `git status` and
+preserve unrelated tracked, untracked, ignored and generated worktree state.
 
 SCST is a Linux SCSI target stack. The repository contains a kernel target
 core, device handlers, transport target drivers, configuration software, and
@@ -74,25 +72,19 @@ user-space handlers and daemons.
 
 ## Verification order and compatibility
 
-This hierarchy is a routing and safety guide, not an interface specification.
-Resolve a claim by inspecting the nearest current implementation first:
+This file records ownership, cross-component constraints, risks and where to
+investigate. It is not an interface specification; resolve behavior claims against
+the nearest current implementation.
 
-- Current tracked code, installed/shared headers, and comments next to the
-  implementation define actual behavior and interfaces. Executable
-  `Makefile`, Kbuild, Kconfig, scripts, and CI definitions define actual build,
-  generation, and validation behavior.
-- Use `README.md` and `INSTALL.md` for orientation and workflows, and
-  `README.clang`, `README.cross-compilation`, `README.module-signing`, design
-  documents, and component READMEs for rationale and special cases. Recheck
-  every operational or interface claim against current code and recipes.
-- Use Git history to explain compatibility intent or an otherwise unclear
-  boundary. If prose and implementation differ, do not change behavior merely
-  to match prose or copy the discrepancy here; report it and update the
-  appropriate source or document when that work is in scope.
-- `AGENTS.md` records ownership, coupling, risk, and where to investigate. It
-  must not be used as evidence for a callback, field, default, command, path,
-  kernel capability, or supported workflow without checking the referenced
-  implementation or documentation.
+- Current code, installed/shared headers and implementation comments define
+  behavior. Makefiles, Kbuild/Kconfig, scripts and CI define build, generation
+  and validation workflows.
+- Use `README.md` and `INSTALL.md` for workflows. Consult `README.clang`,
+  `README.cross-compilation`, `README.module-signing`, design documents and
+  component READMEs for the relevant toolchain, architecture or component.
+- Use Git history for compatibility intent. If documentation disagrees with
+  implementation, report it and update the appropriate source when in scope;
+  do not change behavior merely to match prose.
 
 The top-level `Makefile` coordinates `KDIR`, `KVER`, `PASS_CC_TO_MAKE`,
 `PKG_BUILD_MODE`, `QLA_32GBIT`, and the component order: core, iSCSI, the
