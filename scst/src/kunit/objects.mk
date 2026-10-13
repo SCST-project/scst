@@ -13,3 +13,6 @@ scst-kunit-scst := \
 	kunit/lifecycle/suites/scst_kunit_blocking.o \
 	kunit/order/suites/scst_kunit_order.o \
 	kunit/unmap/suites/scst_kunit_unmap.o
+
+scst-kunit-scst_vdisk := \
+	kunit/vdisk/suites/scst_vdisk_capacity_test.o

@@ -74,6 +74,7 @@
 
 #include "scst_dev_handler.h"
 #include "scst_vdisk_priv.h"
+#include "scst_vdisk_test.h"
 
 /* 8 byte ASCII Vendor */
 #define SCST_FIO_VENDOR			"SCST_FIO"
@@ -4856,7 +4857,8 @@ static enum compl_status_e vdisk_exec_get_lba_status(struct vdisk_cmd_params *p)
 	return CMD_SUCCEEDED;
 }
 
-static enum compl_status_e vdisk_exec_sai_16(struct vdisk_cmd_params *p)
+SCST_KUNIT_VISIBLE
+enum compl_status_e vdisk_exec_sai_16(struct vdisk_cmd_params *p)
 {
 	switch (p->cmd->cdb[1] & 0x1f) {
 	case SAI_READ_CAPACITY_16:

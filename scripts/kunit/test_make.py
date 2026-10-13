@@ -23,6 +23,7 @@ ENTRY_POINTS = [entry for entry in ('', 'scst', 'scst/src', 'scst/src/dev_handle
                 if 'kunit/select.mk' in (ROOT / entry / 'Makefile').read_text()]
 OWNERS = {
     'scst': ('scst/src', 'scst/kernel/in-tree/Makefile.scst'),
+    'scst_vdisk': ('scst/src/dev_handlers', 'scst/kernel/in-tree/Makefile.dev_handlers'),
 }
 
 

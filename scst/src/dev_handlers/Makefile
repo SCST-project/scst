@@ -54,16 +54,19 @@ INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/$(INSTALL_MOD_DIR)
 
 all:
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
+	  $(SCST_KUNIT_FLAGS)					\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")
 
 %.lst: %.c
 	$(MAKE) -C $(KDIR) M=$(shell pwd) $@				\
+	  $(SCST_KUNIT_FLAGS)					\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")
 
 install: all
 	mkdir -p $(DESTDIR)/var/lib/scst/vdev_mode_pages
 	KDIR=$(KDIR) ../../../scripts/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
+	  $(SCST_KUNIT_FLAGS)					\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)				\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
@@ -74,9 +77,11 @@ uninstall:
 	-rmdir $(INSTALL_DIR) 2>/dev/null
 
 clean:
-	$(MAKE) -C $(KDIR) M=$(shell pwd) $@
+	$(MAKE) -C $(KDIR) M=$(shell pwd) $(SCST_KUNIT_FLAGS) $@
 
 extraclean: clean
 	rm -f *.orig *.rej
 
 .PHONY: all install uninstall clean extraclean
+
+include ../kunit/select.mk
