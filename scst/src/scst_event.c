@@ -28,6 +28,8 @@
 #endif
 
 #include "scst_priv.h"
+#include "scst_event_priv.h"
+#include "scst_event_test.h"
 
 #undef DEFAULT_SYMBOL_NAMESPACE
 #define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
@@ -37,30 +39,51 @@ static struct class *scst_event_sysfs_class;
 
 static int scst_event_major;
 
-#define SCST_MAX_EVENTS			2048
-#define SCST_MAX_PAYLOAD		(3 * 1024)
-#define SCST_DEFAULT_EVENT_TIMEOUT	(60 * HZ)
-
-struct scst_event_priv {
-	struct list_head privs_list_entry;
-	int allowed_events_cnt;
-	int queued_events_cnt;
-	unsigned int going_to_exit:1;
-	unsigned int blocking:1;
-	pid_t owner_pid;
-	/*
-	 * WARNING: payloads in events in the allowed list queued AS IS from the
-	 * user space, so they are UNTRUSTED and can NOT be used in any other
-	 * way, except as BLOBs for comparison!
-	 */
-	struct list_head allowed_events_list;
-	struct list_head queued_events_list;
-	wait_queue_head_t queued_events_waitQ;
-	struct list_head processing_events_list;
-};
-
-static DEFINE_MUTEX(scst_event_mutex);
+SCST_KUNIT_VISIBLE
+struct mutex scst_event_mutex = __MUTEX_INITIALIZER(scst_event_mutex);
 static LIST_HEAD(scst_event_privs_list);
+
+SCST_KUNIT_VISIBLE
+int scst_event_get_user_payload_size(u32 *size, struct scst_event_user __user *arg)
+{
+	SCST_KUNIT_REDIRECT(scst_event_get_user_payload_size, size, arg);
+	return get_user(*size, &arg->max_event_size);
+}
+
+SCST_KUNIT_VISIBLE
+int scst_event_get_user_size(s32 *size, const void __user *arg)
+{
+	SCST_KUNIT_REDIRECT(scst_event_get_user_size, size, arg);
+	return get_user(*size, (const s32 __user *)arg);
+}
+
+SCST_KUNIT_VISIBLE
+int scst_event_put_user_size(s32 size, void __user *arg)
+{
+	SCST_KUNIT_REDIRECT(scst_event_put_user_size, size, arg);
+	return put_user(size, (s32 __user *)arg);
+}
+
+SCST_KUNIT_VISIBLE
+unsigned long scst_event_copy_from_user(void *to, const void __user *from, size_t size)
+{
+	SCST_KUNIT_REDIRECT(scst_event_copy_from_user, to, from, size);
+	return copy_from_user(to, from, size);
+}
+
+SCST_KUNIT_VISIBLE
+unsigned long scst_event_copy_to_user(void __user *to, const void *from, size_t size)
+{
+	SCST_KUNIT_REDIRECT(scst_event_copy_to_user, to, from, size);
+	return copy_to_user(to, from, size);
+}
+
+SCST_KUNIT_VISIBLE
+struct scst_event_entry *scst_event_alloc_user_entry(size_t size)
+{
+	SCST_KUNIT_REDIRECT(scst_event_alloc_user_entry, size);
+	return kzalloc(size, GFP_KERNEL);
+}
 
 /*
  * Compares events e1_wild and e2, where e1_wild can have wildcard matching,
@@ -97,7 +120,8 @@ out:
 	return res;
 }
 
-static void scst_event_timeout_fn(struct work_struct *work)
+SCST_KUNIT_VISIBLE
+void scst_event_timeout_fn(struct work_struct *work)
 {
 	struct scst_event_entry *event_entry = container_of(work, struct scst_event_entry,
 							    event_timeout_work.work);
@@ -132,8 +156,9 @@ out:
 	TRACE_EXIT();
 }
 
-static int scst_clone_event(const struct scst_event_entry *orig_entry,
-			    struct scst_event_entry **new_event_entry)
+SCST_KUNIT_VISIBLE
+int scst_clone_event(const struct scst_event_entry *orig_entry,
+		     struct scst_event_entry **new_event_entry)
 {
 	int res = 0;
 	const struct scst_event *event = &orig_entry->event;
@@ -582,7 +607,7 @@ static int scst_event_get_event_from_user(struct scst_event_user __user *arg,
 
 	TRACE_ENTRY();
 
-	res = get_user(payload_len, &arg->max_event_size);
+	res = scst_event_get_user_payload_size(&payload_len, arg);
 	if (res != 0) {
 		PRINT_ERROR("Failed to get payload len: %d", res);
 		goto out;
@@ -599,7 +624,7 @@ static int scst_event_get_event_from_user(struct scst_event_user __user *arg,
 
 	event_entry_len = sizeof(*event_entry) + payload_len;
 
-	event_entry = kzalloc(event_entry_len, GFP_KERNEL);
+	event_entry = scst_event_alloc_user_entry(event_entry_len);
 	if (!event_entry) {
 		PRINT_ERROR("Unable to allocate event entry (size %d)",
 			    event_entry_len);
@@ -612,7 +637,7 @@ static int scst_event_get_event_from_user(struct scst_event_user __user *arg,
 	event = &event_entry->event;
 	event_len = sizeof(*event) + payload_len;
 
-	rc = copy_from_user((u8 *)event, arg, event_len);
+	rc = scst_event_copy_from_user((u8 *)event, arg, event_len);
 	if (rc != 0) {
 		PRINT_ERROR("Failed to copy %d user's bytes", rc);
 		res = -EFAULT;
@@ -737,7 +762,7 @@ static int scst_event_user_next_event(struct scst_event_priv *priv, void __user 
 
 	TRACE_ENTRY();
 
-	res = get_user(max_event_size, (int32_t __user *)arg);
+	res = scst_event_get_user_size(&max_event_size, arg);
 	if (res != 0) {
 		PRINT_ERROR("Failed to get max event size: %d", res);
 		goto out;
@@ -773,13 +798,13 @@ static int scst_event_user_next_event(struct scst_event_priv *priv, void __user 
 	if (needed_size > max_event_size) {
 		TRACE_DBG("Too big event (size %d, max size %d)",
 			  needed_size, max_event_size);
-		res = put_user(needed_size, (int32_t __user *)arg);
+		res = scst_event_put_user_size(needed_size, arg);
 		if (res == 0)
 			res = -ENOSPC;
 		goto out;
 	}
 
-	rc = copy_to_user(&event_user->out_event, &event_entry->event, needed_size);
+	rc = scst_event_copy_to_user(&event_user->out_event, &event_entry->event, needed_size);
 	if (rc != 0) {
 		PRINT_ERROR("Copy to user failed (%d)", rc);
 		res = -EFAULT;
@@ -815,7 +840,7 @@ static int scst_event_user_notify_done(struct scst_event_priv *priv, void __user
 
 	TRACE_ENTRY();
 
-	rc = copy_from_user(&n, arg, sizeof(n));
+	rc = scst_event_copy_from_user(&n, arg, sizeof(n));
 	if (rc != 0) {
 		PRINT_ERROR("Failed to copy %d user's bytes of notify done", rc);
 		res = -EFAULT;
@@ -911,7 +936,8 @@ out_put:
 	goto out;
 }
 
-static long scst_event_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+SCST_KUNIT_VISIBLE
+long scst_event_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
 {
 	long res;
 	struct scst_event_priv *priv;
