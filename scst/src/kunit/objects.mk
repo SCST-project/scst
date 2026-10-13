@@ -14,6 +14,9 @@ scst-kunit-scst := \
 	kunit/order/suites/scst_kunit_order.o \
 	kunit/unmap/suites/scst_kunit_unmap.o
 
+scst-kunit-iscsi-scst := \
+	kunit/suites/iscsi_tx_test.o
+
 scst-kunit-scst_user := \
 	kunit/user/suites/scst_user_cleanup_test.o
 

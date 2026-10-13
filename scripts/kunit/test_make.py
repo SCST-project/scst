@@ -25,6 +25,7 @@ OWNERS = {
     'scst': ('scst/src', 'scst/kernel/in-tree/Makefile.scst'),
     'scst_vdisk': ('scst/src/dev_handlers', 'scst/kernel/in-tree/Makefile.dev_handlers'),
     'scst_user': ('scst/src/dev_handlers', 'scst/kernel/in-tree/Makefile.dev_handlers'),
+    'iscsi-scst': ('iscsi-scst/kernel', 'iscsi-scst/kernel/Makefile.in-kernel'),
 }
 
 
