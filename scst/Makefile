@@ -36,17 +36,18 @@ endef
 all: include/build_mode.h
 	cd $(SCST_DIR) && $(MAKE) $@
 
+.PHONY: kunit-build
+kunit-build: include/build_mode.h
+	$(MAKE) -C $(SCST_DIR) $@
+
 install: include/build_mode.h
 	cd $(SCST_DIR) && $(MAKE) $@
 
 uninstall:
 	cd $(SCST_DIR) && $(MAKE) $@
 
-clean:
-	rm -f include/build_mode.h
-	cd $(SCST_DIR) && $(MAKE) $@
-
-extraclean:
+clean extraclean:
+	rm -f include/build_mode.h include/build_mode.h.tmp
 	cd $(SCST_DIR) && $(MAKE) $@
 
 2debug:

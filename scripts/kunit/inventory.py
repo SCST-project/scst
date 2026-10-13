@@ -26,7 +26,6 @@ def source_suites(paths):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--labels', default='ALL')
     parser.add_argument('directories', nargs='+', type=Path)
     args = parser.parse_args(argv)
     try:
@@ -35,20 +34,12 @@ def main(argv=None):
         if not suites:
             raise ValueError('No source suites found')
         available = sorted(set(suites.values()))
-        labels = args.labels.split()
-        if 'ALL' in labels and labels != ['ALL']:
-            raise ValueError('KUNIT_LABEL=ALL must be used alone')
-        if labels != ['ALL'] and (not labels or set(labels) - set(available)):
-            raise ValueError('Select KUNIT_LABEL from: ' + ' '.join(available) + ' ALL')
-        selected = available if labels == ['ALL'] else sorted(set(labels))
     except (OSError, ValueError) as exc:
         parser.error(str(exc))
     print('Source suites (the runner validates the built modules):')
     print('Available KUNIT_LABEL: ' + ' '.join(available) + ' ALL')
-    print('Selected: ' + ' '.join(selected))
     for name, label in sorted(suites.items()):
-        if label in selected:
-            print(f'  {label}: {name}')
+        print(f'  {label}: {name}')
     return 0
 
 

@@ -31,16 +31,19 @@ scst_kunit_suite(example, "NEW_LABEL", "-boundary",
     .test_cases = cases,
 );
 scst_kunit_suite(second, "NEW_LABEL", "", .test_cases = other_cases);
+scst_kunit_suite(third, "OTHER", "", .test_cases = third_cases);
 ''')
             self.assertEqual(source_suites(root.glob('*.c')), {
-                'scst-NEW_LABEL-boundary': 'NEW_LABEL', 'scst-NEW_LABEL': 'NEW_LABEL'})
+                'scst-NEW_LABEL-boundary': 'NEW_LABEL', 'scst-NEW_LABEL': 'NEW_LABEL',
+                'scst-OTHER': 'OTHER'})
             command = [sys.executable, str(Path(__file__).with_name('inventory.py')),
-                       '--labels', 'NEW_LABEL', str(root)]
+                       str(root)]
             result = subprocess.run(command, cwd=tmp, env=dict(os.environ, PATH=''),
                                     capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stderr)
-            self.assertIn('Selected: NEW_LABEL', result.stdout)
+            self.assertIn('Available KUNIT_LABEL: NEW_LABEL OTHER ALL', result.stdout)
             self.assertIn('scst-NEW_LABEL-boundary', result.stdout)
+            self.assertIn('scst-OTHER', result.stdout)
 
     def test_duplicate_names_and_reserved_labels_are_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:

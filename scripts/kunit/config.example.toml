@@ -1,0 +1,8 @@
+# Copy to .kunit-run.toml for make kunit-run or python3 scripts/kunit/run.py.
+# Select execution with KUNIT_LABEL=<labels> or --labels <labels> (default: ALL).
+# Paths are relative to this file. CLI arguments override these settings.
+# Omit modules to use the module list saved by make kunit-build.
+# modules = ["scst/src/scst.ko"]
+timeout_seconds = 300
+output_dir = "kunit-results"
+verbose = false

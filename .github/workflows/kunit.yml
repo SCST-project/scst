@@ -1,0 +1,70 @@
+name: KUnit
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  kunit:
+    name: Tooling and module build
+    runs-on: ubuntu-latest
+    container: fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80
+    timeout-minutes: 20
+    env:
+      # Update the image and kernel deliberately, independently of the regression matrix.
+      KERNEL_BUILD: 7.2.9-201.fc44
+      KERNEL_DEVEL_SHA256: 17e14518fe28ea6897bc448bf3e50434ac5ed58d4ca10d3c1c20ef145a16e7cd
+    steps:
+      - name: Install build dependencies
+        run: |
+          dnf install -y gcc make elfutils-libelf-devel openssl-devel \
+            python3 git tar gzip findutils diffutils gawk curl-minimal
+      - uses: actions/checkout@v4
+      - name: Prepare pinned kernel headers
+        run: |
+          rpm_file="$RUNNER_TEMP/kernel-devel-$KERNEL_BUILD.x86_64.rpm"
+          curl --fail --location --retry 3 \
+            "https://kojipkgs.fedoraproject.org/packages/kernel/${KERNEL_BUILD%-*}/${KERNEL_BUILD#*-}/x86_64/kernel-devel-$KERNEL_BUILD.x86_64.rpm" \
+            --output "$rpm_file"
+          printf '%s  %s\n' "$KERNEL_DEVEL_SHA256" "$rpm_file" | sha256sum --check
+          dnf install -y "$rpm_file"
+          kdir="/usr/src/kernels/$KERNEL_BUILD.x86_64"
+          test -s "$kdir/Module.symvers"
+          if ! grep -Eq '^CONFIG_KUNIT=[ym]$' "$kdir/.config"; then
+            echo "::error::The pinned kernel $KERNEL_BUILD does not enable KUnit"
+            exit 1
+          fi
+          printf 'KDIR=%s\nREPORTS=%s/kunit\n' "$kdir" "$RUNNER_TEMP" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/kunit"
+          rpm -q kernel-devel gcc > "$RUNNER_TEMP/kunit/packages.txt"
+          cp "$kdir/.config" "$RUNNER_TEMP/kunit/kernel.config"
+      - name: Check tooling
+        run: |
+          python3 -m unittest discover -s scripts/kunit -p 'test_*.py' 2>&1 | tee "$REPORTS/tooling.log"
+          make kunit-list
+      - name: Build SCST KUnit modules
+        run: |
+          make -j"$(nproc)" kunit-build 2>&1 | tee "$REPORTS/scst-build.log"
+          tar -czf "$REPORTS/modules.tar.gz" -T .kunit-modules .kunit-modules
+      - name: Check cleanup
+        run: |
+          make kunit-clean 2>&1 | tee "$REPORTS/clean.log"
+          test ! -e .kunit-modules
+          test ! -e .kunit-modules.tmp
+          test -z "$(find scst/src iscsi-scst/kernel -type f \( -name '*.ko' -o -name '*.o' -o -name '*.cmd' \) -print -quit)"
+      - name: Save build evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: kunit
+          path: ${{ runner.temp }}/kunit/
