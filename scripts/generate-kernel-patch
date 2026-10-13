@@ -322,7 +322,8 @@ scst_07_pres="scst/src/scst_pres.h scst/src/scst_pres.c"
 scst_08_sysfs="scst/src/scst_sysfs.c"
 scst_09_debug="scst/include/scst_debug.h scst/src/scst_debug.c"
 scst_10_sgv="scst/include/scst_sgv.h scst/src/scst_mem.h scst/src/scst_mem.c doc/scst_pg.sgml"
-scst_user="scst/include/scst_user.h scst/src/dev_handlers/scst_user_main.c"
+scst_user="scst/include/scst_user.h scst/src/dev_handlers/scst_user_main.c \
+scst/src/dev_handlers/scst_user_test.h"
 scst_13_vdisk="scst/src/dev_handlers/scst_vdisk_main.c \
 scst/src/dev_handlers/scst_vdisk_test.h"
 scst_14_tg="scst/src/scst_tg.c"

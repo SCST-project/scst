@@ -14,6 +14,9 @@ scst-kunit-scst := \
 	kunit/order/suites/scst_kunit_order.o \
 	kunit/unmap/suites/scst_kunit_unmap.o
 
+scst-kunit-scst_user := \
+	kunit/user/suites/scst_user_cleanup_test.o
+
 scst-kunit-scst_vdisk := \
 	kunit/vdisk/scst_vdisk_fixture.o \
 	kunit/vdisk/suites/scst_vdisk_capacity_test.o \

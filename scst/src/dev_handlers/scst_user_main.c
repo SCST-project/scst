@@ -36,6 +36,11 @@
 #endif
 #include "scst_dev_handler.h"
 #include "scst_user_priv.h"
+#include "scst_user_test.h"
+
+#ifndef SCST_KUNIT_ENABLED
+static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy, unsigned long *flags);
+#endif
 
 #ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
@@ -55,8 +60,6 @@ static void dev_user_free_sg_entries(struct scatterlist *sg, int sg_count,
 				     void *priv);
 
 static void dev_user_add_to_ready(struct scst_user_cmd *ucmd);
-
-static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy, unsigned long *flags);
 
 static int dev_user_process_reply_on_free(struct scst_user_cmd *ucmd);
 static int dev_user_process_reply_tm_exec(struct scst_user_cmd *ucmd, int status);
@@ -2450,7 +2453,8 @@ out:
  * Called under udev_cmd_threads.cmd_list_lock, but can drop it inside,
  * then reacquire.
  */
-static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy, unsigned long *flags)
+SCST_KUNIT_VISIBLE
+void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy, unsigned long *flags)
 	__releases(&dev->udev_cmd_threads.cmd_list_lock)
 	__acquires(&dev->udev_cmd_threads.cmd_list_lock)
 {
@@ -2575,6 +2579,13 @@ out:
 	TRACE_EXIT();
 }
 
+SCST_KUNIT_VISIBLE
+void dev_user_flush_pool(struct sgv_pool *pool)
+{
+	SCST_KUNIT_REDIRECT(dev_user_flush_pool, pool);
+	sgv_pool_flush(pool);
+}
+
 static int dev_user_unjam_dev(struct scst_user_dev *dev)
 	__releases(&dev->udev_cmd_threads.cmd_list_lock)
 	__acquires(&dev->udev_cmd_threads.cmd_list_lock)
@@ -2586,8 +2597,8 @@ static int dev_user_unjam_dev(struct scst_user_dev *dev)
 
 	TRACE_MGMT_DBG("Unjamming dev %p", dev);
 
-	sgv_pool_flush(dev->pool);
-	sgv_pool_flush(dev->pool_clust);
+	dev_user_flush_pool(dev->pool);
+	dev_user_flush_pool(dev->pool_clust);
 
 	spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
@@ -2631,8 +2642,8 @@ repeat:
 	 * indefinitely. A checked-out object cannot be flushed until its user
 	 * returns it; cleanup must allow that user to make progress.
 	 */
-	sgv_pool_flush(dev->pool);
-	sgv_pool_flush(dev->pool_clust);
+	dev_user_flush_pool(dev->pool);
+	dev_user_flush_pool(dev->pool_clust);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -3758,7 +3769,8 @@ static void dev_user_check_lost_ucmds(struct scst_user_dev *dev)
 }
 #endif
 
-static int dev_user_process_cleanup(struct scst_user_dev *dev)
+SCST_KUNIT_VISIBLE
+int dev_user_process_cleanup(struct scst_user_dev *dev)
 {
 	struct scst_user_cmd *ucmd;
 	int rc = 0, res = 1;
