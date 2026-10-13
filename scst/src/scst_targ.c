@@ -44,6 +44,10 @@
 #include "scst_pres.h"
 #include "scst_targ_test.h"
 
+#ifndef SCST_KUNIT_ENABLED
+static void scst_cmd_set_sn(struct scst_cmd *cmd);
+#endif
+
 #undef DEFAULT_SYMBOL_NAMESPACE
 #define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
 
@@ -3816,7 +3820,8 @@ static inline void scst_inc_expected_sn_idle(struct scst_order_data *order_data)
  * command identifier in SAM-5 or comments about task tags and command
  * reordering in previous SAM revisions.
  */
-static void scst_cmd_set_sn(struct scst_cmd *cmd)
+SCST_KUNIT_VISIBLE
+void scst_cmd_set_sn(struct scst_cmd *cmd)
 {
 	struct scst_order_data *order_data = cmd->cur_order_data;
 	unsigned long flags;
@@ -4582,8 +4587,6 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 EXPORT_SYMBOL_GPL(scst_process_active_cmd);
 
 /* Called under cmd_list_lock and IRQs disabled */
-static void scst_cmd_set_sn(struct scst_cmd *cmd);
-
 static void scst_do_job_active(struct list_head *cmd_list, spinlock_t *cmd_list_lock, bool atomic)
 	__releases(cmd_list_lock)
 	__acquires(cmd_list_lock)
