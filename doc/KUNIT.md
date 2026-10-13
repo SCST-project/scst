@@ -62,6 +62,7 @@ validates the selection against the supplied `.ko` files.
 | --- | --- |
 | `scst.ko` | `ALUA CDB CM EVENT LIB LIFECYCLE ORDER UNMAP` |
 | `scst_vdisk.ko` | `VDISK` |
+| `scst_user.ko` | `USER` |
 
 The runner reads suite metadata and dependencies from the modules and loads selected
 owners in dependency order. Supply all required SCST modules from the same build;
