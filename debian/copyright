@@ -215,8 +215,10 @@ Files: scst/Makefile
        scst/src/dev_handlers/scst_processor.c
        scst/src/dev_handlers/scst_raid.c
        scst/src/dev_handlers/scst_tape.c
-       scst/src/dev_handlers/scst_user.c
-       scst/src/dev_handlers/scst_vdisk.c
+       scst/src/dev_handlers/scst_user_main.c
+       scst/src/dev_handlers/scst_user_priv.h
+       scst/src/dev_handlers/scst_vdisk_main.c
+       scst/src/dev_handlers/scst_vdisk_priv.h
        scst/src/scst_debug.c
        scst/src/scst_dlm.c
        scst/src/scst_dlm.h

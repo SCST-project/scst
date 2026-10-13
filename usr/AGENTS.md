@@ -6,7 +6,7 @@ This directory owns C programs that consume SCST kernel/user interfaces:
 
 - `fileio/` implements a user-space device handler over `/dev/scst_user`.
   `scst/include/scst_user.h` and
-  `scst/src/dev_handlers/scst_user.c` own the kernel side of that ABI.
+  `scst/src/dev_handlers/scst_user_main.c` own the kernel side of that ABI.
 - `stpgd/` consumes SCST events and dispatches ALUA state transitions through
   `scst_on_stpg`. `events/` is a small event-API example and is not part of the
   default `usr/Makefile` build/install set.

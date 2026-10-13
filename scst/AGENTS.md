@@ -19,7 +19,7 @@ the `scstadmin` configuration parser, or user-space handler behavior.
   files own build composition and compatibility plumbing.
 - `SysfsRules` plus `src/scst_sysfs.c`, `src/scst_tg.c`, `src/scst_targ.c`,
   and handler sysfs code define the control surface consumed by `scstadmin`.
-- `include/scst_user.h`/`src/dev_handlers/scst_user.c` and
+- `include/scst_user.h`/`src/dev_handlers/scst_user_main.c` and
   `include/scst_event.h`/`src/scst_event.c` are kernel/user ABI pairs.
   `doc/scst_user_spec.sgml` and `doc/scst_pg.sgml` are explanatory references,
   not substitutes for current code.

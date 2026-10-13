@@ -1302,7 +1302,7 @@ will create a FILEIO virtual device disk1 with backend file /disk1
 with block size 4K and NV_CACHE enabled.
 
 The handler-specific attribute set for vdisk_fileio devices is defined
-by vdisk_fileio_attrs in src/dev_handlers/scst_vdisk.c. Common device
+by vdisk_fileio_attrs in src/dev_handlers/scst_vdisk_main.c. Common device
 attributes are described above. Selected attributes in
 /sys/kernel/scst_tgt/devices/device_name are described below:
 
@@ -1333,7 +1333,7 @@ attributes are described above. Selected attributes in
    The default value for this field is the SCST device name.
 
  - prod_rev_lvl - PRODUCT REVISION LEVEL as reported via the INQUIRY
-   response. The default is SCST_FIO_REV as defined in scst_vdisk.c.
+   response. The default is SCST_FIO_REV as defined in scst_vdisk_main.c.
 
  - scsi_device_name - optional SCSI target device name to which this
    SCST device belongs to (in SCSI terminology all SCST devices called
@@ -1449,12 +1449,12 @@ For example:
 
 The handler-specific attribute sets for vdisk_blockio and vdisk_nullio
 devices are defined by vdisk_blockio_attrs and vdisk_nullio_attrs in
-src/dev_handlers/scst_vdisk.c. They share many attributes with
+src/dev_handlers/scst_vdisk_main.c. They share many attributes with
 vdisk_fileio; see the descriptions above and the common device
 attributes described earlier.
 
 The handler-specific attribute set for vcdrom devices is defined by
-vcdrom_attrs in src/dev_handlers/scst_vdisk.c. Its filename attribute is
+vcdrom_attrs in src/dev_handlers/scst_vdisk_main.c. Its filename attribute is
 writable. Writing to it allows to virtually insert or change virtual CD
 media in the virtual CDROM device. For example:
 

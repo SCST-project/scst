@@ -864,7 +864,7 @@ int scst_suspend_activity(unsigned long timeout)
 	wait_for_completion(&scst_confirm_done);
 
 	/*
-	 * See comment in scst_user.c::dev_user_task_mgmt_fn() for more
+	 * See comment in scst_user_main.c::dev_user_task_mgmt_fn() for more
 	 * information about scst_user behavior.
 	 *
 	 * ToDo: make the global suspending unneeded (switch to per-device
