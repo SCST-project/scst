@@ -125,18 +125,41 @@ the public certificate is an enrollment input.
 
 ## Validation
 
+- Follow [CONTRIBUTING.md](CONTRIBUTING.md) for code style and commit
+  conventions. Before handoff, inspect the final diff and run the applicable
+  checks below from the repository root. Use the resolved base commit of the
+  submitted series as `<base>`; do not silently substitute a moving branch.
+
+  | Change | Required local checks |
+  | --- | --- |
+  | Any change | `git diff --check <base>`; inspect added files too, including files not yet tracked. |
+  | Prepared commits | `scripts/checkpatch_commits <base>`; run Conform as described in `CONTRIBUTING.md` and review prefixes against its registry. |
+  | Uncommitted C changes | `scripts/checkpatch_diff <base>`. Rerun the per-commit checks once the series is prepared. |
+  | Shell scripts or sourced shell files | ShellCheck and syntax checks as described below. |
+  | Python files | `python3 -m py_compile <changed-files>`. |
+  | Go files | `gofmt -l <changed-files>` must produce no output; follow component validation guidance. |
+
+- For changed Bash files, run `bash -n <file>` for each file and
+  `shellcheck -x -P SCRIPTDIR <changed-files>`. For POSIX shell files, use
+  `sh -n` and ShellCheck's `sh` dialect. Check sourced files with the caller's
+  dialect if they have no shebang. Include new files and files outside
+  `scripts/`: `make shellcheck` currently covers only Bash scripts under
+  `scripts/` whose paths already exist in `HEAD`.
+- Fix diagnostics introduced by the change. Report any remaining diagnostic
+  with its location and reason; do not extend ignore lists just to pass.
+  A missing tool or failed invocation is not a passed check. Report the
+  checked base and HEAD, commands, results and checks not run. After editing
+  code or commit messages, rerun the affected checks on the final version.
 - Use the narrowest real entry point from the top-level/component Makefiles.
   The top-level build and packaging workflows are represented by
   `.github/workflows/ci.yml` and `.github/workflows/coverity.yml`.
-- Kernel-style checks use `scripts/checkpatch`, `scripts/checkpatch_diff`, or
-  `scripts/checkpatch_commits`. The kernel compatibility, compile, sparse, and
-  smatch workflow is `scripts/run-regression-tests` as configured by
-  `.github/workflows/run_regression_tests.yaml`; it is heavyweight, downloads
-  or prepares kernel trees, and is not a quick unit test.
-- `make ginkgo-check` checks the component-test framework only. Read a local
-  `AGENTS.md` before using a component `test` target. For instruction-only or
-  documentation-only changes, inspect the full diff and run
-  `git diff --check`; do not build merely to validate prose.
+- `scripts/run-regression-tests` provides kernel compatibility, compilation,
+  sparse and smatch checks. It downloads or prepares kernel trees and is not
+  part of the lightweight checks above. Static checks do not establish build
+  or runtime correctness.
+- `make ginkgo-check` checks the component-test framework only. Read component
+  guidance before using its `test` target. Do not build merely to validate
+  instruction-only or documentation-only changes.
 - Never use an untracked local helper as an established project entry point.
 
 ## Safety boundaries

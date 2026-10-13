@@ -1,0 +1,9 @@
+# Kernel-style subjects; SCST prefixes are documented in CONTRIBUTING.md.
+# Do not enable Conventional Commits or case/imperative checks on the prefix.
+policies:
+  - type: commit
+    spec:
+      header:
+        length: 75
+        invalidLastCharacters: "."
+      dco: false
