@@ -47,7 +47,7 @@ user-space handlers and daemons.
   require an audit of all in-tree consumers, including every target driver and
   device handler; do not infer callback context, command ownership, teardown
   ordering, or API availability from an old document.
-- `scst/include/scst_user.h` plus `scst/src/dev_handlers/scst_user.c` define
+- `scst/include/scst_user.h` plus `scst/src/dev_handlers/scst_user_main.c` define
   the `/dev/scst_user` ABI consumed by `usr/fileio/`.
   `scst/include/scst_event.h` plus `scst/src/scst_event.c` define the event ABI
   consumed by `usr/events/` and `usr/stpgd/`. Update producers and consumers
