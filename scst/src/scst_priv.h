@@ -23,6 +23,7 @@
 #include <linux/slab.h>
 #include <linux/delay.h>
 #include <linux/export.h>
+#include <linux/workqueue.h>
 #include <scsi/scsi.h>
 #include <scsi/scsi_cmnd.h>
 #include <scsi/scsi_driver.h>
@@ -343,6 +344,11 @@ void scst_free_tgt(struct scst_tgt *tgt);
 int scst_alloc_device(gfp_t gfp_mask, int nodeid, struct scst_device **out_dev);
 void scst_free_device(struct scst_device *dev);
 bool scst_device_is_exported(struct scst_device *dev);
+
+struct scst_acg_release_work {
+	struct work_struct	work;
+	struct scst_acg		*acg;
+};
 
 int scst_alloc_add_acg(struct scst_tgt *tgt, const char *acg_name, bool tgt_acg,
 		       struct scst_acg **out_acg);
