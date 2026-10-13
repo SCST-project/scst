@@ -54,8 +54,10 @@ artifacts. Change their sources or recipes instead.
 
 The focused compile entry point is top-level `make iscsi` or `make -C
 iscsi-scst`; it builds both user and kernel parts and may run compatibility
-conftests. There is no component unit-test target; use repository CI,
-checkpatch, and regression entry points as appropriate.
+conftests. Use repository CI, checkpatch, and regression entry points as
+appropriate. Before changing tests under `kernel/kunit/`, read
+[the KUnit guide](../doc/KUNIT.md) for build and execution entry points,
+private interfaces and fixture cleanup.
 
 Do not install or run the daemon, open portals, apply iSCSI configuration,
 create targets/sessions/connections, perform discovery/login/logout, manipulate

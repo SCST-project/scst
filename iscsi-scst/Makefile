@@ -138,7 +138,7 @@ CONFTEST_CFLAGS =					\
 ISER_CFLAGS = $(OFED_CFLAGS) -DOFED_FLAVOR=$(OFED_FLAVOR) $(CONFTEST_CFLAGS)
 
 mods: include/iscsi_scst_itf_ver.h $(CONFTEST_OUTPUTS)
-	$(MAKE) -C $(KDIR) M=$(KMOD) CONFTEST_CFLAGS="$(CONFTEST_CFLAGS)"\
+	$(MAKE) -C $(KDIR) M=$(KMOD) $(SCST_KUNIT_FLAGS) CONFTEST_CFLAGS="$(CONFTEST_CFLAGS)"\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  modules
 	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
@@ -148,6 +148,12 @@ mods: include/iscsi_scst_itf_ver.h $(CONFTEST_OUTPUTS)
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  $(OFED_CONFIG) modules;					\
 	fi
+
+.PHONY: kunit-build
+kunit-build: include/iscsi_scst_itf_ver.h conftest/sock_recvmsg/result-$(KVER).txt
+	$(MAKE) -C $(KDIR) M=$(KMOD) $(SCST_KUNIT_FLAGS) \
+	  CONFTEST_CFLAGS="$(CONFTEST_CFLAGS)" \
+	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)") iscsi-scst.ko
 
 progs: include/iscsi_scst_itf_ver.h
 	$(MAKE) -C usr
@@ -166,7 +172,7 @@ install: all
 	@install -vD -m 755 usr/iscsi-scst-adm $(DESTDIR)$(SBINDIR)/iscsi-scst-adm
 	@install -vD -m 644 doc/manpages/iscsi-scst-adm.8 $(DESTDIR)$(MANDIR)/man8/iscsi-scst-adm.8
 	(cd $(KMOD) && KDIR=$(KDIR) ../../scripts/sign-modules)
-	$(MAKE) -C $(KDIR) M=$(KMOD)					\
+	$(MAKE) -C $(KDIR) M=$(KMOD) $(SCST_KUNIT_FLAGS)	\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)				\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
@@ -333,3 +339,5 @@ release-archive:
 	../scripts/generate-release-archive iscsi-scst "$$(sed -n 's/^#define[[:blank:]]ISCSI_VERSION_STRING[[:blank:]]*\"\([^\"]*\)\".*/\1/p' include/iscsi_scst_ver.h)"
 
 .PHONY: all mods progs install clean extraclean
+
+include ../scst/src/kunit/select.mk

@@ -28,6 +28,8 @@
 #include "iscsi_trace_flag.h"
 #include "iscsi.h"
 #include "digest.h"
+#include "nthread.h"
+#include "nthread_test.h"
 
 #undef DEFAULT_SYMBOL_NAMESPACE
 #define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
@@ -47,16 +49,6 @@ enum rx_state {
 	RX_CHECK_DDIGEST,
 	RX_AHS,
 	RX_PADDING,
-};
-
-enum tx_state {
-	TX_INIT = 0, /* Must be zero for better "switch" optimization. */
-	TX_BHS_DATA,
-	TX_INIT_PADDING,
-	TX_PADDING,
-	TX_INIT_DDIGEST,
-	TX_DDIGEST,
-	TX_END,
 };
 
 static void free_pending_commands(struct iscsi_conn *conn)
@@ -1068,7 +1060,8 @@ out:
 	TRACE_EXIT();
 }
 
-static int write_data(struct iscsi_conn *conn)
+SCST_KUNIT_VISIBLE
+int write_data(struct iscsi_conn *conn)
 {
 	struct socket *sock;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0)
@@ -1086,6 +1079,8 @@ static int write_data(struct iscsi_conn *conn)
 	size_t sendsize, length;
 	int offset, idx, flags, res = 0;
 	bool ref_cmd_to_parent;
+
+	SCST_KUNIT_REDIRECT(write_data, conn);
 
 	TRACE_ENTRY();
 
@@ -1324,6 +1319,22 @@ static void exit_tx(struct iscsi_conn *conn, int res)
 	}
 }
 
+SCST_KUNIT_VISIBLE
+int iscsi_tx_sendmsg(struct socket *sock, struct msghdr *msg,
+		     struct kvec *iov, size_t size)
+{
+	SCST_KUNIT_REDIRECT(iscsi_tx_sendmsg, sock, msg, iov, size);
+	return kernel_sendmsg(sock, msg, iov, 1, size);
+}
+
+SCST_KUNIT_VISIBLE
+void iscsi_tx_complete(struct iscsi_cmnd *cmnd)
+{
+	SCST_KUNIT_REDIRECT(iscsi_tx_complete, cmnd);
+	cmnd_tx_end(cmnd);
+	rsp_cmnd_release(cmnd);
+}
+
 static int tx_ddigest(struct iscsi_cmnd *cmnd, int state)
 {
 	int res, rest = cmnd->conn->write_size;
@@ -1337,7 +1348,7 @@ static int tx_ddigest(struct iscsi_cmnd *cmnd, int state)
 	iov.iov_base = (char *)(&cmnd->ddigest) + (sizeof(u32) - rest);
 	iov.iov_len = rest;
 
-	res = kernel_sendmsg(cmnd->conn->sock, &msg, &iov, 1, rest);
+	res = iscsi_tx_sendmsg(cmnd->conn->sock, &msg, &iov, rest);
 	if (res > 0) {
 		cmnd->conn->write_size -= res;
 		if (!cmnd->conn->write_size)
@@ -1383,7 +1394,7 @@ static int tx_padding(struct iscsi_cmnd *cmnd, int state)
 	iov.iov_base = (char *)&padding;
 	iov.iov_len = rest;
 
-	res = kernel_sendmsg(cmnd->conn->sock, &msg, &iov, 1, rest);
+	res = iscsi_tx_sendmsg(cmnd->conn->sock, &msg, &iov, rest);
 	if (res > 0) {
 		cmnd->conn->write_size -= res;
 		if (!cmnd->conn->write_size)
@@ -1485,9 +1496,7 @@ int iscsi_send(struct iscsi_conn *conn)
 				 res, cmnd_opcode(cmnd), conn->write_size);
 		sBUG();
 	}
-	cmnd_tx_end(cmnd);
-
-	rsp_cmnd_release(cmnd);
+	iscsi_tx_complete(cmnd);
 
 	conn->write_cmnd = NULL;
 	conn->write_state = TX_INIT;
