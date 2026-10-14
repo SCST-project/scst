@@ -106,8 +106,11 @@ static bool scst_unmap_overlap(struct scst_cmd *cmd, int64_t lba2, int64_t lba2_
 	if (!pd)
 		goto out;
 
-	for (i = 0; pd[i].sdd_blocks != 0; i++) {
+	for (i = 0; i < cmd->cmd_data_descriptors_cnt; i++) {
 		struct scst_data_descriptor *d = &pd[i];
+
+		if (!d->sdd_blocks)
+			continue;
 
 		TRACE_DBG("i %d, lba %lld, blocks %lld",
 			  i, (long long)d->sdd_lba, (long long)d->sdd_blocks);
