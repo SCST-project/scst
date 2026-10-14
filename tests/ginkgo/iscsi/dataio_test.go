@@ -10,6 +10,9 @@ import (
 )
 
 var _ = dataio.Register(func(ctx SpecContext, profile dataio.Profile) *dataio.Endpoint {
+	if profile.Fileio.ThinProvisioned && !cfg.FileioThinProvisioning {
+		Skip("fileio_thin_provisioning=false: UNMAP coverage explicitly disabled for this filesystem")
+	}
 	timeout := testcfg.Duration(cfg.CommandTimeout)
 	Expect(dataio.RequireTools(ctx, peer.Run, timeout, profile.FIO)).To(Succeed())
 	f := newProfileFixture(ctx, &profile)

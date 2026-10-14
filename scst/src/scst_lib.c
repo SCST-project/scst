@@ -14574,33 +14574,26 @@ static int scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 	EXTRACHECKS_BUG_ON(cmd->cmd_data_descriptors != NULL);
 	EXTRACHECKS_BUG_ON(cmd->cmd_data_descriptors_cnt != 0);
 
-	length = scst_get_buf_full_sense(cmd, &address);
-	if (unlikely(length <= 0)) {
-		if (length == 0)
-			goto out;
-		else
-			goto out_abn;
-	}
-
 	total_len = get_unaligned_be16(&cmd->cdb[7]);
-	offset = 8;
+	if (total_len == 0)
+		goto out;
 
-	descriptor_len = get_unaligned_be16(&address[2]);
+	length = scst_get_buf_full_sense(cmd, &address);
+	if (unlikely(length < 0))
+		goto out_abn;
 
-	TRACE_DBG("total_len %d, descriptor_len %d", total_len, descriptor_len);
-
-	if (descriptor_len == 0)
-		goto out_put;
-
-	if (unlikely((descriptor_len > (total_len - 8)) ||
-		     ((descriptor_len % 16) != 0))) {
-		PRINT_ERROR("Bad descriptor length: %d < %d - 8",
-			descriptor_len, total_len);
-		scst_set_invalid_field_in_parm_list(cmd, 2, 0);
+	/* Validate the header and transfer before reading parameter data. */
+	if (unlikely(total_len < 8 || length < total_len)) {
+		scst_set_cmd_error(cmd,
+				   SCST_LOAD_SENSE(scst_sense_parameter_list_length_invalid));
 		goto out_abn_put;
 	}
 
-	cnt = descriptor_len/16;
+	descriptor_len = get_unaligned_be16(&address[2]);
+	TRACE_DBG("total_len %d, descriptor_len %d", total_len, descriptor_len);
+
+	/* Ignore an incomplete last descriptor and data beyond the CDB length. */
+	cnt = min(descriptor_len, total_len - 8) / 16;
 	if (cnt == 0)
 		goto out_put;
 
@@ -14613,8 +14606,8 @@ static int scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 
 	TRACE_DBG("cnt %d, pd %p", cnt, pd);
 
-	i = 0;
-	while ((offset - 8) < descriptor_len) {
+	offset = 8;
+	for (i = 0; i < cnt; i++) {
 		struct scst_data_descriptor *d = &pd[i];
 
 		d->sdd_lba = get_unaligned_be64(&address[offset]);
@@ -14623,7 +14616,6 @@ static int scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 		offset += 8;
 		TRACE_DBG("i %d, lba %lld, blocks %lld", i,
 			(long long)d->sdd_lba, (long long)d->sdd_blocks);
-		i++;
 	}
 
 	cmd->cmd_data_descriptors = pd;
