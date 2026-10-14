@@ -2,9 +2,36 @@
 package suite
 
 import (
+	"context"
+	"strconv"
+
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )
+
+// Drop only this fixture's copy-manager mappings. Without this, a device can
+// retain an open backend after the last external LUN has been removed.
+func (f *fixture) detachCopyManager(ctx context.Context, device string) {
+	GinkgoHelper()
+	for lun, d := range copyManagerLUNs(ctx) {
+		if d == device {
+			f.do(ctx, "-rem_lun", strconv.Itoa(lun), "-driver", "copy_manager", "-target", "copy_manager_tgt")
+		}
+	}
+	Expect(copyManagerLUNs(ctx)).NotTo(ContainElement(device))
+}
+
+func (f *fixture) attachFileio(ctx context.Context, device string) (string, string) {
+	GinkgoHelper()
+	session := f.name("session")
+	target := f.target(ctx, "target", "session_name="+session)
+	// scstadmin reports session LUNs only for explicit initiator groups.
+	f.at(ctx, target, "", "-add_group", "access")
+	f.at(ctx, target, "access", "-add_lun", "0", "-device", device)
+	f.at(ctx, target, "access", "-add_init", session)
+	f.sessionLUNs(ctx, target, session, map[int]string{0: device})
+	return target, session
+}
 
 var _ = Describe("File-backed devices", Label("basic", "fileio"), func() {
 	var f *fixture
@@ -13,6 +40,7 @@ var _ = Describe("File-backed devices", Label("basic", "fileio"), func() {
 	It("syncs an active device and keeps its configuration across reactivation", func(ctx SpecContext) {
 		path := f.backingFile("disk")
 		d := f.fileDevice(ctx, "disk", path)
+		f.attachFileio(ctx, d)
 		Expect(f.deviceAttr(ctx, d, "active")).To(Equal("1"))
 		f.setDevice(ctx, d, "sync=1")
 		f.setDevice(ctx, d, "active=0")
@@ -27,6 +55,7 @@ var _ = Describe("File-backed devices", Label("basic", "fileio"), func() {
 	It("rejects an active backing change and recovers from a failed activation", Label("negative"), func(ctx SpecContext) {
 		first, second := f.backingFile("first"), f.backingFile("second")
 		d := f.fileDevice(ctx, "disk", first, "thin_provisioned=0")
+		f.attachFileio(ctx, d)
 		f.reject(ctx, "-set_dev_attr", d, "-attributes", "filename="+second)
 		Expect(f.deviceAttr(ctx, d, "filename")).To(Equal(first))
 		Expect(f.deviceAttr(ctx, d, "active")).To(Equal("1"))
@@ -91,23 +120,42 @@ var _ = Describe("File-backed devices", Label("basic", "fileio"), func() {
 		}, Entry("disabled", "0"), Entry("enabled on a capable filesystem", "1"))
 })
 
-var _ = It("handles sync on an inactive fileio device without losing manageability", Label("fileio", "known-crash", "issue-394"), func(ctx SpecContext) {
-	if !cfg.AllowKnownCrash {
-		Skip("issue #394 can crash the kernel; requires allow_known_crash=true and an explicit label selection")
-	}
+var _ = It("handles sync on an inactive fileio device without losing manageability", Label("basic", "fileio", "negative", "issue-394"), func(ctx SpecContext) {
 	f := newFixture()
 	path := f.backingFile("disk")
 	d := f.fileDevice(ctx, "disk", path)
+	f.attachFileio(ctx, d)
 	f.setDevice(ctx, d, "active=0")
 	Expect(f.deviceAttr(ctx, d, "active")).To(Equal("0"))
-	// The public contract does not specify rejection versus a no-op. Either
-	// completed CLI outcome is acceptable; an execution failure is not.
-	r, err := cli.Execute(ctx, "-set_dev_attr", d, "-attributes", "sync=1")
-	Expect(err).NotTo(HaveOccurred(), r.String())
-	AddReportEntry("inactive sync result", r.String())
+	f.reject(ctx, "-set_dev_attr", d, "-attributes", "sync=1")
 	Expect(f.deviceAttr(ctx, d, "active")).To(Equal("0"))
 	Expect(f.deviceAttr(ctx, d, "filename")).To(Equal(path))
+	Expect(f.deviceAttr(ctx, d, "size_mb")).To(Equal("16"))
 	f.setDevice(ctx, d, "active=1")
 	Expect(f.deviceAttr(ctx, d, "active")).To(Equal("1"))
+	f.setDevice(ctx, d, "sync=1")
+})
+
+var _ = It("rejects sync after the last attachment and reopens on a new attachment", Label("basic", "fileio", "negative", "issue-394"), func(ctx SpecContext) {
+	f := newFixture()
+	path := f.backingFile("disk")
+	d := f.fileDevice(ctx, "disk", path)
+	f.detachCopyManager(ctx, d)
+	Expect(f.deviceAttr(ctx, d, "active")).To(Equal("1"))
+	f.reject(ctx, "-set_dev_attr", d, "-attributes", "sync=1")
+	// Reactivation alone must not invent a backend attachment.
+	f.setDevice(ctx, d, "active=0")
+	f.setDevice(ctx, d, "active=1")
+	f.reject(ctx, "-set_dev_attr", d, "-attributes", "sync=1")
+	target, session := f.attachFileio(ctx, d)
+	f.setDevice(ctx, d, "sync=1")
+	f.at(ctx, target, "access", "-rem_lun", "0")
+	f.sessionLUNs(ctx, target, session, map[int]string{})
+	f.reject(ctx, "-set_dev_attr", d, "-attributes", "sync=1")
+	Expect(f.deviceAttr(ctx, d, "active")).To(Equal("1"))
+	Expect(f.deviceAttr(ctx, d, "filename")).To(Equal(path))
+	Expect(f.deviceAttr(ctx, d, "size_mb")).To(Equal("16"))
+	f.at(ctx, target, "access", "-add_lun", "0", "-device", d)
+	f.sessionLUNs(ctx, target, session, map[int]string{0: d})
 	f.setDevice(ctx, d, "sync=1")
 })

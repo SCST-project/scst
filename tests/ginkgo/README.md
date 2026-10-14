@@ -52,16 +52,15 @@ the backend. For example, `local && io && fileio` needs no physical disk.
 ```sh
 # List every spec and its labels without accessing either host:
 make ginkgo-list GINKGO_LABEL=''
-# All except the known-crash case; prepare both hosts and a block device first:
-make ginkgo-test-build GINKGO_CONFIG=tests/ginkgo/config.local.json GINKGO_LABEL='!known-crash'
+# All specs; prepare both hosts and a block device first:
+make ginkgo-test-build GINKGO_CONFIG=tests/ginkgo/config.local.json GINKGO_LABEL=''
 ```
 
-An empty label filter selects all specs. The `known-crash` case (sync on
-inactive fileio) also requires `allow_known_crash=true` and can crash affected
-kernels. `clear-config` tests invoke global `scstadmin -clear_config -force`.
-Only selected transport groups access hosts. Local teardown finishes before
-iSCSI setup; an empty selection or suite failure stops the run. Parallel runs
-are unsupported: use the same `lock_file` and runner user on each host.
+An empty label filter selects all specs. `clear-config` tests invoke global
+`scstadmin -clear_config -force`. Only selected transport groups access hosts.
+Local teardown finishes before iSCSI setup; an empty selection or suite
+failure stops the run. Parallel runs are unsupported: use the same
+`lock_file` and runner user on each host.
 
 ## Configuration
 

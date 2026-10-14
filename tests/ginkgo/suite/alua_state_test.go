@@ -31,9 +31,14 @@ var _ = Describe("ALUA device activation", Label("basic", "alua", "fileio", "iss
 		func(ctx SpecContext, mapped bool) {
 			d := f.fileDevice(ctx, "disk", f.backingFile("disk"), "bind_alua_state=1")
 			neighbor := f.fileDevice(ctx, "neighbor", f.backingFile("neighbor"), "bind_alua_state=1")
-			t, dg := f.target(ctx, "target"), f.deviceGroup(ctx, "devices")
+			session := f.name("session")
+			t, dg := f.target(ctx, "target", "session_name="+session), f.deviceGroup(ctx, "devices")
+			f.detachCopyManager(ctx, d)
 			if mapped {
-				f.at(ctx, t, "", "-add_lun", "0", "-device", d)
+				f.at(ctx, t, "", "-add_group", "access")
+				f.at(ctx, t, "access", "-add_lun", "0", "-device", d)
+				f.at(ctx, t, "access", "-add_init", session)
+				f.sessionLUNs(ctx, t, session, map[int]string{0: d})
 			}
 			f.do(ctx, "-add_dgrp_dev", d, "-dev_group", dg)
 			tg := f.targetGroup(ctx, dg, "local", t, "11")
@@ -41,15 +46,21 @@ var _ = Describe("ALUA device activation", Label("basic", "alua", "fileio", "iss
 			Expect(f.deviceAttr(ctx, d, "active")).To(Equal("1"))
 			f.aluaState(ctx, dg, tg, "transitioning")
 			Expect(f.deviceAttr(ctx, d, "active")).To(Equal("0"))
+			f.reject(ctx, "-set_dev_attr", d, "-attributes", "sync=1")
 			Expect(f.deviceAttr(ctx, neighbor, "active")).To(Equal("1"))
 			path := f.backingFile("replacement")
 			f.setDevice(ctx, d, "filename="+path)
 			Expect(f.deviceAttr(ctx, d, "filename")).To(Equal(path))
 			f.aluaState(ctx, dg, tg, "nonoptimized")
 			Expect(f.deviceAttr(ctx, d, "active")).To(Equal("1"))
-			f.setDevice(ctx, d, "sync=1")
+			if mapped {
+				f.setDevice(ctx, d, "sync=1")
+			} else {
+				f.reject(ctx, "-set_dev_attr", d, "-attributes", "sync=1")
+			}
 			f.aluaState(ctx, dg, tg, "standby")
 			Expect(f.deviceAttr(ctx, d, "active")).To(Equal("0"))
+			f.reject(ctx, "-set_dev_attr", d, "-attributes", "sync=1")
 			f.aluaState(ctx, dg, tg, "active")
 			Expect(f.deviceAttr(ctx, d, "active")).To(Equal("1"))
 			f.reject(ctx, "-set_tgrp_attr", tg, "-dev_group", dg, "-attributes", "state=invalid_state")
@@ -57,13 +68,14 @@ var _ = Describe("ALUA device activation", Label("basic", "alua", "fileio", "iss
 			Expect(f.deviceAttr(ctx, d, "active")).To(Equal("1"))
 			Expect(f.deviceAttr(ctx, neighbor, "active")).To(Equal("1"))
 			if mapped {
-				Expect(f.luns(ctx, t, "")).To(Equal(map[int]string{0: d}))
+				Expect(f.luns(ctx, t, "access")).To(Equal(map[int]string{0: d}))
 			}
 		}, Entry("with a LUN mapping", true), Entry("without a LUN mapping", false))
 
 	It("keeps local devices active when only a remote group changes", func(ctx SpecContext) {
 		d := f.fileDevice(ctx, "disk", f.backingFile("disk"), "bind_alua_state=1")
-		t, dg := f.target(ctx, "target"), f.deviceGroup(ctx, "devices")
+		t, _ := f.attachFileio(ctx, d)
+		dg := f.deviceGroup(ctx, "devices")
 		f.do(ctx, "-add_dgrp_dev", d, "-dev_group", dg)
 		local := f.targetGroup(ctx, dg, "local", t, "11")
 		remote := f.targetGroup(ctx, dg, "remote", f.name("remote_target"), "12")
@@ -78,7 +90,8 @@ var _ = Describe("ALUA device activation", Label("basic", "alua", "fileio", "iss
 
 	It("leaves unbound fileio active during a local ALUA transition", func(ctx SpecContext) {
 		d := f.fileDevice(ctx, "disk", f.backingFile("disk"), "bind_alua_state=0")
-		t, dg := f.target(ctx, "target"), f.deviceGroup(ctx, "devices")
+		t, _ := f.attachFileio(ctx, d)
+		dg := f.deviceGroup(ctx, "devices")
 		f.do(ctx, "-add_dgrp_dev", d, "-dev_group", dg)
 		tg := f.targetGroup(ctx, dg, "local", t, "11")
 		f.aluaState(ctx, dg, tg, "active")
