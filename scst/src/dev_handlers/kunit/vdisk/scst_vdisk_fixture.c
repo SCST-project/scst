@@ -64,6 +64,9 @@ static int vdisk_test_fsync(struct file *file, loff_t start, loff_t end, int dat
 	}
 	f->flushes[n] = (struct vdisk_test_flush) {
 		.file = file, .start = start, .end = end,
+		.io_count = f->io_count, .written_len = f->written_len,
+		.completions = f->completions,
+		.cmd_refs = atomic_read(&f->cmd.cmd_ref),
 	};
 	return backend->sync_result;
 }
@@ -142,6 +145,8 @@ int vdisk_test_init(struct kunit *test)
 	vdisk_test_file_init(&f->data, f);
 	vdisk_test_file_init(&f->dif, f);
 	f->vdev.fd = &f->data.file;
+	f->cmd.cdb = f->cdb;
+	atomic_set(&f->cmd.cmd_ref, 1);
 	f->cmd.dev = &f->dev;
 	f->cmd.sess = &f->sess;
 	f->cmd.cmd_gfp_mask = GFP_KERNEL;

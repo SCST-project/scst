@@ -100,6 +100,9 @@ static void vdisk_write_test(struct kunit *test)
 		/* Failed writes above check status and progress, not FUA durability. */
 		KUNIT_EXPECT_EQ(test, f->flush_count, 1U);
 		vdisk_test_expect_flush(test, 0, &f->data.file, p->start, p->start + 1023);
+		KUNIT_EXPECT_EQ(test, f->flushes[0].io_count, p->calls);
+		KUNIT_EXPECT_EQ(test, f->flushes[0].written_len, p->written);
+		KUNIT_EXPECT_EQ(test, f->flushes[0].completions, 0U);
 	}
 	KUNIT_EXPECT_EQ(test, f->block_flush_count, 0U);
 }
@@ -113,6 +116,7 @@ struct vdisk_async_case {
 	bool nv_cache;
 	bool dsync;
 	ssize_t result;
+	ssize_t completion_result;
 	unsigned int calls;
 	u8 status;
 };
@@ -140,7 +144,12 @@ static const struct vdisk_async_case vdisk_async_cases[] = {
 	  .calls = 1, .status = SAM_STAT_CHECK_CONDITION },
 	{ .name = "async_read_error", .read = true, .result = -EIO,
 	  .calls = 1, .status = SAM_STAT_CHECK_CONDITION },
-	{ .name = "queued_fua_completion", .dsync = true, .result = -EIOCBQUEUED, .calls = 1 },
+	{ .name = "queued_fua_completion", .dsync = true, .result = -EIOCBQUEUED,
+	  .completion_result = 1024, .calls = 1 },
+	{ .name = "queued_fua_error", .dsync = true, .result = -EIOCBQUEUED,
+	  .completion_result = -EIO, .calls = 1, .status = SAM_STAT_CHECK_CONDITION },
+	{ .name = "queued_fua_short", .dsync = true, .result = -EIOCBQUEUED,
+	  .completion_result = 256, .calls = 1 },
 };
 
 static void vdisk_async_desc(const struct vdisk_async_case *p, char *desc)
@@ -190,7 +199,9 @@ static void vdisk_async_test(struct kunit *test)
 		KUNIT_EXPECT_FALSE(test, f->cmd.completed);
 		KUNIT_ASSERT_NOT_NULL(test, pending);
 		f->pending = NULL;
-		pending->ki_complete(pending, 1024);
+		pending->ki_complete(pending, p->completion_result);
+		if (p->completion_result >= 0)
+			KUNIT_EXPECT_EQ(test, f->cmd.resp_data_len, (int)p->completion_result);
 	}
 	KUNIT_EXPECT_EQ(test, f->completions, 1U);
 	KUNIT_EXPECT_EQ(test, f->completion_state, SCST_CMD_STATE_DEFAULT);
