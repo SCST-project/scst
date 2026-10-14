@@ -72,8 +72,36 @@ subarea may follow the prefix, for example `qla2x00t-32gbit: target: ...`.
 
 ## Local checks
 
-[AGENTS.md](AGENTS.md#validation) lists the checks to run before handing off
-work. The same commands can be run manually; no Git hooks are installed.
+Run applicable checks from the repository root before submitting a change.
+Use the resolved base commit of the series as `<base>`, rather than a moving
+branch name. Inspect the final diff, including new and untracked files intended
+for the patch. No Git hooks are installed.
+
+| Change | Required local checks |
+| --- | --- |
+| Any change | `git diff --check <base>`. |
+| Prepared commits | `scripts/checkpatch_commits <base>` and Conform as described below; review prefixes against the registry above. |
+| Uncommitted C changes | `scripts/checkpatch_diff <base>`; rerun per-commit checks after preparing the series. |
+| Shell scripts or sourced shell files | Syntax checks and ShellCheck as described below. |
+| Python files | `python3 -m py_compile <changed-files>`. |
+| Go files | `gofmt -l <changed-files>` must produce no output; follow component guidance. |
+
+Fix diagnostics introduced by the change; report any remaining diagnostic
+with its location and reason. Do not extend ignore lists just to pass.
+Record the checked base and HEAD, commands, results and checks not run. A
+missing tool or failed invocation is not a passed check. After changing code
+or commit messages, rerun the affected checks on the final version.
+
+### Shell scripts
+
+For Bash files, run `bash -n <file>` for each file and
+`shellcheck -x -P SCRIPTDIR <changed-files>`. For POSIX shell files, use
+`sh -n` and ShellCheck's `sh` dialect. Check sourced files with the caller's
+dialect if they have no shebang. Include new files and files outside
+`scripts/`: `make shellcheck` covers only Bash scripts under `scripts/`
+whose paths already exist in `HEAD`.
+
+### Commit checks
 
 Commit checks use [Conform][conform] (`v0.1.0-alpha.30` was used to validate
 this configuration), available as `conform` on `PATH`. `.conform.yaml`
@@ -94,12 +122,35 @@ git show -s --format=%B <commit> > <message-file>
 conform enforce --commit-msg-file <message-file>
 ```
 
-A failed invocation does not count as a successful check.
-
 Checkpatch requires a kernel `scripts/` directory containing `checkpatch.pl`
 and its companion data files. The wrapper defaults to the running kernel's
 build tree; set `CHECKPATCH_PATH` to use another prepared directory. Record
 the kernel/tool version with the result when it affects diagnostics.
+
+## Builds and tests
+
+Use the narrowest applicable target from the top-level or component Makefile.
+[INSTALL.md](INSTALL.md) covers build prerequisites and installation;
+`make help` lists targets and variables. Build and packaging workflows live
+in `.github/workflows/ci.yml` and `.github/workflows/coverity.yml`.
+
+- [KUnit](doc/KUNIT.md) checks kernel functions with private fixtures and
+  simulated dependencies. Its guide covers module builds, VM execution,
+  fixture cleanup and userspace checks for the runner.
+- [Ginkgo component tests](tests/ginkgo/README.md) exercise management,
+  SCSI commands and data I/O through a configured SCST target.
+  `make ginkgo-check` checks the framework only; follow the guide before
+  running tests that load modules or access storage.
+
+`scripts/run-regression-tests` checks kernel compatibility, compilation,
+sparse and smatch. It downloads or prepares kernel trees and is separate
+from the lightweight local checks above. The nightly support matrix is
+`ABT_KERNELS` in `nightly/conf/nightly.conf`; CI exercises a subset in
+`.github/workflows/run_regression_tests.yaml`.
+
+Report static checks, compilation and executed tests separately. Static
+checks do not establish build or runtime correctness. Documentation-only
+and instruction-only changes do not require a build or a live test run.
 
 [coding-style]: https://docs.kernel.org/process/coding-style.html
 [submitting-patches]: https://docs.kernel.org/process/submitting-patches.html
