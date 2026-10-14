@@ -20,6 +20,13 @@ type Profile struct {
 	Handler   string
 	ReadOnly  bool
 	ExtraLUNs bool
+	Fileio    FileioOptions
+}
+
+// FileioOptions describe the target backend, independently of initiator I/O.
+type FileioOptions struct {
+	Async, Direct, WriteThrough, NVCache bool
+	BlockSize                            uint32
 }
 
 type Backend struct {
@@ -88,6 +95,15 @@ func PrepareBackend(ctx context.Context, cfg testcfg.Config, artifacts, id strin
 	path := ""
 	switch options.Handler {
 	case "vdisk_fileio":
+		if options.Fileio.Direct && !options.Fileio.Async {
+			return b, fmt.Errorf("direct fileio requires asynchronous I/O")
+		}
+		if options.Fileio.BlockSize != 0 {
+			b.BlockSize = options.Fileio.BlockSize
+		}
+		if b.BlockSize != 512 && b.BlockSize != 4096 {
+			return b, fmt.Errorf("unsupported fileio sector size %d", b.BlockSize)
+		}
 		dir := cfg.BackingDir
 		if dir == "" {
 			dir = artifacts
@@ -162,7 +178,15 @@ func PrepareBackend(ctx context.Context, cfg testcfg.Config, artifacts, id strin
 	}
 	b.Attributes = fmt.Sprintf("filename=%s,blocksize=%d,thin_provisioned=0,t10_dev_id=%s", path, b.BlockSize, id)
 	if options.Handler == "vdisk_fileio" {
-		b.Attributes += ",o_direct=0"
+		bit := func(v bool) int {
+			if v {
+				return 1
+			}
+			return 0
+		}
+		f := options.Fileio
+		b.Attributes += fmt.Sprintf(",o_direct=%d,async=%d,write_through=%d,nv_cache=%d",
+			bit(f.Direct), bit(f.Async), bit(f.WriteThrough), bit(f.NVCache))
 	}
 	return b, nil
 }

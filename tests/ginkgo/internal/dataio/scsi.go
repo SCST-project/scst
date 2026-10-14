@@ -198,20 +198,25 @@ func sense(stderr string) ([3]byte, error) {
 }
 
 func (e *Endpoint) raw(ctx context.Context, write bool, lba uint64, input []byte) (Reply, error) {
-	cdb := make([]byte, 16)
-	cdb[0] = 0x88 // READ(16), one logical block.
-	if write {
-		cdb[0] = 0x8a
+	cdb, err := readWriteCDB(true, write, false, lba, 1)
+	if err != nil {
+		return Reply{}, err
 	}
-	binary.BigEndian.PutUint64(cdb[2:10], lba)
-	binary.BigEndian.PutUint32(cdb[10:14], 1)
+	request := int(e.Backend.BlockSize)
+	if write {
+		request = 0
+	}
+	return e.rawCDB(ctx, cdb, input, request)
+}
+
+func (e *Endpoint) rawCDB(ctx context.Context, cdb, input []byte, request int) (Reply, error) {
 	// O_RDONLY permits opening a read-only LUN. Root SG_IO still submits the
 	// WRITE CDB; its rejection must carry target sense, not an open() error.
 	args := []string{"sg_raw", "--readonly", "--verbose", "--binary"}
-	if write {
+	if len(input) != 0 {
 		args = append(args, fmt.Sprintf("--send=%d", len(input)))
-	} else {
-		args = append(args, fmt.Sprintf("--request=%d", e.Backend.BlockSize))
+	} else if request != 0 {
+		args = append(args, fmt.Sprintf("--request=%d", request))
 	}
 	args = append(args, e.Path)
 	for _, b := range cdb {
