@@ -1016,7 +1016,7 @@ sub addDriverDynamicAttribute {
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
-			print "DBG($$): $path -> $cmd\n";
+			print "DBG($$): $path -> add_attribute $attribute [redacted]\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
@@ -1054,7 +1054,7 @@ sub removeDriverDynamicAttribute {
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
-			print "DBG($$): $path -> $cmd\n";
+			print "DBG($$): $path -> del_attribute $attribute [redacted]\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
@@ -1260,7 +1260,7 @@ sub addTargetDynamicAttribute {
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
-			print "DBG($$): $path -> $cmd\n";
+			print "DBG($$): $path -> add_target_attribute $target $attribute [redacted]\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}
@@ -1303,7 +1303,7 @@ sub removeTargetDynamicAttribute {
 	my $io = new IO::File $path, O_WRONLY;
 	if ($io) {
 		if ($self->{'debug'}) {
-			print "DBG($$): $path -> $cmd\n";
+			print "DBG($$): $path -> del_target_attribute $target $attribute [redacted]\n";
 		} else {
 			$bytes = _syswrite($io, $cmd, length($cmd));
 		}

@@ -99,6 +99,34 @@ var _ = Describe("CHAP credential confidentiality", Label("basic", "iscsi", "cha
 		Entry("existing private file", os.FileMode(0600)),
 	)
 
+	It("does not print secrets during dynamic attribute updates or debug output", func(ctx SpecContext) {
+		f := newFixture(ctx)
+		secret, r := addTestCHAPUser(ctx, f)
+		// Inspect only the management operation's output, not argv in the
+		// command journal or the explicit privileged attribute query.
+		Expect(r.Stdout + "\n" + r.Stderr).NotTo(ContainSubstring(secret))
+		for _, operation := range []struct {
+			name  string
+			debug bool
+		}{
+			{"-add_tgt_attr", false}, // Duplicate value.
+			{"-rem_tgt_attr", true},  // Debug must not remove the value.
+			{"-rem_tgt_attr", false},
+			{"-rem_tgt_attr", false}, // Missing value.
+			{"-add_tgt_attr", true},
+		} {
+			args := []string{operation.name, f.Target, "-driver", "iscsi", "-attributes", "IncomingUser=tester " + secret}
+			if operation.debug {
+				args = append(args, "-debug")
+			}
+			r, err := cli.Execute(ctx, args...)
+			Expect(err).NotTo(HaveOccurred(), r.String())
+			Expect(r.ExitCode).To(BeZero(), r.String())
+			Expect(r.ReportedError()).To(BeFalse(), r.String())
+			Expect(r.Stdout + "\n" + r.Stderr).NotTo(ContainSubstring(secret))
+		}
+	})
+
 	It("rejects a symlink output without changing its referent", Label("config"), func(ctx SpecContext) {
 		f := newFixture(ctx)
 		dir := filepath.Join(artifactDir, f.Device+"-output-link")
