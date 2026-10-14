@@ -150,13 +150,18 @@ struct cdb_direction_case {
 	int direction;
 	unsigned int length;
 	bool invalid;
+	unsigned int out_length;
 };
 
 static const struct cdb_direction_case cdb_direction_cases[] = {
 	{ "rewind_without_data", 0x01, SCST_DATA_NONE },
-	{ "rewind_read_flag", 0x01, SCST_DATA_READ, 0, true },
-	{ "rewind_write_flag", 0x01, SCST_DATA_WRITE, 0, true },
+	/* RFC 7143, section 11.3.1 allows R/W flags with zero expected length. */
+	{ "rewind_read_flag", 0x01, SCST_DATA_READ },
+	{ "rewind_write_flag", 0x01, SCST_DATA_WRITE },
+	{ "rewind_bidi_flags", 0x01, SCST_DATA_BIDI },
 	{ "rewind_unexpected_transfer", 0x01, SCST_DATA_READ, 512, true },
+	{ "rewind_unexpected_write", 0x01, SCST_DATA_WRITE, 512, true },
+	{ "rewind_unexpected_bidi_out", 0x01, SCST_DATA_BIDI, 0, true, 512 },
 	{ "tur_read_exception", 0x00, SCST_DATA_READ },
 	{ "tur_without_data", 0x00, SCST_DATA_NONE },
 	{ "tur_write_rejected", 0x00, SCST_DATA_WRITE, 512, true },
@@ -182,6 +187,7 @@ static void cdb_direction_test(struct kunit *test)
 	f->dev.type = p->opcode == 0x01 ? TYPE_TAPE : TYPE_DISK;
 	cmd->cdb[0] = p->opcode;
 	scst_cmd_set_expected(cmd, p->direction, p->length);
+	cmd->expected_out_transfer_len = p->out_length;
 	KUNIT_ASSERT_EQ(test, scst_get_cdb_info(cmd), 0);
 	scst_kunit_log(test, "%s: opcode=0x%02x direction=%d expected=%d length=%u",
 		       p->name, p->opcode, cmd->data_direction, p->direction, p->length);
