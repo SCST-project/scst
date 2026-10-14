@@ -19,8 +19,30 @@ project includes:
 4. User space programs in the usr/ subdirectory, e.g. fileio_tgt.
 5. Various documentation in the doc/ subdirectory.
 
-Instructions for building and installing SCST are available in the INSTALL.md
-file.
+## Documentation
+
+- [Building and installing SCST](INSTALL.md).
+- Build options: [Clang](README.clang),
+  [cross-compilation](README.cross-compilation), and
+  [kernel module signing](README.module-signing).
+- [Configuration and administration](scstadmin/README): targets, devices,
+  LUNs, and `/etc/scst.conf`.
+- [Core and device handlers](scst/README): operating modes, module parameters,
+  and sysfs configuration.
+- Target drivers: [iSCSI](iscsi-scst/README), [iSER](iscsi-scst/README.iser),
+  [QLogic Fibre Channel](qla2x00t-32gbit/qla2x00-target/README),
+  [SRP](srpt/README), [FCoE](fcst/README), and
+  [local loopback](scst_local/README).
+- [Performance tuning](README.performance).
+- [Clustered persistent reservations](scst/README.dlm): synchronization
+  through DLM.
+- [T10 protection information](scst/T10-PI): data integrity modes and
+  configuration.
+- Developer references: [architecture](doc/scst_pg.sgml) and
+  [userspace handler interface](doc/scst_user_spec.sgml) (SGML sources), and
+  [sysfs interface rules](scst/SysfsRules).
+- [Contributing](CONTRIBUTING.md): code style, commit conventions, local
+  checks, and guides to KUnit and component testing.
 
 ## Current master packages
 
