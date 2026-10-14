@@ -997,6 +997,16 @@ static bool scst_is_allowed_to_mismatch_cmd(struct scst_cmd *cmd)
 	bool res = false;
 
 	switch (cmd->cdb[0]) {
+	case REZERO_UNIT: /* REWIND for sequential-access devices */
+		/* A zero-length REWIND may carry a transport direction flag. */
+		res = cmd->dev->type == TYPE_TAPE &&
+			cmd->data_direction == SCST_DATA_NONE &&
+			cmd->bufflen == 0 && cmd->expected_transfer_len_full == 0 &&
+			cmd->expected_out_transfer_len == 0 &&
+			(cmd->expected_data_direction == SCST_DATA_READ ||
+			 cmd->expected_data_direction == SCST_DATA_WRITE ||
+			 cmd->expected_data_direction == SCST_DATA_BIDI);
+		break;
 	case TEST_UNIT_READY:
 		/* Crazy VMware people sometimes do TUR with READ direction */
 		if (cmd->expected_data_direction == SCST_DATA_READ ||
