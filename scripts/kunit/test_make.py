@@ -12,13 +12,14 @@ import tempfile
 import unittest
 
 from inventory import source_suites
+from labels import load_composites
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULES = re.findall(r'[\w/-]+\.ko', (ROOT / 'scst/src/kunit/modules.mk').read_text())
 SOURCE_FILES = sorted({path for module in MODULES
                        for path in (ROOT / module).parent.joinpath('kunit').rglob('*.c')})
 SUITES = source_suites(SOURCE_FILES)
-LABELS = sorted(set(SUITES.values()))
+LABELS = sorted(set(SUITES.values()) | load_composites().keys())
 ENTRY_POINTS = [entry for entry in ('', 'scst', 'scst/src', 'scst/src/dev_handlers', 'iscsi-scst')
                 if 'kunit/select.mk' in (ROOT / entry / 'Makefile').read_text()]
 OWNERS = {
@@ -129,7 +130,9 @@ class SelectionTests(unittest.TestCase):
                     self.assertEqual(result.returncode, 0, result.stderr)
                     self.assertIn('Available KUNIT_LABEL: ' + ' '.join(LABELS) + ' ALL', result.stdout)
                     listed = {line.strip() for line in result.stdout.splitlines() if line.startswith('  ')}
-                    self.assertEqual(listed, {f'{label}: {suite}' for suite, label in SUITES.items()})
+                    self.assertTrue({f'{label}: {suite}' for suite, label in SUITES.items()} <= listed)
+                    self.assertIn('Composite labels:', result.stdout)
+                    self.assertIn('  IO: Command decoding, UNMAP and virtual disk checks', result.stdout)
                     self.assertNotIn('Selected', result.stdout)
                     self.assertNotIn('Flags:', result.stdout)
 
@@ -146,6 +149,22 @@ class SelectionTests(unittest.TestCase):
                 f'PYTHON={sys.executable} {capture}', *options],
                 cwd=ROOT, env=env, capture_output=True, text=True)
         return result, json.loads(result.stdout) if result.returncode == 0 else []
+
+    def test_list_and_run_accept_the_same_label_configuration(self):
+        with tempfile.TemporaryDirectory(prefix='kunit labels ') as tmp:
+            config = Path(tmp) / 'custom labels.toml'
+            config.write_text('[CAPACITY]\nsuites = ["scst-VDISK-capacity"]\n')
+            option = f'KUNIT_ARGS=--label-config "{config}"'
+            result = subprocess.run(['make', '-s', 'kunit-list', 'KUNIT_LABEL=UNKNOWN', option],
+                                    cwd=ROOT, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertIn('CAPACITY', result.stdout.splitlines()[1])
+            self.assertNotIn('Selected', result.stdout)
+            self.assertTrue(result.stdout.endswith('  CAPACITY:\n    scst-VDISK-capacity\n'))
+            result, args = self.runner_arguments(option, selection='CAPACITY')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(args, ['scripts/kunit/run.py', '--labels', 'CAPACITY',
+                                    '--label-config', str(config)])
 
     def test_runner_defaults_to_all_and_receives_explicit_labels(self):
         result, args = self.runner_arguments(selection=None)
@@ -188,7 +207,7 @@ class SelectionTests(unittest.TestCase):
             root = Path(tmp)
             paths = ['Makefile', 'scst/Makefile', 'scst/src/Makefile',
                      'scst/src/kunit/modules.mk', 'scst/src/kunit/select.mk',
-                     'scripts/kunit/inventory.py',
+                     'scripts/kunit/inventory.py', 'scripts/kunit/labels.py', 'scripts/kunit/labels.toml',
                      'scst/include/scst.h', 'scst/include/scst_const.h',
                      'scst/include/scst_user.h', 'iscsi-scst/Makefile',
                      'iscsi-scst/include/iscsi_scst.h',

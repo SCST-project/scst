@@ -23,6 +23,8 @@ import textwrap
 import time
 import tomllib
 
+from labels import DEFAULT_LABEL_CONFIG, expand_labels, load_composites
+
 sys.path.insert(0, str(Path(__file__).resolve().parent / "upstream"))
 import kunit_parser  # noqa: E402
 from kunit_printer import Printer  # noqa: E402
@@ -323,16 +325,15 @@ def parse_labels(value):
     return sorted(set(labels))
 
 
-def select_modules(inventory, labels):
+def select_modules(inventory, labels, composites):
     names = [item["name"] for item in inventory]
     if len(names) != len(set(names)):
         raise RunError("Duplicate module")
     suites = [suite for item in inventory for suite in item["suites"]]
     if not suites or len(suites) != len(set(suites)):
         raise RunError("Modules must have a nonempty, unique suite manifest")
-    available = {label for item in inventory for label in item["labels"].values()}
-    if labels != ["ALL"] and set(labels) - available:
-        raise RunError(f"Labels absent from supplied modules: {sorted(set(labels) - available)}")
+    selected = set(expand_labels({suite: label for item in inventory
+                                 for suite, label in item["labels"].items()}, labels, composites))
     by_name = {item["name"]: item for item in inventory}
     ordered = []
     visited = set()
@@ -356,7 +357,7 @@ def select_modules(inventory, labels):
 
     for item in inventory:
         item["selected_suites"] = [suite for suite in item["suites"]
-                                   if labels == ["ALL"] or item["labels"][suite] in labels]
+                                   if suite in selected]
     for item in inventory:
         if item["selected_suites"]:
             visit(item["name"])
@@ -477,7 +478,8 @@ def unload_owned_kunit(capture, directory, timeout, report):
         raise RunError("; ".join(problems))
 
 
-def execute(modules, timeout, directory, report, labels, verbose=False):
+def execute(modules, timeout, directory, report, labels, verbose=False,
+            label_config=DEFAULT_LABEL_CONFIG):
     if os.geteuid() != 0:
         raise RunError("Module execution requires root in the prepared test environment")
     for tool in ("modinfo", "insmod", "rmmod"):
@@ -486,7 +488,10 @@ def execute(modules, timeout, directory, report, labels, verbose=False):
     inventory = [module_info(path) | {"path": str(path), "state": "not attempted"}
                  for path in modules]
     report["modules"] = inventory
-    inventory = select_modules(inventory, labels)
+    composites = load_composites(label_config)
+    report["label_config"] = str(label_config)
+    report["composite_labels"] = {name: composites[name] for name in labels if name in composites}
+    inventory = select_modules(inventory, labels, composites)
     report["expected_suites"] = [suite for item in inventory for suite in item["selected_suites"]]
     report["started_suites"] = []
     if len({item["vermagic"] for item in inventory}) != 1:
@@ -587,7 +592,9 @@ def arguments(argv=None):
     parser.add_argument("modules", nargs="*", type=Path,
                         help="test modules and their SCST dependencies; order is determined from modinfo")
     parser.add_argument("--labels", default="ALL", type=parse_labels,
-                        help="space-separated labels to run, or ALL (default: ALL)")
+                        help="space-separated base or composite labels, or ALL (default: ALL)")
+    parser.add_argument("--label-config", type=Path, default=DEFAULT_LABEL_CONFIG,
+                        help="composite labels TOML (default: scripts/kunit/labels.toml)")
     parser.add_argument("--config", type=Path, help="TOML configuration file")
     parser.add_argument("--timeout", type=float, help="seconds per suite or module operation (default: 300)")
     parser.add_argument("--output", type=Path, help="parent for unique report directories")
@@ -643,7 +650,7 @@ def arguments(argv=None):
     if "verbose" in settings and not isinstance(settings["verbose"], bool):
         parser.error("Config verbose must be a boolean")
     verbose = args.verbose if args.verbose is not None else settings.get("verbose", False)
-    return resolved, timeout, output.resolve(), verbose, args.labels
+    return resolved, timeout, output.resolve(), verbose, args.label_config.expanduser().resolve(), args.labels
 
 
 def show_suites(tests, report):
@@ -870,7 +877,7 @@ def color_console(text):
 
 def main(argv=None):
     try:
-        modules, timeout, parent, verbose, labels = arguments(argv)
+        modules, timeout, parent, verbose, label_config, labels = arguments(argv)
     except (OSError, ValueError) as exc:
         print(f"Configuration error: {exc}", file=sys.stderr)
         return 2
@@ -890,7 +897,7 @@ def main(argv=None):
                 fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
             except BlockingIOError as exc:
                 raise RunError("Another SCST KUnit runner holds the lock") from exc
-            execute(modules, timeout, directory, report, labels, verbose)
+            execute(modules, timeout, directory, report, labels, verbose, label_config)
     except KeyboardInterrupt:
         report["errors"].append("Interrupted; module operations may still be running; inspect their PIDs")
     except (RunError, OSError, ValueError, subprocess.SubprocessError) as exc:
