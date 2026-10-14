@@ -47,7 +47,7 @@ scst-kunit-source-dirs = $(sort $(addsuffix kunit,$(dir $(SCST_KUNIT_MODULES))))
 .PHONY: kunit-list
 kunit-list:
 	@$(PYTHON) "$(scst-kunit-root)/scripts/kunit/inventory.py" \
-		$(foreach dir,$(scst-kunit-source-dirs),"$(scst-kunit-root)/$(dir)")
+		$(foreach dir,$(scst-kunit-source-dirs),"$(scst-kunit-root)/$(dir)") $(KUNIT_ARGS)
 
 # A component clean invalidates the recorded build as well as a top-level clean.
 .PHONY: scst-kunit-clean-files

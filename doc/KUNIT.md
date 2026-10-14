@@ -52,11 +52,13 @@ builds. Ordinary clean targets also remove KUnit build metadata. Reports and
 ## Labels and logging
 
 `KUNIT_LABEL` selects execution only; every test is compiled. The default `ALL`
-runs every suite in the supplied module set. Select space-separated labels
-or `ALL` alone. Empty, unknown or unavailable labels are errors.
-`make kunit-list` always shows all source labels and suites, regardless of
-`KUNIT_LABEL`, without a build, root privileges or loaded modules. The runner
-validates the selection against the supplied `.ko` files.
+runs every suite in the supplied module set. Select space-separated base or
+composite labels, or `ALL` alone. Selected sets are combined and each suite
+runs once. Empty, unknown or unavailable selections are errors.
+`make kunit-list` always shows all source labels, composite descriptions and
+their suites, regardless of `KUNIT_LABEL`, without a build, root privileges
+or loaded modules. The runner validates selection against the supplied `.ko`
+files. Base labels come directly from suite registrations:
 
 | Module | Labels |
 | --- | --- |
@@ -74,6 +76,28 @@ but runs only VDISK suites. Unselected suites are not counted as skipped.
 sudo make kunit-run KUNIT_LABEL="UNMAP VDISK"
 sudo make -j kunit-test KDIR=/path/to/kernel-build KUNIT_LABEL=LIB
 ```
+
+Composite labels are defined in [labels.toml](../scripts/kunit/labels.toml).
+For example, `KUNIT_LABEL=IO` combines `CDB`, `UNMAP` and `VDISK`. Add a table
+with base labels, exact suite names, or both:
+
+```toml
+[COMMANDS]
+description = "Command decoding and virtual disk capacity"
+labels = ["CDB"]
+suites = ["scst-VDISK-capacity"]
+```
+
+Names must be uppercase and cannot replace a base label or `ALL`. References
+to other composites and case filters are not supported. Every member of a
+selected composite must exist in the supplied module set; missing members
+are errors before module operations. Unselected composites do not require
+their modules. Original suite names and base labels remain unchanged.
+
+To use a different file, pass `KUNIT_ARGS='--label-config "/path/to/labels.toml"'`
+to either `kunit-list` or `kunit-run`. This replaces the default composite
+configuration. The selected definitions and expanded suites are recorded in
+`result.json`.
 
 `KUNIT_LOG=y` includes optional `scst_kunit_log()` messages emitted during tests;
 it defaults to `n` and requires rebuilding. To display these messages, run with
@@ -146,8 +170,8 @@ entry; no build changes are needed. For a new suite:
 
 The registration supplies the native suite name (`scst-LIB-example` above) and
 label metadata. Use a literal uppercase label and an empty or hyphen-prefixed
-suffix. Labels need no separate registration in Makefiles or the runner. Keep
-registrations outside preprocessor conditionals so the source list is accurate.
+suffix. Base labels need no separate registration in Makefiles or the runner.
+Keep registrations outside preprocessor conditionals so the source list is accurate.
 Init-section suites cannot run through debugfs after initialization.
 
 A new test-owning module additionally needs its Kbuild integration and a path in

@@ -747,7 +747,7 @@ class LifecycleTests(unittest.TestCase):
     def execute(self, logs=None, labels=None, inventory=None, load_logs=None,
                 loaded=(), missing=(), failure=None, unload_warning=False, preflight=None,
                 kernel_mode='built-in', interface_error=None, remains=(),
-                fail_loaded=False, failure_code=1, cleanup_failure=False, observe=None, results=None):
+                fail_loaded=False, failure_code=1, cleanup_failure=False, observe=None, results=None, label_config=None):
         result = report()
         capture = Mock(messages=[])
         inventory = inventory or [manifest()]
@@ -814,8 +814,9 @@ class LifecycleTests(unittest.TestCase):
                     patch.object(run, 'command', side_effect=operation) as command:
                 try:
                     run.execute([Path('/mock/' + i['name'] + '.ko') for i in inventory],
-                                10, Path(tmp), result, labels)
-                except run.RunError as exc:
+                                10, Path(tmp), result, labels,
+                                label_config=label_config or run.DEFAULT_LABEL_CONFIG)
+                except (run.RunError, ValueError) as exc:
                     result['errors'].append(str(exc))
         operations = []
         for call in command.call_args_list:
@@ -1029,6 +1030,45 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(result['modules'][2]['state'], 'not attempted')
         with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()):
             self.assertEqual(run.finish(result, Path(tmp)), 0)
+
+    def test_composite_selection_loads_dependencies_and_runs_each_suite_once(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / 'custom labels.toml'
+            config.write_text('[IO]\nlabels = ["VDISK"]\nsuites = ["scst-LIB"]\n')
+            result, operations, _ = self.execute(
+                {'scst-LIB': PASS, 'scst-VDISK-capacity': VDISK_PASS},
+                inventory=list(reversed(self.both_manifests())), labels=['IO', 'VDISK'],
+                label_config=config)
+            self.assertFalse(result['errors'])
+            self.assertEqual(operations, [('insmod', 'scst'), ('suite', 'scst-LIB'),
+                ('insmod', 'scst_vdisk'), ('suite', 'scst-VDISK-capacity'),
+                ('rmmod', 'scst_vdisk'), ('rmmod', 'scst')])
+            self.assertEqual(result['label_config'], str(config))
+            self.assertEqual(result['composite_labels']['IO']['suites'], ['scst-LIB'])
+
+    def test_exact_suite_group_does_not_run_other_suites_in_its_module(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / 'labels.toml'
+            config.write_text('[CAPACITY]\nsuites = ["scst-VDISK-capacity"]\n')
+            inventory = [manifest(), manifest('scst_vdisk',
+                {'scst-VDISK-capacity': 'VDISK', 'scst-VDISK-sync': 'VDISK'})]
+            result, operations, _ = self.execute({'scst-VDISK-capacity': VDISK_PASS},
+                inventory=inventory, labels=['CAPACITY'], label_config=config)
+            self.assertFalse(result['errors'])
+            self.assertEqual([name for op, name in operations if op == 'suite'], ['scst-VDISK-capacity'])
+            self.assertEqual([name for op, name in operations if op == 'insmod'], ['scst', 'scst_vdisk'])
+
+    def test_incomplete_composite_is_rejected_before_any_module_operation(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            config = Path(tmp) / 'labels.toml'
+            for definition in ('labels = ["LIB", "VDISK"]',
+                               'suites = ["scst-LIB", "scst-VDISK-capacity"]'):
+                config.write_text('[IO]\n' + definition)
+                result, operations, _ = self.execute(labels=['IO'], label_config=config,
+                                                     kernel_mode='load')
+                self.assertIn('absent', result['errors'][0])
+                self.assertEqual(operations, [])
+                self.assertEqual(result['module_state'], 'not attempted')
 
     def test_multiple_labels_and_nonmatching_suite_names(self):
         labels = {'scst-LIB': 'LIB', 'scst-CM': 'CM', 'scst-LIFECYCLE': 'LIFECYCLE',
@@ -1336,7 +1376,7 @@ class ConfigurationTests(unittest.TestCase):
             config = root / 'settings.toml'
             config.write_text('timeout_seconds=12\nverbose=true\n')
             with patch.object(run, 'DEFAULT_MODULE_LIST', modules):
-                selected, timeout, _, verbose, labels = self.arguments(['--config', str(config)])
+                selected, timeout, _, verbose, _, labels = self.arguments(['--config', str(config)])
             self.assertEqual(selected, [core, handler])
             self.assertEqual(timeout, 12)
             self.assertTrue(verbose)
@@ -1375,7 +1415,7 @@ class ConfigurationTests(unittest.TestCase):
             (directory / 'scst.ko').touch()
             config = directory / 'settings.toml'
             config.write_text('module="scst.ko"\noutput_dir="reports"\ntimeout_seconds=9\n')
-            module, timeout, output, verbose, labels = self.arguments(['--config', str(config)])
+            module, timeout, output, verbose, _, labels = self.arguments(['--config', str(config)])
             self.assertFalse(verbose)
             self.assertEqual(module, [directory / 'scst.ko'])
             self.assertEqual(output, directory / 'reports')

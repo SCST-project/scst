@@ -150,13 +150,13 @@ help:
 		'KUnit tests (see doc/KUNIT.md):' \
 		'  kunit-build                   build all SCST KUnit modules' \
 		'  kunit-clean                   clean test module builds; keep run reports' \
-		'  kunit-list                    show all source labels and suites' \
+		'  kunit-list                    show base/composite labels and source suites' \
 		'  kunit-run                     run already-built modules (root)' \
 		'  kunit-test                    build, then run tests (root)' \
 		'  KUNIT_TEST=y|n                include all suites (default: n; kunit-build sets y)' \
 		'  KUNIT_LOG=y|n                 compile extra execution messages (default: n)' \
-		'  KUNIT_LABEL                   space-separated labels to run (default: ALL)' \
-		'  KUNIT_ARGS                    runner options and module paths; see --help' \
+		'  KUNIT_LABEL                   base/composite labels to run (default: ALL)' \
+		'  KUNIT_ARGS                    runner/list options; run also accepts module paths' \
 		'' \
 		'Build variables:' \
 		'  WERROR=y|n                    treat warnings as errors (default: n)' \
