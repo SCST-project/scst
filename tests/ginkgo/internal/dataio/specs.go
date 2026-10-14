@@ -25,6 +25,24 @@ func Register(create func(SpecContext, Profile) *Endpoint) bool {
 		It("rejects an out-of-range READ with ILLEGAL REQUEST and remains usable", Label("scsi", "negative"), func(ctx SpecContext) {
 			Expect(create(ctx, Profile{Handler: "vdisk_fileio"}).OutOfRange(ctx)).To(Succeed())
 		})
+		DescribeTable("bounds UNMAP descriptors and preserves surrounding data", Label("scsi", "fileio", "unmap"),
+			func(ctx SpecContext, tc unmapCase) {
+				e := create(ctx, Profile{Handler: "vdisk_fileio", Fileio: FileioOptions{ThinProvisioned: true}})
+				Expect(e.UNMAP(ctx, tc)).To(Succeed())
+			},
+			Entry("zero parameter length is a no-op", unmapCase{}),
+			Entry("short header returns PARAMETER LIST LENGTH ERROR", Label("negative"),
+				unmapCase{parameterLength: 7, lengthError: true}),
+			Entry("empty descriptor list is a no-op", unmapCase{parameterLength: 8}),
+			Entry("header alone cannot supply a descriptor", unmapCase{parameterLength: 8, descriptorLength: 16}),
+			Entry("15-byte descriptor is ignored", unmapCase{parameterLength: 23, descriptorLength: 15}),
+			Entry("one complete descriptor unmaps its range", unmapCase{parameterLength: 24, descriptorLength: 16, unmapped: 1}),
+			Entry("unaligned descriptor length keeps the complete descriptor", unmapCase{parameterLength: 25, descriptorLength: 17, unmapped: 1}),
+			Entry("CDB length excludes a partial second descriptor", unmapCase{parameterLength: 39, descriptorLength: 32, unmapped: 1}),
+			Entry("CDB length bounds an oversized descriptor list", unmapCase{parameterLength: 24, descriptorLength: 32, unmapped: 1}),
+			Entry("descriptor length excludes a complete trailing descriptor", unmapCase{parameterLength: 40, descriptorLength: 16, unmapped: 1}),
+			Entry("two complete descriptors unmap both ranges", unmapCase{parameterLength: 40, descriptorLength: 32, unmapped: 2}),
+			Entry("maximum descriptor length is bounded by the transfer", unmapCase{parameterLength: 24, descriptorLength: 0xffff, unmapped: 1}))
 		DescribeTable("handles FUA writes and explicit cache commands", Label("scsi", "fileio", "issue-395"),
 			func(ctx SpecContext, options FileioOptions) {
 				e := create(ctx, Profile{Handler: "vdisk_fileio", Fileio: options})

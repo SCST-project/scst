@@ -75,8 +75,8 @@ are ignored by Git; the initiator lock path must be absolute.
 empty uses the artifact directory. Tests never adopt existing backing files.
 Avoid whitespace, commas, semicolons, quotes, braces and backslashes in backing
 paths. Set `fileio_thin_provisioning=false` if the filesystem cannot support
-the TP-enabled case. `stress_iterations` and `scale_luns` control lifecycle
-repetition and many-LUN coverage.
+the TP-enabled cases, including UNMAP. `stress_iterations` and `scale_luns`
+control lifecycle repetition and many-LUN coverage.
 
 ## Two-host iSCSI
 
@@ -111,6 +111,16 @@ on temporary fileio exports. Fio verifies CRC32C data using three concurrent
 4K, 64K and 128K jobs in disjoint regions; see the shared
 [profile](internal/dataio/verify.fio). It checks completed I/O, not performance.
 Readback checks do not verify data persistence across a crash or power loss.
+
+The `unmap` specs exercise temporary thin-provisioned fileio exports over
+`scst_local` and TCP iSCSI. They require util-linux `fallocate` on the target
+and a backing filesystem that supports hole punching.
+Setting `fileio_thin_provisioning=false` skips these specs.
+
+```sh
+# Both scst_local and TCP iSCSI, using previously built modules:
+make ginkgo-test GINKGO_CONFIG=tests/ginkgo/config.local.json GINKGO_LABEL='unmap'
+```
 
 | fio backend | Sector size | Access |
 | --- | --- | --- |

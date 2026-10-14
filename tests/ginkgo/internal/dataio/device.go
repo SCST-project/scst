@@ -26,6 +26,7 @@ type Profile struct {
 // FileioOptions describe the target backend, independently of initiator I/O.
 type FileioOptions struct {
 	Async, Direct, WriteThrough, NVCache bool
+	ThinProvisioned                      bool
 	BlockSize                            uint32
 }
 
@@ -115,6 +116,9 @@ func PrepareBackend(ctx context.Context, cfg testcfg.Config, artifacts, id strin
 		path = f.Name()
 		ownFile(path)
 		err = f.Truncate(int64(b.Bytes))
+		if err == nil && options.Fileio.ThinProvisioned {
+			err = checkHolePunch(ctx, f, run, testcfg.Duration(cfg.CommandTimeout))
+		}
 		closeErr := f.Close()
 		if err != nil {
 			return b, err
@@ -176,7 +180,11 @@ func PrepareBackend(ctx context.Context, cfg testcfg.Config, artifacts, id strin
 	if strings.ContainsAny(path, " \t\r\n,;\"{}\\") {
 		return b, fmt.Errorf("backing path cannot be represented in scstadmin attributes")
 	}
-	b.Attributes = fmt.Sprintf("filename=%s,blocksize=%d,thin_provisioned=0,t10_dev_id=%s", path, b.BlockSize, id)
+	thin := 0
+	if options.Handler == "vdisk_fileio" && options.Fileio.ThinProvisioned {
+		thin = 1
+	}
+	b.Attributes = fmt.Sprintf("filename=%s,blocksize=%d,thin_provisioned=%d,t10_dev_id=%s", path, b.BlockSize, thin, id)
 	if options.Handler == "vdisk_fileio" {
 		bit := func(v bool) int {
 			if v {

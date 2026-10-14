@@ -107,6 +107,8 @@ struct unmap_parse_case {
 
 static const struct unmap_parse_case unmap_parse_cases[] = {
 	{ "zero_transfer", 0, 0, 0, 0, 0, 0 },
+	{ "zero_cdb_ignores_sg", 24, 0, 16, 0, 0, 0 },
+	{ "zero_cdb_ignores_short_sg", 1, 0, 0, 0, 0, 0 },
 	{ "empty_list", 8, 8, 0, 0, 0, 0 },
 	{ "one_descriptor", 24, 24, 16, 0, 1, 0 },
 	{ "three_descriptors", 56, 56, 48, 0, 3, 0 },
@@ -119,14 +121,26 @@ static const struct unmap_parse_case unmap_parse_cases[] = {
 	{ "three_byte_header", 3, 3, 0, 0, 0, 0x1a },
 	{ "seven_byte_header", 7, 7, 0, 0, 0, 0x1a },
 	{ "short_cdb_length", 8, 7, 0, 0, 0, 0x1a },
+	{ "short_cdb_with_descriptors", 24, 7, 16, 0, 0, 0x1a },
+	{ "short_cdb_across_sg", 8, 7, 0, 3, 0, 0x1a },
 	{ "truncated_header", 7, 8, 0, 0, 0, 0x1a },
+	{ "truncated_sg_header", 7, 8, 0, 3, 0, 0x1a },
+	{ "truncated_empty_list", 8, 24, 0, 0, 0, 0x1a },
 	{ "truncated_descriptor", 23, 24, 16, 0, 0, 0x1a },
 	{ "truncated_sg_descriptor", 23, 24, 16, 3, 0, 0x1a },
-	/* Ignore an incomplete final descriptor; retain any complete ones. */
+	/* SBC-3 5.26.2: ignore an incomplete final descriptor. */
 	{ "descriptor_too_short", 24, 24, 15, 0, 0, 0 },
 	{ "descriptor_not_aligned", 40, 40, 17, 0, 1, 0 },
+	{ "partial_descriptor_in_transfer", 25, 25, 17, 0, 1, 0 },
+	{ "partial_descriptor_across_sg", 25, 25, 17, 19, 1, 0 },
+	{ "one_byte_descriptor", 9, 9, 1, 0, 0, 0 },
 	/* The CDB length bounds the list; the first descriptor still fits. */
 	{ "descriptor_exceeds_cdb", 40, 24, 32, 0, 1, 0 },
+	{ "descriptor_exceeds_transfer", 24, 24, 32, 0, 1, 0 },
+	{ "cdb_truncates_last_descriptor", 39, 39, 32, 0, 1, 0 },
+	{ "cdb_truncates_first_descriptor", 23, 23, 16, 0, 0, 0 },
+	{ "header_only_with_descriptors", 8, 8, 16, 0, 0, 0 },
+	{ "maximum_descriptor_length", 24, 24, 0xffff, 0, 1, 0 },
 };
 
 static void unmap_parse_desc(const struct unmap_parse_case *p, char *desc)
@@ -143,13 +157,9 @@ static void unmap_parse(struct kunit *test)
 	struct scst_data_descriptor *descriptors;
 	int i, rc;
 
-	/* These transfers can make the baseline parser read outside its SG buffer. */
-	if (p->length && (p->length < 8 || p->length < p->cdb_length)) {
-		kunit_skip(test, "short UNMAP transfers need a separate parser bounds fix");
-		return;
-	}
 	unmap_buffer(test, p->length, p->cdb_length, p->descriptor_length, p->split);
-	for (i = 0; i < p->count; i++) {
+	/* Populate the input independently of the expected descriptor count. */
+	for (i = 0; 8 + (i + 1) * 16 <= p->length; i++) {
 		/* Exercise all bytes of the wire LBA and block count. */
 		put_unaligned_be64(0x123456789abcdef0ULL + i, f->wire + 8 + i * 16);
 		put_unaligned_be32(0x12345678 + i, f->wire + 16 + i * 16);
