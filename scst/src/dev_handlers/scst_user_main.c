@@ -3136,7 +3136,7 @@ static int dev_user_check_version(const struct scst_user_dev_desc *dev_desc)
 	    (strcmp(str, "Dual MIT/GPL") != 0) &&
 	    (strcmp(str, "Dual MPL/GPL") != 0)) {
 		/* ->name already 0-terminated in dev_user_ioctl() */
-		PRINT_ERROR("Unsupported license of user device %s (%s). Ask license@scst-tgt.com for more info.",
+		PRINT_ERROR("Unsupported license of user device %s (%s)",
 			    dev_desc->name, str);
 		res = -EPERM;
 		goto out;
