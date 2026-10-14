@@ -39,6 +39,7 @@
 #include "scst_priv.h"
 #include "scst_mem.h"
 #include "scst_pres.h"
+#include "scst_test.h"
 
 #undef DEFAULT_SYMBOL_NAMESPACE
 #define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
@@ -838,6 +839,8 @@ int scst_suspend_activity(unsigned long timeout)
 	bool rep = false;
 	unsigned long cur_time = jiffies, wait_time;
 
+	SCST_KUNIT_REDIRECT(scst_suspend_activity, timeout);
+
 	TRACE_ENTRY();
 
 	rwlock_acquire_read(&scst_suspend_dep_map, 0, 0, _RET_IP_);
@@ -992,6 +995,8 @@ out:
  */
 void scst_resume_activity(void)
 {
+	SCST_KUNIT_REDIRECT(scst_resume_activity);
+
 	TRACE_ENTRY();
 
 	rwlock_release(&scst_suspend_dep_map, _RET_IP_);
