@@ -20,6 +20,10 @@ struct vdisk_test_flush {
 	struct file *file;
 	loff_t start;
 	loff_t end;
+	unsigned int io_count;
+	size_t written_len;
+	unsigned int completions;
+	int cmd_refs;
 };
 
 struct vdisk_test_fixture {
@@ -32,6 +36,7 @@ struct vdisk_test_fixture {
 	struct vdisk_test_file dif;
 	struct block_device bdev;
 	struct scatterlist sg[2];
+	u8 cdb[32];
 	u8 sense[SCST_SENSE_BUFFERSIZE];
 	u8 *input[2];
 	u8 written[1024];

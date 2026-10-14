@@ -1522,7 +1522,8 @@ out:
 	return res;
 }
 
-static enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
+SCST_KUNIT_VISIBLE
+enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
 	const uint8_t *cdb = cmd->cdb;
@@ -2449,7 +2450,8 @@ static int vcdrom_get_supported_opcodes(struct scst_cmd *cmd,
  * Compute p->loff and p->fua.
  * Returns true for success or false otherwise and set error in the command.
  */
-static bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
+SCST_KUNIT_VISIBLE
+bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 {
 	uint64_t lba_start;
 	int64_t data_len;

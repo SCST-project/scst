@@ -24,4 +24,5 @@ scst-kunit-scst_vdisk := \
 	kunit/vdisk/scst_vdisk_fixture.o \
 	kunit/vdisk/suites/scst_vdisk_capacity_test.o \
 	kunit/vdisk/suites/scst_vdisk_io_test.o \
+	kunit/vdisk/suites/scst_vdisk_protocol_test.o \
 	kunit/vdisk/suites/scst_vdisk_sync_test.o

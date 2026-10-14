@@ -85,6 +85,8 @@ static const struct vdisk_flush_case vdisk_flush_cases[] = {
 	{ .name = "commandless_async_fileio", .async = true, .no_cmd = true, .files = 1 },
 	{ .name = "direct_fileio", .direct = true, .files = 1 },
 	{ .name = "async_direct_fileio", .async = true, .direct = true, .files = 1 },
+	{ .name = "commandless_async_direct", .async = true, .no_cmd = true,
+	  .direct = true, .files = 1 },
 	{ .name = "async_fileio_error", .async = true, .data_error = -EIO,
 	  .files = 1, .error = -EIO },
 	{ .name = "async_write_through", .async = true, .wt = true },
@@ -122,7 +124,7 @@ static void vdisk_flush_test(struct kunit *test)
 	int ret;
 
 	/* The baseline bypass path dereferences cmd even when IMMED passed NULL. */
-	if (p->async && p->no_cmd && (p->wt || p->nv_cache || p->nullio || p->direct)) {
+	if (p->async && p->no_cmd && (p->wt || p->nv_cache || p->nullio)) {
 		kunit_skip(test, "commandless cache bypass needs a separate NULL-command fix");
 		return;
 	}
@@ -167,6 +169,7 @@ static void vdisk_flush_test(struct kunit *test)
 struct vdisk_backend_case {
 	const char *name;
 	bool closed;
+	bool detached;
 	bool inactive;
 	bool nullio;
 	bool blockio;
@@ -178,6 +181,7 @@ struct vdisk_backend_case {
 };
 
 static const struct vdisk_backend_case vdisk_backend_cases[] = {
+	{ .name = "detached_handler", .detached = true, .expected = -ENODEV },
 	{ .name = "inactive_fileio", .closed = true, .inactive = true, .expected = -ENOMEDIUM },
 	{ .name = "unmapped_fileio", .closed = true, .expected = -ENOMEDIUM },
 	{ .name = "inactive_blockio", .closed = true, .inactive = true, .blockio = true,
@@ -214,6 +218,8 @@ static void vdisk_backend_test(struct kunit *test)
 	f->data.sync_result = p->error;
 	f->block_flush_result = p->error;
 	f->sysfs_sync = true;
+	if (p->detached)
+		f->dev.dh_priv = NULL;
 
 	/* Keep task-scoped backend stubs in the test thread on this private device. */
 	ret = vdisk_flush_backend(&f->dev);
