@@ -105,64 +105,65 @@ def associate_parameter_logs(test, block):
         test.subtests[0].log[:0] = leading
 
 
-def analyse(messages, expected):
-    """Parse each named suite, including module output without a root plan."""
-    candidates = []
-    for index, line in enumerate(messages):
-        match = re.fullmatch(r"([ \t]*)# Subtest: (\S.*?)\s*", line)
-        if match:
-            candidates.append((index, match[2], len(match[1].expandtabs())))
-    # Parameterized cases can also have names beginning with scst-. Suite
-    # headers are the outermost subtests, not every matching name in the log.
-    depth = min((indent for _, _, indent in candidates), default=0)
-    headers = [(index, name) for index, name, indent in candidates if indent == depth]
+def log_problems(messages, suite=None):
+    """Reject execution outside the active suite without parsing kmsg as results."""
+    errors = []
+    headers, endings = [], []
+    for line in messages:
+        header = re.fullmatch(r" {0,4}# Subtest: (\S.*?)\s*", line)
+        ending = re.fullmatch(r"(?:not ok|ok) \d+ (?:- )?(.*?)(?: #.*)?", line)
+        if header:
+            headers.append(header[1])
+        if ending:
+            endings.append(ending[1])
+        if suite is None and re.match(r"\s*(?:KTAP version|# Subtest:|(?:not ok|ok) \d|\d+\.\.)", line):
+            errors.append("Unexpected KUnit execution outside a selected suite")
+            break
+    if suite is not None and (any(name != suite for name in headers + endings)
+                              or len(headers) > 1 or len(endings) > 1):
+        errors.append(f"Unexpected KUnit execution while running {suite}")
+    if any("SCST_KUNIT_RETAINED:" in line for line in messages):
+        errors.append("Unfinished test work retained fixture and module; inspect the VM")
+    return errors
+
+
+def analyse(documents, expected, messages=()):
+    """Parse one complete debugfs KTAP document per suite; kmsg supplies diagnostics."""
     retained = [line for line in messages if "SCST_KUNIT_RETAINED:" in line]
     errors = ["Unfinished test work retained fixture and module; inspect the VM"] if retained else []
-    names = [name for _, name in headers]
-    if not names and expected:
-        errors.append("No SCST test results were recorded")
-    elif missing := sorted(set(expected) - set(names)):
+    if missing := sorted(set(expected) - documents.keys()):
         errors.append("Missing suite results: " + ", ".join(missing))
-    if unexpected := sorted(set(names) - set(expected)):
+    if unexpected := sorted(documents.keys() - set(expected)):
         errors.append("Unexpected suite results: " + ", ".join(unexpected))
-    if repeated := sorted(name for name, count in Counter(names).items() if count > 1):
-        errors.append("Repeated suite results: " + ", ".join(repeated))
     results = []
-    consumed = set()
+    counts = dict.fromkeys(("passed", "failed", "skipped", "crashed", "errors"), 0)
     details = io.StringIO()
-    printer = Printer(output=details)
-    for position, (start, name) in enumerate(headers):
-        limit = headers[position + 1][0] if position + 1 < len(headers) else len(messages)
-        end_pattern = re.compile(r"\s*(?:not ok|ok) (\d+) (?:- )?" + re.escape(name)
-                                 + r"(?:\s+#.*)?\s*$")
-        end = next((i for i in range(start + 1, limit)
-                    if end_pattern.fullmatch(messages[i])), None)
-        if end is None:
-            errors.append(f"Missing final result for {name}")
-            block = messages[start:limit]
-            number = 1
-        else:
-            block = messages[start:end + 1]
-            number = int(end_pattern.fullmatch(messages[end])[1])
-        consumed.update(range(start, start + len(block)))
-        # Suite numbers can be global across previously loaded modules.
-        # Preserve all case numbers/plans and validate those upstream.
+    for name, document in documents.items():
+        block = document.splitlines()
         lines = kunit_parser.LineStream(iter(enumerate(block, start=1)))
         parse_output = io.StringIO()
-        parsed = kunit_parser.parse_test(lines, number, [], True, Printer(output=parse_output))
-        for case in parsed.subtests:
-            associate_parameter_logs(case, block)
-        if parsed.counts.errors or parsed.counts.crashed or not parsed.subtests:
-            errors.append(f"Incomplete or invalid KTAP for {name}")
+        parsed = kunit_parser.parse_test(lines, 0, [], False, Printer(output=parse_output))
+        valid = (block[:2] == ["KTAP version 1", "1..1"] and parsed.expected_count == 1
+                 and len(parsed.subtests) == 1 and parsed.subtests[0].name == name
+                 and not parsed.counts.errors and not parsed.counts.crashed
+                 and not any(line.strip() for line in lines))
+        for suite in parsed.subtests:
+            valid &= bool(suite.subtests) or suite.status == kunit_parser.TestStatus.SKIPPED
+            if not suite.name:
+                # Identify missing output in progress and failure summaries.
+                suite.name = name
+            for case in suite.subtests:
+                associate_parameter_logs(case, block)
+            results.append(test_tree(suite))
+        if not valid:
+            errors.append(f"Incomplete or invalid debugfs KTAP for {name}")
             details.write(parse_output.getvalue())
         else:
-            kunit_parser.print_test(parsed, False, printer)
-        results.append(test_tree(parsed))
-    for index, line in enumerate(messages):
-        if index not in consumed and re.match(r"\s*(?:not ok|ok) \d+\b|\s+\d+\.\.\d+", line):
-            errors.append(f"Unexpected KTAP outside a selected suite: {line.strip()}")
-    counts = {key: sum(s["counts"][key] for s in results)
-              for key in ("passed", "failed", "skipped", "crashed", "errors")}
+            kunit_parser.print_test(parsed.subtests[0], False, Printer(output=details))
+        for key in counts:
+            counts[key] += getattr(parsed.counts, key)
+        if "SCST_KUNIT_RETAINED:" in document and not retained:
+            errors.append("Unfinished test work retained fixture and module; inspect the VM")
     failed = any(s["status"] == "FAILURE" for s in results) or counts["failed"] > 0
     status = ("ERROR" if errors else "FAIL" if failed else
               "PASS" if counts["passed"] else "SKIP")
@@ -263,6 +264,22 @@ def command(argv, capture, directory, timeout, report):
                 raise RunError(f"Timed out waiting for PID {process.pid}; it may still be running. "
                                "No automatic unload will be attempted")
             time.sleep(0.02)
+
+
+def collect_suite(trigger, capture, directory, timeout, report):
+    """Bound the trigger and results read together; keep the raw document on disk."""
+    suite = trigger.parent.name
+    output = directory / "ktap" / f"{suite}.ktap"
+    code = command([sys.executable, "-c",
+                    "import pathlib,shutil,sys\n"
+                    "p=pathlib.Path(sys.argv[2])\n"
+                    "p.write_text('run\\n')\n"
+                    "with p.with_name('results').open('rb') as src, open(sys.argv[1], 'wb') as dst:\n"
+                    "    shutil.copyfileobj(src, dst)\n",
+                    str(output), str(trigger)], capture, directory, timeout, report)
+    if output.is_file():
+        report.setdefault("suite_results", {})[suite] = output.read_text(errors="replace")
+    return code
 
 
 def command_error(report, operation, code):
@@ -441,13 +458,13 @@ def prepare_dependencies(inventory, capture, directory, timeout, report):
         code = command(["modprobe", "--ignore-install", name], capture, directory, timeout, report)
         if code:
             raise command_error(report, f"Loading dependency {name}", code)
-        evidence, _ = analyse(capture.messages, [])
-        if evidence["parse_errors"] or evidence["diagnostics"]:
+        if log_problems(capture.messages) or kernel_diagnostics(capture.messages):
             raise RunError(f"Unexpected kernel output while loading dependency {name}; execution stopped")
 
 
 def unload_owned_kunit(capture, directory, timeout, report):
     report["kunit_state"] = "unloading"
+    log_start = len(capture.messages)
     code = command(["rmmod", "kunit"], capture, directory, timeout, report)
     if code:
         report["kunit_state"] = "retained"
@@ -456,6 +473,8 @@ def unload_owned_kunit(capture, directory, timeout, report):
         report["kunit_state"] = "retained"
         raise RunError("Could not unload runner-owned kunit: module remains present after rmmod")
     report["kunit_state"] = "unloaded"
+    if problems := log_problems(capture.messages[log_start:]):
+        raise RunError("; ".join(problems))
 
 
 def execute(modules, timeout, directory, report, labels, verbose=False):
@@ -490,15 +509,16 @@ def execute(modules, timeout, directory, report, labels, verbose=False):
                 raise command_error(report, "modprobe kunit", code)
             report["kunit_state"] = "retained"
             check_kunit_interfaces()
-            startup, _ = analyse(capture.messages, [])
-            if startup["parse_errors"]:
+            if log_problems(capture.messages):
                 raise RunError("Unexpected KUnit results during preparation; execution stopped")
-            if startup["diagnostics"]:
+            if kernel_diagnostics(capture.messages):
                 report["stop_reason"] = "kernel diagnostics while preparing KUnit"
                 return
-        completed = []
+        documents = report.setdefault("suite_results", {})
+        (directory / "ktap").mkdir()
         for item in inventory:
             report["module_state"] = item["state"] = "loading"
+            log_start = len(capture.messages)
             code = command(["insmod", item["path"]], capture, directory, timeout, report)
             if code:
                 error = command_error(report, f"insmod {item['name']}", code)
@@ -506,19 +526,17 @@ def execute(modules, timeout, directory, report, labels, verbose=False):
                     item["state"] = "not loaded"
                     present = any(Path(f"/sys/module/{entry['name']}").exists() for entry in inventory)
                     report["module_state"] = "retained" if present else "not loaded"
-                    evidence, _ = analyse(capture.messages, [])
                     if (code > 0 and kernel_mode == "load" and not present and not report["started_suites"]
-                            and not evidence["parse_errors"] and not evidence["diagnostics"]):
+                            and not log_problems(capture.messages) and not kernel_diagnostics(capture.messages)):
                         try:
                             unload_owned_kunit(capture, directory, timeout, report)
                         except (RunError, OSError) as exc:
                             raise RunError(f"{error}\nCleanup: {exc}") from exc
                 raise error
             report["module_state"] = item["state"] = "retained"
-            tests, _ = analyse(capture.messages, completed)
-            if tests["parse_errors"]:
-                raise RunError("Incomplete or unexpected tests; modules retained for inspection")
-            if tests["diagnostics"]:
+            if problems := log_problems(capture.messages[log_start:]):
+                raise RunError("; ".join(problems))
+            if kernel_diagnostics(capture.messages):
                 report["stop_reason"] = f"kernel diagnostics while loading {item['name']}"
                 return
             for suite in item["selected_suites"]:
@@ -528,13 +546,13 @@ def execute(modules, timeout, directory, report, labels, verbose=False):
                 # A debugfs write blocks in KUnit. Use a child so the parent can
                 # drain kmsg and enforce its deadline without unloading live work.
                 report["started_suites"].append(suite)
-                code = command([sys.executable, "-c",
-                                "import pathlib,sys; pathlib.Path(sys.argv[1]).write_text('run\\n')",
-                                str(trigger)], capture, directory, timeout, report)
+                log_start = len(capture.messages)
+                code = collect_suite(trigger, capture, directory, timeout, report)
                 if code:
-                    raise RunError(f"Execution of {suite} exited with {code}; modules retained")
-                completed.append(suite)
-                tests, _ = analyse(capture.messages, completed)
+                    raise command_error(report, f"Execution or results read of {suite}", code)
+                if problems := log_problems(capture.messages[log_start:], suite):
+                    raise RunError("; ".join(problems))
+                tests, _ = analyse(documents, report["started_suites"], capture.messages)
                 show_suites(tests, report)
                 if tests["parse_errors"]:
                     raise RunError("Incomplete or unexpected tests; modules retained for inspection")
@@ -543,12 +561,15 @@ def execute(modules, timeout, directory, report, labels, verbose=False):
                     return
         for item in reversed(inventory):
             report["module_state"] = item["state"] = "unloading"
+            log_start = len(capture.messages)
             code = command(["rmmod", item["name"]], capture, directory, timeout, report)
             if code:
                 raise RunError(f"rmmod {item['name']} exited with {code}; see commands.log")
             if Path(f"/sys/module/{item['name']}").exists():
                 raise RunError(f"{item['name']} remains loaded after rmmod")
             item["state"] = "unloaded"
+            if problems := log_problems(capture.messages[log_start:]):
+                raise RunError("; ".join(problems))
             if kernel_diagnostics(capture.messages):
                 report["module_state"] = "retained" if any(
                     item["state"] != "unloaded" for item in inventory) else "unloaded"
@@ -718,7 +739,8 @@ def finish(report, directory, verbose=False):
     messages = report.pop("messages", [])
     expected = report.get("expected_suites", [])
     started = report.get("started_suites", expected if report["module_state"] != "not attempted" else [])
-    tests, details = analyse(messages, started)
+    documents = report.pop("suite_results", {})
+    tests, details = analyse(documents, started, messages)
     report["not_run_suites"] = [suite for suite in expected if suite not in started]
     if not started and not tests["suites"]:
         tests["test_status"] = "NOT_RUN"

@@ -100,14 +100,19 @@ Quote each explicit path containing spaces separately.
 ## Results and cleanup
 
 Suites register without executing on module load; the runner starts selected
-suites through debugfs. The console shows suite status, groups failure reasons
-by suite, and identifies the SCST build and running kernel. `--verbose` adds
-case logs and full diagnostics; `NO_COLOR` disables terminal colors.
+suites through debugfs and reads each suite's `results` after its `run` write
+completes. Triggering and reading share the operation timeout. The console
+shows suite status, groups failure reasons by suite, and identifies the SCST
+build and running kernel. `--verbose` adds case logs and full diagnostics;
+`NO_COLOR` disables terminal colors.
 
-Each run saves logs, KTAP, module metadata and JSON/text reports under
+Each run saves logs, module metadata and JSON/text reports under
 `kunit-results/`; `--output` changes the parent directory. Read `report.txt`
 for details, `messages.log` for kernel diagnostics and `commands.log` for
-module-operation errors. Full reports are saved regardless of verbosity.
+module-operation errors. Raw debugfs results are saved as `ktap/<suite>.ktap`,
+including incomplete documents. Kernel logs supply diagnostics and detect
+unexpected execution; test results come only from debugfs. Full reports are
+saved regardless of verbosity.
 The runner exits with `0` for PASS/SKIP, `1` for FAIL and `2` for ERROR;
 Make reports a failed recipe with its own nonzero exit status.
 
