@@ -29,7 +29,7 @@ func TestLoadDefaultsAndPaths(t *testing.T) {
 	if cfg.DisposableHost || cfg.CommandTimeout != "30s" || cfg.BuildJobs != 2 || cfg.BuildTimeout != "10m" {
 		t.Fatalf("unsafe or missing defaults: %+v", cfg)
 	}
-	if cfg.AllowKnownCrash || !cfg.FileioThinProvisioning || cfg.StressIterations != 8 || cfg.ScaleLUNs != 256 || cfg.BackingDir != filepath.Join(base, "scratch") {
+	if !cfg.FileioThinProvisioning || cfg.StressIterations != 8 || cfg.ScaleLUNs != 256 || cfg.BackingDir != filepath.Join(base, "scratch") {
 		t.Fatalf("unsafe or missing scenario defaults: %+v", cfg)
 	}
 }
@@ -72,11 +72,11 @@ func TestRejectMalformedConfiguration(t *testing.T) {
 }
 
 func TestScenarioOverrides(t *testing.T) {
-	c, err := Load(configFile(t, `{"stress_iterations":12,"scale_luns":1000,"allow_known_crash":true,"fileio_thin_provisioning":false}`))
+	c, err := Load(configFile(t, `{"stress_iterations":12,"scale_luns":1000,"fileio_thin_provisioning":false}`))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if c.StressIterations != 12 || c.ScaleLUNs != 1000 || !c.AllowKnownCrash || c.FileioThinProvisioning || c.BackingDir != "" {
+	if c.StressIterations != 12 || c.ScaleLUNs != 1000 || c.FileioThinProvisioning || c.BackingDir != "" {
 		t.Fatalf("scenario overrides lost: %+v", c)
 	}
 }

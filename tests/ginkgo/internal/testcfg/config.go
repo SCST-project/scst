@@ -32,7 +32,6 @@ type Config struct {
 	FileioThinProvisioning bool     `json:"fileio_thin_provisioning"`
 	StressIterations       int      `json:"stress_iterations"`
 	ScaleLUNs              int      `json:"scale_luns"`
-	AllowKnownCrash        bool     `json:"allow_known_crash"`
 	IO                     IO       `json:"io"`
 	ISCSI                  *ISCSI   `json:"iscsi,omitempty"`
 }
