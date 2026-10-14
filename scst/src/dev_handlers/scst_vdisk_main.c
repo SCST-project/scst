@@ -7495,6 +7495,8 @@ int vdisk_flush_backend(struct scst_device *dev)
 {
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 
+	SCST_KUNIT_REDIRECT(vdisk_flush_backend, dev);
+
 	/* Queued work can outlive removal of the handler's sysfs files. */
 	if (!virt_dev)
 		return -ENODEV;
@@ -7536,8 +7538,9 @@ out:
 	return res;
 }
 
-static ssize_t vdisk_sysfs_sync_store(struct kobject *kobj, struct kobj_attribute *attr,
-				      const char *buf, size_t count)
+SCST_KUNIT_VISIBLE
+ssize_t vdisk_sysfs_sync_store(struct kobject *kobj, struct kobj_attribute *attr,
+			       const char *buf, size_t count)
 {
 	struct scst_device *dev = container_of(kobj, struct scst_device, dev_kobj);
 	struct scst_sysfs_work_item *work;

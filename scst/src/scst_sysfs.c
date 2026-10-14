@@ -33,6 +33,7 @@
 #include "scst_priv.h"
 #include "scst_pres.h"
 #include "scst_mem.h"
+#include "scst_test.h"
 
 #undef DEFAULT_SYMBOL_NAMESPACE
 #define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
@@ -336,6 +337,8 @@ int scst_alloc_sysfs_work(int (*sysfs_work_fn)(struct scst_sysfs_work_item *),
 	int res = 0;
 	struct scst_sysfs_work_item *work;
 
+	SCST_KUNIT_REDIRECT(scst_alloc_sysfs_work, sysfs_work_fn, read_only_action, res_work);
+
 	TRACE_ENTRY();
 
 	if (!sysfs_work_fn) {
@@ -501,6 +504,8 @@ int scst_sysfs_queue_wait_work(struct scst_sysfs_work_item *work)
 	unsigned long timeout = 15 * HZ;
 	struct task_struct *t;
 	static atomic_t uid_thread_name = ATOMIC_INIT(0);
+
+	SCST_KUNIT_REDIRECT(scst_sysfs_queue_wait_work, work);
 
 	TRACE_ENTRY();
 
