@@ -107,6 +107,7 @@ SCSI cases check identity, capacity, LUN visibility and rejection status/sense
 on temporary fileio exports. Fio verifies CRC32C data using three concurrent
 4K, 64K and 128K jobs in disjoint regions; see the shared
 [profile](internal/dataio/verify.fio). It checks completed I/O, not performance.
+Readback checks do not verify data persistence across a crash or power loss.
 
 | fio backend | Sector size | Access |
 | --- | --- | --- |
