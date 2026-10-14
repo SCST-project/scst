@@ -4553,7 +4553,7 @@ sub setDriverAttributes {
 					removeDriverDynamicAttribute($driver, $attribute, $value);
 					$changes++;
 				} else {
-					print "\t-> Driver dynamic attribute '$attribute' with value '$value' ".
+					print "\t-> Driver dynamic attribute '$attribute' ".
 					  "is not in configuration. Use -force to remove it.\n";
 				}
 			}
@@ -4575,8 +4575,7 @@ sub addDriverDynamicAttributes {
 
 	foreach my $attribute (keys %{$attributes}) {
 		if (defined($$existing{$attribute}->{$$attributes{$attribute}})) {
-			my $value = $$attributes{$attribute};
-			print "\t-> Attribute/value '$attribute/$value' already exists for driver '$driver'.\n";
+			print "\t-> Value for dynamic attribute '$attribute' already exists for driver '$driver'.\n";
 			next;
 		}
 
@@ -4591,7 +4590,7 @@ sub addDriverDynamicAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	print "\t-> Adding driver attribute '$attribute' with value '$value' for driver '$driver': ";
+	print "\t-> Adding driver attribute '$attribute' for driver '$driver': ";
 	my $rc = $SCST->addDriverDynamicAttribute($driver, $attribute, $value);
 	print "done.\n";
 
@@ -4612,8 +4611,7 @@ sub removeDriverDynamicAttributes {
 
 	foreach my $attribute (keys %{$attributes}) {
 		if (!defined($$existing{$attribute}->{$$attributes{$attribute}})) {
-			my $value = $$attributes{$attribute};
-			print "\t-> Attribute/value '$attribute/$value' doesn't exist for driver '$driver'.\n";
+			print "\t-> Value for dynamic attribute '$attribute' doesn't exist for driver '$driver'.\n";
 			next;
 		}
 
@@ -4630,7 +4628,7 @@ sub removeDriverDynamicAttribute {
 
 	return TRUE if (!$SCST->driverIsVirtualCapable($driver));
 
-	print "\t-> Removing dynamic attribute '$attribute' with value '$value' for driver '$driver': ";
+	print "\t-> Removing dynamic attribute '$attribute' for driver '$driver': ";
 	my $rc = $SCST->removeDriverDynamicAttribute($driver, $attribute, $value);
 	print "done.\n";
 
@@ -4731,7 +4729,7 @@ sub setTargetAttributes {
 					removeTargetDynamicAttribute($driver, $target, $attribute, $value);
 					$changes++;
 				} else {
-					print "\t-> Target dynamic attribute '$attribute' with value '$value' ".
+					print "\t-> Target dynamic attribute '$attribute' ".
 					  "is not in configuration. Use -force to remove it.\n";
 				}
 			}
@@ -4754,8 +4752,7 @@ sub addTargetDynamicAttributes {
 
 	foreach my $attribute (keys %{$attributes}) {
 		if (defined($$existing{$attribute}->{$$attributes{$attribute}})) {
-			my $value = $$attributes{$attribute};
-			print "\t-> Attribute/value '$attribute/$value' already exists for driver/target ".
+			print "\t-> Value for dynamic attribute '$attribute' already exists for driver/target ".
 			  "'$driver/$target'.\n";
 			next;
 		}
@@ -4772,7 +4769,7 @@ sub addTargetDynamicAttribute {
 	my $attribute = shift;
 	my $value = shift;
 
-	print "\t-> Adding target attribute '$attribute' with value '$value' ".
+	print "\t-> Adding target attribute '$attribute' ".
 	  "for driver/target '$driver/$target': ";
 	my $rc = $SCST->addTargetDynamicAttribute($driver, $target, $attribute, $value);
 	print "done.\n";
@@ -4795,8 +4792,7 @@ sub removeTargetDynamicAttributes {
 
 	foreach my $attribute (keys %{$attributes}) {
 		if (!defined($$existing{$attribute}->{$$attributes{$attribute}})) {
-			my $value = $$attributes{$attribute};
-			print "\t-> Attribute/value '$attribute/$value' doesn't exist for driver/target ".
+			print "\t-> Value for dynamic attribute '$attribute' doesn't exist for driver/target ".
 			  "'$driver/$target'.\n";
 			next;
 		}
@@ -4815,7 +4811,7 @@ sub removeTargetDynamicAttribute {
 
 	return TRUE if (!$SCST->driverIsVirtualCapable($driver));
 
-	print "\t-> Removing dynamic attribute '$attribute' with value '$value' for driver/target '$driver/$target': ";
+	print "\t-> Removing dynamic attribute '$attribute' for driver/target '$driver/$target': ";
 	my $rc = $SCST->removeTargetDynamicAttribute($driver, $target, $attribute, $value);
 	print "done.\n";
 

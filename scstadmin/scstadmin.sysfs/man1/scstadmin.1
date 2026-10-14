@@ -82,8 +82,9 @@ requires root access and a live SCST sysfs hierarchy.
 Save the current configuration to the specified file.
 The file may contain authentication secrets and is created or restricted to
 mode 0600 before writing. An existing output must be a regular file owned by
-the effective user; symbolic links are rejected. Saved configurations still
-contain the original authentication secrets.
+the effective user; symbolic links are rejected. Dynamic attribute values
+are omitted from update and debug messages, but explicit attribute queries
+and saved configurations still contain their original values.
 .TP
 .B -clear_config
 Remove all configured devices, targets that do not correspond to a physical
