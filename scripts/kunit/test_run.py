@@ -6,6 +6,7 @@ import errno
 import io
 import json
 import os
+import re
 from pathlib import Path
 import tempfile
 import unittest
@@ -26,6 +27,20 @@ OOPS = ['BUG: kernel NULL pointer dereference, address: 0000000000000000',
         '---[ end trace 00000000 ]---', 'RIP: 0010:test_case+0x10/0x20 [scst]']
 
 
+def document(lines):
+    """Wrap a suite body in the envelope and numbering supplied by debugfs."""
+    return "\n".join(['KTAP version 1', '1..1',
+                       *[re.sub(r'^(not ok|ok) \d+ ', r'\1 1 ', line) for line in lines]]) + "\n"
+
+
+def evidence(lines, suite='scst-LIB'):
+    return {'messages': lines, 'suite_results': {suite: document(lines)}}
+
+
+def analyse(lines, expected):
+    return run.analyse({expected[0]: document(lines)}, expected, lines)
+
+
 def report():
     return {'modules': [{'name': 'scst', 'suites': ['scst-LIB']}], 'module_state': 'not attempted',
             'commands': [], 'errors': [], 'expected_suites': ['scst-LIB']}
@@ -35,13 +50,17 @@ class ParseTests(unittest.TestCase):
     def test_module_output_and_statuses(self):
         for lines, status in ((PASS, 'PASS'), (FAIL, 'FAIL'), (SKIP, 'SKIP')):
             with self.subTest(status=status):
-                parsed, _ = run.analyse(lines, ['scst-LIB'])
+                parsed, _ = analyse(lines, ['scst-LIB'])
                 self.assertEqual(parsed['test_status'], status)
                 self.assertFalse(parsed['parse_errors'])
 
-    def test_envelope_and_unrelated_output(self):
-        parsed, _ = run.analyse(['SCST initializing', 'KTAP version 1', '1..1']
-                                + PASS + ['SCST unloaded'], ['scst-LIB'])
+    def test_kernel_output_does_not_supply_test_results(self):
+        parsed, _ = run.analyse({}, ['scst-LIB'], PASS)
+        self.assertEqual(parsed['test_status'], 'ERROR')
+        self.assertEqual(parsed['counts']['passed'], 0)
+        parsed, _ = run.analyse({'scst-LIB': document(PASS)}, ['scst-LIB'],
+                                ['SCST initializing', *FAIL, 'SCST unloaded'])
+        self.assertEqual(parsed['test_status'], 'PASS')
         self.assertEqual(parsed['counts']['passed'], 1)
 
     def test_parameterized_case(self):
@@ -49,12 +68,12 @@ class ParseTests(unittest.TestCase):
                  '        # Subtest: boundary', '        1..2',
                  '        ok 1 zero', '        not ok 2 maximum',
                  '    not ok 1 boundary', 'not ok 2 - scst-LIB']
-        parsed, _ = run.analyse(lines, ['scst-LIB'])
+        parsed, _ = analyse(lines, ['scst-LIB'])
         self.assertEqual(parsed['test_status'], 'FAIL')
         self.assertEqual(parsed['counts']['failed'], 1)
 
     def test_skip_reasons_are_preserved(self):
-        parsed, details = run.analyse(SKIP, ['scst-LIB'])
+        parsed, details = analyse(SKIP, ['scst-LIB'])
         suite = parsed['suites'][0]
         self.assertEqual(suite['skip_reason'], 'unavailable')
         self.assertEqual(suite['children'][0]['skip_reason'], 'unavailable')
@@ -63,8 +82,8 @@ class ParseTests(unittest.TestCase):
     def test_parser_output_is_local_to_each_run(self):
         console = io.StringIO()
         with contextlib.redirect_stdout(console):
-            _, first = run.analyse(PASS, ['scst-LIB'])
-            _, second = run.analyse(VDISK_PASS, ['scst-VDISK-capacity'])
+            _, first = analyse(PASS, ['scst-LIB'])
+            _, second = analyse(VDISK_PASS, ['scst-VDISK-capacity'])
         self.assertEqual(console.getvalue(), '')
         self.assertIn('scst_lun_flat_encoding', first)
         self.assertNotIn('scst-VDISK-capacity', first)
@@ -78,11 +97,11 @@ class ParseTests(unittest.TestCase):
                  [line.replace('scst-LIB', 'scst-unexpected') for line in PASS]]
         for lines in cases:
             with self.subTest(lines=lines):
-                parsed, _ = run.analyse(lines, ['scst-LIB'])
+                parsed, _ = analyse(lines, ['scst-LIB'])
                 self.assertEqual(parsed['test_status'], 'ERROR')
 
     def test_missing_compiled_suite(self):
-        parsed, _ = run.analyse(PASS, ['scst-LIB', 'scst-extra'])
+        parsed, _ = analyse(PASS, ['scst-LIB', 'scst-extra'])
         self.assertEqual(parsed['test_status'], 'ERROR')
 
     def test_trailing_results_and_foreign_suite_cannot_pass(self):
@@ -90,32 +109,56 @@ class ParseTests(unittest.TestCase):
                       ['    # Subtest: foreign-suite'],
                       [line.replace('scst-LIB', 'foreign-suite') for line in PASS]):
             with self.subTest(extra=extra):
-                parsed, _ = run.analyse(PASS + extra, ['scst-LIB'])
+                parsed, _ = analyse(PASS + extra, ['scst-LIB'])
                 self.assertEqual(parsed['test_status'], 'ERROR')
 
     def test_parameter_name_does_not_become_a_suite(self):
         logs = [PASS[0], '    1..1', '        # Subtest: scst-parameter',
                 '        1..1', '        ok 1 value', '    ok 1 scst-parameter', PASS[-1]]
-        parsed, _ = run.analyse(logs, ['scst-LIB'])
+        parsed, _ = analyse(logs, ['scst-LIB'])
         self.assertEqual(parsed['test_status'], 'PASS')
         self.assertEqual(len(parsed['suites']), 1)
 
-    def test_module_envelopes_between_suites(self):
-        logs = ['KTAP version 1', '1..1'] + PASS + ['KTAP version 1', '1..1'] + VDISK_PASS
-        parsed, _ = run.analyse(logs, ['scst-LIB', 'scst-VDISK-capacity'])
+    def test_separate_debugfs_documents(self):
+        parsed, _ = run.analyse({'scst-LIB': document(PASS),
+                                'scst-VDISK-capacity': document(VDISK_PASS)},
+                               ['scst-LIB', 'scst-VDISK-capacity'])
         self.assertEqual(parsed['test_status'], 'PASS')
+        self.assertEqual(parsed['counts']['passed'], 2)
+
+    def test_native_envelope_and_suite_identity_are_validated(self):
+        good = document(PASS)
+        for text in ('', 'garbage', good.replace('KTAP version 1', 'KTAP version 99'),
+                     good.replace('1..1', '1..2', 1), good.replace('1..1', '1..0', 1),
+                     good.replace('ok 1 - scst-LIB', 'ok 2 - scst-LIB'),
+                     good + good, good + 'ok 2 stray\n', good + 'trailing garbage\n',
+                     document(suite_log('scst-OTHER'))):
+            with self.subTest(text=text):
+                parsed, _ = run.analyse({'scst-LIB': text}, ['scst-LIB'])
+                self.assertEqual(parsed['test_status'], 'ERROR')
+
+    def test_entire_suite_skip_without_cases(self):
+        text = 'KTAP version 1\n1..1\nok 1 scst-LIB # SKIP unavailable\n'
+        parsed, _ = run.analyse({'scst-LIB': text}, ['scst-LIB'])
+        self.assertEqual(parsed['test_status'], 'SKIP')
+        self.assertEqual(parsed['suites'][0]['skip_reason'], 'unavailable')
+
+    def test_missing_debugfs_body_identifies_the_incomplete_suite(self):
+        parsed, _ = run.analyse({'scst-LIB': 'KTAP version 1\n1..1\n'}, ['scst-LIB'])
+        self.assertEqual(parsed['test_status'], 'ERROR')
+        self.assertEqual(parsed['suites'][0]['name'], 'scst-LIB')
 
     def test_diagnostic_groups_include_trace_without_consuming_results(self):
         warning = ['WARNING: CPU: 0 PID: 1 at example', 'CPU: 0 PID: 1 Comm: insmod',
                    'Call Trace:', ' <TASK>', ' example+0x1/0x2', ' </TASK>',
                    '---[ end trace 00000000 ]---']
-        parsed, _ = run.analyse(warning + PASS + ['unrelated', 'BUG: another failure'], ['scst-LIB'])
+        parsed, _ = analyse(warning + PASS + ['unrelated', 'BUG: another failure'], ['scst-LIB'])
         self.assertEqual(parsed['diagnostics'], ['\n'.join(warning), 'BUG: another failure'])
         self.assertEqual(parsed['counts']['passed'], 1)
 
     def test_oops_header_and_trace_form_one_event(self):
         logs = FAIL[:2] + OOPS + ['    # assertion detail'] + FAIL[2:]
-        parsed, _ = run.analyse(logs, ['scst-LIB'])
+        parsed, _ = analyse(logs, ['scst-LIB'])
         self.assertEqual(parsed['diagnostics'], ['\n'.join(OOPS)])
         self.assertEqual(parsed['counts']['failed'], 1)
         self.assertEqual(run.kernel_diagnostics(OOPS + OOPS), ['\n'.join(OOPS)] * 2)
@@ -131,7 +174,7 @@ class ParseTests(unittest.TestCase):
         logs = FAIL[:2] + OOPS + ['    # assertion detail'] + FAIL[2:]
         for verbose in (False, True):
             with self.subTest(verbose=verbose), tempfile.TemporaryDirectory() as tmp:
-                result = report() | {'messages': logs, 'module_state': 'retained',
+                result = report() | {**evidence(logs), 'module_state': 'retained',
                                      'started_suites': ['scst-LIB'],
                                      'expected_suites': ['scst-LIB', 'scst-VDISK-capacity']}
                 console = io.StringIO()
@@ -153,7 +196,7 @@ class ParseTests(unittest.TestCase):
 
     def test_repeated_diagnostic_headlines_are_summarized(self):
         with tempfile.TemporaryDirectory() as tmp:
-            result = report() | {'messages': OOPS + OOPS + PASS, 'module_state': 'retained'}
+            result = report() | {**evidence(OOPS + OOPS + PASS), 'module_state': 'retained'}
             console = io.StringIO()
             with contextlib.redirect_stdout(console):
                 self.assertEqual(run.finish(result, Path(tmp)), 1)
@@ -163,7 +206,7 @@ class ParseTests(unittest.TestCase):
 
     def test_unstarted_selection_cannot_pass_without_a_diagnostic(self):
         with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()):
-            result = report() | {'messages': PASS, 'module_state': 'unloaded',
+            result = report() | {**evidence(PASS), 'module_state': 'unloaded',
                                  'started_suites': ['scst-LIB'],
                                  'expected_suites': ['scst-LIB', 'scst-VDISK-capacity']}
             self.assertEqual(run.finish(result, Path(tmp)), 2)
@@ -195,7 +238,7 @@ class ParseTests(unittest.TestCase):
                 with contextlib.redirect_stdout(console), patch.object(console, 'isatty', return_value=tty), \
                         patch.dict(os.environ, environment, clear=True):
                     sample = run.color_console('PASS FAIL NOT_RUN')
-                    run.finish(report() | {'messages': PASS, 'module_state': 'unloaded'}, Path(tmp))
+                    run.finish(report() | {**evidence(PASS), 'module_state': 'unloaded'}, Path(tmp))
                 colored = tty and not disabled
                 for color in (31, 32, 33):
                     self.assertEqual(f'\033[{color}m' in sample, colored)
@@ -206,7 +249,7 @@ class ParseTests(unittest.TestCase):
     def test_console_modes_preserve_full_report(self):
         for verbose in (False, True):
             with self.subTest(verbose=verbose), tempfile.TemporaryDirectory() as tmp:
-                result = report() | {'messages': PASS, 'module_state': 'unloaded'}
+                result = report() | {**evidence(PASS), 'module_state': 'unloaded'}
                 console = io.StringIO()
                 with contextlib.redirect_stdout(console):
                     self.assertEqual(run.finish(result, Path(tmp), verbose), 0)
@@ -217,7 +260,7 @@ class ParseTests(unittest.TestCase):
     def test_failed_case_is_visible_in_default_console_and_json(self):
         logs = FAIL[:2] + ['    # assertion detail'] + FAIL[2:]
         with tempfile.TemporaryDirectory() as tmp:
-            result = report() | {'messages': logs, 'module_state': 'unloaded'}
+            result = report() | {**evidence(logs), 'module_state': 'unloaded'}
             console = io.StringIO()
             with contextlib.redirect_stdout(console):
                 self.assertEqual(run.finish(result, Path(tmp)), 1)
@@ -237,7 +280,7 @@ class ParseTests(unittest.TestCase):
                     logs += ['    # first parameter assertion detail', '        not ok 1 first',
                              '    # second parameter assertion detail', '        not ok 2 second',
                              '        ok 3 third', '    not ok 1 boundary', 'not ok 1 scst-LIB']
-                    result = report() | {'messages': logs, 'module_state': 'unloaded'}
+                    result = report() | {**evidence(logs), 'module_state': 'unloaded'}
                     with contextlib.redirect_stdout(io.StringIO()) as console:
                         self.assertEqual(run.finish(result, Path(tmp), verbose), 1)
                         # Incremental output and final reporting must not duplicate diagnostics.
@@ -271,9 +314,11 @@ class ParseTests(unittest.TestCase):
                 '    # module: scst', '    # Totals: pass:0 fail:2 skip:0 total:2',
                 'not ok 1 scst-LIB']
         with tempfile.TemporaryDirectory() as tmp:
-            result = report() | {'messages': logs + VDISK_PASS, 'module_state': 'unloaded',
+            result = report() | {**evidence(logs),
+                                 'suite_results': {'scst-LIB': document(logs),
+                                                   'scst-VDISK-capacity': document(VDISK_PASS)}, 'module_state': 'unloaded',
                                  'expected_suites': ['scst-LIB', 'scst-VDISK-capacity']}
-            parsed, _ = run.analyse(logs, ['scst-LIB'])
+            parsed, _ = analyse(logs, ['scst-LIB'])
             with contextlib.redirect_stdout(io.StringIO()) as console:
                 run.show_suites(parsed, result)
                 self.assertEqual(console.getvalue(), '[FAIL] scst-LIB\n')
@@ -307,7 +352,7 @@ class ParseTests(unittest.TestCase):
                             *diagnostic, '        not ok 1 first',
                             *diagnostic, '        not ok 2 second',
                             '    not ok 1 boundary', 'not ok 1 scst-LIB']
-                    result = report() | {'messages': logs, 'module_state': 'unloaded'}
+                    result = report() | {**evidence(logs), 'module_state': 'unloaded'}
                     with contextlib.redirect_stdout(io.StringIO()) as console:
                         self.assertEqual(run.finish(result, Path(tmp), verbose), 1)
                     output = console.getvalue()
@@ -336,7 +381,7 @@ class ParseTests(unittest.TestCase):
                 '    # parent teardown detail', '    not ok 1 boundary', 'not ok 1 scst-LIB']
         for verbose in (False, True):
             with self.subTest(verbose=verbose), tempfile.TemporaryDirectory() as tmp:
-                result = report() | {'messages': logs, 'module_state': 'unloaded'}
+                result = report() | {**evidence(logs), 'module_state': 'unloaded'}
                 with contextlib.redirect_stdout(io.StringIO()) as console:
                     self.assertEqual(run.finish(result, Path(tmp), verbose), 1)
                 output = console.getvalue()
@@ -353,7 +398,7 @@ class ParseTests(unittest.TestCase):
             logs = [PASS[0], '    1..1', '        # Subtest: boundary', plan,
                     '    # first failure', '        not ok 1 first',
                     '        ok 2 second', '    not ok 1 boundary', 'not ok 1 scst-LIB']
-            parsed, _ = run.analyse(logs, ['scst-LIB'])
+            parsed, _ = analyse(logs, ['scst-LIB'])
             self.assertEqual(parsed['test_status'], 'ERROR')
             self.assertTrue(parsed['parse_errors'])
 
@@ -366,7 +411,7 @@ class ParseTests(unittest.TestCase):
         for verbose in (False, True):
             for failed in (False, True):
                 with self.subTest(verbose=verbose, failed=failed), tempfile.TemporaryDirectory() as tmp:
-                    result = report() | {'messages': FAIL if failed else PASS, 'module_state': 'unloaded',
+                    result = report() | {**evidence(FAIL if failed else PASS), 'module_state': 'unloaded',
                                          'kernel': '7.2.9-test', 'architecture': 'x86_64'}
                     result['modules'][0].update(metadata)
                     console = io.StringIO()
@@ -398,7 +443,7 @@ class ParseTests(unittest.TestCase):
     def test_each_module_keeps_its_own_metadata_and_missing_fields_are_optional(self):
         for verbose in (False, True):
             with self.subTest(verbose=verbose), tempfile.TemporaryDirectory() as tmp:
-                result = report() | {'messages': PASS, 'module_state': 'unloaded',
+                result = report() | {**evidence(PASS), 'module_state': 'unloaded',
                                      'modules': [{'name': 'scst', 'version': '3.11.0-pre',
                                                   'git_commit': 'CORE'},
                                                  {'name': 'scst_vdisk', 'version': '3.11.0-pre',
@@ -430,7 +475,7 @@ class ParseTests(unittest.TestCase):
             with self.subTest(verbose=verbose), tempfile.TemporaryDirectory() as tmp:
                 console = io.StringIO()
                 with contextlib.redirect_stdout(console):
-                    run.finish(report() | {'messages': logs, 'module_state': 'unloaded'}, Path(tmp), verbose)
+                    run.finish(report() | {**evidence(logs), 'module_state': 'unloaded'}, Path(tmp), verbose)
                 self.assertEqual('encoded LUN' in console.getvalue(), verbose)
                 self.assertIn('encoded LUN', (Path(tmp) / 'report.txt').read_text())
                 self.assertIn('Tests:   PASS', console.getvalue())
@@ -440,7 +485,7 @@ class ParseTests(unittest.TestCase):
                         'watchdog: BUG: soft lockup', 'rcu: detected stalls',
                         'INFO: task insmod blocked for more than 120 seconds'):
             with self.subTest(message=message):
-                parsed, _ = run.analyse(PASS + [message], ['scst-LIB'])
+                parsed, _ = analyse(PASS + [message], ['scst-LIB'])
                 self.assertEqual(parsed['diagnostics'], [message])
 
     def test_reports_and_exit_codes(self):
@@ -452,7 +497,9 @@ class ParseTests(unittest.TestCase):
                 (PASS + ['WARNING: test'], 'retained', [], 1),
                 (PASS + ['BUG: unload'], 'unloaded', [], 1)):
             with self.subTest(expected=expected), tempfile.TemporaryDirectory() as tmp:
-                result = report() | {'messages': lines, 'module_state': state, 'errors': errors}
+                result = report() | {**evidence(lines), 'module_state': state, 'errors': errors}
+                if lines[-1].startswith(('WARNING:', 'BUG:')):
+                    result['suite_results'] = {'scst-LIB': document(PASS)}
                 with contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual(run.finish(result, Path(tmp)), expected)
                 data = json.loads((Path(tmp) / 'result.json').read_text())
@@ -467,6 +514,65 @@ class ParseTests(unittest.TestCase):
             self.assertEqual(result['errors'], ['KUnit preparation failed'])
             self.assertFalse(result['parse_errors'])
             self.assertEqual(result['expected_suites'], ['scst-LIB'])
+
+
+class DebugfsTests(unittest.TestCase):
+    def test_trigger_then_read_preserves_exact_document(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            (directory / 'ktap').mkdir()
+            suite = directory / 'scst-LIB'
+            suite.mkdir()
+            trigger = suite / 'run'
+            trigger.touch()
+            text = document(FAIL)
+            (suite / 'results').write_text(text)
+            capture = Mock()
+            capture.drain.return_value = False
+            result = report()
+            self.assertEqual(run.collect_suite(trigger, capture, directory, 10, result), 0)
+            self.assertEqual(trigger.read_text(), 'run\n')
+            self.assertEqual((directory / 'ktap/scst-LIB.ktap').read_text(), text)
+            self.assertEqual(result['suite_results'], {'scst-LIB': text})
+            self.assertEqual(len(result['commands']), 1)
+
+    def test_read_error_is_recorded_without_using_kernel_results(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            directory = Path(tmp)
+            (directory / 'ktap').mkdir()
+            suite = directory / 'scst-LIB'
+            suite.mkdir()
+            trigger = suite / 'run'
+            trigger.touch()
+            capture = Mock(messages=PASS)
+            capture.drain.return_value = False
+            result = report()
+            self.assertNotEqual(run.collect_suite(trigger, capture, directory, 10, result), 0)
+            self.assertIn('FileNotFoundError', result['commands'][0]['output'])
+            self.assertNotIn('suite_results', result)
+
+    def test_result_read_shares_the_command_timeout(self):
+        child = Mock(pid=42)
+        child.poll.return_value = None
+        capture = Mock()
+        capture.drain.return_value = False
+        with tempfile.TemporaryDirectory() as tmp, \
+                patch.object(run.subprocess, 'Popen', return_value=child), \
+                patch.object(run.time, 'monotonic', side_effect=[0, 11]):
+            result = report()
+            with self.assertRaisesRegex(run.RunError, 'PID 42'):
+                run.collect_suite(Path(tmp) / 'scst-LIB/run', capture, Path(tmp), 10, result)
+            self.assertEqual(len(result['commands']), 1)
+            self.assertIn("with_name('results')", result['commands'][0]['argv'][2])
+            child.wait.assert_not_called()
+
+    def test_unexpected_execution_and_retained_work_are_rejected(self):
+        for lines in (PASS, ['KTAP version 1'], ['1..1'], ['ok 1 scst-LIB # SKIP reason']):
+            self.assertTrue(run.log_problems(lines))
+        for lines in (PASS + PASS, VDISK_PASS, ['ok 1 foreign'], ['# SCST_KUNIT_RETAINED: worker']):
+            self.assertTrue(run.log_problems(lines, 'scst-LIB'))
+        self.assertFalse(run.log_problems(PASS, 'scst-LIB'))
+        self.assertFalse(run.log_problems(['ordinary SCST message']))
 
 
 class CaptureTests(unittest.TestCase):
@@ -517,7 +623,7 @@ class CaptureTests(unittest.TestCase):
         capture = self.capture()
         for number, line in enumerate(PASS + ['BUG: injected', 'SCST_KUNIT_RETAINED: injected']):
             capture.accept(f'14,{number},10,-;{line}\n'.encode())
-        parsed, _ = run.analyse(capture.messages, ['scst-LIB'])
+        parsed, _ = analyse(capture.messages, ['scst-LIB'])
         self.assertEqual(parsed['test_status'], 'ERROR')
         self.assertFalse(parsed['diagnostics'])
         self.assertFalse(parsed['retained_fixtures'])
@@ -532,7 +638,7 @@ class CaptureTests(unittest.TestCase):
         capture.accept(b'6,3,12,-;    1..1\n')
         capture.accept(b'6,4,13,-;    ok 1 escaped_\\x5c_name\n')
         capture.accept(b'6,5,14,-;ok 7 - scst-LIB\n')
-        parsed, _ = run.analyse(capture.messages, ['scst-LIB'])
+        parsed, _ = analyse(capture.messages, ['scst-LIB'])
         self.assertEqual(parsed['test_status'], 'PASS')
         self.assertIn('escaped_\\_name', capture.messages[2])
         self.assertIn(b'\\x5c', capture.raw.getvalue())
@@ -641,7 +747,7 @@ class LifecycleTests(unittest.TestCase):
     def execute(self, logs=None, labels=None, inventory=None, load_logs=None,
                 loaded=(), missing=(), failure=None, unload_warning=False, preflight=None,
                 kernel_mode='built-in', interface_error=None, remains=(),
-                fail_loaded=False, failure_code=1, cleanup_failure=False, observe=None):
+                fail_loaded=False, failure_code=1, cleanup_failure=False, observe=None, results=None):
         result = report()
         capture = Mock(messages=[])
         inventory = inventory or [manifest()]
@@ -684,6 +790,9 @@ class LifecycleTests(unittest.TestCase):
                 present.add(name)
             elif argv[0] == 'rmmod' and name not in remains:
                 present.discard(name)
+            elif argv[0] not in ('modprobe', 'insmod', 'rmmod'):
+                text = results[name] if results is not None and name in results else document(logs.get(name, []))
+                Path(argv[-2]).write_text(text)
             return 0
         with tempfile.TemporaryDirectory() as tmp:
             debugfs = Path(tmp) / 'kunit'
@@ -727,6 +836,31 @@ class LifecycleTests(unittest.TestCase):
             self.assertEqual(result['module_state'], 'unloaded')
             self.assertEqual(operations, [('insmod', 'scst'), ('suite', 'scst-LIB'), ('rmmod', 'scst')])
             capture.close.assert_called_once()
+
+    def test_debugfs_is_authoritative_even_without_printk_results(self):
+        for text, failed in ((document(PASS), False), (document(FAIL), True)):
+            result, operations, _ = self.execute(logs={}, results={'scst-LIB': text})
+            self.assertFalse(result['errors'])
+            self.assertEqual(result['suite_results']['scst-LIB'], text)
+            self.assertEqual(operations[-1], ('rmmod', 'scst'))
+            with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()):
+                self.assertEqual(run.finish(result, Path(tmp)), int(failed))
+
+    def test_valid_printk_cannot_hide_broken_debugfs_results(self):
+        for text in ('', document(PASS[:-1]), document(VDISK_PASS), document(PASS) * 2):
+            result, operations, _ = self.execute(logs={'scst-LIB': PASS},
+                results={'scst-LIB': text}, inventory=self.both_manifests())
+            self.assertTrue(result['errors'])
+            self.assertEqual(operations, [('insmod', 'scst'), ('suite', 'scst-LIB')])
+            self.assertEqual(result['suite_results']['scst-LIB'], text)
+
+    def test_oops_in_kernel_log_stops_after_complete_debugfs_pass(self):
+        result, operations, _ = self.execute(logs={'scst-LIB': OOPS},
+            results={'scst-LIB': document(PASS)}, inventory=self.both_manifests())
+        self.assertEqual(operations, [('insmod', 'scst'), ('suite', 'scst-LIB')])
+        self.assertEqual(result['stop_reason'], 'kernel diagnostics during scst-LIB')
+        with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(run.finish(result, Path(tmp)), 1)
 
     def test_results_stream_before_next_owner_without_summary_duplicates(self):
         console = io.StringIO()
@@ -872,6 +1006,18 @@ class LifecycleTests(unittest.TestCase):
                     self.assertEqual(run.finish(result, Path(tmp)), 2)
                 self.assertEqual(result['test_status'], 'PASS')
 
+    def test_final_kunit_cleanup_does_not_hide_unexpected_execution(self):
+        for messages in (PASS, ['# SCST_KUNIT_RETAINED: worker']):
+            capture = Mock(messages=[])
+            def operation(*args):
+                capture.messages.extend(messages)
+                return 0
+            with tempfile.TemporaryDirectory() as tmp, \
+                    patch.object(run, 'command', side_effect=operation), \
+                    patch.object(Path, 'exists', return_value=False):
+                with self.assertRaises(run.RunError):
+                    run.unload_owned_kunit(capture, Path(tmp), 10, report())
+
     def test_selected_handler_does_not_execute_dependency_tests(self):
         inventory = self.both_manifests() + [manifest('scst_user', {'scst-USER-cleanup': 'USER'})]
         result, operations, _ = self.execute({'scst-VDISK-capacity': VDISK_PASS}, labels=['VDISK'],
@@ -908,7 +1054,8 @@ class LifecycleTests(unittest.TestCase):
 
     def test_diagnostics_stop_after_load_or_suite(self):
         for options in ({'load_logs': {'scst': ['BUG: core init']}},
-                        {'logs': {'scst-LIB': PASS + ['WARNING: in test']}}):
+                        {'logs': {'scst-LIB': PASS + ['WARNING: in test']},
+                         'results': {'scst-LIB': document(PASS)}}):
             result, operations, _ = self.execute(inventory=self.both_manifests(), **options)
             self.assertEqual(result['module_state'], 'retained')
             self.assertFalse(any(op == 'rmmod' or name == 'scst_vdisk' for op, name in operations))
