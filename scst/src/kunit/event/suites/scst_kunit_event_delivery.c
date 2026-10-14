@@ -214,12 +214,15 @@ static void event_ack_test(struct kunit *test)
 struct event_timeout_case {
 	const char *name;
 	bool delivered;
+	bool copy_fault;
 	bool detached;
 	bool second;
 };
 
 static const struct event_timeout_case event_timeout_cases[] = {
 	{ .name = "expire_queued_event", .second = true },
+	{ .name = "expire_only_queued_event" },
+	{ .name = "copy_fault_timeout_preserves_queued_count", .copy_fault = true, .second = true },
 	{ .name = "expire_delivered_event", .delivered = true },
 	{ .name = "delivered_timeout_preserves_queued_count", .delivered = true, .second = true },
 	{ .name = "already_detached_event", .detached = true },
@@ -241,6 +244,12 @@ static void event_timeout_test(struct kunit *test)
 	KUNIT_ASSERT_NOT_NULL(test, e);
 	if (p->second)
 		KUNIT_ASSERT_NOT_NULL(test, event_test_queue(f, 0, 43, false));
+	if (p->copy_fault) {
+		f->to_left = 1;
+		KUNIT_ASSERT_EQ(test, event_test_ioctl(f, SCST_EVENT_GET_NEXT_EVENT),
+				(long)-EFAULT);
+		f->to_left = 0;
+	}
 	if (p->delivered)
 		KUNIT_ASSERT_EQ(test, event_test_ioctl(f, SCST_EVENT_GET_NEXT_EVENT), 0L);
 	if (p->detached) {
@@ -262,6 +271,43 @@ static void event_timeout_test(struct kunit *test)
 	event_test_ack_input(f, 42, 0);
 	KUNIT_EXPECT_EQ(test, event_test_ioctl(f, SCST_EVENT_NOTIFY_DONE), (long)-ENOENT);
 	KUNIT_EXPECT_EQ(test, f->notifications, (unsigned int)!p->detached);
+	if (p->second) {
+		KUNIT_ASSERT_EQ(test, event_test_ioctl(f, SCST_EVENT_GET_NEXT_EVENT), 0L);
+		KUNIT_EXPECT_EQ(test, f->priv.queued_events_cnt, 0);
+		KUNIT_EXPECT_TRUE(test, list_empty(&f->priv.queued_events_list));
+	}
+}
+
+static void event_timeout_preserves_processing_test(struct kunit *test)
+{
+	struct event_test_fixture *f = test->priv;
+	struct scst_event_entry *e = event_test_queue(f, 0, 42, true);
+
+	KUNIT_ASSERT_NOT_NULL(test, e);
+	KUNIT_ASSERT_NOT_NULL(test, event_test_queue(f, 0, 43, true));
+	KUNIT_ASSERT_NOT_NULL(test, event_test_queue(f, 0, 44, false));
+	KUNIT_ASSERT_EQ(test, event_test_ioctl(f, SCST_EVENT_GET_NEXT_EVENT), 0L);
+	KUNIT_ASSERT_EQ(test, event_test_ioctl(f, SCST_EVENT_GET_NEXT_EVENT), 0L);
+
+	/* Expiring one delivered event must not affect either remaining list. */
+	scst_event_timeout_fn(&e->event_timeout_work.work);
+	KUNIT_EXPECT_EQ(test, f->notifications, 1U);
+	KUNIT_EXPECT_EQ(test, f->notify_status, -ETIMEDOUT);
+	KUNIT_EXPECT_EQ(test, f->notify_id, 42U);
+	KUNIT_EXPECT_EQ(test, f->priv.queued_events_cnt, 1);
+	KUNIT_EXPECT_EQ(test, event_test_list_count(&f->priv.queued_events_list), 1U);
+	KUNIT_EXPECT_EQ(test, event_test_list_count(&f->priv.processing_events_list), 1U);
+
+	event_test_ack_input(f, 43, 0);
+	KUNIT_ASSERT_EQ(test, event_test_ioctl(f, SCST_EVENT_NOTIFY_DONE), 0L);
+	KUNIT_EXPECT_EQ(test, f->notifications, 2U);
+	KUNIT_EXPECT_EQ(test, f->notify_status, 0);
+	KUNIT_EXPECT_EQ(test, f->notify_id, 43U);
+	KUNIT_EXPECT_TRUE(test, list_empty(&f->priv.processing_events_list));
+	KUNIT_EXPECT_EQ(test, f->priv.queued_events_cnt, 1);
+	KUNIT_ASSERT_EQ(test, event_test_ioctl(f, SCST_EVENT_GET_NEXT_EVENT), 0L);
+	KUNIT_EXPECT_EQ(test, f->priv.queued_events_cnt, 0);
+	KUNIT_EXPECT_TRUE(test, list_empty(&f->priv.queued_events_list));
 }
 
 static struct kunit_case scst_event_delivery_cases[] = {
@@ -269,6 +315,7 @@ static struct kunit_case scst_event_delivery_cases[] = {
 	KUNIT_CASE(event_delivery_retry_test),
 	KUNIT_CASE_PARAM(event_ack_test, event_ack_gen_params),
 	KUNIT_CASE_PARAM(event_timeout_test, event_timeout_gen_params),
+	KUNIT_CASE(event_timeout_preserves_processing_test),
 	{}
 };
 

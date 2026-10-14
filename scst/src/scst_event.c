@@ -141,7 +141,8 @@ void scst_event_timeout_fn(struct work_struct *work)
 	}
 	list_del_init(&event_entry->events_list_entry);
 
-	(*event_entry->pqueued_events_cnt)--;
+	if (event_entry->pqueued_events_cnt)
+		(*event_entry->pqueued_events_cnt)--;
 
 	mutex_unlock(&scst_event_mutex);
 
@@ -815,6 +816,8 @@ static int scst_event_user_next_event(struct scst_event_priv *priv, void __user 
 		TRACE_DBG("Moving event entry %p to processing events list",
 			  event_entry);
 		list_move_tail(&event_entry->events_list_entry, &priv->processing_events_list);
+		/* Delivery removes this event from the queued-event count. */
+		event_entry->pqueued_events_cnt = NULL;
 	} else {
 		TRACE_MEM("Deleting event entry %p", event_entry);
 		list_del(&event_entry->events_list_entry);
