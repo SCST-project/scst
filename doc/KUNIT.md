@@ -64,7 +64,7 @@ files. Base labels come directly from suite registrations:
 
 | Module | Labels |
 | --- | --- |
-| `scst.ko` | `ALUA CDB CM EVENT LIB LIFECYCLE ORDER UNMAP` |
+| `scst.ko` | `ALUA CDB CM EVENT LIB LIFECYCLE ORDER TM UNMAP` |
 | `scst_vdisk.ko` | `VDISK` |
 | `scst_user.ko` | `USER` |
 | `iscsi-scst.ko` | `ISCSI` |
@@ -153,6 +153,29 @@ preloaded KUnit is left unchanged. External dependencies such as `dlm` are
 loaded with `modprobe` and left loaded. A clean failure before SCST loads also
 releases runner-owned KUnit; incomplete execution can retain modules.
 
+## Issue #367: task management and ACG reassignment
+
+`KUNIT_LABEL=TM` selects `scst-TM-acg`. It checks five `black_hole` modes
+for session teardown commands, mode changes across ACG reassignment, and
+unchanged-group handling. These checks should pass before a production fix.
+`tm_during_reassign_test` also invokes the TM reader from an allocation stub
+while the real reassignment is in progress, for all five modes. It checks
+command state, drop policy and event delivery during and after the transition.
+This case is enabled without a SKIP: before the production fix, its reader
+can crash the test VM. Use a disposable VM and retain its console log outside
+the guest. The fixture controls one interleaving; it does not prove the
+absence of other races.
+
+```sh
+make kunit-build KDIR=/path/to/kernel-build
+sudo make kunit-run KUNIT_LABEL=TM KUNIT_ARGS='--verbose'
+```
+
+Retain the complete printed run directory, especially `report.txt`,
+`result.json`, `messages.log`, `kernel.log`, `commands.log` and
+`ktap/scst-TM-acg.ktap`. The companion TCP reproduction attempts are described
+in the [component-test guide](../tests/ginkgo/README.md#issue-367-acg-reassignment).
+
 ## Add a suite
 
 Keep suites and fixtures under their owning component's `kunit/` directory;
@@ -190,8 +213,8 @@ redirects. Test interfaces are not installed headers or module exports.
 
 Fixtures must tolerate failed initialization and assertions. Bound worker
 waits; unfinished work must retain its state and module reference and report
-`scst_kunit_retain()`. Unsafe cases report `SKIP` pending separate production
-fixes. Storage and transport integration belongs in
+`scst_kunit_retain()`. Document known failures of enabled regression cases and
+their execution requirements. Storage and transport integration belongs in
 [component tests](../tests/ginkgo/README.md); upstream QLogic initiator/HBA
 code is out of scope.
 

@@ -12,6 +12,7 @@ scst-kunit-scst := \
 	kunit/lifecycle/suites/scst_kunit_lifecycle.o \
 	kunit/lifecycle/suites/scst_kunit_blocking.o \
 	kunit/order/suites/scst_kunit_order.o \
+	kunit/tm/suites/scst_kunit_tm.o \
 	kunit/unmap/suites/scst_kunit_unmap.o
 
 scst-kunit-iscsi-scst := \
