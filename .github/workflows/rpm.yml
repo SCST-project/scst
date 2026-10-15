@@ -7,7 +7,10 @@ on:
   pull_request:
     branches:
       - master
-  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -18,6 +21,7 @@ env:
 jobs:
   prepare_matrix:
     name: Prepare RPM matrix
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     runs-on: ubuntu-latest
     outputs:
       rpm: ${{ steps.matrix.outputs.rpm }}
@@ -34,6 +38,7 @@ jobs:
 
   build_rpm:
     name: ${{ matrix.name }} x86_64
+    if: github.event_name == 'push' && github.ref == 'refs/heads/master'
     needs: prepare_matrix
     runs-on: ubuntu-latest
     strategy:
@@ -162,7 +167,7 @@ jobs:
   publish_master:
     name: Publish master package snapshot
     if: >-
-      (github.event_name == 'push' || github.event_name == 'workflow_dispatch') &&
+      github.event_name == 'push' &&
       github.ref == 'refs/heads/master' &&
       github.repository == 'SCST-project/scst'
     needs: [prepare_matrix, build_rpm, build_deb]
