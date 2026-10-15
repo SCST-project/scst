@@ -1,0 +1,6 @@
+# SPDX-License-Identifier: GPL-2.0-only
+[Unit]
+Description=Disposable SCST CI guest
+Requires=basic.target scst-ci.service
+After=basic.target
+AllowIsolate=yes

@@ -4,6 +4,8 @@ KUnit checks SCST functions using private fixtures and simulated dependencies.
 Use a current kernel with native KUnit; API backports are not supported.
 Normal builds leave tests disabled and do not require KUnit headers.
 
+For GitHub Actions, see [CI](CI.md).
+
 ## Requirements
 
 Build against a configured and prepared kernel tree with `CONFIG_KUNIT=y/m`.

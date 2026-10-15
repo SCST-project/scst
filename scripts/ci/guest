@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-only
+# Invoked only by the dedicated guest target. The host owns the hard deadline.
+set -euo pipefail
+mount -t 9p -o trans=virtio,version=9p2000.L,ro ci-input /ci/input
+mount -t 9p -o trans=virtio,version=9p2000.L ci-reports /ci/reports
+mode=$(cat /ci/input/mode)
+token=$(cat /ci/input/token)
+finish() {
+    status=$?
+    trap - EXIT
+    dmesg --facility=kern > /ci/reports/dmesg.log || status=1
+    python3 - "$mode" "$token" "$status" <<'PY'
+import json, os, pathlib, platform, sys
+report = json.loads(pathlib.Path('/opt/ci-build/image.json').read_text())
+report.update(mode=sys.argv[1], token=sys.argv[2], exit_code=int(sys.argv[3]),
+              running_kernel=platform.release())
+path = pathlib.Path('/ci/reports/completion.tmp')
+with path.open('w') as output:
+    json.dump(report, output)
+    output.flush()
+    os.fsync(output.fileno())
+path.rename('/ci/reports/completion.json')
+PY
+    sync
+    systemctl --no-block poweroff
+    exit "$status"
+}
+trap finish EXIT
+test "$(uname -r)" = "$(python3 -c 'import json; print(json.load(open("/opt/ci-build/image.json"))["kernel"])')"
+mountpoint -q /sys/kernel/debug || mount -t debugfs none /sys/kernel/debug
+cd /scst
+printf '%s\n' "$mode" > /ci/reports/started
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export CGO_ENABLED=0 GOTOOLCHAIN=local GOPROXY=off
+export GOCACHE=/opt/go-cache GOMODCACHE=/opt/go-mod
+case "$mode" in
+smoke) exit 0 ;;
+panic) echo c > /proc/sysrq-trigger; exit 1 ;;
+hang) sleep infinity ;;
+kunit)
+    make kunit-run KUNIT_ARGS='--timeout 120 --output /ci/reports/kunit' \
+        2>&1 | tee /ci/reports/tests.log
+    ;;
+ginkgo|initiator)
+    while [[ ! -e /ci/input/ssh-ready ]]; do sleep 1; done
+    ip link set eth0 up
+    if [[ $mode == initiator ]]; then address=192.0.2.2; else address=192.0.2.1; fi
+    ip address add "$address/24" dev eth0
+    if [[ $mode == initiator ]]; then
+        install -m 600 /ci/input/authorized_keys /root/.ssh/authorized_keys
+        install -m 600 /ci/input/ssh_host_key /run/ci-host-key
+        mkdir -p /run/sshd /etc/iscsi
+        printf '%s\n' 'InitiatorName=iqn.2026-10.org.scst:ci' > /etc/iscsi/initiatorname.iscsi
+        /usr/sbin/sshd -D -e -o HostKey=/run/ci-host-key -o UsePAM=yes \
+            -o PasswordAuthentication=no -o KbdInteractiveAuthentication=no \
+            -o PermitRootLogin=prohibit-password &
+        modprobe iscsi_tcp
+        systemctl start iscsid.service
+        # Publish readiness only once SSH accepts connections and iscsid is alive.
+        python3 - <<'PY'
+import socket, time
+for attempt in range(100):
+    try:
+        with socket.create_connection(('127.0.0.1', 22), timeout=1):
+            break
+    except OSError:
+        time.sleep(.1)
+else:
+    raise SystemExit('sshd did not start')
+PY
+        pgrep -x iscsid
+        touch /ci/reports/ready
+        sleep infinity
+    else
+        install -m 600 /ci/input/id_ed25519 /root/.ssh/id_ed25519
+        install -m 600 /ci/input/known_hosts /root/.ssh/known_hosts
+        while [[ ! -e /ci/input/peer-ready ]]; do sleep 1; done
+        # This disk is created by the host supervisor exclusively for this run.
+        test "$(lsblk -dn -o SERIAL /dev/disk/by-id/virtio-scst-ci-data)" = scst-ci-data
+        python3 - <<'PY'
+import json, pathlib
+config = dict(disposable_host=True,
+    admin_command=['/usr/bin/perl', '-I/scst/scstadmin/scstadmin.sysfs/scst-1.0.0/lib',
+                   '/scst/scstadmin/scstadmin.sysfs/scstadmin'],
+    report_dir='/ci/reports/ginkgo', backing_dir='/ci/backing',
+    command_timeout='90s', cleanup_timeout='5m', settle_timeout='30s', suite_timeout='75m',
+    io=dict(block_device='/dev/disk/by-id/virtio-scst-ci-data', region_mb=16, timeout='5m'),
+    iscsi=dict(target_address='192.0.2.1', port=3260, login_timeout='30s',
+        initiator=dict(host='192.0.2.2', user='root', port=22,
+            identity_file='/root/.ssh/id_ed25519', lock_file='/tmp/scst-ginkgo.lock',
+            disposable_host=True)))
+pathlib.Path('/ci/config.json').write_text(json.dumps(config))
+PY
+        label=$(cat /ci/input/ginkgo-label)
+        make ginkgo-test GINKGO_CONFIG=/ci/config.json GINKGO_LABEL="$label" \
+            2>&1 | tee /ci/reports/tests.log
+    fi
+    ;;
+*) echo "Unknown guest mode: $mode" >&2; exit 2 ;;
+esac
