@@ -25,6 +25,7 @@ type fixture struct {
 	BackingFiles                                    []string
 	Target, Initiator, Iface, Device                string
 	ifaceOwned, nodeOwned, targetOwned, deviceOwned bool
+	beforeCleanup                                   func() error
 }
 
 var sequence int
@@ -196,6 +197,9 @@ func (f *fixture) logout(ctx context.Context) {
 
 func (f *fixture) cleanup(ctx context.Context) {
 	GinkgoHelper()
+	if f.beforeCleanup != nil {
+		Expect(f.beforeCleanup()).To(Succeed(), "preserving fixture after kernel diagnostic or lost evidence")
+	}
 	Expect(peer.Blocked()).NotTo(HaveOccurred(), "preserving target while initiator state is uncertain")
 	Expect(cli.Blocked()).NotTo(HaveOccurred())
 	Expect(daemon.Running()).To(Succeed())

@@ -173,8 +173,7 @@ sudo make kunit-run KUNIT_LABEL=TM KUNIT_ARGS='--verbose'
 
 Retain the complete printed run directory, especially `report.txt`,
 `result.json`, `messages.log`, `kernel.log`, `commands.log` and
-`ktap/scst-TM-acg.ktap`. The companion TCP reproduction attempts are described
-in the [component-test guide](../tests/ginkgo/README.md#issue-367-acg-reassignment).
+`ktap/scst-TM-acg.ktap`.
 
 ## Add a suite
 
