@@ -8,6 +8,7 @@
     "target_address": "192.0.2.10",
     "port": 3260,
     "login_timeout": "15s",
+    "acg_reassign_race": false,
     "initiator": {
       "host": "192.0.2.20",
       "user": "root",

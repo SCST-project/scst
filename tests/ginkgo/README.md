@@ -159,5 +159,5 @@ affected hosts before retrying; never remove a lock file to bypass a held lock.
 The printed artifact directory under `report_dir` contains effective config,
 command logs, JSON/JUnit reports and scenario inputs. I/O adds rendered jobs
 and fio results; iSCSI adds SSH, initiator and daemon logs, which may contain
-test CHAP credentials. Kernel warnings are not collected: retain kernel logs
-when investigating failures.
+test CHAP credentials. Only the `issue-367` specs collect kernel warnings;
+retain kernel logs separately when investigating other failures.
