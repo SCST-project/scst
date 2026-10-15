@@ -4,6 +4,8 @@ Ginkgo/Gomega tests exercise management through `scstadmin`, SCSI commands
 through sg3_utils, and data verification through fio. Transports are
 `scst_local` and TCP iSCSI with a separate initiator controlled over SSH.
 
+For GitHub Actions, see [CI](../../doc/CI.md).
+
 ## Setup and run
 
 Use a disposable Linux target with root access, an empty SCST configuration,
@@ -49,7 +51,14 @@ with `basic` (management), `scsi` or `io`; add `fileio` or `blockio` to narrow
 the backend. For example, `local && io && fileio` needs no physical disk.
 `GINKGO_FOCUS` additionally filters spec names by regexp.
 
+GitHub pull requests use `basic || smoke` on both transports. `smoke` covers
+SCSI identity, capacity and LUN discovery, rejected writes and reads, an UNMAP
+transfer-boundary case, asynchronous FUA/cache commands and both fio backends.
+Pushes to `master` run all specs, including stress and the full parameter tables.
+
 ```sh
+# List the pull-request selection:
+make ginkgo-list GINKGO_LABEL='basic || smoke'
 # List every spec and its labels without accessing either host:
 make ginkgo-list GINKGO_LABEL=''
 # All specs; prepare both hosts and a block device first:

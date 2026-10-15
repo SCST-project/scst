@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: GPL-2.0-only
+[Unit]
+Description=Run SCST tests in the disposable guest
+After=systemd-udev-settle.service
+Wants=systemd-udev-settle.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash /scst/scripts/ci/guest
+StandardOutput=journal+console
+StandardError=journal+console
+TimeoutStartSec=infinity

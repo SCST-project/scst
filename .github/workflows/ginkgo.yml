@@ -1,0 +1,49 @@
+name: Ginkgo
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  ginkgo:
+    name: Build and run in VMs
+    runs-on: ubuntu-24.04
+    timeout-minutes: 220
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Install build and VM tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-system-x86 qemu-utils openssh-client e2fsprogs fakeroot
+      - name: Build SCST image and check Ginkgo framework
+        timeout-minutes: 40
+        run: bash scripts/ci/build-image ginkgo "$RUNNER_TEMP/ginkgo-image"
+      - name: Run local and iSCSI tests against the compiled SCST
+        env:
+          GINKGO_LABEL: ${{ github.event_name == 'pull_request' && 'basic || smoke' || '' }}
+        run: |
+          python3 scripts/ci/vm.py ginkgo "$RUNNER_TEMP/ginkgo-image" \
+            "$RUNNER_TEMP/ginkgo-results" --timeout 10000 --ginkgo-label "$GINKGO_LABEL"
+      - name: Save build logs, reports and serial consoles
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ginkgo-results
+          retention-days: 7
+          path: |
+            ${{ runner.temp }}/ginkgo-image/*.log
+            ${{ runner.temp }}/ginkgo-image/*.json
+            ${{ runner.temp }}/ginkgo-image/*.txt
+            ${{ runner.temp }}/ginkgo-results/

@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-only
+# Runs only in the image build container; never loads modules.
+set -euo pipefail
+suite=$1
+commit=$2
+export KDIR="/usr/src/kernels/$KVER"
+mkdir -p /opt/ci-build /opt/go-cache /opt/go-mod
+exec > >(tee /opt/ci-build/build.log) 2>&1
+test -s "$KDIR/Module.symvers"
+cp "$KDIR/.config" /opt/ci-build/kernel.config
+rpm -qa | sort > /opt/ci-build/packages.txt
+python3 - "$suite" "$commit" "$KVER" <<'PY'
+import json, pathlib, sys
+pathlib.Path('/opt/ci-build/image.json').write_text(json.dumps(dict(
+    suite=sys.argv[1], commit=sys.argv[2], kernel=sys.argv[3]), indent=2) + '\n')
+PY
+opts=("-j$(nproc)" "GIT_COMMIT=${commit:0:12}" "KDIR=$KDIR" "KVER=$KVER")
+case "$suite" in
+kunit)
+    grep -Eq '^CONFIG_KUNIT=[ym]$' "$KDIR/.config"
+    grep -qx 'CONFIG_KUNIT_DEBUGFS=y' "$KDIR/.config"
+    modinfo -k "$KVER" -n kunit
+    modinfo -k "$KVER" -n dlm
+    python3 -m unittest discover -s scripts/kunit -p 'test_*.py'
+    make kunit-list
+    make "${opts[@]}" kunit-build
+    # Exercise cleanup without losing the exact modules to be executed.
+    tar -czf /opt/ci-build/modules.tar.gz -T .kunit-modules .kunit-modules
+    make kunit-clean
+    test ! -e .kunit-modules
+    test ! -e .kunit-modules.tmp
+    test -z "$(find scst/src iscsi-scst/kernel -type f \( -name '*.ko' -o -name '*.o' -o -name '*.cmd' \) -print -quit)"
+    tar -xzf /opt/ci-build/modules.tar.gz
+    ;;
+ginkgo)
+    modinfo -k "$KVER" -n iscsi_tcp
+    modinfo -k "$KVER" -n dlm
+    # Drivers consume the core's Module.symvers. Keep these builds ordered.
+    make "${opts[@]}" scst
+    make "${opts[@]}" scst_local
+    make "${opts[@]}" iscsi INFINIBAND_ENABLED=false
+    make "${opts[@]}" scstadm
+    make ginkgo-check
+    # Populate Go's build cache at the same /scst path used by the guest.
+    # No package downloads or kernel compilation are needed in a test VM.
+    make ginkgo-list GINKGO_LABEL=
+    ;;
+*) exit 2 ;;
+esac
+# Keep the sources, modules and Go caches, but omit intermediate kernel objects.
+find /scst -type f \( -name '*.o' -o -name '*.cmd' -o -name '*.mod.c' \) -delete
+# Module signing keys must never enter a VM image or CI artifact.
+# The ordinary scst target generates these, even without modules_install.
+rm -f /scst/scst/src/certs/scst_module_key.priv /scst/scst/src/certs/scst_module_key.der
+test -z "$(find /scst -type f -name '*.priv' -print -quit)"

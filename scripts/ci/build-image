@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-only
+# Build a bootable, version-matched test image without booting or loading SCST.
+set -euo pipefail
+if [[ $# != 2 || ! $1 =~ ^(kunit|ginkgo)$ ]]; then
+    echo "Usage: $0 kunit|ginkgo OUTPUT_DIRECTORY" >&2
+    exit 2
+fi
+suite=$1
+out=$(realpath -m "$2")
+mkdir "$out"
+root=$(git rev-parse --show-toplevel)
+commit=$(git rev-parse HEAD)
+# shellcheck source=kernel.env
+source "$root/scripts/ci/kernel.env"
+work=$(mktemp -d)
+cleanup() {
+    rm -rf -- "$work"
+}
+trap cleanup EXIT
+mkdir "$work/source" "$work/root"
+# A committed snapshot excludes local profiles, generated files and Git credentials.
+git -C "$root" archive "$commit" | tar -x -C "$work/source"
+docker build --progress=plain \
+    --build-arg "KERNEL_BUILD=$KERNEL_BUILD" --build-arg "SUITE=$suite" \
+    --build-arg "SOURCE_COMMIT=$commit" --output "type=tar,dest=$work/rootfs.tar" \
+    -f "$work/source/scripts/ci/Dockerfile" "$work/source" 2>&1 | tee "$out/image-build.log"
+# Preserve guest owners without host root, mounts or loop devices. Extraction
+# and mkfs must share one fakeroot session so ownership metadata survives.
+fakeroot -- bash -euo pipefail /dev/stdin "$work" "$out" <<'SH'
+    tar -xpf "$1/rootfs.tar" -C "$1/root"
+    rm "$1/rootfs.tar"
+    chown 0:0 "$1/root"
+    # Fedora ships these with mode 000. fakeroot preserves metadata but cannot
+    # bypass host DAC when mkfs reads file contents; keep them root-only.
+    for file in "$1/root/etc"/{shadow,gshadow}{,-}; do
+        if [[ -f $file ]]; then chmod 600 "$file"; fi
+    done
+    cp -a "$1/root/opt/ci-build/." "$2/"
+    cp "$1/root/boot/ci-vmlinuz" "$2/vmlinuz"
+    cp "$1/root/boot/ci-initramfs" "$2/initramfs"
+    # Otherwise systemd can mistake the VM for a container and skip udev.
+    rm -f "$1/root/.dockerenv" "$1/root/run/.containerenv"
+    size=$(du -sm "$1/root" | cut -f1)
+    truncate -s "$((size + 2048))M" "$2/rootfs.img"
+    mkfs.ext4 -q -F -d "$1/root" "$2/rootfs.img"
+SH
+(cd "$out" && sha256sum vmlinuz initramfs rootfs.img image.json > SHA256SUMS)
