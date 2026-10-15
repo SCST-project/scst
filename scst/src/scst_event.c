@@ -434,6 +434,8 @@ int scst_event_queue_tm_fn_received(struct scst_mgmt_cmd *mcmd)
 	struct scst_event *event;
 	struct scst_event_tm_fn_received_payload *payload;
 
+	SCST_KUNIT_REDIRECT(scst_event_queue_tm_fn_received, mcmd);
+
 	TRACE_ENTRY();
 
 	event_entry_len = sizeof(*event_entry) + sizeof(*payload);

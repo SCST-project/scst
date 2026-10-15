@@ -3003,7 +3003,7 @@ void scst_dev_inquiry_data_changed(struct scst_device *dev)
 EXPORT_SYMBOL(scst_dev_inquiry_data_changed);
 
 /* The activity supposed to be suspended and scst_mutex held */
-static void scst_check_reassign_sess(struct scst_session *sess)
+SCST_KUNIT_VISIBLE void scst_check_reassign_sess(struct scst_session *sess)
 {
 	struct scst_acg *acg, *old_acg;
 	struct scst_acg_dev *acg_dev;

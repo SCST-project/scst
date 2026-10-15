@@ -18,6 +18,7 @@ int scst_alloc_add_tgt_dev(struct scst_session *sess,
 			   struct scst_acg_dev *acg_dev, struct scst_tgt_dev **out_tgt_dev);
 void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev);
 void scst_sess_free_tgt_devs(struct scst_session *sess);
+void scst_check_reassign_sess(struct scst_session *sess);
 void scst_ext_blocker_put(struct scst_ext_blocker *b);
 void scst_ext_blocking_done_fn(struct work_struct *work);
 int scst_wait_ext_block_dev(struct scst_device *dev, wait_queue_head_t *w);

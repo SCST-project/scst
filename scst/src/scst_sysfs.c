@@ -5025,6 +5025,8 @@ static int scst_create_sess_luns_link(struct scst_session *sess)
 
 int scst_recreate_sess_luns_link(struct scst_session *sess)
 {
+	SCST_KUNIT_REDIRECT(scst_recreate_sess_luns_link, sess);
+
 	sysfs_remove_link(&sess->sess_kobj, "luns");
 	return scst_create_sess_luns_link(sess);
 }
