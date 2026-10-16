@@ -29,6 +29,11 @@ func Run(t *testing.T, name string, iscsi bool, assign func(Environment)) {
 	var cli *admin.Client
 	RegisterFailHandler(Fail)
 	suiteConfig, reporterConfig := GinkgoConfiguration()
+	filter, err := resolveLabelFilter(suiteConfig.LabelFilter)
+	if err != nil {
+		t.Fatal(err)
+	}
+	suiteConfig.LabelFilter = filter
 	if suiteConfig.ParallelTotal != 1 {
 		t.Fatal("SCST component tests share host state; parallel execution is unsupported")
 	}

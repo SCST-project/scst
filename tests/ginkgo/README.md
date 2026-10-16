@@ -51,12 +51,25 @@ with `basic` (management), `scsi` or `io`; add `fileio` or `blockio` to narrow
 the backend. For example, `local && io && fileio` needs no physical disk.
 `GINKGO_FOCUS` additionally filters spec names by regexp.
 
-GitHub pull requests use `basic || smoke` on both transports.
-Pushes to `master` run all specs, including stress and the full parameter tables.
+GitHub pull requests use the `ci-pr` label set; pushes to `master` use `ci-push`.
+Their definitions live in [labels.json](internal/testrun/labels.json), shared
+by the local runner and VM supervisor:
+
+| Label set | Ginkgo expression |
+| --- | --- |
+| `ci-pr` | `basic || smoke` |
+| `ci-push` | `!race` |
+
+Each set aliases a whole filter; its definition combines ordinary Ginkgo labels.
+Pass either a set name or a Ginkgo expression as `GINKGO_LABEL`. Manual workflow
+runs use an empty filter and select all specs, including timing-dependent
+`race` scenarios. Other stress tests remain in `ci-push`.
 
 ```sh
 # List the pull-request selection:
-make ginkgo-list GINKGO_LABEL='basic || smoke'
+make ginkgo-list GINKGO_LABEL=ci-pr
+# List the master push selection:
+make ginkgo-list GINKGO_LABEL=ci-push
 # List every spec and its labels without accessing either host:
 make ginkgo-list GINKGO_LABEL=''
 # All specs; prepare both hosts and a block device first:

@@ -90,7 +90,7 @@ func (f *fixture) raceACG(ctx context.Context, kernel *testhost.KernelLog, from,
 		"ACG move completed before teardown started; this round is inconclusive")
 }
 
-var _ = DescribeTable("ACG reassignment during iSCSI teardown", Label("iscsi", "stress", "sessions", "issue-367"),
+var _ = DescribeTable("ACG reassignment during iSCSI teardown", Label("iscsi", "stress", "race", "sessions", "issue-367"),
 	func(ctx SpecContext, recoverTCP bool) {
 		path := filepath.Join(artifactDir, fmt.Sprintf("issue-367-%t-kernel.log", recoverTCP))
 		kernel := must(testhost.StartKernelLog(path))
