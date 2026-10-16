@@ -9,6 +9,8 @@
 void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy, unsigned long *flags);
 void dev_user_flush_pool(struct sgv_pool *pool);
 int dev_user_process_cleanup(struct scst_user_dev *dev);
+int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff, int num_pg);
+void dev_user_unmap_buf(struct scst_user_cmd *ucmd);
 
 #endif /* SCST_KUNIT_ENABLED */
 #endif /* SCST_USER_TEST_H */

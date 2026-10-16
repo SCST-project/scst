@@ -846,6 +846,22 @@ static inline long get_user_pages_backport(unsigned long start,
 #define get_user_pages get_user_pages_backport
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 6, 0) &&		\
+	LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 6))
+/* pin_user_pages() lost its vmas parameter in v6.5, like get_user_pages(). */
+static inline long pin_user_pages_backport(unsigned long start,
+					   unsigned long nr_pages,
+					   unsigned int gup_flags,
+					   struct page **pages)
+{
+	return pin_user_pages(start, nr_pages, gup_flags, pages, NULL);
+}
+
+#define pin_user_pages pin_user_pages_backport
+#endif
+
 /* <linux/jiffies.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 0)
