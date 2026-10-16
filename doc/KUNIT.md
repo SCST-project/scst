@@ -156,13 +156,15 @@ releases runner-owned KUnit; incomplete execution can retain modules.
 ## Issue #367: task management and ACG reassignment
 
 `KUNIT_LABEL=TM` selects `scst-TM-acg`. It checks five `black_hole` modes
-for session teardown commands, mode changes across ACG reassignment, and
-unchanged-group handling. These checks should pass before a production fix.
+for session teardown commands, all mode transitions through the sysfs store,
+rejected and repeated writes, and unchanged-group handling. Reassignment
+checks require the old mode during the NULL-ACG window and the new mode after
+the transition; later writes to the old group must not affect the session.
 `tm_during_reassign_test` also invokes the TM reader from an allocation stub
 while the real reassignment is in progress, for all five modes. It checks
 command state, drop policy and event delivery during and after the transition.
-This case is enabled without a SKIP: before the production fix, its reader
-can crash the test VM. Use a disposable VM and retain its console log outside
+The reassignment regressions run without a SKIP: with the original ACG reader,
+they can crash the test VM. Use a disposable VM and retain its console log outside
 the guest. The fixture controls one interleaving; it does not prove the
 absence of other races.
 

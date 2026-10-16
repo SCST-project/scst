@@ -3116,6 +3116,7 @@ next:
 	}
 
 	sess->acg = acg;
+	WRITE_ONCE(sess->black_hole_type, acg->acg_black_hole_type);
 
 	TRACE_DBG("Moving sess %p from acg %s to acg %s", sess,
 		old_acg->acg_name, acg->acg_name);

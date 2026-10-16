@@ -4,7 +4,6 @@ package testcfg
 import (
 	"os"
 	"path/filepath"
-	"strings"
 	"testing"
 )
 
@@ -89,13 +88,8 @@ func TestISCSIConfiguration(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if cfg.ISCSI.ACGReassignRace || cfg.ISCSI.Initiator.DisposableHost || cfg.ISCSI.Initiator.IdentityFile != filepath.Join(filepath.Dir(path), "id_test") {
+	if cfg.ISCSI.Initiator.DisposableHost || cfg.ISCSI.Initiator.IdentityFile != filepath.Join(filepath.Dir(path), "id_test") {
 		t.Fatalf("unsafe defaults or bad path: %+v", cfg.ISCSI)
-	}
-	optIn := strings.Replace(input, `"iscsi":{`, `"iscsi":{"acg_reassign_race":true,`, 1)
-	enabled, err := Load(configFile(t, optIn))
-	if err != nil || !enabled.ISCSI.ACGReassignRace {
-		t.Fatalf("explicit race selection lost: %+v, %v", enabled.ISCSI, err)
 	}
 	for name, change := range map[string]func(*ISCSI){
 		"wildcard target":      func(i *ISCSI) { i.TargetAddress = "0.0.0.0" },
