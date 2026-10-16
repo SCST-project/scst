@@ -1856,6 +1856,12 @@ struct scst_session {
 	/* Access control for this session and list entry there */
 	struct scst_acg *acg;
 
+	/*
+	 * Cached ACG black-hole mode for TM, which can run during reassignment.
+	 * Writers hold scst_mutex; the TM reader uses READ_ONCE().
+	 */
+	int black_hole_type;
+
 	/* Initiator port transport id */
 	uint8_t *transport_id;
 

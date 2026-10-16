@@ -34,6 +34,7 @@
 #include "scst_pres.h"
 #include "scst_mem.h"
 #include "scst_test.h"
+#include "scst_sysfs_test.h"
 
 #undef DEFAULT_SYMBOL_NAMESPACE
 #define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
@@ -1758,13 +1759,12 @@ static ssize_t __scst_acg_black_hole_show(struct scst_acg *acg, char *buf)
 	return sysfs_emit(buf, "%d\n", t);
 }
 
-static ssize_t __scst_acg_black_hole_store(struct scst_acg *acg, const char *buf, size_t count)
+SCST_KUNIT_VISIBLE ssize_t
+__scst_acg_black_hole_store(struct scst_acg *acg, const char *buf, size_t count)
 {
 	int res = 0;
 	int prev, t;
 	struct scst_session *sess;
-
-	prev = acg->acg_black_hole_type;
 
 	if (!buf || count == 0) {
 		res = 0;
@@ -1772,6 +1772,7 @@ static ssize_t __scst_acg_black_hole_store(struct scst_acg *acg, const char *buf
 	}
 
 	mutex_lock(&scst_mutex);
+	prev = acg->acg_black_hole_type;
 
 	BUILD_BUG_ON((SCST_ACG_BLACK_HOLE_NONE != 0) ||
 		     (SCST_ACG_BLACK_HOLE_CMD != 1) ||
@@ -1809,6 +1810,7 @@ static ssize_t __scst_acg_black_hole_store(struct scst_acg *acg, const char *buf
 	list_for_each_entry(sess, &acg->acg_sess_list, acg_sess_list_entry) {
 		int i;
 
+		WRITE_ONCE(sess->black_hole_type, t);
 		rcu_read_lock();
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			struct list_head *head = &sess->sess_tgt_dev_list[i];

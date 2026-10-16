@@ -92,9 +92,6 @@ func (f *fixture) raceACG(ctx context.Context, kernel *testhost.KernelLog, from,
 
 var _ = DescribeTable("ACG reassignment during iSCSI teardown", Label("iscsi", "stress", "sessions", "issue-367"),
 	func(ctx SpecContext, recoverTCP bool) {
-		if !cfg.ISCSI.ACGReassignRace {
-			Skip("set iscsi.acg_reassign_race=true on disposable VMs to attempt issue #367")
-		}
 		path := filepath.Join(artifactDir, fmt.Sprintf("issue-367-%t-kernel.log", recoverTCP))
 		kernel := must(testhost.StartKernelLog(path))
 		AddReportEntry("kernel log", path)

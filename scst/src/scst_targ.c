@@ -5648,7 +5648,8 @@ SCST_KUNIT_VISIBLE int scst_mgmt_cmd_init(struct scst_mgmt_cmd *mcmd)
 
 	TRACE_ENTRY();
 
-	t = mcmd->sess->acg->acg_black_hole_type;
+	/* sess->acg can be NULL, or its old ACG released, during reassignment. */
+	t = READ_ONCE(mcmd->sess->black_hole_type);
 	if (unlikely(t == SCST_ACG_BLACK_HOLE_ALL || t == SCST_ACG_BLACK_HOLE_DATA_MCMD)) {
 		TRACE_MGMT_DBG("Dropping mcmd %p (fn %d, initiator %s)",
 			       mcmd, mcmd->fn, mcmd->sess->initiator_name);
@@ -6996,6 +6997,7 @@ static int scst_init_session(struct scst_session *sess)
 	mutex_lock(&scst_mutex);
 
 	sess->acg = scst_find_acg(sess);
+	WRITE_ONCE(sess->black_hole_type, sess->acg->acg_black_hole_type);
 
 	PRINT_INFO("Using security group \"%s\" for initiator \"%s\" (target %s)",
 		   sess->acg->acg_name, sess->initiator_name, sess->tgt->tgt_name);

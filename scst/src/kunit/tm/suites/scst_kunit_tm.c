@@ -8,6 +8,7 @@
 #endif
 #include "../../../scst_priv.h"
 #include "../../../scst_lib_test.h"
+#include "../../../scst_sysfs_test.h"
 #include "../../../scst_targ_test.h"
 
 struct tm_fixture {
@@ -61,8 +62,10 @@ static int tm_alloc_tgt_dev_stub(struct scst_session *sess,
 	KUNIT_EXPECT_PTR_EQ(test, acg_dev, &f->acg_dev);
 	f->allocations++;
 	/* Exercise the reader before the real reassignment has completed. */
-	if (f->check_tm_during_reassign)
+	if (f->check_tm_during_reassign) {
+		KUNIT_EXPECT_PTR_EQ(test, sess->acg, NULL);
 		tm_check_teardown_commands(test, f->expected_tm_dropped);
+	}
 	*out = NULL;
 	return -EPERM;
 }
@@ -168,12 +171,20 @@ static void tm_check_teardown_commands(struct kunit *test, bool dropped)
 	KUNIT_EXPECT_EQ(test, f->events - events, (unsigned int)ARRAY_SIZE(functions));
 }
 
+static void tm_set_black_hole(struct kunit *test, struct scst_acg *acg, int mode)
+{
+	char buf[] = { '0' + mode, '\0' };
+
+	KUNIT_EXPECT_EQ(test, __scst_acg_black_hole_store(acg, buf, 1), (ssize_t)0);
+	KUNIT_EXPECT_EQ(test, acg->acg_black_hole_type, mode);
+}
+
 static void tm_black_hole_test(struct kunit *test)
 {
 	const struct tm_mode_case *p = test->param_value;
 	struct tm_fixture *f = test->priv;
 
-	f->old_acg.acg_black_hole_type = p->mode;
+	tm_set_black_hole(test, &f->old_acg, p->mode);
 	tm_check_teardown_commands(test, p->dropped);
 }
 
@@ -193,11 +204,15 @@ static void tm_reassign_mode_test(struct kunit *test)
 	struct tm_fixture *f = test->priv;
 
 	/* Cover both entering and leaving the modes which drop TM commands. */
-	f->old_acg.acg_black_hole_type = p->dropped ?
-		SCST_ACG_BLACK_HOLE_NONE : SCST_ACG_BLACK_HOLE_ALL;
+	tm_set_black_hole(test, &f->old_acg, p->dropped ?
+			  SCST_ACG_BLACK_HOLE_NONE : SCST_ACG_BLACK_HOLE_ALL);
 	f->new_acg.acg_black_hole_type = p->mode;
 	tm_check_teardown_commands(test, !p->dropped);
+	/* Keep the old policy until the new ACG is installed. */
+	f->expected_tm_dropped = !p->dropped;
+	f->check_tm_during_reassign = true;
 	tm_reassign(test);
+	f->check_tm_during_reassign = false;
 	KUNIT_ASSERT_PTR_EQ(test, f->sess.acg, &f->new_acg);
 	KUNIT_EXPECT_EQ(test, f->allocations, 1U);
 	KUNIT_EXPECT_EQ(test, f->links, 1U);
@@ -205,6 +220,11 @@ static void tm_reassign_mode_test(struct kunit *test)
 	KUNIT_EXPECT_TRUE(test, list_is_singular(&f->new_acg.acg_sess_list));
 	KUNIT_EXPECT_EQ(test, kref_read(&f->old_acg.acg_kref), 1U);
 	KUNIT_EXPECT_EQ(test, kref_read(&f->new_acg.acg_kref), 2U);
+	tm_check_teardown_commands(test, p->dropped);
+	/* Updating the former group must no longer affect this session. */
+	tm_set_black_hole(test, &f->old_acg, p->mode);
+	tm_set_black_hole(test, &f->old_acg, p->dropped ?
+			  SCST_ACG_BLACK_HOLE_NONE : SCST_ACG_BLACK_HOLE_ALL);
 	tm_check_teardown_commands(test, p->dropped);
 }
 
@@ -214,7 +234,7 @@ static void tm_during_reassign_test(struct kunit *test)
 	struct tm_fixture *f = test->priv;
 
 	/* The expected TM policy is unambiguous throughout this transition. */
-	f->old_acg.acg_black_hole_type = p->mode;
+	tm_set_black_hole(test, &f->old_acg, p->mode);
 	f->new_acg.acg_black_hole_type = p->mode;
 	f->expected_tm_dropped = p->dropped;
 	f->check_tm_during_reassign = true;
@@ -231,17 +251,42 @@ static void tm_same_acg_test(struct kunit *test)
 	struct tm_fixture *f = test->priv;
 
 	f->tgt.default_acg = &f->old_acg;
+	tm_set_black_hole(test, &f->old_acg, SCST_ACG_BLACK_HOLE_ALL);
 	tm_reassign(test);
 	KUNIT_EXPECT_PTR_EQ(test, f->sess.acg, &f->old_acg);
 	KUNIT_EXPECT_EQ(test, f->allocations, 0U);
 	KUNIT_EXPECT_EQ(test, f->links, 0U);
 	KUNIT_EXPECT_TRUE(test, list_is_singular(&f->old_acg.acg_sess_list));
 	KUNIT_EXPECT_TRUE(test, list_empty(&f->new_acg.acg_sess_list));
-	tm_check_teardown_commands(test, false);
+	tm_check_teardown_commands(test, true);
+}
+
+static void tm_sysfs_mode_test(struct kunit *test)
+{
+	const struct tm_mode_case *p = test->param_value;
+	struct tm_fixture *f = test->priv;
+	unsigned int i;
+
+	for (i = 0; i < ARRAY_SIZE(tm_modes); i++) {
+		tm_set_black_hole(test, &f->old_acg, tm_modes[i].mode);
+		tm_check_teardown_commands(test, tm_modes[i].dropped);
+		tm_set_black_hole(test, &f->old_acg, p->mode);
+		tm_check_teardown_commands(test, p->dropped);
+		/* Repeating or rejecting a write must preserve the current mode. */
+		tm_set_black_hole(test, &f->old_acg, p->mode);
+		KUNIT_EXPECT_EQ(test, __scst_acg_black_hole_store(&f->old_acg, "x", 1),
+				(ssize_t)-EINVAL);
+		KUNIT_EXPECT_EQ(test, __scst_acg_black_hole_store(&f->old_acg, "0", 0),
+				(ssize_t)0);
+		KUNIT_EXPECT_EQ(test, __scst_acg_black_hole_store(&f->old_acg, NULL, 1),
+				(ssize_t)0);
+		tm_check_teardown_commands(test, p->dropped);
+	}
 }
 
 static struct kunit_case tm_cases[] = {
 	KUNIT_CASE_PARAM(tm_black_hole_test, tm_mode_gen_params),
+	KUNIT_CASE_PARAM(tm_sysfs_mode_test, tm_mode_gen_params),
 	KUNIT_CASE_PARAM(tm_reassign_mode_test, tm_mode_gen_params),
 	KUNIT_CASE(tm_same_acg_test),
 	KUNIT_CASE_PARAM(tm_during_reassign_test, tm_mode_gen_params),
