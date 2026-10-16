@@ -12444,13 +12444,11 @@ int scst_calc_block_shift(int sector_size)
 	if (sector_size == 0)
 		sector_size = 512;
 
-	block_shift = ilog2(sector_size);
-	WARN_ONCE(1 << block_shift != sector_size, "1 << %d != %d\n",
-		  block_shift, sector_size);
-
-	if (block_shift < 9) {
+	if (sector_size < 512 || !is_power_of_2(sector_size)) {
 		PRINT_ERROR("Wrong sector size %d", sector_size);
 		block_shift = -1;
+	} else {
+		block_shift = ilog2(sector_size);
 	}
 
 	TRACE_EXIT_RES(block_shift);
@@ -12834,14 +12832,16 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 			}
 			sector_size = get_unaligned_be32(&buffer[sect_sz_off]);
 			scst_put_buf_full(cmd, buffer);
-			if (sector_size != 0) {
-				sh = scst_calc_block_shift(sector_size);
-				set_block_shift(cmd, sh);
-				TRACE_DBG("block_shift %d", sh);
-			} else {
-				PRINT_ERROR("Sector size in %s response is 0",
-					    cmd->op_name);
+			sh = sector_size ? scst_calc_block_shift(sector_size) : -1;
+			if (sh < 0) {
+				PRINT_ERROR("Invalid sector size %u in %s response",
+					    sector_size, cmd->op_name);
+				scst_set_cmd_error(cmd,
+						   SCST_LOAD_SENSE(scst_sense_internal_failure));
+				goto out;
 			}
+			set_block_shift(cmd, sh);
+			TRACE_DBG("block_shift %d", sh);
 		}
 	}
 
