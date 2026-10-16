@@ -4,10 +4,12 @@
 scst-kunit-scst := \
 	kunit/alua/suites/scst_kunit_alua.o \
 	kunit/cdb/suites/scst_kunit_cdb.o \
+	kunit/cdb/suites/scst_kunit_tape.o \
 	kunit/cm/suites/scst_kunit_cm.o \
 	kunit/event/scst_event_fixture.o \
 	kunit/event/suites/scst_kunit_event_import.o \
 	kunit/event/suites/scst_kunit_event_delivery.o \
+	kunit/lib/suites/scst_kunit_capacity.o \
 	kunit/lib/suites/scst_kunit_lib.o \
 	kunit/lifecycle/suites/scst_kunit_lifecycle.o \
 	kunit/lifecycle/suites/scst_kunit_blocking.o \

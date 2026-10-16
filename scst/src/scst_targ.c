@@ -1965,7 +1965,8 @@ EXPORT_SYMBOL(scst_rx_data);
  * Tape devices do not use block_shift: their block size need not be a power
  * of two, and a variable-length transfer is counted in bytes.
  */
-static bool scst_write_len_block_aligned(const struct scst_cmd *cmd)
+SCST_KUNIT_VISIBLE
+bool scst_write_len_block_aligned(const struct scst_cmd *cmd)
 {
 	const struct scst_device *dev = cmd->dev;
 
