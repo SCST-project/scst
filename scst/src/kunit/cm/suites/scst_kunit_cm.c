@@ -186,6 +186,7 @@ struct cm_lun_case {
 	bool lun_readonly;
 	bool dev_readonly;
 	int register_error;
+	bool no_block_shift;
 };
 
 static const struct cm_lun_case cm_luns[] = {
@@ -197,6 +198,8 @@ static const struct cm_lun_case cm_luns[] = {
 	{ "writable" },
 	{ "register-enomem", false, false, false, -ENOMEM },
 	{ "register-eio", false, false, false, -EIO },
+	/* Tape devices have no block shift for block to block copies. */
+	{ "no-block-shift", .no_block_shift = true },
 };
 
 static void cm_lun_desc(const struct cm_lun_case *p, char *desc)
@@ -212,20 +215,22 @@ static void cm_lun_test(struct kunit *test)
 	struct cm_fixture *f = test->priv;
 	unsigned int flags = SCST_ADD_LUN_GEN_UA | SCST_ADD_LUN_READ_ONLY;
 	bool readonly = p->lun_readonly || p->dev_readonly;
-	bool registered = !p->foreign && !readonly;
+	bool rejected = readonly || p->no_block_shift;
+	bool registered = !p->foreign && !rejected;
 	int rc;
 
 	f->acg_dev.acg = p->foreign ? &f->other_acg : &f->acg;
 	f->acg_dev.dev = &f->dev;
 	f->acg_dev.acg_dev_rd_only = p->lun_readonly;
 	f->dev.dev_rd_only = p->dev_readonly;
+	f->dev.block_shift = p->no_block_shift ? -1 : 9;
 	f->register_result = p->register_error;
 	kunit_activate_static_stub(test, scst_cm_default_acg, cm_default_group);
 	kunit_activate_static_stub(test, scst_cm_dev_register, cm_register_stub);
 	mutex_lock(&scst_mutex);
 	rc = scst_cm_on_add_lun(&f->acg_dev, 9, &flags);
 	mutex_unlock(&scst_mutex);
-	KUNIT_EXPECT_EQ(test, rc, p->foreign ? 0 : (readonly ? -EINVAL : p->register_error));
+	KUNIT_EXPECT_EQ(test, rc, p->foreign ? 0 : (rejected ? -EINVAL : p->register_error));
 	KUNIT_EXPECT_EQ(test, f->registrations, (unsigned int)registered);
 	KUNIT_EXPECT_EQ(test, !!(flags & SCST_ADD_LUN_GEN_UA), !registered);
 	KUNIT_EXPECT_TRUE(test, !!(flags & SCST_ADD_LUN_READ_ONLY));
