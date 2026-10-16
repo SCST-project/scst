@@ -317,23 +317,40 @@ static void dev_user_on_cached_mem_free(struct scst_user_cmd *ucmd)
 	TRACE_EXIT();
 }
 
-static void dev_user_unmap_buf(struct scst_user_cmd *ucmd)
+SCST_KUNIT_VISIBLE
+void dev_user_unmap_buf(struct scst_user_cmd *ucmd)
 {
-	int i;
-
 	TRACE_ENTRY();
 
 	TRACE_MEM("Unmapping data pages (ucmd %p, ubuff %lx, num %d)",
 		  ucmd, ucmd->ubuff, ucmd->num_data_pages);
 
-	for (i = 0; i < ucmd->num_data_pages; i++) {
-		struct page *page = ucmd->data_pages[i];
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
+	{
+		int i;
 
-		if (ucmd->buf_dirty)
-			SetPageDirty(page);
+		for (i = 0; i < ucmd->num_data_pages; i++) {
+			struct page *page = ucmd->data_pages[i];
 
-		put_page(page);
+			if (ucmd->buf_dirty)
+				SetPageDirty(page);
+
+			put_page(page);
+		}
 	}
+#else
+	/*
+	 * Can be called from on_free_cmd() in atomic context, so don't use
+	 * unpin_user_pages_dirty_lock(): it takes the page lock.
+	 */
+	if (ucmd->buf_dirty) {
+		int i;
+
+		for (i = 0; i < ucmd->num_data_pages; i++)
+			SetPageDirty(ucmd->data_pages[i]);
+	}
+	unpin_user_pages(ucmd->data_pages, ucmd->num_data_pages);
+#endif
 
 	kfree(ucmd->data_pages);
 	ucmd->data_pages = NULL;
@@ -1093,10 +1110,10 @@ static void dev_user_add_to_ready(struct scst_user_cmd *ucmd)
 	TRACE_EXIT();
 }
 
-static int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff, int num_pg)
+SCST_KUNIT_VISIBLE
+int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff, int num_pg)
 {
 	int res = 0, rc;
-	int i;
 	struct task_struct *tsk = current;
 
 	TRACE_ENTRY();
@@ -1127,9 +1144,15 @@ static int dev_user_map_buf(struct scst_user_cmd *ucmd, unsigned long ubuff, int
 			    ucmd->data_pages);
 	up_read(&tsk->mm->mmap_sem);
 #else
+	/*
+	 * Pin the pages: buffers can stay cached across commands, and a plain
+	 * page reference does not survive fork(). After a fork, the handler's
+	 * next write to the buffer would land in a COW copy while SCST kept
+	 * using the old page.
+	 */
 	mmap_read_lock(tsk->mm);
-	rc = get_user_pages(ubuff, ucmd->num_data_pages, FOLL_WRITE,
-			    ucmd->data_pages);
+	rc = pin_user_pages(ubuff, ucmd->num_data_pages,
+			    FOLL_WRITE | FOLL_LONGTERM, ucmd->data_pages);
 	mmap_read_unlock(tsk->mm);
 #endif
 
@@ -1159,8 +1182,14 @@ out_unmap:
 	PRINT_ERROR("Failed to get %d user pages (rc %d)",
 		    ucmd->num_data_pages, rc);
 	if (rc > 0) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0)
+		int i;
+
 		for (i = 0; i < rc; i++)
 			put_page(ucmd->data_pages[i]);
+#else
+		unpin_user_pages(ucmd->data_pages, rc);
+#endif
 	}
 	kfree(ucmd->data_pages);
 	ucmd->data_pages = NULL;
