@@ -36,7 +36,7 @@ jobs:
         run: bash scripts/ci/build-image ginkgo "$RUNNER_TEMP/ginkgo-image"
       - name: Run local and iSCSI tests against the compiled SCST
         env:
-          GINKGO_LABEL: ${{ github.event_name == 'pull_request' && 'basic || smoke' || '' }}
+          GINKGO_LABEL: ${{ github.event_name == 'pull_request' && 'ci-pr' || github.event_name == 'push' && 'ci-push' || '' }}
         run: |
           python3 scripts/ci/vm.py ginkgo "$RUNNER_TEMP/ginkgo-image" \
             "$RUNNER_TEMP/ginkgo-results" --timeout 10000 --ginkgo-label "$GINKGO_LABEL"

@@ -1,0 +1,4 @@
+{
+  "ci-pr": "basic || smoke",
+  "ci-push": "!race"
+}

@@ -24,6 +24,15 @@ class VMError(Exception):
     pass
 
 
+def resolve_ginkgo_label(label):
+    path = Path(__file__).resolve().parents[2] / 'tests/ginkgo/internal/testrun/labels.json'
+    sets = json.loads(path.read_text())
+    expression = sets.get(label.strip(), label)
+    if label.strip() in sets and (not isinstance(expression, str) or not expression.strip()):
+        raise VMError(f'Ginkgo label set {label!r} must be a nonempty expression')
+    return expression
+
+
 def stop(process):
     """Kill only our own QEMU process group, including on interruption."""
     if process.poll() is None:
@@ -220,6 +229,8 @@ def run(image, output, mode, timeout, accel, ginkgo_label=''):
     manifest = json.loads((image / 'image.json').read_text())
     if mode in ('kunit', 'ginkgo') and manifest['suite'] != mode:
         raise VMError('image was built for a different test suite')
+    if mode == 'ginkgo':
+        ginkgo_label = resolve_ginkgo_label(ginkgo_label)
     output.mkdir(parents=True, exist_ok=False)
     token = secrets.token_hex(16)
     result = dict(mode=mode, image=manifest, status='ERROR', error=None)
@@ -265,7 +276,8 @@ def main():
     parser.add_argument('output', type=Path)
     parser.add_argument('--timeout', type=int, default=10000)
     parser.add_argument('--accel', choices=('auto', 'tcg', 'kvm'), default='auto')
-    parser.add_argument('--ginkgo-label', default='', help='Ginkgo label expression (default: all tests)')
+    parser.add_argument('--ginkgo-label', default='',
+                        help='Ginkgo label set or expression (default: all tests)')
     args = parser.parse_args()
     if args.timeout <= 0:
         parser.error('--timeout must be positive')

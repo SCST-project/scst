@@ -7,7 +7,10 @@ and runs tests in disposable QEMU guests within a single job:
   success, panic and timeout, then `make kunit-run`.
 - `.github/workflows/ginkgo.yml`: ordinary SCST modules, `make ginkgo-check`,
   then local and TCP iSCSI tests through `make ginkgo-test`. Pull requests use
-  `basic || smoke`; pushes to `master` and manual runs select all tests.
+  the `ci-pr` label set; pushes to `master` use `ci-push`. Define these sets
+  in [labels.json](../tests/ginkgo/internal/testrun/labels.json) by combining
+  ordinary Ginkgo labels. Manual runs select all tests, including
+  timing-dependent race scenarios.
 
 Both run on pushes and pull requests to `master`, or via `workflow_dispatch`.
 The Debian package build in `.github/workflows/ci.yml` remains independent.
@@ -56,9 +59,12 @@ bash scripts/ci/build-image ginkgo /tmp/scst-ginkgo-image
 python3 scripts/ci/vm.py ginkgo /tmp/scst-ginkgo-image /tmp/scst-ginkgo-results --timeout 10000
 ```
 
-Add `--ginkgo-label 'basic || smoke'` to reproduce the pull-request selection.
-The selected filter is printed in stdout and recorded in `result.json`;
-both transport reports must confirm that filter.
+Add `--ginkgo-label ci-pr` to reproduce the pull-request selection.
+Use `--ginkgo-label ci-push` for the master push selection; omit the option
+for the full manual selection.
+Ordinary Ginkgo expressions are also accepted. The resolved filter is printed
+in stdout and recorded in `result.json`; both transport reports must confirm
+that filter.
 
 Supervisor checks without VM or SCST access:
 

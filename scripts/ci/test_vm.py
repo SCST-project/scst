@@ -232,11 +232,15 @@ class ConsoleTests(unittest.TestCase):
         self.assertIn('Label filter: <all>', output)
         self.assertEqual(result['ginkgo_label'], '')
 
-    def test_ginkgo_pr_filter_reaches_both_suites_and_is_reported(self):
-        result, output = self.run_guest('ginkgo', ginkgo_label='basic || smoke')
-        self.assertEqual(result['status'], 'PASS')
-        self.assertEqual(result['ginkgo_label'], 'basic || smoke')
-        self.assertIn('Label filter: basic || smoke', output)
+    def test_ginkgo_label_sets_reach_both_suites_and_are_reported(self):
+        for label, expression in (('basic || smoke', 'basic || smoke'),
+                                  ('ci-pr', 'basic || smoke'), ('ci-push', '!race')):
+            with self.subTest(label=label):
+                self.output = self.root / label
+                result, output = self.run_guest('ginkgo', ginkgo_label=label)
+                self.assertEqual(result['status'], 'PASS')
+                self.assertEqual(result['ginkgo_label'], expression)
+                self.assertIn(f'Label filter: {expression}', output)
 
     def test_failed_tests_print_assertions_and_preserve_failed_verdict(self):
         for mode in ('kunit', 'ginkgo'):
