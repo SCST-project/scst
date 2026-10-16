@@ -1960,6 +1960,27 @@ void scst_rx_data(struct scst_cmd *cmd, int status, enum scst_exec_context pref_
 }
 EXPORT_SYMBOL(scst_rx_data);
 
+/*
+ * Whether the data actually received for a write ends on a block boundary.
+ * Tape devices do not use block_shift: their block size need not be a power
+ * of two, and a variable-length transfer is counted in bytes.
+ */
+static bool scst_write_len_block_aligned(const struct scst_cmd *cmd)
+{
+	const struct scst_device *dev = cmd->dev;
+
+	if (!(cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED))
+		return true;
+
+	if (dev->type == TYPE_TAPE) {
+		if (!(cmd->cdb[1] & 1))
+			return true;
+		return dev->block_size > 0 && cmd->write_len % dev->block_size == 0;
+	}
+
+	return (cmd->write_len & ((1 << dev->block_shift) - 1)) == 0;
+}
+
 static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 {
 	int res = SCST_CMD_STATE_RES_CONT_SAME, rc;
@@ -2008,8 +2029,7 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 					remainder = true;
 			}
 			if (remainder) {
-				if (!(cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED) ||
-				    (cmd->write_len & ((1 << cmd->dev->block_shift) - 1)) == 0) {
+				if (scst_write_len_block_aligned(cmd)) {
 #if 0 /* dangerous, because can override valid data by zeros */
 					scst_check_restore_sg_buff(cmd);
 					scst_zero_write_rest(cmd);

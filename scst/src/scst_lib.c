@@ -12615,10 +12615,17 @@ int scst_tape_generic_parse(struct scst_cmd *cmd)
 
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED && cmd->cdb[1] & 1) {
 		uint32_t block_size = cmd->dev->block_size;
-		uint32_t block_shift = cmd->dev->block_shift;
-		bool overflow = shift_left_overflows(cmd->bufflen, block_shift) ||
-				shift_left_overflows(cmd->data_len, block_shift) ||
-				shift_left_overflows(cmd->out_bufflen, block_shift);
+		u64 max_blocks = LLONG_MAX;
+		bool overflow;
+
+		/* Tape block sizes need not be powers of two. */
+		if (block_size)
+			do_div(max_blocks, block_size);
+		overflow = !block_size || cmd->bufflen < 0 || cmd->data_len < 0 ||
+			   cmd->out_bufflen < 0 ||
+			   cmd->bufflen > INT_MAX / block_size ||
+			   cmd->out_bufflen > INT_MAX / block_size ||
+			   cmd->data_len > max_blocks;
 
 		BUILD_BUG_ON(sizeof(cmd->bufflen) != 4);
 		BUILD_BUG_ON(sizeof(cmd->out_bufflen) != 4);
@@ -12634,9 +12641,9 @@ int scst_tape_generic_parse(struct scst_cmd *cmd)
 			goto out;
 		}
 
-		cmd->bufflen <<= block_shift;
-		cmd->out_bufflen <<= block_shift;
-		cmd->data_len <<= block_shift;
+		cmd->bufflen *= block_size;
+		cmd->out_bufflen *= block_size;
+		cmd->data_len *= block_size;
 	}
 
 	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
