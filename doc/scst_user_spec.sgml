@@ -987,11 +987,25 @@ cached ones are busy.
 Some important notes:
 
 <enum>
-<item> If the user space handler needs to call fork(), it must call
-madvise() with MADV_DONTFORK flag for all allocated data buffers,
-otherwise parent or child process could loose the connection with them,
-which could lead to data corruption. See <url url="http://lwn.net/Articles/171941/">
-for details.
+<item> On Linux 5.9 and later, scst_user pins data buffers with
+pin_user_pages(FOLL_LONGTERM), and fork() gives the child a copy of a
+pinned page, so the buffers stay shared between the user space handler
+and SCST if the handler calls fork(). For private HugeTLB mappings
+(MAP_PRIVATE with MAP_HUGETLB, or a private mapping of a hugetlbfs file)
+fork() does this only since Linux 5.12. On older kernels, including
+distribution kernels based on them, and for private HugeTLB buffers
+before Linux 5.12, if the user space handler needs to call fork(), it
+must call madvise() with MADV_DONTFORK flag for those data buffers,
+otherwise parent or child process could loose
+the connection with them, which could lead to data corruption. See
+<url url="http://lwn.net/Articles/171941/"> for details.
+
+<item> Data buffers should be anonymous memory (for example, from
+malloc() or an anonymous mmap()) or shared memory (shmem, memfd,
+hugetlbfs). On Linux 6.5 and later, the kernel refuses a long term
+writable pin of a shared mapping of a regular file on a file system with
+writeback, such as a MAP_SHARED mapping of a file on ext4 or xfs. A
+command using such a buffer fails with INTERNAL TARGET FAILURE sense.
 
 <item> The interface assumes that all allocated memory by the user space
 handler is DMA'able by the target hardware. This is almost always true
