@@ -12825,7 +12825,8 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 			int buffer_size, sector_size, sh;
 			uint8_t *buffer;
 
-			buffer_size = scst_get_buf_full(cmd, &buffer, false);
+			/* Inspect the data returned by the backend, including split SGs. */
+			buffer_size = scst_get_buf_full(cmd, &buffer, true);
 			sect_sz_off = opcode == READ_CAPACITY ? 4 : 8;
 			if (buffer_size < sect_sz_off + 4) {
 				scst_put_buf_full(cmd, buffer);
