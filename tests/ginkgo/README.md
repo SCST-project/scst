@@ -51,9 +51,7 @@ with `basic` (management), `scsi` or `io`; add `fileio` or `blockio` to narrow
 the backend. For example, `local && io && fileio` needs no physical disk.
 `GINKGO_FOCUS` additionally filters spec names by regexp.
 
-GitHub pull requests use `basic || smoke` on both transports. `smoke` covers
-SCSI identity, capacity and LUN discovery, rejected writes and reads, an UNMAP
-transfer-boundary case, asynchronous FUA/cache commands and both fio backends.
+GitHub pull requests use `basic || smoke` on both transports.
 Pushes to `master` run all specs, including stress and the full parameter tables.
 
 ```sh
@@ -115,8 +113,7 @@ Install Python 3, util-linux and sg3_utils on the command host: the target for
 `local`, the initiator for `iscsi`. I/O also needs fio and kernel `io_uring`
 support there, plus `lsblk` and `wipefs` on the target for blockio preflight.
 
-SCSI cases check identity, capacity, LUN visibility and rejection status/sense
-on temporary fileio exports. Fio verifies CRC32C data using three concurrent
+Fio verifies CRC32C data using three concurrent
 4K, 64K and 128K jobs in disjoint regions; see the shared
 [profile](internal/dataio/verify.fio). It checks completed I/O, not performance.
 Readback checks do not verify data persistence across a crash or power loss.
@@ -159,5 +156,5 @@ affected hosts before retrying; never remove a lock file to bypass a held lock.
 The printed artifact directory under `report_dir` contains effective config,
 command logs, JSON/JUnit reports and scenario inputs. I/O adds rendered jobs
 and fio results; iSCSI adds SSH, initiator and daemon logs, which may contain
-test CHAP credentials. Only the `issue-367` specs collect kernel warnings;
-retain kernel logs separately when investigating other failures.
+test CHAP credentials. Kernel-log collection depends on the selected specs;
+retain kernel logs separately when investigating failures.
