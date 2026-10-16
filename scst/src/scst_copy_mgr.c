@@ -2806,6 +2806,17 @@ int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun, unsigned int 
 		goto out;
 	}
 
+	/*
+	 * Block to block segments size copies with block_shift. Tape devices
+	 * and other devices without a block shift cannot take part.
+	 */
+	if (acg_dev->dev->block_shift < 9) {
+		PRINT_ERROR("Copy Manager does not support device %s without a block size",
+			    acg_dev->dev->virt_name);
+		res = -EINVAL;
+		goto out;
+	}
+
 	*flags &= ~SCST_ADD_LUN_GEN_UA;
 
 	res = scst_cm_dev_register(acg_dev->dev, lun);
