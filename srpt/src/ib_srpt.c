@@ -2522,6 +2522,8 @@ static u16 srpt_next_comp_vector(struct srpt_port *sport)
  * @src_addr: GID (IB/CM) or IP address (RDMA/CM) of the port that submitted
  * the login request.
  *
+ * Exactly one of ib_cm_id and rdma_cm_id must be provided.
+ *
  * Ownership of the cm_id is transferred to the target session if this
  * function returns zero. Otherwise the caller remains the owner of cm_id.
  */
@@ -2825,10 +2827,10 @@ free_rsp_cache:
 	kmem_cache_destroy(ch->rsp_buf_cache);
 
 free_ch:
-	if (rdma_cm_id)
-		rdma_cm_id->context = NULL;
-	else
+	if (ib_cm_id)
 		ib_cm_id->context = NULL;
+	else
+		rdma_cm_id->context = NULL;
 	kfree(ch);
 	ch = NULL;
 
