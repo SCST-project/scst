@@ -39,6 +39,7 @@ ginkgo)
     # Drivers consume the core's Module.symvers. Keep these builds ordered.
     make "${opts[@]}" scst
     make "${opts[@]}" scst_local
+    make "${opts[@]}" usr
     make "${opts[@]}" iscsi INFINIBAND_ENABLED=false
     make "${opts[@]}" scstadm
     make ginkgo-check

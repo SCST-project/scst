@@ -38,7 +38,7 @@ func (h *host) run(_ context.Context, limit time.Duration, args ...string) (admi
 	if h.modules == nil {
 		h.modules = map[string]bool{"unrelated": true}
 		if h.loaded {
-			for _, name := range []string{"scst", "scst_vdisk", "scst_local"} {
+			for _, name := range []string{"scst", "scst_vdisk", "scst_user", "scst_local"} {
 				h.modules[name] = true
 			}
 		}
@@ -123,7 +123,7 @@ func TestBuildAndLoadFromCheckout(t *testing.T) {
 				opts.Build = build
 				wantBuildCount := 0
 				if build {
-					wantBuildCount = 3
+					wantBuildCount = 4
 				} else {
 					// Loading existing modules must not need any build settings.
 					opts.Jobs, opts.BuildTimeout = 0, 0
@@ -149,7 +149,7 @@ func TestBuildAndLoadFromCheckout(t *testing.T) {
 					case "modinfo":
 						metadata++
 					case "mkdir", "rmmod", "modprobe", "insmod":
-						if metadata != 6 || len(builds) != wantBuildCount {
+						if metadata != 8 || len(builds) != wantBuildCount {
 							t.Fatal("changed modules before all builds and metadata checks completed")
 						}
 						changes = append(changes, args)
@@ -160,7 +160,7 @@ func TestBuildAndLoadFromCheckout(t *testing.T) {
 				}
 				var wantBuilds [][]string
 				if build {
-					for _, target := range []string{"scst", "scst_local", "scstadm"} {
+					for _, target := range []string{"scst", "scst_local", "usr", "scstadm"} {
 						wantBuilds = append(wantBuilds, []string{"make", "-C", opts.SourceDir, "-j2", "KVER=6.12-test", "KDIR=/lib/modules/6.12-test/build", target})
 					}
 				}
@@ -169,12 +169,14 @@ func TestBuildAndLoadFromCheckout(t *testing.T) {
 				}
 				wantChanges := [][]string{{"mkdir", "-p", "--", "/var/lib/scst/pr", "/var/lib/scst/dif_tags", "/var/lib/scst/vdev_mode_pages"}}
 				if loaded {
-					wantChanges = append(wantChanges, []string{"rmmod", "scst_local"}, []string{"rmmod", "scst_vdisk"}, []string{"rmmod", "scst"})
+					wantChanges = append(wantChanges, []string{"rmmod", "scst_local"}, []string{"rmmod", "scst_user"},
+						[]string{"rmmod", "scst_vdisk"}, []string{"rmmod", "scst"})
 				}
 				wantChanges = append(wantChanges,
 					[]string{"modprobe", "--", "crc32c_generic"},
 					[]string{"insmod", opts.SourceDir + "/scst/src/scst.ko"},
 					[]string{"insmod", opts.SourceDir + "/scst/src/dev_handlers/scst_vdisk.ko"},
+					[]string{"insmod", opts.SourceDir + "/scst/src/dev_handlers/scst_user.ko"},
 					[]string{"insmod", opts.SourceDir + "/scst_local/scst_local.ko", "add_default_tgt=0"})
 				if !reflect.DeepEqual(changes, wantChanges) {
 					t.Fatalf("module order/arguments: %q", changes)
@@ -278,11 +280,12 @@ func TestUnloadOwnedModules(t *testing.T) {
 		unload     []string
 		remaining  []string
 	}{
-		{name: "complete", unload: []string{"scst_local", "scst_vdisk", "scst"}},
-		{name: "replaced", loaded: true, unload: []string{"scst_local", "scst_vdisk", "scst"}},
+		{name: "complete", unload: []string{"scst_local", "scst_user", "scst_vdisk", "scst"}},
+		{name: "replaced", loaded: true, unload: []string{"scst_local", "scst_user", "scst_vdisk", "scst"}},
 		{name: "core only", fail: "insmod /checkout with spaces/scst/src/dev_handlers/scst_vdisk.ko", unload: []string{"scst"}},
-		{name: "no local driver", fail: "insmod /checkout with spaces/scst_local/scst_local.ko", unload: []string{"scst_vdisk", "scst"}},
-		{name: "build failure", fail: "make", loaded: true, remaining: []string{"scst", "scst_vdisk", "scst_local"}},
+		{name: "no user handler", fail: "insmod /checkout with spaces/scst/src/dev_handlers/scst_user.ko", unload: []string{"scst_vdisk", "scst"}},
+		{name: "no local driver", fail: "insmod /checkout with spaces/scst_local/scst_local.ko", unload: []string{"scst_user", "scst_vdisk", "scst"}},
+		{name: "build failure", fail: "make", loaded: true, remaining: []string{"scst", "scst_vdisk", "scst_user", "scst_local"}},
 		{name: "replacement failure", fail: "rmmod scst_vdisk", loaded: true, remaining: []string{"scst", "scst_vdisk"}},
 		{name: "core load failure", fail: "insmod /checkout with spaces/scst/src/scst.ko"},
 	} {
@@ -324,7 +327,7 @@ func TestUnloadOwnedModules(t *testing.T) {
 					t.Fatalf("wrong unload command timeout: %s", limit)
 				}
 			}
-			for _, name := range []string{"scst", "scst_vdisk", "scst_local"} {
+			for _, name := range []string{"scst", "scst_vdisk", "scst_user", "scst_local"} {
 				want := false
 				for _, remaining := range tc.remaining {
 					want = want || name == remaining
@@ -354,6 +357,7 @@ func TestUnloadStopsOnFailure(t *testing.T) {
 	}{
 		{name: "configured host", dirty: true},
 		{name: "busy local driver", fail: "rmmod scst_local", last: "rmmod scst_local"},
+		{name: "busy user handler", fail: "rmmod scst_user", last: "rmmod scst_user"},
 		{name: "busy handler", fail: "rmmod scst_vdisk", last: "rmmod scst_vdisk"},
 		{name: "busy core", fail: "rmmod scst", last: "rmmod scst"},
 		{name: "interrupted command", fail: "rmmod scst_local", execFail: true, last: "rmmod scst_local"},

@@ -12444,13 +12444,11 @@ int scst_calc_block_shift(int sector_size)
 	if (sector_size == 0)
 		sector_size = 512;
 
-	block_shift = ilog2(sector_size);
-	WARN_ONCE(1 << block_shift != sector_size, "1 << %d != %d\n",
-		  block_shift, sector_size);
-
-	if (block_shift < 9) {
+	if (sector_size < 512 || !is_power_of_2(sector_size)) {
 		PRINT_ERROR("Wrong sector size %d", sector_size);
 		block_shift = -1;
+	} else {
+		block_shift = ilog2(sector_size);
 	}
 
 	TRACE_EXIT_RES(block_shift);
@@ -12615,10 +12613,17 @@ int scst_tape_generic_parse(struct scst_cmd *cmd)
 
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED && cmd->cdb[1] & 1) {
 		uint32_t block_size = cmd->dev->block_size;
-		uint32_t block_shift = cmd->dev->block_shift;
-		bool overflow = shift_left_overflows(cmd->bufflen, block_shift) ||
-				shift_left_overflows(cmd->data_len, block_shift) ||
-				shift_left_overflows(cmd->out_bufflen, block_shift);
+		u64 max_blocks = LLONG_MAX;
+		bool overflow;
+
+		/* Tape block sizes need not be powers of two. */
+		if (block_size)
+			do_div(max_blocks, block_size);
+		overflow = !block_size || cmd->bufflen < 0 || cmd->data_len < 0 ||
+			   cmd->out_bufflen < 0 ||
+			   cmd->bufflen > INT_MAX / block_size ||
+			   cmd->out_bufflen > INT_MAX / block_size ||
+			   cmd->data_len > max_blocks;
 
 		BUILD_BUG_ON(sizeof(cmd->bufflen) != 4);
 		BUILD_BUG_ON(sizeof(cmd->out_bufflen) != 4);
@@ -12634,9 +12639,9 @@ int scst_tape_generic_parse(struct scst_cmd *cmd)
 			goto out;
 		}
 
-		cmd->bufflen <<= block_shift;
-		cmd->out_bufflen <<= block_shift;
-		cmd->data_len <<= block_shift;
+		cmd->bufflen *= block_size;
+		cmd->out_bufflen *= block_size;
+		cmd->data_len *= block_size;
 	}
 
 	if ((cmd->op_flags & (SCST_SMALL_TIMEOUT | SCST_LONG_TIMEOUT)) == 0)
@@ -12818,7 +12823,8 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 			int buffer_size, sector_size, sh;
 			uint8_t *buffer;
 
-			buffer_size = scst_get_buf_full(cmd, &buffer, false);
+			/* Inspect the data returned by the backend, including split SGs. */
+			buffer_size = scst_get_buf_full(cmd, &buffer, true);
 			sect_sz_off = opcode == READ_CAPACITY ? 4 : 8;
 			if (buffer_size < sect_sz_off + 4) {
 				scst_put_buf_full(cmd, buffer);
@@ -12826,14 +12832,16 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 			}
 			sector_size = get_unaligned_be32(&buffer[sect_sz_off]);
 			scst_put_buf_full(cmd, buffer);
-			if (sector_size != 0) {
-				sh = scst_calc_block_shift(sector_size);
-				set_block_shift(cmd, sh);
-				TRACE_DBG("block_shift %d", sh);
-			} else {
-				PRINT_ERROR("Sector size in %s response is 0",
-					    cmd->op_name);
+			sh = sector_size ? scst_calc_block_shift(sector_size) : -1;
+			if (sh < 0) {
+				PRINT_ERROR("Invalid sector size %u in %s response",
+					    sector_size, cmd->op_name);
+				scst_set_cmd_error(cmd,
+						   SCST_LOAD_SENSE(scst_sense_internal_failure));
+				goto out;
 			}
+			set_block_shift(cmd, sh);
+			TRACE_DBG("block_shift %d", sh);
 		}
 	}
 
