@@ -86,9 +86,11 @@ var (
 
 // UserHandlerFault checks a disk served by the user-space fileio handler
 // across a handler fault. Reading LBA 0, which holds lba0, leaves known bytes
-// in the handler's reused buffer. arm enables the fault in the handler, which
-// replaces the block length of the reply to capacityCDB. Afterwards geometry,
-// reads and writes must be unaffected.
+// in a cached handler buffer; later commands may use another buffer. arm
+// enables the fault in the handler: with a capacity CDB it replaces the block
+// length of that command's reply, otherwise it forks after replying to the
+// next command. The fixture must use MADV_DONTFORK on kernels older than 5.9.
+// Afterwards geometry, reads and writes must be unaffected on every kernel.
 func (e *Endpoint) UserHandlerFault(ctx context.Context, lba0 []byte, arm func() error, capacityCDB []byte) error {
 	if err := e.Capacity(ctx); err != nil {
 		return fmt.Errorf("before the fault: %w", err)
@@ -99,14 +101,18 @@ func (e *Endpoint) UserHandlerFault(ctx context.Context, lba0 []byte, arm func()
 	if err := arm(); err != nil {
 		return err
 	}
-	request := 8
-	if capacityCDB[0] == 0x9e {
-		request = 32
-	}
-	// scst_sense_internal_failure is 0b/44/00.
-	r, err := e.rawCDB(ctx, capacityCDB, nil, request)
-	if err := rejection(r, err, 11, [3]byte{0xb, 0x44, 0}); err != nil {
-		return fmt.Errorf("invalid block length: %w", err)
+	if capacityCDB != nil {
+		request := 8
+		if capacityCDB[0] == 0x9e {
+			request = 32
+		}
+		// scst_sense_internal_failure is 0b/44/00.
+		r, err := e.rawCDB(ctx, capacityCDB, nil, request)
+		if err := rejection(r, err, 11, [3]byte{0xb, 0x44, 0}); err != nil {
+			return fmt.Errorf("invalid block length: %w", err)
+		}
+	} else if _, err := e.sg(ctx, "sg_turs"); err != nil {
+		return err
 	}
 	if err := e.Capacity(ctx); err != nil {
 		return fmt.Errorf("after the fault: %w", err)

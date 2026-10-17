@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"time"
 
@@ -23,11 +24,17 @@ var userHookSource []byte
 
 const userBlockSize = 4096
 
+// The lines the hook logs only after it has applied each fault.
+var userHookApplied = map[string]*regexp.Regexp{
+	"fork":     regexp.MustCompile(`SCST_TEST_HOOK fork child=[1-9][0-9]*\n`),
+	"capacity": regexp.MustCompile(`SCST_TEST_HOOK capacity cdb=0x(25|9e)\n`),
+}
+
 // userDevice starts usr/fileio/fileio_tgt with the fault hook preloaded. One
-// worker thread without multi-command replies makes every command reuse the
-// same cached buffer. Cleanup removes the LUN before stopping the handler,
-// which unregisters the device.
-func (f *fixture) userDevice(ctx SpecContext, action, path, trigger string) (string, *os.File) {
+// worker thread without multi-command replies limits handler concurrency;
+// it does not guarantee reuse of a particular cached buffer. Cleanup removes
+// the LUN before stopping the handler, which unregisters the device.
+func (f *fixture) userDevice(ctx SpecContext, action, path, trigger string, dontfork bool) (string, *os.File) {
 	GinkgoHelper()
 	timeout := testcfg.Duration(cfg.CommandTimeout)
 	source, hook := f.file("user_hook.c"), f.file("user_hook.so")
@@ -40,8 +47,13 @@ func (f *fixture) userDevice(ctx SpecContext, action, path, trigger string) (str
 	// The handler reports its device name as the INQUIRY product (16 bytes).
 	name := "u" + dataio.DeviceID(f.prefix)[:15]
 	log := must(os.Create(f.file("fileio_tgt.log")))
+	dontforkValue := "0"
+	if dontfork {
+		dontforkValue = "1"
+	}
 	p, err := testhost.StartProcess(log, "env", "LD_PRELOAD="+hook,
 		"SCST_TEST_HOOK_ACTION="+action, "SCST_TEST_HOOK_TRIGGER="+trigger,
+		"SCST_TEST_HOOK_DONTFORK="+dontforkValue,
 		filepath.Join(sourceDir, "usr/fileio/fileio_tgt"), fmt.Sprintf("--block=%d", userBlockSize),
 		"--threads=1", "--multi_cmd=0", name, path)
 	if err != nil {
@@ -108,6 +120,15 @@ var _ = Describe("User-space handler devices", Label("scsi", "user", "smoke"), f
 	DescribeTable("keep replies, geometry and data intact across a handler fault",
 		func(ctx SpecContext, action string, capacityCDB []byte) {
 			timeout := testcfg.Duration(cfg.CommandTimeout)
+			dontfork := false
+			if action == "fork" {
+				r, err := cli.RunProgram(ctx, timeout, "uname", "-r")
+				Expect(err).NotTo(HaveOccurred(), r.String())
+				Expect(r.ExitCode).To(BeZero(), r.String())
+				// Older kernels require the handler to exclude its buffers
+				// from fork. Linux 5.9+ exercises page pinning without that aid.
+				dontfork = !must(testhost.KernelAtLeast(strings.TrimSpace(r.Stdout), 5, 9))
+			}
 			Expect(dataio.RequireTools(ctx, cli.RunProgram, timeout, false)).To(Succeed())
 			f := newFixture()
 			path := f.backingFile("user")
@@ -118,7 +139,7 @@ var _ = Describe("User-space handler devices", Label("scsi", "user", "smoke"), f
 			Expect(err).NotTo(HaveOccurred())
 
 			trigger := f.file("user_trigger")
-			d, log := f.userDevice(ctx, action, path, trigger)
+			d, log := f.userDevice(ctx, action, path, trigger, dontfork)
 			session := f.name("session")
 			target := f.target(ctx, "target", "session_name="+session)
 			f.at(ctx, target, "", "-add_group", "access")
@@ -132,11 +153,23 @@ var _ = Describe("User-space handler devices", Label("scsi", "user", "smoke"), f
 			arm := func() error {
 				return os.WriteFile(trigger, nil, 0o644)
 			}
-			Expect(e.UserHandlerFault(ctx, lba0, arm, capacityCDB)).To(Succeed())
+			err = e.UserHandlerFault(ctx, lba0, arm, capacityCDB)
+			// Check the fault first: without it, neither I/O result means anything.
 			Expect(log.Sync()).To(Succeed())
-			Expect(strings.Contains(string(must(os.ReadFile(log.Name()))), "SCST_TEST_HOOK "+action)).To(BeTrue(),
-				"the handler did not apply the %s fault", action)
+			out := string(must(os.ReadFile(log.Name())))
+			Expect(out).NotTo(ContainSubstring("SCST_TEST_HOOK "+action+" failed"),
+				"the handler could not apply the %s fault", action)
+			Expect(userHookApplied[action].MatchString(out)).To(BeTrue(),
+				"the handler did not apply the %s fault (I/O result: %v)", action, err)
+			if dontfork {
+				Expect(out).To(MatchRegexp(`SCST_TEST_HOOK dontfork buffers=[1-9][0-9]*\n`),
+					"legacy-kernel buffers were not protected before fork")
+			} else {
+				Expect(out).NotTo(ContainSubstring("SCST_TEST_HOOK dontfork"))
+			}
+			Expect(err).To(Succeed())
 		},
+		Entry("handler forks", "fork", nil),
 		Entry("handler returns an invalid READ CAPACITY(10) block length", Label("negative"),
 			"capacity", dataio.ReadCapacity10),
 		Entry("handler returns an invalid READ CAPACITY(16) block length", Label("negative"),

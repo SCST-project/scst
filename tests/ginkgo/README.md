@@ -132,10 +132,16 @@ Fio verifies CRC32C data using three concurrent
 Readback checks do not verify data persistence across a crash or power loss.
 
 The `user` specs run `usr/fileio/fileio_tgt` over `scst_local` with a fault
-hook preloaded that makes the handler return an invalid READ CAPACITY block
-length. READ CAPACITY, reads and writes must stay correct afterwards. They
-need a C compiler on the target to build the hook; `ginkgo-test-build` also
-builds `usr`, and the local suite loads `scst_user`.
+hook preloaded: the handler either forks or returns an invalid READ CAPACITY
+block length. READ CAPACITY, reads and writes must stay correct afterwards.
+Before Linux 5.9, the fork fixture applies the required `MADV_DONTFORK` to all
+active data buffers and checks that protection was applied before forking.
+On Linux 5.9 and later it uses no such protection, exercising page pinning.
+Both paths require correct geometry and data; neither depends on selecting a
+particular cached buffer to produce an error. The invalid-capacity cases
+require CHECK CONDITION with sense `0b/44/00` on every kernel.
+The specs need a C compiler on the target to build the hook;
+`ginkgo-test-build` also builds `usr`, and the local suite loads `scst_user`.
 
 The `unmap` specs exercise temporary thin-provisioned fileio exports over
 `scst_local` and TCP iSCSI. They require util-linux `fallocate` on the target
