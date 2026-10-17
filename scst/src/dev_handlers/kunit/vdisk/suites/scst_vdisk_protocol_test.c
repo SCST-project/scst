@@ -84,6 +84,9 @@ struct vdisk_cache_case {
 	bool sixteen;
 	bool immed;
 	bool direct;
+	bool wt;
+	bool nv_cache;
+	bool nullio;
 	u8 shift;
 	u32 blocks;
 	int error;
@@ -97,6 +100,15 @@ static const struct vdisk_cache_case vdisk_cache_cases[] = {
 	{ "cache10_immed", .immed = true, .shift = 9, .blocks = 2 },
 	{ "cache16_immed_direct", .sixteen = true, .immed = true,
 	  .direct = true, .shift = 12 },
+	{ "cache10_immed_write_through", .immed = true, .wt = true, .shift = 9 },
+	{ "cache16_immed_write_through", .sixteen = true, .immed = true,
+	  .wt = true, .shift = 12 },
+	{ "cache10_immed_nonvolatile", .immed = true, .nv_cache = true, .shift = 9 },
+	{ "cache16_immed_nonvolatile", .sixteen = true, .immed = true,
+	  .nv_cache = true, .shift = 12 },
+	{ "cache10_immed_nullio", .immed = true, .nullio = true, .shift = 9 },
+	{ "cache16_immed_nullio", .sixteen = true, .immed = true,
+	  .nullio = true, .shift = 12 },
 	{ "cache10_error", .shift = 9, .blocks = 2, .error = -EIO },
 	{ "cache16_enomem", .sixteen = true, .shift = 9, .blocks = 2, .error = -ENOMEM },
 	{ "immed_error_after_good", .sixteen = true, .immed = true,
@@ -122,6 +134,9 @@ static void vdisk_cache_test(struct kunit *test)
 	f->dev.block_size = 1U << p->shift;
 	f->vdev.file_size = 32LL << p->shift;
 	f->vdev.o_direct_flag = p->direct;
+	f->vdev.wt_flag = p->wt;
+	f->vdev.nv_cache = p->nv_cache;
+	f->vdev.nullio = p->nullio;
 	f->data.sync_result = p->error;
 	/* Cache commands have no data transfer, unlike the shared write fixture. */
 	f->cmd.bufflen = 0;
@@ -144,14 +159,17 @@ static void vdisk_cache_test(struct kunit *test)
 	KUNIT_ASSERT_EQ(test, f->cmd.bufflen, 0);
 	KUNIT_ASSERT_TRUE(test, vdisk_parse_offset(&f->params, &f->cmd));
 	KUNIT_ASSERT_EQ(test, vdisk_synchronize_cache(&f->params), RUNNING_ASYNC);
-	KUNIT_ASSERT_EQ(test, f->flush_count, 1U);
-	KUNIT_EXPECT_PTR_EQ(test, f->flushes[0].file, &f->data.file);
-	KUNIT_EXPECT_EQ(test, f->flushes[0].start, start);
-	/* The core's no-data parser leaves data_len zero, so vdisk flushes to EOF. */
-	KUNIT_EXPECT_GE(test, f->flushes[0].end, end - 1);
-	KUNIT_EXPECT_LE(test, f->flushes[0].end, f->vdev.file_size - 1);
-	KUNIT_EXPECT_EQ(test, f->flushes[0].completions, p->immed ? 1U : 0U);
-	KUNIT_EXPECT_EQ(test, f->flushes[0].cmd_refs, p->immed ? 2 : 1);
+	KUNIT_ASSERT_EQ(test, f->flush_count, p->wt || p->nv_cache || p->nullio ? 0U : 1U);
+	KUNIT_EXPECT_EQ(test, f->block_flush_count, 0U);
+	if (f->flush_count) {
+		KUNIT_EXPECT_PTR_EQ(test, f->flushes[0].file, &f->data.file);
+		KUNIT_EXPECT_EQ(test, f->flushes[0].start, start);
+		/* The no-data parser leaves data_len zero, so vdisk flushes to EOF. */
+		KUNIT_EXPECT_GE(test, f->flushes[0].end, end - 1);
+		KUNIT_EXPECT_LE(test, f->flushes[0].end, f->vdev.file_size - 1);
+		KUNIT_EXPECT_EQ(test, f->flushes[0].completions, p->immed ? 1U : 0U);
+		KUNIT_EXPECT_EQ(test, f->flushes[0].cmd_refs, p->immed ? 2 : 1);
+	}
 	KUNIT_EXPECT_EQ(test, atomic_read(&f->cmd.cmd_ref), 1);
 	KUNIT_EXPECT_EQ(test, f->completions, 1U);
 	KUNIT_EXPECT_TRUE(test, f->completed_before_callback);

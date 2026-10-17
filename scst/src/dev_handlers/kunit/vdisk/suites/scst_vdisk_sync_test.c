@@ -123,12 +123,6 @@ static void vdisk_flush_test(struct kunit *test)
 	struct vdisk_test_fixture *f = test->priv;
 	int ret;
 
-	/* The baseline bypass path dereferences cmd even when IMMED passed NULL. */
-	if (p->async && p->no_cmd && (p->wt || p->nv_cache || p->nullio)) {
-		kunit_skip(test, "commandless cache bypass needs a separate NULL-command fix");
-		return;
-	}
-
 	f->vdev.wt_flag = p->wt;
 	f->vdev.nv_cache = p->nv_cache;
 	f->vdev.nullio = p->nullio;
