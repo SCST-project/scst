@@ -22,9 +22,9 @@ jobs:
 
       - name: Download checkpatch.pl
         run: |
-          curl https://raw.githubusercontent.com/torvalds/linux/master/scripts/checkpatch.pl -o checkpatch.pl
-          curl https://raw.githubusercontent.com/torvalds/linux/master/scripts/spelling.txt -o spelling.txt
-          curl https://raw.githubusercontent.com/torvalds/linux/master/scripts/const_structs.checkpatch -o const_structs.checkpatch
+          curl -fsSL --retry 5 https://raw.githubusercontent.com/torvalds/linux/master/scripts/checkpatch.pl -o checkpatch.pl
+          curl -fsSL --retry 5 https://raw.githubusercontent.com/torvalds/linux/master/scripts/spelling.txt -o spelling.txt
+          curl -fsSL --retry 5 https://raw.githubusercontent.com/torvalds/linux/master/scripts/const_structs.checkpatch -o const_structs.checkpatch
           chmod +x checkpatch.pl
 
       - name: Run checkpatch.pl
