@@ -18,7 +18,7 @@ import (
 
 var cfg testcfg.Config
 var cli *admin.Client
-var artifactDir, runID string
+var artifactDir, runID, sourceDir string
 var pendingCleanups atomic.Int64
 
 func TestSCST(t *testing.T) {
@@ -29,7 +29,7 @@ func TestSCST(t *testing.T) {
 
 var _ = BeforeSuite(func(ctx SpecContext) {
 	modules := new(testhost.Modules)
-	sourceDir := os.Getenv("SCST_TEST_SOURCE_DIR")
+	sourceDir = os.Getenv("SCST_TEST_SOURCE_DIR")
 	if sourceDir == "" {
 		// Direct go test invocation runs in tests/ginkgo/suite.
 		sourceDir = must(filepath.Abs("../../.."))
