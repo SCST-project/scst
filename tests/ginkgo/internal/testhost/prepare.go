@@ -72,11 +72,12 @@ func (m *Modules) Prepare(ctx context.Context, opts Options, run RunProgram, che
 			return fmt.Errorf("KDIR must be absolute")
 		}
 		// Target drivers consume the core's Module.symvers, so build in order.
-		driver := "scst_local"
+		// The local suite also runs the user-space fileio handler.
+		targets := []string{"scst", "scst_local", "usr", "scstadm"}
 		if opts.ISCSI {
-			driver = "iscsi"
+			targets = []string{"scst", "iscsi", "scstadm"}
 		}
-		for _, target := range []string{"scst", driver, "scstadm"} {
+		for _, target := range targets {
 			fmt.Fprintf(progress, "Building %s for %s\n", target, release)
 			if _, err := command(opts.BuildTimeout, "make", "-C", opts.SourceDir,
 				fmt.Sprintf("-j%d", opts.Jobs), "KVER="+release, "KDIR="+kdir, target); err != nil {
@@ -87,10 +88,11 @@ func (m *Modules) Prepare(ctx context.Context, opts Options, run RunProgram, che
 	modules := []struct{ name, path string }{
 		{"scst", "scst/src/scst.ko"},
 		{"scst_vdisk", "scst/src/dev_handlers/scst_vdisk.ko"},
+		{"scst_user", "scst/src/dev_handlers/scst_user.ko"},
 		{"scst_local", "scst_local/scst_local.ko"},
 	}
 	if opts.ISCSI {
-		modules[2].name, modules[2].path = "iscsi_scst", "iscsi-scst/kernel/iscsi-scst.ko"
+		modules = append(modules[:2], struct{ name, path string }{"iscsi_scst", "iscsi-scst/kernel/iscsi-scst.ko"})
 	}
 	dependencies := make([][]string, len(modules))
 	for i, m := range modules {

@@ -131,6 +131,12 @@ Fio verifies CRC32C data using three concurrent
 [profile](internal/dataio/verify.fio). It checks completed I/O, not performance.
 Readback checks do not verify data persistence across a crash or power loss.
 
+The `user` specs run `usr/fileio/fileio_tgt` over `scst_local` with a fault
+hook preloaded that makes the handler return an invalid READ CAPACITY block
+length. READ CAPACITY, reads and writes must stay correct afterwards. They
+need a C compiler on the target to build the hook; `ginkgo-test-build` also
+builds `usr`, and the local suite loads `scst_user`.
+
 The `unmap` specs exercise temporary thin-provisioned fileio exports over
 `scst_local` and TCP iSCSI. They require util-linux `fallocate` on the target
 and a backing filesystem that supports hole punching.
