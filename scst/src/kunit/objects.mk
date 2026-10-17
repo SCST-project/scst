@@ -19,6 +19,7 @@ scst-kunit-iscsi-scst := \
 	kunit/suites/iscsi_tx_test.o
 
 scst-kunit-scst_user := \
+	kunit/user/suites/scst_user_buffer_test.o \
 	kunit/user/suites/scst_user_cleanup_test.o
 
 scst-kunit-scst_vdisk := \
