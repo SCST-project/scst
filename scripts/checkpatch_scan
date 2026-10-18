@@ -7,7 +7,7 @@ scriptsdir="${rootdir}/scripts"
 outputfile="checkpatch.out"
 
 mapfile -t src_files < <(
-	"${scriptsdir}/list-source-files" "${rootdir}" | \
+	"${scriptsdir}/source/list-source-files" "${rootdir}" | \
 	grep -vE '^debian/|^fcst/linux-patches|patch$|pdf$|png$|^iscsi-scst/usr|^qla|^scripts/|^scstadmin/|^usr/|^www/' | \
 	while read -r filename; do echo "${rootdir}/$filename"; done)
 
