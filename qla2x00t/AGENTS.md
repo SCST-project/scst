@@ -5,7 +5,7 @@
 This is the legacy QLogic qla2xxx/SCST target tree selected by the top-level
 out-of-tree build with `QLA_32GBIT=no`; it is not that build's default. The
 in-tree patch generator has independent target-kernel selection logic in
-`scripts/generate-kernel-patch`. This directory contains a patched
+`scripts/kernel/generate-kernel-patch`. This directory contains a patched
 initiator/HBA source tree plus the SCST target addon in `qla2x00-target/`.
 Treat its hardware scope and behavior as distinct from
 `qla2x00t-32gbit/`.

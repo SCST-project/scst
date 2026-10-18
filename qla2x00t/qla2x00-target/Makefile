@@ -75,7 +75,7 @@ install: all
 ifneq ($(BUILD_2X_MODULE),)
 	$(MAKE) M=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) $@
 endif
-	KDIR=$(KDIR) ../../scripts/sign-modules
+	KDIR=$(KDIR) ../../scripts/kernel/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)				\

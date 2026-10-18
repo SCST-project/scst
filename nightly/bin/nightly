@@ -150,7 +150,7 @@ for logfile in old new ; do
    runcmd ${logfile}							\
           "Running regression tests"					\
           "cd ${ABT_TMPDIR}/scst &&					\
-           scripts/run-regression-tests -k -d ${ABT_TMPDIR}/regtest	\
+           scripts/kernel/run-regression-tests -k -d ${ABT_TMPDIR}/regtest	\
            -j ${ABT_JOBS} -q ${ABT_KERNELS}"
    runcmd ${logfile}				\
           "Cleaning up"				\

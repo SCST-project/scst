@@ -75,8 +75,8 @@ assuming that the base kernel version is sufficient.
   drivers, and installed-header consumers after changing it. Do not assume
   that the generated interface hash detects every installed-header change;
   verify the current hash inputs in `src/Makefile`.
-- `scripts/generate-kernel-patch` includes this header in generated in-tree
-  patches, and `scripts/specialize-patch` evaluates recognized compatibility
+- `scripts/kernel/generate-kernel-patch` includes this header in generated in-tree
+  patches, and `scripts/kernel/specialize-patch` evaluates recognized compatibility
   predicates. Audit both scripts when adding a new predicate form or vendor
   feature macro.
 - Use the root-defined `ABT_KERNELS` matrix in `nightly/conf/nightly.conf` as

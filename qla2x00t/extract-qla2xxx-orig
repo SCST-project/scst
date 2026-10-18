@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source "$(dirname "$0")/../scripts/kernel-functions" || exit $?
+source "$(dirname "$0")/../scripts/kernel/kernel-functions" || exit $?
 
 #########################
 # Argument verification #

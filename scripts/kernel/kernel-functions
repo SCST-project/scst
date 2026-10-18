@@ -3,7 +3,7 @@
 # from kernel.org.
 
 # shellcheck source=./rhel-rpm-functions
-source "$(dirname "$0")/../scripts/rhel-rpm-functions" || return $?
+source "$(dirname "${BASH_SOURCE[0]}")/rhel-rpm-functions" || return $?
 
 kernel_mirror="http://cdn.kernel.org/pub/linux/kernel"
 kernel_downloads="$HOME/software/downloads"

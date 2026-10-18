@@ -109,14 +109,14 @@ install: all
 	echo Error: the scst and/or scst-devel RPMs must be uninstalled first; \
 	false; fi
 	-rm -f $(INSTALL_DIR)/scsi_tgt.ko
-	KDIR=$(KDIR) ../../scripts/sign-modules
+	KDIR=$(KDIR) ../../scripts/kernel/sign-modules
 	$(MAKE) -C $(KDIR) M=$(SCST_MOD_DIR)				\
 	  $(SCST_KUNIT_FLAGS)						\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)				\
 	  $$([ -n "$(DEPMOD)" ] && echo "DEPMOD=$(DEPMOD)")		\
 	  CONFIG_MODULE_SIG_ALL= modules_install
-	(cd $(SCST_DH_MOD_DIR) && KDIR=$(KDIR) ../../../scripts/sign-modules)
+	(cd $(SCST_DH_MOD_DIR) && KDIR=$(KDIR) ../../../scripts/kernel/sign-modules)
 	$(MAKE) -C $(KDIR) M=$(SCST_DH_MOD_DIR)				\
 	  $(SCST_KUNIT_FLAGS)						\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\

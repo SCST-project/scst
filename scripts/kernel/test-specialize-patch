@@ -3,7 +3,7 @@
 set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
-scst_dir="$(dirname -- "$script_dir")"
+scst_dir="$(dirname -- "$(dirname -- "$script_dir")")"
 test_dir="$(mktemp -d)"
 
 trap 'rm -rf -- "$test_dir"' EXIT

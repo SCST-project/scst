@@ -144,7 +144,7 @@ function specialize_patch {
   fi
   if [ "${enable_specialize}" = "true" ]; then
     if [ "${generating_upstream_patch}" = "true" ]; then
-      scripts/filter-trace-entry-exit
+      scripts/kernel/filter-trace-entry-exit
     else
       cat
     fi |

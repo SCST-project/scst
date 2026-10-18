@@ -53,7 +53,7 @@ all:
 	  CONFIG_SCSI_QLA2XXX_TARGET=$(CONFIG_SCSI_QLA2XXX_TARGET)
 
 install: all
-	KDIR=$(KDIR) ../scripts/sign-modules
+	KDIR=$(KDIR) ../scripts/kernel/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd) BUILD_INI=m			\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)				\

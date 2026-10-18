@@ -64,7 +64,7 @@ all:
 
 install: all
 	mkdir -p $(DESTDIR)/var/lib/scst/vdev_mode_pages
-	KDIR=$(KDIR) ../../../scripts/sign-modules
+	KDIR=$(KDIR) ../../../scripts/kernel/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
 	  $(SCST_KUNIT_FLAGS)					\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\

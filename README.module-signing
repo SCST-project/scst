@@ -34,7 +34,7 @@ ls -l scst/src/certs/scst_module_key*
 
 The `.der` file is the public certificate and the `.priv` file is the private
 key. Keep the private key secret and never pass it to mokutil. During
-installation, `scripts/sign-modules` signs modules with the target kernel's
+installation, `scripts/kernel/sign-modules` signs modules with the target kernel's
 `scripts/sign-file`. If `sign-file` is unavailable, the script reports that
 the modules are not being signed and continues; check the installation output
 before relying on signature enforcement.

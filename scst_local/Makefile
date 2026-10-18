@@ -40,7 +40,7 @@ all:
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")
 
 install: all
-	KDIR=$(KDIR) ../scripts/sign-modules
+	KDIR=$(KDIR) ../scripts/kernel/sign-modules
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)				\

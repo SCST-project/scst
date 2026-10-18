@@ -2,14 +2,14 @@
 
 set -euo pipefail
 
-root_dir="$(readlink -f "$(dirname "$0")/..")"
+root_dir="$(readlink -f "$(dirname "$0")/../..")"
 readonly root_dir
 readonly nightly_config="${SCST_NIGHTLY_CONFIG:-${root_dir}/nightly/conf/nightly.conf}"
 readonly github_config="${SCST_GITHUB_MATRIX_CONFIG:-${root_dir}/.github/kernel-matrix.conf}"
 
-# shellcheck source=../nightly/conf/nightly.conf
+# shellcheck source=../../nightly/conf/nightly.conf
 source "${nightly_config}"
-# shellcheck source=../.github/kernel-matrix.conf
+# shellcheck source=../../.github/kernel-matrix.conf
 source "${github_config}"
 
 : "${ABT_KERNELS:?ABT_KERNELS is not defined in ${nightly_config}}"
