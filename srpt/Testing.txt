@@ -28,7 +28,7 @@ At least the following tests must be run before releasing a new SRPT version:
 
 * Verify that rejecting logins does not trigger a memory leak, e.g. as follows:
   * Run the following command on the target system:
-      ${SCST_TRUNK}/scripts/monitor-memory-usage | tee memlog.txt
+      ${SCST_TRUNK}/scripts/runtime/monitor-memory-usage | tee memlog.txt
   * Run the following command on the initiator system:
       target_id="$(/usr/sbin/ibsrpdm -c -d /dev/infiniband/umad0 | head -n1)"
       for ((i=0;i<100000;i++)); do
@@ -134,9 +134,9 @@ Index: srpt/src/ib_srpt.c
       options ib_srpt srpt_sq_size=64
   - On the initiator, run a direct I/O test with large block sizes, e.g.
       dev=/dev/sd...
-      scripts/blockdev-perftest -f -d -j -m 12 -M 24 $dev
+      scripts/runtime/blockdev-perftest -f -d -j -m 12 -M 24 $dev
   - On the initiator, run the following two commands in parallel:
-      scripts/blockdev-perftest -r -d -j -m 12 -M 24 $dev
+      scripts/runtime/blockdev-perftest -r -d -j -m 12 -M 24 $dev
       fio --verify=md5 -rw=randwrite --size=10m --bs=4k \
         --loops=1000000 --iodepth=64 --group_reporting --sync=1 --direct=1 \
         --norandommap --ioengine=aio --directory=/mnt --name=test --thread \

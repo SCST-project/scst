@@ -16,13 +16,13 @@ Files: Makefile
        qla2x00t/qla2x00-target/Makefile
        qla2x00t/qla2x00-target/qla2x00t.c
        qla2x00t/qla2x00-target/qla2x00t.h
-       scripts/blockdev-perftest
+       scripts/runtime/blockdev-perftest
        scripts/kernel/filter-trace-entry-exit
        scripts/kernel/generate-kernel-patch
        scripts/kernel/generate-patched-kernel
        scripts/generate-scst-patch
        scripts/source/list-double-blank-lines
-       scripts/monitor-memory-usage
+       scripts/runtime/monitor-memory-usage
        scripts/kernel/run-regression-tests
        scripts/kernel/specialize-patch
        scst-dkms.spec.in
