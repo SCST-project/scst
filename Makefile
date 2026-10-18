@@ -497,7 +497,7 @@ rpm-artifacts:
 	RPM_ARTIFACT_SOURCE_DIR="$(RPM_ARTIFACT_SOURCE_DIR)" \
 	RPM_ARTIFACT_OUTPUT_DIR="$(RPM_ARTIFACT_OUTPUT_DIR)" \
 	RPM_ARTIFACT_KERNEL_DEVEL_PACKAGE="$(RPM_ARTIFACT_KERNEL_DEVEL_PACKAGE)" \
-		bash "$(CURDIR)/scripts/build-rpm-artifacts"
+		bash "$(CURDIR)/scripts/release/build-rpm-artifacts"
 
 docker-rpm-image:
 	test -n "$(DOCKER_RPM_BASE_IMAGE)"
@@ -590,7 +590,7 @@ dpkg: ../scst_$(VERSION).orig.tar.gz
 
 release-archive:
 	$(MAKE) 2release
-	scripts/generate-release-archive scst "$(RELEASE_VERSION)"
+	scripts/release/generate-release-archive scst "$(RELEASE_VERSION)"
 	md5sum ../scst-$(RELEASE_VERSION).tar.bz2	\
 	  > ../scst-$(RELEASE_VERSION).tar.bz2.md5sum
 	$(MAKE) 2debug

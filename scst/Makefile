@@ -60,7 +60,7 @@ clean extraclean:
 	@$(call set_var,build_mode,BUILD_MODE,PERF)
 
 release-archive:
-	../scripts/generate-release-archive scst \
+	../scripts/release/generate-release-archive scst \
 	  "$$(sed -n 's/^#define[[:blank:]]SCST_VERSION_NAME[[:blank:]]*\"\([^\"]*\)\".*/\1/p' include/scst_const.h)"
 
 build_mode:

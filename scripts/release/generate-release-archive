@@ -16,7 +16,7 @@ name="$1"; shift
 version="$1"; shift
 files=("$@")
 if [ "${#files[@]}" -eq 0 ]; then
-    file_list="$("$scriptdir/source/list-source-files")" || exit $?
+    file_list="$("$scriptdir/../source/list-source-files")" || exit $?
     if [ -z "$file_list" ]; then
 	echo "Error: no source files found." >&2
 	exit 1
