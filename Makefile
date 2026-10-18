@@ -130,8 +130,8 @@ DOCKER_RPM_KERNEL_REPOSITORY ?= $(shell bash scripts/kernel-matrix rpm-field \
 RPM_ARTIFACT_SOURCE_DIR ?= $(CURDIR)
 RPM_ARTIFACT_OUTPUT_DIR ?= $(CURDIR)/rpm-artifacts
 RPM_ARTIFACT_KERNEL_DEVEL_PACKAGE ?= kernel-devel
-SCST_SOURCE_FILES = $(shell if [ -e scripts/list-source-files ]; then	\
-				scripts/list-source-files;		\
+SCST_SOURCE_FILES = $(shell if [ -e scripts/source/list-source-files ]; then	\
+				scripts/source/list-source-files;		\
 			else						\
 				echo scripts-source-files-is-missing;	\
 			fi)
@@ -256,7 +256,7 @@ cov-build:
 	done
 
 shellcheck:
-	scripts/run-shellcheck
+	scripts/source/run-shellcheck
 
 all clean extraclean install uninstall:
 	if [ $@ = extraclean ]; then rm -f TAGS tags cscope.out; fi
@@ -419,7 +419,7 @@ make-scst-dist =							\
 	mkdir "$${name}-$(3)" &&					\
 	{								\
 	  {								\
-	    scripts/list-source-files | grep -v '/\.gitignore' &&	\
+	    scripts/source/list-source-files | grep -v '/\.gitignore' &&	\
 	    if [ -e debian/changelog ]; then echo debian/changelog; fi;	\
 	    if [ -e debian/compat ]; then echo debian/compat; fi;	\
 	  } |								\

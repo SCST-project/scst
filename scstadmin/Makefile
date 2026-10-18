@@ -151,7 +151,7 @@ test:
 dist-gzip:
 	name=$(shell basename $$PWD) &&					\
 	mkdir $${name}-$(VERSION) &&					\
-	{ ../scripts/list-source-files | tar -T- -cf- |			\
+	{ ../scripts/source/list-source-files | tar -T- -cf- |			\
 	  tar -C $${name}-$(VERSION) -xf-; } &&				\
 	rm -f $${name}-$(VERSION).tar.bz2 &&				\
 	tar -cjf $${name}-$(VERSION).tar.bz2 $${name}-$(VERSION) &&	\

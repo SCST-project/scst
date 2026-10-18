@@ -117,7 +117,7 @@ function test_scst_tree_patches {
 function duplicate_scst_source_tree {
   if [ -e "$1/AskingQuestions" ]; then
     ( set -o pipefail
-      "${scriptsdir}"/list-source-files "$1" |
+      "${scriptsdir}"/source/list-source-files "$1" |
         tar -C "$1" --files-from=- -c -f - |
         tar -x -f -
     )

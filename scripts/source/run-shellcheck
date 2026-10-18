@@ -9,9 +9,10 @@ if ! command -v shellcheck >/dev/null 2>&1; then
   exit 1
 fi
 
-source_files="$("$script_dir/list-source-files" "$script_dir")"
+scripts_root="$(dirname -- "$script_dir")"
+source_files="$("$script_dir/list-source-files" "$scripts_root")"
 
-cd "$script_dir"
+cd "$scripts_root"
 
 bash_scripts=()
 while IFS= read -r file; do

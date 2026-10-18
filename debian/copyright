@@ -21,7 +21,7 @@ Files: Makefile
        scripts/generate-kernel-patch
        scripts/generate-patched-kernel
        scripts/generate-scst-patch
-       scripts/list-double-blank-lines
+       scripts/source/list-double-blank-lines
        scripts/monitor-memory-usage
        scripts/run-regression-tests
        scripts/specialize-patch
