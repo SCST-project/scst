@@ -8,7 +8,7 @@ import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = (ROOT / 'scripts/run-regression-tests').read_text()
+SCRIPT = (ROOT / 'scripts/kernel/run-regression-tests').read_text()
 CONFIGURE = re.search(r'^function patch_and_configure_kernel \{\n.*?^\}',
                       SCRIPT, re.M | re.S).group()
 COMPILE = re.search(r'^function compile_scst \{\n.*?^\}', SCRIPT, re.M | re.S).group()

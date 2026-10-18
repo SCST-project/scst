@@ -125,7 +125,7 @@ install: all
 	@[ -z "$(DESTDIR)$(INSTALL_MOD_PATH)" ] && \
 	  find /lib/modules/$(KVER) -name ib_srpt.ko -exec rm {} \; ; \
 	  true
-	(cd src && KDIR=$(KDIR) ../../scripts/sign-modules)
+	(cd src && KDIR=$(KDIR) ../../scripts/kernel/sign-modules)
 	$(MAKE) -C $(KDIR) M=$(shell pwd)/src				\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  CONFTEST_CFLAGS="$(CONFTEST_CFLAGS)"				\

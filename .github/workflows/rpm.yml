@@ -33,7 +33,7 @@ jobs:
         id: matrix
         shell: bash
         run: |
-          matrix="$(bash scripts/kernel-matrix rpm)"
+          matrix="$(bash scripts/kernel/kernel-matrix rpm)"
           printf 'rpm=%s\n' "${matrix}" >>"${GITHUB_OUTPUT}"
 
   build_rpm:

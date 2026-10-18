@@ -19,7 +19,7 @@ user-space handlers and daemons.
 - `qla2x00t-32gbit/` is the default, newer QLogic FC target/initiator source
   tree for the top-level out-of-tree build; `qla2x00t/` is the alternative
   legacy tree selected there with `QLA_32GBIT=no`. Generated in-tree patches
-  select a tree independently in `scripts/generate-kernel-patch`; inspect its
+  select a tree independently in `scripts/kernel/generate-kernel-patch`; inspect its
   current target-kernel condition. The trees are alternatives, not
   interchangeable copies.
 - `srpt/`, `fcst/`, and `scst_local/` own the SRP/RDMA, FCoE/libfc, and local
@@ -99,7 +99,7 @@ the whole tree.
   headers and code.
 - `ABT_KERNELS` in `nightly/conf/nightly.conf` is the maintained, canonical
   list of supported upstream and distribution kernels. `nightly/bin/nightly`
-  passes it to `scripts/run-regression-tests`; the GitHub Actions regression
+  passes it to `scripts/kernel/run-regression-tests`; the GitHub Actions regression
   matrix is a practical subset, not the complete support list. Treat changes
   to `ABT_KERNELS` as support-policy changes and keep duplicated CI entries
   aligned where applicable.

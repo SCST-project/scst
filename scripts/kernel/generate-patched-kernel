@@ -29,7 +29,7 @@ if [ "${script_dir#/}" = "${script_dir}" ]; then
   script_dir="$PWD/$script_dir"
 fi
 script_dir="${script_dir%/.}"
-scst_dir="$(dirname "${script_dir}")"
+scst_dir="$(dirname "$(dirname "${script_dir}")")"
 
 # shellcheck source=./kernel-functions
 source "${script_dir}/kernel-functions"
@@ -46,7 +46,7 @@ download_and_extract_kernel_tree "$1" || exit $?
 
 cd "${target}" || exit $?
 
-"${script_dir}/source/list-source-files" "${scst_dir}" |
+"${script_dir}/../source/list-source-files" "${scst_dir}" |
   grep -- "-${kernel_version}.*.patch$" |
   grep -v /in-tree/ |
   while read -r p; do

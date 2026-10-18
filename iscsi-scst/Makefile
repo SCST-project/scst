@@ -171,7 +171,7 @@ install: all
 	@install -vD -m 644 doc/manpages/iscsi-scstd.8 $(DESTDIR)$(MANDIR)/man8/iscsi-scstd.8
 	@install -vD -m 755 usr/iscsi-scst-adm $(DESTDIR)$(SBINDIR)/iscsi-scst-adm
 	@install -vD -m 644 doc/manpages/iscsi-scst-adm.8 $(DESTDIR)$(MANDIR)/man8/iscsi-scst-adm.8
-	(cd $(KMOD) && KDIR=$(KDIR) ../../scripts/sign-modules)
+	(cd $(KMOD) && KDIR=$(KDIR) ../../scripts/kernel/sign-modules)
 	$(MAKE) -C $(KDIR) M=$(KMOD) $(SCST_KUNIT_FLAGS)	\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)				\
@@ -179,7 +179,7 @@ install: all
 	  CONFIG_MODULE_SIG_ALL= modules_install
 	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
 	if $(INFINIBAND_ENABLED); then					\
-	  (cd $(ISERTMOD) && KDIR=$(KDIR) ../../../scripts/sign-modules);\
+	  (cd $(ISERTMOD) && KDIR=$(KDIR) ../../../scripts/kernel/sign-modules);\
 	  $(MAKE) -C $(KDIR) M=$(ISERTMOD)				\
 	    $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	    INSTALL_MOD_DIR=$(INSTALL_MOD_DIR)				\

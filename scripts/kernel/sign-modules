@@ -9,7 +9,7 @@ if [ -z "$KDIR" ]; then
     exit 1
 fi
 
-scst_dir=$(dirname "$(cd "$(dirname "$0")" && pwd)")
+scst_dir=$(cd "$(dirname "$0")/../.." && pwd)
 
 if [ ! -e "${KDIR}/scripts/sign-file" ]; then
     echo "Not signing modules because no sign-file executable"

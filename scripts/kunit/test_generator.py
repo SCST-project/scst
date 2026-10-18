@@ -28,7 +28,7 @@ class GeneratorTests(unittest.TestCase):
                 prepare = root / directory / 'generate-in-tree-patches'
                 prepare.write_text('#!/bin/sh\nexit 0\n')
                 prepare.chmod(0o755)
-            result = subprocess.run(['bash', 'scripts/generate-kernel-patch', '-s', '7.2'],
+            result = subprocess.run(['bash', 'scripts/kernel/generate-kernel-patch', '-s', '7.2'],
                                     cwd=root, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         files = set(re.findall(r'^\+\+\+ linux-[^/]+/(\S+)', result.stdout, re.M))

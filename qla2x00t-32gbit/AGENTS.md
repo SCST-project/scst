@@ -4,7 +4,7 @@
 
 This is the default QLogic tree selected by the top-level out-of-tree build.
 The in-tree patch generator has independent target-kernel selection logic in
-`scripts/generate-kernel-patch`. This directory contains a vendor-derived
+`scripts/kernel/generate-kernel-patch`. This directory contains a vendor-derived
 qla2xxx initiator/HBA driver, its target-mode integration, and the SCST adapter
 under `qla2x00-target/`. It is maintained separately from the legacy
 `qla2x00t/` tree; verify hardware-support claims in the current device table

@@ -119,13 +119,13 @@ DOCKER_RPM_CONTEXT ?= docker/rpm
 DOCKER_RPM_DOCKERFILE ?= $(DOCKER_RPM_CONTEXT)/Dockerfile
 DOCKER_RPM_IMAGE ?= scst-rpm-builder:$(DOCKER_RPM_TARGET)
 DOCKER_RPM_OUTPUT ?= $(CURDIR)/docker-rpmbuilddir/$(DOCKER_RPM_TARGET)
-DOCKER_RPM_BASE_IMAGE ?= $(shell bash scripts/kernel-matrix rpm-field \
+DOCKER_RPM_BASE_IMAGE ?= $(shell bash scripts/kernel/kernel-matrix rpm-field \
 		"$(DOCKER_RPM_TARGET)" base_image)
-DOCKER_RPM_KERNEL_PACKAGE ?= $(shell bash scripts/kernel-matrix rpm-field \
+DOCKER_RPM_KERNEL_PACKAGE ?= $(shell bash scripts/kernel/kernel-matrix rpm-field \
 		"$(DOCKER_RPM_TARGET)" kernel_package)
-DOCKER_RPM_KERNEL_VERSION ?= $(shell bash scripts/kernel-matrix rpm-field \
+DOCKER_RPM_KERNEL_VERSION ?= $(shell bash scripts/kernel/kernel-matrix rpm-field \
 		"$(DOCKER_RPM_TARGET)" kernel_version)
-DOCKER_RPM_KERNEL_REPOSITORY ?= $(shell bash scripts/kernel-matrix rpm-field \
+DOCKER_RPM_KERNEL_REPOSITORY ?= $(shell bash scripts/kernel/kernel-matrix rpm-field \
 		"$(DOCKER_RPM_TARGET)" kernel_repository)
 RPM_ARTIFACT_SOURCE_DIR ?= $(CURDIR)
 RPM_ARTIFACT_OUTPUT_DIR ?= $(CURDIR)/rpm-artifacts

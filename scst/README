@@ -120,8 +120,8 @@ IMPORTANT: In the current version simultaneous access to local SCSI devices
 Creating a kernel patch or patched kernel
 -----------------------------------------
 
-Use ../scripts/generate-kernel-patch to convert the current SCST source
-tree into a Linux kernel patch, or ../scripts/generate-patched-kernel to
+Use ../scripts/kernel/generate-kernel-patch to convert the current SCST source
+tree into a Linux kernel patch, or ../scripts/kernel/generate-patched-kernel to
 generate a kernel source tree with the SCST patches applied. Consult the
 scripts themselves for their current inputs and generated output.
 
@@ -2597,7 +2597,7 @@ sessions, which is enough.
 
  - Do not apply historical SCST performance patches individually. Use
    the out-of-tree workflow from ../INSTALL.md or generate a complete
-   in-tree patch with ../scripts/generate-kernel-patch as described
+   in-tree patch with ../scripts/kernel/generate-kernel-patch as described
    earlier in this README. The tested kernel list is maintained in
    ../nightly/conf/nightly.conf.
 
