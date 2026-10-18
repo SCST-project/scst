@@ -339,7 +339,7 @@ conftest/use_pre_440_wr_structure/result-$(KVER).txt:			\
 		-DUSE_PRE_440_WR_STRUCTURE)" >"$@"
 
 release-archive:
-	../scripts/generate-release-archive srpt "$$(sed -n 's/^#define[[:blank:]]DRV_VERSION[[:blank:]]*\"\([^\"]*\)\".*/\1/p' src/ib_srpt.c)"
+	../scripts/release/generate-release-archive srpt "$$(sed -n 's/^#define[[:blank:]]DRV_VERSION[[:blank:]]*\"\([^\"]*\)\".*/\1/p' src/ib_srpt.c)"
 
 kerneldoc.html: $(SRC_FILES)
 	$(KDIR)/scripts/kernel-doc -html $(SRC_FILES) >$@

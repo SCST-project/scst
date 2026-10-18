@@ -88,6 +88,6 @@ extraclean: clean
 	rm -f *.orig *.rej
 
 release-archive:
-	../scripts/generate-release-archive fcst "$$(sed -n 's/^#define[[:blank:]]FT_VERSION[[:blank:]]*\"\([^\"]*\)\".*/\1/p' fcst.h)"
+	../scripts/release/generate-release-archive fcst "$$(sed -n 's/^#define[[:blank:]]FT_VERSION[[:blank:]]*\"\([^\"]*\)\".*/\1/p' fcst.h)"
 
 .PHONY: all install uninstall clean extraclean release-archive

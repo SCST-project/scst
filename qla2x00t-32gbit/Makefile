@@ -79,4 +79,4 @@ extraclean: clean
 endif
 
 release-archive:
-	../scripts/generate-release-archive qla2x00t-32gbit "$$(sed -n 's/^#define[[:blank:]]Q2T_VERSION_STRING[[:blank:]]*\"\([^\"]*\)\".*/\1/p' qla2x00-target/scst_qla2xxx.h)"
+	../scripts/release/generate-release-archive qla2x00t-32gbit "$$(sed -n 's/^#define[[:blank:]]Q2T_VERSION_STRING[[:blank:]]*\"\([^\"]*\)\".*/\1/p' qla2x00-target/scst_qla2xxx.h)"

@@ -198,7 +198,7 @@ jobs:
         env:
           RPM_MATRIX: ${{ needs.prepare_matrix.outputs.rpm }}
           RELEASE_OUTPUT_DIR: ${{ runner.temp }}/master-package-release
-        run: bash scripts/prepare-package-release
+        run: bash scripts/release/prepare-package-release
 
       - name: Publish rolling master snapshot
         env:

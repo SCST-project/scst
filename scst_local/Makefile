@@ -58,7 +58,7 @@ extraclean: clean
 	rm -f *.orig *.rej
 
 release-archive:
-	../scripts/generate-release-archive scst_local "$$(sed -n 's/^#define[[:blank:]]SCST_LOCAL_VERSION[[:blank:]]*\"\([^\"]*\)\".*/\1/p' scst_local.c)"
+	../scripts/release/generate-release-archive scst_local "$$(sed -n 's/^#define[[:blank:]]SCST_LOCAL_VERSION[[:blank:]]*\"\([^\"]*\)\".*/\1/p' scst_local.c)"
 
 .PHONY: all install uninstall clean extraclean
 
