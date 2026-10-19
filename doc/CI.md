@@ -9,6 +9,7 @@ Workflows live in [`.github/workflows`](../.github/workflows). PR checks target
 | [CI](../.github/workflows/ci.yml) | Clang build and DEB packaging | PR, push, manual |
 | [Packages](../.github/workflows/rpm.yml) | Ubuntu DEBs, RPMs and a published package snapshot | Push to master only |
 | [Regression](../.github/workflows/run_regression_tests.yaml) | Module and patched-kernel builds across the kernel matrix | PR, push |
+| [Static analyzers](../.github/workflows/analyzers.yml) | Sparse/Smatch with KUnit sources, tooling checks and full reports | Push to master, manual |
 | [KUnit](../.github/workflows/kunit.yml) | Kernel unit tests in QEMU | PR, push, manual |
 | [Ginkgo](../.github/workflows/ginkgo.yml) | Local and TCP iSCSI component tests in QEMU | PR, push, manual |
 | [Coverity](../.github/workflows/coverity.yml) | Static analysis | Push, upstream repository only |
@@ -38,6 +39,10 @@ and serial consoles as artifacts, retained for seven days. Timeouts, guest
 kernel diagnostics and incomplete reports fail the run. Package artifacts
 are attached to the Packages workflow; upstream master builds also update
 the `master-rpm` prerelease snapshot.
+
+Analyzer jobs retain full reports in CI artifacts. See the
+[analyzer guide](../scripts/README.md#analyzer-ci) for reproduction and the
+temporary nonblocking policy for source findings.
 
 ## Local reproduction
 

@@ -1,0 +1,77 @@
+name: Static analyzers
+
+on:
+  push:
+    branches: [master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  tooling:
+    name: Tooling
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Check analyzer tooling
+        run: make lint-test
+
+  native:
+    name: ${{ matrix.analyzer }} with KUnit
+    needs: tooling
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        analyzer:
+          - sparse
+          - smatch
+          # Supported by the runner; enable after reviewing native coverage.
+          # - coccicheck
+          # - cppcheck
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Build pinned analyzer environment
+        run: |
+          docker build -f scripts/ci/analyzers.Dockerfile -t scst-analyzers:local . \
+            2>&1 | tee "$RUNNER_TEMP/analyzer-image.log"
+      - name: Run make ${{ matrix.analyzer }}
+        env:
+          ANALYZER: ${{ matrix.analyzer }}
+        run: |
+          source scripts/ci/kernel.env
+          # Temporary rollout mode: only completed source findings are advisory.
+          # Tool, build and coverage failures still fail this job.
+          docker run --rm --init --network=none --cap-drop=ALL \
+            --security-opt=no-new-privileges --user "$(id -u):$(id -g)" \
+            --env HOME=/tmp --env GITHUB_STEP_SUMMARY=/scst/.cache/analyzer-summary \
+            --env "KDIR=/usr/src/kernels/$KERNEL_BUILD.x86_64" \
+            --mount "type=bind,src=$PWD,dst=/scst" scst-analyzers:local \
+            python3 -B scripts/ci/run-analyzer.py "$ANALYZER"
+      - name: Publish summary
+        if: always()
+        run: |
+          if [[ -f .cache/analyzer-summary ]]; then
+            cat .cache/analyzer-summary >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Save complete analyzer evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.analyzer }}-evidence
+          retention-days: 7
+          path: |
+            ${{ runner.temp }}/analyzer-image.log
+            .cache/lint/
+            .cache/analyzer-summary
