@@ -11,6 +11,7 @@ direct callers of a relocated script must use its new directory below.
 | `runtime/` | `monitor-interrupt-rate`, `monitor-memory-usage`, `blockdev-perftest`, and `test-persistent-reservation`. |
 | `ci/` | CI image and guest preparation, VM execution, and associated configuration. |
 | `kunit/` | KUnit inventory, labels, runner, and tooling tests; see [the KUnit guide](../doc/KUNIT.md). |
+| `tests/` | Isolated regression fixtures for the shared analyzer helpers (`make lint-test`). |
 
 The existing `checkpatch`, `checkpatch_commits`, `checkpatch_diff`, and
 `checkpatch_scan` entry points remain directly under `scripts/`. The wrapper's
@@ -57,3 +58,47 @@ Follow [the local checks](../CONTRIBUTING.md#local-checks) when editing tools.
 recorded in `HEAD`. Check newly added or renamed paths explicitly before
 committing; sourced libraries, POSIX shell scripts, and callers outside
 `scripts/` also need the checks described there.
+
+## Shared analyzer source scope
+
+`lint_scope.py` defines the source scope below. Existing checkpatch wrappers
+and the kernel regression runner still use their own selection and filtering.
+
+| Input | Shared policy |
+| --- | --- |
+| `scst/`, `iscsi-scst/`, `srpt/`, `fcst/`, `scst_local/`, `usr/` | Include `.c` and `.h` files, subject to the exclusions below. |
+| `qla2x00t-32gbit/qla2x00-target/` | Include the newer driver's SCST target portion. |
+| KUnit sources under the included directories | Include regardless of the current `KUNIT_TEST` build setting. |
+| `qla2x00t/` | Exclude the entire legacy QLogic tree. |
+| The rest of `qla2x00t-32gbit/` | Exclude the upstream driver, including top-level `qla_target.c` and `qla_target.h`. |
+| `iscsi-scst/conftest/`, `srpt/conftest/` | Exclude compiler capability probes. |
+| Names ending in `.mod.c` | Exclude generated module metadata, even when explicitly requested. |
+| Other directories and extensions | Outside the shared source scope. |
+
+These are input exclusions. The helper does not filter diagnostic text or
+discard findings from headers included by selected files. Selecting KUnit
+sources does not enable them in a build; that needs the build configuration.
+
+Full selection reads existing working-tree files listed in the Git index,
+including staged new files. Missing and untracked files are omitted.
+
+Diff selection compares a base with the working tree, including staged and
+unstaged changes. It selects whole current files, checks rename destinations,
+and skips deleted and untracked files.
+
+Explicit files may be untracked, but must exist and be within the same scope.
+They cannot be combined with a diff base. Both a path and its resolved symlink
+destination must be in scope. Results are sorted and deduplicated.
+An empty selection means there are no eligible inputs, not a completed scan.
+
+## Dependencies and tooling tests
+
+Shared analyzer tooling requires Linux, Git and Python 3.10+, using only the
+Python standard library. Run its fixtures from the repository root:
+
+```sh
+make lint-test                  # PYTHON defaults to python3
+```
+
+The fixtures use temporary repositories, files and child processes. They do
+not build SCST, load modules or access live devices.

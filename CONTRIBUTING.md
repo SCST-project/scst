@@ -127,6 +127,12 @@ and its companion data files. The wrapper defaults to the running kernel's
 build tree; set `CHECKPATCH_PATH` to use another prepared directory. Record
 the kernel/tool version with the result when it affects diagnostics.
 
+### Analyzer tooling
+
+Run `make lint-test` for isolated analyzer-tooling fixtures. See the
+[scripts guide](scripts/README.md#shared-analyzer-source-scope) for source
+selection, exact exclusions and tooling requirements.
+
 ## Builds and tests
 
 Use the narrowest applicable target from the top-level or component Makefile.
