@@ -1631,7 +1631,7 @@ qla2x00_update_optrom(BSG_JOB_TYPE *bsg_job)
  *
  * Returns 0 on success, error code on failure.
  */
-static int qla29xx_bsg_flash_block_read(struct bsg_job *bsg_job)
+static int qla29xx_bsg_flash_block_read(BSG_JOB_TYPE *bsg_job)
 {
 	struct fc_bsg_request *bsg_req = bsg_job->request;
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -1722,7 +1722,7 @@ static int qla29xx_bsg_flash_block_read(struct bsg_job *bsg_job)
  *
  * Returns 0 on success, error code on failure.
  */
-static int qla29xx_bsg_flash_block_write(struct bsg_job *bsg_job)
+static int qla29xx_bsg_flash_block_write(BSG_JOB_TYPE *bsg_job)
 {
 	struct fc_bsg_request *bsg_req = bsg_job->request;
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -1802,8 +1802,8 @@ static int qla29xx_bsg_flash_block_write(struct bsg_job *bsg_job)
 }
 
 static int
-qla29xx_mpi_optrom_setup(struct bsg_job *bsg_job, scsi_qla_host_t *vha,
-	uint32_t start, uint8_t is_update)
+qla29xx_mpi_optrom_setup(BSG_JOB_TYPE *bsg_job, scsi_qla_host_t *vha,
+			 u32 start, u8 is_update)
 {
 	struct qla_hw_data *ha = vha->hw;
 
@@ -1837,7 +1837,7 @@ qla29xx_mpi_optrom_setup(struct bsg_job *bsg_job, scsi_qla_host_t *vha,
 	return 0;
 }
 
-static int qla2900_bsg_dump_mpi(struct bsg_job *bsg_job)
+static int qla2900_bsg_dump_mpi(BSG_JOB_TYPE *bsg_job)
 {
 	struct fc_bsg_request *bsg_req = bsg_job->request;
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
@@ -1915,7 +1915,7 @@ static int qla2900_bsg_dump_mpi(struct bsg_job *bsg_job)
 	return 0;
 }
 
-static int qla2900_bsg_load_mpi(struct bsg_job *bsg_job)
+static int qla2900_bsg_load_mpi(BSG_JOB_TYPE *bsg_job)
 {
 	struct fc_bsg_request *bsg_req = bsg_job->request;
 	struct fc_bsg_reply *bsg_reply = bsg_job->reply;
