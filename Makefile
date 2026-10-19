@@ -165,6 +165,9 @@ help:
 		'  tags                          make tags' \
 		'  cov-build                     make coverity build' \
 		'  shellcheck                    check Bash scripts' \
+		'  analyzer-policy               show shared analyzer input policy (no analysis)' \
+		'  ANALYZER=common               policy to show (only common is integrated)' \
+		'  ANALYZER_FORMAT=text|json     policy output format (default: text)' \
 		'  lint-test                     test shared analyzer tooling (no modules)' \
 		'  all                           make all' \
 		'  clean                         clean files' \
@@ -258,6 +261,10 @@ cov-build:
 
 shellcheck:
 	scripts/source/run-shellcheck
+
+.PHONY: analyzer-policy
+analyzer-policy:
+	@$(PYTHON) -B scripts/analyzer_policy.py show "$(or $(ANALYZER),common)" --format="$(or $(ANALYZER_FORMAT),text)"
 
 .PHONY: lint-test
 lint-test:
