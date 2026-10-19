@@ -20,12 +20,29 @@ jobs:
     name: Prepare kernel matrix
     runs-on: ubuntu-latest
     outputs:
+      run: ${{ steps.changes.outputs.run }}
       regression: ${{ steps.matrix.outputs.regression }}
     steps:
       - name: Checkout code
         uses: actions/checkout@main
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Check CI selection
+        run: python3 -m unittest discover -s scripts/ci -p 'test_select_checks.py'
+
+      - name: Select kernel regression checks
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 scripts/ci/select_checks.py --check regression --event "$GITHUB_EVENT_NAME" \
+            --base "$BASE_SHA" --head "$HEAD_SHA"
 
       - name: Resolve kernel matrix
+        if: steps.changes.outputs.run == 'true'
         id: matrix
         shell: bash
         run: |
@@ -35,6 +52,8 @@ jobs:
   regression_tests:
     name: ${{ matrix.version }}
     needs: prepare_matrix
+    # Job conditions are evaluated before expanding the matrix.
+    if: needs.prepare_matrix.outputs.run == 'true'
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
