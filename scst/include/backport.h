@@ -2071,7 +2071,11 @@ struct t10_pi_tuple {
 	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 9 ||			\
 	 RHEL_MAJOR -0 == 9 && RHEL_MINOR -0 < 3) &&			\
 	(!defined(UEK_KABI_RENAME) ||					\
-	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 17))
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 17)) &&		\
+	(!defined(UTS_UBUNTU_RELEASE_ABI) ||				\
+	 LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 15, 0) >> 8 ||	\
+	 UTS_UBUNTU_RELEASE_ABI - 0 < 93 ||				\
+	 UTS_UBUNTU_RELEASE_ABI - 0 >= 999)
 /*
  * See also commit 9b13df3fb64e ("timers: Rename del_timer_sync() to
  * timer_delete_sync()") # v6.2.
@@ -2080,6 +2084,8 @@ struct t10_pi_tuple {
  * See also commit d8166e8adb7f # v5.10.215.
  * See also commit 2382f2e45c71 # v5.15.154.
  * See also commit 113d5341ee12 # v6.1.84.
+ * See also Ubuntu commit 89cc650e4da5 # Ubuntu-5.15.0-93.103.
+ * Ubuntu flavour ABIs >= 999 use independent version sequences.
  */
 static inline int timer_delete_sync(struct timer_list *timer)
 {
@@ -2108,6 +2114,34 @@ static inline int timer_delete_sync(struct timer_list *timer)
 static inline int timer_delete(struct timer_list *timer)
 {
 	return del_timer(timer);
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0) &&			\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 1, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 158)) &&		\
+	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 15, 0) >> 8 ||	\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 200)) &&		\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||			\
+	 RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 9 ||			\
+	 RHEL_MAJOR - 0 == 9 && RHEL_MINOR - 0 < 3) &&			\
+	(!defined(UTS_UBUNTU_RELEASE_ABI) ||				\
+	 ((LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 15, 0) >> 8 ||	\
+	  UTS_UBUNTU_RELEASE_ABI - 0 < 93) &&				\
+	 (LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 4, 0) >> 8 ||	\
+	  UTS_UBUNTU_RELEASE_ABI - 0 < 206)))
+/*
+ * See also commit f571faf6e443 ("timers: Provide timer_shutdown[_sync]()") # v6.2.
+ * See also commit 59b82a2e0c16 # v6.1.158.
+ * See also commit 36bdfa51a1ad # v5.15.200.
+ * Also backported to RHEL 8.9 / 9.3 and Ubuntu 5.15.0-93 / 5.4.0-206.
+ *
+ * Old kernels cannot prevent rearming through this API. Preserve the previous
+ * timer deletion behavior; callers must exclude concurrent rearming themselves.
+ */
+static inline int timer_shutdown(struct timer_list *timer)
+{
+	return timer_delete(timer);
 }
 #endif
 
