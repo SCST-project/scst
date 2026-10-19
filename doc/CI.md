@@ -5,11 +5,11 @@ Workflows live in [`.github/workflows`](../.github/workflows). PR checks target
 
 | Workflow | Purpose | Events |
 | --- | --- | --- |
-| Checkpatch ([PR](../.github/workflows/checkpatch_pull.yml), [push](../.github/workflows/checkpatch_push.yml)) | Patch and commit style | PR, push |
+| [PR Checkpatch](../.github/workflows/checkpatch_pull.yml) | Individual patch and commit style | PR |
 | [CI](../.github/workflows/ci.yml) | Clang build and DEB packaging | PR, push, manual |
 | [Packages](../.github/workflows/rpm.yml) | Ubuntu DEBs, RPMs and a published package snapshot | Push to master only |
 | [Regression](../.github/workflows/run_regression_tests.yaml) | Module and patched-kernel builds across the kernel matrix | PR, push |
-| [Static analyzers](../.github/workflows/analyzers.yml) | Sparse/Smatch with KUnit sources, tooling checks and full reports | Push to master, manual |
+| [Static analyzers](../.github/workflows/analyzers.yml) | Sparse, Smatch, whole-file Checkpatch and SCST code style, including KUnit sources; script tests | Push to master, manual |
 | [KUnit](../.github/workflows/kunit.yml) | Kernel unit tests in QEMU | PR, push, manual |
 | [Ginkgo](../.github/workflows/ginkgo.yml) | Local and TCP iSCSI component tests in QEMU | PR, push, manual |
 | [Coverity](../.github/workflows/coverity.yml) | Static analysis | Push, upstream repository only |
@@ -21,7 +21,7 @@ Edit that config to change path rules; it is validated before selection.
 Unknown paths and changes to the config or selector run every check.
 Known unrelated changes skip expensive work; regression selection happens
 before creating its matrix jobs. Some documentation is a package or kernel-patch
-input and still needs validation. Checkpatch always runs. Packages runs only
+input and still needs validation. PR Checkpatch always runs. Packages runs only
 after a push to master; the separate Clang build still checks DEB packaging on
 PRs. Push and manual runs retain their full checks. Selection errors fail the
 workflow; skip reasons appear in the job summary.
@@ -53,9 +53,10 @@ kernel diagnostics and incomplete reports fail the run. Package artifacts
 are attached to the Packages workflow; upstream master builds also update
 the `master-rpm` prerelease snapshot.
 
-Analyzer jobs retain full reports in CI artifacts. See the
-[analyzer guide](../scripts/README.md#analyzer-ci) for reproduction and the
-temporary nonblocking policy for source findings.
+Analyzer jobs fail on remaining findings and print them in job logs; container
+jobs also retain reports as artifacts. The
+[analyzer guide](../scripts/README.md#analyzer-ci) covers reproduction and
+the distinction between findings and incomplete analysis.
 
 ## Local reproduction
 

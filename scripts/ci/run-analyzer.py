@@ -17,12 +17,23 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 from analyzer_policy import source_policy  # noqa: E402
 from lint_common import copy_output, entrypoint, run  # noqa: E402
+from style.checkpatch import checker_path  # noqa: E402
 
-TOOLS = {"sparse": "sparse", "smatch": "smatch", "coccicheck": "spatch", "cppcheck": "cppcheck"}
+TOOLS = {"sparse": "sparse", "smatch": "smatch", "coccicheck": "spatch", "cppcheck": "cppcheck",
+         "checkpatch": "checkpatch.pl"}
 
 
 def complete_native_report(report):
     tool = report.get("tool")
+    if tool == "checkpatch":
+        checked = report.get("checked_files")
+        completed = report.get("completed_files")
+        return (report.get("complete") is True and not report.get("failures") and
+                report.get("native_status") == report.get("exit_code") and
+                isinstance(checked, list) and bool(checked) and
+                checked == report.get("selected_files") and
+                isinstance(completed, list) and
+                sorted(str((ROOT / path).resolve()) for path in checked) == sorted(completed))
     if tool in {"sparse", "smatch"}:
         return (bool(report.get("translation_units")) and report.get("make_status") == 0 and
                 report.get("errors") == 0 and not report.get("unchecked_files") and
@@ -50,7 +61,7 @@ def digest(path):
 
 
 def job_status(make_status, report):
-    """Only a completed scan with source findings may become advisory."""
+    """Return 0 for clean scans, 1 for findings and 2 for incomplete analysis."""
     status = report.get("exit_code")
     if (report.get("tool") not in TOOLS or
             type(status) is not int or status not in (0, 1) or
@@ -73,8 +84,7 @@ def job_status(make_status, report):
               "plus userspace where selected by policy.",
               file=sys.stderr)
         return 2
-    # Temporary rollout policy: completed source findings are advisory.
-    return 0
+    return status
 
 
 def main():
@@ -82,12 +92,14 @@ def main():
     parser.add_argument("tool", choices=tuple(TOOLS))
     args = parser.parse_args()
     kernel = Path(os.environ.get("SCST_LINT_KDIR") or os.environ.get("KDIR", ""))
-    if not (kernel / "Module.symvers").is_file():
-        raise ValueError("Set KDIR to a prepared kernel build tree with Module.symvers")
-    config = (kernel / ".config").read_text()
-    if not any(line in {"CONFIG_KUNIT=y", "CONFIG_KUNIT=m"} for line in config.splitlines()):
-        raise ValueError("The CI analysis kernel must enable CONFIG_KUNIT")
-    executable = shutil.which(TOOLS[args.tool])
+    config_path = kernel / ".config"
+    config = config_path.read_text() if config_path.is_file() else ""
+    if args.tool != "checkpatch":
+        if not (kernel / "Module.symvers").is_file():
+            raise ValueError("Set KDIR to a prepared kernel build tree with Module.symvers")
+        if not any(line in {"CONFIG_KUNIT=y", "CONFIG_KUNIT=m"} for line in config.splitlines()):
+            raise ValueError("The CI analysis kernel must enable CONFIG_KUNIT")
+    executable = str(checker_path()) if args.tool == "checkpatch" else shutil.which(TOOLS[args.tool])
     if not executable:
         raise ValueError(f"{args.tool} is not installed")
     directory = ROOT / ".cache/lint"
@@ -95,12 +107,18 @@ def main():
     provenance = Path("/usr/local/share/scst-ci") / (args.tool + "-source.txt")
     environment = {
         "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
-        "kernel": str(kernel.resolve()), "kernel_config_sha256": digest(kernel / ".config"),
+        "kernel": str(kernel.resolve()),
+        "kernel_config_sha256": digest(config_path) if config else None,
         "tool": executable, "tool_sha256": digest(Path(executable)),
         "version": subprocess.check_output([executable, "--version"], text=True).strip(),
         "source_provenance": provenance.read_text() if provenance.exists() else "unavailable",
         "kunit_test": "y",
     }
+    if args.tool == "checkpatch":
+        environment["version"] = next((line for line in environment["version"].splitlines()
+                                       if line.startswith("Version:")), environment["version"])
+        environment["data_sha256"] = {name: digest(Path(executable).with_name(name))
+                                      for name in ("spelling.txt", "const_structs.checkpatch")}
     environment_text = json.dumps(environment, indent=2) + "\n"
     (directory / f"{args.tool}.environment.json").write_text(environment_text)
     print(environment_text, flush=True)
@@ -135,9 +153,9 @@ def main():
                     print(f"\nFull report: {log}", flush=True)
                     copy_output(log, sys.stdout.buffer)
     status = job_status(result.returncode, report)
-    if status == 0 and report["exit_code"] == 1:
-        print(f"::warning::{args.tool}: {report['remaining']} source finding(s); "
-              "temporary report mode, analysis completed.")
+    if status == 1:
+        print(f"::error::{args.tool}: {report['remaining']} source finding(s); "
+              "analysis completed.")
     summary = (f"{args.tool}: outcome={report.get('outcome', 'missing')}, "
                f"remaining={report.get('remaining', 'unknown')}, "
                f"make exit={result.returncode}, job exit={status}\n")

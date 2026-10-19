@@ -25,8 +25,8 @@ class AnalyzerCiTests(unittest.TestCase):
         # Exercise real GNU Make's mapping of recipe failures to status 2.
         # The fixture driver below produces reports without compiling SCST.
         (self.root / "Makefile").write_text(
-            "SHELL := /bin/sh\n.PHONY: sparse smatch coccicheck cppcheck\n"
-            "sparse smatch coccicheck cppcheck:\n"
+            "SHELL := /bin/sh\n.PHONY: sparse smatch coccicheck cppcheck checkpatch\n"
+            "sparse smatch coccicheck cppcheck checkpatch:\n"
             f"\t@{shlex.quote(sys.executable)} -B scripts/sparse_smatch/smp.py $@\n"
             "\t@exit $(FIXTURE_MAKE_TAIL_EXIT)\n")
         for name in ("git", "sparse", "smatch", "spatch", "cppcheck"):
@@ -37,11 +37,18 @@ class AnalyzerCiTests(unittest.TestCase):
         kernel.mkdir()
         (kernel / "Module.symvers").touch()
         (kernel / ".config").write_text("CONFIG_KUNIT=y\n")
+        checker = kernel / "scripts/checkpatch.pl"
+        checker.parent.mkdir()
+        checker.write_text(f"#!{sys.executable}\nprint('Version: fixture-version')\n")
+        checker.chmod(0o755)
+        for name in ("spelling.txt", "const_structs.checkpatch"):
+            checker.with_name(name).touch()
         self.env = dict(os.environ, KDIR=str(kernel), SCST_LINT_KDIR=str(kernel),
                         PATH=str(self.bin), MAKEFLAGS="", MFLAGS="", MAKEOVERRIDES="",
                         GNUMAKEFLAGS="", FIXTURE_STATUS="0", FIXTURE_MAKE_TAIL_EXIT="0",
                         FIXTURE_OUTCOME="clean", FIXTURE_COVERAGE="full")
         self.env.pop("GITHUB_STEP_SUMMARY", None)
+        self.env.pop("CHECKPATCH_PATH", None)
         driver = self.root / "scripts/sparse_smatch/smp.py"
         driver.write_text('''import json, os, sys
 from pathlib import Path
@@ -59,7 +66,7 @@ if os.environ.get('FIXTURE_NO_REPORT'):
 checked = [p + '/fixture.c' for p in ('scst', 'iscsi-scst',
     'qla2x00t-32gbit/qla2x00-target', 'srpt', 'fcst', 'scst_local')]
 checked += ['scst/src/kunit/fixture.c']
-if tool in ('coccicheck', 'cppcheck'):
+if tool in ('coccicheck', 'cppcheck', 'checkpatch'):
     checked += ['usr/fileio/fixture.c', 'iscsi-scst/usr/fixture.c']
 if os.environ['FIXTURE_COVERAGE'] != 'full':
     checked = checked[:1]
@@ -72,9 +79,14 @@ report['rules'] = [dict(complete=True, native_status=0, failures=[], handled=che
 report['kernel_make_status'] = report['userspace_make_status'] = 0
 report['profiles'] = [dict(profile=profile, complete=True, native_status=0, failures=[],
     translation_units=1, checked_files=checked) for profile in ('kernel', 'userspace')]
+report.update(complete=True, native_status=status, failures=[], selected_files=checked,
+    completed_files=[str((root / path).resolve()) for path in checked])
 if os.environ.get('FIXTURE_NATIVE_INCOMPLETE'):
     report['rules'][0]['complete'] = False
     report['profiles'][0]['complete'] = False
+    report['complete'] = False
+if os.environ.get('FIXTURE_MISSING_COMPLETION'):
+    report['completed_files'].pop()
 if os.environ.get('FIXTURE_STALE'):
     report['run_id'] = 'previous run'
 (directory / (tool + '.json')).write_text(json.dumps(report))
@@ -88,19 +100,20 @@ sys.exit(status)
                                tool], cwd=self.root, env=self.env,
                               capture_output=True, text=True, timeout=10)
 
-    def test_only_completed_findings_can_be_advisory(self):
-        for tool in ("sparse", "smatch", "coccicheck", "cppcheck"):
+    def test_findings_fail_separately_from_incomplete_analysis(self):
+        for tool in ("sparse", "smatch", "coccicheck", "cppcheck", "checkpatch"):
             for status, outcome, expected in (
-                    (0, "clean", 0), (1, "findings", 0), (2, "incomplete", 2),
+                    (0, "clean", 0), (1, "findings", 1), (2, "incomplete", 2),
                     (1, "incomplete", 2), (0, "skipped", 2), (0, "findings", 2)):
                 with self.subTest(tool=tool, status=status, outcome=outcome):
                     self.env.update(FIXTURE_STATUS=str(status), FIXTURE_OUTCOME=outcome)
                     result = self.run_ci(tool)
                     self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
                     self.assertEqual(result.stdout.count("raw diagnostic fixture"), 1)
-                    self.assertEqual("::warning::" in result.stdout,
-                                     outcome == "findings" and expected == 0)
+                    self.assertEqual("::error::" in result.stdout, expected == 1)
+                    self.assertNotIn("::warning::", result.stdout)
                     self.assertIn(f"make exit={2 if status else 0}", result.stdout)
+                    self.assertIn(f"job exit={expected}", result.stdout)
 
     def test_make_failure_after_clean_analysis_cannot_pass(self):
         self.env["FIXTURE_MAKE_TAIL_EXIT"] = "7"
@@ -108,13 +121,30 @@ sys.exit(status)
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn("make exit=2, job exit=2", result.stdout)
 
-    def test_basic_analyzers_cannot_downgrade_incomplete_native_reports(self):
+    def test_basic_analyzers_cannot_report_incomplete_scans_as_findings(self):
         self.env.update(FIXTURE_STATUS="1", FIXTURE_OUTCOME="findings", FIXTURE_NATIVE_INCOMPLETE="1")
-        for tool in ("coccicheck", "cppcheck"):
+        for tool in ("coccicheck", "cppcheck", "checkpatch"):
             with self.subTest(tool=tool):
                 result = self.run_ci(tool)
                 self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
-                self.assertNotIn("::warning::", result.stdout)
+                self.assertNotIn("::error::", result.stdout)
+
+    def test_checkpatch_requires_every_native_file_completion(self):
+        self.env.update(FIXTURE_STATUS="1", FIXTURE_OUTCOME="findings",
+                        FIXTURE_MISSING_COMPLETION="1")
+        result = self.run_ci("checkpatch")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertNotIn("::error::", result.stdout)
+
+    def test_checkpatch_needs_tool_data_but_not_a_prepared_kunit_kernel(self):
+        (self.root / "kernel/.config").unlink()
+        (self.root / "kernel/Module.symvers").unlink()
+        result = self.run_ci("checkpatch")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        (self.root / "kernel/scripts/spelling.txt").unlink()
+        result = self.run_ci("checkpatch")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("missing Checkpatch tool/data", result.stderr)
 
     def test_make_failure_without_a_new_report_cannot_reuse_previous_results(self):
         self.assertEqual(self.run_ci().returncode, 0)
