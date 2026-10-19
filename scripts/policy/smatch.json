@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "exclude_directories": [
+    {
+      "path": "usr",
+      "reason": "Userspace programs are outside the module Kbuild analysis."
+    },
+    {
+      "path": "iscsi-scst/usr",
+      "reason": "The iSCSI userspace daemon is outside the module Kbuild analysis."
+    }
+  ],
+  "source_exceptions": [
+    {
+      "file": "scst/src/dev_handlers/scst_user_main.c",
+      "function": "dev_user_unjam_cmd",
+      "message": "mixing irqsave and irq",
+      "reason": "The unchanged flags pointer selects matching unlock/lock operations; all callers use the corresponding IRQ mode."
+    },
+    {
+      "file": "scst/src/dev_handlers/kunit/user/suites/scst_user_cleanup_test.c",
+      "function": "user_reply_test",
+      "message": "mixing irqsave and irq",
+      "reason": "The saved_flags parameter selects matching lock/unlock operations and intentionally covers both caller modes."
+    }
+  ],
+  "kernel_exceptions": [
+    {
+      "header": "include/uapi/scsi/fc/fc_els.h",
+      "message": "array of flexible structures",
+      "reason": "The external FC UAPI declares arrays of TLV descriptors that themselves contain a flexible array. Match only the canonical header resolved from the forced kernel kconfig include."
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "exclude_directories": [
+    {
+      "path": "usr",
+      "reason": "Userspace programs are outside the module Kbuild analysis."
+    },
+    {
+      "path": "iscsi-scst/usr",
+      "reason": "The iSCSI userspace daemon is outside the module Kbuild analysis."
+    }
+  ],
+  "source_exceptions": [],
+  "kernel_exceptions": [
+    {
+      "header": "include/uapi/scsi/fc/fc_els.h",
+      "message": "array of flexible structures",
+      "reason": "The external FC UAPI declares arrays of TLV descriptors that themselves contain a flexible array. Match only the canonical header resolved from the forced kernel kconfig include."
+    }
+  ]
+}
