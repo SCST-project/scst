@@ -53,7 +53,14 @@ paths = [
 checks = ["ginkgo", "kunit"]
 
 [[rules]]
-paths = [".github/workflows/ginkgo.yml"]
+paths = [
+    ".github/workflows/ginkgo.yml",
+    # Only the scst_user Ginkgo jobs boot these kernels.
+    "scripts/ci/kernel-5.8.SHA256SUMS",
+    "scripts/ci/kernel-5.8.env",
+    "scripts/ci/kernel-5.9.SHA256SUMS",
+    "scripts/ci/kernel-5.9.env",
+]
 checks = ["ginkgo"]
 
 [[rules]]

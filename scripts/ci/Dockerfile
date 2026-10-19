@@ -2,9 +2,12 @@
 FROM fedora:44@sha256:43b29f65a41eb9c35e1cd5323e3bdf3b655c2357a9f4f1ff2f9c2798e5045d80 AS runtime
 ARG SUITE
 ARG KERNEL_BUILD
+# The pinned kernel rpms, matching KERNEL_BUILD. The package split varies by
+# release, so the checksum file also lists which rpms to install.
+ARG KERNEL_SUMS=kernel.SHA256SUMS
 ENV KVER=${KERNEL_BUILD}.x86_64
 ENV CGO_ENABLED=0 GOTOOLCHAIN=local GOCACHE=/opt/go-cache GOMODCACHE=/opt/go-mod
-COPY scripts/ci/kernel.SHA256SUMS /tmp/kernel.SHA256SUMS
+COPY scripts/ci/${KERNEL_SUMS} /tmp/kernel.SHA256SUMS
 RUN dnf install -y --setopt=install_weak_deps=False \
         make kmod python3 perl perl-Config-General perl-Data-Dumper \
         systemd systemd-udev dracut util-linux procps-ng iproute \
@@ -12,17 +15,14 @@ RUN dnf install -y --setopt=install_weak_deps=False \
         findutils diffutils tar gzip curl-minimal && \
     if [ "$SUITE" = ginkgo ]; then dnf install -y golang; fi && \
     mkdir /tmp/kernel && cd /tmp/kernel && \
-    for package in kernel-core kernel-modules-core kernel-modules \
-        kernel-modules-extra kernel-modules-internal kernel-devel; do \
+    for package in $(awk '{print $2}' /tmp/kernel.SHA256SUMS); do \
         curl --fail --location --retry 3 \
-            "https://kojipkgs.fedoraproject.org/packages/kernel/${KERNEL_BUILD%-*}/${KERNEL_BUILD#*-}/x86_64/$package-$KVER.rpm" \
-            --output "$package-$KVER.rpm"; \
+            "https://kojipkgs.fedoraproject.org/packages/kernel/${KERNEL_BUILD%-*}/${KERNEL_BUILD#*-}/x86_64/$package" \
+            --output "$package"; \
     done && \
     sha256sum --check /tmp/kernel.SHA256SUMS && \
     dnf install -y --setopt=install_weak_deps=False \
-        "./kernel-core-$KVER.rpm" "./kernel-modules-core-$KVER.rpm" \
-        "./kernel-modules-$KVER.rpm" "./kernel-modules-extra-$KVER.rpm" \
-        "./kernel-modules-internal-$KVER.rpm" && \
+        $(find . -name 'kernel-*.rpm' ! -name 'kernel-devel-*' | sort) && \
     depmod "$KVER" && \
     dracut --force --no-hostonly --no-hostonly-cmdline --no-early-microcode \
         --add-drivers 'virtio_pci virtio_blk virtio_net 9p 9pnet_virtio' \

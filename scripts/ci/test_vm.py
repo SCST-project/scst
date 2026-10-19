@@ -5,6 +5,7 @@ from contextlib import ExitStack, redirect_stdout
 import io
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -137,6 +138,45 @@ class SupervisorTests(unittest.TestCase):
                         vm.validate_completion(self.output, 'ginkgo', 'this-run', self.manifest,
                                                expected)
 
+    def test_local_only_ginkgo_requires_exactly_the_local_report(self):
+        self.manifest['suite'] = 'ginkgo'
+        self.completion(mode='ginkgo')
+        for groups in ((), ('iscsi',), ('local', 'iscsi'), ('local',)):
+            with self.subTest(groups=groups):
+                shutil.rmtree(self.output / 'ginkgo', ignore_errors=True)
+                # The runner names each report directory run-<random>.
+                for index, group in enumerate(groups):
+                    (self.output / 'ginkgo' / f'run-{index}').mkdir(parents=True)
+                    (self.output / 'ginkgo' / f'run-{index}' / 'report.json').write_text(json.dumps([
+                        dict(SuiteSucceeded=True, SuiteLabels=[group],
+                             SuiteConfig=dict(LabelFilter='user'),
+                             PreRunStats=dict(SpecsThatWillRun=1),
+                             SpecReports=[dict(LeafNodeType='It', State='passed')])]))
+                if groups == ('local',):
+                    vm.validate_completion(self.output, 'ginkgo', 'this-run', self.manifest,
+                                           'user', local_only=True)
+                else:
+                    with self.assertRaisesRegex(vm.VMError, 'local suite only'):
+                        vm.validate_completion(self.output, 'ginkgo', 'this-run', self.manifest,
+                                               'user', local_only=True)
+
+    def test_local_only_marker_is_written_to_guest_input_before_boot(self):
+        for local_only in (False, True):
+            with self.subTest(local_only=local_only):
+                work = self.output / f'work-{local_only}'
+                output = self.output / f'output-{local_only}'
+                work.mkdir()
+                output.mkdir()
+
+                def boot(*args, **kwargs):
+                    self.assertEqual((work / 'target/local-only').exists(), local_only)
+                    return Mock()
+
+                with patch('vm.subprocess.run'), patch('vm.subprocess.Popen', side_effect=boot), \
+                        ExitStack() as stack:
+                    vm.launch(stack, self.output, work, output, 'target', 'ginkgo',
+                              'this-run', 'tcg', local_only=local_only)
+
     def test_ginkgo_filter_is_written_to_guest_input_before_boot(self):
         for index, label in enumerate(('', 'basic || smoke')):
             with self.subTest(label=label):
@@ -167,12 +207,14 @@ class ConsoleTests(unittest.TestCase):
         self.output = self.root / 'results'
 
     def run_guest(self, mode, console=None, exit_code=0, completion='valid',
-                  error=None, serial=None, ginkgo_label=''):
+                  error=None, serial=None, ginkgo_label='', local_only=False):
         manifest = dict(commit='a' * 40, suite=mode, kernel='test-kernel')
         (self.image / 'image.json').write_text(json.dumps(manifest))
+        self.launched = []
 
         def launch(stack, image, work, output, role, guest_mode, token, accel, network,
-                   ginkgo_label=''):
+                   ginkgo_label='', local_only=False):
+            self.launched.append((role, network is not None, local_only))
             directory = output / role
             directory.mkdir()
             if network:
@@ -193,11 +235,12 @@ class ConsoleTests(unittest.TestCase):
                     report.write_text(json.dumps(dict(status='PASS', counts=dict(passed=2),
                                                       not_run_suites=[], module_state='unloaded')))
                 else:
-                    for transport in ('local', 'iscsi'):
-                        report = directory / 'ginkgo' / transport / 'report.json'
+                    for transport in ('local',) if local_only else ('local', 'iscsi'):
+                        report = directory / 'ginkgo' / f'run-{transport}' / 'report.json'
                         report.parent.mkdir(parents=True)
                         report.write_text(json.dumps([dict(
-                            SuiteSucceeded=True, PreRunStats=dict(SpecsThatWillRun=2),
+                            SuiteSucceeded=True, SuiteLabels=[transport],
+                            PreRunStats=dict(SpecsThatWillRun=2),
                             SuiteConfig=dict(LabelFilter=ginkgo_label),
                             SpecReports=[dict(LeafNodeType='It', State='passed')])]))
             return Mock()
@@ -205,7 +248,7 @@ class ConsoleTests(unittest.TestCase):
         stdout = io.StringIO()
         with patch('vm.launch', side_effect=launch), patch('vm.configure_ssh'), \
                 patch('vm.wait_guest', side_effect=error), redirect_stdout(stdout):
-            result = vm.run(self.image, self.output, mode, 10, 'tcg', ginkgo_label)
+            result = vm.run(self.image, self.output, mode, 10, 'tcg', ginkgo_label, local_only)
         self.assertEqual(json.loads((self.output / 'result.json').read_text()), result)
         if console is not None:
             self.assertEqual((self.output / 'target/tests.log').read_bytes(), console)
@@ -238,6 +281,27 @@ class ConsoleTests(unittest.TestCase):
             with self.subTest(label=label):
                 self.output = self.root / label
                 result, output = self.run_guest('ginkgo', ginkgo_label=label)
+                self.assertEqual(result['status'], 'PASS')
+                self.assertEqual(result['ginkgo_label'], expression)
+                self.assertIn(f'Label filter: {expression}', output)
+
+    def test_local_only_ginkgo_boots_one_guest_without_a_network(self):
+        for local_only, launched in ((False, [('target', True, False), ('initiator', True, False)]),
+                                     (True, [('target', False, True)])):
+            with self.subTest(local_only=local_only):
+                self.output = self.root / f'local-only-{local_only}'
+                result, _ = self.run_guest('ginkgo', ginkgo_label='user', local_only=local_only)
+                self.assertEqual(result['status'], 'PASS')
+                self.assertEqual(result['local_only'], local_only)
+                self.assertEqual(self.launched, launched)
+
+    def test_local_only_restricts_the_label_filter_to_local_specs(self):
+        for label, expression in (('', 'local'), ('user', 'local && (user)'),
+                                  ('basic || smoke', 'local && (basic || smoke)'),
+                                  ('ci-pr', 'local && (basic || smoke)')):
+            with self.subTest(label=label):
+                self.output = self.root / f'filter-{label or "all"}'
+                result, output = self.run_guest('ginkgo', ginkgo_label=label, local_only=True)
                 self.assertEqual(result['status'], 'PASS')
                 self.assertEqual(result['ginkgo_label'], expression)
                 self.assertIn(f'Label filter: {expression}', output)

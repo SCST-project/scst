@@ -31,6 +31,15 @@ Kernel matrices are maintained through `.github/kernel-matrix.conf` and
 `nightly/conf/nightly.conf`; VM kernel pins are in `scripts/ci/kernel.env`
 and `kernel.SHA256SUMS` and must be updated together.
 
+Further Ginkgo jobs run the local `user` specs on Fedora 33's Linux 5.8.18 and
+5.9.16, pinned in `scripts/ci/kernel-5.8.env` and `kernel-5.9.env` with their
+`SHA256SUMS`. Linux 5.9 is the first release where `fork()` copies pinned
+ordinary anonymous pages, which scst_user relies on. The 5.8 fork fixture
+uses the documented `MADV_DONTFORK` protection; the 5.9 fixture exercises
+pinning without it. Both require correct geometry and data after the fork.
+The invalid-capacity specs check the exact SCSI rejection on both kernels.
+The images are otherwise built the same way; these jobs have no iSCSI initiator.
+
 ## Results
 
 Start with the failed job's log. KUnit/Ginkgo upload build logs, test reports
@@ -61,6 +70,10 @@ python3 scripts/ci/vm.py ginkgo /tmp/scst-ginkgo-image /tmp/scst-ginkgo-results 
 ```
 
 Use `--ginkgo-label ci-push` for the master selection; omit it for all specs.
+For the scst_user kernel jobs, add the pin name, such as `kernel-5.9`, to
+`build-image` and run `vm.py` with `--local-only --ginkgo-label user`.
+`--local-only` intersects the resolved label expression with `local`; without
+`--ginkgo-label`, it selects all local specs.
 QEMU tries KVM then TCG; `--accel tcg` forces emulation. To check the VM
 supervisor itself, use `vm.py self-test` with a KUnit image; this intentionally
 crashes a guest.
