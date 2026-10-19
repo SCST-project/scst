@@ -74,7 +74,7 @@ jobs:
           workdir="/tmp/scst-${version}"
           out="output.txt"
 
-          ./scripts/kernel/run-regression-tests -l -q -d "${workdir}" "${version}-nc-ns-nm" | tee "${out}"
+          ./scripts/kernel/run-regression-tests -l -q -d "${workdir}" "${version}-nc" | tee "${out}"
 
           if ! grep -q "Compiling the patched kernel" "${out}"; then
             echo "::error title=Regression tests::run-regression-tests failed"

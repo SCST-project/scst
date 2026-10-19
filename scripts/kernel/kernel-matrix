@@ -28,11 +28,8 @@ strip_kernel_options() {
 	while true; do
 		case "${stripped_kernel}" in
 			*-nc) stripped_kernel="${stripped_kernel%-nc}" ;;
-			*-ns) stripped_kernel="${stripped_kernel%-ns}" ;;
-			*-nm) stripped_kernel="${stripped_kernel%-nm}" ;;
 			*-4) stripped_kernel="${stripped_kernel%-4}" ;;
 			*-f) stripped_kernel="${stripped_kernel%-f}" ;;
-			*-i) stripped_kernel="${stripped_kernel%-i}" ;;
 			*-u) stripped_kernel="${stripped_kernel%-u}" ;;
 			*-p) stripped_kernel="${stripped_kernel%-p}" ;;
 			*) return ;;

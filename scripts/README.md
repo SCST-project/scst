@@ -18,8 +18,8 @@ direct callers of a relocated script must use its new directory below.
 The existing `checkpatch`, `checkpatch_commits`, `checkpatch_diff`, and
 `checkpatch_scan` entry points remain directly under `scripts/`. The wrapper's
 diagnostic ignore list is in `checkpatch`; whole-tree scan exclusions are in
-`checkpatch_scan`. The kernel regression runner retains its separate analyzer
-commands and filtering. Moving the tools does not change these policies.
+`checkpatch_scan`. The kernel regression runner retains its separate checkpatch
+command and filtering; Sparse and Smatch use the dedicated Make targets below.
 
 Use Make targets from the repository root unless a component workflow says
 otherwise. Direct scripts retain their working-directory conventions:
@@ -28,8 +28,8 @@ generation and source inventory use the requested or current source directory.
 Module Makefiles invoke `sign-modules` from the directory containing modules.
 Consult each script's argument handling before invoking it.
 
-`kernel/run-regression-tests` prepares kernel trees and runs compilation,
-checkpatch, sparse, and smatch according to its options. The maintained kernel
+`kernel/run-regression-tests` prepares kernel trees and runs compilation and
+checkpatch according to its options. The maintained kernel
 matrix is `ABT_KERNELS` in `nightly/conf/nightly.conf`; the CI subset is selected
 through `kernel/kernel-matrix` and `.github/kernel-matrix.conf`.
 

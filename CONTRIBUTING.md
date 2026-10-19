@@ -148,9 +148,13 @@ in `.github/workflows/ci.yml` and `.github/workflows/coverity.yml`.
   `make ginkgo-check` checks the framework only; follow the guide before
   running tests that load modules or access storage.
 
-`scripts/kernel/run-regression-tests` checks kernel compatibility, compilation,
-sparse and smatch. It downloads or prepares kernel trees and is separate
-from the lightweight local checks above. The nightly support matrix is
+`make sparse` and `make smatch` analyze the configured modules; use
+`KUNIT_TEST=y` to include KUnit sources. Their policies and reports are described
+in the [scripts guide](scripts/README.md#sparse-and-smatch).
+
+`scripts/kernel/run-regression-tests` checks kernel compatibility through
+compilation and checkpatch. It downloads or prepares kernel trees and is
+separate from the analyzer targets above. The nightly support matrix is
 `ABT_KERNELS` in `nightly/conf/nightly.conf`; CI exercises a subset in
 `.github/workflows/run_regression_tests.yaml`.
 
