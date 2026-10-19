@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "notes": [
+    "Run the selected kernel's Coccinelle rules that declare report mode.",
+    "KUnit sources are selected without requiring a KUnit build.",
+    "No project macro models, source rewrites or diagnostic suppressions."
+  ]
+}

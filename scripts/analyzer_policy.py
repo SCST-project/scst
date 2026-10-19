@@ -23,7 +23,9 @@ KBUILD_SCHEMA = {
     "source_exceptions": [{"file": str, "function": str, "message": str, "reason": str}],
     "kernel_exceptions": [{"header": str, "message": str, "reason": str}],
 }
-POLICIES = ("common", "sparse", "smatch")
+BASIC_SCHEMA = {"version": int, "notes": [str]}
+POLICIES = ("common", "sparse", "smatch", "coccicheck")
+BASIC_POLICIES = ("coccicheck",)
 
 
 def relative_path(value: str, location: str):
@@ -64,9 +66,13 @@ def read_policy(path: Path, name="common") -> dict:
     if name not in POLICIES:
         raise ValueError(f"unknown policy: {name}")
     policy = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_object)
-    validate(policy, SCHEMA if name == "common" else KBUILD_SCHEMA, str(path))
+    schema = BASIC_SCHEMA if name in BASIC_POLICIES else (
+        SCHEMA if name == "common" else KBUILD_SCHEMA)
+    validate(policy, schema, str(path))
     if policy["version"] != 1:
         raise ValueError(f"{path}: unsupported policy version")
+    if name in BASIC_POLICIES:
+        return policy
     if name != "common":
         for key, fields in (("exclude_directories", ("path",)),
                             ("source_exceptions", ("file", "function", "message")),
@@ -114,6 +120,9 @@ def load_policy(name="common") -> dict:
 
 def source_policy(name="common") -> dict:
     common = load_policy()
+    if name in BASIC_POLICIES:
+        load_policy(name)
+        return common
     if name == "common":
         return common
     return {**common, "exclude_directories": common["exclude_directories"] +
@@ -144,7 +153,10 @@ def text_report(result: dict, action: str) -> str:
         lines.append("  none")
     lines.append("Environment overrides for input exclusions: none.")
     lines.extend(policy["notes"])
-    if result["policy"] != "common":
+    if result["policy"] in BASIC_POLICIES:
+        lines.append("Additional input exclusions and diagnostic exceptions: none.")
+        lines.extend(result["configured_policy"]["notes"])
+    elif result["policy"] != "common":
         native = result["configured_policy"]
         lines.append("Source warning exceptions (exact file, function and message):")
         lines += [f"  {r['file']} {r['function']}(): {r['message']} — {r['reason']}"

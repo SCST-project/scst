@@ -166,10 +166,11 @@ help:
 		'  cov-build                     make coverity build' \
 		'  shellcheck                    check Bash scripts' \
 		'  analyzer-policy               show shared analyzer input policy (no analysis)' \
-		'  ANALYZER=common|sparse|smatch policy to show (default: common)' \
+		'  ANALYZER                      policy to show (default: common)' \
 		'  ANALYZER_FORMAT=text|json     policy output format (default: text)' \
 		'  sparse, smatch                analyze configured modules through Kbuild' \
-		'  DIFFBR=commit                 analyze when module sources or headers changed' \
+		'  coccicheck                    run kernel Coccinelle report rules' \
+		'  DIFFBR=commit                 compare with one commit; select relevant inputs' \
 		'  lint-test                     test shared analyzer tooling (no modules)' \
 		'  all                           make all' \
 		'  clean                         clean files' \
@@ -272,6 +273,11 @@ analyzer-policy:
 sparse smatch: export SCST_LINT_KDIR := $(KDIR)
 sparse smatch:
 	+@$(PYTHON) -B scripts/sparse_smatch/smp.py $@
+
+.PHONY: coccicheck
+coccicheck: export SCST_LINT_KDIR := $(KDIR)
+coccicheck:
+	+@$(PYTHON) -B scripts/coccinelle/coccicheck.py
 
 # Preserve dependency order. The newer QLogic base is compiled for its target
 # module, but only sources selected by analyzer policy reach the checker.
