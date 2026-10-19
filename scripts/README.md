@@ -104,6 +104,14 @@ raw bytes without filtering. Reusing a log name replaces the previous report
 by default; callers can preserve it with `truncate=False`. There is no automatic
 log archive.
 
+## Shared analyzer build lock
+
+Drivers that modify build state must hold `lint_kbuild.build_lock(root)` while
+resetting build logs and preparing or running the build. It serializes callers
+within one worktree using `.cache/lint/kbuild.lock`; ordinary builds that do
+not acquire it remain unprotected. Keep the lock file in place: closing its
+descriptor releases the lock, including on exceptions.
+
 ## Dependencies and tooling tests
 
 Shared analyzer tooling requires Linux, Git and Python 3.10+, using only the

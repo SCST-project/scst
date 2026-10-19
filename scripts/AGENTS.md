@@ -1,7 +1,7 @@
 # Repository tooling
 
-[README.md](README.md) describes the directories and entry points. Follow the
-root guidance and any nested instructions, including [KUnit tooling](kunit/AGENTS.md).
+[README.md](README.md) describes the directories and entry points. For changes
+under `kunit/`, also follow its [instructions](kunit/AGENTS.md).
 
 - Keep a moved helper and all its callers, Make targets, CI jobs, packaging
   references, tests, and documentation in the same commit.
@@ -12,6 +12,12 @@ root guidance and any nested instructions, including [KUnit tooling](kunit/AGENT
 - Keep path reorganizations separate from changes to analyzer coverage,
   diagnostic filtering, kernel support, or runtime behavior. Document policy
   changes explicitly in their own commits.
-- Inspect side effects before running a helper. Syntax checks and lint do not
-  authorize cleanup, downloads, builds, signing, deployment, or live-device
-  exercises; use the root safety boundaries and the requested task scope.
+- Reuse the shared source and process helpers for analyzer drivers. Keep input
+  selection separate from diagnostic policy, retain complete raw reports, and
+  propagate missing-tool and process failures. Report no eligible inputs as a
+  skip; fail incomplete analyzer runs.
+- Drivers that modify build state must hold the shared build lock around build
+  log reset and build-state changes. Other checks do not need the lock.
+- Keep analyzer fixture tests isolated in temporary directories and processes.
+  They must not compile or load SCST, access live storage, or change services.
+- Apply the root safety boundaries to cleanup, signing and runtime helpers.
