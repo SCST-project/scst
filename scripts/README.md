@@ -15,13 +15,13 @@ direct callers of a relocated script must use its new directory below.
 | `sparse_smatch/` | Native Kbuild analyzers (`make sparse`, `make smatch`) and CHECK records. |
 | `coccinelle/` | Kernel semantic-patch report rules (`make coccicheck`). |
 | `cppcheck/` | Native analysis using captured compiler commands (`make cppcheck`). |
+| `style/` | Whole-file Checkpatch analysis (`make checkpatch`, `scripts/checkpatch_scan`). |
 | `tests/` | Isolated regression fixtures for the shared analyzer helpers (`make lint-test`). |
 
-The existing `checkpatch`, `checkpatch_commits`, `checkpatch_diff`, and
-`checkpatch_scan` entry points remain directly under `scripts/`. The wrapper's
-diagnostic ignore list is in `checkpatch`; whole-tree scan exclusions are in
-`checkpatch_scan`. The kernel regression runner retains its separate checkpatch
-command and filtering; Sparse and Smatch use the dedicated Make targets below.
+The `checkpatch`, `checkpatch_commits` and `checkpatch_diff` helpers retain
+their existing patch/commit policy, including the ignored types in `checkpatch`.
+The kernel regression runner also retains its separate checkpatch filtering.
+`checkpatch_scan` now delegates to the unfiltered whole-file analyzer below.
 
 Use Make targets from the repository root unless a component workflow says
 otherwise. Direct scripts retain their working-directory conventions:
@@ -80,7 +80,8 @@ python3 -B scripts/analyzer_policy.py validate
 ```
 
 The Python commands also accept `--format=json` and a policy name: `common`,
-`sparse`, `smatch`, `coccicheck` or `cppcheck`. Use `make analyzer-policy ANALYZER=smatch` to see the
+`sparse`, `smatch`, `coccicheck`, `cppcheck` or `checkpatch`.
+Use `make analyzer-policy ANALYZER=smatch` to see the
 effective input scope and all diagnostic exceptions. A file inventory does
 not establish analysis or build coverage.
 
@@ -231,6 +232,25 @@ Native parser failures and missing includes remain visible as incomplete
 analysis. Source findings return 1 and incomplete analysis returns 2; Make
 maps both to 2. Full logs and the summary are in `.cache/lint/cppcheck.{log,json}`;
 the summary links to captured commands, native XML and checker coverage.
+
+## Checkpatch
+
+```sh
+make checkpatch KDIR=/path/to/kernel/build
+make checkpatch DIFFBR=master CHECKPATCH_PATH=/path/to/kernel/scripts
+```
+
+The target checks whole C files and headers selected by the common policy,
+including userspace and KUnit. Diff mode selects whole changed files. It needs
+the kernel's `checkpatch.pl`, `spelling.txt` and `const_structs.checkpatch`,
+but no compilation or KUnit-enabled kernel. `CHECKPATCH_PATH` overrides `KDIR`.
+
+Native `--strict` checks run without ignored types or project exceptions;
+local `.checkpatch.conf` files are not loaded. Source files are never rewritten.
+Findings return 1; missing per-file completion, inconsistent totals, stderr
+or tool failures return 2. Make maps both failures to 2. Complete output and
+coverage are in `.cache/lint/checkpatch.{log,json}`. `scripts/checkpatch_scan`
+uses the same policy and exit codes; legacy patch/commit helpers remain separate.
 
 ## Analyzer CI
 

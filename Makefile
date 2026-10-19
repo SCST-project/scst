@@ -171,6 +171,7 @@ help:
 		'  sparse, smatch                analyze configured modules through Kbuild' \
 		'  coccicheck                    run kernel Coccinelle report rules' \
 		'  cppcheck                      analyze fresh kernel and userspace build contexts' \
+		'  checkpatch                    check C source/header style, including KUnit' \
 		'  DIFFBR=commit                 compare with one commit; select relevant inputs' \
 		'  lint-test                     test shared analyzer tooling (no modules)' \
 		'  all                           make all' \
@@ -279,6 +280,11 @@ sparse smatch:
 coccicheck: export SCST_LINT_KDIR := $(KDIR)
 coccicheck:
 	+@$(PYTHON) -B scripts/coccinelle/coccicheck.py
+
+.PHONY: checkpatch
+checkpatch: export SCST_LINT_KDIR := $(KDIR)
+checkpatch:
+	@$(PYTHON) -B scripts/style/checkpatch.py
 
 .PHONY: cppcheck lint-userspace
 cppcheck: export SCST_LINT_KDIR := $(KDIR)
