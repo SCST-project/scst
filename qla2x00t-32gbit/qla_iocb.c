@@ -5309,12 +5309,16 @@ qla29xx_build_scsi_crc_2_iocbs(srb_t *sp, struct cmd_type_crc_2_ext *cmd_pkt,
 		goto crc_queuing_error;
 
 	if (bundling && tot_prot_dsds) {
+#if QLA_ENABLE_PI
 		/* Walks dif segments */
 		cmd_pkt->control_flags_1 |= cpu_to_le16(CF_DIF_SEG_DESCR_ENABLE);
 		cur_dsd = &crc_ctx_pkt->u.bundling.dif_dsd;
 		if (qla24xx_walk_and_build_prot_sglist(ha, sp, cur_dsd,
 				tot_prot_dsds, NULL))
 			goto crc_queuing_error;
+#else
+		WARN_ON_ONCE(true);
+#endif
 	}
 	qla29xx_copy_dif_iocb_data(cmd_pkt, crc_ctx_pkt, bundling);
 
