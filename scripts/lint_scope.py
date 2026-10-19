@@ -4,29 +4,37 @@ import os
 import subprocess
 from pathlib import Path
 
-SOURCE_DIRS = ("scst", "iscsi-scst", "qla2x00t-32gbit/qla2x00-target",
-               "srpt", "fcst", "scst_local", "usr")
-# Compiler capability probes are intentionally not ordinary product code.
-EXCLUDE_DIRS = ("iscsi-scst/conftest", "srpt/conftest")
+from analyzer_policy import load_policy
 
 
 def in_scope(path: Path, root: Path) -> bool:
+    policy = load_policy()
     try:
         # Neither an alias nor its destination may widen the source scope.
         names = (Path(os.path.abspath(path)).relative_to(Path(os.path.abspath(root))).as_posix(),
                  path.resolve().relative_to(root.resolve()).as_posix())
     except ValueError:
         return False
-    return all(name.startswith(tuple(directory + "/" for directory in SOURCE_DIRS))
-               and Path(name).suffix in {".c", ".h"} and not name.endswith(".mod.c")
-               and not any(name.startswith(directory + "/") for directory in EXCLUDE_DIRS)
+    return all(name.startswith(tuple(directory + "/" for directory in policy["source_roots"]))
+               and Path(name).suffix in policy["source_suffixes"]
+               and not any(name.endswith(rule["suffix"]) for rule in policy["exclude_suffixes"])
+               and not any(name.startswith(rule["path"] + "/")
+                           for rule in policy["exclude_directories"])
                for name in names)
 
 
+def glob_literal(value: str) -> str:
+    """Quote literal policy paths for Git's glob pathspecs."""
+    return "".join({"[": "[[]", "*": "[*]", "?": "[?]"}.get(char, char) for char in value)
+
+
 def git_pathspecs() -> list[str]:
-    return [*(f":(top){directory}/*.[ch]" for directory in SOURCE_DIRS),
-            ":(top,exclude)*.mod.c",
-            *(f":(top,exclude){directory}/**" for directory in EXCLUDE_DIRS)]
+    policy = load_policy()
+    return [*(f":(top,glob){glob_literal(directory)}/**/*{suffix}"
+              for directory in policy["source_roots"] for suffix in policy["source_suffixes"]),
+            *(f":(top,exclude,glob)**/*{rule['suffix']}" for rule in policy["exclude_suffixes"]),
+            *(f":(top,exclude,glob){glob_literal(rule['path'])}/**"
+              for rule in policy["exclude_directories"])]
 
 
 def git_names(root: Path, *arguments: str) -> list[str]:
@@ -35,7 +43,8 @@ def git_names(root: Path, *arguments: str) -> list[str]:
 
 
 def tracked_sources(root: Path) -> list[Path]:
-    names = git_names(root, "ls-files", "--cached", "-z", "--", *SOURCE_DIRS)
+    roots = [f":(top,literal){directory}" for directory in load_policy()["source_roots"]]
+    names = git_names(root, "ls-files", "--cached", "-z", "--", *roots)
     return sorted({root / name for name in names
                    if in_scope(root / name, root) and (root / name).is_file()})
 
