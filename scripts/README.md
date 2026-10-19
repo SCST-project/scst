@@ -232,6 +232,19 @@ analysis. Source findings return 1 and incomplete analysis returns 2; Make
 maps both to 2. Full logs and the summary are in `.cache/lint/cppcheck.{log,json}`;
 the summary links to captured commands, native XML and checker coverage.
 
+## Analyzer CI
+
+The [workflow](../.github/workflows/analyzers.yml) runs on pushes to `master`
+and manual dispatch. Separate jobs run `make sparse` and `make smatch` with
+`KUNIT_TEST=y`. Reports in `.cache/lint/` are kept for seven days. Use the
+commands above to run either analyzer locally. The runner and image also
+support Coccinelle and Cppcheck; their matrix entries remain commented out.
+
+CI temporarily reports completed source findings without blocking while fixes
+land. Build/tool failures, incomplete analysis and missing KUnit coverage
+still fail. This policy lives in `ci/run-analyzer.py`; local Make targets
+always fail on findings.
+
 ## Dependencies and tooling tests
 
 Shared analyzer tooling requires Linux, Git and Python 3.10+, using only the
