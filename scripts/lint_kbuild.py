@@ -54,10 +54,11 @@ def validate_checker(root, tool, log):
         raise ValueError(f"{tool} is incompatible with {probe}; module build was not started")
 
 
-def collect(root, tool, directory, log):
+def collect(root, tool, directory, log, *, checker=None):
     """Retain CHECK exits even when the enclosing Kbuild discards them."""
     env = dict(os.environ, SCST_LINT_RECORDS=str(directory))
-    checker = shlex.join([sys.executable, str(root / "scripts/sparse_smatch/check.py"), tool])
+    checker = shlex.join(checker or
+                         [sys.executable, str(root / "scripts/sparse_smatch/check.py"), tool])
     command = ["make", "--no-silent", "-k", "-C", str(root), "lint-kbuild",
                "C=2", "V=0", "CHECK=" + checker]
     with log.open("ab") as output:

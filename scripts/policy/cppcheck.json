@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "notes": [
+    "Capture fresh kernel CHECK and userspace compiler commands.",
+    "Analyze configured translation units with native headers and definitions.",
+    "KUNIT_TEST=y includes KUnit sources through their actual Kbuild context.",
+    "No project models, inline suppressions or diagnostic exceptions."
+  ]
+}

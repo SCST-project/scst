@@ -170,6 +170,7 @@ help:
 		'  ANALYZER_FORMAT=text|json     policy output format (default: text)' \
 		'  sparse, smatch                analyze configured modules through Kbuild' \
 		'  coccicheck                    run kernel Coccinelle report rules' \
+		'  cppcheck                      analyze fresh kernel and userspace build contexts' \
 		'  DIFFBR=commit                 compare with one commit; select relevant inputs' \
 		'  lint-test                     test shared analyzer tooling (no modules)' \
 		'  all                           make all' \
@@ -278,6 +279,19 @@ sparse smatch:
 coccicheck: export SCST_LINT_KDIR := $(KDIR)
 coccicheck:
 	+@$(PYTHON) -B scripts/coccinelle/coccicheck.py
+
+.PHONY: cppcheck lint-userspace
+cppcheck: export SCST_LINT_KDIR := $(KDIR)
+cppcheck: export SCST_LINT_CC := $(CC)
+cppcheck:
+	+@$(PYTHON) -B scripts/cppcheck/cppcheck.py
+
+lint-userspace:
+	+$(MAKE) -C scst/src ../include/scst_itf_ver.h
+	+$(MAKE) -C $(ISCSI_DIR) progs
+	+$(MAKE) -C usr/fileio
+	+$(MAKE) -C usr/stpgd
+	+$(MAKE) -C usr/events
 
 # Preserve dependency order. The newer QLogic base is compiled for its target
 # module, but only sources selected by analyzer policy reach the checker.

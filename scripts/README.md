@@ -14,6 +14,7 @@ direct callers of a relocated script must use its new directory below.
 | `policy/` | Reviewed shared analyzer input policy; exclusions carry their reasons. |
 | `sparse_smatch/` | Native Kbuild analyzers (`make sparse`, `make smatch`) and CHECK records. |
 | `coccinelle/` | Kernel semantic-patch report rules (`make coccicheck`). |
+| `cppcheck/` | Native analysis using captured compiler commands (`make cppcheck`). |
 | `tests/` | Isolated regression fixtures for the shared analyzer helpers (`make lint-test`). |
 
 The existing `checkpatch`, `checkpatch_commits`, `checkpatch_diff`, and
@@ -79,7 +80,7 @@ python3 -B scripts/analyzer_policy.py validate
 ```
 
 The Python commands also accept `--format=json` and a policy name: `common`,
-`sparse`, `smatch` or `coccicheck`. Use `make analyzer-policy ANALYZER=smatch` to see the
+`sparse`, `smatch`, `coccicheck` or `cppcheck`. Use `make analyzer-policy ANALYZER=smatch` to see the
 effective input scope and all diagnostic exceptions. A file inventory does
 not establish analysis or build coverage.
 
@@ -207,6 +208,29 @@ errors, missing per-input handling records and unfinished rules fail as
 incomplete analysis, even when native `spatch` returns zero. Findings return
 1; incomplete analysis returns 2 (Make maps either failure to 2).
 Full output and per-rule coverage are in `.cache/lint/coccicheck.{log,json}`.
+
+## Cppcheck
+
+```sh
+make -j8 cppcheck KDIR=/path/to/kernel/build KUNIT_TEST=y
+make -j8 cppcheck KDIR=/path/to/kernel/build KUNIT_TEST=y DIFFBR=master
+```
+
+The target requires Cppcheck with `--check-level` and `--checkers-report`
+support, a prepared kernel and SCST build dependencies. It captures fresh
+Kbuild `CHECK` commands and rebuilds userspace programs (including the event
+example) to collect their compiler commands. It then runs kernel and userspace
+analysis separately with all native checks enabled. Nothing is installed or
+loaded. KUnit coverage follows `KUNIT_TEST` and the kernel configuration.
+
+A relevant diff triggers the full configured analysis, including header
+consumers. Explicit or changed C files absent from the build cause a failure.
+Real includes and definitions are preserved; no project models, header
+substitutions, inline suppressions or diagnostic exceptions are enabled.
+Native parser failures and missing includes remain visible as incomplete
+analysis. Source findings return 1 and incomplete analysis returns 2; Make
+maps both to 2. Full logs and the summary are in `.cache/lint/cppcheck.{log,json}`;
+the summary links to captured commands, native XML and checker coverage.
 
 ## Dependencies and tooling tests
 
