@@ -243,7 +243,8 @@ MODULE_PARM_DESC(ql2xdontresethba,
 		" 0 (Default) -- Reset on failure.\n"
 		" 1 -- Do not reset on failure.\n");
 
-#if 1
+/* Older kernels may lack the ullong module parameter type. */
+#ifndef param_check_ullong
 uint ql2xmaxlun = MAX_LUNS;
 module_param(ql2xmaxlun, uint, S_IRUGO);
 #else

@@ -176,7 +176,7 @@ extern int ql2xgffidenable;
 extern int ql2xenabledif;
 extern int ql2xenablehba_err_chk;
 extern int ql2xdontresethba;
-#if 1
+#ifndef param_check_ullong
 extern uint ql2xmaxlun;
 #else
 extern uint64_t ql2xmaxlun;
