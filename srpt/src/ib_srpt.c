@@ -3156,9 +3156,10 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	u32 rsize;
 	u32 tsize;
 	u32 dma_len;
+	u32 max_sge;
 	int count;
 	int i, j, k;
-	int max_sge, nsge;
+	int nsge;
 
 	max_sge = ch->max_send_sge;
 	dir = scst_cmd_get_data_direction(cmd);
@@ -3171,7 +3172,7 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	if (dir == SCST_DATA_WRITE) {
 		scst_cmd_get_write_fields(cmd, &sg, &sg_cnt);
 		WARN_ON(!sg);
-		max_sge = min(max_sge, ch->sport->sdev->dev_attr.max_sge_rd);
+		max_sge = min_t(u32, max_sge, ch->sport->sdev->dev_attr.max_sge_rd);
 	} else {
 		sg = scst_cmd_get_sg(cmd);
 		sg_cnt = scst_cmd_get_sg_cnt(cmd);
