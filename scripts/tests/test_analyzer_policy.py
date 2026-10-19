@@ -4,6 +4,7 @@ import copy
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -126,6 +127,76 @@ class PolicyTests(unittest.TestCase):
         for path in [*expected, *excluded]:
             path.write_text("int changed(void);\n", encoding="utf-8")
         self.assertEqual(changed_sources(self.root, "HEAD"), expected)
+
+
+class PolicyCliTests(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory(prefix="scst-policy-cli-")
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        self.scripts = self.root / "scripts"
+        (self.scripts / "policy").mkdir(parents=True)
+        source = analyzer_policy.POLICY_PATH.parent.parent
+        for name in ("analyzer_policy.py", "lint_scope.py", "policy/common.json"):
+            shutil.copyfile(source / name, self.scripts / name)
+
+    def run_cli(self, *args):
+        # Deliberately run away from the repository root: policy paths belong
+        # to the script, not to the caller's working directory.
+        return subprocess.run([sys.executable, "-B", str(self.scripts / "analyzer_policy.py"),
+                               *args], cwd=self.scripts, text=True, capture_output=True)
+
+    def test_show_and_validate_need_no_git_repository_or_analyzers(self):
+        expected = json.loads((self.scripts / "policy/common.json").read_text())
+        shown = self.run_cli("show", "common", "--format=json")
+        self.assertEqual(shown.returncode, 0, shown.stderr)
+        self.assertEqual(json.loads(shown.stdout)["configured_policy"], expected)
+        text = self.run_cli("show")
+        self.assertEqual(text.returncode, 0, text.stderr)
+        for rule in (*expected["exclude_directories"], *expected["exclude_suffixes"]):
+            self.assertIn(rule["reason"], text.stdout)
+        self.assertIn("no analyzer has run", text.stdout)
+        valid = self.run_cli("validate", "--format=json")
+        self.assertEqual(valid.returncode, 0, valid.stderr)
+        self.assertTrue(json.loads(valid.stdout)["valid"])
+
+    def test_files_use_the_script_repository_and_shared_scope(self):
+        subprocess.run(["git", "-C", str(self.root), "init", "-q", "--template="], check=True)
+        empty = self.run_cli("files")
+        self.assertEqual(empty.returncode, 0, empty.stderr)
+        self.assertIn("No eligible tracked inputs", empty.stdout)
+        expected = ["scst/core.c", "scst/kunit/test.c"]
+        for name in (*expected, "qla2x00t/legacy.c", "scst/new.c"):
+            path = self.root / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("int example(void);\n")
+            if name != "scst/new.c":
+                subprocess.run(["git", "-C", str(self.root), "add", "--", name], check=True)
+        result = self.run_cli("files", "--format=json")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        inventory = json.loads(result.stdout)
+        self.assertEqual(inventory["selected_tracked_files"], expected)
+        self.assertEqual(inventory["count"], len(expected))
+
+    def test_configuration_and_inventory_errors_fail_visibly(self):
+        unknown = self.run_cli("show", "smatch")
+        self.assertEqual(unknown.returncode, 2)
+        no_git = self.run_cli("files", "--format=json")
+        self.assertEqual(no_git.returncode, 2)
+        self.assertEqual(no_git.stdout, "")
+        self.assertIn("analyzer policy:", no_git.stderr)
+        (self.scripts / "policy/common.json").unlink()
+        for action in ("show", "files", "validate"):
+            with self.subTest(action=action):
+                missing = self.run_cli(action, "--format=json")
+                self.assertEqual(missing.returncode, 2)
+                self.assertEqual(missing.stdout, "")
+                self.assertIn("analyzer policy:", missing.stderr)
+        (self.scripts / "policy/common.json").write_text('{"version": true}')
+        broken = self.run_cli("validate")
+        self.assertEqual(broken.returncode, 2)
+        self.assertEqual(broken.stdout, "")
+        self.assertIn("analyzer policy:", broken.stderr)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,9 @@
-"""Load the shared analyzer input policy without invoking an analyzer."""
+"""Inspect the shared analyzer input policy without invoking an analyzer."""
 
+import argparse
 import json
+import subprocess
+import sys
 from functools import lru_cache
 from pathlib import Path
 
@@ -77,3 +80,66 @@ def read_policy(path: Path) -> dict:
 def load_policy() -> dict:
     """Read once per process; invalid or missing policy must stop selection."""
     return read_policy(POLICY_PATH)
+
+
+def text_report(result: dict, action: str) -> str:
+    lines = ["Policy: common (scripts/policy/common.json)"]
+    if action == "validate":
+        return "\n".join([*lines, "Policy is valid."])
+    lines.append("Coverage: shared input selection only; no analyzer has run.")
+    if action == "files":
+        lines.append(f"Eligible tracked files: {result['count']}")
+        lines.extend(result["selected_tracked_files"])
+        if not result["count"]:
+            lines.append("No eligible tracked inputs.")
+        return "\n".join(lines)
+    policy = result["configured_policy"]
+    lines += [f"Included roots: {', '.join(policy['source_roots'])}",
+              f"File types: {', '.join(policy['source_suffixes'])}",
+              "Excluded directories:"]
+    lines += [f"  {rule['path']}: {rule['reason']}" for rule in policy["exclude_directories"]]
+    if not policy["exclude_directories"]:
+        lines.append("  none")
+    lines.append("Excluded filename suffixes:")
+    lines += [f"  {rule['suffix']}: {rule['reason']}" for rule in policy["exclude_suffixes"]]
+    if not policy["exclude_suffixes"]:
+        lines.append("  none")
+    lines += ["Environment overrides: none.",
+              "Diagnostic filtering is not defined by this policy."]
+    lines.extend(policy["notes"])
+    return "\n".join(lines)
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("action", choices=("show", "files", "validate"))
+    parser.add_argument("policy", choices=("common",), nargs="?", default="common",
+                        help="Only the shared input policy is integrated so far")
+    parser.add_argument("--format", choices=("text", "json"), default="text")
+    args = parser.parse_args()
+    try:
+        policy = load_policy()
+        result = {"policy": args.policy, "policy_file": "scripts/policy/common.json"}
+        if args.action == "validate":
+            result["valid"] = True
+        else:
+            result["coverage"] = "Shared input selection only; no analyzer has run."
+            if args.action == "show":
+                result["configured_policy"] = policy
+            else:
+                from lint_scope import tracked_sources
+
+                root = Path(__file__).resolve().parent.parent
+                files = [path.relative_to(root).as_posix() for path in tracked_sources(root)]
+                result.update(selected_tracked_files=files, count=len(files))
+        print(json.dumps(result, indent=2) if args.format == "json"
+              else text_report(result, args.action))
+    except (OSError, ValueError, subprocess.CalledProcessError) as error:
+        print(f"analyzer policy: {error}", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    sys.dont_write_bytecode = True
+    sys.exit(main())

@@ -67,6 +67,19 @@ and explicit-file selection. The loader rejects invalid or missing policy;
 there are no environment-based extra exclusions. Existing checkpatch wrappers
 and the kernel regression runner still use their own selection and filtering.
 
+Inspect the shared policy and eligible tracked files without running analyzers:
+
+```sh
+make analyzer-policy
+make analyzer-policy ANALYZER_FORMAT=json
+python3 -B scripts/analyzer_policy.py files
+python3 -B scripts/analyzer_policy.py validate
+```
+
+The Python commands also accept `--format=json`. Only the `common` input
+policy is integrated here; individual analyzer policies will be added with
+their drivers. A file inventory does not establish analysis or build coverage.
+
 | Input | Shared policy |
 | --- | --- |
 | `scst/`, `iscsi-scst/`, `srpt/`, `fcst/`, `scst_local/`, `usr/` | Include `.c` and `.h` files, subject to the exclusions below. |
