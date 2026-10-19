@@ -13,6 +13,7 @@ direct callers of a relocated script must use its new directory below.
 | `kunit/` | KUnit inventory, labels, runner, and tooling tests; see [the KUnit guide](../doc/KUNIT.md). |
 | `policy/` | Reviewed shared analyzer input policy; exclusions carry their reasons. |
 | `sparse_smatch/` | Native Kbuild analyzers (`make sparse`, `make smatch`) and CHECK records. |
+| `coccinelle/` | Kernel semantic-patch report rules (`make coccicheck`). |
 | `tests/` | Isolated regression fixtures for the shared analyzer helpers (`make lint-test`). |
 
 The existing `checkpatch`, `checkpatch_commits`, `checkpatch_diff`, and
@@ -78,7 +79,7 @@ python3 -B scripts/analyzer_policy.py validate
 ```
 
 The Python commands also accept `--format=json` and a policy name: `common`,
-`sparse` or `smatch`. Use `make analyzer-policy ANALYZER=smatch` to see the
+`sparse`, `smatch` or `coccicheck`. Use `make analyzer-policy ANALYZER=smatch` to see the
 effective input scope and all diagnostic exceptions. A file inventory does
 not establish analysis or build coverage.
 
@@ -187,6 +188,25 @@ and checksums are in `ci/kernel.env` and `ci/kernel.SHA256SUMS`. The image
 includes the [Smatch frontend fix](sparse_smatch/patches/typeof-address-space.patch)
 needed for current kernel RCU headers. Tool provenance is recorded under
 `/usr/local/share/scst-ci/` inside the image.
+
+## Coccinelle
+
+```sh
+make coccicheck KDIR=/path/to/kernel/build
+make coccicheck KDIR=/path/to/kernel/build DIFFBR=master
+```
+
+Install `spatch` with Python support and kernel sources containing
+`scripts/coccinelle/`. Rules declaring `report` mode run on the shared source
+scope, including userspace and KUnit files; other rules are listed as skipped.
+Diff mode checks whole changed C files and headers. No build is needed.
+
+The wrapper adds only report counters and completion markers to temporary
+rule copies. It uses no SCST macro models or diagnostic exceptions. Parser
+errors, missing per-input handling records and unfinished rules fail as
+incomplete analysis, even when native `spatch` returns zero. Findings return
+1; incomplete analysis returns 2 (Make maps either failure to 2).
+Full output and per-rule coverage are in `.cache/lint/coccicheck.{log,json}`.
 
 ## Dependencies and tooling tests
 
