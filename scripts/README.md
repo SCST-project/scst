@@ -12,6 +12,7 @@ direct callers of a relocated script must use its new directory below.
 | `ci/` | CI image and guest preparation, VM execution, and associated configuration. |
 | `kunit/` | KUnit inventory, labels, runner, and tooling tests; see [the KUnit guide](../doc/KUNIT.md). |
 | `policy/` | Reviewed shared analyzer input policy; exclusions carry their reasons. |
+| `sparse_smatch/` | Native Kbuild analyzers (`make sparse`, `make smatch`) and CHECK records. |
 | `tests/` | Isolated regression fixtures for the shared analyzer helpers (`make lint-test`). |
 
 The existing `checkpatch`, `checkpatch_commits`, `checkpatch_diff`, and
@@ -76,9 +77,10 @@ python3 -B scripts/analyzer_policy.py files
 python3 -B scripts/analyzer_policy.py validate
 ```
 
-The Python commands also accept `--format=json`. Only the `common` input
-policy is integrated here; individual analyzer policies will be added with
-their drivers. A file inventory does not establish analysis or build coverage.
+The Python commands also accept `--format=json` and a policy name: `common`,
+`sparse` or `smatch`. Use `make analyzer-policy ANALYZER=smatch` to see the
+effective input scope and all diagnostic exceptions. A file inventory does
+not establish analysis or build coverage.
 
 | Input | Shared policy |
 | --- | --- |
@@ -127,6 +129,63 @@ resetting build logs and preparing or running the build. It serializes callers
 within one worktree using `.cache/lint/kbuild.lock`; ordinary builds that do
 not acquire it remain unprotected. Keep the lock file in place: closing its
 descriptor releases the lock, including on exceptions.
+
+## Sparse and Smatch
+
+```sh
+make -j8 sparse KDIR=/path/to/kernel/build KUNIT_TEST=y
+make -j8 smatch KDIR=/path/to/kernel/build KUNIT_TEST=y
+make smatch DIFFBR=master KUNIT_TEST=y
+python3 -B scripts/sparse_smatch/smp.py sparse scst/src/scst_lib.c
+```
+
+These targets build the configured kernel modules with `C=2`, without
+installing or loading them. The scope above applies, excluding userspace;
+the upstream QLogic base is built only as a dependency. `KUNIT_TEST=y`
+includes KUnit suites and requires a kernel with KUnit support.
+
+Diff mode compares one commit with the working tree. A changed module source
+or header triggers full configured analysis; an unrelated diff skips it.
+An explicitly selected or changed C file absent from the build is an error.
+
+Source findings and incomplete analysis fail the targets. The Python driver
+returns 0 for clean runs or empty selections, 1 for findings and 2 for
+incomplete analysis; GNU Make maps recipe failures to 2.
+
+Logs and JSON summaries are in `.cache/lint/{sparse,smatch}.{log,json}`.
+Logs retain ignored warnings; summaries count total, ignored and remaining
+findings and link to per-file results. A new run replaces its log and summary
+but retains earlier per-file results.
+
+Diagnostic exceptions are listed in [sparse.json](policy/sparse.json) and
+[smatch.json](policy/smatch.json):
+
+- Both tools: `array of flexible structures` in the build kernel's
+  `include/uapi/scsi/fc/fc_els.h`.
+- Smatch: `mixing irqsave and irq` in `dev_user_unjam_cmd()` in
+  `scst/src/dev_handlers/scst_user_main.c`, and `user_reply_test()` in
+  `scst/src/dev_handlers/kunit/user/suites/scst_user_cleanup_test.c`.
+  Both choose matching IRQ operations under the same condition, which
+  Smatch does not track across the pair.
+
+Exceptions match exact paths, messages and functions where applicable.
+There are no free-form ignore patterns; inspect reasons with
+`make analyzer-policy ANALYZER=smatch`.
+
+Install Sparse and Smatch with matching `smatch_data`. Use `SMATCH_DATA_DIR`
+if Smatch cannot find its installed data. The selected kernel must accept
+the checker; recent kernels may require a newer frontend.
+
+The reproducible Smatch frontend is `error27/smatch` commit
+`5189e3fb018b783a26dcb45c02c114c1d1aad290` plus
+[typeof-address-space.patch](sparse_smatch/patches/typeof-address-space.patch).
+It follows Sparse `37156835e3d725b6d750f000be33ba3814bb2310` by inheriting an
+address-space qualifier once through the base type. Without it, RCU static
+assertions in current kernel headers can fail. This is a frontend fix, not
+a diagnostic suppression. In a separate tool checkout, apply with
+`git apply --check` then `git apply`, build `make PREFIX=/usr/local smatch`,
+and install only `INST_PROGRAMS=smatch install-bin install-assets` with the
+same prefix. Keep standalone Sparse separate from Smatch's bundled frontend.
 
 ## Dependencies and tooling tests
 

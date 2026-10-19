@@ -1,0 +1,17 @@
+--- a/symbol.c
++++ b/symbol.c
+@@ -554,3 +554,2 @@
+ 	struct symbol *base = evaluate_expression(sym->initializer);
+-	struct ident *as = NULL;
+ 	unsigned long mod = 0;
+@@ -558,4 +557,2 @@
+-	if (base)
+-		as = base->ctype.as;
+-	else
++	if (!base)
+ 		base = &bad_ctype;
+@@ -572,4 +569,2 @@
+ 	sym->ctype.base_type = base;
+-	if (qual)
+-		sym->ctype.as = as;
+ 	return examine_node_type(sym);

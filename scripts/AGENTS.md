@@ -16,8 +16,10 @@ under `kunit/`, also follow its [instructions](kunit/AGENTS.md).
   selection separate from diagnostic policy, retain complete raw reports, and
   propagate missing-tool and process failures. Report no eligible inputs as a
   skip; fail incomplete analyzer runs.
-- Keep shared input exclusions in `policy/common.json`, with a reason for each
-  rule. Do not add environment-based filters that bypass the reviewed policy.
+- Keep input and diagnostic exclusions in `policy/`, with a reason for each
+  rule. Diagnostic exceptions must match the exact file, message and function
+  where available; resolve external headers from the actual build context.
+  Do not add environment-based filters that bypass the reviewed policy.
 - Drivers that modify build state must hold the shared build lock around build
   log reset and build-state changes. Other checks do not need the lock.
 - Keep analyzer fixture tests isolated in temporary directories and processes.

@@ -128,6 +128,24 @@ class PolicyTests(unittest.TestCase):
             path.write_text("int changed(void);\n", encoding="utf-8")
         self.assertEqual(changed_sources(self.root, "HEAD"), expected)
 
+    def test_native_exceptions_require_exact_fields_and_unique_keys(self):
+        path = analyzer_policy.POLICY_PATH.with_name("smatch.json")
+        policy = analyzer_policy.read_policy(path, "smatch")
+        for field in ("file", "function", "message", "reason"):
+            changed = copy.deepcopy(policy)
+            changed["source_exceptions"][0][field] = ""
+            self.save(changed)
+            with self.subTest(field=field), self.assertRaises(ValueError):
+                analyzer_policy.read_policy(self.path, "smatch")
+        changed = copy.deepcopy(policy)
+        changed["source_exceptions"].append(changed["source_exceptions"][0])
+        self.save(changed)
+        with self.assertRaisesRegex(ValueError, "duplicate source_exceptions"):
+            analyzer_policy.read_policy(self.path, "smatch")
+        self.save(policy)
+        with self.assertRaisesRegex(ValueError, "only for Smatch"):
+            analyzer_policy.read_policy(self.path, "sparse")
+
 
 class PolicyCliTests(unittest.TestCase):
     def setUp(self):
@@ -137,7 +155,8 @@ class PolicyCliTests(unittest.TestCase):
         self.scripts = self.root / "scripts"
         (self.scripts / "policy").mkdir(parents=True)
         source = analyzer_policy.POLICY_PATH.parent.parent
-        for name in ("analyzer_policy.py", "lint_scope.py", "policy/common.json"):
+        for name in ("analyzer_policy.py", "lint_scope.py", "policy/common.json",
+                     "policy/sparse.json", "policy/smatch.json"):
             shutil.copyfile(source / name, self.scripts / name)
 
     def run_cli(self, *args):
@@ -178,8 +197,21 @@ class PolicyCliTests(unittest.TestCase):
         self.assertEqual(inventory["selected_tracked_files"], expected)
         self.assertEqual(inventory["count"], len(expected))
 
+    def test_native_report_includes_every_exception_and_effective_exclusion(self):
+        for tool, count in (("sparse", 0), ("smatch", 2)):
+            with self.subTest(tool=tool):
+                result = self.run_cli("show", tool, "--format=json")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                report = json.loads(result.stdout)
+                policy = report["configured_policy"]
+                self.assertEqual(len(policy["source_exceptions"]), count)
+                self.assertEqual(len(policy["kernel_exceptions"]), 1)
+                excluded = {r["path"] for r in report["effective_source_policy"]["exclude_directories"]}
+                self.assertEqual(excluded, {"iscsi-scst/conftest", "srpt/conftest",
+                                            "usr", "iscsi-scst/usr"})
+
     def test_configuration_and_inventory_errors_fail_visibly(self):
-        unknown = self.run_cli("show", "smatch")
+        unknown = self.run_cli("show", "cppcheck")
         self.assertEqual(unknown.returncode, 2)
         no_git = self.run_cli("files", "--format=json")
         self.assertEqual(no_git.returncode, 2)

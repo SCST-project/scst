@@ -166,8 +166,10 @@ help:
 		'  cov-build                     make coverity build' \
 		'  shellcheck                    check Bash scripts' \
 		'  analyzer-policy               show shared analyzer input policy (no analysis)' \
-		'  ANALYZER=common               policy to show (only common is integrated)' \
+		'  ANALYZER=common|sparse|smatch policy to show (default: common)' \
 		'  ANALYZER_FORMAT=text|json     policy output format (default: text)' \
+		'  sparse, smatch                analyze configured modules through Kbuild' \
+		'  DIFFBR=commit                 analyze when module sources or headers changed' \
 		'  lint-test                     test shared analyzer tooling (no modules)' \
 		'  all                           make all' \
 		'  clean                         clean files' \
@@ -265,6 +267,21 @@ shellcheck:
 .PHONY: analyzer-policy
 analyzer-policy:
 	@$(PYTHON) -B scripts/analyzer_policy.py show "$(or $(ANALYZER),common)" --format="$(or $(ANALYZER_FORMAT),text)"
+
+.PHONY: sparse smatch lint-kbuild
+sparse smatch: export SCST_LINT_KDIR := $(KDIR)
+sparse smatch:
+	+@$(PYTHON) -B scripts/sparse_smatch/smp.py $@
+
+# Preserve dependency order. The newer QLogic base is compiled for its target
+# module, but only sources selected by analyzer policy reach the checker.
+lint-kbuild:
+	+$(MAKE) -C $(SCST_DIR)
+	+$(MAKE) -C $(ISCSI_DIR) mods
+	+$(MAKE) -C $(NEW_QLA_DIR) BUILD_2X_MODULE=y
+	+$(MAKE) -C $(SRP_DIR)
+	+$(MAKE) -C $(SCST_LOCAL_DIR)
+	+$(MAKE) -C $(FCST_DIR)
 
 .PHONY: lint-test
 lint-test:
