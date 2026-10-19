@@ -1,0 +1,3 @@
+interface:
+  display_name: "SCST qla2xxx update"
+  short_description: "Import upstream qla2xxx with separate SCST adaptations"

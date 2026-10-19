@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Run from qla2x00t-32gbit; sources and generated files stay in the caller's cwd.
 full_kver="$1"
 
 function generate_patch {
@@ -31,7 +32,7 @@ for g in Kconfig *.[ch]; do
   f1="qla2xxx-orig/${krel}/$g"
   f2="$g"
   f3="in-tree-patches/${krel}/$g.patch"
-  if [ "$f1" -nt "$f3" -o "$f2" -nt "$f3" ]; then
+  if [ "$f1" -nt "$f3" ] || [ "$f2" -nt "$f3" ]; then
     if [ -e "$f1" ]; then
       generate_patch "$f1" "$f2" "$f3" || exit $?
     else
@@ -40,24 +41,22 @@ for g in Kconfig *.[ch]; do
   fi
 done
 
-for g in include/trace/events/qla.h; do
-  f1="qla2xxx-orig/${krel}/$g"
-  f2="$g"
-  f3="in-tree-patches/${krel}/${g#include/trace/events/}.patch"
-  if [ "$f1" -nt "$f3" -o "$f2" -nt "$f3" ]; then
-    if [ -e "$f1" ]; then
-      generate_patch "$f1" "$f2" "$f3" || exit $?
-    else
-      generate_patch /dev/null "$f2" "$f3" || exit $?
-    fi
-  fi
-done
-
-for g in Makefile; do
-  f1="qla2xxx-orig/${krel}/$g"
-  f2="${g}_in-tree"
-  f3="in-tree-patches/${krel}/$g.patch"
-  if [ "$f1" -nt "$f3" -o "$f2" -nt "$f3" ]; then
+g=include/trace/events/qla.h
+f1="qla2xxx-orig/${krel}/$g"
+f2="$g"
+f3="in-tree-patches/${krel}/${g#include/trace/events/}.patch"
+if [ "$f1" -nt "$f3" ] || [ "$f2" -nt "$f3" ]; then
+  if [ -e "$f1" ]; then
     generate_patch "$f1" "$f2" "$f3" || exit $?
+  else
+    generate_patch /dev/null "$f2" "$f3" || exit $?
   fi
-done
+fi
+
+g=Makefile
+f1="qla2xxx-orig/${krel}/$g"
+f2="${g}_in-tree"
+f3="in-tree-patches/${krel}/$g.patch"
+if [ "$f1" -nt "$f3" ] || [ "$f2" -nt "$f3" ]; then
+  generate_patch "$f1" "$f2" "$f3" || exit $?
+fi
