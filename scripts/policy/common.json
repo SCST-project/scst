@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "source_roots": [
+    "scst",
+    "iscsi-scst",
+    "qla2x00t-32gbit/qla2x00-target",
+    "srpt",
+    "fcst",
+    "scst_local",
+    "usr"
+  ],
+  "source_suffixes": [".c", ".h"],
+  "exclude_directories": [
+    {
+      "path": "iscsi-scst/conftest",
+      "reason": "Compiler capability probes are not ordinary product sources."
+    },
+    {
+      "path": "srpt/conftest",
+      "reason": "Compiler capability probes are not ordinary product sources."
+    }
+  ],
+  "exclude_suffixes": [
+    {
+      "suffix": ".mod.c",
+      "reason": "Kbuild generates this module metadata; it is not maintained source code."
+    }
+  ],
+  "notes": [
+    "Only the listed roots and file types are eligible; other paths are outside the shared scope.",
+    "qla2x00t/ is excluded entirely: the legacy QLogic driver is outside the maintained analysis scope.",
+    "Only qla2x00t-32gbit/qla2x00-target/ is included from the newer QLogic tree. The remaining driver, including top-level qla_target.c and qla_target.h, is maintained upstream.",
+    "KUnit sources under the included roots are eligible regardless of KUNIT_TEST. Selecting sources does not enable them in a build."
+  ]
+}

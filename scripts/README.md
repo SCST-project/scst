@@ -11,6 +11,7 @@ direct callers of a relocated script must use its new directory below.
 | `runtime/` | `monitor-interrupt-rate`, `monitor-memory-usage`, `blockdev-perftest`, and `test-persistent-reservation`. |
 | `ci/` | CI image and guest preparation, VM execution, and associated configuration. |
 | `kunit/` | KUnit inventory, labels, runner, and tooling tests; see [the KUnit guide](../doc/KUNIT.md). |
+| `policy/` | Reviewed shared analyzer input policy; exclusions carry their reasons. |
 | `tests/` | Isolated regression fixtures for the shared analyzer helpers (`make lint-test`). |
 
 The existing `checkpatch`, `checkpatch_commits`, `checkpatch_diff`, and
@@ -61,7 +62,9 @@ committing; sourced libraries, POSIX shell scripts, and callers outside
 
 ## Shared analyzer source scope
 
-`lint_scope.py` defines the source scope below. Existing checkpatch wrappers
+`lint_scope.py` reads [policy/common.json](policy/common.json) for full, diff
+and explicit-file selection. The loader rejects invalid or missing policy;
+there are no environment-based extra exclusions. Existing checkpatch wrappers
 and the kernel regression runner still use their own selection and filtering.
 
 | Input | Shared policy |
