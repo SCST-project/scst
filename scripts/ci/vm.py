@@ -65,7 +65,7 @@ def wait_guest(target, peer, deadline, ready, release, started=None, boot_deadli
         raise VMError(f'QEMU exited with {target.returncode}')
 
 
-def validate_completion(directory, mode, token, manifest, ginkgo_label=''):
+def validate_completion(directory, mode, token, manifest, ginkgo_label='', local_only=False):
     try:
         result = json.loads((directory / 'completion.json').read_text())
     except (OSError, ValueError) as exc:
@@ -84,7 +84,10 @@ def validate_completion(directory, mode, token, manifest, ginkgo_label=''):
             raise VMError('KUnit did not complete successfully')
     elif mode == 'ginkgo':
         paths = list((directory / 'ginkgo').glob('*/report.json'))
-        if len(paths) != 2:
+        if local_only:
+            if len(paths) != 1:
+                raise VMError('expected a report from the local suite only')
+        elif len(paths) != 2:
             raise VMError('expected reports from both local and iSCSI suites')
         for path in paths:
             reports = json.loads(path.read_text())
@@ -95,6 +98,9 @@ def validate_completion(directory, mode, token, manifest, ginkgo_label=''):
                 raise VMError(f'incomplete or failed Ginkgo suite: {path}')
             if reports[0]['SuiteConfig']['LabelFilter'] != ginkgo_label:
                 raise VMError(f'Ginkgo label filter differs from the requested selection: {path}')
+            # Each run directory is random; the suite label names the transport.
+            if local_only and reports[0].get('SuiteLabels') != ['local']:
+                raise VMError(f'expected a report from the local suite only: {path}')
 
 
 def diagnostics(output):
@@ -160,7 +166,8 @@ def print_results(output, result):
     print(f"\n{mode}: {result['status']} ({result['elapsed_seconds']}s); {output}", flush=True)
 
 
-def launch(stack, image, work, output, role, mode, token, accel, network=None, ginkgo_label=''):
+def launch(stack, image, work, output, role, mode, token, accel, network=None, ginkgo_label='',
+           local_only=False):
     config, reports = work / role, output / role
     config.mkdir()
     reports.mkdir()
@@ -168,6 +175,8 @@ def launch(stack, image, work, output, role, mode, token, accel, network=None, g
     (config / 'token').write_text(token)
     if mode == 'ginkgo':
         (config / 'ginkgo-label').write_text(ginkgo_label)
+    if local_only:
+        (config / 'local-only').touch()
     overlay = work / f'{role}.qcow2'
     subprocess.run(['qemu-img', 'create', '-q', '-f', 'qcow2', '-F', 'raw',
                     '-b', str(image / 'rootfs.img'), str(overlay)], check=True)
@@ -225,24 +234,29 @@ def configure_ssh(work):
     (peer / 'ssh-ready').touch()
 
 
-def run(image, output, mode, timeout, accel, ginkgo_label=''):
+def run(image, output, mode, timeout, accel, ginkgo_label='', local_only=False):
     manifest = json.loads((image / 'image.json').read_text())
     if mode in ('kunit', 'ginkgo') and manifest['suite'] != mode:
         raise VMError('image was built for a different test suite')
     if mode == 'ginkgo':
         ginkgo_label = resolve_ginkgo_label(ginkgo_label)
+        if local_only:
+            # Group the resolved expression so OR terms cannot select iSCSI.
+            ginkgo_label = f'local && ({ginkgo_label})' if ginkgo_label.strip() else 'local'
     output.mkdir(parents=True, exist_ok=False)
     token = secrets.token_hex(16)
     result = dict(mode=mode, image=manifest, status='ERROR', error=None)
     if mode == 'ginkgo':
         result['ginkgo_label'] = ginkgo_label
+        result['local_only'] = local_only
     started = time.monotonic()
     try:
         with tempfile.TemporaryDirectory(prefix='scst-ci-') as temporary, ExitStack() as stack:
             work = Path(temporary)
-            network = work / 'network.sock' if mode == 'ginkgo' else None
+            # Local-only runs need no iSCSI initiator, so no second guest or network.
+            network = work / 'network.sock' if mode == 'ginkgo' and not local_only else None
             target = launch(stack, image, work, output, 'target', mode, token, accel, network,
-                            ginkgo_label)
+                            ginkgo_label, local_only)
             peer = None
             if network:
                 # The listening QEMU must create its socket before its peer connects.
@@ -254,7 +268,8 @@ def run(image, output, mode, timeout, accel, ginkgo_label=''):
                 configure_ssh(work)
             wait_guest(target, peer, started + timeout, output / 'initiator/ready',
                        work / 'target/peer-ready', output / 'target/started', started + 240)
-            validate_completion(output / 'target', mode, token, manifest, ginkgo_label)
+            validate_completion(output / 'target', mode, token, manifest, ginkgo_label,
+                                local_only)
         result['status'] = 'PASS'
     except (VMError, OSError, ValueError, KeyError, TypeError, subprocess.SubprocessError) as exc:
         result['error'] = str(exc)
@@ -278,11 +293,15 @@ def main():
     parser.add_argument('--accel', choices=('auto', 'tcg', 'kvm'), default='auto')
     parser.add_argument('--ginkgo-label', default='',
                         help='Ginkgo label set or expression (default: all tests)')
+    parser.add_argument('--local-only', action='store_true',
+                        help='run only local Ginkgo specs, without an iSCSI initiator guest')
     args = parser.parse_args()
     if args.timeout <= 0:
         parser.error('--timeout must be positive')
     if args.ginkgo_label and args.mode != 'ginkgo':
         parser.error('--ginkgo-label requires ginkgo mode')
+    if args.local_only and args.mode != 'ginkgo':
+        parser.error('--local-only requires ginkgo mode')
     image, output = args.image.resolve(), args.output.resolve()
     # QEMU's key-value arguments cannot represent arbitrary comma-containing paths.
     if any(',' in str(path) for path in (image, output, Path(tempfile.gettempdir()))):
@@ -301,7 +320,7 @@ def main():
                        and (output / 'hang/target/started').is_file()
                        and (output / 'hang/target/started').read_text().strip() == 'hang'))
     return int(run(image, output, args.mode, args.timeout, args.accel,
-                   args.ginkgo_label)['status'] != 'PASS')
+                   args.ginkgo_label, args.local_only)['status'] != 'PASS')
 
 
 if __name__ == '__main__':

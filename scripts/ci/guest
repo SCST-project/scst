@@ -43,10 +43,15 @@ kunit)
         2>&1 | tee /ci/reports/tests.log
     ;;
 ginkgo|initiator)
-    while [[ ! -e /ci/input/ssh-ready ]]; do sleep 1; done
-    ip link set eth0 up
-    if [[ $mode == initiator ]]; then address=192.0.2.2; else address=192.0.2.1; fi
-    ip address add "$address/24" dev eth0
+    # A local-only run has no initiator guest and no network.
+    local_only=
+    if [[ -e /ci/input/local-only ]]; then local_only=1; fi
+    if [[ ! $local_only ]]; then
+        while [[ ! -e /ci/input/ssh-ready ]]; do sleep 1; done
+        ip link set eth0 up
+        if [[ $mode == initiator ]]; then address=192.0.2.2; else address=192.0.2.1; fi
+        ip address add "$address/24" dev eth0
+    fi
     if [[ $mode == initiator ]]; then
         install -m 600 /ci/input/authorized_keys /root/.ssh/authorized_keys
         install -m 600 /ci/input/ssh_host_key /run/ci-host-key
@@ -73,23 +78,26 @@ PY
         touch /ci/reports/ready
         sleep infinity
     else
-        install -m 600 /ci/input/id_ed25519 /root/.ssh/id_ed25519
-        install -m 600 /ci/input/known_hosts /root/.ssh/known_hosts
-        while [[ ! -e /ci/input/peer-ready ]]; do sleep 1; done
+        if [[ ! $local_only ]]; then
+            install -m 600 /ci/input/id_ed25519 /root/.ssh/id_ed25519
+            install -m 600 /ci/input/known_hosts /root/.ssh/known_hosts
+            while [[ ! -e /ci/input/peer-ready ]]; do sleep 1; done
+        fi
         # This disk is created by the host supervisor exclusively for this run.
         test "$(lsblk -dn -o SERIAL /dev/disk/by-id/virtio-scst-ci-data)" = scst-ci-data
-        python3 - <<'PY'
-import json, pathlib
+        python3 - "$local_only" <<'PY'
+import json, pathlib, sys
 config = dict(disposable_host=True,
     admin_command=['/usr/bin/perl', '-I/scst/scstadmin/scstadmin.sysfs/scst-1.0.0/lib',
                    '/scst/scstadmin/scstadmin.sysfs/scstadmin'],
     report_dir='/ci/reports/ginkgo', backing_dir='/ci/backing',
     command_timeout='90s', cleanup_timeout='5m', settle_timeout='30s', suite_timeout='75m',
-    io=dict(block_device='/dev/disk/by-id/virtio-scst-ci-data', region_mb=16, timeout='5m'),
-    iscsi=dict(target_address='192.0.2.1', port=3260, login_timeout='30s',
+    io=dict(block_device='/dev/disk/by-id/virtio-scst-ci-data', region_mb=16, timeout='5m'))
+if not sys.argv[1]:
+    config['iscsi'] = dict(target_address='192.0.2.1', port=3260, login_timeout='30s',
         initiator=dict(host='192.0.2.2', user='root', port=22,
             identity_file='/root/.ssh/id_ed25519', lock_file='/tmp/scst-ginkgo.lock',
-            disposable_host=True)))
+            disposable_host=True))
 pathlib.Path('/ci/config.json').write_text(json.dumps(config))
 PY
         label=$(cat /ci/input/ginkgo-label)
