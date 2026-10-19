@@ -176,16 +176,17 @@ Install Sparse and Smatch with matching `smatch_data`. Use `SMATCH_DATA_DIR`
 if Smatch cannot find its installed data. The selected kernel must accept
 the checker; recent kernels may require a newer frontend.
 
-The reproducible Smatch frontend is `error27/smatch` commit
-`5189e3fb018b783a26dcb45c02c114c1d1aad290` plus
-[typeof-address-space.patch](sparse_smatch/patches/typeof-address-space.patch).
-It follows Sparse `37156835e3d725b6d750f000be33ba3814bb2310` by inheriting an
-address-space qualifier once through the base type. Without it, RCU static
-assertions in current kernel headers can fail. This is a frontend fix, not
-a diagnostic suppression. In a separate tool checkout, apply with
-`git apply --check` then `git apply`, build `make PREFIX=/usr/local smatch`,
-and install only `INST_PROGRAMS=smatch install-bin install-assets` with the
-same prefix. Keep standalone Sparse separate from Smatch's bundled frontend.
+Build the CI tool environment with:
+
+```sh
+docker build -f scripts/ci/analyzers.Dockerfile -t scst-analyzers:local .
+```
+
+Tool revisions are in [ci/analyzers.env](ci/analyzers.env); kernel headers
+and checksums are in `ci/kernel.env` and `ci/kernel.SHA256SUMS`. The image
+includes the [Smatch frontend fix](sparse_smatch/patches/typeof-address-space.patch)
+needed for current kernel RCU headers. Tool provenance is recorded under
+`/usr/local/share/scst-ci/` inside the image.
 
 ## Dependencies and tooling tests
 

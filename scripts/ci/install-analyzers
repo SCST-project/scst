@@ -1,0 +1,59 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-only
+# Run only while building the dedicated analyzer container.
+set -euo pipefail
+HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+# shellcheck source=analyzers.env
+source "$HERE/analyzers.env"
+# shellcheck source=kernel.env
+source "$HERE/kernel.env"
+install -d /usr/local/share/scst-ci
+
+package="kernel-devel-$KERNEL_BUILD.x86_64.rpm"
+(
+    cd /tmp
+    curl --fail --location --retry 3 \
+        "https://kojipkgs.fedoraproject.org/packages/kernel/${KERNEL_BUILD%-*}/${KERNEL_BUILD#*-}/x86_64/$package" \
+        --output "$package"
+    awk -v package="$package" '$2 == package {print; found=1} END {if (!found) exit 1}' \
+        "$HERE/kernel.SHA256SUMS" | sha256sum --check
+    dnf install -y --setopt=install_weak_deps=False "./$package"
+    test -s "/usr/src/kernels/$KERNEL_BUILD.x86_64/Module.symvers"
+    rm "$package"
+)
+dnf clean all
+
+fetch_source()
+{
+    local name=$1 repository=$2 revision=$3
+    git init "/opt/$name"
+    git -C "/opt/$name" remote add origin "$repository"
+    git -C "/opt/$name" fetch --depth 1 origin "$revision"
+    git -C "/opt/$name" checkout --detach FETCH_HEAD
+    test "$(git -C "/opt/$name" rev-parse HEAD)" = "$revision"
+    printf 'Repository: %s\nCommit: %s\n' "$repository" "$revision" \
+        > "/usr/local/share/scst-ci/$name-source.txt"
+}
+
+fetch_source sparse https://git.kernel.org/pub/scm/devel/sparse/sparse.git "$SPARSE_REVISION"
+CFLAGS='-O2 -g -std=gnu99' make -C /opt/sparse -j"$(nproc)" sparse
+install /opt/sparse/sparse /usr/local/bin/sparse
+
+fetch_source smatch https://github.com/error27/smatch.git "$SMATCH_REVISION"
+patch="$HERE/typeof-address-space.patch"
+git -C /opt/smatch apply --check "$patch"
+git -C /opt/smatch apply "$patch"
+sha256sum "$patch" >> /usr/local/share/scst-ci/smatch-source.txt
+CFLAGS='-O2 -g -std=gnu99' make -C /opt/smatch -j"$(nproc)" PREFIX=/usr/local smatch
+# Do not replace standalone Sparse with Smatch's bundled frontend.
+make -C /opt/smatch PREFIX=/usr/local INST_PROGRAMS=smatch install-bin install-assets
+test -s /usr/local/share/smatch/smatch_data/kernel.unreachable.turn_off
+for tool in sparse smatch; do
+    "$tool" --version >> "/usr/local/share/scst-ci/$tool-source.txt"
+    sha256sum "$(command -v "$tool")" >> "/usr/local/share/scst-ci/$tool-source.txt"
+done
+# Record all installed Smatch model contents, without adding project models.
+(cd /usr/local/share/smatch/smatch_data &&
+    find . -type f -print0 | sort -z | xargs -0 sha256sum) \
+    > /usr/local/share/scst-ci/smatch-data.sha256
+rm -rf /opt/sparse /opt/smatch
