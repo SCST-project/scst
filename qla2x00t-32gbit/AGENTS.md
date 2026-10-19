@@ -24,7 +24,9 @@ and probe code rather than treating either README as an inventory.
 
 - Preserve the two-module symbol and callback boundary. When changing a
   visible interface or shared data layout in `qla_target.h`, audit both halves
-  and the interface-magic convention documented in that header.
+  and actual version checks. The QLA2XXX_*_MAGIC definitions currently have
+  no readers in this tree; verify usage before following their historical
+  header comments or copying the legacy tree's magic handshake.
 - SCST command receive, DMA/data transfer, response, abort/SRR/task management,
   session deletion, target disable, HBA reset, and module teardown form one
   asynchronous lifetime. Re-derive exact lock order, references, workqueue

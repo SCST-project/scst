@@ -28,6 +28,8 @@ set -o pipefail
 # shellcheck source=./kernel-functions
 source "$(dirname "$0")/kernel-functions"
 
+kernel_scripts=$(cd -- "$(dirname -- "$0")" && pwd) || exit $?
+
 function usage {
   echo "Usage: $0 [-d] [-h] [-n] [-p <dir>] [-s] [-u] <kernel version>"
   echo "where: "
@@ -539,7 +541,7 @@ if [ "${qla2x00t}" = "true" ]; then
 
 elif [ "${qla2x00t_32gbit}" = "true" ]; then
 
-  ( cd qla2x00t-32gbit && "$PWD/generate-in-tree-patches" "${full_kver}" ) || exit $?
+  ( cd qla2x00t-32gbit && "$kernel_scripts/generate-qla2xxx-in-tree-patches" "${full_kver}" ) || exit $?
 
   for f in qla2x00t-32gbit/in-tree-patches/"${krel}"/*.patch; do
     [ -e "$f" ] || continue

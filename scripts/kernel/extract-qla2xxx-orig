@@ -1,6 +1,8 @@
 #!/bin/bash
 
-source "$(dirname "$0")/../scripts/kernel/kernel-functions" || exit $?
+# Run from the newer QLogic source directory; caches stay in the caller's cwd.
+# shellcheck source=./kernel-functions
+source "$(dirname "$0")/kernel-functions" || exit $?
 
 #########################
 # Argument verification #
