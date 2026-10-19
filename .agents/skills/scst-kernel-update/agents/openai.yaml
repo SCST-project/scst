@@ -1,0 +1,4 @@
+interface:
+  display_name: "SCST kernel update"
+  short_description: "Refresh the SCST nightly and CI kernel matrices"
+  default_prompt: "Use $scst-kernel-update to refresh existing SCST kernel series from official sources and prepare the nightly/update branch."
