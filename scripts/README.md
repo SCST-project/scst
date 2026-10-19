@@ -84,7 +84,8 @@ including staged new files. Missing and untracked files are omitted.
 
 Diff selection compares a base with the working tree, including staged and
 unstaged changes. It selects whole current files, checks rename destinations,
-and skips deleted and untracked files.
+and skips deleted and untracked files. The base must resolve to one commit;
+options, ranges, tree objects and unknown revisions are rejected.
 
 Explicit files may be untracked, but must exist and be within the same scope.
 They cannot be combined with a diff base. Both a path and its resolved symlink

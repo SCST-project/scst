@@ -40,9 +40,17 @@ def tracked_sources(root: Path) -> list[Path]:
                    if in_scope(root / name, root) and (root / name).is_file()})
 
 
+def resolve_base(root: Path, base: str) -> str:
+    """Require one commit before passing a user-supplied base to Git diff."""
+    return subprocess.check_output(
+        ["git", "-C", str(root), "rev-parse", "--verify", "--end-of-options",
+         f"{base}^{{commit}}"], text=True).strip()
+
+
 def changed_sources(root: Path, base: str) -> list[Path]:
+    revision = resolve_base(root, base)
     names = git_names(root, "diff", "--no-renames", "--name-only", "-z",
-                      "--diff-filter=d", base, "--", *git_pathspecs())
+                      "--diff-filter=d", revision, "--", *git_pathspecs())
     return sorted({root / name for name in names
                    if in_scope(root / name, root) and (root / name).is_file()})
 
