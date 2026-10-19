@@ -2482,6 +2482,15 @@ enum {
 #define FC_PORTSPEED_64GBIT 0x1000
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0) && \
+	!defined(FC_PORTSPEED_128GBIT)
+/*
+ * See also commit cc019a5a3b58 ("scsi: scsi_transport_fc: fix typos on 64/128
+ * GBit define names") # v4.16.
+ */
+#define FC_PORTSPEED_128GBIT 0x2000
+#endif
+
 #ifndef FC_PORT_ROLE_UNKNOWN
 #define FC_PORT_ROLE_UNKNOWN			0x00
 #define FC_PORT_ROLE_FCP_TARGET			0x01
