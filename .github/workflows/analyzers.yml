@@ -13,20 +13,39 @@ defaults:
     shell: bash
 
 jobs:
-  tooling:
-    name: Tooling
+  script-tests:
+    name: Analyzer script tests
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Check analyzer tooling
+      - name: Run analyzer script tests
         run: make lint-test
 
+  scs-lint:
+    name: SCST code style
+    needs: script-tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.13.1"
+          python-version: "3.12"
+          enable-cache: false
+      - name: Test SCST style rules
+        run: make scs-lint-test
+      - name: Run make scs_lint
+        run: make scs_lint
+
   native:
-    name: ${{ matrix.analyzer }} with KUnit
-    needs: tooling
+    name: ${{ matrix.analyzer }} (includes KUnit sources)
+    needs: script-tests
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     strategy:
@@ -35,11 +54,12 @@ jobs:
         analyzer:
           - sparse
           - smatch
+          - checkpatch
           # Supported by the runner; enable after reviewing native coverage.
           # - coccicheck
           # - cppcheck
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
       - name: Build pinned analyzer environment
@@ -51,8 +71,6 @@ jobs:
           ANALYZER: ${{ matrix.analyzer }}
         run: |
           source scripts/ci/kernel.env
-          # Temporary rollout mode: only completed source findings are advisory.
-          # Tool, build and coverage failures still fail this job.
           docker run --rm --init --network=none --cap-drop=ALL \
             --security-opt=no-new-privileges --user "$(id -u):$(id -g)" \
             --env HOME=/tmp --env GITHUB_STEP_SUMMARY=/scst/.cache/analyzer-summary \
@@ -67,7 +85,7 @@ jobs:
           fi
       - name: Save complete analyzer evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.analyzer }}-evidence
           retention-days: 7

@@ -271,15 +271,17 @@ returns 2 (Make maps both to 2). Empty input is a skip.
 ## Analyzer CI
 
 The [workflow](../.github/workflows/analyzers.yml) runs on pushes to `master`
-and manual dispatch. Separate jobs run `make sparse` and `make smatch` with
-`KUNIT_TEST=y`. Reports in `.cache/lint/` are kept for seven days. Use the
-commands above to run either analyzer locally. The runner and image also
+and manual dispatch. Separate jobs run `make sparse`, `make smatch` and
+`make checkpatch`, including KUnit sources. `Analyzer script tests` runs
+`make lint-test`; it does not execute SCST tests. A parallel `SCST code style`
+job runs `make scs_lint` without a kernel build. The container jobs retain
+reports from `.cache/lint/` for seven days. The runner and image also
 support Coccinelle and Cppcheck; their matrix entries remain commented out.
 
-CI temporarily reports completed source findings without blocking while fixes
-land. Build/tool failures, incomplete analysis and missing KUnit coverage
-still fail. This policy lives in `ci/run-analyzer.py`; local Make targets
-always fail on findings.
+CI fails on findings remaining after policy exceptions, just like local Make
+targets. The native-analyzer runner returns 1 for completed analysis with
+findings and 2 for build/tool failures, incomplete analysis or missing KUnit
+coverage. PRs retain the separate patch/commit Checkpatch workflow.
 
 ## Dependencies and tooling tests
 
