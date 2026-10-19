@@ -27,21 +27,36 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          # Compare the whole PR against its merge base, including fork PRs.
+          fetch-depth: 0
+      - name: Check CI selection
+        run: python3 -m unittest discover -s scripts/ci -p 'test_select_checks.py'
+      - name: Select Ginkgo checks
+        id: changes
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 scripts/ci/select_checks.py --check ginkgo --event "$GITHUB_EVENT_NAME" \
+            --base "$BASE_SHA" --head "$HEAD_SHA"
       - name: Install build and VM tools
+        if: steps.changes.outputs.run == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y qemu-system-x86 qemu-utils openssh-client e2fsprogs fakeroot
       - name: Build SCST image and check Ginkgo framework
+        if: steps.changes.outputs.run == 'true'
         timeout-minutes: 40
         run: bash scripts/ci/build-image ginkgo "$RUNNER_TEMP/ginkgo-image"
       - name: Run local and iSCSI tests against the compiled SCST
+        if: steps.changes.outputs.run == 'true'
         env:
           GINKGO_LABEL: ${{ github.event_name == 'pull_request' && 'ci-pr' || github.event_name == 'push' && 'ci-push' || '' }}
         run: |
           python3 scripts/ci/vm.py ginkgo "$RUNNER_TEMP/ginkgo-image" \
             "$RUNNER_TEMP/ginkgo-results" --timeout 10000 --ginkgo-label "$GINKGO_LABEL"
       - name: Save build logs, reports and serial consoles
-        if: always()
+        if: always() && steps.changes.outputs.run == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: ginkgo-results

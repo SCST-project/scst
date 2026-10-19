@@ -1,73 +1,73 @@
-# Tests in GitHub Actions
+# Continuous integration
 
-KUnit and Ginkgo have independent workflows. Each builds its own SCST modules
-and runs tests in disposable QEMU guests within a single job:
+Workflows live in [`.github/workflows`](../.github/workflows). PR checks target
+`master`; push checks run after changes reach `master`.
 
-- `.github/workflows/kunit.yml`: KUnit modules, supervisor checks for guest
-  success, panic and timeout, then `make kunit-run`.
-- `.github/workflows/ginkgo.yml`: ordinary SCST modules, `make ginkgo-check`,
-  then local and TCP iSCSI tests through `make ginkgo-test`. Pull requests use
-  the `ci-pr` label set; pushes to `master` use `ci-push`. Define these sets
-  in [labels.json](../tests/ginkgo/internal/testrun/labels.json) by combining
-  ordinary Ginkgo labels. Manual runs select all tests, including
-  timing-dependent race scenarios.
+| Workflow | Purpose | Events |
+| --- | --- | --- |
+| Checkpatch ([PR](../.github/workflows/checkpatch_pull.yml), [push](../.github/workflows/checkpatch_push.yml)) | Patch and commit style | PR, push |
+| [CI](../.github/workflows/ci.yml) | Clang build and DEB packaging | PR, push, manual |
+| [Packages](../.github/workflows/rpm.yml) | Ubuntu DEBs, RPMs and a published package snapshot | Push to master only |
+| [Regression](../.github/workflows/run_regression_tests.yaml) | Module and patched-kernel builds across the kernel matrix | PR, push |
+| [KUnit](../.github/workflows/kunit.yml) | Kernel unit tests in QEMU | PR, push, manual |
+| [Ginkgo](../.github/workflows/ginkgo.yml) | Local and TCP iSCSI component tests in QEMU | PR, push, manual |
+| [Coverity](../.github/workflows/coverity.yml) | Static analysis | Push, upstream repository only |
+| [Mailing list](../.github/workflows/mail_notification.yml) | Commit notifications | Push, upstream repository only |
 
-Both run on pushes and pull requests to `master`, or via `workflow_dispatch`.
-The Debian package build in `.github/workflows/ci.yml` remains independent.
-Ginkgo uses its locally built image directly; no image artifact is uploaded.
+On PRs, [select_checks.py](../scripts/ci/select_checks.py) selects Clang, kernel
+regression, KUnit and Ginkgo using [ci-checks.toml](../.github/ci-checks.toml).
+Edit that config to change path rules; it is validated before selection.
+Unknown paths and changes to the config or selector run every check.
+Known unrelated changes skip expensive work; regression selection happens
+before creating its matrix jobs. Some documentation is a package or kernel-patch
+input and still needs validation. Checkpatch always runs. Packages runs only
+after a push to master; the separate Clang build still checks DEB packaging on
+PRs. Push and manual runs retain their full checks. Selection errors fail the
+workflow; skip reasons appear in the job summary.
 
-Docker builds a committed Git snapshot with the pinned Fedora kernel and
-matching headers. QEMU loads SCST only into the guest kernel. It tries KVM
-first and falls back to TCG; use `--accel tcg` or `--accel kvm` to select one.
-The kernel pins are in `scripts/ci/kernel.env` and `kernel.SHA256SUMS`; update
-them together. The Fedora base image is pinned in `scripts/ci/Dockerfile`.
+Ginkgo uses `ci-pr` for PRs, `ci-push` for master, and all tests for manual runs.
+See [test selection](../tests/ginkgo/README.md#select-tests) for the label sets.
+Kernel matrices are maintained through `.github/kernel-matrix.conf` and
+`nightly/conf/nightly.conf`; VM kernel pins are in `scripts/ci/kernel.env`
+and `kernel.SHA256SUMS` and must be updated together.
 
-Ginkgo uses separate target and initiator VMs on a private QEMU network,
-a disposable 1 GiB block disk and guest ext4 backing files. No host block
-devices or external initiators are used.
+## Results
 
-## Reports and failures
-
-The supervisor keeps serial consoles outside the guests and enforces a hard
-deadline. Kernel diagnostics, missing or incomplete test reports, a lost
-initiator and timeouts fail the job, even if QEMU exits with status zero.
-The KUnit workflow checks panic and timeout handling explicitly under TCG.
-
-After each VM run, the step prints the native test output, including summaries
-and failures. Failed runs also print kernel diagnostics and the tail of each
-serial console; full logs remain in the artifacts.
-
-Build logs, test reports and serial consoles are uploaded with `if: always()`
-and retained for seven days. Ginkgo also saves build metadata and package
-versions. VM disks and private SSH keys are not uploaded. A guest crash may
-prevent its final report, but the external serial log survives. Upload still
-requires a working GitHub runner.
+Start with the failed job's log. KUnit/Ginkgo upload build logs, test reports
+and serial consoles as artifacts, retained for seven days. Timeouts, guest
+kernel diagnostics and incomplete reports fail the run. Package artifacts
+are attached to the Packages workflow; upstream master builds also update
+the `master-rpm` prerelease snapshot.
 
 ## Local reproduction
 
-Image construction requires Docker with Buildx, fakeroot, tar and mkfs.ext4.
-Execution requires Python 3.11+, QEMU with the stream network backend,
-qemu-img, ssh-keygen and sha256sum. Use new output directories for each run.
-These commands boot disposable guests; self-test intentionally crashes one.
+Use the commands in the relevant workflow for build and package checks;
+[CONTRIBUTING.md](../CONTRIBUTING.md#builds-and-tests) describes local entry
+points. [KUnit](KUNIT.md) and [Ginkgo](../tests/ginkgo/README.md) describe their
+standalone runners.
+
+To reproduce the CI VM environment, install Docker with Buildx, fakeroot,
+tar, mkfs.ext4, Python 3.11+, QEMU with the stream network backend, qemu-img,
+ssh-keygen and sha256sum. Builds use a committed Git snapshot and matching
+kernel headers. SCST runs inside disposable guests; host devices are not
+exported. Use new output directories for each run.
 
 ```sh
 bash scripts/ci/build-image kunit /tmp/scst-kunit-image
-python3 scripts/ci/vm.py self-test /tmp/scst-kunit-image /tmp/scst-vm-selftest --timeout 180 --accel tcg
 python3 scripts/ci/vm.py kunit /tmp/scst-kunit-image /tmp/scst-kunit-results --timeout 1200
 
 bash scripts/ci/build-image ginkgo /tmp/scst-ginkgo-image
-python3 scripts/ci/vm.py ginkgo /tmp/scst-ginkgo-image /tmp/scst-ginkgo-results --timeout 10000
+python3 scripts/ci/vm.py ginkgo /tmp/scst-ginkgo-image /tmp/scst-ginkgo-results --ginkgo-label ci-pr
 ```
 
-Add `--ginkgo-label ci-pr` to reproduce the pull-request selection.
-Use `--ginkgo-label ci-push` for the master push selection; omit the option
-for the full manual selection.
-Ordinary Ginkgo expressions are also accepted. The resolved filter is printed
-in stdout and recorded in `result.json`; both transport reports must confirm
-that filter.
+Use `--ginkgo-label ci-push` for the master selection; omit it for all specs.
+QEMU tries KVM then TCG; `--accel tcg` forces emulation. To check the VM
+supervisor itself, use `vm.py self-test` with a KUnit image; this intentionally
+crashes a guest.
 
-Supervisor checks without VM or SCST access:
+CI tooling checks without builds or VM access:
 
 ```sh
+python3 scripts/ci/select_checks.py --validate-config
 python3 -m unittest discover -s scripts/ci -p 'test_*.py'
 ```
