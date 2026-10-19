@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "notes": [
+    "Check whole C files and headers with native Checkpatch --strict.",
+    "Include userspace and KUnit sources through the common input policy.",
+    "No diagnostic exceptions, ignored types or local Checkpatch configuration.",
+    "Legacy patch and commit helpers retain their separate existing policy."
+  ]
+}
