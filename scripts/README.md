@@ -92,6 +92,18 @@ They cannot be combined with a diff base. Both a path and its resolved symlink
 destination must be in scope. Results are sorted and deduplicated.
 An empty selection means there are no eligible inputs, not a completed scan.
 
+## Shared process and log helpers
+
+`lint_common.py` handles process-group cleanup, exit statuses and Make's
+parallel jobserver. Drivers must check command results or use `check=True`.
+The entry-point helper supports command tracing with `V=1` or `--verbose`.
+Progress is separate from captured analyzer output.
+
+Drivers save complete stdout/stderr under `.cache/lint/`. The helpers preserve
+raw bytes without filtering. Reusing a log name replaces the previous report
+by default; callers can preserve it with `truncate=False`. There is no automatic
+log archive.
+
 ## Dependencies and tooling tests
 
 Shared analyzer tooling requires Linux, Git and Python 3.10+, using only the
