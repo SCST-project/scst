@@ -89,6 +89,18 @@ class ScopeTests(unittest.TestCase):
         with self.assertRaises(subprocess.CalledProcessError):
             changed_sources(self.root, "missing-reference")
 
+    def test_diff_requires_one_commit_even_when_the_worktree_is_clean(self):
+        source = self.source("scst/core.c")
+        self.git("-c", "user.name=Test", "-c", "user.email=test@example.org",
+                 "-c", "commit.gpgsign=false", "commit", "-qm", "base")
+        for base in ("--quiet", "--exit-code", "--cached", "HEAD..HEAD", "HEAD^{tree}"):
+            with self.subTest(base=base), self.assertRaises(subprocess.CalledProcessError):
+                changed_sources(self.root, base)
+        self.git("tag", "baseline")
+        self.assertEqual(changed_sources(self.root, "baseline"), [])
+        source.write_text("int changed(void);\n")
+        self.assertEqual(changed_sources(self.root, "baseline"), [source])
+
 
 if __name__ == "__main__":
     unittest.main()
