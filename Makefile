@@ -165,6 +165,7 @@ help:
 		'  tags                          make tags' \
 		'  cov-build                     make coverity build' \
 		'  shellcheck                    check Bash scripts' \
+		'  lint-test                     test shared analyzer tooling (no modules)' \
 		'  all                           make all' \
 		'  clean                         clean files' \
 		'  extraclean                    clean + clean dependencies' \
@@ -257,6 +258,10 @@ cov-build:
 
 shellcheck:
 	scripts/source/run-shellcheck
+
+.PHONY: lint-test
+lint-test:
+	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest discover -s scripts/tests -v
 
 all clean extraclean install uninstall:
 	if [ $@ = extraclean ]; then rm -f TAGS tags cscope.out; fi
