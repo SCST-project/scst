@@ -1963,7 +1963,7 @@ out_put:
 static enum compl_status_e vdisk_invalid_opcode(struct vdisk_cmd_params *p)
 {
 	TRACE_DBG("Invalid opcode %s", scst_get_opcode_name(p->cmd));
-	return INVALID_OPCODE;
+	return VDISK_INVALID_OPCODE;
 }
 
 #define VDEV_DEF_RDPROTECT	0xE0
@@ -2672,7 +2672,7 @@ static enum scst_exec_res vdev_do_job(struct scst_cmd *cmd,
 		goto out_thr;
 	else if (s == CMD_FAILED)
 		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
-	else if (s == INVALID_OPCODE)
+	else if (s == VDISK_INVALID_OPCODE)
 		goto out_invalid_opcode;
 	else
 		WARN_ON(true);
