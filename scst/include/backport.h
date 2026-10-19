@@ -1729,13 +1729,16 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 	(!defined(UTS_UBUNTU_RELEASE_ABI) ||				\
 	 LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 8, 0) >> 8 ||	\
 	 UTS_UBUNTU_RELEASE_ABI - 0 < 147 ||				\
-	 UTS_UBUNTU_RELEASE_ABI - 0 >= 999)
+	 UTS_UBUNTU_RELEASE_ABI - 0 >= 999) &&			\
+	(!defined(UEK_KABI_RENAME) ||				\
+	 LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 12, 0) >> 8)
 /*
  * See also commit e19e1b480ac7 ("add default_gfp() helper macro and use it
  * in the new *alloc_obj() helpers") # v7.0.
  * See also commit 50c26b461b8e # v6.18.39.
  * See also commit 62554fc32b08 # v6.12.97.
  * See also commit 686c31196d7b # Ubuntu-6.8.0-147.147.
+ * See also commit 50a2618ab0a7 # UEK-6.12.0-206.100.2.
  * Ubuntu uses ABI 999 for custom builds and 1000+ for derivatives;
  * retain the existing fallback for these independent ABI sequences.
  */
@@ -1749,11 +1752,14 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 	(!defined(UTS_UBUNTU_RELEASE_ABI) ||				\
 	 LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 8, 0) >> 8 ||	\
 	 UTS_UBUNTU_RELEASE_ABI - 0 < 147 ||				\
-	 UTS_UBUNTU_RELEASE_ABI - 0 >= 999)
+	 UTS_UBUNTU_RELEASE_ABI - 0 >= 999) &&			\
+	(!defined(UEK_KABI_RENAME) ||				\
+	 LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 12, 0) >> 8)
 /*
  * See also commit 2932ba8d9c99 ("slab: Introduce kmalloc_obj() and family") # v7.0.
  * See also commit 3bf5e19c804d # v6.18.33.
  * See also commit fc71b362f7c0 # Ubuntu-6.8.0-147.147.
+ * See also commit 1c3065123c49 # UEK-6.12.0-206.100.2.
  */
 #define __alloc_objs(KMALLOC, GFP, TYPE, COUNT)				\
 ({									\
@@ -1824,12 +1830,15 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 	(!defined(UTS_UBUNTU_RELEASE_ABI) ||				\
 	 LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 8, 0) >> 8 ||	\
 	 UTS_UBUNTU_RELEASE_ABI - 0 < 147 ||				\
-	 UTS_UBUNTU_RELEASE_ABI - 0 >= 999)
+	 UTS_UBUNTU_RELEASE_ABI - 0 >= 999) &&			\
+	(!defined(UEK_KABI_RENAME) ||				\
+	 LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 12, 0) >> 8)
 /*
  * See also commit e4c8b46b924e ("slab: Introduce kmalloc_flex() and family") # v7.0.
  * See also commit 2dca62902eb3 # v6.18.39.
  * See also commit 5be0caeeb9a3 # v6.12.97.
  * See also commit ed76eddf8838 # Ubuntu-6.8.0-147.147.
+ * See also commit 4e28d0cfa522 # UEK-6.12.0-206.100.2.
  */
 #define __alloc_flex(KMALLOC, GFP, TYPE, FAM, COUNT)			\
 ({									\
