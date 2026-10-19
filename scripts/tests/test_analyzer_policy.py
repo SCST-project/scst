@@ -156,7 +156,8 @@ class PolicyCliTests(unittest.TestCase):
         (self.scripts / "policy").mkdir(parents=True)
         source = analyzer_policy.POLICY_PATH.parent.parent
         for name in ("analyzer_policy.py", "lint_scope.py", "policy/common.json",
-                     "policy/sparse.json", "policy/smatch.json"):
+                     "policy/sparse.json", "policy/smatch.json", "policy/coccicheck.json",
+                     "policy/cppcheck.json"):
             shutil.copyfile(source / name, self.scripts / name)
 
     def run_cli(self, *args):
@@ -211,7 +212,7 @@ class PolicyCliTests(unittest.TestCase):
                                             "usr", "iscsi-scst/usr"})
 
     def test_configuration_and_inventory_errors_fail_visibly(self):
-        unknown = self.run_cli("show", "cppcheck")
+        unknown = self.run_cli("show", "unknown-tool")
         self.assertEqual(unknown.returncode, 2)
         no_git = self.run_cli("files", "--format=json")
         self.assertEqual(no_git.returncode, 2)
@@ -229,6 +230,16 @@ class PolicyCliTests(unittest.TestCase):
         self.assertEqual(broken.returncode, 2)
         self.assertEqual(broken.stdout, "")
         self.assertIn("analyzer policy:", broken.stderr)
+
+    def test_basic_analyzers_inherit_common_scope_without_exceptions(self):
+        common = json.loads((self.scripts / "policy/common.json").read_text())
+        for tool in ("coccicheck", "cppcheck"):
+            with self.subTest(tool=tool):
+                result = self.run_cli("show", tool, "--format=json")
+                self.assertEqual(result.returncode, 0, result.stderr)
+                report = json.loads(result.stdout)
+                self.assertEqual(report["effective_source_policy"], common)
+                self.assertEqual(set(report["configured_policy"]), {"version", "notes"})
 
 
 if __name__ == "__main__":
