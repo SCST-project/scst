@@ -57,13 +57,14 @@ by the local runner and VM supervisor:
 
 | Label set | Ginkgo expression |
 | --- | --- |
-| `ci-pr` | `basic || smoke` |
-| `ci-push` | `!race` |
+| `ci-pr` | `(basic || smoke) && !manual` |
+| `ci-push` | `!race && !manual` |
 
 Each set aliases a whole filter; its definition combines ordinary Ginkgo labels.
 Pass either a set name or a Ginkgo expression as `GINKGO_LABEL`. Manual workflow
-runs use an empty filter and select all specs, including timing-dependent
-`race` scenarios. Other stress tests remain in `ci-push`.
+runs use an empty filter and select all specs, including `manual` and
+timing-dependent `race` scenarios. The `manual` label excludes a spec from
+both automatic CI sets. Other stress tests remain in `ci-push`.
 
 ```sh
 # List the pull-request selection:
@@ -142,6 +143,15 @@ particular cached buffer to produce an error. The invalid-capacity cases
 require CHECK CONDITION with sense `0b/44/00` on every kernel.
 The specs need a C compiler on the target to build the hook;
 `ginkgo-test-build` also builds `usr`, and the local suite loads `scst_user`.
+The fork spec is labelled `manual`; the invalid-capacity specs remain in
+`smoke`. To select only the fork spec on a disposable local target:
+
+```sh
+make ginkgo-list GINKGO_LABEL='user && manual'
+make ginkgo-test-build GINKGO_CONFIG=tests/ginkgo/config.local.json GINKGO_LABEL='user && manual'
+```
+
+For manual VM runs on Linux 5.8 or 5.9, see [CI reproduction](../../doc/CI.md#local-reproduction).
 
 The `unmap` specs exercise temporary thin-provisioned fileio exports over
 `scst_local` and TCP iSCSI. They require util-linux `fallocate` on the target

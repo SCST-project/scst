@@ -116,7 +116,7 @@ func (f *fixture) stopUserDevice(ctx SpecContext, p *testhost.Process, name stri
 	}
 }
 
-var _ = Describe("User-space handler devices", Label("scsi", "user", "smoke"), func() {
+var _ = Describe("User-space handler devices", Label("scsi", "user"), func() {
 	DescribeTable("keep replies, geometry and data intact across a handler fault",
 		func(ctx SpecContext, action string, capacityCDB []byte) {
 			timeout := testcfg.Duration(cfg.CommandTimeout)
@@ -169,9 +169,9 @@ var _ = Describe("User-space handler devices", Label("scsi", "user", "smoke"), f
 			}
 			Expect(err).To(Succeed())
 		},
-		Entry("handler forks", "fork", nil),
-		Entry("handler returns an invalid READ CAPACITY(10) block length", Label("negative"),
+		Entry("handler forks", Label("manual"), "fork", nil),
+		Entry("handler returns an invalid READ CAPACITY(10) block length", Label("negative", "smoke"),
 			"capacity", dataio.ReadCapacity10),
-		Entry("handler returns an invalid READ CAPACITY(16) block length", Label("negative"),
+		Entry("handler returns an invalid READ CAPACITY(16) block length", Label("negative", "smoke"),
 			"capacity", dataio.ReadCapacity16))
 })

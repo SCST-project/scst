@@ -1,4 +1,4 @@
 {
-  "ci-pr": "basic || smoke",
-  "ci-push": "!race"
+  "ci-pr": "(basic || smoke) && !manual",
+  "ci-push": "!race && !manual"
 }
