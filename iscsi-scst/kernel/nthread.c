@@ -210,6 +210,18 @@ void iscsi_task_mgmt_affected_cmds_done(struct scst_mgmt_cmd *scst_mcmd)
 	}
 }
 
+#define CONN_PENDING_TIMEOUT	((typeof(jiffies))10 * HZ)
+#define CONN_WAIT_TIMEOUT	((typeof(jiffies))10 * HZ)
+#define CONN_REG_SHUT_TIMEOUT	((typeof(jiffies))125 * HZ)
+#define CONN_DEL_SHUT_TIMEOUT	((typeof(jiffies))10 * HZ)
+
+SCST_KUNIT_VISIBLE
+bool iscsi_shutdown_timed_out(bool deleting, unsigned long started, unsigned long now)
+{
+	return time_after(now, started +
+			  (deleting ? CONN_DEL_SHUT_TIMEOUT : CONN_REG_SHUT_TIMEOUT));
+}
+
 /* No locks */
 static void close_conn(struct iscsi_conn *conn)
 {
@@ -222,11 +234,6 @@ static void close_conn(struct iscsi_conn *conn)
 	uint64_t sid;
 	int rc;
 	int lun = 0;
-
-#define CONN_PENDING_TIMEOUT	((typeof(jiffies))10 * HZ)
-#define CONN_WAIT_TIMEOUT	((typeof(jiffies))10 * HZ)
-#define CONN_REG_SHUT_TIMEOUT	((typeof(jiffies))125 * HZ)
-#define CONN_DEL_SHUT_TIMEOUT	((typeof(jiffies))10 * HZ)
 
 	TRACE_ENTRY();
 
@@ -322,9 +329,7 @@ static void close_conn(struct iscsi_conn *conn)
 		}
 
 		if (wait_expired && !shut_expired &&
-		    time_after(jiffies, shut_start_waiting +
-				conn->deleting ? CONN_DEL_SHUT_TIMEOUT :
-						 CONN_REG_SHUT_TIMEOUT)) {
+		    iscsi_shutdown_timed_out(conn->deleting, shut_start_waiting, jiffies)) {
 			TRACE_CONN_CLOSE("Wait time after shutdown expired (conn %p)",
 					 conn);
 			conn->transport->iscsit_conn_close(conn, 0);
