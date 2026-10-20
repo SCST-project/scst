@@ -21,6 +21,8 @@ struct sqa_scst_tgt *sqa_alloc_tgt(struct scst_tgt_template *tmplate,
 				   const char *name, unsigned int tag_num,
 				   size_t tag_size);
 void sqa_free_tgt(struct sqa_scst_tgt *sqa_tgt);
+
+int sqa_get_tag_bitmap(unsigned long *bitmap, unsigned int tag_num);
 #endif
 
 #endif /* SCST_QLA2XXX_TEST_H */
