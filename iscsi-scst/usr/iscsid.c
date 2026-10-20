@@ -364,7 +364,7 @@ static void text_scan_login(struct connection *conn)
 			if (idx == key_max_recv_data_length) {
 				conn->session_params[idx].key_state = KEY_STATE_DONE;
 				idx = key_max_xmit_data_length;
-			};
+			}
 
 			if (params_str_to_val(session_keys, idx, value, &val) < 0) {
 				if (conn->session_params[idx].key_state == KEY_STATE_START) {

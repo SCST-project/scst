@@ -266,7 +266,7 @@ static int handle_stpg_received(struct scst_event_user *event_user)
 			rc = wait_until_finished(pids[k], 1, &status, k);
 			if (rc != 0)
 				break;
-		};
+		}
 	}
 
 	TRACE_EXIT_RES(res);

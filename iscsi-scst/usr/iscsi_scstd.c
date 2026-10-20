@@ -955,7 +955,7 @@ int main(int argc, char **argv)
 	if ((nl_fd = nl_open()) < 0) {
 		perror("netlink open failed");
 		exit(-1);
-	};
+	}
 
 	err = kernel_attr_add(NULL, ISCSI_ISNS_SERVER_ATTR_NAME,
 			S_IRUSR|S_IRGRP|S_IROTH|S_IWUSR, 0);

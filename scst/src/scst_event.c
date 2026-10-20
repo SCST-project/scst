@@ -769,7 +769,7 @@ static int scst_event_user_next_event(struct scst_event_priv *priv, void __user 
 	if (res != 0) {
 		PRINT_ERROR("Failed to get max event size: %d", res);
 		goto out;
-	};
+	}
 
 	/* Waiting for at least one event, if blocking */
 	while (list_empty(&priv->queued_events_list)) {
