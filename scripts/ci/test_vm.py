@@ -277,7 +277,8 @@ class ConsoleTests(unittest.TestCase):
 
     def test_ginkgo_label_sets_reach_both_suites_and_are_reported(self):
         for label, expression in (('basic || smoke', 'basic || smoke'),
-                                  ('ci-pr', 'basic || smoke'), ('ci-push', '!race')):
+                                  ('ci-pr', '(basic || smoke) && !manual'),
+                                  ('ci-push', '!race && !manual')):
             with self.subTest(label=label):
                 self.output = self.root / label
                 result, output = self.run_guest('ginkgo', ginkgo_label=label)
@@ -298,7 +299,7 @@ class ConsoleTests(unittest.TestCase):
     def test_local_only_restricts_the_label_filter_to_local_specs(self):
         for label, expression in (('', 'local'), ('user', 'local && (user)'),
                                   ('basic || smoke', 'local && (basic || smoke)'),
-                                  ('ci-pr', 'local && (basic || smoke)')):
+                                  ('ci-pr', 'local && ((basic || smoke) && !manual)')):
             with self.subTest(label=label):
                 self.output = self.root / f'filter-{label or "all"}'
                 result, output = self.run_guest('ginkgo', ginkgo_label=label, local_only=True)

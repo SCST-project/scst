@@ -32,14 +32,18 @@ Kernel matrices are maintained through `.github/kernel-matrix.conf` and
 `nightly/conf/nightly.conf`; VM kernel pins are in `scripts/ci/kernel.env`
 and `kernel.SHA256SUMS` and must be updated together.
 
-Further Ginkgo jobs run the local `user` specs on Fedora 33's Linux 5.8.18 and
-5.9.16, pinned in `scripts/ci/kernel-5.8.env` and `kernel-5.9.env` with their
-`SHA256SUMS`. Linux 5.9 is the first release where `fork()` copies pinned
+Manual Ginkgo runs can use Fedora 33's Linux 5.8.18 and 5.9.16, pinned in
+`scripts/ci/kernel-5.8.env` and `kernel-5.9.env` with their `SHA256SUMS`.
+These kernels have no dedicated Ginkgo jobs or entries in the GitHub
+regression matrix; the nightly support list is unchanged.
+Linux 5.9 is the first release where `fork()` copies pinned
 ordinary anonymous pages, which scst_user relies on. The 5.8 fork fixture
 uses the documented `MADV_DONTFORK` protection; the 5.9 fixture exercises
 pinning without it. Both require correct geometry and data after the fork.
 The invalid-capacity specs check the exact SCSI rejection on both kernels.
-The images are otherwise built the same way; these jobs have no iSCSI initiator.
+The images are otherwise built the same way; `--local-only` runs have no
+iSCSI initiator. The fork spec has the `manual` label and is excluded from
+both automatic Ginkgo selections.
 
 ## Results
 
@@ -75,8 +79,16 @@ python3 scripts/ci/vm.py ginkgo /tmp/scst-ginkgo-image /tmp/scst-ginkgo-results 
 ```
 
 Use `--ginkgo-label ci-push` for the master selection; omit it for all specs.
-For the scst_user kernel jobs, add the pin name, such as `kernel-5.9`, to
-`build-image` and run `vm.py` with `--local-only --ginkgo-label user`.
+To run the fork spec manually on Linux 5.9:
+
+```sh
+bash scripts/ci/build-image ginkgo /tmp/scst-ginkgo-5.9-image kernel-5.9
+python3 scripts/ci/vm.py ginkgo /tmp/scst-ginkgo-5.9-image /tmp/scst-ginkgo-5.9-results \
+    --timeout 3000 --local-only --ginkgo-label 'user && manual'
+```
+
+Use `kernel-5.8` and new output directories for Linux 5.8. Use
+`--ginkgo-label user` to include the invalid-capacity specs as well.
 `--local-only` intersects the resolved label expression with `local`; without
 `--ginkgo-label`, it selects all local specs.
 QEMU tries KVM then TCG; `--accel tcg` forces emulation. To check the VM
