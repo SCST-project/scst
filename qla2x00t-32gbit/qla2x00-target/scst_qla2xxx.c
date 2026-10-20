@@ -239,6 +239,20 @@ int sqa_init_tag_bitmap(unsigned long **bitmap, unsigned int tag_num)
 		return -ENOMEM;
 	return 0;
 }
+
+SCST_KUNIT_VISIBLE
+int sqa_get_tag_bitmap(unsigned long *bitmap, unsigned int tag_num)
+{
+	unsigned int tag;
+
+	for (;;) {
+		tag = find_first_zero_bit(bitmap, tag_num);
+		if (tag >= tag_num)
+			return -ENOENT;
+		if (!test_and_set_bit(tag, bitmap))
+			return tag;
+	}
+}
 #endif
 
 SCST_KUNIT_VISIBLE
@@ -482,16 +496,7 @@ static struct qla_tgt_cmd *sqa_qla2xxx_get_cmd(struct fc_port *sess)
 
 	tag = sbitmap_queue_get(&sqa_tgt->tgt_tag_pool, &cpu);
 #else
-	for (;;) {
-		tag = find_first_zero_bit(sqa_tgt->tgt_tag_pool,
-					  sqa_tgt->tag_num);
-		if (test_and_set_bit(tag, sqa_tgt->tgt_tag_pool) == 0)
-			break;
-		if (tag >= sqa_tgt->tag_num) {
-			tag = -ENOENT;
-			break;
-		}
-	}
+	tag = sqa_get_tag_bitmap(sqa_tgt->tgt_tag_pool, sqa_tgt->tag_num);
 #endif
 	if (tag < 0)
 		return NULL;

@@ -76,6 +76,9 @@ dependency. Use a disposable VM without a passed-through QLogic HBA:
 module initialization still runs. Fixtures stub target registration and
 check resource unwinding and destruction; hardware session teardown
 requires separate validation.
+The fallback bitmap allocation and exhaustion cases also run on current kernels,
+even though the normal driver uses sbitmap there. They check word boundaries,
+allocation failure, a full or empty pool, and reuse of the last valid tag.
 
 The runner reads suite metadata and dependencies from the modules and loads selected
 owners in dependency order. Supply all required SCST modules from the same build;

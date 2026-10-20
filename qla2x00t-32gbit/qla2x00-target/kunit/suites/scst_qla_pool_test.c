@@ -183,10 +183,45 @@ static void qla_bitmap_allocation_failure_test(struct kunit *test)
 	KUNIT_EXPECT_PTR_EQ(test, f->bitmap, NULL);
 }
 
+static void qla_bitmap_exhaustion_test(struct kunit *test)
+{
+	unsigned int tags = *(const unsigned int *)test->param_value;
+	unsigned int words = BITS_TO_LONGS(tags);
+	unsigned long *bitmap;
+	unsigned int i;
+
+	/* A zero guard word makes an out-of-range claim observable without an OOB. */
+	bitmap = kunit_kcalloc(test, words + 1, sizeof(*bitmap), GFP_KERNEL);
+	KUNIT_ASSERT_NOT_NULL(test, bitmap);
+	for (i = 0; i < tags; i++)
+		KUNIT_EXPECT_EQ(test, sqa_get_tag_bitmap(bitmap, tags), (int)i);
+
+	KUNIT_EXPECT_EQ(test, sqa_get_tag_bitmap(bitmap, tags), -ENOENT);
+	KUNIT_EXPECT_EQ(test, bitmap[words], 0UL);
+	if (tags % BITS_PER_LONG)
+		KUNIT_EXPECT_EQ(test, bitmap[words - 1], BITMAP_LAST_WORD_MASK(tags));
+
+	/* The last valid tag remains reusable after the pool was exhausted. */
+	clear_bit(tags - 1, bitmap);
+	KUNIT_EXPECT_EQ(test, sqa_get_tag_bitmap(bitmap, tags), (int)tags - 1);
+	KUNIT_EXPECT_EQ(test, sqa_get_tag_bitmap(bitmap, tags), -ENOENT);
+	KUNIT_EXPECT_EQ(test, bitmap[words], 0UL);
+}
+
+static void qla_bitmap_empty_pool_test(struct kunit *test)
+{
+	unsigned long guard = 0;
+
+	KUNIT_EXPECT_EQ(test, sqa_get_tag_bitmap(&guard, 0), -ENOENT);
+	KUNIT_EXPECT_EQ(test, guard, 0UL);
+}
+
 static struct kunit_case qla_pool_test_cases[] = {
 	KUNIT_CASE_PARAM(qla_pool_lifetime_test, qla_pool_gen_params),
 	KUNIT_CASE_PARAM(qla_bitmap_allocation_test, qla_bitmap_gen_params),
 	KUNIT_CASE(qla_bitmap_allocation_failure_test),
+	KUNIT_CASE_PARAM(qla_bitmap_exhaustion_test, qla_bitmap_gen_params),
+	KUNIT_CASE(qla_bitmap_empty_pool_test),
 	{}
 };
 
