@@ -7,6 +7,7 @@
 #ifdef SCST_KUNIT_ENABLED
 
 bool ucmd_get_check(struct scst_user_cmd *ucmd);
+const u8 *dev_user_ext_cdb(const struct scst_cmd *cmd);
 void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy, unsigned long *flags);
 void dev_user_flush_pool(struct sgv_pool *pool);
 int dev_user_process_cleanup(struct scst_user_dev *dev);

@@ -27,6 +27,7 @@ scst-kunit-qla2x00tgt := \
 
 scst-kunit-scst_user := \
 	kunit/user/suites/scst_user_buffer_test.o \
+	kunit/user/suites/scst_user_cdb_test.o \
 	kunit/user/suites/scst_user_cleanup_test.o
 
 scst-kunit-scst_vdisk := \
