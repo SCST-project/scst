@@ -592,8 +592,8 @@ static int user_handle(int op, u32 set, u32 tid, char *params)
 	if (err)
 		goto out;
 
-	if ((op >= sizeof(user_handle_fn)/sizeof(user_handle_fn[0])) ||
-	    ((fn = user_handle_fn[op]) == NULL)) {
+	fn = op < ARRAY_SIZE(user_handle_fn) ? user_handle_fn[op] : NULL;
+	if (!fn) {
 		fprintf(stderr, "Unsupported\n");
 		goto out;
 	}

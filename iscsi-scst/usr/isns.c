@@ -34,7 +34,6 @@
 #include "isns_proto.h"
 #include "misc.h"
 
-#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 #define BUFSIZE (1 << 18)
 
 struct isns_io {
