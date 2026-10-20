@@ -15,6 +15,7 @@
  *  GNU General Public License for more details.
  */
 
+#include <linux/kref.h>
 #include <linux/scatterlist.h>
 #include <linux/workqueue.h>
 
@@ -113,7 +114,7 @@ struct sgv_pool {
 	atomic_t big_alloc, big_pages, big_merged;
 	atomic_t other_alloc, other_pages, other_merged;
 
-	atomic_t sgv_pool_ref;
+	struct kref sgv_pool_ref;
 
 	int max_caches;
 

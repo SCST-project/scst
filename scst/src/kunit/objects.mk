@@ -11,6 +11,7 @@ scst-kunit-scst := \
 	kunit/event/suites/scst_kunit_event_delivery.o \
 	kunit/lib/suites/scst_kunit_capacity.o \
 	kunit/lib/suites/scst_kunit_lib.o \
+	kunit/lib/suites/scst_kunit_sgv.o \
 	kunit/lib/suites/scst_kunit_write_same.o \
 	kunit/lifecycle/suites/scst_kunit_lifecycle.o \
 	kunit/lifecycle/suites/scst_kunit_blocking.o \
