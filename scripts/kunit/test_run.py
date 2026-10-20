@@ -712,7 +712,7 @@ def suite_log(suite):
 class LifecycleTests(unittest.TestCase):
     def test_label_manifest_validation(self):
         for records, valid in [('LIB:scst-LIB', True), ('LIB:scst-LIB\nCM:scst-CM', True),
-                               ('', False), ('scst-LIB', False), ('LIB:../bad', False),
+                               ('', True), ('scst-LIB', False), ('LIB:../bad', False),
                                ('LIB:scst-LIB\nCM:scst-LIB', False), ('ALL:scst-LIB', False)]:
             fields = {'name': 'scst', 'vermagic': 'test-kernel', 'scst_kunit_suite': records,
                       'version': '3.11', 'srcversion': 'ABC123', 'depends': 'dlm,kunit'}
@@ -1136,7 +1136,7 @@ class LifecycleTests(unittest.TestCase):
 
     def test_dependency_metadata_orders_new_owners_and_transitive_dependencies(self):
         core = manifest()
-        middle = manifest('scst_extra', {'scst-EXTRA': 'EXTRA'})
+        middle = manifest('scst_extra', {})
         leaf = manifest('scst_new', {'scst-NEW': 'NEW'}, depends=('scst_extra',))
         result, operations, _ = self.execute({'scst-NEW': suite_log('scst-NEW')},
             inventory=[leaf, middle, core], labels=['NEW'])
@@ -1144,6 +1144,52 @@ class LifecycleTests(unittest.TestCase):
         self.assertEqual(operations, [('insmod', 'scst'), ('insmod', 'scst_extra'),
             ('insmod', 'scst_new'), ('suite', 'scst-NEW'), ('rmmod', 'scst_new'),
             ('rmmod', 'scst_extra'), ('rmmod', 'scst')])
+
+    def test_qla_dependency_without_suites_uses_native_metadata(self):
+        fields = {
+            'scst': {'scst_kunit_suite': 'LIB:scst-LIB'},
+            'qla2xxx_scst': {},
+            'qla2x00tgt': {'scst_kunit_suite': 'QLA:scst-QLA-pool',
+                          'depends': 'scst,qla2xxx_scst'},
+        }
+
+        def modinfo(argv, **kwargs):
+            name = Path(argv[-1]).stem
+            values = {'name': name, 'vermagic': 'test-kernel'} | fields[name]
+            return Mock(stdout=values.get(argv[2], ''))
+
+        for labels in (['ALL'], ['QLA'], ['LIB']):
+            with self.subTest(labels=labels):
+                with patch.object(run.subprocess, 'run', side_effect=modinfo):
+                    inventory = [run.module_info(Path('/mock/' + name + '.ko'))
+                                 for name in fields]
+                result, operations, _ = self.execute(
+                    logs={'scst-LIB': PASS,
+                          'scst-QLA-pool': suite_log('scst-QLA-pool')},
+                    inventory=inventory, labels=labels)
+                self.assertFalse(result['errors'], result['errors'])
+                expected = [('insmod', 'scst')]
+                if labels != ['QLA']:
+                    expected.append(('suite', 'scst-LIB'))
+                if labels != ['LIB']:
+                    expected += [('insmod', 'qla2xxx_scst'), ('insmod', 'qla2x00tgt'),
+                                 ('suite', 'scst-QLA-pool'),
+                                 ('rmmod', 'qla2x00tgt'), ('rmmod', 'qla2xxx_scst')]
+                expected.append(('rmmod', 'scst'))
+                self.assertEqual(operations, expected)
+
+    def test_missing_manifest_on_unreferenced_module_prevents_operations(self):
+        cases = [
+            [manifest('qla2x00tgt', {}, depends=('scst', 'qla2xxx_scst')),
+             manifest('qla2xxx_scst', {}, depends=())],
+            [manifest('empty', {}, depends=('empty',))],
+        ]
+        for extra in cases:
+            with self.subTest(extra=extra):
+                result, operations, _ = self.execute(inventory=[manifest(), *extra])
+                self.assertTrue(result['errors'])
+                self.assertIn('no KUnit label manifest', result['errors'][0])
+                self.assertEqual(operations, [])
 
     def test_dependency_cycles_prevent_module_operations(self):
         core = manifest(depends=('scst_vdisk',))

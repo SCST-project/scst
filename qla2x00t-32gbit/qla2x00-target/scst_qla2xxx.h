@@ -1,4 +1,11 @@
+#ifndef SCST_QLA2XXX_H
+#define SCST_QLA2XXX_H
+
+#include <linux/list.h>
 #include <linux/version.h>
+
+struct scst_tgt;
+struct qla_tgt;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0) &&	\
 	!(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7)
 #define QLT_USE_PERCPU_IDA 0
@@ -41,3 +48,5 @@ struct sqa_scst_tgt {
 	unsigned int tag_num;
 #endif
 };
+
+#endif /* SCST_QLA2XXX_H */

@@ -24,4 +24,7 @@ ccflags-y += -DCONFIG_SCSI_QLA2XXX_TARGET=y
 endif
 
 obj-m := qla2x00tgt.o
-qla2x00tgt-objs := qla_tgt.o scst_qla2xxx.o
+qla2x00tgt-y := qla_tgt.o scst_qla2xxx.o
+
+scst-kunit-module := qla2x00tgt
+include $(src)/../../scst/src/kunit/Makefile

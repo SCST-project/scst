@@ -68,11 +68,20 @@ files. Base labels come directly from suite registrations:
 | `scst_vdisk.ko` | `VDISK` |
 | `scst_user.ko` | `USER` |
 | `iscsi-scst.ko` | `ISCSI` |
+| `qla2x00tgt.ko` | `QLA` |
+
+`QLA` selects `scst-QLA-pool`, which tests the SCST-owned command/tag helpers inside
+`qla2x00tgt.ko`. The build and runner include its matching `qla2xxx_scst.ko`
+dependency. Use a disposable VM without a passed-through QLogic HBA:
+module initialization still runs. Fixtures stub target registration and
+check resource unwinding and destruction; hardware session teardown
+requires separate validation.
 
 The runner reads suite metadata and dependencies from the modules and loads selected
 owners in dependency order. Supply all required SCST modules from the same build;
-their argument order does not matter. For example, `KUNIT_LABEL=VDISK` loads core and vdisk
-but runs only VDISK suites. Unselected suites are not counted as skipped.
+their argument order does not matter. Modules without suites are accepted only as
+dependencies of supplied test owners. For example, `KUNIT_LABEL=VDISK` loads core and
+vdisk but runs only VDISK suites. Unselected suites are not counted as skipped.
 
 ```sh
 sudo make kunit-run KUNIT_LABEL="UNMAP VDISK"

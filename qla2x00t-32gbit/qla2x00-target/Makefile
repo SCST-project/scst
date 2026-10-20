@@ -68,9 +68,17 @@ INSTALL_DIR := $(INSTALL_MOD_PATH)/lib/modules/$(KVER)/$(INSTALL_MOD_DIR)
 
 SCST_DIR := $(shell echo "$$PWD/../../scst/src")
 
+include ../../scst/src/kunit/select.mk
+.DEFAULT_GOAL := all
+
 all: $(QLA2XXX_SCST)
 	$(MAKE) -C $(KDIR) M=$(shell pwd)				\
-	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")
+	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
+	  $(SCST_KUNIT_FLAGS)
+
+.PHONY: kunit-build
+kunit-build:
+	$(MAKE) BUILD_2X_MODULE=y $(SCST_KUNIT_FLAGS) all
 
 install: all
 ifneq ($(BUILD_2X_MODULE),)
@@ -96,10 +104,9 @@ qla2xxx_scst:
 		M=$(QLA2XXX_DIR) -C $(QLA2XXX_DIR) all
 endif
 
+# The target module and its matching HBA dependency share build state.
 clean:
-ifneq ($(BUILD_2X_MODULE),)
-	$(MAKE) -C $(QLA2XXX_DIR) $@
-endif
+	$(MAKE) -C .. BUILD_2X_MODULE=y $@
 	$(MAKE) -C $(KDIR) M=$(shell pwd) $@
 
 extraclean: clean

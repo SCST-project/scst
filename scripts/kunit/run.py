@@ -305,8 +305,7 @@ def module_info(module):
         if not match or match[1] == "ALL" or match[2] in labels:
             raise RunError("Invalid SCST label manifest; rebuild with kunit-build")
         labels[match[2]] = match[1]
-    if not labels:
-        raise RunError("Module has no KUnit label manifest; rebuild with kunit-build")
+    # A dependency may have no suites; validate its role against the full set.
     info["suites"] = list(labels)
     info["labels"] = labels
     dependencies = info["depends"].split(",") if info["depends"] else []
@@ -335,6 +334,18 @@ def select_modules(inventory, labels, composites):
     selected = set(expand_labels({suite: label for item in inventory
                                  for suite, label in item["labels"].items()}, labels, composites))
     by_name = {item["name"]: item for item in inventory}
+    required = set()
+    pending = [item["name"] for item in inventory if item["suites"]]
+    while pending:
+        name = pending.pop()
+        if name in required or name not in by_name:
+            continue
+        required.add(name)
+        pending.extend(by_name[name]["depends"])
+    for item in inventory:
+        if not item["suites"] and item["name"] not in required:
+            raise RunError(f"{item['name']} has no KUnit label manifest and is not a "
+                           "dependency of a test module; rebuild with kunit-build")
     ordered = []
     visited = set()
     visiting = set()
