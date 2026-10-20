@@ -227,10 +227,59 @@ static void write_same_app_tag_mask(struct kunit *test)
 	}
 }
 
+struct write_same_flags_case {
+	const char *name;
+	int cdb_len;
+	bool needs_dif;
+	u8 flags;
+	u8 other_byte;
+	u8 expected;
+};
+
+static const struct write_same_flags_case write_same_flags_cases[] = {
+	{ "ws16_to_write32_default", 16, true, 0x00, 0xa5, 0x20 },
+	{ "ws16_to_write32_protected", 16, true, 0x40, 0xa5, 0x40 },
+	{ "ws32_to_write16", 32, false, 0x00, 0xa5, 0x00 },
+	{ "ws16_to_write16", 16, false, 0x00, 0xa5, 0x00 },
+	{ "ws32_to_write32", 32, true, 0x40, 0xa5, 0x40 },
+};
+
+static void write_same_flags_desc(const struct write_same_flags_case *p, char *desc)
+{
+	snprintf(desc, KUNIT_PARAM_DESC_SIZE, "%s", p->name);
+}
+
+KUNIT_ARRAY_PARAM(write_same_flags, write_same_flags_cases, write_same_flags_desc);
+
+static void write_same_flags(struct kunit *test)
+{
+	const struct write_same_flags_case *p = test->param_value;
+	struct write_same_fixture *f = test->priv;
+	u8 cdb[32];
+	int len;
+
+	f->cmd.cdb_len = p->cdb_len;
+	f->cdb[0] = p->cdb_len == 16 ? WRITE_SAME_16 : VARIABLE_LENGTH_CMD;
+	f->cdb[p->cdb_len == 32 ? 10 : 1] = p->flags;
+	/* A short command's transfer length and a long one's control are not flags. */
+	f->cdb[p->cdb_len == 32 ? 1 : 10] = p->other_byte;
+	if (p->cdb_len == 32) {
+		f->cdb[7] = 0x18;
+		put_unaligned_be16(SUBCODE_WRITE_SAME_32, &f->cdb[8]);
+	}
+	f->wsp.dif_valid = p->needs_dif;
+
+	len = scst_ws_build_write_cdb(&f->wsp, cdb, 1, 1);
+
+	KUNIT_ASSERT_EQ(test, len, p->needs_dif ? 32 : 16);
+	KUNIT_EXPECT_EQ(test, cdb[p->needs_dif ? 10 : 1], p->expected);
+}
+
 static struct kunit_case write_same_cases[] = {
 	KUNIT_CASE_PARAM(write_same_app_tag, write_same_tag_gen_params),
 	KUNIT_CASE_PARAM(write_same_cdb_image, write_same_cdb_gen_params),
 	KUNIT_CASE_PARAM(write_same_app_tag_mask, write_same_mask_gen_params),
+	KUNIT_CASE_PARAM(write_same_flags, write_same_flags_gen_params),
 	{}
 };
 

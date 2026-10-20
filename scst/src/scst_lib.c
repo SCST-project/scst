@@ -6413,15 +6413,16 @@ int scst_ws_build_write_cdb(const struct scst_write_same_priv *wsp,
 	const struct scst_cmd *ws_cmd = wsp->ws_orig_cmd;
 	const struct scst_device *dev = ws_cmd->dev;
 	bool needs_dif = wsp->dif_valid;
+	u8 flags = ws_cmd->cdb[ws_cmd->cdb_len == 32 ? 10 : 1];
 	int write_cdb_len;
 
 	memset(write_cdb, 0, 32);
 	if (!needs_dif || dev->dev_dif_type != 2) {
 		write_cdb[0] = WRITE_16;
 		write_cdb_len = 16;
-		write_cdb[1] = ws_cmd->cdb[1];
+		write_cdb[1] = flags;
 		if (needs_dif) {
-			u8 wrprotect = ws_cmd->cdb[1] & 0xE0;
+			u8 wrprotect = flags & 0xE0;
 
 			if (wrprotect == 0)
 				wrprotect = 0x20;
@@ -6431,19 +6432,15 @@ int scst_ws_build_write_cdb(const struct scst_write_same_priv *wsp,
 		put_unaligned_be32(blocks, &write_cdb[10]);
 	} else {
 		/* There might be WRITE SAME(16) with WRPROTECT 0 here */
-		u8 wrprotect;
+		u8 wrprotect = flags & 0xE0;
 
-		if (ws_cmd->cdb_len != 32)
-			wrprotect = ws_cmd->cdb[1] & 0xE0;
-		else
-			wrprotect = ws_cmd->cdb[10] & 0xE0;
 		if (wrprotect == 0)
 			wrprotect = 0x20;
 		write_cdb[0] = VARIABLE_LENGTH_CMD;
 		put_unaligned_be16(SUBCODE_WRITE_32, &write_cdb[8]);
 		write_cdb[7] = 0x18;
 		write_cdb_len = 32;
-		write_cdb[10] = ws_cmd->cdb[10];
+		write_cdb[10] = flags;
 		write_cdb[10] |= wrprotect;
 		put_unaligned_be64(lba, &write_cdb[12]);
 		put_unaligned_be32(blocks, &write_cdb[28]);
