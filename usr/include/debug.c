@@ -78,7 +78,6 @@ void debug_print_buffer(const void *data, int len)
 {
 	int z, z1, i;
 	const unsigned char *buf = (const unsigned char *) data;
-	int f = 0;
 
 	if (buf == NULL)
 		return;
@@ -102,7 +101,6 @@ void debug_print_buffer(const void *data, int len)
 				trace_buf[i] = '\0';
 				PRINT(LOG_INFO, "%s", trace_buf);
 				i = 0;
-				f = 1;
 			}
 			i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i,
 				      "%4x: ", z);
@@ -118,10 +116,7 @@ void debug_print_buffer(const void *data, int len)
 			trace_buf[i++] = '.';
 	}
 	trace_buf[i] = '\0';
-	if (f)
-		PRINT(LOG_INFO, "%s", trace_buf);
-	else
-		PRINT(LOG_INFO, "%s", trace_buf);
+	PRINT(LOG_INFO, "%s", trace_buf);
 
 	pthread_spin_unlock(&trace_buf_lock);
 }
