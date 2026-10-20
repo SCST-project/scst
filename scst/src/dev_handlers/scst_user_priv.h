@@ -78,7 +78,7 @@ struct scst_user_cmd {
 
 	struct scst_user_cmd *buf_ucmd;
 
-	atomic_t ucmd_ref;
+	struct kref ucmd_ref;
 
 	int cur_data_page;
 	int num_data_pages;
