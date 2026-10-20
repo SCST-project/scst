@@ -2484,7 +2484,7 @@ out_unlock:
 	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 out:
-	TRACE_EXIT_HRES(res);
+	TRACE_EXIT_HRES((__force unsigned int)res);
 	return res;
 }
 
