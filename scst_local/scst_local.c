@@ -1310,13 +1310,13 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 
 static void scst_local_targ_task_mgmt_done(struct scst_mgmt_cmd *mgmt_cmd)
 {
-	struct completion *compl;
+	struct completion *completion;
 
 	TRACE_ENTRY();
 
-	compl = scst_mgmt_cmd_get_tgt_priv(mgmt_cmd);
-	if (compl)
-		complete(compl);
+	completion = scst_mgmt_cmd_get_tgt_priv(mgmt_cmd);
+	if (completion)
+		complete(completion);
 
 	TRACE_EXIT();
 }

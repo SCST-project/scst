@@ -1998,7 +1998,7 @@ struct scst_pr_dlm_data;
  */
 struct scst_lksb {
 	struct dlm_lksb  lksb;
-	struct completion compl;
+	struct completion completion;
 	struct scst_pr_dlm_data *pr_dlm;
 };
 

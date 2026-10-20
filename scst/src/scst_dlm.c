@@ -83,7 +83,7 @@ static void scst_dlm_ast(void *astarg)
 {
 	struct scst_lksb *scst_lksb = astarg;
 
-	complete(&scst_lksb->compl);
+	complete(&scst_lksb->completion);
 }
 
 /*
@@ -99,7 +99,7 @@ static int scst_dlm_cancel(dlm_lockspace_t *ls, struct scst_lksb *lksb,
 			      &lksb->lksb, lksb);
 	if (res < 0)
 		goto out;
-	res = wait_for_completion_timeout(&lksb->compl, 10 * HZ);
+	res = wait_for_completion_timeout(&lksb->completion, 10 * HZ);
 
 out:
 	return res;
@@ -120,13 +120,13 @@ static int scst_dlm_lock_wait(dlm_lockspace_t *ls, int mode,
 {
 	int res;
 
-	init_completion(&lksb->compl);
+	init_completion(&lksb->completion);
 	res = dlm_lock(ls, mode, &lksb->lksb, flags,
 			    (void *)name, name ? strlen(name) : 0, 0,
 			    scst_dlm_ast, lksb, bast);
 	if (res < 0)
 		goto out;
-	res = wait_for_completion_timeout(&lksb->compl, 60 * HZ);
+	res = wait_for_completion_timeout(&lksb->completion, 60 * HZ);
 	if (res > 0)
 		res = lksb->lksb.sb_status;
 	else if (res == 0)
@@ -168,7 +168,7 @@ static void scst_dlm_force_unlock_and_drain(dlm_lockspace_t *ls,
 	u32 lkid = lksb->lksb.sb_lkid;
 	int res;
 
-	init_completion(&lksb->compl);
+	init_completion(&lksb->completion);
 	res = dlm_unlock(ls, lkid, DLM_LKF_FORCEUNLOCK, &lksb->lksb, lksb);
 	if (res < 0) {
 		PRINT_ERROR("dlm_unlock(FORCEUNLOCK, lkid=%08x, name=%s) submission failed: %d",
@@ -177,7 +177,7 @@ static void scst_dlm_force_unlock_and_drain(dlm_lockspace_t *ls,
 	}
 
 	while (true) {
-		long wait = wait_for_completion_timeout(&lksb->compl, 60 * HZ);
+		long wait = wait_for_completion_timeout(&lksb->completion, 60 * HZ);
 
 		if (wait > 0) {
 			int status = lksb->lksb.sb_status;
