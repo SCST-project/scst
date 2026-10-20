@@ -170,7 +170,7 @@ static void vdisk_cache_test(struct kunit *test)
 		KUNIT_EXPECT_EQ(test, f->flushes[0].completions, p->immed ? 1U : 0U);
 		KUNIT_EXPECT_EQ(test, f->flushes[0].cmd_refs, p->immed ? 2 : 1);
 	}
-	KUNIT_EXPECT_EQ(test, atomic_read(&f->cmd.cmd_ref), 1);
+	KUNIT_EXPECT_EQ(test, kref_read(&f->cmd.cmd_ref), 1);
 	KUNIT_EXPECT_EQ(test, f->completions, 1U);
 	KUNIT_EXPECT_TRUE(test, f->completed_before_callback);
 	KUNIT_EXPECT_EQ(test, f->completion_state, SCST_CMD_STATE_DEFAULT);

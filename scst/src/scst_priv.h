@@ -689,24 +689,23 @@ static inline void scst_sess_put(struct scst_session *sess)
 struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb, unsigned int cdb_len, gfp_t gfp_mask);
 int scst_pre_init_cmd(struct scst_cmd *cmd, const uint8_t *cdb, unsigned int cdb_len,
 		      gfp_t gfp_mask);
-void scst_free_cmd(struct scst_cmd *cmd);
+void scst_free_cmd(struct kref *ref);
 
 static inline void __scst_cmd_get(struct scst_cmd *cmd)
 {
-	atomic_inc(&cmd->cmd_ref);
+	kref_get(&cmd->cmd_ref);
 	smp_mb__after_atomic_inc();
 
-	TRACE_DBG("Incrementing cmd %p ref (new value %d)",
-		  cmd, atomic_read(&cmd->cmd_ref));
+	TRACE_DBG("Incrementing cmd %p ref (new value %u)",
+		  cmd, kref_read(&cmd->cmd_ref));
 }
 
 static inline void __scst_cmd_put(struct scst_cmd *cmd)
 {
-	TRACE_DBG("Decrementing cmd %p ref (new value %d)",
-		  cmd, atomic_read(&cmd->cmd_ref) - 1);
+	TRACE_DBG("Decrementing cmd %p ref (new value %u)",
+		  cmd, kref_read(&cmd->cmd_ref) - 1);
 
-	if (atomic_dec_and_test(&cmd->cmd_ref))
-		scst_free_cmd(cmd);
+	kref_put(&cmd->cmd_ref, scst_free_cmd);
 }
 
 void scst_throttle_cmd(struct scst_cmd *cmd);

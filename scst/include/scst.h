@@ -31,6 +31,7 @@
 #define CONFIG_SCST_NO_TOTAL_MEM_CHECKS
 
 #include <linux/types.h>
+#include <linux/kref.h>
 #ifndef INSIDE_KERNEL_TREE
 #include <linux/version.h>
 #endif
@@ -2065,7 +2066,7 @@ struct scst_cmd {
 
 	bool counted;
 
-	atomic_t cmd_ref;
+	struct kref cmd_ref;
 
 	/* Cmd state, one of SCST_CMD_STATE_* constants */
 	enum scst_cmd_state state;

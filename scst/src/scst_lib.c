@@ -7623,7 +7623,7 @@ int scst_pre_init_cmd(struct scst_cmd *cmd, const uint8_t *cdb,
 
 	scst_set_cmd_state(cmd, SCST_CMD_STATE_INIT_WAIT);
 	cmd->start_time = jiffies;
-	atomic_set(&cmd->cmd_ref, 1);
+	kref_init(&cmd->cmd_ref);
 	cmd->cmd_threads = &scst_main_cmd_threads;
 	cmd->cmd_gfp_mask = GFP_KERNEL;
 	INIT_LIST_HEAD(&cmd->mgmt_cmd_list);
@@ -7788,8 +7788,9 @@ out:
 EXPORT_SYMBOL_GPL(scst_stpg_del_unblock_next);
 
 /* No locks supposed to be held */
-void scst_free_cmd(struct scst_cmd *cmd)
+void scst_free_cmd(struct kref *ref)
 {
+	struct scst_cmd *cmd = container_of(ref, struct scst_cmd, cmd_ref);
 	int destroy = 1;
 
 	TRACE_ENTRY();
@@ -14248,8 +14249,8 @@ void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd)
 {
 	TRACE_ENTRY();
 
-	TRACE_MGMT_DBG("Aborted cmd %p done (cmd_ref %d)", cmd,
-		atomic_read(&cmd->cmd_ref));
+	TRACE_MGMT_DBG("Aborted cmd %p done (cmd_ref %u)", cmd,
+		       kref_read(&cmd->cmd_ref));
 
 	scst_done_cmd_mgmt(cmd);
 
