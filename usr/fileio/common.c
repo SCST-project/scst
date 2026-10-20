@@ -387,14 +387,9 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: "
 			"loff=%"PRId64", data_len=%"PRId64", immed=%d",
 			(uint64_t)loff, data_len, immed);
-		if (immed) {
-			/* ToDo: backgroung exec */
-			exec_fsync(vcmd);
-			break;
-		} else {
-			exec_fsync(vcmd);
-			break;
-		}
+		/* ToDo: execute immediate synchronization in the background. */
+		exec_fsync(vcmd);
+		break;
 	}
 	case VERIFY:
 	case VERIFY_12:
