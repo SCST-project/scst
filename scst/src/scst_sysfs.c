@@ -1759,8 +1759,8 @@ static ssize_t __scst_acg_black_hole_show(struct scst_acg *acg, char *buf)
 	return sysfs_emit(buf, "%d\n", t);
 }
 
-SCST_KUNIT_VISIBLE ssize_t
-__scst_acg_black_hole_store(struct scst_acg *acg, const char *buf, size_t count)
+SCST_KUNIT_VISIBLE
+ssize_t __scst_acg_black_hole_store(struct scst_acg *acg, const char *buf, size_t count)
 {
 	int res = 0;
 	int prev, t;
