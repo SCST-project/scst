@@ -8,7 +8,8 @@ static int event_test_get_size(s32 *size, const void __user *arg)
 	struct kunit *test = kunit_get_current_test();
 	struct event_test_fixture *f = test->priv;
 
-	KUNIT_EXPECT_PTR_EQ(test, arg, event_test_arg);
+	KUNIT_EXPECT_PTR_EQ(test, (__force const void *)arg,
+			    (__force const void *)event_test_arg);
 	f->reads++;
 	if (!f->read_error)
 		*size = f->user_size;
@@ -30,7 +31,8 @@ static int event_test_put_size(s32 size, void __user *arg)
 	struct kunit *test = kunit_get_current_test();
 	struct event_test_fixture *f = test->priv;
 
-	KUNIT_EXPECT_PTR_EQ(test, arg, event_test_arg);
+	KUNIT_EXPECT_PTR_EQ(test, (__force const void *)arg,
+			    (__force const void *)event_test_arg);
 	f->puts++;
 	f->needed_size = size;
 	return f->put_error;
@@ -52,7 +54,8 @@ static unsigned long event_test_copy_from(void *to, const void __user *from, siz
 	struct event_test_fixture *f = test->priv;
 	size_t left = min(f->from_left, size);
 
-	KUNIT_EXPECT_PTR_EQ(test, from, event_test_arg);
+	KUNIT_EXPECT_PTR_EQ(test, (__force const void *)from,
+			    (__force const void *)event_test_arg);
 	f->imports++;
 	f->imported = size;
 	/* Reject the historical entry-size copy before it can overrun the fixture. */
