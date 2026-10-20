@@ -10,7 +10,8 @@ ROOT = Path(__file__).resolve().parents[2]
 
 class HeaderTests(unittest.TestCase):
     def test_normal_headers_do_not_require_kernel_or_test_types(self):
-        directories = ('scst/src', 'scst/src/dev_handlers', 'iscsi-scst/kernel')
+        directories = ('scst/src', 'scst/src/dev_handlers', 'iscsi-scst/kernel',
+                       'qla2x00t-32gbit/qla2x00-target')
         headers = sorted(header for directory in directories
                          for header in (ROOT / directory).glob('*_test.h'))
         self.assertTrue(headers)

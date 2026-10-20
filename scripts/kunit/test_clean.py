@@ -21,14 +21,16 @@ class CleanTests(unittest.TestCase):
             for path in ('Makefile', 'scst/Makefile', 'scst/src/Makefile',
                          'scst/src/dev_handlers/Makefile', 'scst/src/kunit/select.mk',
                          'scst/src/kunit/modules.mk', 'scst/include/scst_const.h',
-                         'iscsi-scst/Makefile', 'iscsi-scst/usr/Makefile'):
+                         'iscsi-scst/Makefile', 'iscsi-scst/usr/Makefile',
+                         'qla2x00t-32gbit/Makefile',
+                         'qla2x00t-32gbit/qla2x00-target/Makefile'):
                 target = root / path
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / path, target)
             # Other components are deliberately inert; kunit-clean must not visit them.
-            for component in ('qla2x00t-32gbit/qla2x00-target', 'srpt', 'scst_local', 'fcst', 'usr', 'scstadmin'):
+            for component in ('srpt', 'scst_local', 'fcst', 'usr', 'scstadmin'):
                 target = root / component
-                target.mkdir(parents=True)
+                target.mkdir(parents=True, exist_ok=True)
                 (target / 'Makefile').write_text('clean extraclean:;@rm -f visited.o\n')
                 (target / 'visited.o').touch()
             kernel = root / 'kernel'
@@ -41,7 +43,11 @@ class CleanTests(unittest.TestCase):
                          'scst/src/dev_handlers/scst_vdisk.ko',
                          'scst/src/dev_handlers/kunit/vdisk/suites/test.o',
                          'iscsi-scst/kernel/iscsi-scst.ko',
-                         'iscsi-scst/kernel/kunit/suites/test.o']
+                         'iscsi-scst/kernel/kunit/suites/test.o',
+                         'qla2x00t-32gbit/qla2xxx_scst.ko',
+                         'qla2x00t-32gbit/qla_os.o',
+                         'qla2x00t-32gbit/qla2x00-target/qla2x00tgt.ko',
+                         'qla2x00t-32gbit/qla2x00-target/kunit/suites/test.o']
             metadata = ['.kunit-modules', '.kunit-modules.tmp']
             if tooling:
                 metadata += ['scripts/kunit/__pycache__/run.pyc',
@@ -75,11 +81,9 @@ class CleanTests(unittest.TestCase):
                 self.assertEqual((root / path).read_text(), 'preserve me\n', path)
             if not fail and directory == '' and goal in ('clean', 'extraclean', 'kunit-clean'):
                 for path in artifacts + generated:
-                    if goal == 'kunit-clean' and path.split('/')[0] not in COMPONENTS:
-                        continue
                     self.assertFalse((root / path).exists(), path)
             if goal == 'kunit-clean':
-                self.assertTrue((root / 'qla2x00t-32gbit/qla2x00-target/visited.o').exists())
+                self.assertTrue((root / 'srpt/visited.o').exists())
 
     def test_top_level_cleanup_removes_build_state_and_preserves_reports(self):
         for goal in ('kunit-clean', 'clean', 'extraclean'):
@@ -87,7 +91,8 @@ class CleanTests(unittest.TestCase):
                 self.check_clean('', goal)
 
     def test_component_cleanup_invalidates_module_list(self):
-        for directory in ('scst', 'scst/src', 'scst/src/dev_handlers', 'iscsi-scst'):
+        for directory in ('scst', 'scst/src', 'scst/src/dev_handlers', 'iscsi-scst',
+                          'qla2x00t-32gbit/qla2x00-target'):
             if directory != 'scst' and 'kunit/select.mk' not in (ROOT / directory / 'Makefile').read_text():
                 continue
             for goal in ('clean', 'extraclean'):

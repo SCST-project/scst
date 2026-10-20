@@ -45,8 +45,10 @@ Objects, modules, `Module.symvers`, dependency metadata, extracted upstream
 qla2xxx trees, and generated in-tree patch sets are artifacts. Do not edit
 them or run extraction/patch-generation helpers unless that regeneration is
 explicitly requested. Use the top-level selected-QLogic build or this
-component's Makefile for compile validation; no hardware unit-test target is
-provided.
+component's Makefile for compile validation. Its `kunit-build` target builds
+`qla2x00tgt.ko` with suites and the matching HBA dependency. See `doc/KUNIT.md`
+at the repository root for execution requirements. Hardware lifecycle
+validation remains separate.
 
 Never load/unload this driver, bind an HBA, enable target mode, expose WWPNs or
 LUNs, log into a fabric, issue a LIP/reset, flash/query firmware through active

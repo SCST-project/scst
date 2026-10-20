@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: GPL-2.0-only
 # Build components in dependency order and record their test modules.
-SCST_KUNIT_COMPONENTS := scst iscsi-scst
+SCST_KUNIT_COMPONENTS := scst iscsi-scst qla2x00t-32gbit/qla2x00-target
 
 SCST_KUNIT_MODULES_scst := \
 	scst/src/scst.ko \
@@ -9,5 +9,9 @@ SCST_KUNIT_MODULES_scst := \
 
 SCST_KUNIT_MODULES_iscsi-scst := \
 	iscsi-scst/kernel/iscsi-scst.ko
+
+SCST_KUNIT_MODULES_qla2x00t-32gbit/qla2x00-target := \
+	qla2x00t-32gbit/qla2xxx_scst.ko \
+	qla2x00t-32gbit/qla2x00-target/qla2x00tgt.ko
 
 SCST_KUNIT_MODULES = $(foreach component,$(SCST_KUNIT_COMPONENTS),$(SCST_KUNIT_MODULES_$(component)))

@@ -39,7 +39,9 @@
 
 #define EXCLUDED 0
 
+#include <linux/bitmap.h>
 #include <linux/module.h>
+#include <linux/slab.h>
 #include <linux/types.h>
 #include <linux/delay.h>
 #include <linux/list.h>
@@ -55,6 +57,7 @@
 #include "qla_def.h"
 #include "qla_target.h"
 #include "scst_qla2xxx.h"
+#include "scst_qla2xxx_test.h"
 
 #define SQA_VERSION	QLA2XXX_VERSION
 
@@ -204,6 +207,100 @@ static char *cmdstate_to_str(uint8_t state)
 			return e->str;
 	}
 	return cmd_str[0].str; /* unknown */
+}
+
+SCST_KUNIT_VISIBLE
+void *sqa_alloc_cmd_map(unsigned int tag_num, size_t tag_size)
+{
+	SCST_KUNIT_REDIRECT(sqa_alloc_cmd_map, tag_num, tag_size);
+	return kvcalloc(tag_num, tag_size, GFP_KERNEL);
+}
+
+SCST_KUNIT_VISIBLE
+void sqa_free_cmd_map(void *map)
+{
+	SCST_KUNIT_REDIRECT(sqa_free_cmd_map, map);
+	kvfree(map);
+}
+
+SCST_KUNIT_VISIBLE
+int sqa_init_tag_pool(struct sqa_scst_tgt *sqa_tgt, unsigned int tag_num)
+{
+	SCST_KUNIT_REDIRECT(sqa_init_tag_pool, sqa_tgt, tag_num);
+#if QLT_USE_PERCPU_IDA
+	return percpu_ida_init(&sqa_tgt->tgt_tag_pool, tag_num);
+#elif QLT_USE_SBITMAP
+	return sbitmap_queue_init_node(&sqa_tgt->tgt_tag_pool, tag_num, -1,
+				       false, GFP_KERNEL, NUMA_NO_NODE);
+#else
+	sqa_tgt->tag_num = tag_num;
+	sqa_tgt->tgt_tag_pool = kzalloc(BITS_TO_LONGS(tag_num), GFP_KERNEL);
+	return PTR_ERR_OR_ZERO(sqa_tgt->tgt_tag_pool);
+#endif
+}
+
+SCST_KUNIT_VISIBLE
+void sqa_destroy_tag_pool(struct sqa_scst_tgt *sqa_tgt)
+{
+	SCST_KUNIT_REDIRECT(sqa_destroy_tag_pool, sqa_tgt);
+#if QLT_USE_PERCPU_IDA
+	percpu_ida_destroy(&sqa_tgt->tgt_tag_pool);
+#elif QLT_USE_SBITMAP
+	sbitmap_queue_free(&sqa_tgt->tgt_tag_pool);
+#else
+	kfree(sqa_tgt->tgt_tag_pool);
+#endif
+}
+
+SCST_KUNIT_VISIBLE
+struct scst_tgt *sqa_register_target(struct scst_tgt_template *tmplate,
+				     const char *name)
+{
+	SCST_KUNIT_REDIRECT(sqa_register_target, tmplate, name);
+	return scst_register_target(tmplate, name);
+}
+
+/* Only call after session/command draining, or before publishing the target. */
+SCST_KUNIT_VISIBLE
+void sqa_free_tgt(struct sqa_scst_tgt *sqa_tgt)
+{
+	sqa_destroy_tag_pool(sqa_tgt);
+	sqa_free_cmd_map(sqa_tgt->tgt_cmd_map);
+	kfree(sqa_tgt);
+}
+
+SCST_KUNIT_VISIBLE
+struct sqa_scst_tgt *sqa_alloc_tgt(struct scst_tgt_template *tmplate,
+				   const char *name, unsigned int tag_num,
+				   size_t tag_size)
+{
+	struct sqa_scst_tgt *sqa_tgt;
+	int res = -ENOMEM;
+
+	sqa_tgt = kzalloc_obj(*sqa_tgt);
+	if (!sqa_tgt)
+		return ERR_PTR(res);
+
+	sqa_tgt->tgt_cmd_map = sqa_alloc_cmd_map(tag_num, tag_size);
+	if (!sqa_tgt->tgt_cmd_map)
+		goto free_tgt;
+
+	res = sqa_init_tag_pool(sqa_tgt, tag_num);
+	if (res < 0)
+		goto free_map;
+
+	sqa_tgt->scst_tgt = sqa_register_target(tmplate, name);
+	if (!sqa_tgt->scst_tgt) {
+		sqa_free_tgt(sqa_tgt);
+		return ERR_PTR(-ENOMEM);
+	}
+	return sqa_tgt;
+
+free_map:
+	sqa_free_cmd_map(sqa_tgt->tgt_cmd_map);
+free_tgt:
+	kfree(sqa_tgt);
+	return ERR_PTR(res);
 }
 
 #if QLA_ENABLE_PI
@@ -1327,52 +1424,16 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 	if (res)
 		goto done;
 
-	sqa_tgt = kzalloc_obj(*sqa_tgt);
-	if (!sqa_tgt) {
-		PRINT_ERROR("sqatgt(%ld/%d): alloc sqa_tgt failed",
-		    vha->host_no, vha->vp_idx);
-		res = -ENOMEM;
-		goto done;
-	}
-
-	sqa_tgt->tgt_cmd_map = kvcalloc(tag_num, tag_size, GFP_KERNEL);
-	if (!sqa_tgt->tgt_cmd_map) {
-		PRINT_ERROR("sqatgt(%ld/%d): alloc tgt_cmd_map failed",
-			    vha->host_no, vha->vp_idx);
-		kfree(sqa_tgt);
-		res = -ENOMEM;
-		goto done;
-	}
-
-#if QLT_USE_PERCPU_IDA
-	res = percpu_ida_init(&sqa_tgt->tgt_tag_pool, tag_num);
-#elif QLT_USE_SBITMAP
-	res = sbitmap_queue_init_node(&sqa_tgt->tgt_tag_pool, tag_num, -1,
-				      false, GFP_KERNEL, NUMA_NO_NODE);
-#else
-	sqa_tgt->tag_num = tag_num;
-	sqa_tgt->tgt_tag_pool = kzalloc(BITS_TO_LONGS(tag_num), GFP_KERNEL);
-	res = PTR_ERR_OR_ZERO(sqa_tgt->tgt_tag_pool);
-#endif
-	if (res < 0) {
-		pr_err("Unable to init se_sess->tgt_tag_pool, tag_num: %u\n",
-		       tag_num);
-		kvfree(sqa_tgt->tgt_cmd_map);
-		kfree(sqa_tgt);
-		goto done;
-	}
-
 	PRINT_INFO("sqatgt(%ld/%d): Registering target pwwn=%s",
 		   vha->host_no, vha->vp_idx, pwwn);
-
-	scst_tgt = scst_register_target(&sqa_scst_template, pwwn);
-	if (!scst_tgt) {
-		PRINT_ERROR("sqatgt(%ld/%d): SCST target registration failed.",
-			    vha->host_no, vha->vp_idx);
-		res = -ENOMEM;
-		kfree(sqa_tgt);
+	sqa_tgt = sqa_alloc_tgt(&sqa_scst_template, pwwn, tag_num, tag_size);
+	if (IS_ERR(sqa_tgt)) {
+		res = PTR_ERR(sqa_tgt);
+		PRINT_ERROR("sqatgt(%ld/%d): Target allocation or registration failed: %d",
+			    vha->host_no, vha->vp_idx, res);
 		goto done;
 	}
+	scst_tgt = sqa_tgt->scst_tgt;
 
 #if QLA_ENABLE_PI
 	if (IS_T10_PI_CAPABLE(vha->hw)) {
@@ -1384,7 +1445,6 @@ static int sqa_init_scst_tgt(struct scsi_qla_host *vha)
 	}
 #endif
 	INIT_LIST_HEAD(&sqa_tgt->list);
-	sqa_tgt->scst_tgt = scst_tgt;
 	sqa_tgt->qla_tgt = vha->vha_tgt.qla_tgt;
 
 	scst_tgt_set_tgt_priv(scst_tgt, sqa_tgt);
@@ -1519,6 +1579,14 @@ static int sqa_target_release(struct scst_tgt *scst_tgt)
 			qlt_stop_phase1(vha->vha_tgt.qla_tgt);
 		}
 
+		/*
+		 * Phase 1 uses bounded waits. Keep the command map, tag pool and
+		 * lport callbacks alive until SCST has drained every session.
+		 * No new sessions can register after target stop.
+		 */
+		wait_event(scst_tgt->unreg_waitQ,
+			   list_empty(&scst_tgt->sysfs_sess_list));
+
 		if (vha->vp_idx)
 			sqa_qla2xxx_npiv_drop_lport(tgt);
 		else
@@ -1535,7 +1603,7 @@ static int sqa_target_release(struct scst_tgt *scst_tgt)
 	TRACE(TRACE_MGMT, "sqatgt(%ld/%d): Target release finished sqa_tgt %p",
 	    vha->host_no, vha->vp_idx, sqa_tgt);
 
-	kfree(sqa_tgt);
+	sqa_free_tgt(sqa_tgt);
 
 	TRACE_EXIT();
 	return 0;

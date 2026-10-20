@@ -79,7 +79,8 @@ download_and_extract_kernel_tree() {
         self.assertFalse(any('/kunit/' in path for path in files))
         owners = {'scst/src': 'drivers/scst',
                   'scst/src/dev_handlers': 'drivers/scst/dev_handlers',
-                  'iscsi-scst/kernel': 'drivers/scst/iscsi-scst'}
+                  'iscsi-scst/kernel': 'drivers/scst/iscsi-scst',
+                  'qla2x00t-32gbit/qla2x00-target': 'drivers/scsi/qla2xxx'}
         for source_dir, target_dir in owners.items():
             for header in (ROOT / source_dir).glob('*_test.h'):
                 self.assertIn(str(PurePosixPath(target_dir) / header.name), files)

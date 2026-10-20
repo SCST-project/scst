@@ -20,13 +20,16 @@ SOURCE_FILES = sorted({path for module in MODULES
                        for path in (ROOT / module).parent.joinpath('kunit').rglob('*.c')})
 SUITES = source_suites(SOURCE_FILES)
 LABELS = sorted(set(SUITES.values()) | load_composites().keys())
-ENTRY_POINTS = [entry for entry in ('', 'scst', 'scst/src', 'scst/src/dev_handlers', 'iscsi-scst')
+ENTRY_POINTS = [entry for entry in ('', 'scst', 'scst/src', 'scst/src/dev_handlers',
+                                    'iscsi-scst', 'qla2x00t-32gbit/qla2x00-target')
                 if 'kunit/select.mk' in (ROOT / entry / 'Makefile').read_text()]
 OWNERS = {
     'scst': ('scst/src', 'scst/kernel/in-tree/Makefile.scst'),
     'scst_vdisk': ('scst/src/dev_handlers', 'scst/kernel/in-tree/Makefile.dev_handlers'),
     'scst_user': ('scst/src/dev_handlers', 'scst/kernel/in-tree/Makefile.dev_handlers'),
     'iscsi-scst': ('iscsi-scst/kernel', 'iscsi-scst/kernel/Makefile.in-kernel'),
+    'qla2x00tgt': ('qla2x00t-32gbit/qla2x00-target',
+                  'qla2x00t-32gbit/Makefile_in-tree'),
 }
 
 
@@ -56,6 +59,9 @@ class SelectionTests(unittest.TestCase):
                     objects = result.stdout.split('objects=', 1)[1].split(' flags=', 1)[0].split()
                     tests = [obj for obj in objects if obj.startswith('kunit/')]
                     self.assertEqual(bool(tests), enabled == 'y')
+                    if owner == 'qla2x00tgt':
+                        self.assertIn('qla_tgt.o', objects)
+                        self.assertIn('scst_qla2xxx.o', objects)
                     for obj in tests:
                         source = ROOT / OWNERS[owner][0] / Path(obj).with_suffix('.c')
                         self.assertTrue(source.is_file(), source)
@@ -212,7 +218,9 @@ class SelectionTests(unittest.TestCase):
                      'scst/include/scst_user.h', 'iscsi-scst/Makefile',
                      'iscsi-scst/include/iscsi_scst.h',
                      'iscsi-scst/conftest/sock_recvmsg/sock_recvmsg.c',
-                     'iscsi-scst/conftest/sock_recvmsg/Kbuild']
+                     'iscsi-scst/conftest/sock_recvmsg/Kbuild',
+                     'qla2x00t-32gbit/Makefile',
+                     'qla2x00t-32gbit/qla2x00-target/Makefile']
             for path in paths:
                 target = root / path
                 target.parent.mkdir(parents=True, exist_ok=True)
@@ -235,17 +243,25 @@ class SelectionTests(unittest.TestCase):
                       '$(KVER)', '$(ARCH)', '$(CROSS_COMPILE)', '$(CC)',
                       '$(PASS_CC_TO_MAKE)', '$(WERROR)']
             fields += ['$(CONFIG_SCST_KUNIT_TEST)', '$(CONFIG_SCST_KUNIT_LOG)']
-            fields += ['$@']
+            fields += ['$(built_module)']
             (kdir / 'Makefile').write_text(
+                'qla_root := $(KUNIT_TEST_ROOT)/qla2x00t-32gbit\n'
+                'built_module = $(if $(filter all,$@),'
+                '$(if $(filter $(qla_root),$(M)),qla2xxx_scst.ko,'
+                '$(if $(filter $(qla_root)/qla2x00-target,$(M)),qla2x00tgt.ko,all)),$@)\n'
                 '.PHONY: all scst.ko scst_vdisk.ko scst_user.ko iscsi-scst.ko\n'
                 'all scst.ko scst_vdisk.ko scst_user.ko iscsi-scst.ko:\n'
                 '\t@test "$(M)" = "$(KUNIT_TEST_ROOT)/scst/src" || '
                 'test -f "$(KUNIT_TEST_ROOT)/scst/src/Module.symvers"\n'
+                '\t@test "$(M)" != "$(qla_root)/qla2x00-target" || '
+                'test -f "$(qla_root)/Module.symvers"\n'
+                '\t@test "$(M)" != "$(qla_root)" || '
+                'test "$(CONFIG_SCSI_QLA2XXX_TARGET)" = y\n'
                 "\t@printf '%s\\n' '" + '|'.join(fields) + "' >> \"$${KUNIT_TEST_LOG}\"\n" +
                 '\t@echo build >> "$${KUNIT_TEST_EVENTS}"\n'
                 '\t@test "$(FAIL_COMPONENT)" != "$(M:$(KUNIT_TEST_ROOT)/%=%)"\n'
                 '\t@touch "$(M)/Module.symvers"\n'
-                '\t@if [ "$(MISSING_MODULE)" != y ]; then touch "$(M)/$@"; fi\n')
+                '\t@if [ "$(MISSING_MODULE)" != y ]; then touch "$(M)/$(built_module)"; fi\n')
             binary = root / 'bin'
             binary.mkdir()
             scripts = {
@@ -375,7 +391,8 @@ class SelectionTests(unittest.TestCase):
         self.assertEqual(args, ['scripts/kunit/run.py', '--labels', 'ALL'])
 
     def test_failed_or_incomplete_build_prevents_execution(self):
-        for options in ({'fail': 'scst/src'}, {'missing': True}):
+        for options in ({'fail': 'scst/src'}, {'fail': 'qla2x00t-32gbit'},
+                        {'fail': 'qla2x00t-32gbit/qla2x00-target'}, {'missing': True}):
             result, _, modules, events, args = self.build_components('KUNIT_LABEL=LIB', goals=('kunit-test',), **options)
             self.assertNotEqual(result.returncode, 0)
             self.assertIsNone(modules)
