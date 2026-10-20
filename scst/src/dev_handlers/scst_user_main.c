@@ -1937,12 +1937,55 @@ const u8 *dev_user_ext_cdb(const struct scst_cmd *cmd)
 	return cmd->cdb + SCST_MAX_CDB_SIZE;
 }
 
+/* Return paired user/core command references; rejected requests retain neither. */
+SCST_KUNIT_VISIBLE
+struct scst_user_cmd *dev_user_ext_cdb_get(struct scst_user_dev *dev, unsigned int cmd_h,
+					   struct scst_cmd **cmd)
+{
+	struct scst_user_cmd *ucmd;
+	int res;
+
+	*cmd = NULL;
+	spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
+
+	ucmd = __ucmd_find_hash(dev, cmd_h);
+	if (unlikely(!ucmd)) {
+		TRACE_MGMT_DBG("cmd_h %d not found", cmd_h);
+		res = -ESRCH;
+		goto out_unlock;
+	}
+
+	if (unlikely(ucmd_get_check(ucmd))) {
+		TRACE_MGMT_DBG("Found being destroyed cmd_h %d", cmd_h);
+		res = -ESRCH;
+		goto out_unlock;
+	}
+
+	if (!ucmd->cmd || ucmd->state > UCMD_STATE_EXECING ||
+	    !(ucmd->sent_to_user || ucmd->background_exec)) {
+		TRACE_MGMT_DBG("Invalid ucmd state %d for cmd_h %d", ucmd->state, cmd_h);
+		spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
+		/* The final put can remove the command from the hash under this lock. */
+		ucmd_put(ucmd);
+		return ERR_PTR(-EINVAL);
+	}
+
+	*cmd = ucmd->cmd;
+	scst_cmd_get(*cmd);
+	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
+	return ucmd;
+
+out_unlock:
+	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
+	return ERR_PTR(res);
+}
+
 static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
 {
 	int res = 0, rc;
 	struct scst_user_dev *dev;
 	struct scst_user_cmd *ucmd;
-	struct scst_cmd *cmd = NULL;
+	struct scst_cmd *cmd;
 	struct scst_user_get_ext_cdb get;
 	const u8 *ext_cdb;
 
@@ -1964,36 +2007,11 @@ static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
 
 	TRACE_BUFFER("Get ext cdb", &get, sizeof(get));
 
-	spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
-
-	ucmd = __ucmd_find_hash(dev, get.cmd_h);
-	if (unlikely(!ucmd)) {
-		TRACE_MGMT_DBG("cmd_h %d not found", get.cmd_h);
-		res = -ESRCH;
-		goto out_unlock;
+	ucmd = dev_user_ext_cdb_get(dev, get.cmd_h, &cmd);
+	if (IS_ERR(ucmd)) {
+		res = PTR_ERR(ucmd);
+		goto out;
 	}
-
-	if (unlikely(ucmd_get_check(ucmd))) {
-		TRACE_MGMT_DBG("Found being destroyed cmd_h %d", get.cmd_h);
-		res = -ESRCH;
-		goto out_unlock;
-	}
-
-	if (ucmd->cmd && ucmd->state <= UCMD_STATE_EXECING &&
-	    (ucmd->sent_to_user || ucmd->background_exec)) {
-		cmd = ucmd->cmd;
-		scst_cmd_get(cmd);
-	} else {
-		TRACE_MGMT_DBG("Invalid ucmd state %d for cmd_h %d",
-			       ucmd->state, get.cmd_h);
-		res = -EINVAL;
-		goto out_unlock;
-	}
-
-	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
-
-	if (!cmd)
-		goto out_put;
 
 	ext_cdb = dev_user_ext_cdb(cmd);
 	if (!ext_cdb)
@@ -2012,17 +2030,11 @@ static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
 
 out_cmd_put:
 	scst_cmd_put(cmd);
-
-out_put:
 	ucmd_put(ucmd);
 
 out:
 	TRACE_EXIT_RES(res);
 	return res;
-
-out_unlock:
-	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
-	goto out;
 }
 
 static int dev_user_process_scst_commands(struct scst_user_dev *dev)
