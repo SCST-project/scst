@@ -2380,7 +2380,7 @@ static const struct scst_opcode_descriptor scst_op_descr_read_toc = {
 	&scst_op_descr_write_verify16,					\
 	&scst_op_descr_verify10,					\
 	&scst_op_descr_verify12,					\
-	&scst_op_descr_verify16,
+	&scst_op_descr_verify16
 
 #define VDISK_OPCODE_DESCRIPTORS					\
 	/* &scst_op_descr_get_lba_status, */				\
@@ -2390,18 +2390,18 @@ static const struct scst_opcode_descriptor scst_op_descr_read_toc = {
 	&scst_op_descr_unmap,						\
 	&scst_op_descr_format_unit,					\
 	&scst_op_descr_extended_copy,					\
-	&scst_op_descr_cwr,
+	&scst_op_descr_cwr
 
 static const struct scst_opcode_descriptor *vdisk_opcode_descriptors[] = {
-	SHARED_OPCODE_DESCRIPTORS
-	VDISK_OPCODE_DESCRIPTORS
+	SHARED_OPCODE_DESCRIPTORS,
+	VDISK_OPCODE_DESCRIPTORS,
 	SCST_OPCODE_DESCRIPTORS
 	&scst_op_descr_stpg, /* must be last, see vdisk_get_supported_opcodes()! */
 };
 
 static const struct scst_opcode_descriptor *vdisk_opcode_descriptors_type2[] = {
-	SHARED_OPCODE_DESCRIPTORS
-	VDISK_OPCODE_DESCRIPTORS
+	SHARED_OPCODE_DESCRIPTORS,
+	VDISK_OPCODE_DESCRIPTORS,
 	&scst_op_descr_read32,
 	&scst_op_descr_write32,
 	&scst_op_descr_verify32,
@@ -2412,7 +2412,7 @@ static const struct scst_opcode_descriptor *vdisk_opcode_descriptors_type2[] = {
 };
 
 static const struct scst_opcode_descriptor *vcdrom_opcode_descriptors[] = {
-	SHARED_OPCODE_DESCRIPTORS
+	SHARED_OPCODE_DESCRIPTORS,
 	&scst_op_descr_allow_medium_removal,
 	&scst_op_descr_read_toc,
 	SCST_OPCODE_DESCRIPTORS
