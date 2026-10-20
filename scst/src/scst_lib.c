@@ -8709,7 +8709,7 @@ static struct request *blk_map_kern_sg(struct request_queue *q,
 
 		bw = blk_copy_kern_sg(q, sgl, nents, gfp, reading);
 		if (IS_ERR(bw)) {
-			rq = ERR_PTR(PTR_ERR(bw));
+			rq = ERR_CAST(bw);
 			goto out;
 		}
 
