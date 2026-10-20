@@ -5016,7 +5016,7 @@ static inline int scst_get_sg_buf_first(struct scst_cmd *cmd, uint8_t **buf,
 		return 0;
 	}
 	cmd->get_sg_buf_entry_num = 0;
-	cmd->get_sg_buf_cur_sg_entry = cmd->sg;
+	cmd->get_sg_buf_cur_sg_entry = sg;
 	cmd->may_need_dma_sync = 1;
 	return __scst_get_buf(cmd, sg_cnt, buf);
 }

@@ -79,9 +79,69 @@ static void scst_lun_flat_encoding(struct kunit *test)
 			(u64)0x1234);
 }
 
+static void scst_explicit_sg_buffers(struct kunit *test)
+{
+	struct scatterlist command_sg, selected_sg[2];
+	struct scst_cmd *cmd;
+	u8 *data, *buf;
+	unsigned int i;
+
+	cmd = kunit_kzalloc(test, sizeof(*cmd), GFP_KERNEL);
+	KUNIT_ASSERT_NOT_NULL(test, cmd);
+	data = kunit_kzalloc(test, 64, GFP_KERNEL);
+	KUNIT_ASSERT_NOT_NULL(test, data);
+	sg_init_one(&command_sg, data, 8);
+	sg_init_table(selected_sg, ARRAY_SIZE(selected_sg));
+	sg_set_buf(&selected_sg[0], data + 8, 16);
+	sg_set_buf(&selected_sg[1], data + 24, 32);
+	cmd->sg_cnt = 1;
+
+	/* An explicit list works with either another command list or none. */
+	for (i = 0; i < 2; i++) {
+		cmd->sg = i ? NULL : &command_sg;
+		cmd->may_need_dma_sync = 0;
+		KUNIT_ASSERT_EQ(test, scst_get_sg_buf_first(cmd, &buf, selected_sg, 2), 16);
+		KUNIT_ASSERT_PTR_EQ(test, buf, data + 8);
+		KUNIT_EXPECT_EQ(test, cmd->get_sg_buf_entry_num, 1);
+		KUNIT_EXPECT_TRUE(test, cmd->may_need_dma_sync);
+		scst_put_sg_buf(cmd, buf, selected_sg, 2);
+
+		KUNIT_ASSERT_EQ(test, scst_get_sg_buf_next(cmd, &buf, selected_sg, 2), 32);
+		KUNIT_ASSERT_PTR_EQ(test, buf, data + 24);
+		scst_put_sg_buf(cmd, buf, selected_sg, 2);
+		KUNIT_EXPECT_EQ(test, scst_get_sg_buf_next(cmd, &buf, selected_sg, 2), 0);
+		KUNIT_EXPECT_NULL(test, buf);
+		KUNIT_EXPECT_EQ(test, cmd->get_sg_buf_entry_num, 2);
+	}
+}
+
+static void scst_empty_explicit_sg_buffers(struct kunit *test)
+{
+	struct scatterlist sg;
+	struct scst_cmd *cmd;
+	u8 *data, *buf;
+
+	cmd = kunit_kzalloc(test, sizeof(*cmd), GFP_KERNEL);
+	KUNIT_ASSERT_NOT_NULL(test, cmd);
+	data = kunit_kzalloc(test, 16, GFP_KERNEL);
+	KUNIT_ASSERT_NOT_NULL(test, data);
+	sg_init_one(&sg, data, 16);
+	cmd->sg = &sg;
+	cmd->sg_cnt = 1;
+
+	buf = data;
+	KUNIT_EXPECT_EQ(test, scst_get_sg_buf_first(cmd, &buf, NULL, 0), 0);
+	KUNIT_EXPECT_NULL(test, buf);
+	buf = data;
+	KUNIT_EXPECT_EQ(test, scst_get_sg_buf_first(cmd, &buf, &sg, 0), 0);
+	KUNIT_EXPECT_NULL(test, buf);
+}
+
 static struct kunit_case scst_lib_cases[] = {
 	KUNIT_CASE(scst_port_id_boundaries),
 	KUNIT_CASE(scst_lun_flat_encoding),
+	KUNIT_CASE(scst_explicit_sg_buffers),
+	KUNIT_CASE(scst_empty_explicit_sg_buffers),
 	{}
 };
 
