@@ -24,8 +24,8 @@ KBUILD_SCHEMA = {
     "kernel_exceptions": [{"header": str, "message": str, "reason": str}],
 }
 BASIC_SCHEMA = {"version": int, "notes": [str]}
-POLICIES = ("common", "sparse", "smatch", "coccicheck", "cppcheck", "checkpatch")
-BASIC_POLICIES = ("coccicheck", "cppcheck", "checkpatch")
+POLICIES = ("common", "sparse", "smatch", "coccicheck", "cppcheck", "checkpatch", "scs_lint")
+BASIC_POLICIES = ("coccicheck", "cppcheck", "checkpatch", "scs_lint")
 
 
 def relative_path(value: str, location: str):

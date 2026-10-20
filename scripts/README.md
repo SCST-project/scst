@@ -16,6 +16,7 @@ direct callers of a relocated script must use its new directory below.
 | `coccinelle/` | Kernel semantic-patch report rules (`make coccicheck`). |
 | `cppcheck/` | Native analysis using captured compiler commands (`make cppcheck`). |
 | `style/` | Whole-file Checkpatch analysis (`make checkpatch`, `scripts/checkpatch_scan`). |
+| `scs_lint/` | SCST code style rules (`make scs_lint`); see [SCS](../doc/scs.md). |
 | `tests/` | Isolated regression fixtures for the shared analyzer helpers (`make lint-test`). |
 
 The `checkpatch`, `checkpatch_commits` and `checkpatch_diff` helpers retain
@@ -80,7 +81,7 @@ python3 -B scripts/analyzer_policy.py validate
 ```
 
 The Python commands also accept `--format=json` and a policy name: `common`,
-`sparse`, `smatch`, `coccicheck`, `cppcheck` or `checkpatch`.
+`sparse`, `smatch`, `coccicheck`, `cppcheck`, `checkpatch` or `scs_lint`.
 Use `make analyzer-policy ANALYZER=smatch` to see the
 effective input scope and all diagnostic exceptions. A file inventory does
 not establish analysis or build coverage.
@@ -251,6 +252,21 @@ Findings return 1; missing per-file completion, inconsistent totals, stderr
 or tool failures return 2. Make maps both failures to 2. Complete output and
 coverage are in `.cache/lint/checkpatch.{log,json}`. `scripts/checkpatch_scan`
 uses the same policy and exit codes; legacy patch/commit helpers remain separate.
+
+## SCST code style
+
+`make scs_lint` checks [SCS.1](../doc/scs.md#scs1-kunit-visibility-annotations):
+KUnit visibility annotations belong on their own line. It uses the common
+source policy and checks every preprocessor branch, including KUnit sources.
+There are no additional exclusions or diagnostic exceptions.
+
+Use `make scs_lint DIFFBR=<commit>` for changed files or
+`scripts/scs_lint/run_scs_lint.sh path/to/file.c` for explicit inputs.
+The wrapper needs `uv` and Python 3.11+; uv supplies the pinned Tree-sitter
+dependencies. No kernel build is needed. Reports are saved in
+`.cache/lint/scs_lint.{log,json}`. Findings return 1; incomplete analysis
+returns 2 (Make maps both to 2). Empty input is a skip.
+`make scs-lint-test` runs the isolated style-rule and CLI fixtures.
 
 ## Analyzer CI
 

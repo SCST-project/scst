@@ -157,7 +157,7 @@ class PolicyCliTests(unittest.TestCase):
         source = analyzer_policy.POLICY_PATH.parent.parent
         for name in ("analyzer_policy.py", "lint_scope.py", "policy/common.json",
                      "policy/sparse.json", "policy/smatch.json", "policy/coccicheck.json",
-                     "policy/cppcheck.json", "policy/checkpatch.json"):
+                     "policy/cppcheck.json", "policy/checkpatch.json", "policy/scs_lint.json"):
             shutil.copyfile(source / name, self.scripts / name)
 
     def run_cli(self, *args):
@@ -233,7 +233,7 @@ class PolicyCliTests(unittest.TestCase):
 
     def test_basic_analyzers_inherit_common_scope_without_exceptions(self):
         common = json.loads((self.scripts / "policy/common.json").read_text())
-        for tool in ("coccicheck", "cppcheck", "checkpatch"):
+        for tool in ("coccicheck", "cppcheck", "checkpatch", "scs_lint"):
             with self.subTest(tool=tool):
                 result = self.run_cli("show", tool, "--format=json")
                 self.assertEqual(result.returncode, 0, result.stderr)
