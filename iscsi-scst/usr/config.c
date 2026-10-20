@@ -865,7 +865,7 @@ int config_params_set(u32 tid, u64 sid, int type, u32 partial,
 	err = 0;
 
 	target = target_find_by_id(tid);
-	if (target == 0) {
+	if (!target) {
 		log_error("target %d not found", tid);
 		err = -EINVAL;
 		goto out;
@@ -1032,7 +1032,7 @@ int config_parse_main(const char *data, u32 cookie)
 			}
 
 			res = __config_account_add(target, idx, name, pass, p,
-					(target == 0), 0);
+					!target, 0);
 			if (res < 0)
 				continue;
 		} else if (global_section &&
