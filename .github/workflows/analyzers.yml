@@ -55,8 +55,8 @@ jobs:
           - sparse
           - smatch
           - checkpatch
+          - coccicheck
           # Supported by the runner; enable after reviewing native coverage.
-          # - coccicheck
           # - cppcheck
     steps:
       - uses: actions/checkout@v7

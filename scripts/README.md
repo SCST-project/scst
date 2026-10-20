@@ -271,12 +271,13 @@ returns 2 (Make maps both to 2). Empty input is a skip.
 ## Analyzer CI
 
 The [workflow](../.github/workflows/analyzers.yml) runs on pushes to `master`
-and manual dispatch. Separate jobs run `make sparse`, `make smatch` and
-`make checkpatch`, including KUnit sources. `Analyzer script tests` runs
-`make lint-test`; it does not execute SCST tests. A parallel `SCST code style`
-job runs `make scs_lint` without a kernel build. The container jobs retain
-reports from `.cache/lint/` for seven days. The runner and image also
-support Coccinelle and Cppcheck; their matrix entries remain commented out.
+and manual dispatch. Separate jobs run `make sparse`, `make smatch`,
+`make checkpatch` and `make coccicheck`, including KUnit sources.
+`Analyzer script tests` runs `make lint-test`; it does not execute SCST
+tests. A parallel `SCST code style` job runs `make scs_lint` without a kernel
+build. The container jobs retain reports from `.cache/lint/` for seven days.
+The runner and image also support Cppcheck; its matrix entry remains
+commented out.
 
 CI fails on findings remaining after policy exceptions, just like local Make
 targets. The native-analyzer runner returns 1 for completed analysis with
