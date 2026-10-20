@@ -20,6 +20,7 @@ scst-kunit-scst := \
 	kunit/unmap/suites/scst_kunit_unmap.o
 
 scst-kunit-iscsi-scst := \
+	kunit/suites/iscsi_close_test.o \
 	kunit/suites/iscsi_tx_test.o
 
 scst-kunit-qla2x00tgt := \
