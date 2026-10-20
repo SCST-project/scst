@@ -8,6 +8,8 @@
 
 struct scst_write_same_priv;
 
+bool __scst_is_relative_target_port_id_unique(u16 id, const struct scst_tgt *t);
+int scst_alloc_relative_target_port_id(u16 *id, unsigned int *next);
 int scst_ws_build_write_cdb(const struct scst_write_same_priv *wsp,
 			    u8 *write_cdb, s64 lba, int blocks);
 void scst_del_free_acg_dev(struct scst_acg_dev *acg_dev, bool del_sysfs);

@@ -4115,11 +4115,13 @@ restart:
 	TRACE_EXIT();
 }
 
-static bool __scst_is_relative_target_port_id_unique(uint16_t id,
-	const struct scst_tgt *t)
+SCST_KUNIT_VISIBLE
+bool __scst_is_relative_target_port_id_unique(u16 id, const struct scst_tgt *t)
 {
 	bool res = true;
 	struct scst_tgt_template *tgtt;
+
+	SCST_KUNIT_REDIRECT(__scst_is_relative_target_port_id_unique, id, t);
 
 	TRACE_ENTRY();
 
@@ -4160,10 +4162,32 @@ bool scst_is_relative_target_port_id_unique(uint16_t id,
 	return res;
 }
 
+/* Caller serializes the cursor and target list with scst_mutex. */
+SCST_KUNIT_VISIBLE
+int scst_alloc_relative_target_port_id(u16 *id, unsigned int *next)
+{
+	unsigned int candidate = *next;
+
+	do {
+		bool available = __scst_is_relative_target_port_id_unique(candidate, NULL);
+		unsigned int selected = candidate;
+
+		if (++candidate > SCST_MAX_REL_TGT_ID)
+			candidate = SCST_MIN_REL_TGT_ID;
+		if (available) {
+			*id = selected;
+			*next = candidate;
+			return 0;
+		}
+	} while (candidate != *next);
+
+	return -EOVERFLOW;
+}
+
 int gen_relative_target_port_id(uint16_t *id)
 {
-	int res = -EOVERFLOW;
-	static unsigned long rti = SCST_MIN_REL_TGT_ID, rti_prev;
+	static unsigned int next = SCST_MIN_REL_TGT_ID;
+	int res;
 
 	TRACE_ENTRY();
 
@@ -4171,21 +4195,10 @@ int gen_relative_target_port_id(uint16_t *id)
 	if (res != 0)
 		goto out;
 
-	rti_prev = rti;
-	do {
-		if (__scst_is_relative_target_port_id_unique(rti, NULL)) {
-			*id = (uint16_t)rti++;
-			res = 0;
-			goto out_unlock;
-		}
-		rti++;
-		if (rti > SCST_MAX_REL_TGT_ID)
-			rti = SCST_MIN_REL_TGT_ID;
-	} while (rti != rti_prev);
+	res = scst_alloc_relative_target_port_id(id, &next);
+	if (res)
+		PRINT_ERROR("%s", "Unable to create unique relative target port id");
 
-	PRINT_ERROR("%s", "Unable to create unique relative target port id");
-
-out_unlock:
 	mutex_unlock(&scst_mutex);
 
 out:
