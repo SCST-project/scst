@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "notes": [
+    "SCS.1: KUnit visibility annotations must occupy their own source line.",
+    "Check all preprocessor branches in common-policy C sources and headers, including KUnit.",
+    "Comments, literals and directive contents are outside the layout rule.",
+    "No additional input exclusions or diagnostic exceptions."
+  ]
+}

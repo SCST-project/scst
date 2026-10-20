@@ -172,6 +172,7 @@ help:
 		'  coccicheck                    run kernel Coccinelle report rules' \
 		'  cppcheck                      analyze fresh kernel and userspace build contexts' \
 		'  checkpatch                    check C source/header style, including KUnit' \
+		'  scs_lint                      check SCST code style rules (doc/scs.md)' \
 		'  DIFFBR=commit                 compare with one commit; select relevant inputs' \
 		'  lint-test                     test shared analyzer tooling (no modules)' \
 		'  all                           make all' \
@@ -285,6 +286,13 @@ coccicheck:
 checkpatch: export SCST_LINT_KDIR := $(KDIR)
 checkpatch:
 	@$(PYTHON) -B scripts/style/checkpatch.py
+
+.PHONY: scs_lint scs-lint-test
+scs_lint:
+	@scripts/scs_lint/run_scs_lint.sh
+
+scs-lint-test:
+	@uv run --no-project scripts/scs_lint/test_scs_lint.py
 
 .PHONY: cppcheck lint-userspace
 cppcheck: export SCST_LINT_KDIR := $(KDIR)
