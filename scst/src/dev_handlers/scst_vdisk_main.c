@@ -2929,8 +2929,7 @@ static enum compl_status_e vdev_verify(struct scst_cmd *cmd, loff_t loff)
 	}
 
 out_free:
-	if (mem_verify)
-		vfree(mem_verify);
+	vfree(mem_verify);
 
 out:
 	TRACE_EXIT();

@@ -15439,8 +15439,7 @@ out_close:
 	filp_close(file_src, NULL);
 
 out_free:
-	if (buf != NULL)
-		vfree(buf);
+	vfree(buf);
 
 out:
 	TRACE_EXIT_RES(res);
