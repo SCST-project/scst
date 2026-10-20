@@ -133,47 +133,42 @@ static struct task_struct *cleanup_thread;
  * Skip this command if result is not 0. Must be called under
  * udev_cmd_threads.cmd_list_lock and IRQ off.
  */
-static inline bool ucmd_get_check(struct scst_user_cmd *ucmd)
+SCST_KUNIT_VISIBLE_INLINE
+bool ucmd_get_check(struct scst_user_cmd *ucmd)
 {
-	int r = atomic_inc_return(&ucmd->ucmd_ref);
-	int res;
-
-	if (unlikely(r == 1)) {
+	/* Keep successful gets fully ordered, as atomic_inc_return() was. */
+	smp_mb();
+	if (unlikely(!kref_get_unless_zero(&ucmd->ucmd_ref))) {
 		TRACE_DBG("ucmd %p is being destroyed", ucmd);
-		atomic_dec(&ucmd->ucmd_ref);
-		res = true;
-		/*
-		 * Necessary code is serialized by cmd_list_lock in
-		 * cmd_remove_hash()
-		 */
-	} else {
-		TRACE_DBG("ucmd %p, new ref_cnt %d", ucmd,
-			  atomic_read(&ucmd->ucmd_ref));
-		res = false;
+		return true;
 	}
-	return res;
+
+	smp_mb__after_atomic_inc();
+	TRACE_DBG("ucmd %p, new ref_cnt %u", ucmd, kref_read(&ucmd->ucmd_ref));
+	return false;
 }
 
 static inline void ucmd_get(struct scst_user_cmd *ucmd)
 {
-	TRACE_DBG("ucmd %p, ucmd_ref %d", ucmd, atomic_read(&ucmd->ucmd_ref));
-	atomic_inc(&ucmd->ucmd_ref);
-	/*
-	 * For the same reason as in kref_get(). Let's be safe and
-	 * always do it.
-	 */
+	TRACE_DBG("ucmd %p, ucmd_ref %u", ucmd, kref_read(&ucmd->ucmd_ref));
+	kref_get(&ucmd->ucmd_ref);
+	/* Preserve the ordering of SCST's command-reference acquisition. */
 	smp_mb__after_atomic_inc();
+}
+
+static void ucmd_release(struct kref *ref)
+{
+	dev_user_free_ucmd(container_of(ref, struct scst_user_cmd, ucmd_ref));
 }
 
 /* Must not be called under cmd_list_lock!! */
 static inline void ucmd_put(struct scst_user_cmd *ucmd)
 {
-	TRACE_DBG("ucmd %p, ucmd_ref %d", ucmd, atomic_read(&ucmd->ucmd_ref));
+	TRACE_DBG("ucmd %p, ucmd_ref %u", ucmd, kref_read(&ucmd->ucmd_ref));
 
-	EXTRACHECKS_BUG_ON(atomic_read(&ucmd->ucmd_ref) == 0);
+	EXTRACHECKS_BUG_ON(kref_read(&ucmd->ucmd_ref) == 0);
 
-	if (atomic_dec_and_test(&ucmd->ucmd_ref))
-		dev_user_free_ucmd(ucmd);
+	kref_put(&ucmd->ucmd_ref, ucmd_release);
 }
 
 static inline int calc_num_pg(unsigned long buf, int len)
@@ -598,7 +593,7 @@ static struct scst_user_cmd *dev_user_alloc_ucmd(struct scst_user_dev *dev, gfp_
 		goto out;
 	}
 	ucmd->dev = dev;
-	atomic_set(&ucmd->ucmd_ref, 1);
+	kref_init(&ucmd->ucmd_ref);
 
 	cmd_insert_hash(ucmd);
 
@@ -3796,8 +3791,8 @@ static void dev_user_check_lost_ucmds(struct scst_user_dev *dev)
 		struct scst_user_cmd *ucmd2, *tmp;
 
 		list_for_each_entry_safe(ucmd2, tmp, head, hash_list_entry) {
-			PRINT_ERROR("Lost ucmd %p (state %x, ref %d)",
-				    ucmd2, ucmd2->state, atomic_read(&ucmd2->ucmd_ref));
+			PRINT_ERROR("Lost ucmd %p (state %x, ref %u)",
+				    ucmd2, ucmd2->state, kref_read(&ucmd2->ucmd_ref));
 			ucmd_put(ucmd2);
 		}
 	}
@@ -3880,9 +3875,9 @@ static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj, struct kobj_at
 		list_for_each_entry(ucmd, head, hash_list_entry) {
 			pos = ret;
 			ret += sysfs_emit_at(buf, ret,
-					     "ucmd %p (state %x, ref %d), sent_to_user %d, seen_by_user %d, aborted %d, jammed %d, scst_cmd %p\n",
+					     "ucmd %p (state %x, ref %u), sent_to_user %d, seen_by_user %d, aborted %d, jammed %d, scst_cmd %p\n",
 					     ucmd, ucmd->state,
-					     atomic_read(&ucmd->ucmd_ref),
+					     kref_read(&ucmd->ucmd_ref),
 					     ucmd->sent_to_user, ucmd->seen_by_user,
 					     ucmd->aborted, ucmd->jammed, ucmd->cmd);
 			if (ret >= SCST_SYSFS_BLOCK_SIZE - 1) {

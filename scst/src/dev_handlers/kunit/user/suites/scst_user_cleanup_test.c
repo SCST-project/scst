@@ -73,7 +73,9 @@ static int user_cleanup_init(struct kunit *test)
 		u->dev = dev;
 		u->state = UCMD_STATE_ATTACH_SESS;
 		u->cmpl = &f->reply;
-		atomic_set(&u->ucmd_ref, 2); /* Fixture reference plus outstanding reply. */
+		/* Fixture reference plus outstanding reply. */
+		kref_init(&u->ucmd_ref);
+		kref_get(&u->ucmd_ref);
 		INIT_LIST_HEAD(&u->hash_list_entry);
 		INIT_LIST_HEAD(&u->ready_cmd_list_entry);
 	}
@@ -144,7 +146,7 @@ static void user_cleanup_shared_test(struct kunit *test)
 	KUNIT_ASSERT_EQ(test, dev_user_process_cleanup(&f->devices[1]), 1);
 	KUNIT_EXPECT_TRUE(test, completion_done(&f->reply));
 	KUNIT_EXPECT_EQ(test, f->pending[1].result, -EFAULT);
-	KUNIT_EXPECT_EQ(test, atomic_read(&f->pending[1].ucmd_ref), 1);
+	KUNIT_EXPECT_EQ(test, kref_read(&f->pending[1].ucmd_ref), 1);
 	KUNIT_EXPECT_EQ(test, dev_user_process_cleanup(&f->devices[0]), 0);
 	KUNIT_EXPECT_EQ(test, dev_user_process_cleanup(&f->devices[1]), 0);
 	for (i = 0; i < 2; i++)
@@ -203,16 +205,55 @@ static void user_reply_test(struct kunit *test)
 		spin_unlock_irq(lock);
 	KUNIT_EXPECT_EQ(test, completion_done(&f->reply), !p->no_completion);
 	KUNIT_EXPECT_EQ(test, u->result, p->detach ? 0 : -EFAULT);
-	KUNIT_EXPECT_EQ(test, atomic_read(&u->ucmd_ref), 1);
+	KUNIT_EXPECT_EQ(test, kref_read(&u->ucmd_ref), 1);
 	KUNIT_EXPECT_TRUE(test, !!u->jammed);
 	KUNIT_EXPECT_TRUE(test, !!u->this_state_unjammed);
 	KUNIT_EXPECT_FALSE(test, !!u->sent_to_user);
+}
+
+static void user_defer_release(struct kref *ref)
+{
+	/* Model the destructor waiting for cmd_list_lock before hash removal. */
+}
+
+static void user_get_live_command(struct kunit *test)
+{
+	struct user_cleanup_fixture *f = test->priv;
+	struct scst_user_cmd *u = f->pending;
+	spinlock_t *lock = &f->devices[0].udev_cmd_threads.cmd_list_lock;
+	unsigned long flags;
+	bool skip;
+
+	spin_lock_irqsave(lock, flags);
+	skip = ucmd_get_check(u);
+	spin_unlock_irqrestore(lock, flags);
+	KUNIT_EXPECT_FALSE(test, skip);
+	KUNIT_EXPECT_EQ(test, kref_read(&u->ucmd_ref), 3U);
+}
+
+static void user_get_destroying_command(struct kunit *test)
+{
+	struct user_cleanup_fixture *f = test->priv;
+	struct scst_user_cmd *u = f->pending;
+	spinlock_t *lock = &f->devices[0].udev_cmd_threads.cmd_list_lock;
+	unsigned long flags;
+	bool skip;
+
+	kref_put(&u->ucmd_ref, user_defer_release);
+	kref_put(&u->ucmd_ref, user_defer_release);
+	spin_lock_irqsave(lock, flags);
+	skip = ucmd_get_check(u);
+	spin_unlock_irqrestore(lock, flags);
+	KUNIT_EXPECT_TRUE(test, skip);
+	KUNIT_EXPECT_EQ(test, kref_read(&u->ucmd_ref), 0U);
 }
 
 static struct kunit_case user_cleanup_cases_kunit[] = {
 	KUNIT_CASE_PARAM(user_cleanup_test, user_cleanup_gen_params),
 	KUNIT_CASE(user_cleanup_shared_test),
 	KUNIT_CASE_PARAM(user_reply_test, user_reply_gen_params),
+	KUNIT_CASE(user_get_live_command),
+	KUNIT_CASE(user_get_destroying_command),
 	{}
 };
 
