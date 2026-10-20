@@ -6790,8 +6790,7 @@ static int scst_ws_sg_tails_get(struct scst_data_descriptor *where, struct scst_
 	while (where[i].sdd_blocks != 0)
 		i++;
 
-	wsp->ws_sg_tails = kcalloc(i + 1, sizeof(*wsp->ws_sg_tails),
-				   GFP_KERNEL);
+	wsp->ws_sg_tails = kzalloc_objs(*wsp->ws_sg_tails, i + 1);
 	if (wsp->ws_sg_tails == NULL) {
 		PRINT_ERROR("Unable to allocate ws_sg_tails (size %zd)",
 				sizeof(*wsp->ws_sg_tails)*i);
@@ -6870,7 +6869,7 @@ void scst_write_same(struct scst_cmd *cmd, struct scst_data_descriptor *where)
 	if (unlikely(rc != 0))
 		goto out_done;
 
-	wsp = kzalloc(sizeof(*wsp), GFP_KERNEL);
+	wsp = kzalloc_obj(*wsp);
 	if (wsp == NULL) {
 		PRINT_ERROR("Unable to allocate ws_priv (size %zd, cmd %p)",
 			sizeof(*wsp), cmd);
@@ -7416,7 +7415,7 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 		 * for the GFP_ATOMIC case.
 		 */
 		sess->lat_stats = gfp_mask & GFP_ATOMIC ?
-			kzalloc(sizeof(*sess->lat_stats), gfp_mask) :
+			kzalloc_obj(*sess->lat_stats, gfp_mask) :
 			vzalloc(sizeof(*sess->lat_stats));
 		if (!sess->lat_stats)
 			goto out_free_name;

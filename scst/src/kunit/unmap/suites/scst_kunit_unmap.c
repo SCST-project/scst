@@ -245,7 +245,7 @@ static void unmap_overlap(struct kunit *test)
 	KUNIT_ASSERT_EQ(test, f->unmap.cmd_data_descriptors_cnt, (int)p->count);
 	if (p->count) {
 		/* Bound the old sentinel walk without changing the published count. */
-		guarded = kcalloc(p->count + 2, sizeof(*guarded), GFP_KERNEL);
+		guarded = kzalloc_objs(*guarded, p->count + 2);
 		KUNIT_ASSERT_NOT_NULL(test, guarded);
 		memcpy(guarded, f->unmap.cmd_data_descriptors, p->count * sizeof(*guarded));
 		if (p->guard_overlap) {
