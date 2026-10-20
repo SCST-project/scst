@@ -8201,10 +8201,11 @@ static inline void scst_free_bio(struct bio *bio);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
 static void blk_bio_map_kern_endio(struct bio *bio, int err)
-{
 #else
 static void blk_bio_map_kern_endio(struct bio *bio)
+#endif
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) && \
 	!defined(CONFIG_SUSE_KERNEL)
 	int err = bio->bi_error;

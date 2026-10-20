@@ -239,10 +239,11 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev, const ch
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
 static void vdev_flush_end_io(struct bio *bio, int error)
-{
 #else
 static void vdev_flush_end_io(struct bio *bio)
+#endif
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&	\
 	!defined(CONFIG_SUSE_KERNEL)
 	int error = bio->bi_error;
@@ -2709,10 +2710,11 @@ struct bio_priv_sync {
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
 static void blockio_end_sync_io(struct bio *bio, int error)
-{
 #else
 static void blockio_end_sync_io(struct bio *bio)
+#endif
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&	\
 	!defined(CONFIG_SUSE_KERNEL)
 	int error = bio->bi_error;
@@ -5534,10 +5536,11 @@ static inline void blockio_check_finish(struct scst_blockio_work *blockio_work)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
 static void blockio_endio(struct bio *bio, int error)
-{
 #else
 static void blockio_endio(struct bio *bio)
+#endif
 {
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 13, 0) &&	\
 	!defined(CONFIG_SUSE_KERNEL)
 	int error = bio->bi_error;
@@ -5790,14 +5793,15 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 
 	blockio_work->cmd = cmd;
 
-	if (q)
+	if (q) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 3, 0)
 		max_nr_vecs = BIO_MAX_VECS;
 #else
 		max_nr_vecs = min(bio_get_nr_vecs(bdev), BIO_MAX_VECS);
 #endif
-	else
+	} else {
 		max_nr_vecs = 1;
+	}
 
 	need_new_bio = 1;
 

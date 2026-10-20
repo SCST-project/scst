@@ -1163,16 +1163,18 @@ int write_data(struct iscsi_conn *conn)
 	sock = conn->sock;
 	flags = MSG_DONTWAIT;
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0)
+	sock_sendpage = sock_no_sendpage;
+#endif
 	if (sg != write_cmnd->rsp_sg &&
 	    (!parent_req->scst_cmd || parent_req->scst_state == ISCSI_CMD_STATE_AEN ||
-	     !scst_cmd_get_dh_data_buff_alloced(parent_req->scst_cmd)))
+	     !scst_cmd_get_dh_data_buff_alloced(parent_req->scst_cmd))) {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 5, 0)
 		flags |= MSG_SPLICE_PAGES;
 #else
 		sock_sendpage = sock->ops->sendpage;
-	else
-		sock_sendpage = sock_no_sendpage;
 #endif
+	}
 
 	sg_size = size;
 
