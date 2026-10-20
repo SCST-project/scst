@@ -5074,8 +5074,8 @@ void scst_finish_cmd_mgmt(struct scst_cmd *cmd)
 
 	TRACE_ENTRY();
 
-	TRACE(TRACE_MGMT, "Aborted cmd %p finished (tag %llu, ref %d)",
-	      cmd, (unsigned long long)cmd->tag, atomic_read(&cmd->cmd_ref));
+	TRACE(TRACE_MGMT, "Aborted cmd %p finished (tag %llu, ref %u)",
+	      cmd, (unsigned long long)cmd->tag, kref_read(&cmd->cmd_ref));
 
 	spin_lock_irqsave(&scst_mcmd_lock, flags);
 
