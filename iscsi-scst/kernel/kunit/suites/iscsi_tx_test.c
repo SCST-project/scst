@@ -102,7 +102,7 @@ static int iscsi_tx_test_init(struct kunit *test)
 	f->conn.wr_task = current;
 #endif
 	f->rsp.conn = &f->conn;
-	f->rsp.ddigest = 0x12345678;
+	f->rsp.ddigest = (__force __be32)cpu_to_le32(0x12345678);
 	kunit_activate_static_stub(test, write_data, iscsi_tx_write_stub);
 	kunit_activate_static_stub(test, iscsi_tx_sendmsg, iscsi_tx_send_stub);
 	kunit_activate_static_stub(test, iscsi_tx_complete, iscsi_tx_complete_stub);
