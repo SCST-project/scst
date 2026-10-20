@@ -55,6 +55,7 @@
 #include "scst_priv.h"
 #include "scst_mem.h"
 #include "scst_pres.h"
+#include "scst_lib_priv.h"
 #include "scst_lib_test.h"
 
 #ifndef SCST_KUNIT_ENABLED
@@ -6390,42 +6391,6 @@ ssize_t scst_writev(struct file *file, const struct kvec *vec,
 }
 EXPORT_SYMBOL(scst_writev);
 
-struct scst_ws_sg_tail {
-	struct scatterlist *sg;
-	int sg_cnt;
-};
-
-struct scst_write_same_priv {
-	/* Must be the first for scst_finish_internal_cmd()! */
-	scst_i_finish_fn_t ws_finish_fn;
-
-	struct scst_cmd *ws_orig_cmd;
-
-	struct mutex ws_mutex;
-
-	/* 0 len terminated */
-	struct scst_data_descriptor *ws_descriptors;
-
-	int ws_cur_descr;
-
-	int ws_left_to_send; /* in blocks */
-	int64_t ws_cur_lba; /* in blocks */
-
-	__be16 guard_tag;
-	__be16 app_tag;
-	uint32_t ref_tag;
-	unsigned int dif_valid:1;
-	unsigned int inc_ref_tag:1;
-
-	int ws_max_each;/* in blocks */
-	int ws_cur_in_flight; /* commands */
-
-	struct scst_ws_sg_tail *ws_sg_tails;
-
-	struct scatterlist *ws_sg_full;
-	int ws_sg_full_cnt;
-};
-
 #ifdef CONFIG_SCST_EXTRACHECKS
 static u64 sg_data_length(struct scatterlist *sgl, int nr)
 {
@@ -6440,12 +6405,61 @@ static u64 sg_data_length(struct scatterlist *sgl, int nr)
 }
 #endif
 
+/* Build the internal WRITE CDB in a caller-supplied 32-byte buffer. */
+SCST_KUNIT_VISIBLE
+int scst_ws_build_write_cdb(const struct scst_write_same_priv *wsp,
+			    u8 *write_cdb, s64 lba, int blocks)
+{
+	const struct scst_cmd *ws_cmd = wsp->ws_orig_cmd;
+	const struct scst_device *dev = ws_cmd->dev;
+	bool needs_dif = wsp->dif_valid;
+	int write_cdb_len;
+
+	memset(write_cdb, 0, 32);
+	if (!needs_dif || dev->dev_dif_type != 2) {
+		write_cdb[0] = WRITE_16;
+		write_cdb_len = 16;
+		write_cdb[1] = ws_cmd->cdb[1];
+		if (needs_dif) {
+			u8 wrprotect = ws_cmd->cdb[1] & 0xE0;
+
+			if (wrprotect == 0)
+				wrprotect = 0x20;
+			write_cdb[1] |= wrprotect;
+		}
+		put_unaligned_be64(lba, &write_cdb[2]);
+		put_unaligned_be32(blocks, &write_cdb[10]);
+	} else {
+		/* There might be WRITE SAME(16) with WRPROTECT 0 here */
+		u8 wrprotect;
+
+		if (ws_cmd->cdb_len != 32)
+			wrprotect = ws_cmd->cdb[1] & 0xE0;
+		else
+			wrprotect = ws_cmd->cdb[10] & 0xE0;
+		if (wrprotect == 0)
+			wrprotect = 0x20;
+		write_cdb[0] = VARIABLE_LENGTH_CMD;
+		put_unaligned_be16(SUBCODE_WRITE_32, &write_cdb[8]);
+		write_cdb[7] = 0x18;
+		write_cdb_len = 32;
+		write_cdb[10] = ws_cmd->cdb[10];
+		write_cdb[10] |= wrprotect;
+		put_unaligned_be64(lba, &write_cdb[12]);
+		put_unaligned_be32(blocks, &write_cdb[28]);
+		put_unaligned_be32(wsp->ref_tag, &write_cdb[20]);
+		put_unaligned_be16(be16_to_cpu(wsp->app_tag), &write_cdb[24]);
+		put_unaligned_be16(scst_cmd_get_dif_app_tag_mask(wsp->ws_orig_cmd), &write_cdb[26]);
+	}
+
+	return write_cdb_len;
+}
+
 /* ws_mutex suppose to be locked */
 static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 	int64_t lba, int blocks)
 {
 	struct scst_cmd *ws_cmd = wsp->ws_orig_cmd;
-	struct scst_device *dev = ws_cmd->dev;
 	struct scatterlist *ws_sg;
 	int ws_sg_cnt;
 	int res;
@@ -6480,43 +6494,7 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 		goto out;
 	}
 
-	if (!needs_dif || (dev->dev_dif_type != 2)) {
-		memset(write_cdb, 0, sizeof(write_cdb));
-		write_cdb[0] = WRITE_16;
-		write_cdb_len = 16;
-		write_cdb[1] = ws_cmd->cdb[1];
-		if (needs_dif) {
-			uint8_t wrprotect = ws_cmd->cdb[1] & 0xE0;
-
-			if (wrprotect == 0)
-				wrprotect = 0x20;
-			write_cdb[1] |= wrprotect;
-		}
-		put_unaligned_be64(lba, &write_cdb[2]);
-		put_unaligned_be32(blocks, &write_cdb[10]);
-	} else {
-		/* There might be WRITE SAME(16) with WRPROTECT 0 here */
-		uint8_t wrprotect;
-
-		if (ws_cmd->cdb_len != 32)
-			wrprotect = ws_cmd->cdb[1] & 0xE0;
-		else
-			wrprotect = ws_cmd->cdb[10] & 0xE0;
-		if (wrprotect == 0)
-			wrprotect = 0x20;
-		write_cdb[0] = VARIABLE_LENGTH_CMD;
-		put_unaligned_be16(SUBCODE_WRITE_32, &write_cdb[8]);
-		write_cdb[7] = 0x18;
-		write_cdb_len = 32;
-		write_cdb[10] = ws_cmd->cdb[10];
-		write_cdb[10] |= wrprotect;
-		put_unaligned_be64(lba, &write_cdb[12]);
-		put_unaligned_be32(blocks, &write_cdb[28]);
-		put_unaligned_be32(wsp->ref_tag, &write_cdb[20]);
-		put_unaligned(wsp->app_tag, &write_cdb[24]);
-		write_cdb[26] = ws_cmd->cdb[26];
-		write_cdb[27] = ws_cmd->cdb[27];
-	}
+	write_cdb_len = scst_ws_build_write_cdb(wsp, write_cdb, lba, blocks);
 
 	cmd = scst_create_prepare_internal_cmd(ws_cmd, write_cdb,
 		write_cdb_len, SCST_CMD_QUEUE_SIMPLE);
