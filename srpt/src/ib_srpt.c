@@ -2133,7 +2133,7 @@ static void srpt_completion(struct ib_cq *cq, void *ctx)
 {
 	struct srpt_rdma_ch *ch = ctx;
 
-	queue_work_on(raw_smp_processor_id(), srpt_wq, &ch->compl);
+	queue_work_on(raw_smp_processor_id(), srpt_wq, &ch->completion);
 }
 
 static void srpt_free_ch(struct kref *kref)
@@ -2155,7 +2155,7 @@ static void srpt_unreg_ch(struct srpt_rdma_ch *ch)
 	struct srpt_device *sdev = sport->sdev;
 
 	WARN_ON_ONCE(ch->state != CH_DISCONNECTED);
-	flush_work(&ch->compl);
+	flush_work(&ch->completion);
 
 	srpt_free_ioctx_ring((struct srpt_ioctx **)ch->ioctx_recv_ring,
 			     sdev, ch->rq_size,
@@ -2202,7 +2202,7 @@ static void srpt_unregister_ch(struct srpt_rdma_ch *ch)
 
 static void srpt_do_compl_work(struct work_struct *work)
 {
-	struct srpt_rdma_ch *ch = container_of(work, typeof(*ch), compl);
+	struct srpt_rdma_ch *ch = container_of(work, typeof(*ch), completion);
 	enum { poll_budget = 256 };
 	int n;
 
@@ -2621,7 +2621,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	ch->rq_size = min(MAX_SRPT_RQ_SIZE, scst_get_max_lun_commands(NULL, 0));
 	spin_lock_init(&ch->spinlock);
 	ch->state = CH_CONNECTING;
-	INIT_WORK(&ch->compl, srpt_do_compl_work);
+	INIT_WORK(&ch->completion, srpt_do_compl_work);
 	INIT_LIST_HEAD(&ch->cmd_wait_list);
 	ch->max_rsp_size = max_t(uint32_t, srp_max_rsp_size, MIN_MAX_RSP_SIZE);
 
