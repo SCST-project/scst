@@ -1,6 +1,7 @@
 """Process and report helpers for the analyzer drivers."""
 
 import contextlib
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
 import os
 import re
 import shlex
@@ -106,22 +107,25 @@ def run(command, *, input=None, check=False, progress=None, **kwargs):
     process = start(command, **kwargs)
     indicator = Progress(progress, quiet=kwargs.get("stdout") is not None
                          and kwargs.get("stderr") is not None)
-    try:
-        if indicator.animated:
-            indicator.update()
-        while True:
-            try:
-                stdout, stderr = process.communicate(
-                    input, timeout=indicator.interval if progress else None)
-                break
-            except subprocess.TimeoutExpired:
-                # communicate retains pending input and output across retries.
-                input = None
+    # Python 3.12 can stop writing pending stdin after a communicate timeout.
+    # Keep one I/O operation running while the main thread updates progress.
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        try:
+            if indicator.animated:
                 indicator.update()
-    except BaseException:
-        indicator.clear()
-        stop(process)
-        raise
+            communication = executor.submit(process.communicate, input)
+            while True:
+                try:
+                    stdout, stderr = communication.result(
+                        timeout=indicator.interval if progress else None)
+                    break
+                except FutureTimeout:
+                    indicator.update()
+        except BaseException:
+            indicator.clear()
+            # Close the process group's pipes before joining the I/O worker.
+            stop(process)
+            raise
     result = subprocess.CompletedProcess(command, exit_status(process.returncode), stdout, stderr)
     indicator.finish(result.returncode)
     if check:

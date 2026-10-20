@@ -53,14 +53,17 @@ class ProcessTest(unittest.TestCase):
                         return size
 
                 script = """
-import os, sys, time
+import os, signal, sys, time
 from pathlib import Path
-payload = sys.stdin.buffer.read()
+# Bound a blocked stdin read too, not only the progress handshake.
+signal.alarm(5)
 deadline = time.monotonic() + 5
 while not Path(sys.argv[1]).exists():
     if time.monotonic() > deadline:
         sys.exit(99)
     time.sleep(0.01)
+# Read only after progress has advanced, forcing timeouts with pending input.
+payload = sys.stdin.buffer.read()
 os.write(1, payload)
 os.write(2, b'diagnostic\\x00\\xff')
 sys.exit(7)
