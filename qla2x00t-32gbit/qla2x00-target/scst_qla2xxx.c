@@ -223,6 +223,24 @@ void sqa_free_cmd_map(void *map)
 	kvfree(map);
 }
 
+#if (!QLT_USE_PERCPU_IDA && !QLT_USE_SBITMAP) || defined(SCST_KUNIT_ENABLED)
+SCST_KUNIT_VISIBLE
+unsigned long *sqa_alloc_tag_bitmap(unsigned int tag_num)
+{
+	SCST_KUNIT_REDIRECT(sqa_alloc_tag_bitmap, tag_num);
+	return kcalloc(BITS_TO_LONGS(tag_num), sizeof(unsigned long), GFP_KERNEL);
+}
+
+SCST_KUNIT_VISIBLE
+int sqa_init_tag_bitmap(unsigned long **bitmap, unsigned int tag_num)
+{
+	*bitmap = sqa_alloc_tag_bitmap(tag_num);
+	if (!*bitmap)
+		return -ENOMEM;
+	return 0;
+}
+#endif
+
 SCST_KUNIT_VISIBLE
 int sqa_init_tag_pool(struct sqa_scst_tgt *sqa_tgt, unsigned int tag_num)
 {
@@ -234,8 +252,7 @@ int sqa_init_tag_pool(struct sqa_scst_tgt *sqa_tgt, unsigned int tag_num)
 				       false, GFP_KERNEL, NUMA_NO_NODE);
 #else
 	sqa_tgt->tag_num = tag_num;
-	sqa_tgt->tgt_tag_pool = kzalloc(BITS_TO_LONGS(tag_num), GFP_KERNEL);
-	return PTR_ERR_OR_ZERO(sqa_tgt->tgt_tag_pool);
+	return sqa_init_tag_bitmap(&sqa_tgt->tgt_tag_pool, tag_num);
 #endif
 }
 

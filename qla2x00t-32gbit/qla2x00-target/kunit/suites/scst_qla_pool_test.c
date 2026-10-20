@@ -8,6 +8,7 @@ struct qla_pool_fixture {
 	struct scst_tgt target;
 	struct scst_tgt_template tmplate;
 	struct sqa_scst_tgt *allocated;
+	unsigned long *bitmap;
 	unsigned int maps_freed;
 	unsigned int pools_freed;
 	unsigned int registrations;
@@ -77,6 +78,7 @@ static void qla_pool_exit(struct kunit *test)
 
 	if (f->allocated)
 		sqa_free_tgt(f->allocated);
+	kfree(f->bitmap);
 }
 
 enum qla_pool_failure {
@@ -139,8 +141,52 @@ static void qla_pool_lifetime_test(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, f->registrations, p->registrations);
 }
 
+static const unsigned int qla_bitmap_sizes[] = {
+	1, BITS_PER_LONG, BITS_PER_LONG + 1, SQA_DEFAULT_TAGS,
+};
+
+static void qla_bitmap_desc(const unsigned int *size, char *desc)
+{
+	snprintf(desc, KUNIT_PARAM_DESC_SIZE, "%u_tags", *size);
+}
+
+KUNIT_ARRAY_PARAM(qla_bitmap, qla_bitmap_sizes, qla_bitmap_desc);
+
+static void qla_bitmap_allocation_test(struct kunit *test)
+{
+	unsigned int tags = *(const unsigned int *)test->param_value;
+	struct qla_pool_fixture *f = test->priv;
+	size_t bytes = BITS_TO_LONGS(tags) * sizeof(*f->bitmap);
+	unsigned int i;
+
+	KUNIT_ASSERT_EQ(test, sqa_init_tag_bitmap(&f->bitmap, tags), 0);
+	KUNIT_ASSERT_NOT_NULL(test, f->bitmap);
+	/* Check the allocation before touching the high bits, even without KASAN. */
+	KUNIT_ASSERT_GE(test, ksize(f->bitmap), bytes);
+	for (i = 0; i < BITS_TO_LONGS(tags); i++)
+		KUNIT_EXPECT_EQ(test, f->bitmap[i], 0UL);
+	set_bit(tags - 1, f->bitmap);
+	KUNIT_EXPECT_TRUE(test, test_bit(tags - 1, f->bitmap));
+}
+
+static unsigned long *qla_bitmap_no_memory(unsigned int tag_num)
+{
+	return NULL;
+}
+
+static void qla_bitmap_allocation_failure_test(struct kunit *test)
+{
+	struct qla_pool_fixture *f = test->priv;
+
+	kunit_activate_static_stub(test, sqa_alloc_tag_bitmap, qla_bitmap_no_memory);
+	KUNIT_EXPECT_EQ(test, sqa_init_tag_bitmap(&f->bitmap, SQA_DEFAULT_TAGS), -ENOMEM);
+	KUNIT_EXPECT_PTR_EQ(test, f->bitmap, NULL);
+}
+
 static struct kunit_case qla_pool_test_cases[] = {
 	KUNIT_CASE_PARAM(qla_pool_lifetime_test, qla_pool_gen_params),
+	KUNIT_CASE_PARAM(qla_bitmap_allocation_test, qla_bitmap_gen_params),
+	KUNIT_CASE(qla_bitmap_allocation_failure_test),
 	{}
 };
 

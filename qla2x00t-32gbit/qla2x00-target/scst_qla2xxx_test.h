@@ -15,6 +15,8 @@ int sqa_init_tag_pool(struct sqa_scst_tgt *sqa_tgt, unsigned int tag_num);
 void sqa_destroy_tag_pool(struct sqa_scst_tgt *sqa_tgt);
 struct scst_tgt *sqa_register_target(struct scst_tgt_template *tmplate,
 				     const char *name);
+unsigned long *sqa_alloc_tag_bitmap(unsigned int tag_num);
+int sqa_init_tag_bitmap(unsigned long **bitmap, unsigned int tag_num);
 struct sqa_scst_tgt *sqa_alloc_tgt(struct scst_tgt_template *tmplate,
 				   const char *name, unsigned int tag_num,
 				   size_t tag_size);
