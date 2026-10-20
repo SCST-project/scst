@@ -16,6 +16,8 @@
 #ifndef MISC_H
 #define MISC_H
 
+#define ARRAY_SIZE(array) (sizeof(array) / sizeof((array)[0]))
+
 struct __qelem {
 	struct __qelem *q_forw;
 	struct __qelem *q_back;
