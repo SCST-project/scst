@@ -319,6 +319,7 @@ scst_05_targ="scst/src/scst_targ.c scst/src/scst_local_cmd.c \
 scst/src/scst_local_cmd.h \
 scst/src/scst_targ_test.h"
 scst_06_lib="scst/src/scst_lib.c \
+scst/src/scst_lib_priv.h \
 scst/src/scst_lib_test.h"
 scst_07_pres="scst/src/scst_pres.h scst/src/scst_pres.c"
 scst_08_sysfs="scst/src/scst_sysfs.c \
