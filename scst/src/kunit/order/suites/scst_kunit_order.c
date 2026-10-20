@@ -38,7 +38,7 @@ static int order_test_init(struct kunit *test)
 
 	test->priv = NULL;
 	/* Workers may outlive a failed test; KUnit must not reclaim their state. */
-	f = kzalloc_obj(*f, GFP_KERNEL);
+	f = kzalloc_obj(*f);
 	if (!f)
 		return -ENOMEM;
 	if (!try_module_get(THIS_MODULE)) {

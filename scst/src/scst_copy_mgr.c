@@ -1891,7 +1891,7 @@ static struct scst_cm_list_id *scst_cm_add_list_id(struct scst_cmd *cmd, int lis
 
 	TRACE_ENTRY();
 
-	res = kzalloc(sizeof(*res), GFP_KERNEL);
+	res = kzalloc_obj(*res);
 	if (!res) {
 		TRACE(TRACE_OUT_OF_MEM, "Unable to allocate list_id");
 		scst_set_busy(cmd);
