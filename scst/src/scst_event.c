@@ -747,7 +747,7 @@ static int scst_event_disallow_event(struct scst_event_priv *priv, void __user *
 		res = 0;
 	}
 
-	TRACE_MEM("Deleting event entry %p", e);
+	TRACE_MEM("Deleting event entry %p", event_entry);
 	kfree(event_entry);
 
 out:
