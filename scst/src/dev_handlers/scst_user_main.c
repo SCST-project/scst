@@ -1925,6 +1925,18 @@ out:
 	return res;
 }
 
+SCST_KUNIT_VISIBLE
+const u8 *dev_user_ext_cdb(const struct scst_cmd *cmd)
+{
+	BUILD_BUG_ON(sizeof(cmd->cdb_buf) != SCST_MAX_CDB_SIZE);
+
+	if (cmd->cdb_len <= SCST_MAX_CDB_SIZE)
+		return NULL;
+
+	EXTRACHECKS_BUG_ON(cmd->cdb == cmd->cdb_buf);
+	return cmd->cdb + SCST_MAX_CDB_SIZE;
+}
+
 static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
 {
 	int res = 0, rc;
@@ -1932,6 +1944,7 @@ static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
 	struct scst_user_cmd *ucmd;
 	struct scst_cmd *cmd = NULL;
 	struct scst_user_get_ext_cdb get;
+	const u8 *ext_cdb;
 
 	TRACE_ENTRY();
 
@@ -1982,17 +1995,14 @@ static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
 	if (!cmd)
 		goto out_put;
 
-	BUILD_BUG_ON(sizeof(cmd->cdb_buf) != SCST_MAX_CDB_SIZE);
-
-	if (cmd->cdb_len <= SCST_MAX_CDB_SIZE)
+	ext_cdb = dev_user_ext_cdb(cmd);
+	if (!ext_cdb)
 		goto out_cmd_put;
 
-	EXTRACHECKS_BUG_ON(cmd->cdb_buf == cmd->cdb_buf);
-
-	TRACE_BUFFER("EXT CDB", &cmd->cdb[sizeof(cmd->cdb_buf)],
+	TRACE_BUFFER("EXT CDB", ext_cdb,
 		     cmd->cdb_len - sizeof(cmd->cdb_buf));
 	rc = copy_to_user((void __user *)(unsigned long)get.ext_cdb_buffer,
-			  &cmd->cdb[sizeof(cmd->cdb_buf)],
+			  ext_cdb,
 			  cmd->cdb_len - sizeof(cmd->cdb_buf));
 	if (unlikely(rc != 0)) {
 		PRINT_ERROR("Failed to copy to user %d bytes", rc);
