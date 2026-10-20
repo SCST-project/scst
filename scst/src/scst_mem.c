@@ -33,6 +33,7 @@
 #endif
 #include "scst_priv.h"
 #include "scst_mem.h"
+#include "scst_mem_test.h"
 
 #undef DEFAULT_SYMBOL_NAMESPACE
 #define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
@@ -1386,7 +1387,7 @@ static int sgv_pool_init(struct sgv_pool *pool, const char *name,
 		}
 	}
 
-	atomic_set(&pool->sgv_pool_ref, 1);
+	kref_init(&pool->sgv_pool_ref);
 	spin_lock_init(&pool->sgv_pool_lock);
 	INIT_LIST_HEAD(&pool->sorted_recycling_list);
 	for (i = 0; i < pool->max_caches; i++)
@@ -1506,6 +1507,11 @@ out:
 	TRACE_EXIT();
 }
 
+static void sgv_pool_release(struct kref *ref)
+{
+	sgv_pool_destroy(container_of(ref, struct sgv_pool, sgv_pool_ref));
+}
+
 /**
  * sgv_pool_set_allocator - set custom pages allocator
  * @pool:	the cache
@@ -1524,6 +1530,23 @@ void sgv_pool_set_allocator(struct sgv_pool *pool,
 	pool->alloc_fns.free_pages_fn = free_pages_fn;
 }
 EXPORT_SYMBOL_GPL(sgv_pool_set_allocator);
+
+/* The caller holds sgv_pools_mutex to protect the lookup result. */
+SCST_KUNIT_VISIBLE
+struct sgv_pool *sgv_pool_get_shared(struct sgv_pool *pool)
+{
+	if (pool->owner_mm != current->mm) {
+		PRINT_ERROR("Attempt of a shared use of SGV pool %s with different MM",
+			    pool->name);
+		return NULL;
+	}
+
+	/* Last put can have committed to destruction before taking the mutex. */
+	if (!kref_get_unless_zero(&pool->sgv_pool_ref))
+		return NULL;
+
+	return pool;
+}
 
 /**
  * sgv_pool_create_node - creates and initializes an SGV pool
@@ -1581,12 +1604,7 @@ struct sgv_pool *sgv_pool_create_node(const char *name, enum sgv_clustering_type
 	list_for_each_entry(tp, &sgv_pools_list, sgv_pools_list_entry) {
 		if (strcmp(tp->name, name) == 0) {
 			if (shared) {
-				if (tp->owner_mm != current->mm) {
-					PRINT_ERROR("Attempt of a shared use of SGV pool %s with different MM",
-						    name);
-					goto out_free;
-				}
-				sgv_pool_get(tp);
+				tp = sgv_pool_get_shared(tp);
 				goto out_free;
 			} else {
 				PRINT_ERROR("SGV pool %s already exists", name);
@@ -1623,9 +1641,9 @@ EXPORT_SYMBOL_GPL(sgv_pool_create_node);
  */
 void sgv_pool_get(struct sgv_pool *pool)
 {
-	atomic_inc(&pool->sgv_pool_ref);
-	TRACE_MEM("Incrementing sgv pool %p ref (new value %d)",
-		  pool, atomic_read(&pool->sgv_pool_ref));
+	kref_get(&pool->sgv_pool_ref);
+	TRACE_MEM("Incrementing sgv pool %p ref (new value %u)",
+		  pool, kref_read(&pool->sgv_pool_ref));
 }
 EXPORT_SYMBOL_GPL(sgv_pool_get);
 
@@ -1637,10 +1655,9 @@ EXPORT_SYMBOL_GPL(sgv_pool_get);
  */
 void sgv_pool_put(struct sgv_pool *pool)
 {
-	TRACE_MEM("Decrementing sgv pool %p ref (new value %d)",
-		  pool, atomic_read(&pool->sgv_pool_ref) - 1);
-	if (atomic_dec_and_test(&pool->sgv_pool_ref))
-		sgv_pool_destroy(pool);
+	TRACE_MEM("Decrementing sgv pool %p ref (new value %u)",
+		  pool, kref_read(&pool->sgv_pool_ref) - 1);
+	kref_put(&pool->sgv_pool_ref, sgv_pool_release);
 }
 EXPORT_SYMBOL_GPL(sgv_pool_put);
 
