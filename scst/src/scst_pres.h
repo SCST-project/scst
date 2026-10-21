@@ -113,28 +113,28 @@ bool scst_pr_is_cmd_allowed(struct scst_cmd *cmd);
 
 void scst_pr_register(struct scst_cmd *cmd, u8 *buffer, int buffer_size);
 void scst_pr_register_and_ignore(struct scst_cmd *cmd, u8 *buffer,
-	int buffer_size);
+				 int buffer_size);
 void scst_pr_register_and_move(struct scst_cmd *cmd, u8 *buffer,
-	int buffer_size);
+			       int buffer_size);
 void scst_pr_reserve(struct scst_cmd *cmd, u8 *buffer, int buffer_size);
 void scst_pr_release(struct scst_cmd *cmd, u8 *buffer, int buffer_size);
 void scst_pr_clear(struct scst_cmd *cmd, u8 *buffer, int buffer_size);
 void scst_pr_preempt(struct scst_cmd *cmd, u8 *buffer, int buffer_size);
 void scst_pr_preempt_and_abort(struct scst_cmd *cmd, u8 *buffer,
-	int buffer_size);
+			       int buffer_size);
 
 void scst_pr_read_keys(struct scst_cmd *cmd, u8 *buffer, int buffer_size);
 void scst_pr_read_reservation(struct scst_cmd *cmd, u8 *buffer,
-	int buffer_size);
+			      int buffer_size);
 void scst_pr_report_caps(struct scst_cmd *cmd, u8 *buffer, int buffer_size);
 void scst_pr_read_full_status(struct scst_cmd *cmd, u8 *buffer,
-	int buffer_size);
+			      int buffer_size);
 
 u32 scst_tid_size(const u8 *tid);
 bool tid_equal(const u8 *tid_a, const u8 *tid_b);
 
 struct scst_dev_registrant *scst_pr_find_reg(struct scst_device *dev,
-	const u8 *transport_id, const u16 rel_tgt_id);
+					     const u8 *transport_id, const u16 rel_tgt_id);
 struct scst_dev_registrant *scst_pr_add_registrant(struct scst_device *dev,
 						   const u8 *transport_id,
 						   const u16 rel_tgt_id,

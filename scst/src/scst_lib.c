@@ -101,22 +101,23 @@ struct scsi_io_context {
 	char sense[SCST_SENSE_BUFFERSIZE];
 #endif
 };
+
 static struct kmem_cache *scsi_io_context_cache;
 static struct workqueue_struct *scst_release_acg_wq;
 
 static int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
-	    int nents_to_copy, size_t copy_len);
+		   int nents_to_copy, size_t copy_len);
 
 static void scst_free_descriptors(struct scst_cmd *cmd);
 static bool sg_cmp(struct scatterlist *dst_sg, struct scatterlist *src_sg,
-	    int nents_to_cmp, size_t cmp_len, int *miscompare_offs);
+		   int nents_to_cmp, size_t cmp_len, int *miscompare_offs);
 
 const struct scst_opcode_descriptor scst_op_descr_inquiry = {
 	.od_opcode = INQUIRY,
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 6,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { INQUIRY, 1, 0xFF, 0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 EXPORT_SYMBOL(scst_op_descr_inquiry);
@@ -126,7 +127,7 @@ const struct scst_opcode_descriptor scst_op_descr_extended_copy = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 16,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_REG_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { EXTENDED_COPY, 0, 0, 0, 0, 0, 0, 0, 0, 0,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0,
 			       SCST_OD_DEFAULT_CONTROL_BYTE },
@@ -138,7 +139,7 @@ const struct scst_opcode_descriptor scst_op_descr_tur = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 6,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { TEST_UNIT_READY, 0, 0, 0, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 EXPORT_SYMBOL(scst_op_descr_tur);
@@ -148,7 +149,7 @@ const struct scst_opcode_descriptor scst_op_descr_log_select = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 10,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { LOG_SELECT, 3, 0xFF, 0xFF, 0, 0, 0, 0xFF, 0xFF,
 			       SCST_OD_DEFAULT_CONTROL_BYTE },
 };
@@ -159,7 +160,7 @@ const struct scst_opcode_descriptor scst_op_descr_log_sense = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 10,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { LOG_SENSE, 1, 0xFF, 0xFF, 0, 0xFF, 0xFF, 0xFF, 0xFF,
 			       SCST_OD_DEFAULT_CONTROL_BYTE },
 };
@@ -170,7 +171,7 @@ const struct scst_opcode_descriptor scst_op_descr_mode_select6 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 6,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { MODE_SELECT, 0x11, 0, 0, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 EXPORT_SYMBOL(scst_op_descr_mode_select6);
@@ -180,7 +181,7 @@ const struct scst_opcode_descriptor scst_op_descr_mode_sense6 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 6,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { MODE_SENSE, 8, 0xFF, 0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 EXPORT_SYMBOL(scst_op_descr_mode_sense6);
@@ -190,7 +191,7 @@ const struct scst_opcode_descriptor scst_op_descr_mode_select10 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 10,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { MODE_SELECT_10, 0x11, 0, 0, 0, 0, 0, 0xFF, 0xFF,
 			       SCST_OD_DEFAULT_CONTROL_BYTE },
 };
@@ -201,7 +202,7 @@ const struct scst_opcode_descriptor scst_op_descr_mode_sense10 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 10,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { MODE_SENSE_10, 0x18, 0xFF, 0xFF, 0, 0, 0, 0xFF, 0xFF,
 			       SCST_OD_DEFAULT_CONTROL_BYTE },
 };
@@ -214,8 +215,8 @@ const struct scst_opcode_descriptor scst_op_descr_rtpg = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 12,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
-	.od_cdb_usage_bits = { MAINTENANCE_IN, 0xE0|MI_REPORT_TARGET_PGS, 0, 0,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
+	.od_cdb_usage_bits = { MAINTENANCE_IN, 0xE0 | MI_REPORT_TARGET_PGS, 0, 0,
 			       0, 0, 0xFF, 0xFF, 0xFF, 0xFF, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 EXPORT_SYMBOL(scst_op_descr_rtpg);
@@ -227,7 +228,7 @@ const struct scst_opcode_descriptor scst_op_descr_stpg = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 12,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { MAINTENANCE_OUT, MO_SET_TARGET_PGS, 0, 0, 0, 0,
 			       0xFF, 0xFF, 0xFF, 0xFF, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
@@ -238,7 +239,7 @@ const struct scst_opcode_descriptor scst_op_descr_send_diagnostic = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 6,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { SEND_DIAGNOSTIC, 0xF7, 0, 0xFF, 0xFF,
 			       SCST_OD_DEFAULT_CONTROL_BYTE },
 };
@@ -249,7 +250,7 @@ const struct scst_opcode_descriptor scst_op_descr_reserve6 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 6,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { RESERVE_6, 0, 0, 0, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 EXPORT_SYMBOL(scst_op_descr_reserve6);
@@ -259,7 +260,7 @@ const struct scst_opcode_descriptor scst_op_descr_release6 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 6,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { RELEASE_6, 0, 0, 0, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 EXPORT_SYMBOL(scst_op_descr_release6);
@@ -269,7 +270,7 @@ const struct scst_opcode_descriptor scst_op_descr_reserve10 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 10,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { RESERVE_10, 0, 0, 0, 0, 0, 0, 0, 0,
 			       SCST_OD_DEFAULT_CONTROL_BYTE },
 };
@@ -280,7 +281,7 @@ const struct scst_opcode_descriptor scst_op_descr_release10 = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 10,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { RELEASE_10, 0, 0, 0, 0, 0, 0, 0, 0,
 			       SCST_OD_DEFAULT_CONTROL_BYTE },
 };
@@ -291,7 +292,7 @@ const struct scst_opcode_descriptor scst_op_descr_pr_in = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 10,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { PERSISTENT_RESERVE_IN, 0x1F, 0, 0, 0, 0, 0, 0xFF, 0xFF,
 			       SCST_OD_DEFAULT_CONTROL_BYTE },
 };
@@ -302,7 +303,7 @@ const struct scst_opcode_descriptor scst_op_descr_pr_out = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 10,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { PERSISTENT_RESERVE_OUT, 0x1F, 0xFF, 0, 0, 0xFF,
 			       0xFF, 0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
@@ -313,7 +314,7 @@ const struct scst_opcode_descriptor scst_op_descr_report_luns = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 12,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { REPORT_LUNS, 0, 0xFF, 0, 0, 0, 0xFF, 0xFF,
 			       0xFF, 0xFF, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
@@ -324,7 +325,7 @@ const struct scst_opcode_descriptor scst_op_descr_request_sense = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 6,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { REQUEST_SENSE, 1, 0, 0, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 EXPORT_SYMBOL(scst_op_descr_request_sense);
@@ -336,7 +337,7 @@ const struct scst_opcode_descriptor scst_op_descr_report_supp_tm_fns = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 12,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { MAINTENANCE_IN, MI_REPORT_SUPPORTED_TASK_MANAGEMENT_FUNCTIONS,
 			       0x80, 0, 0, 0, 0xFF, 0xFF, 0xFF,
 			       0xFF, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
@@ -350,7 +351,7 @@ const struct scst_opcode_descriptor scst_op_descr_report_supp_opcodes = {
 	.od_support = 3, /* supported as in the standard */
 	.od_cdb_size = 12,
 	.od_nominal_timeout = SCST_DEFAULT_NOMINAL_TIMEOUT_SEC,
-	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT/HZ,
+	.od_recommended_timeout = SCST_GENERIC_DISK_SMALL_TIMEOUT / HZ,
 	.od_cdb_usage_bits = { MAINTENANCE_IN, MI_REPORT_SUPPORTED_OPERATION_CODES,
 			       0x87, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
 			       0xFF, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
@@ -360,87 +361,87 @@ EXPORT_SYMBOL(scst_op_descr_report_supp_opcodes);
 struct scst_sdbops;
 
 static int get_cdb_info_len_10(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+			       const struct scst_sdbops *sdbops);
 static int get_cdb_info_block_limit(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				    const struct scst_sdbops *sdbops);
 static int get_cdb_info_read_capacity(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				      const struct scst_sdbops *sdbops);
 static int get_cdb_info_serv_act_in(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				    const struct scst_sdbops *sdbops);
 static int get_cdb_info_single(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+			       const struct scst_sdbops *sdbops);
 static int get_cdb_info_read_pos(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				 const struct scst_sdbops *sdbops);
 static int get_cdb_info_prevent_allow_medium_removal(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+						     const struct scst_sdbops *sdbops);
 static int get_cdb_info_start_stop(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				   const struct scst_sdbops *sdbops);
 static int get_cdb_info_len_3_read_elem_stat(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+					     const struct scst_sdbops *sdbops);
 static int get_cdb_info_len_2(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+			      const struct scst_sdbops *sdbops);
 static int get_cdb_info_fmt(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+			    const struct scst_sdbops *sdbops);
 	static int get_cdb_info_verify6(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+					const struct scst_sdbops *sdbops);
 static int get_cdb_info_verify10(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				 const struct scst_sdbops *sdbops);
 static int get_cdb_info_verify12(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				 const struct scst_sdbops *sdbops);
 static int get_cdb_info_verify16(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				 const struct scst_sdbops *sdbops);
 static int get_cdb_info_len_1(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+			      const struct scst_sdbops *sdbops);
 static int get_cdb_info_lba_3_len_1_256_read(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+					     const struct scst_sdbops *sdbops);
 static int get_cdb_info_lba_3_len_1_256_write(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+					      const struct scst_sdbops *sdbops);
 static int get_cdb_info_bidi_lba_4_len_2(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+					 const struct scst_sdbops *sdbops);
 static int get_cdb_info_len_3(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+			      const struct scst_sdbops *sdbops);
 static int get_cdb_info_len_4(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+			      const struct scst_sdbops *sdbops);
 static int get_cdb_info_none(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+			     const struct scst_sdbops *sdbops);
 static int get_cdb_info_lba_2_none(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				   const struct scst_sdbops *sdbops);
 static int get_cdb_info_lba_4_len_2(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				    const struct scst_sdbops *sdbops);
 static int get_cdb_info_read_10(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				const struct scst_sdbops *sdbops);
 static int get_cdb_info_lba_4_len_2_wrprotect(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+					      const struct scst_sdbops *sdbops);
 static int get_cdb_info_lba_4_none(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				   const struct scst_sdbops *sdbops);
 static int get_cdb_info_lba_4_len_4_rdprotect(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+					      const struct scst_sdbops *sdbops);
 static int get_cdb_info_lba_4_len_4_wrprotect(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+					      const struct scst_sdbops *sdbops);
 static int get_cdb_info_read_16(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				const struct scst_sdbops *sdbops);
 static int get_cdb_info_lba_8_len_4_wrprotect(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+					      const struct scst_sdbops *sdbops);
 static int get_cdb_info_lba_8_none(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				   const struct scst_sdbops *sdbops);
 static int get_cdb_info_write_same10(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				     const struct scst_sdbops *sdbops);
 static int get_cdb_info_write_same16(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				     const struct scst_sdbops *sdbops);
 static int get_cdb_info_compare_and_write(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+					  const struct scst_sdbops *sdbops);
 static int get_cdb_info_ext_copy(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				 const struct scst_sdbops *sdbops);
 static int get_cdb_info_apt(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+			    const struct scst_sdbops *sdbops);
 static int get_cdb_info_min(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+			    const struct scst_sdbops *sdbops);
 static int get_cdb_info_mo(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+			   const struct scst_sdbops *sdbops);
 static int get_cdb_info_var_len(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+				const struct scst_sdbops *sdbops);
 static int get_cdb_info_dyn_runtime_attr(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops);
+					 const struct scst_sdbops *sdbops);
 
 /*
  * +=====================================-============-======-
@@ -545,46 +546,46 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	 .info_op_name = "TEST UNIT READY",
 	 .info_data_direction = SCST_DATA_NONE,
 	 /* Let's be HQ to don't look dead under high load */
-	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_IMPLICIT_HQ|
-			 SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
+	 .info_op_flags = SCST_SMALL_TIMEOUT | SCST_IMPLICIT_HQ |
+			 SCST_REG_RESERVE_ALLOWED | SCST_WRITE_EXCL_ALLOWED |
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-			 SCST_TEST_IO_IN_SIRQ_ALLOWED|
+			 SCST_TEST_IO_IN_SIRQ_ALLOWED |
 #endif
 			 SCST_EXCL_ACCESS_ALLOWED,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x01, .devkey = " M              ",
 	 .info_op_name = "REWIND",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_EXCL_ALLOWED,
+	 .info_op_flags = SCST_LONG_TIMEOUT | SCST_WRITE_EXCL_ALLOWED,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x03, .devkey = "MMMMMMMMMMMMMMMM",
 	 .info_op_name = "REQUEST SENSE",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_SKIP_UA|SCST_LOCAL_CMD|
-		 SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
+	 .info_op_flags = SCST_SMALL_TIMEOUT | SCST_SKIP_UA | SCST_LOCAL_CMD |
+		 SCST_REG_RESERVE_ALLOWED | SCST_WRITE_EXCL_ALLOWED |
 		 SCST_EXCL_ACCESS_ALLOWED,
 	 .info_len_off = 4, .info_len_len = 1,
 	 .get_cdb_info = get_cdb_info_len_1},
 	{.ops = 0x04, .devkey = "M    O O        ",
 	 .info_op_name = "FORMAT UNIT",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM|SCST_STRICTLY_SERIALIZED,
+	 .info_op_flags = SCST_LONG_TIMEOUT | SCST_WRITE_MEDIUM | SCST_STRICTLY_SERIALIZED,
 	 .get_cdb_info = get_cdb_info_fmt},
 	{.ops = 0x04, .devkey = " O              ",
 	 .info_op_name = "FORMAT MEDIUM",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM|SCST_STRICTLY_SERIALIZED,
+	 .info_op_flags = SCST_LONG_TIMEOUT | SCST_WRITE_MEDIUM | SCST_STRICTLY_SERIALIZED,
 	 .info_len_off = 3, .get_cdb_info = get_cdb_info_len_2},
 	{.ops = 0x04, .devkey = "  O             ",
 	 .info_op_name = "FORMAT",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_WRITE_MEDIUM|SCST_STRICTLY_SERIALIZED,
+	 .info_op_flags = SCST_WRITE_MEDIUM | SCST_STRICTLY_SERIALIZED,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x05, .devkey = "VMVVVV  V       ",
 	 .info_op_name = "READ BLOCK LIMITS",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_REG_RESERVE_ALLOWED|
-		SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+	 .info_op_flags = SCST_SMALL_TIMEOUT | SCST_REG_RESERVE_ALLOWED |
+		SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED,
 	 .get_cdb_info = get_cdb_info_block_limit},
 	{.ops = 0x07, .devkey = "        O       ",
 	 .info_op_name = "INITIALIZE ELEMENT STATUS",
@@ -599,9 +600,9 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x08, .devkey = "O               ",
 	 .info_op_name = "READ(6)",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED |
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-			 SCST_TEST_IO_IN_SIRQ_ALLOWED|
+			 SCST_TEST_IO_IN_SIRQ_ALLOWED |
 #endif
 			 SCST_WRITE_EXCL_ALLOWED,
 	 .info_lba_off = 1, .info_lba_len = 3,
@@ -610,7 +611,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x08, .devkey = " MV  O OV       ",
 	 .info_op_name = "READ(6)",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED |
 			 SCST_WRITE_EXCL_ALLOWED,
 	 .info_len_off = 2, .info_len_len = 3,
 	 .get_cdb_info = get_cdb_info_len_3},
@@ -629,9 +630,9 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x0A, .devkey = "O               ",
 	 .info_op_name = "WRITE(6)",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED |
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-			  SCST_TEST_IO_IN_SIRQ_ALLOWED|
+			  SCST_TEST_IO_IN_SIRQ_ALLOWED |
 #endif
 			  SCST_WRITE_MEDIUM,
 	 .info_lba_off = 1, .info_lba_len = 3,
@@ -640,7 +641,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x0A, .devkey = " M  O  OV       ",
 	 .info_op_name = "WRITE(6)",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED | SCST_WRITE_MEDIUM,
 	 .info_len_off = 2, .info_len_len = 3,
 	 .get_cdb_info = get_cdb_info_len_3},
 	{.ops = 0x0A, .devkey = "  M             ",
@@ -669,7 +670,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x0B, .devkey = " O              ",
 	 .info_op_name = "SET CAPACITY",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_WRITE_MEDIUM|SCST_STRICTLY_SERIALIZED,
+	 .info_op_flags = SCST_WRITE_MEDIUM | SCST_STRICTLY_SERIALIZED,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x0B, .devkey = "  O             ",
 	 .info_op_name = "SLEW AND PRINT",
@@ -684,12 +685,12 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x0D, .devkey = " VVVVV  V       ",
 	 .info_op_name = "PARTITION",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM,
+	 .info_op_flags = SCST_LONG_TIMEOUT | SCST_WRITE_MEDIUM,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x0F, .devkey = " OVVVV  V       ",
 	 .info_op_name = "READ REVERSE",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED |
 			 SCST_WRITE_EXCL_ALLOWED,
 	 .info_len_off = 12, .info_len_len = 3,
 	 .get_cdb_info = get_cdb_info_len_3},
@@ -706,27 +707,27 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x11, .devkey = "VMVVVV          ",
 	 .info_op_name = "SPACE",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_LONG_TIMEOUT|
+	 .info_op_flags = SCST_LONG_TIMEOUT |
 			 SCST_WRITE_EXCL_ALLOWED,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x12, .devkey = "MMMMMMMMMMMMMMMM",
 	 .info_op_name = "INQUIRY",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_IMPLICIT_HQ|SCST_SKIP_UA|
-		SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
+	 .info_op_flags = SCST_SMALL_TIMEOUT | SCST_IMPLICIT_HQ | SCST_SKIP_UA |
+		SCST_REG_RESERVE_ALLOWED | SCST_WRITE_EXCL_ALLOWED |
 		SCST_EXCL_ACCESS_ALLOWED,
 	 .info_len_off = 3, .info_len_len = 2,
 	 .get_cdb_info = get_cdb_info_len_2},
 	{.ops = 0x13, .devkey = " O              ",
 	 .info_op_name = "VERIFY(6)",
 	 .info_data_direction = SCST_DATA_UNKNOWN,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_EXCL_ALLOWED,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED | SCST_WRITE_EXCL_ALLOWED,
 	 .info_len_off = 2, .info_len_len = 3,
 	 .get_cdb_info = get_cdb_info_verify6},
 	{.ops = 0x14, .devkey = " OOVVV          ",
 	 .info_op_name = "RECOVER BUFFERED DATA",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_EXCL_ALLOWED,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED | SCST_WRITE_EXCL_ALLOWED,
 	 .info_len_off = 2, .info_len_len = 3,
 	 .get_cdb_info = get_cdb_info_len_3},
 	{.ops = 0x15, .devkey = "OMOOOOOOOOOOOOOO",
@@ -738,21 +739,21 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x16, .devkey = "MMMMMMMMMMMMMMMM",
 	 .info_op_name = "RESERVE(6)",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
-			 SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED|
+	 .info_op_flags = SCST_SMALL_TIMEOUT | SCST_LOCAL_CMD | SCST_SERIALIZED |
+			 SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED |
 			 SCST_SCSI_ATOMIC/* see comment in scst_cmd_overlap() */,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x17, .devkey = "MMMMMMMMMMMMMMMM",
 	 .info_op_name = "RELEASE(6)",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
-		SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
+	 .info_op_flags = SCST_SMALL_TIMEOUT | SCST_LOCAL_CMD | SCST_SERIALIZED |
+		SCST_REG_RESERVE_ALLOWED | SCST_WRITE_EXCL_ALLOWED |
 		SCST_EXCL_ACCESS_ALLOWED,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x19, .devkey = " MVVVV          ",
 	 .info_op_name = "ERASE",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM,
+	 .info_op_flags = SCST_LONG_TIMEOUT | SCST_WRITE_MEDIUM,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x1A, .devkey = "OMOOOOOOOOOOOOOO",
 	 .info_op_name = "MODE SENSE(6)",
@@ -820,8 +821,8 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x25, .devkey = "M   MM M        ",
 	 .info_op_name = "READ CAPACITY",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_IMPLICIT_HQ|SCST_REG_RESERVE_ALLOWED|
-		SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+	 .info_op_flags = SCST_IMPLICIT_HQ | SCST_REG_RESERVE_ALLOWED |
+		SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED,
 	 .log2_max_buf_len = 3,
 	 .get_cdb_info = get_cdb_info_read_capacity},
 	{.ops = 0x25, .devkey = "      O         ",
@@ -833,9 +834,9 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x28, .devkey = "M   MMMM        ",
 	 .info_op_name = "READ(10)",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED |
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-			 SCST_TEST_IO_IN_SIRQ_ALLOWED|
+			 SCST_TEST_IO_IN_SIRQ_ALLOWED |
 #endif
 			 SCST_WRITE_EXCL_ALLOWED,
 	 .info_lba_off = 2, .info_lba_len = 4,
@@ -856,9 +857,9 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x2A, .devkey = "O   MO M        ",
 	 .info_op_name = "WRITE(10)",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED |
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-			  SCST_TEST_IO_IN_SIRQ_ALLOWED|
+			  SCST_TEST_IO_IN_SIRQ_ALLOWED |
 #endif
 			  SCST_WRITE_MEDIUM,
 	 .info_lba_off = 2, .info_lba_len = 4,
@@ -879,7 +880,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x2B, .devkey = " O              ",
 	 .info_op_name = "LOCATE",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_EXCL_ALLOWED,
+	 .info_op_flags = SCST_LONG_TIMEOUT | SCST_WRITE_EXCL_ALLOWED,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x2B, .devkey = "        O       ",
 	 .info_op_name = "POSITION TO ELEMENT",
@@ -895,7 +896,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x2C, .devkey = "V    O O        ",
 	 .info_op_name = "ERASE(10)",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM,
+	 .info_op_flags = SCST_LONG_TIMEOUT | SCST_WRITE_MEDIUM,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x2D, .devkey = "V   O  O        ",
 	 .info_op_name = "READ UPDATED BLOCK",
@@ -905,14 +906,14 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x2E, .devkey = "O   OO O        ",
 	 .info_op_name = "WRITE AND VERIFY(10)",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED | SCST_WRITE_MEDIUM,
 	 .info_lba_off = 2, .info_lba_len = 4,
 	 .info_len_off = 7, .info_len_len = 2,
 	 .get_cdb_info = get_cdb_info_lba_4_len_2_wrprotect},
 	{.ops = 0x2F, .devkey = "O   OO O        ",
 	 .info_op_name = "VERIFY(10)",
 	 .info_data_direction = SCST_DATA_UNKNOWN,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_EXCL_ALLOWED,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED | SCST_WRITE_EXCL_ALLOWED,
 	 .info_lba_off = 2, .info_lba_len = 4,
 	 .info_len_off = 7, .info_len_len = 2,
 	 .get_cdb_info = get_cdb_info_verify10},
@@ -924,7 +925,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x34, .devkey = " O              ",
 	 .info_op_name = "READ POSITION",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_WRITE_EXCL_ALLOWED,
+	 .info_op_flags = SCST_SMALL_TIMEOUT | SCST_WRITE_EXCL_ALLOWED,
 	 .info_len_off = 7, .info_len_len = 2,
 	 .get_cdb_info = get_cdb_info_read_pos},
 	{.ops = 0x34, .devkey = "      O         ",
@@ -1010,7 +1011,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x41, .devkey = "O               ",
 	 .info_op_name = "WRITE SAME(10)",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED | SCST_WRITE_MEDIUM,
 	 .info_lba_off = 2, .info_lba_len = 4,
 	 .info_len_off = 7, .info_len_len = 2,
 	 .get_cdb_info = get_cdb_info_write_same10},
@@ -1023,7 +1024,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x42, .devkey = "O               ",
 	 .info_op_name = "UNMAP",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_WRITE_MEDIUM|SCST_DESCRIPTORS_BASED,
+	 .info_op_flags = SCST_WRITE_MEDIUM | SCST_DESCRIPTORS_BASED,
 	 .info_len_off = 7, .info_len_len = 2,
 	 .get_cdb_info = get_cdb_info_len_2},
 	{.ops = 0x43, .devkey = "     O          ",
@@ -1035,7 +1036,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x44, .devkey = " M              ",
 	 .info_op_name = "REPORT DENSITY SUPPORT",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
+	 .info_op_flags = SCST_REG_RESERVE_ALLOWED | SCST_WRITE_EXCL_ALLOWED |
 			SCST_EXCL_ACCESS_ALLOWED,
 	 .info_len_off = 7, .info_len_len = 2,
 	 .get_cdb_info = get_cdb_info_len_2},
@@ -1091,8 +1092,8 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x4D, .devkey = "OOOOOOOOOOOOOOOO",
 	 .info_op_name = "LOG SENSE",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_REG_RESERVE_ALLOWED|
-			SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+	 .info_op_flags = SCST_SMALL_TIMEOUT | SCST_REG_RESERVE_ALLOWED |
+			SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED,
 	 .info_len_off = 7, .info_len_len = 2,
 	 .get_cdb_info = get_cdb_info_len_2},
 	{.ops = 0x4E, .devkey = "     O          ",
@@ -1129,7 +1130,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x53, .devkey = "O               ",
 	 .info_op_name = "XDWRITEREAD(10)",
 	 .info_data_direction = SCST_DATA_BIDI,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED | SCST_WRITE_MEDIUM,
 	 .info_lba_off = 2, .info_lba_len = 4,
 	 .info_len_off = 7, .info_len_len = 2,
 	 .get_cdb_info = get_cdb_info_bidi_lba_4_len_2},
@@ -1153,15 +1154,15 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x56, .devkey = "OOOOOOOOOOOOOOOO",
 	 .info_op_name = "RESERVE(10)",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
-			SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED|
+	 .info_op_flags = SCST_SMALL_TIMEOUT | SCST_LOCAL_CMD | SCST_SERIALIZED |
+			SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED |
 			SCST_SCSI_ATOMIC/* see comment in scst_cmd_overlap() */,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x57, .devkey = "OOOOOOOOOOOOOOOO",
 	 .info_op_name = "RELEASE(10)",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
-			SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
+	 .info_op_flags = SCST_SMALL_TIMEOUT | SCST_LOCAL_CMD | SCST_SERIALIZED |
+			SCST_REG_RESERVE_ALLOWED | SCST_WRITE_EXCL_ALLOWED |
 			SCST_EXCL_ACCESS_ALLOWED,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x58, .devkey = "     O          ",
@@ -1196,15 +1197,15 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x5E, .devkey = "OOOOO OOOO      ",
 	 .info_op_name = "PERSISTENT RESERVE IN",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
-			SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+	 .info_op_flags = SCST_SMALL_TIMEOUT | SCST_LOCAL_CMD | SCST_SERIALIZED |
+			SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED,
 	 .info_len_off = 5, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_len_4},
 	{.ops = 0x5F, .devkey = "OOOOO OOOO      ",
 	 .info_op_name = "PERSISTENT RESERVE OUT",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_LOCAL_CMD|SCST_SERIALIZED|
-			SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+	 .info_op_flags = SCST_SMALL_TIMEOUT | SCST_LOCAL_CMD | SCST_SERIALIZED |
+			SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED,
 	 .info_len_off = 5, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_len_4},
 
@@ -1236,14 +1237,14 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x83, .devkey = "O               ", /* implemented only for disks */
 	 .info_op_name = "EXTENDED COPY",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_WRITE_MEDIUM|SCST_CAN_GEN_3PARTY_COMMANDS|
-				SCST_LOCAL_CMD|SCST_DESCRIPTORS_BASED,
+	 .info_op_flags = SCST_WRITE_MEDIUM | SCST_CAN_GEN_3PARTY_COMMANDS |
+				SCST_LOCAL_CMD | SCST_DESCRIPTORS_BASED,
 	 .info_len_off = 10, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_ext_copy},
 	{.ops = 0x84, .devkey = "O               ", /* implemented only for disks */
 	 .info_op_name = "RECEIVE COPY RESULT",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_LOCAL_CMD|SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+	 .info_op_flags = SCST_LOCAL_CMD | SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED,
 	 .info_len_off = 10, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_len_4},
 	{.ops = 0x85, .devkey = "O    O        O ",
@@ -1255,21 +1256,21 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x86, .devkey = "OOOOOOOOOO      ",
 	 .info_op_name = "ACCESS CONTROL IN",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
+	 .info_op_flags = SCST_REG_RESERVE_ALLOWED | SCST_WRITE_EXCL_ALLOWED |
 				SCST_EXCL_ACCESS_ALLOWED,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x87, .devkey = "OOOOOOOOOO      ",
 	 .info_op_name = "ACCESS CONTROL OUT",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED|
+	 .info_op_flags = SCST_REG_RESERVE_ALLOWED | SCST_WRITE_EXCL_ALLOWED |
 				SCST_EXCL_ACCESS_ALLOWED,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x88, .devkey = "M   MMMM        ",
 	 .info_op_name = "READ(16)",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED |
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-			 SCST_TEST_IO_IN_SIRQ_ALLOWED|
+			 SCST_TEST_IO_IN_SIRQ_ALLOWED |
 #endif
 			 SCST_WRITE_EXCL_ALLOWED,
 	 .info_lba_off = 2, .info_lba_len = 8,
@@ -1278,18 +1279,18 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x89, .devkey = "O               ",
 	 .info_op_name = "COMPARE AND WRITE",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
-			  SCST_LOCAL_CMD|
-			  SCST_WRITE_MEDIUM|SCST_SCSI_ATOMIC,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED |
+			  SCST_LOCAL_CMD |
+			  SCST_WRITE_MEDIUM | SCST_SCSI_ATOMIC,
 	 .info_lba_off = 2, .info_lba_len = 8,
 	 .info_len_off = 13, .info_len_len = 1,
 	 .get_cdb_info = get_cdb_info_compare_and_write},
 	{.ops = 0x8A, .devkey = "O   OO O        ",
 	 .info_op_name = "WRITE(16)",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED |
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-			  SCST_TEST_IO_IN_SIRQ_ALLOWED|
+			  SCST_TEST_IO_IN_SIRQ_ALLOWED |
 #endif
 			  SCST_WRITE_MEDIUM,
 	 .info_lba_off = 2, .info_lba_len = 8,
@@ -1310,14 +1311,14 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x8E, .devkey = "O   OO O        ",
 	 .info_op_name = "WRITE AND VERIFY(16)",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED | SCST_WRITE_MEDIUM,
 	 .info_lba_off = 2, .info_lba_len = 8,
 	 .info_len_off = 10, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_lba_8_len_4_wrprotect},
 	{.ops = 0x8F, .devkey = "O   OO O        ",
 	 .info_op_name = "VERIFY(16)",
 	 .info_data_direction = SCST_DATA_UNKNOWN,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_EXCL_ALLOWED,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED | SCST_WRITE_EXCL_ALLOWED,
 	 .info_lba_off = 2, .info_lba_len = 8,
 	 .info_len_off = 10, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_verify16},
@@ -1337,7 +1338,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x91, .devkey = " M              ",
 	 .info_op_name = "SPACE(16)",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_EXCL_ALLOWED,
+	 .info_op_flags = SCST_LONG_TIMEOUT | SCST_WRITE_EXCL_ALLOWED,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x92, .devkey = "O   OO O        ",
 	 .info_op_name = "LOCK UNLOCK CACHE(16)",
@@ -1347,19 +1348,19 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0x92, .devkey = " O              ",
 	 .info_op_name = "LOCATE(16)",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_EXCL_ALLOWED,
+	 .info_op_flags = SCST_LONG_TIMEOUT | SCST_WRITE_EXCL_ALLOWED,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x93, .devkey = "O               ",
 	 .info_op_name = "WRITE SAME(16)",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED | SCST_WRITE_MEDIUM,
 	 .info_lba_off = 2, .info_lba_len = 8,
 	 .info_len_off = 10, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_write_same16},
 	{.ops = 0x93, .devkey = " M              ",
 	 .info_op_name = "ERASE(16)",
 	 .info_data_direction = SCST_DATA_NONE,
-	 .info_op_flags = SCST_LONG_TIMEOUT|SCST_WRITE_MEDIUM,
+	 .info_op_flags = SCST_LONG_TIMEOUT | SCST_WRITE_MEDIUM,
 	 .get_cdb_info = get_cdb_info_none},
 	{.ops = 0x9E, .devkey = "O               ",
 	 .info_op_name = "SERVICE ACTION IN",
@@ -1371,10 +1372,10 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0xA0, .devkey = "VVVVVVVVVV  M   ",
 	 .info_op_name = "REPORT LUNS",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_SMALL_TIMEOUT|SCST_IMPLICIT_HQ|SCST_SKIP_UA|
-			 SCST_FULLY_LOCAL_CMD|SCST_LOCAL_CMD|
-			 SCST_REG_RESERVE_ALLOWED|
-			 SCST_WRITE_EXCL_ALLOWED|SCST_EXCL_ACCESS_ALLOWED,
+	 .info_op_flags = SCST_SMALL_TIMEOUT | SCST_IMPLICIT_HQ | SCST_SKIP_UA |
+			 SCST_FULLY_LOCAL_CMD | SCST_LOCAL_CMD |
+			 SCST_REG_RESERVE_ALLOWED |
+			 SCST_WRITE_EXCL_ALLOWED | SCST_EXCL_ACCESS_ALLOWED,
 	 .info_len_off = 6, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_len_4},
 	{.ops = 0xA1, .devkey = "O    O        O ",
@@ -1391,7 +1392,7 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0xA2, .devkey = "OO   O          ",
 	 .info_op_name = "SECURITY PROTOCOL IN",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_REG_RESERVE_ALLOWED|SCST_WRITE_EXCL_ALLOWED,
+	 .info_op_flags = SCST_REG_RESERVE_ALLOWED | SCST_WRITE_EXCL_ALLOWED,
 	 .info_len_off = 6, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_len_4},
 	{.ops = 0xA3, .devkey = "     O          ",
@@ -1447,9 +1448,9 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0xA8, .devkey = "O   OO O        ",
 	 .info_op_name = "READ(12)",
 	 .info_data_direction = SCST_DATA_READ,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED |
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-			 SCST_TEST_IO_IN_SIRQ_ALLOWED|
+			 SCST_TEST_IO_IN_SIRQ_ALLOWED |
 #endif
 			 SCST_WRITE_EXCL_ALLOWED,
 	 .info_lba_off = 2, .info_lba_len = 4,
@@ -1463,9 +1464,9 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0xAA, .devkey = "O   OO O        ",
 	 .info_op_name = "WRITE(12)",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED |
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-			  SCST_TEST_IO_IN_SIRQ_ALLOWED|
+			  SCST_TEST_IO_IN_SIRQ_ALLOWED |
 #endif
 			  SCST_WRITE_MEDIUM,
 	 .info_lba_off = 2, .info_lba_len = 4,
@@ -1502,14 +1503,14 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 	{.ops = 0xAE, .devkey = "O   OO O        ",
 	 .info_op_name = "WRITE AND VERIFY(12)",
 	 .info_data_direction = SCST_DATA_WRITE,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED | SCST_WRITE_MEDIUM,
 	 .info_lba_off = 2, .info_lba_len = 4,
 	 .info_len_off = 6, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_lba_4_len_4_wrprotect},
 	{.ops = 0xAF, .devkey = "O   OO O        ",
 	 .info_op_name = "VERIFY(12)",
 	 .info_data_direction = SCST_DATA_UNKNOWN,
-	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_EXCL_ALLOWED,
+	 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED | SCST_WRITE_EXCL_ALLOWED,
 	 .info_lba_off = 2, .info_lba_len = 4,
 	 .info_len_off = 6, .info_len_len = 4,
 	 .get_cdb_info = get_cdb_info_verify12},
@@ -1646,13 +1647,13 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 
 static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev);
 static void scst_check_internal_sense(struct scst_device *dev, int result,
-	u8 *sense, int sense_len);
+				      u8 *sense, int sense_len);
 static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
-	int flags);
+					      int flags);
 static void __scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
-	const u8 *sense, int sense_len, int flags);
+				const u8 *sense, int sense_len, int flags);
 static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
-	const u8 *sense, int sense_len, int flags);
+			      const u8 *sense, int sense_len, int flags);
 static void scst_free_all_UA(struct scst_tgt_dev *tgt_dev);
 static void scst_release_space(struct scst_cmd *cmd);
 static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev);
@@ -1676,7 +1677,7 @@ static inline void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev) {}
 int scst_alloc_sense(struct scst_cmd *cmd, int atomic)
 {
 	int res = 0;
-	gfp_t gfp_mask = atomic ? GFP_ATOMIC : (cmd->cmd_gfp_mask|__GFP_NOFAIL);
+	gfp_t gfp_mask = atomic ? GFP_ATOMIC : (cmd->cmd_gfp_mask | __GFP_NOFAIL);
 
 	TRACE_ENTRY();
 
@@ -1711,7 +1712,7 @@ EXPORT_SYMBOL(scst_alloc_sense);
  * and error code otherwise.
  */
 int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
-	const u8 *sense, unsigned int len)
+			 const u8 *sense, unsigned int len)
 {
 	int res;
 
@@ -1768,7 +1769,7 @@ int scst_set_cmd_error_status(struct scst_cmd *cmd, int status)
 
 	if (cmd->status != 0) {
 		TRACE_MGMT_DBG("cmd %p already has status %x set", cmd,
-			cmd->status);
+			       cmd->status);
 		res = -EEXIST;
 		goto out;
 	}
@@ -1793,7 +1794,7 @@ out:
 EXPORT_SYMBOL(scst_set_cmd_error_status);
 
 static int scst_set_lun_not_supported_request_sense(struct scst_cmd *cmd,
-	int key, int asc, int ascq)
+						    int key, int asc, int ascq)
 {
 	int sense_len, len;
 	struct scatterlist *sg;
@@ -1852,7 +1853,7 @@ go:
 	TRACE_MEM("sg %p (len %d) for sense for cmd %p", sg, len, cmd);
 
 	sense_len = scst_set_sense(sg_virt(sg), len, cmd->cdb[1] & 1,
-			key, asc, ascq);
+				   key, asc, ascq);
 
 	TRACE_BUFFER("Sense set", sg_virt(sg), sense_len);
 
@@ -1961,14 +1962,14 @@ static int scst_set_lun_not_supported_report_luns(struct scst_cmd *cmd)
 
 	if (cmd->status != 0) {
 		TRACE_MGMT_DBG("cmd %p already has status %x set",
-				cmd, cmd->status);
+			       cmd, cmd->status);
 		res = -EEXIST;
 		goto out;
 	}
 
 	if (cmd->cdb[2] != 0 && cmd->cdb[2] != 2) {
 		TRACE(TRACE_MINOR,
-			"Unsupported SELECT REPORT value %#x in REPORT LUNS command",
+		      "Unsupported SELECT REPORT value %#x in REPORT LUNS command",
 			cmd->cdb[2]);
 		scst_set_invalid_field_in_cdb(cmd, 2, 0);
 		goto out;
@@ -1990,7 +1991,7 @@ static int scst_set_lun_not_supported_report_luns(struct scst_cmd *cmd)
 			cmd->sg = cmd->tgt_i_sg;
 			cmd->sg_cnt = cmd->tgt_i_sg_cnt;
 			TRACE_MEM("Tgt used for REPORTS LUNS (not supported LUN): cmd %p",
-				cmd);
+				  cmd);
 			goto go;
 		}
 
@@ -2001,9 +2002,8 @@ static int scst_set_lun_not_supported_report_luns(struct scst_cmd *cmd)
 			goto out;
 		}
 
-		TRACE_MEM(
-			"sg %p (cnt %d, len %d) allocated for REPORTS LUNS (not supported LUN): cmd %p",
-			cmd->sg, cmd->sg_cnt, cmd->bufflen, cmd);
+		TRACE_MEM("sg %p (cnt %d, len %d) allocated for REPORTS LUNS (not supported LUN): cmd %p",
+			  cmd->sg, cmd->sg_cnt, cmd->bufflen, cmd);
 	}
 
 go:
@@ -2031,9 +2031,9 @@ go:
 					overflow = 1;
 					goto inc_dev_cnt;
 				}
-				*(__force __be64 *)&buf[offs]
-					= scst_pack_lun(tgt_dev->lun,
-						cmd->sess->acg->addr_method);
+				*(__force __be64 *)&buf[offs] =
+					scst_pack_lun(tgt_dev->lun,
+						      cmd->sess->acg->addr_method);
 				offs += 8;
 			}
 inc_dev_cnt:
@@ -2042,14 +2042,13 @@ inc_dev_cnt:
 			/* Clear sense_reported_luns_data_changed UA. */
 			spin_lock_bh(&tgt_dev->tgt_dev_lock);
 			list_for_each_entry(ua, &tgt_dev->UA_list,
-						UA_list_entry) {
+					    UA_list_entry) {
 				if (scst_analyze_sense(ua->UA_sense_buffer,
-					ua->UA_valid_sense_len,
+						       ua->UA_valid_sense_len,
 					SCST_SENSE_ALL_VALID,
 					SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed))) {
-					TRACE_DBG(
-					  "Freeing not needed REPORTED LUNS DATA CHANGED UA %p",
-					  ua);
+					TRACE_DBG("Freeing not needed REPORTED LUNS DATA CHANGED UA %p",
+						  ua);
 					scst_tgt_dev_del_free_UA(tgt_dev, ua);
 					break;
 				}
@@ -2100,7 +2099,7 @@ int scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq)
 	if (key == ILLEGAL_REQUEST && asc == 0x25 && ascq == 0) {
 		if (cmd->cdb[0] == REQUEST_SENSE)
 			res = scst_set_lun_not_supported_request_sense(cmd,
-				key, asc, ascq);
+								       key, asc, ascq);
 		else if (cmd->cdb[0] == INQUIRY && !(cmd->cdb[1] & 0x01/*EVPD*/))
 			res = scst_set_lun_not_supported_inquiry(cmd);
 		else if (cmd->cdb[0] == REPORT_LUNS)
@@ -2122,12 +2121,12 @@ do_sense:
 	res = scst_alloc_sense(cmd, 1);
 	if (res != 0) {
 		PRINT_ERROR("Lost sense data (key %x, asc %x, ascq %x)",
-			key, asc, ascq);
+			    key, asc, ascq);
 		goto out;
 	}
 
 	cmd->sense_valid_len = scst_set_sense(cmd->sense, cmd->sense_buflen,
-		scst_get_cmd_dev_d_sense(cmd), key, asc, ascq);
+					      scst_get_cmd_dev_d_sense(cmd), key, asc, ascq);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -2136,7 +2135,7 @@ out:
 EXPORT_SYMBOL(scst_set_cmd_error);
 
 int scst_set_cmd_error_and_inf(struct scst_cmd *cmd, int key, int asc,
-				int ascq, u64 information)
+			       int ascq, u64 information)
 {
 	int res;
 
@@ -2172,7 +2171,7 @@ out:
 EXPORT_SYMBOL(scst_set_cmd_error_and_inf);
 
 static void scst_fill_field_pointer_sense(u8 *fp_sense, int field_offs,
-	int bit_offs, bool cdb)
+					  int bit_offs, bool cdb)
 {
 	/* Sense key specific */
 	fp_sense[0] = 0x80; /* SKSV */
@@ -2184,7 +2183,7 @@ static void scst_fill_field_pointer_sense(u8 *fp_sense, int field_offs,
 }
 
 static int scst_set_invalid_field_in(struct scst_cmd *cmd, int field_offs,
-	int bit_offs, bool cdb)
+				     int bit_offs, bool cdb)
 {
 	int res, asc = cdb ? 0x24 : 0x26; /* inval field in CDB or param list */
 	int d_sense = scst_get_cmd_dev_d_sense(cmd);
@@ -2192,7 +2191,7 @@ static int scst_set_invalid_field_in(struct scst_cmd *cmd, int field_offs,
 	TRACE_ENTRY();
 
 	TRACE_DBG("cmd %p, cdb %d, bit_offs %d, field_offs %d (d_sense %d)",
-		cmd, cdb, bit_offs, field_offs, d_sense);
+		  cmd, cdb, bit_offs, field_offs, d_sense);
 
 	res = scst_set_cmd_error_status(cmd, SAM_STAT_CHECK_CONDITION);
 	if (res != 0)
@@ -2218,7 +2217,7 @@ static int scst_set_invalid_field_in(struct scst_cmd *cmd, int field_offs,
 		cmd->sense[8] = 2; /* sense key specific descriptor */
 		cmd->sense[9] = 6;
 		scst_fill_field_pointer_sense(&cmd->sense[12], field_offs,
-			bit_offs, cdb);
+					      bit_offs, cdb);
 		cmd->sense_valid_len = 16;
 	} else {
 		/* Fixed format */
@@ -2228,7 +2227,7 @@ static int scst_set_invalid_field_in(struct scst_cmd *cmd, int field_offs,
 		cmd->sense[12] = asc;
 		cmd->sense[13] = 0; /* ASCQ */
 		scst_fill_field_pointer_sense(&cmd->sense[15], field_offs,
-			bit_offs, cdb);
+					      bit_offs, cdb);
 		cmd->sense_valid_len = 18;
 	}
 
@@ -2240,14 +2239,14 @@ out:
 }
 
 int scst_set_invalid_field_in_cdb(struct scst_cmd *cmd, int field_offs,
-	int bit_offs)
+				  int bit_offs)
 {
 	return scst_set_invalid_field_in(cmd, field_offs, bit_offs, true);
 }
 EXPORT_SYMBOL(scst_set_invalid_field_in_cdb);
 
 int scst_set_invalid_field_in_parm_list(struct scst_cmd *cmd, int field_offs,
-	int bit_offs)
+					int bit_offs)
 {
 	return scst_set_invalid_field_in(cmd, field_offs, bit_offs, false);
 }
@@ -2260,7 +2259,7 @@ EXPORT_SYMBOL(scst_set_invalid_field_in_parm_list);
  * into account. Returns resulting sense length.
  */
 int scst_set_sense(u8 *buffer, int len, bool d_sense,
-	int key, int asc, int ascq)
+		   int key, int asc, int ascq)
 {
 	int res;
 
@@ -2275,7 +2274,7 @@ int scst_set_sense(u8 *buffer, int len, bool d_sense,
 	 * b) the additional sense code is set to MODE PARAMETERS CHANGED.
 	 */
 	if (key == UNIT_ATTENTION &&
-	      (asc == 0x29 || (asc == 0x2A && ascq == 1)))
+	    (asc == 0x29 || (asc == 0x2A && ascq == 1)))
 		d_sense = false;
 
 	if (d_sense) {
@@ -2325,7 +2324,7 @@ EXPORT_SYMBOL(scst_set_sense);
  * (key, asc, ascq) values.
  */
 bool scst_analyze_sense(const u8 *sense, int len, unsigned int valid_mask,
-	int key, int asc, int ascq)
+			int key, int asc, int ascq)
 {
 	bool res = false;
 
@@ -2386,7 +2385,7 @@ bool scst_analyze_sense(const u8 *sense, int len, unsigned int valid_mask,
 		}
 	} else {
 		PRINT_ERROR("Unknown sense response code 0x%x",
-			scst_sense_response_code(sense));
+			    scst_sense_response_code(sense));
 		goto out;
 	}
 
@@ -2421,7 +2420,7 @@ bool scst_is_ua_global(const u8 *sense, int len)
 	/* Changing it don't forget to change scst_requeue_ua() as well!! */
 
 	if (scst_analyze_sense(sense, len, SCST_SENSE_ALL_VALID,
-			SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed)))
+			       SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed)))
 		res = true;
 	else
 		res = false;
@@ -2467,18 +2466,19 @@ void scst_check_convert_sense(struct scst_cmd *cmd)
 			goto out;
 		}
 		cmd->sense_valid_len = scst_set_sense(cmd->sense, cmd->sense_buflen,
-			d_sense, cmd->sense[2], cmd->sense[12], cmd->sense[13]);
+						      d_sense, cmd->sense[2], cmd->sense[12],
+						      cmd->sense[13]);
 	} else if (!d_sense && ((scst_sense_response_code(cmd->sense) == 0x72) ||
 				(scst_sense_response_code(cmd->sense) == 0x73))) {
 		TRACE_MGMT_DBG("Converting descriptor sense to fixed (cmd %p)",
-			cmd);
+			       cmd);
 		if (cmd->sense_buflen < 18 || cmd->sense_valid_len < 8) {
 			PRINT_ERROR("Sense too small to convert (%d, type: descriptor, valid %d)",
 				    cmd->sense_buflen, cmd->sense_valid_len);
 			goto out;
 		}
 		cmd->sense_valid_len = scst_set_sense(cmd->sense,
-			cmd->sense_buflen, d_sense,
+						      cmd->sense_buflen, d_sense,
 			cmd->sense[1], cmd->sense[2], cmd->sense[3]);
 	}
 
@@ -2488,7 +2488,7 @@ out:
 EXPORT_SYMBOL(scst_check_convert_sense);
 
 int scst_set_cmd_error_sense(struct scst_cmd *cmd, const u8 *sense,
-	unsigned int len)
+			     unsigned int len)
 {
 	int res;
 
@@ -2546,7 +2546,7 @@ void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
 	TRACE_ENTRY();
 
 	TRACE_MGMT_DBG("Setting for sess %p initial UA %x/%x/%x", sess, key,
-		asc, ascq);
+		       asc, ascq);
 
 	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
@@ -2560,19 +2560,19 @@ void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
 				struct scst_tgt_dev_UA *ua;
 
 				ua = list_first_entry(&tgt_dev->UA_list,
-					typeof(*ua), UA_list_entry);
+						      typeof(*ua), UA_list_entry);
 				if (scst_analyze_sense(ua->UA_sense_buffer,
-						ua->UA_valid_sense_len,
+						       ua->UA_valid_sense_len,
 						SCST_SENSE_ALL_VALID,
 						SCST_LOAD_SENSE(scst_sense_reset_UA))) {
-					ua->UA_valid_sense_len = scst_set_sense(
-						ua->UA_sense_buffer,
-						sizeof(ua->UA_sense_buffer),
-						tgt_dev->dev->d_sense,
-						key, asc, ascq);
+					ua->UA_valid_sense_len =
+						scst_set_sense(ua->UA_sense_buffer,
+							       sizeof(ua->UA_sense_buffer),
+							       tgt_dev->dev->d_sense,
+							       key, asc, ascq);
 				} else {
 					PRINT_ERROR("%s",
-						"The first UA isn't RESET UA");
+						    "The first UA isn't RESET UA");
 				}
 			} else {
 				PRINT_ERROR("%s", "There's no RESET UA to replace");
@@ -2587,7 +2587,7 @@ void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
 EXPORT_SYMBOL(scst_set_initial_UA);
 
 struct scst_aen *scst_alloc_aen(struct scst_session *sess,
-	u64 unpacked_lun)
+				u64 unpacked_lun)
 {
 	struct scst_aen *aen;
 
@@ -2639,7 +2639,7 @@ static bool scst_is_active_tgt_dev(struct scst_tgt_dev *tgt_dev)
  * is in progress.
  */
 void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
-	int key, int asc, int ascq)
+			int key, int asc, int ascq)
 {
 	struct scst_session *sess = tgt_dev->sess;
 	struct scst_tgt_template *tgtt = sess->tgt->tgtt;
@@ -2671,14 +2671,14 @@ void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
 
 		aen->event_fn = SCST_AEN_SCSI;
 		aen->aen_sense_len = scst_set_sense(aen->aen_sense,
-			sizeof(aen->aen_sense), tgt_dev->dev->d_sense,
+						    sizeof(aen->aen_sense), tgt_dev->dev->d_sense,
 			key, asc, ascq);
 
 		TRACE_DBG("Calling target's %s report_aen(%p)",
-			tgtt->name, aen);
+			  tgtt->name, aen);
 		rc = tgtt->report_aen(aen);
 		TRACE_DBG("Target's %s report_aen(%p) returned %d",
-			tgtt->name, aen, rc);
+			  tgtt->name, aen, rc);
 		if (rc == SCST_AEN_RES_SUCCESS)
 			goto out;
 
@@ -2687,9 +2687,9 @@ void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
 
 queue_ua:
 	TRACE_MGMT_DBG("AEN not supported, queueing plain UA (tgt_dev %p)",
-		tgt_dev);
+		       tgt_dev);
 	sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
-		tgt_dev->dev->d_sense, key, asc, ascq);
+			    tgt_dev->dev->d_sense, key, asc, ascq);
 	scst_check_set_UA(tgt_dev, sense_buffer, sl, 0);
 
 out:
@@ -2720,7 +2720,7 @@ void scst_capacity_data_changed(struct scst_device *dev)
 	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 			    dev_tgt_dev_list_entry) {
 		scst_gen_aen_or_ua(tgt_dev,
-			SCST_LOAD_SENSE(scst_sense_capacity_data_changed));
+				   SCST_LOAD_SENSE(scst_sense_capacity_data_changed));
 	}
 
 	mutex_unlock(&scst_mutex);
@@ -2772,7 +2772,7 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 		head = &sess->sess_tgt_dev_list[i];
 
 		list_for_each_entry_rcu(tgt_dev, head,
-				sess_tgt_dev_list_entry) {
+					sess_tgt_dev_list_entry) {
 			/* Lockdep reports a false positive here before v5.1. */
 			spin_lock(&tgt_dev->tgt_dev_lock);
 		}
@@ -2786,21 +2786,20 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 					sess_tgt_dev_list_entry) {
 			int sl;
 
-			if (!scst_is_report_luns_changed_type(
-					tgt_dev->dev->type))
+			if (!scst_is_report_luns_changed_type(tgt_dev->dev->type))
 				continue;
 
 			sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
-				tgt_dev->dev->d_sense,
+					    tgt_dev->dev->d_sense,
 				SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed));
 
 			__scst_check_set_UA(tgt_dev, sense_buffer,
-				sl, flags | SCST_SET_UA_FLAG_GLOBAL);
+					    sl, flags | SCST_SET_UA_FLAG_GLOBAL);
 		}
 	}
 
 #if !defined(__CHECKER__)
-	for (i = SESS_TGT_DEV_LIST_HASH_SIZE-1; i >= 0; i--) {
+	for (i = SESS_TGT_DEV_LIST_HASH_SIZE - 1; i >= 0; i--) {
 		head = &sess->sess_tgt_dev_list[i];
 
 		list_for_each_entry_rcu(tgt_dev, head,
@@ -2840,9 +2839,8 @@ static void scst_report_luns_changed_sess(struct scst_session *sess)
 		head = &sess->sess_tgt_dev_list[i];
 
 		list_for_each_entry_rcu(tgt_dev, head,
-				sess_tgt_dev_list_entry) {
-			if (scst_is_report_luns_changed_type(
-					tgt_dev->dev->type)) {
+					sess_tgt_dev_list_entry) {
+			if (scst_is_report_luns_changed_type(tgt_dev->dev->type)) {
 				lun = tgt_dev->lun;
 				d_sense = tgt_dev->dev->d_sense;
 				goto found;
@@ -2863,14 +2861,14 @@ found:
 
 		aen->event_fn = SCST_AEN_SCSI;
 		aen->aen_sense_len = scst_set_sense(aen->aen_sense,
-			sizeof(aen->aen_sense), d_sense,
+						    sizeof(aen->aen_sense), d_sense,
 			SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed));
 
 		TRACE_DBG("Calling target's %s report_aen(%p)",
-			tgtt->name, aen);
+			  tgtt->name, aen);
 		rc = tgtt->report_aen(aen);
 		TRACE_DBG("Target's %s report_aen(%p) returned %d",
-			tgtt->name, aen, rc);
+			  tgtt->name, aen, rc);
 		if (rc == SCST_AEN_RES_SUCCESS)
 			goto out;
 
@@ -2915,7 +2913,7 @@ void scst_aen_done(struct scst_aen *aen)
 	TRACE_ENTRY();
 
 	TRACE_MGMT_DBG("AEN %p (fn %d) done (initiator %s)", aen,
-		aen->event_fn, aen->sess->initiator_name);
+		       aen->event_fn, aen->sess->initiator_name);
 
 	if (aen->delivery_status == SCST_AEN_RES_SUCCESS)
 		goto out_free;
@@ -2924,13 +2922,13 @@ void scst_aen_done(struct scst_aen *aen)
 		goto out_free;
 
 	TRACE_MGMT_DBG("Delivery of SCSI AEN failed (initiator %s)",
-		aen->sess->initiator_name);
+		       aen->sess->initiator_name);
 
 	if (scst_analyze_sense(aen->aen_sense, aen->aen_sense_len,
-			SCST_SENSE_ALL_VALID, SCST_LOAD_SENSE(
-				scst_sense_reported_luns_data_changed))) {
+			       SCST_SENSE_ALL_VALID,
+			       SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed))) {
 		scst_queue_report_luns_changed_UA(aen->sess,
-			SCST_SET_UA_FLAG_AT_HEAD);
+						  SCST_SET_UA_FLAG_AT_HEAD);
 	} else {
 		struct scst_session *sess = aen->sess;
 		struct scst_tgt_dev *tgt_dev;
@@ -2968,11 +2966,11 @@ void scst_requeue_ua(struct scst_cmd *cmd, const u8 *buf, int size)
 	}
 
 	if (scst_analyze_sense(buf, size, SCST_SENSE_ALL_VALID,
-			SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed))) {
+			       SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed))) {
 		TRACE_MGMT_DBG("Requeuing REPORTED LUNS DATA CHANGED UA for delivery failed cmd %p",
 			       cmd);
 		scst_queue_report_luns_changed_UA(cmd->sess,
-			SCST_SET_UA_FLAG_AT_HEAD);
+						  SCST_SET_UA_FLAG_AT_HEAD);
 	} else {
 		TRACE_MGMT_DBG("Requeuing UA for delivery failed cmd %p", cmd);
 		scst_check_set_UA(cmd->tgt_dev, buf, size, SCST_SET_UA_FLAG_AT_HEAD);
@@ -3022,7 +3020,7 @@ void scst_check_reassign_sess(struct scst_session *sess)
 		goto out;
 
 	TRACE_DBG("Checking reassignment for sess %p (initiator %s)",
-		sess, sess->initiator_name);
+		  sess, sess->initiator_name);
 
 	acg = scst_find_acg(sess);
 	if (acg == sess->acg) {
@@ -3047,7 +3045,7 @@ retry_add:
 			head = &sess->sess_tgt_dev_list[i];
 
 			list_for_each_entry_rcu(tgt_dev, head,
-					sess_tgt_dev_list_entry) {
+						sess_tgt_dev_list_entry) {
 				if (tgt_dev->dev == acg_dev->dev &&
 				    tgt_dev->lun == acg_dev->lun &&
 				    tgt_dev->acg_dev->acg_dev_rd_only == acg_dev->acg_dev_rd_only) {
@@ -3060,7 +3058,7 @@ retry_add:
 					goto next;
 				} else if (tgt_dev->lun == acg_dev->lun) {
 					TRACE_MGMT_DBG("Replacing LUN %lld",
-						(long long)tgt_dev->lun);
+						       (long long)tgt_dev->lun);
 					scst_del_tgt_dev(tgt_dev);
 					synchronize_rcu();
 					scst_free_tgt_dev(tgt_dev);
@@ -3074,7 +3072,7 @@ retry_add:
 		luns_changed = true;
 
 		TRACE_MGMT_DBG("sess %p: Allocing new tgt_dev for LUN %lld",
-			sess, (unsigned long long)acg_dev->lun);
+			       sess, (unsigned long long)acg_dev->lun);
 
 		rc = scst_alloc_add_tgt_dev(sess, acg_dev, &tgt_dev);
 		if (rc == -EPERM) {
@@ -3098,7 +3096,7 @@ next:
 		head = &sess->sess_tgt_dev_list[i];
 
 		list_for_each_entry_safe(tgt_dev, t, head,
-					sess_tgt_dev_list_entry) {
+					 sess_tgt_dev_list_entry) {
 			if (tgt_dev->acg_dev->acg != acg) {
 				TRACE_MGMT_DBG("sess %p: Deleting not used tgt_dev %p for LUN %lld",
 					       sess, tgt_dev,
@@ -3122,7 +3120,7 @@ next:
 	WRITE_ONCE(sess->black_hole_type, READ_ONCE(acg->acg_black_hole_type));
 
 	TRACE_DBG("Moving sess %p from acg %s to acg %s", sess,
-		old_acg->acg_name, acg->acg_name);
+		  old_acg->acg_name, acg->acg_name);
 	list_move_tail(&sess->acg_sess_list_entry, &acg->acg_sess_list);
 	scst_get_acg(acg);
 	scst_put_acg(old_acg);
@@ -3138,7 +3136,7 @@ next:
 			head = &sess->sess_tgt_dev_list[i];
 
 			list_for_each_entry_rcu(tgt_dev, head,
-					sess_tgt_dev_list_entry) {
+						sess_tgt_dev_list_entry) {
 				if (tgt_dev->inq_changed_ua_needed) {
 					TRACE_MGMT_DBG("sess %p: Setting INQUIRY DATA HAS CHANGED UA (tgt_dev %p)",
 						       sess, tgt_dev);
@@ -3146,7 +3144,7 @@ next:
 					tgt_dev->inq_changed_ua_needed = 0;
 
 					scst_gen_aen_or_ua(tgt_dev,
-						SCST_LOAD_SENSE(scst_sense_inquiry_data_changed));
+							   SCST_LOAD_SENSE(scst_sense_inquiry_data_changed));
 				}
 			}
 		}
@@ -3171,7 +3169,7 @@ void scst_check_reassign_sessions(void)
 			struct scst_session *sess;
 
 			list_for_each_entry(sess, &tgt->sess_list,
-						sess_list_entry) {
+					    sess_list_entry) {
 				scst_check_reassign_sess(sess);
 			}
 		}
@@ -3247,7 +3245,7 @@ int scst_get_cmd_abnormal_done_state(struct scst_cmd *cmd)
 
 	default:
 		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %s)",
-			cmd->state, cmd, scst_get_opcode_name(cmd));
+				 cmd->state, cmd, scst_get_opcode_name(cmd));
 		sBUG();
 	}
 
@@ -3263,7 +3261,7 @@ int scst_get_cmd_abnormal_done_state(struct scst_cmd *cmd)
 		if (unlikely(cmd->status == SAM_STAT_CHECK_CONDITION) &&
 		    scst_sense_valid(cmd->sense)) {
 			PRINT_BUFF_FLAG(TRACE_SCSI, "Sense", cmd->sense,
-				cmd->sense_valid_len);
+					cmd->sense_valid_len);
 		}
 	}
 
@@ -3289,7 +3287,7 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 	case SCST_CMD_STATE_FINISHED_INTERNAL:
 	case SCST_CMD_STATE_XMIT_WAIT:
 		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %s)",
-			cmd->state, cmd, scst_get_opcode_name(cmd));
+				 cmd->state, cmd, scst_get_opcode_name(cmd));
 		sBUG();
 	default:
 		break;
@@ -3326,7 +3324,7 @@ void scst_set_cmd_abnormal_done_state(struct scst_cmd *cmd)
 		break;
 	default:
 		PRINT_CRIT_ERROR("Wrong cmd state %d (cmd %p, op %s)",
-			cmd->state, cmd, scst_get_opcode_name(cmd));
+				 cmd->state, cmd, scst_get_opcode_name(cmd));
 		sBUG();
 		break;
 	}
@@ -3352,7 +3350,7 @@ const char *scst_get_opcode_name(struct scst_cmd *cmd)
 		return cmd->op_name;
 
 	scnprintf(cmd->not_parsed_op_name,
-		sizeof(cmd->not_parsed_op_name), "0x%x", cmd->cdb[0]);
+		  sizeof(cmd->not_parsed_op_name), "0x%x", cmd->cdb[0]);
 
 	return cmd->not_parsed_op_name;
 }
@@ -3367,7 +3365,7 @@ void scst_zero_write_rest(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	len = scst_get_sg_buf_first(cmd, &buf, *cmd->write_sg,
-			*cmd->write_sg_cnt);
+				    *cmd->write_sg_cnt);
 	while (len > 0) {
 		int cur_offs;
 
@@ -3384,7 +3382,7 @@ next:
 		offs += len;
 		scst_put_sg_buf(cmd, buf, *cmd->write_sg, *cmd->write_sg_cnt);
 		len = scst_get_sg_buf_next(cmd, &buf, *cmd->write_sg,
-					*cmd->write_sg_cnt);
+					   *cmd->write_sg_cnt);
 	}
 
 	TRACE_EXIT();
@@ -3403,7 +3401,7 @@ next:
  * otherwise.
  */
 static bool __scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
-	int *sg_cnt, int adjust_len, struct scst_orig_sg_data *orig_sg)
+			     int *sg_cnt, int adjust_len, struct scst_orig_sg_data *orig_sg)
 {
 	struct scatterlist *sgi;
 	int i, l;
@@ -3419,8 +3417,8 @@ static bool __scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
 		if (l >= adjust_len) {
 			int left = adjust_len - (l - sgi->length);
 
-			TRACE_DBG_FLAG(TRACE_SG_OP|TRACE_MEMORY|TRACE_DEBUG,
-				"cmd %p (tag %llu), sg %p, sg_cnt %d, adjust_len %d, i %d, sg[j].length %d, left %d",
+			TRACE_DBG_FLAG(TRACE_SG_OP | TRACE_MEMORY | TRACE_DEBUG,
+				       "cmd %p (tag %llu), sg %p, sg_cnt %d, adjust_len %d, i %d, sg[j].length %d, left %d",
 				cmd, (unsigned long long)cmd->tag,
 				sg, *sg_cnt, adjust_len, i,
 				sgi->length, left);
@@ -3430,7 +3428,7 @@ static bool __scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
 			orig_sg->orig_sg_entry = sgi;
 			orig_sg->orig_entry_offs = sgi->offset;
 			orig_sg->orig_entry_len = sgi->length;
-			*sg_cnt = (left > 0) ? i+1 : i;
+			*sg_cnt = (left > 0) ? i + 1 : i;
 			sgi->length = left;
 			res = true;
 			break;
@@ -3448,7 +3446,7 @@ static bool __scst_adjust_sg(struct scst_cmd *cmd, struct scatterlist *sg,
  * @adjust_len: [in]     New length of the scatterlist in bytes.
  */
 static void scst_adjust_sg(struct scst_cmd *cmd, bool reg_sg,
-	int adjust_len)
+			   int adjust_len)
 {
 	struct scatterlist *sg;
 	int *sg_cnt;
@@ -3472,7 +3470,7 @@ static void scst_adjust_sg(struct scst_cmd *cmd, bool reg_sg,
 	}
 
 	TRACE_DBG("reg_sg %d, adjust_len %d, adjust_dif %d", reg_sg,
-		adjust_len, adjust_dif);
+		  adjust_len, adjust_dif);
 
 	cmd->sg_buff_modified = !!__scst_adjust_sg(cmd, sg, sg_cnt, adjust_len,
 					&cmd->orig_sg);
@@ -3481,7 +3479,7 @@ static void scst_adjust_sg(struct scst_cmd *cmd, bool reg_sg,
 		adjust_len >>= (cmd->dev->block_shift - SCST_DIF_TAG_SHIFT);
 		TRACE_DBG("DIF adjust_len %d", adjust_len);
 		cmd->dif_sg_buff_modified = __scst_adjust_sg(cmd, cmd->dif_sg,
-						&cmd->dif_sg_cnt, adjust_len,
+							     &cmd->dif_sg_cnt, adjust_len,
 						&cmd->orig_dif_sg);
 	}
 
@@ -3504,7 +3502,7 @@ static void scst_adjust_sg(struct scst_cmd *cmd, bool reg_sg,
  * 0 upon success; a negative value upon error.
  */
 static int __scst_adjust_sg_get_tail(struct scst_cmd *cmd,
-	struct scatterlist *sg, int *sg_cnt,
+				     struct scatterlist *sg, int *sg_cnt,
 	struct scatterlist **res_sg, int *res_sg_cnt,
 	int adjust_len, struct scst_orig_sg_data *orig_sg, int must_left)
 {
@@ -3522,8 +3520,8 @@ static int __scst_adjust_sg_get_tail(struct scst_cmd *cmd,
 		if (l >= adjust_len) {
 			int offs = adjust_len - (l - sgi->length);
 
-			TRACE_DBG_FLAG(TRACE_SG_OP|TRACE_MEMORY|TRACE_DEBUG,
-				"cmd %p (tag %llu), sg %p, adjust_len %d, i %d, sg->length %d, offs %d",
+			TRACE_DBG_FLAG(TRACE_SG_OP | TRACE_MEMORY | TRACE_DEBUG,
+				       "cmd %p (tag %llu), sg %p, adjust_len %d, i %d, sg->length %d, offs %d",
 				cmd, (unsigned long long)cmd->tag,
 				sg, adjust_len, i, sgi->length, offs);
 
@@ -3545,7 +3543,7 @@ static int __scst_adjust_sg_get_tail(struct scst_cmd *cmd,
 			*res_sg_cnt = *sg_cnt - i;
 
 			TRACE_DBG("i %d, sg %p, off %d, len %d, cnt %d (offs %d)",
-				i, sgi, sgi->offset, sgi->length, *res_sg_cnt,
+				  i, sgi, sgi->offset, sgi->length, *res_sg_cnt,
 				offs);
 
 			res = 0;
@@ -3598,7 +3596,7 @@ out:
  * must NOT be used!
  */
 static int scst_adjust_sg_get_tail(struct scst_cmd *cmd,
-	struct scatterlist **res_sg, int *res_sg_cnt,
+				   struct scatterlist **res_sg, int *res_sg_cnt,
 	struct scatterlist **res_dif_sg, int *res_dif_sg_cnt,
 	int adjust_len, int must_left)
 {
@@ -3609,7 +3607,7 @@ static int scst_adjust_sg_get_tail(struct scst_cmd *cmd,
 	EXTRACHECKS_BUG_ON(cmd->sg_buff_modified || cmd->dif_sg_buff_modified);
 
 	res = __scst_adjust_sg_get_tail(cmd, cmd->sg, &cmd->sg_cnt, res_sg,
-		res_sg_cnt, adjust_len, &cmd->orig_sg, must_left);
+					res_sg_cnt, adjust_len, &cmd->orig_sg, must_left);
 	if (res != 0)
 		goto out;
 
@@ -3622,7 +3620,7 @@ static int scst_adjust_sg_get_tail(struct scst_cmd *cmd,
 		TRACE_DBG("DIF adjust_len %d, must_left %d", adjust_len, must_left);
 
 		res = __scst_adjust_sg_get_tail(cmd, cmd->dif_sg, &cmd->dif_sg_cnt,
-				 res_dif_sg, res_dif_sg_cnt, adjust_len,
+						res_dif_sg, res_dif_sg_cnt, adjust_len,
 				 &cmd->orig_dif_sg, must_left);
 		if (res != 0) {
 			scst_restore_sg_buff(cmd);
@@ -3717,7 +3715,7 @@ void scst_limit_sg_write_len(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	TRACE_MEM("Limiting sg write len to %d (cmd %p, sg %p, sg_cnt %d)",
-		cmd->write_len, cmd, *cmd->write_sg, *cmd->write_sg_cnt);
+		  cmd->write_len, cmd, *cmd->write_sg, *cmd->write_sg_cnt);
 
 	scst_check_restore_sg_buff(cmd);
 	scst_adjust_sg(cmd, false, cmd->write_len);
@@ -3734,7 +3732,7 @@ static int scst_full_len_to_data_len(u32 full_len, u32 block_shift)
 	rem = do_div(res, (1 << block_shift) + (1 << SCST_DIF_TAG_SHIFT));
 	if (unlikely(rem != 0))
 		TRACE(TRACE_MINOR, "Reminder %d for full len! (full len%d)",
-			rem, full_len);
+		      rem, full_len);
 
 	TRACE_DBG("data len %lld (full %d)", res, full_len);
 
@@ -3803,7 +3801,7 @@ void scst_adjust_resp_data_len(struct scst_cmd *cmd)
 	}
 
 	cmd->adjusted_resp_data_len = min(cmd->resp_data_len,
-				scst_cmd_get_expected_transfer_len_data(cmd));
+					  scst_cmd_get_expected_transfer_len_data(cmd));
 
 	if (cmd->adjusted_resp_data_len != cmd->resp_data_len) {
 		TRACE_MEM("Adjusting resp_data_len to %d (cmd %p, sg %p, sg_cnt %d)",
@@ -3823,7 +3821,7 @@ out:
  * Sets cmd's not received data length. Also automatically sets resid_possible.
  */
 void scst_cmd_set_write_not_received_data_len(struct scst_cmd *cmd,
-	int not_received)
+					      int not_received)
 {
 	TRACE_ENTRY();
 
@@ -3850,7 +3848,7 @@ void scst_cmd_set_write_not_received_data_len(struct scst_cmd *cmd,
 		cmd->write_len = cmd->expected_transfer_len_full - not_received;
 		if (cmd->tgt_dif_data_expected)
 			cmd->write_len = scst_full_len_to_data_len(cmd->write_len,
-						cmd->dev->block_shift);
+								   cmd->dev->block_shift);
 		if (cmd->write_len == cmd->bufflen)
 			goto out;
 	}
@@ -3861,7 +3859,7 @@ void scst_cmd_set_write_not_received_data_len(struct scst_cmd *cmd,
 	 */
 
 	TRACE_DBG("cmd %p, not_received %d, write_len %d", cmd, not_received,
-		cmd->write_len);
+		  cmd->write_len);
 
 	if (cmd->data_direction & SCST_DATA_WRITE)
 		scst_limit_sg_write_len(cmd);
@@ -3878,7 +3876,7 @@ void scst_cmd_set_write_no_data_received(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	EXTRACHECKS_BUG_ON(cmd->expected_values_set &&
-		((cmd->expected_data_direction & SCST_DATA_WRITE) == 0));
+			   ((cmd->expected_data_direction & SCST_DATA_WRITE) == 0));
 
 	if ((cmd->expected_data_direction & SCST_DATA_READ) &&
 	    (cmd->expected_data_direction & SCST_DATA_WRITE))
@@ -4013,7 +4011,7 @@ void scst_update_hw_pending_start(struct scst_cmd *cmd)
 	spin_lock_irqsave(&cmd->sess->sess_list_lock, flags);
 	cmd->hw_pending_start = jiffies;
 	TRACE_MGMT_DBG("Updated hw_pending_start to %ld (cmd %p)",
-		cmd->hw_pending_start, cmd);
+		       cmd->hw_pending_start, cmd);
 	spin_unlock_irqrestore(&cmd->sess->sess_list_lock, flags);
 
 	TRACE_EXIT();
@@ -4025,7 +4023,7 @@ EXPORT_SYMBOL_GPL(scst_update_hw_pending_start);
  * Returns 0 to continue, >0 to restart, <0 to break.
  */
 static int scst_check_hw_pending_cmd(struct scst_cmd *cmd,
-	unsigned long cur_time, unsigned long max_time,
+				     unsigned long cur_time, unsigned long max_time,
 	struct scst_session *sess, unsigned long *flags,
 	struct scst_tgt_template *tgtt)
 {
@@ -4052,7 +4050,7 @@ static int scst_check_hw_pending_cmd(struct scst_cmd *cmd,
 	}
 
 	TRACE(TRACE_MGMT, "Cmd %p HW pending for too long %ld (state %x)",
-		cmd, (cur_time - cmd->hw_pending_start) / HZ,
+	      cmd, (cur_time - cmd->hw_pending_start) / HZ,
 		cmd->state);
 
 	cmd->cmd_hw_pending = 0;
@@ -4080,7 +4078,7 @@ static void scst_hw_pending_work_fn(struct work_struct *work)
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("HW pending work (sess %p, max time %ld)", sess, max_time/HZ);
+	TRACE_DBG("HW pending work (sess %p, max time %ld)", sess, max_time / HZ);
 
 	clear_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED, &sess->sess_aflags);
 
@@ -4091,7 +4089,7 @@ restart:
 		int rc;
 
 		rc = scst_check_hw_pending_cmd(cmd, cur_time, max_time, sess,
-					&flags, tgtt);
+					       &flags, tgtt);
 		if (rc < 0)
 			break;
 		else if (rc == 0)
@@ -4106,10 +4104,10 @@ restart:
 		 * one more run to release them, so reschedule once again.
 		 */
 		TRACE_DBG("Sched HW pending work for sess %p (max time %d)",
-			sess, tgtt->max_hw_pending_time);
+			  sess, tgtt->max_hw_pending_time);
 		set_bit(SCST_SESS_HW_PENDING_WORK_SCHEDULED, &sess->sess_aflags);
 		schedule_delayed_work(&sess->hw_pending_work,
-				tgtt->max_hw_pending_time * HZ);
+				      tgtt->max_hw_pending_time * HZ);
 	}
 
 	spin_unlock_irqrestore(&sess->sess_list_lock, flags);
@@ -4128,14 +4126,14 @@ bool __scst_is_relative_target_port_id_unique(u16 id, const struct scst_tgt *t)
 	TRACE_ENTRY();
 
 	list_for_each_entry(tgtt, &scst_template_list,
-				scst_template_list_entry) {
+			    scst_template_list_entry) {
 		struct scst_tgt *tgt;
 
 		list_for_each_entry(tgt, &tgtt->tgt_list, tgt_list_entry) {
 			if (tgt == t)
 				continue;
 			if (tgt->tgtt->is_target_enabled &&
-			     !tgt->tgtt->is_target_enabled(tgt))
+			    !tgt->tgtt->is_target_enabled(tgt))
 				continue;
 			if (id == tgt->rel_tgt_id) {
 				res = false;
@@ -4150,7 +4148,7 @@ bool __scst_is_relative_target_port_id_unique(u16 id, const struct scst_tgt *t)
 
 /* scst_mutex supposed to be locked */
 bool scst_is_relative_target_port_id_unique(u16 id,
-	const struct scst_tgt *t)
+					    const struct scst_tgt *t)
 {
 	bool res;
 
@@ -4417,7 +4415,7 @@ void scst_init_mem_lim(struct scst_mem_lim *mem_lim)
 EXPORT_SYMBOL_GPL(scst_init_mem_lim);
 
 static struct scst_acg_dev *scst_alloc_acg_dev(struct scst_acg *acg,
-					struct scst_device *dev, u64 lun)
+					       struct scst_device *dev, u64 lun)
 {
 	struct scst_acg_dev *res;
 
@@ -4483,7 +4481,7 @@ void scst_del_free_acg_dev(struct scst_acg_dev *acg_dev, bool del_sysfs)
 }
 
 static int scst_check_dif_compatibility(const struct scst_acg *acg,
-	const struct scst_device *dev)
+					const struct scst_device *dev)
 {
 	int res = -EINVAL;
 	struct scst_tgt *tgt;
@@ -4499,7 +4497,7 @@ static int scst_check_dif_compatibility(const struct scst_acg *acg,
 
 	if (!tgt->tgt_dif_supported) {
 		PRINT_ERROR("Target %s doesn't support T10-PI (device %s)",
-			tgt->tgt_name, dev->virt_name);
+			    tgt->tgt_name, dev->virt_name);
 		goto out;
 	}
 
@@ -4590,7 +4588,7 @@ void scst_tgt_dev_sysfs_remove(struct scst_tgt_dev *tgt_dev)
 
 /* The caller must hold scst_mutex. */
 int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
-	struct scst_device *dev, u64 lun, unsigned int flags,
+		     struct scst_device *dev, u64 lun, unsigned int flags,
 	struct scst_acg_dev **out_acg_dev)
 {
 	int res;
@@ -4624,7 +4622,7 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 	}
 
 	TRACE_DBG("Adding acg_dev %p to acg_dev_list and dev_acg_dev_list",
-		acg_dev);
+		  acg_dev);
 	list_add_tail(&acg_dev->acg_dev_list_entry, &acg->acg_dev_list);
 	list_add_tail(&acg_dev->dev_acg_dev_list_entry, &dev->dev_acg_dev_list);
 
@@ -4669,7 +4667,7 @@ out_on_del:
 
 out_free:
 	list_for_each_entry_safe(tgt_dev, tt, &tmp_tgt_dev_list,
-			 extra_tgt_dev_list_entry) {
+				 extra_tgt_dev_list_entry) {
 		sess = tgt_dev->sess;
 
 		mutex_lock(&sess->tgt_dev_list_mutex);
@@ -4711,7 +4709,7 @@ static struct scst_acg_dev *__scst_acg_del_lun(struct scst_acg *acg,
 						  *report_luns_changed);
 
 	list_for_each_entry_safe(tgt_dev, tt, &acg_dev->dev->dev_tgt_dev_list,
-			 dev_tgt_dev_list_entry) {
+				 dev_tgt_dev_list_entry) {
 		if (tgt_dev->acg_dev == acg_dev) {
 			sess = tgt_dev->sess;
 
@@ -4727,7 +4725,7 @@ static struct scst_acg_dev *__scst_acg_del_lun(struct scst_acg *acg,
 	scst_del_acg_dev(acg_dev, true, true);
 
 	PRINT_INFO("Removed LUN %lld from group %s (target %s)",
-		lun, acg->acg_name, acg->tgt->tgt_name);
+		   lun, acg->acg_name, acg->tgt->tgt_name);
 
 out:
 	return acg_dev;
@@ -4903,7 +4901,7 @@ int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 				TRACE_MGMT_DBG("INQUIRY DATA HAS CHANGED on tgt_dev %p",
 					       tgt_dev);
 				scst_gen_aen_or_ua(tgt_dev,
-					SCST_LOAD_SENSE(scst_sense_inquiry_data_changed));
+						   SCST_LOAD_SENSE(scst_sense_inquiry_data_changed));
 			}
 		}
 	}
@@ -4911,6 +4909,7 @@ int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 
 	if (acg_dev && READ_ONCE(scst_async_lun_replace)) {
 		struct scst_async_repl_work *w = kzalloc_obj(*w);
+
 		if (w) {
 			INIT_WORK(&w->work, scst_async_repl_work_fn);
 			INIT_LIST_HEAD(&w->tgt_dev_list);
@@ -4934,7 +4933,7 @@ out:
 }
 
 int scst_alloc_add_acg(struct scst_tgt *tgt, const char *acg_name,
-	bool tgt_acg, struct scst_acg **out_acg)
+		       bool tgt_acg, struct scst_acg **out_acg)
 {
 	struct scst_acg *acg;
 	int res;
@@ -4971,7 +4970,7 @@ int scst_alloc_add_acg(struct scst_tgt *tgt, const char *acg_name,
 
 	if (tgt_acg) {
 		TRACE_DBG("Adding acg '%s' to device '%s' acg_list", acg_name,
-			tgt->tgt_name);
+			  tgt->tgt_name);
 		list_add_tail(&acg->acg_list_entry, &tgt->tgt_acg_list);
 		acg->tgt_acg = 1;
 
@@ -5193,8 +5192,7 @@ struct scst_acg *scst_tgt_find_acg(struct scst_tgt *tgt, const char *name)
 }
 
 /* scst_mutex supposed to be held */
-static struct scst_tgt_dev *scst_find_shared_io_tgt_dev(
-	struct scst_tgt_dev *tgt_dev)
+static struct scst_tgt_dev *scst_find_shared_io_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_cmd_threads *a;
 	struct scst_tgt_dev *res = NULL;
@@ -5205,7 +5203,7 @@ static struct scst_tgt_dev *scst_find_shared_io_tgt_dev(
 	TRACE_ENTRY();
 
 	TRACE_DBG("tgt_dev %s (acg %p, io_grouping_type %d)",
-		sess->initiator_name, acg, acg->acg_io_grouping_type);
+		  sess->initiator_name, acg, acg->acg_io_grouping_type);
 
 	switch (acg->acg_io_grouping_type) {
 	case SCST_IO_GROUPING_AUTO:
@@ -5213,7 +5211,7 @@ static struct scst_tgt_dev *scst_find_shared_io_tgt_dev(
 			goto out;
 
 		list_for_each_entry(t, &tgt_dev->dev->dev_tgt_dev_list,
-				dev_tgt_dev_list_entry) {
+				    dev_tgt_dev_list_entry) {
 			if (t == tgt_dev ||
 			    !t->sess->initiator_name ||
 			    !t->active_cmd_threads)
@@ -5231,12 +5229,12 @@ static struct scst_tgt_dev *scst_find_shared_io_tgt_dev(
 
 	case SCST_IO_GROUPING_THIS_GROUP_ONLY:
 		list_for_each_entry(t, &tgt_dev->dev->dev_tgt_dev_list,
-				dev_tgt_dev_list_entry) {
+				    dev_tgt_dev_list_entry) {
 			if (t == tgt_dev || !t->active_cmd_threads)
 				continue;
 
 			TRACE_DBG("t %s (acg %p)", t->sess->initiator_name,
-				t->acg_dev->acg);
+				  t->acg_dev->acg);
 
 			if (t->acg_dev->acg == acg)
 				goto found;
@@ -5248,12 +5246,12 @@ static struct scst_tgt_dev *scst_find_shared_io_tgt_dev(
 
 	default:
 		list_for_each_entry(t, &tgt_dev->dev->dev_tgt_dev_list,
-				dev_tgt_dev_list_entry) {
+				    dev_tgt_dev_list_entry) {
 			if (t == tgt_dev || !t->active_cmd_threads)
 				continue;
 
 			TRACE_DBG("t %s (acg %p, io_grouping_type %d)",
-				t->sess->initiator_name, t->acg_dev->acg,
+				  t->sess->initiator_name, t->acg_dev->acg,
 				t->acg_dev->acg->acg_io_grouping_type);
 
 			if (t->acg_dev->acg->acg_io_grouping_type ==
@@ -5289,17 +5287,17 @@ found:
 }
 
 enum scst_dev_type_threads_pool_type scst_parse_threads_pool_type(const char *p,
-	int len)
+								  int len)
 {
 	enum scst_dev_type_threads_pool_type res;
 
 	if (strncasecmp(p, SCST_THREADS_POOL_PER_INITIATOR_STR,
 			min_t(int, strlen(SCST_THREADS_POOL_PER_INITIATOR_STR),
-				len)) == 0)
+			      len)) == 0)
 		res = SCST_THREADS_POOL_PER_INITIATOR;
 	else if (strncasecmp(p, SCST_THREADS_POOL_SHARED_STR,
-			min_t(int, strlen(SCST_THREADS_POOL_SHARED_STR),
-				len)) == 0) {
+			     min_t(int, strlen(SCST_THREADS_POOL_SHARED_STR),
+				   len)) == 0) {
 		res = SCST_THREADS_POOL_SHARED;
 	} else {
 		PRINT_ERROR("Unknown threads pool type %s", p);
@@ -5324,7 +5322,7 @@ static int scst_ioc_keeper_thread(void *arg)
 
 	aic_keeper->aic = get_task_io_context(current, GFP_KERNEL, NUMA_NO_NODE);
 	TRACE_DBG("Alloced new async IO context %p (aic %p)",
-		aic_keeper->aic, aic_keeper);
+		  aic_keeper->aic, aic_keeper);
 
 	/* We have our own ref counting */
 	put_io_context(aic_keeper->aic);
@@ -5334,10 +5332,10 @@ static int scst_ioc_keeper_thread(void *arg)
 	wake_up_all(&aic_keeper->aic_keeper_waitQ);
 
 	wait_event_interruptible(aic_keeper->aic_keeper_waitQ,
-		kthread_should_stop());
+				 kthread_should_stop());
 
 	TRACE_MGMT_DBG("AIC %p keeper thread %s finished", aic_keeper,
-		current->comm);
+		       current->comm);
 
 	TRACE_EXIT();
 	return 0;
@@ -5375,7 +5373,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 		} else {
 			/* Create new context */
 			aic_keeper = kzalloc_node(sizeof(*aic_keeper), GFP_KERNEL,
-				dev->dev_numa_node_id);
+						  dev->dev_numa_node_id);
 			if (!aic_keeper) {
 				PRINT_ERROR("Unable to alloc aic_keeper (size %zd)",
 					    sizeof(*aic_keeper));
@@ -5388,7 +5386,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 
 			aic_keeper->aic_keeper_thr =
 				kthread_run(scst_ioc_keeper_thread,
-					aic_keeper, "aic_keeper");
+					    aic_keeper, "aic_keeper");
 			if (IS_ERR(aic_keeper->aic_keeper_thr)) {
 				PRINT_ERROR("Error running ioc_keeper thread (tgt_dev %p)",
 					    tgt_dev);
@@ -5397,7 +5395,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 			}
 
 			wait_event(aic_keeper->aic_keeper_waitQ,
-				aic_keeper->aic_ready);
+				   aic_keeper->aic_ready);
 
 			TRACE_DBG("Created async io context %p for not shared tgt_dev %p (dev %s)",
 				  aic_keeper->aic, tgt_dev,
@@ -5449,7 +5447,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 	case SCST_THREADS_POOL_TYPE_INVALID:
 	default:
 		PRINT_CRIT_ERROR("Unknown threads pool type %d (dev %s)",
-			dev->threads_pool_type, dev->virt_name);
+				 dev->threads_pool_type, dev->virt_name);
 		sBUG();
 		break;
 	}
@@ -5475,7 +5473,7 @@ static void scst_aic_keeper_release(struct kref *kref)
 	TRACE_ENTRY();
 
 	aic_keeper = container_of(kref, struct scst_async_io_context_keeper,
-			aic_keeper_kref);
+				  aic_keeper_kref);
 
 	kthread_stop(aic_keeper->aic_keeper_thr);
 
@@ -5497,7 +5495,7 @@ void scst_tgt_dev_stop_threads(struct scst_tgt_dev *tgt_dev)
 	if (tgt_dev->active_cmd_threads == &scst_main_cmd_threads) {
 		/* Global async threads */
 		kref_put(&tgt_dev->aic_keeper->aic_keeper_kref,
-			scst_aic_keeper_release);
+			 scst_aic_keeper_release);
 		tgt_dev->async_io_context = NULL;
 		tgt_dev->aic_keeper = NULL;
 	} else if (tgt_dev->active_cmd_threads == &tgt_dev->dev->dev_cmd_threads) {
@@ -5620,7 +5618,7 @@ int scst_alloc_add_tgt_dev(struct scst_session *sess,
 		scst_sgv_pool_use_dma(tgt_dev);
 
 	TRACE_MGMT_DBG("Device %s on SCST lun=%lld",
-	       dev->virt_name, (unsigned long long)tgt_dev->lun);
+		       dev->virt_name, (unsigned long long)tgt_dev->lun);
 
 	spin_lock_init(&tgt_dev->tgt_dev_lock);
 	lockdep_register_key(&tgt_dev->tgt_dev_key);
@@ -5644,7 +5642,7 @@ int scst_alloc_add_tgt_dev(struct scst_session *sess,
 		tgt_dev->tgt_dev_after_exec_atomic = 1;
 
 	sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
-		dev->d_sense, SCST_LOAD_SENSE(scst_sense_reset_UA));
+			    dev->d_sense, SCST_LOAD_SENSE(scst_sense_reset_UA));
 	scst_alloc_set_UA(tgt_dev, sense_buffer, sl, 0);
 
 	if (!sess->tgt->tgtt->get_initiator_port_transport_id) {
@@ -5703,7 +5701,7 @@ out:
 out_detach:
 	if (dev->handler->detach_tgt) {
 		TRACE_DBG("Calling dev handler's detach_tgt(%p)",
-		      tgt_dev);
+			  tgt_dev);
 		dev->handler->detach_tgt(tgt_dev);
 		TRACE_DBG("%s", "Dev handler's detach_tgt() returned");
 	}
@@ -5741,7 +5739,7 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 				tgt_dev->dev->d_sense,
 				SCST_LOAD_SENSE(scst_sense_nexus_loss_UA));
 		scst_check_set_UA(tgt_dev, sense_buffer, sl,
-			SCST_SET_UA_FLAG_AT_HEAD);
+				  SCST_SET_UA_FLAG_AT_HEAD);
 	}
 
 	TRACE_EXIT();
@@ -5796,7 +5794,7 @@ void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 
 	if (dev->handler && dev->handler->detach_tgt) {
 		TRACE_DBG("Calling dev handler's detach_tgt(%p)",
-		      tgt_dev);
+			  tgt_dev);
 		dev->handler->detach_tgt(tgt_dev);
 		TRACE_DBG("%s", "Dev handler's detach_tgt() returned");
 	}
@@ -5856,7 +5854,7 @@ int scst_sess_alloc_tgt_devs(struct scst_session *sess)
 	lockdep_assert_held(&scst_mutex);
 
 	list_for_each_entry(acg_dev, &sess->acg->acg_dev_list,
-			acg_dev_list_entry) {
+			    acg_dev_list_entry) {
 		res = scst_alloc_add_tgt_dev(sess, acg_dev, &tgt_dev);
 		if (res == -EPERM)
 			continue;
@@ -5885,7 +5883,7 @@ int scst_acg_add_acn(struct scst_acg *acg, const char *name)
 	list_for_each_entry(acn, &acg->acn_list, acn_list_entry) {
 		if (strcmp(acn->name, name) == 0) {
 			PRINT_ERROR("Name %s already exists in group %s",
-				name, acg->acg_name);
+				    name, acg->acg_name);
 			res = -EEXIST;
 			goto out;
 		}
@@ -5917,7 +5915,7 @@ int scst_acg_add_acn(struct scst_acg *acg, const char *name)
 out:
 	if (res == 0) {
 		PRINT_INFO("Added name %s to group %s (target %s)", name,
-			acg->acg_name, acg->tgt->tgt_name);
+			   acg->acg_name, acg->tgt->tgt_name);
 		scst_check_reassign_sessions();
 	}
 
@@ -5985,9 +5983,10 @@ out:
  *
  * Return: pointer to the newly allocated command or NULL.
  */
-struct scst_cmd *__scst_create_prepare_internal_cmd(const u8 *cdb,
-	unsigned int cdb_len, enum scst_cmd_queue_type queue_type,
-	struct scst_tgt_dev *tgt_dev, gfp_t gfp_mask, bool fantom)
+struct scst_cmd *__scst_create_prepare_internal_cmd(const u8 *cdb, unsigned int cdb_len,
+						    enum scst_cmd_queue_type queue_type,
+						    struct scst_tgt_dev *tgt_dev, gfp_t gfp_mask,
+						    bool fantom)
 {
 	struct scst_cmd *res;
 	int rc;
@@ -6032,7 +6031,7 @@ struct scst_cmd *__scst_create_prepare_internal_cmd(const u8 *cdb,
 	scst_get_icmd(res);
 
 	TRACE(TRACE_SCSI, "New internal cmd %p (op %s)", res,
-		scst_get_opcode_name(res));
+	      scst_get_opcode_name(res));
 
 	rc = scst_pre_parse(res);
 	sBUG_ON(rc != 0);
@@ -6044,9 +6043,9 @@ out:
 	return res;
 }
 
-static struct scst_cmd *scst_create_prepare_internal_cmd(
-	struct scst_cmd *orig_cmd, const u8 *cdb,
-	unsigned int cdb_len, enum scst_cmd_queue_type queue_type)
+static struct scst_cmd *scst_create_prepare_internal_cmd(struct scst_cmd *orig_cmd, const u8 *cdb,
+							 unsigned int cdb_len,
+							 enum scst_cmd_queue_type queue_type)
 {
 	struct scst_cmd *res;
 	gfp_t gfp_mask = scst_cmd_atomic(orig_cmd) ? GFP_ATOMIC : orig_cmd->cmd_gfp_mask;
@@ -6054,7 +6053,7 @@ static struct scst_cmd *scst_create_prepare_internal_cmd(
 	TRACE_ENTRY();
 
 	res = __scst_create_prepare_internal_cmd(cdb, cdb_len, queue_type,
-			orig_cmd->tgt_dev, gfp_mask, false);
+						 orig_cmd->tgt_dev, gfp_mask, false);
 	if (!res)
 		goto out;
 
@@ -6109,13 +6108,13 @@ int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 
 	if (orig_cmd->sense) {
 		TRACE_MEM("Releasing sense %p (orig_cmd %p)",
-			orig_cmd->sense, orig_cmd);
+			  orig_cmd->sense, orig_cmd);
 		mempool_free(orig_cmd->sense, scst_sense_mempool);
 		orig_cmd->sense = NULL;
 	}
 
 	rs_cmd = scst_create_prepare_internal_cmd(orig_cmd,
-			request_sense, sizeof(request_sense),
+						  request_sense, sizeof(request_sense),
 			SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 	if (!rs_cmd)
 		goto free_priv;
@@ -6164,12 +6163,12 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 	    scst_sense_valid(buf)) {
 		TRACE(TRACE_SCSI | TRACE_MGMT_DEBUG, "REQUEST SENSE %p returned valid sense (orig cmd %s)",
 		      req_cmd, orig_cmd->op_name);
-		PRINT_BUFF_FLAG(TRACE_SCSI|TRACE_MGMT_DEBUG, "Sense", buf, len);
+		PRINT_BUFF_FLAG(TRACE_SCSI | TRACE_MGMT_DEBUG, "Sense", buf, len);
 		if (scst_no_sense(buf))
 			PRINT_WARNING("REQUEST SENSE returned NO SENSE (orig cmd %s)",
 				      orig_cmd->op_name);
 		scst_alloc_set_sense(orig_cmd, scst_cmd_atomic(req_cmd),
-			buf, len);
+				     buf, len);
 	} else {
 		if (test_bit(SCST_CMD_ABORTED, &req_cmd->cmd_flags) &&
 		    !test_bit(SCST_CMD_ABORTED, &orig_cmd->cmd_flags)) {
@@ -6178,7 +6177,7 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 		} else {
 			PRINT_ERROR("Unable to get the sense via REQUEST SENSE, returning HARDWARE ERROR");
 			scst_set_cmd_error(orig_cmd,
-				SCST_LOAD_SENSE(scst_sense_internal_failure));
+					   SCST_LOAD_SENSE(scst_sense_internal_failure));
 		}
 	}
 
@@ -6201,7 +6200,7 @@ int scst_open_bdev_by_path(const char *path, blk_mode_t mode, void *holder,
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 5))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 5))
 	struct bdev_handle *bdev_handle;
 
 	bdev_handle = bdev_open_by_path(path, mode, holder, hops);
@@ -6229,7 +6228,7 @@ void scst_release_bdev(struct scst_bdev_descriptor *bdev_desc)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 5))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 5))
 	struct bdev_handle *bdev_handle = bdev_desc->priv;
 
 	if (bdev_handle)
@@ -6514,7 +6513,7 @@ int scst_ws_push_single_write(struct scst_write_same_priv *wsp, s64 lba, int blo
 	write_cdb_len = scst_ws_build_write_cdb(wsp, write_cdb, lba, blocks);
 
 	cmd = scst_create_prepare_internal_cmd(ws_cmd, write_cdb,
-		write_cdb_len, SCST_CMD_QUEUE_SIMPLE);
+					       write_cdb_len, SCST_CMD_QUEUE_SIMPLE);
 	if (!cmd) {
 		res = -ENOMEM;
 		goto out_busy;
@@ -6538,7 +6537,7 @@ int scst_ws_push_single_write(struct scst_write_same_priv *wsp, s64 lba, int blo
 		cmd->expected_transfer_len_full += dif_bufflen;
 
 		dif_sg = sgv_pool_alloc(ws_cmd->tgt_dev->pools[raw_smp_processor_id()],
-			dif_bufflen, GFP_KERNEL, 0, &dif_sg_cnt, &dif_sgv,
+					dif_bufflen, GFP_KERNEL, 0, &dif_sg_cnt, &dif_sgv,
 			&cmd->dev->dev_mem_lim, NULL);
 		if (unlikely(!dif_sg)) {
 			TRACE(TRACE_OUT_OF_MEM, "Unable to alloc DIF sg for %d blocks",
@@ -6557,7 +6556,7 @@ int scst_ws_push_single_write(struct scst_write_same_priv *wsp, s64 lba, int blo
 			struct t10_pi_tuple *t = sg_virt(s);
 
 			TRACE_DBG("sg %p, offset %d, length %d, left %d", s,
-				s->offset, s->length, left);
+				  s->offset, s->length, left);
 			while (left > 0) {
 				t->app_tag = wsp->app_tag;
 				t->ref_tag = cpu_to_be32(wsp->ref_tag);
@@ -6641,7 +6640,7 @@ static void scst_ws_write_cmd_finished(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	TRACE_DBG("Write cmd %p finished (ws cmd %p, ws_cur_in_flight %d)",
-		cmd, ws_cmd, wsp->ws_cur_in_flight);
+		  cmd, ws_cmd, wsp->ws_cur_in_flight);
 
 	if (cmd->out_sgv)
 		sgv_pool_free(cmd->out_sgv, &cmd->dev->dev_mem_lim);
@@ -6655,11 +6654,11 @@ static void scst_ws_write_cmd_finished(struct scst_cmd *cmd)
 
 	if (cmd->status != 0) {
 		TRACE_DBG("Write cmd %p (ws cmd %p) finished not successfully",
-			cmd, ws_cmd);
+			  cmd, ws_cmd);
 		sBUG_ON(cmd->resp_data_len != 0);
 		if (cmd->status == SAM_STAT_CHECK_CONDITION) {
 			rc = scst_set_cmd_error_sense(ws_cmd, cmd->sense,
-				cmd->sense_valid_len);
+						      cmd->sense_valid_len);
 		} else {
 			sBUG_ON(cmd->sense);
 			rc = scst_set_cmd_error_status(ws_cmd, cmd->status);
@@ -6672,12 +6671,12 @@ static void scst_ws_write_cmd_finished(struct scst_cmd *cmd)
 	}
 
 	if (wsp->ws_left_to_send == 0) {
-		if (wsp->ws_descriptors[wsp->ws_cur_descr+1].sdd_blocks != 0) {
+		if (wsp->ws_descriptors[wsp->ws_cur_descr + 1].sdd_blocks != 0) {
 			wsp->ws_cur_descr++;
 			wsp->ws_cur_lba = wsp->ws_descriptors[wsp->ws_cur_descr].sdd_lba;
 			wsp->ws_left_to_send = wsp->ws_descriptors[wsp->ws_cur_descr].sdd_blocks;
 			TRACE_DBG("wsp %p, cur descr %d, cur lba %lld, left %d",
-				wsp, wsp->ws_cur_descr, (long long)wsp->ws_cur_lba,
+				  wsp, wsp->ws_cur_descr, (long long)wsp->ws_cur_lba,
 				wsp->ws_left_to_send);
 		}
 		if (wsp->ws_left_to_send == 0)
@@ -6740,12 +6739,12 @@ again:
 	}
 
 	if (wsp->ws_left_to_send == 0 &&
-	    wsp->ws_descriptors[wsp->ws_cur_descr+1].sdd_blocks != 0) {
+	    wsp->ws_descriptors[wsp->ws_cur_descr + 1].sdd_blocks != 0) {
 		wsp->ws_cur_descr++;
 		wsp->ws_cur_lba = wsp->ws_descriptors[wsp->ws_cur_descr].sdd_lba;
 		wsp->ws_left_to_send = wsp->ws_descriptors[wsp->ws_cur_descr].sdd_blocks;
 		TRACE_DBG("wsp %p, cur descr %d, cur lba %lld, left %d",
-			wsp, wsp->ws_cur_descr, (long long)wsp->ws_cur_lba,
+			  wsp, wsp->ws_cur_descr, (long long)wsp->ws_cur_lba,
 			wsp->ws_left_to_send);
 		goto again;
 	}
@@ -6771,7 +6770,7 @@ out_err:
 }
 
 static int scst_ws_sg_init(struct scatterlist **ws_sg, int ws_sg_cnt,
-	struct page *pg, unsigned int offset, unsigned int length,
+			   struct page *pg, unsigned int offset, unsigned int length,
 	unsigned int total_bytes)
 {
 	struct scatterlist *sg;
@@ -6794,7 +6793,8 @@ static int scst_ws_sg_init(struct scatterlist **ws_sg, int ws_sg_cnt,
 	return 0;
 }
 
-static int scst_ws_sg_tails_get(struct scst_data_descriptor *where, struct scst_write_same_priv *wsp)
+static int scst_ws_sg_tails_get(struct scst_data_descriptor *where,
+				struct scst_write_same_priv *wsp)
 {
 	int i;
 
@@ -6812,7 +6812,7 @@ static int scst_ws_sg_tails_get(struct scst_data_descriptor *where, struct scst_
 	wsp->ws_sg_tails = kzalloc_objs(*wsp->ws_sg_tails, i + 1);
 	if (!wsp->ws_sg_tails) {
 		PRINT_ERROR("Unable to allocate ws_sg_tails (size %zd)",
-				sizeof(*wsp->ws_sg_tails)*i);
+			    sizeof(*wsp->ws_sg_tails) * i);
 		return -ENOMEM;
 	}
 	for (i = 0; where[i].sdd_blocks != 0; i++) {
@@ -6859,7 +6859,7 @@ void scst_write_same(struct scst_cmd *cmd, struct scst_data_descriptor *where)
 		TRACE(TRACE_MINOR, "LBDATA and/or PBDATA (ctrl %x) are not supported",
 		      cmd->cdb[ctrl_offs]);
 		scst_set_invalid_field_in_cdb(cmd, ctrl_offs,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 1);
+					      SCST_INVAL_FIELD_BIT_OFFS_VALID | 1);
 		goto out_done;
 	}
 
@@ -6875,7 +6875,7 @@ void scst_write_same(struct scst_cmd *cmd, struct scst_data_descriptor *where)
 		where = kzalloc(sizeof(*where) << 1, GFP_KERNEL);
 		if (!where) {
 			PRINT_ERROR("Unable to allocate ws_priv (size %zd, cmd %p)",
-				sizeof(*where) << 1, cmd);
+				    sizeof(*where) << 1, cmd);
 			goto out_busy;
 		}
 		where->sdd_lba = cmd->lba;
@@ -6892,7 +6892,7 @@ void scst_write_same(struct scst_cmd *cmd, struct scst_data_descriptor *where)
 	wsp = kzalloc_obj(*wsp);
 	if (!wsp) {
 		PRINT_ERROR("Unable to allocate ws_priv (size %zd, cmd %p)",
-			sizeof(*wsp), cmd);
+			    sizeof(*wsp), cmd);
 		goto out_busy;
 	}
 
@@ -6945,9 +6945,11 @@ void scst_write_same(struct scst_cmd *cmd, struct scst_data_descriptor *where)
 		if (wsp->ws_sg_tails[i].sg_cnt != 0) {
 			ws_sg_tail_blocks = wsp->ws_sg_tails[i].sg_cnt;
 			wsp->ws_sg_tails[i].sg_cnt = (ws_sg_tail_blocks + mult - 1) / mult;
-			TRACE_DBG("Allocating %d tail SGs for descriptor[%d] ", wsp->ws_sg_tails[i].sg_cnt, i);
-			rc = scst_ws_sg_init(&wsp->ws_sg_tails[i].sg, wsp->ws_sg_tails[i].sg_cnt, pg,
-					     offset, length,
+			TRACE_DBG("Allocating %d tail SGs for descriptor[%d] ",
+				  wsp->ws_sg_tails[i].sg_cnt,
+				  i);
+			rc = scst_ws_sg_init(&wsp->ws_sg_tails[i].sg, wsp->ws_sg_tails[i].sg_cnt,
+					     pg, offset, length,
 					     ws_sg_tail_blocks << cmd->dev->block_shift);
 			if (rc != 0)
 				goto out_free;
@@ -7041,11 +7043,11 @@ static void scst_cwr_write_cmd_finished(struct scst_cmd *cmd)
 		int rc;
 
 		TRACE_DBG("WRITE cmd %p (cwr cmd %p) finished not successfully",
-			cmd, cwr_cmd);
+			  cmd, cwr_cmd);
 		sBUG_ON(cmd->resp_data_len != 0);
 		if (cmd->status == SAM_STAT_CHECK_CONDITION) {
 			rc = scst_set_cmd_error_sense(cwr_cmd, cmd->sense,
-				cmd->sense_valid_len);
+						      cmd->sense_valid_len);
 		} else {
 			sBUG_ON(cmd->sense);
 			rc = scst_set_cmd_error_status(cwr_cmd, cmd->status);
@@ -7077,11 +7079,11 @@ static void scst_cwr_read_cmd_finished(struct scst_cmd *cmd)
 
 	if (cmd->status != 0) {
 		TRACE_DBG("Read cmd %p (cwr cmd %p) finished not successfully",
-			cmd, cwr_cmd);
+			  cmd, cwr_cmd);
 		sBUG_ON(cmd->resp_data_len != 0);
 		if (cmd->status == SAM_STAT_CHECK_CONDITION) {
 			rc = scst_set_cmd_error_sense(cwr_cmd, cmd->sense,
-				cmd->sense_valid_len);
+						      cmd->sense_valid_len);
 		} else {
 			sBUG_ON(cmd->sense);
 			rc = scst_set_cmd_error_status(cwr_cmd, cmd->status);
@@ -7102,7 +7104,8 @@ static void scst_cwr_read_cmd_finished(struct scst_cmd *cmd)
 	c = sg_cmp(cmd->sg, cwr_cmd->sg, 0, 0, &miscompare_offs);
 	if (!c) {
 		scst_set_cmd_error_and_inf(cwr_cmd,
-			SCST_LOAD_SENSE(scst_sense_miscompare_error), miscompare_offs);
+					   SCST_LOAD_SENSE(scst_sense_miscompare_error),
+					   miscompare_offs);
 		goto out_finish;
 	}
 
@@ -7124,7 +7127,7 @@ static void scst_cwr_read_cmd_finished(struct scst_cmd *cmd)
 		write16_cdb[1] |= cwr_cmd->cdb[1] & 0xE0;
 
 	wcmd = scst_create_prepare_internal_cmd(cwr_cmd, write16_cdb,
-		sizeof(write16_cdb), SCST_CMD_QUEUE_HEAD_OF_QUEUE);
+						sizeof(write16_cdb), SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 	if (!wcmd)
 		goto out_busy;
 
@@ -7138,7 +7141,7 @@ static void scst_cwr_read_cmd_finished(struct scst_cmd *cmd)
 	wcmd->tgt_i_priv = cwrp;
 
 	rc = scst_adjust_sg_get_tail(cwr_cmd, &wcmd->tgt_i_sg,
-		&wcmd->tgt_i_sg_cnt, &wcmd->tgt_i_dif_sg,
+				     &wcmd->tgt_i_sg_cnt, &wcmd->tgt_i_dif_sg,
 		&wcmd->tgt_i_dif_sg_cnt, data_len, data_len);
 	/*
 	 * It must not happen, because get_cdb_info_compare_and_write()
@@ -7225,7 +7228,7 @@ enum scst_exec_res scst_cmp_wr_local(struct scst_cmd *cmd)
 	cwrp = kzalloc_obj(*cwrp);
 	if (!cwrp) {
 		PRINT_ERROR("Unable to allocate cwr_priv (size %zd, cmd %p)",
-			sizeof(*cwrp), cmd);
+			    sizeof(*cwrp), cmd);
 		goto out_busy;
 	}
 
@@ -7243,7 +7246,7 @@ enum scst_exec_res scst_cmp_wr_local(struct scst_cmd *cmd)
 	put_unaligned_be32(num_lbas, &read16_cdb[10]);
 
 	rcmd = scst_create_prepare_internal_cmd(cmd, read16_cdb,
-		sizeof(read16_cdb), SCST_CMD_QUEUE_HEAD_OF_QUEUE);
+						sizeof(read16_cdb), SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 	if (!rcmd) {
 		res = -ENOMEM;
 		goto out_free;
@@ -7386,7 +7389,7 @@ static void scst_sess_release(struct percpu_ref *ref)
 }
 
 struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
-	const char *initiator_name)
+					const char *initiator_name)
 {
 	struct scst_session *sess;
 	int i, ret;
@@ -7591,7 +7594,7 @@ void scst_cmd_set_ext_cdb(struct scst_cmd *cmd,
 	if (unlikely(len > SCST_MAX_LONG_CDB_SIZE)) {
 		PRINT_ERROR("Too big CDB (%d)", len);
 		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_sense_hardw_error));
+				   SCST_LOAD_SENSE(scst_sense_hardw_error));
 		goto out;
 	}
 
@@ -7621,7 +7624,7 @@ out_err:
 EXPORT_SYMBOL(scst_cmd_set_ext_cdb);
 
 int scst_pre_init_cmd(struct scst_cmd *cmd, const u8 *cdb,
-	unsigned int cdb_len, gfp_t gfp_mask)
+		      unsigned int cdb_len, gfp_t gfp_mask)
 {
 	int res;
 
@@ -7678,7 +7681,7 @@ int scst_pre_init_cmd(struct scst_cmd *cmd, const u8 *cdb,
 		cmd->cdb = kmalloc(cdb_len, gfp_mask);
 		if (unlikely(!cmd->cdb)) {
 			PRINT_ERROR("Unable to alloc extended CDB (size %d)",
-				cdb_len);
+				    cdb_len);
 			res = -ENOMEM;
 			goto out;
 		}
@@ -7695,7 +7698,7 @@ out:
 }
 
 struct scst_cmd *scst_alloc_cmd(const u8 *cdb,
-	unsigned int cdb_len, gfp_t gfp_mask)
+				unsigned int cdb_len, gfp_t gfp_mask)
 {
 	struct scst_cmd *cmd;
 	int rc;
@@ -7774,7 +7777,7 @@ void scst_stpg_del_unblock_next(struct scst_cmd *cmd)
 	}
 
 	c = list_first_entry(&scst_global_stpg_list, typeof(*c),
-			global_stpg_list_entry);
+			     global_stpg_list_entry);
 
 	spin_unlock_irq(&scst_global_stpg_list_lock);
 
@@ -7795,7 +7798,7 @@ void scst_stpg_del_unblock_next(struct scst_cmd *cmd)
 
 	spin_lock_irq(&c->cmd_threads->cmd_list_lock);
 	list_add(&c->cmd_list_entry,
-		&c->cmd_threads->active_cmd_list);
+		 &c->cmd_threads->active_cmd_list);
 	wake_up(&c->cmd_threads->cmd_list_waitQ);
 	spin_unlock_irq(&c->cmd_threads->cmd_list_lock);
 
@@ -7833,10 +7836,10 @@ void scst_free_cmd(struct kref *ref)
 
 		if (devt->on_free_cmd) {
 			TRACE_DBG("Calling dev handler %s on_free_cmd(%p)",
-				devt->name, cmd);
+				  devt->name, cmd);
 			devt->on_free_cmd(cmd);
 			TRACE_DBG("Dev handler %s on_free_cmd() returned",
-				devt->name);
+				  devt->name);
 		}
 	}
 
@@ -7850,10 +7853,10 @@ void scst_free_cmd(struct kref *ref)
 
 	if (likely(cmd->tgt_dev)) {
 		EXTRACHECKS_BUG_ON(cmd->sn_set && !cmd->out_of_sn &&
-			!test_bit(SCST_CMD_INC_EXPECTED_SN_PASSED, &cmd->cmd_flags));
+				   !test_bit(SCST_CMD_INC_EXPECTED_SN_PASSED, &cmd->cmd_flags));
 		if (unlikely(cmd->out_of_sn)) {
 			destroy = test_and_set_bit(SCST_CMD_CAN_BE_DESTROYED,
-					&cmd->cmd_flags);
+						   &cmd->cmd_flags);
 			TRACE_SN("Out of SN cmd %p (tag %llu, sn %d), destroy=%d",
 				 cmd,
 				(unsigned long long)cmd->tag,
@@ -7884,11 +7887,11 @@ void scst_check_retries(struct scst_tgt *tgt)
 		int need_wake_up = 0;
 
 		TRACE_RETRY("Checking retry cmd list (retry_cmds %d)",
-		      tgt->retry_cmds);
+			    tgt->retry_cmds);
 
 		spin_lock_irqsave(&tgt->tgt_lock, flags);
 		list_for_each_entry_safe(c, tc, &tgt->retry_cmd_list,
-				cmd_list_entry) {
+					 cmd_list_entry) {
 			tgt->retry_cmds--;
 
 			TRACE_RETRY("Moving retry cmd %p to head of active cmd list (retry_cmds left %d)",
@@ -8024,7 +8027,7 @@ static void scst_restore_dif_sg(struct scst_cmd *cmd)
 		sg->length = min_t(int, PAGE_SIZE, left);
 		left -= sg->length;
 		TRACE_DBG("DIF sg %p, restored len %d (left %d)", sg,
-			sg->length, left);
+			  sg->length, left);
 		/* sg might be last here */
 		sg = sg_next_inline(sg);
 	} while (left > 0);
@@ -8050,7 +8053,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		flags |= SGV_POOL_ALLOC_NO_CACHED;
 
 	cmd->sg = sgv_pool_alloc(tgt_dev->pools[raw_smp_processor_id()],
-			cmd->bufflen, gfp_mask, flags, &cmd->sg_cnt, &cmd->sgv,
+				 cmd->bufflen, gfp_mask, flags, &cmd->sg_cnt, &cmd->sgv,
 			&cmd->dev->dev_mem_lim, NULL);
 	if (unlikely(!cmd->sg))
 		goto out;
@@ -8059,8 +8062,10 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		if (!scst_on_sg_tablesize_low(cmd, false))
 			goto out_sg_free;
 
-	if ((scst_get_dif_action(scst_get_scst_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE) ||
-	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE)) {
+	if ((scst_get_dif_action(scst_get_scst_dif_actions(cmd->cmd_dif_actions)) !=
+		SCST_DIF_ACTION_NONE) ||
+	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) !=
+		SCST_DIF_ACTION_NONE)) {
 		int dif_bufflen;
 		bool same_layout;
 
@@ -8071,7 +8076,8 @@ int scst_alloc_space(struct scst_cmd *cmd)
 			dif_bufflen = cmd->bufflen;
 
 		cmd->dif_sg = sgv_pool_alloc(tgt_dev->pools[raw_smp_processor_id()],
-			dif_bufflen, gfp_mask, flags, &cmd->dif_sg_cnt, &cmd->dif_sgv,
+					     dif_bufflen, gfp_mask, flags, &cmd->dif_sg_cnt,
+					     &cmd->dif_sgv,
 			&cmd->dev->dev_mem_lim, NULL);
 		if (unlikely(!cmd->dif_sg))
 			goto out_sg_free;
@@ -8101,7 +8107,7 @@ int scst_alloc_space(struct scst_cmd *cmd)
 		goto success;
 
 	cmd->out_sg = sgv_pool_alloc(tgt_dev->pools[raw_smp_processor_id()],
-			cmd->out_bufflen, gfp_mask, flags, &cmd->out_sg_cnt,
+				     cmd->out_bufflen, gfp_mask, flags, &cmd->out_sg_cnt,
 			&cmd->out_sgv, &cmd->dev->dev_mem_lim, NULL);
 	if (unlikely(!cmd->out_sg))
 		goto out_dif_sg_free;
@@ -8148,7 +8154,7 @@ static void scst_release_space(struct scst_cmd *cmd)
 		if (cmd->sg &&
 		    !(cmd->tgt_i_data_buf_alloced || cmd->dh_data_buf_alloced)) {
 			TRACE_MEM("Freeing sg %p for cmd %p (cnt %d)", cmd->sg,
-				cmd, cmd->sg_cnt);
+				  cmd, cmd->sg_cnt);
 			scst_free_sg(cmd->sg, cmd->sg_cnt);
 			goto out_zero;
 		} else {
@@ -8254,8 +8260,8 @@ static void blk_bio_map_kern_endio(struct bio *bio)
  * Copy an sg-list. This function is related to bio_copy_kern() but duplicates
  * an sg-list instead of creating a bio out of a single kernel address range.
  */
-static struct blk_kern_sg_work *blk_copy_kern_sg(struct request_queue *q,
-	struct scatterlist *sgl, int nents, gfp_t gfp_mask, bool reading)
+static struct blk_kern_sg_work *blk_copy_kern_sg(struct request_queue *q, struct scatterlist *sgl,
+						 int nents, gfp_t gfp_mask, bool reading)
 {
 	int res = 0, i;
 	struct scatterlist *sg;
@@ -8362,7 +8368,7 @@ scst_alloc_passthrough_request(struct request_queue *q, int rw, gfp_t gfp_mask)
 			       gfp_mask);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 1))
 	return blk_get_request(q, rw == READ ? REQ_OP_SCSI_IN : REQ_OP_SCSI_OUT,
 			       scst_gfp_mask_to_flags(gfp_mask));
 #else
@@ -8380,7 +8386,7 @@ scst_init_passthrough_request(struct request *rq)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 1))
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 13, 0) ||	\
 	defined(CONFIG_SUSE_KERNEL)
@@ -8401,7 +8407,7 @@ scst_free_passthrough_request(struct request *rq)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 1))
 	blk_put_request(rq);
 #else
 	blk_mq_free_request(rq);
@@ -8421,7 +8427,7 @@ scst_alloc_bio(unsigned short nr_vecs, gfp_t gfp_mask)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 1))
 	return bio_kmalloc(gfp_mask, nr_vecs);
 #else
 	/*
@@ -8454,7 +8460,7 @@ scst_free_bio(struct bio *bio)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 1))
 	bio_put(bio);
 #else
 	/*
@@ -8518,7 +8524,7 @@ queue_dma_pad_mask(const struct request_queue *q)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 6))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 6))
 	return q->dma_pad_mask;
 #else
 	return q->limits.dma_pad_mask;
@@ -8526,9 +8532,9 @@ queue_dma_pad_mask(const struct request_queue *q)
 }
 
 /* __blk_map_kern_sg - map kernel data to a request for REQ_TYPE_BLOCK_PC */
-static struct request *__blk_map_kern_sg(struct request_queue *q,
-	struct scatterlist *sgl, int nents, struct blk_kern_sg_work *bw,
-	gfp_t gfp_mask, bool reading)
+static struct request *__blk_map_kern_sg(struct request_queue *q, struct scatterlist *sgl,
+					 int nents, struct blk_kern_sg_work *bw, gfp_t gfp_mask,
+					 bool reading)
 {
 	struct request *rq;
 	int max_nr_vecs, i;
@@ -8549,11 +8555,11 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 	 * bio allocation fails.
 	 */
 	max_nr_vecs = min_t(int,
-		(PAGE_SIZE - sizeof(struct bio)) / sizeof(struct bio_vec),
+			    (PAGE_SIZE - sizeof(struct bio)) / sizeof(struct bio_vec),
 		BIO_MAX_VECS);
 
 	TRACE_DBG("max_nr_vecs %d, nents %d, reading %d", max_nr_vecs,
-		nents, reading);
+		  nents, reading);
 
 	need_new_bio = true;
 	tot_len = 0;
@@ -8578,7 +8584,7 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 			l = len;
 
 		TRACE_DBG("i %d, len %zd, tot_len %zd, l %zd, offset %zd",
-			i, len, tot_len, l, offset);
+			  i, len, tot_len, l, offset);
 
 		if (((sg->offset | l) & queue_dma_alignment(q)) ||
 		    (page_addr && object_is_on_stack(page_addr + sg->offset))) {
@@ -8624,8 +8630,8 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 7) ||	\
-	 RHEL_RELEASE_CODE -0 == RHEL_RELEASE_VERSION(10, 0))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 7) ||	\
+	 RHEL_RELEASE_CODE - 0 == RHEL_RELEASE_VERSION(10, 0))
 			rc = bio_add_pc_page(q, bio, page, bytes, offset);
 #else
 			rc = bio_add_page(bio, page, bytes, offset);
@@ -8706,7 +8712,7 @@ out_free_bios:
  *    buffer will be used.
  */
 static struct request *blk_map_kern_sg(struct request_queue *q,
-		struct scatterlist *sgl, int nents, gfp_t gfp, bool reading)
+				       struct scatterlist *sgl, int nents, gfp_t gfp, bool reading)
 {
 	struct request *rq;
 
@@ -8782,7 +8788,7 @@ int sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 			n = PAGE_SIZE;
 		} else {
 			n = min_t(size_t, PAGE_SIZE - (dst_offs & ~PAGE_MASK),
-					  PAGE_SIZE - (src_offs & ~PAGE_MASK));
+				  PAGE_SIZE - (src_offs & ~PAGE_MASK));
 			n = min(n, src_len);
 			n = min(n, dst_len);
 			n = min_t(size_t, n, copy_len);
@@ -8834,7 +8840,7 @@ out:
  *    NULL. Returns number of bytes copied.
  */
 static int sg_copy(struct scatterlist *dst_sg, struct scatterlist *src_sg,
-	    int nents_to_copy, size_t copy_len)
+		   int nents_to_copy, size_t copy_len)
 {
 	int res = 0;
 	size_t dst_len, dst_offs;
@@ -8873,7 +8879,7 @@ out:
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 2))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 2))
 #define RQ_END_IO_RET void
 #else
 #define RQ_END_IO_RET enum rq_end_io_ret
@@ -8904,7 +8910,7 @@ static RQ_END_IO_RET scsi_end_async(struct request *req, blk_status_t error,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
 	lockdep_assert_held(req->q->queue_lock);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8)
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8)
 	if (!req->q->mq_ops)
 		lockdep_assert_held(req->q->queue_lock);
 #endif
@@ -8940,9 +8946,9 @@ static RQ_END_IO_RET scsi_end_async(struct request *req, blk_status_t error,
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 2))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 2))
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8)
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8)
 	/* See also commit 92bc5a24844a ("block: remove __blk_put_request()") */
 	__blk_put_request(req->q, req);
 #else
@@ -8961,7 +8967,7 @@ static RQ_END_IO_RET scsi_end_async(struct request *req, blk_status_t error,
  * @done:	callback function when done
  */
 int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
-	void (*done)(void *data, char *sense, int result, int resid))
+			 void (*done)(void *data, char *sense, int result, int resid))
 {
 	int res = 0;
 	struct request_queue *q = cmd->dev->scsi_dev->request_queue;
@@ -9030,7 +9036,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	req->cmd_len = cmd_len;
 	if (req->cmd_len > MAX_COMMAND_SIZE) {
 		PRINT_ERROR("SCSI command length %d exceeds the limit %d",
-				req->cmd_len, MAX_COMMAND_SIZE);
+			    req->cmd_len, MAX_COMMAND_SIZE);
 		res = -EINVAL;
 #ifdef QUEUE_FLAG_BIDI
 		goto out_free_unmap;
@@ -9067,7 +9073,7 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 	rq->cmd_flags |= REQ_FAILFAST_MASK;
 
 	blk_execute_rq_nowait(rq,
-		(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE));
+			      (cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE));
 out:
 	return res;
 
@@ -9178,7 +9184,7 @@ int sg_cmp_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 			n = PAGE_SIZE;
 		} else {
 			n = min_t(size_t, PAGE_SIZE - (dst_offs & ~PAGE_MASK),
-					  PAGE_SIZE - (src_offs & ~PAGE_MASK));
+				  PAGE_SIZE - (src_offs & ~PAGE_MASK));
 			n = min(n, src_len);
 			n = min(n, dst_len);
 			n = min_t(size_t, n, cmp_len);
@@ -9249,7 +9255,7 @@ out_unmap:
  * the same data in min(sg1_size, sg2_size) size will match!
  */
 static bool sg_cmp(struct scatterlist *dst_sg, struct scatterlist *src_sg,
-	    int nents_to_cmp, size_t cmp_len, int *miscompare_offs)
+		   int nents_to_cmp, size_t cmp_len, int *miscompare_offs)
 {
 	bool res = true;
 	size_t dst_len, dst_offs;
@@ -9258,7 +9264,7 @@ static bool sg_cmp(struct scatterlist *dst_sg, struct scatterlist *src_sg,
 	TRACE_ENTRY();
 
 	TRACE_DBG("dst_sg %p, src_sg %p, nents_to_cmp %d, cmp_len %zd",
-		dst_sg, src_sg, nents_to_cmp, cmp_len);
+		  dst_sg, src_sg, nents_to_cmp, cmp_len);
 
 	if (cmp_len == 0)
 		cmp_len = 0x7FFFFFFF; /* cmp all */
@@ -9277,13 +9283,13 @@ static bool sg_cmp(struct scatterlist *dst_sg, struct scatterlist *src_sg,
 			cmp_len, compared_all);
 
 		compared = sg_cmp_elem(&dst_sg, &dst_len, &dst_offs,
-				src_sg, cmp_len, miscompare_offs,
+				       src_sg, cmp_len, miscompare_offs,
 				&res);
 		if (!res) {
 			if (miscompare_offs) {
 				*miscompare_offs += compared_all;
 				TRACE_DBG("miscompare_offs %d",
-					*miscompare_offs);
+					  *miscompare_offs);
 			}
 			goto out;
 		}
@@ -9462,7 +9468,7 @@ int scst_get_buf_full_sense(struct scst_cmd *cmd, u8 **buf)
 			scst_set_busy(cmd);
 		else
 			scst_set_cmd_error(cmd,
-				SCST_LOAD_SENSE(scst_sense_internal_failure));
+					   SCST_LOAD_SENSE(scst_sense_internal_failure));
 		goto out;
 	}
 
@@ -9502,7 +9508,6 @@ void scst_put_buf_full(struct scst_cmd *cmd, u8 *buf)
 				scst_put_buf(cmd, tmp_buf);
 				len = scst_get_buf_next(cmd, &tmp_buf);
 			}
-
 		}
 
 		cmd->sg_buff_vmallocated = 0;
@@ -9569,13 +9574,13 @@ static int scst_verify_dif_type1(struct scst_cmd *cmd)
 				EXTRACHECKS_BUG_ON(tags_len <= 0);
 				TRACE_DBG("tags_buf %p", tags_buf);
 				TRACE_BUFF_FLAG(TRACE_DEBUG, "Tags to verify",
-					tags_buf, tags_len);
+						tags_buf, tags_len);
 				t = (struct t10_pi_tuple *)tags_buf;
 			}
 
 			if (t->app_tag == SCST_DIF_NO_CHECK_ALL_APP_TAG) {
 				TRACE_DBG("Skipping tag %lld (cmd %p)",
-					(long long)lba, cmd);
+					  (long long)lba, cmd);
 				goto next;
 			}
 
@@ -9587,7 +9592,7 @@ static int scst_verify_dif_type1(struct scst_cmd *cmd)
 						(long long)lba, dev->virt_name);
 					scst_dif_acc_app_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
-						SCST_LOAD_SENSE(scst_logical_block_app_tag_check_failed));
+							   SCST_LOAD_SENSE(scst_logical_block_app_tag_check_failed));
 					res = -EIO;
 					goto out_put;
 				}
@@ -9601,7 +9606,7 @@ static int scst_verify_dif_type1(struct scst_cmd *cmd)
 						(long long)lba, dev->virt_name);
 					scst_dif_acc_ref_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
-						SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
+							   SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
 					res = -EIO;
 					goto out_put;
 				}
@@ -9619,7 +9624,7 @@ static int scst_verify_dif_type1(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_guard_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
-						SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
+							   SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
 					res = -EIO;
 					goto out_put;
 				}
@@ -9664,7 +9669,7 @@ static void scst_check_fail_ref_tag(struct scst_cmd *cmd)
 		      cmd);
 		scst_dif_acc_ref_check_failed_scst(cmd);
 		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
+				   SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
 	}
 }
 
@@ -9678,7 +9683,7 @@ static void scst_check_fail_guard_tag(struct scst_cmd *cmd)
 		      cmd);
 		scst_dif_acc_guard_check_failed_scst(cmd);
 		scst_set_cmd_error(cmd,
-			SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
+				   SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
 	}
 }
 #endif
@@ -9724,7 +9729,7 @@ static int scst_generate_dif_type1(struct scst_cmd *cmd)
 			if (!tags_buf) {
 				tags_buf = scst_get_dif_buf(cmd, &tags_sg, &tags_len);
 				TRACE_DBG("tags_sg %p, tags_buf %p, tags_len %d",
-					tags_sg, tags_buf, tags_len);
+					  tags_sg, tags_buf, tags_len);
 				EXTRACHECKS_BUG_ON(tags_len <= 0);
 				t = (struct t10_pi_tuple *)tags_buf;
 			}
@@ -9740,15 +9745,15 @@ static int scst_generate_dif_type1(struct scst_cmd *cmd)
 			case 1:
 				if (lba == cmd->lba) {
 					if (cmd->cdb[1] & 0x80) {
-						TRACE(TRACE_SCSI|TRACE_MINOR,
-							"Corrupting ref tag at lba %lld (case %d, cmd %p)",
+						TRACE(TRACE_SCSI | TRACE_MINOR,
+						      "Corrupting ref tag at lba %lld (case %d, cmd %p)",
 							(long long)lba,
 							cmd->cmd_corrupt_dif_tag, cmd);
 						t->ref_tag = cpu_to_be32(0xebfeedad);
 						scst_check_fail_ref_tag(cmd);
 					} else {
-						TRACE(TRACE_SCSI|TRACE_MINOR,
-							"Corrupting guard tag at lba %lld (case %d, cmd %p)",
+						TRACE(TRACE_SCSI | TRACE_MINOR,
+						      "Corrupting guard tag at lba %lld (case %d, cmd %p)",
 							(long long)lba,
 							cmd->cmd_corrupt_dif_tag, cmd);
 						t->guard_tag = cpu_to_be16(0xebed);
@@ -9759,15 +9764,15 @@ static int scst_generate_dif_type1(struct scst_cmd *cmd)
 			case 2:
 				if (lba == (cmd->lba + 1)) {
 					if (cmd->cdb[1] & 0x80) {
-						TRACE(TRACE_SCSI|TRACE_MINOR,
-							"Corrupting ref tag at lba %lld (case %d, cmd %p)",
+						TRACE(TRACE_SCSI | TRACE_MINOR,
+						      "Corrupting ref tag at lba %lld (case %d, cmd %p)",
 							(long long)lba,
 							cmd->cmd_corrupt_dif_tag, cmd);
 						t->ref_tag = cpu_to_be32(0xebfeedad);
 						scst_check_fail_ref_tag(cmd);
 					} else {
-						TRACE(TRACE_SCSI|TRACE_MINOR,
-							"Corrupting guard tag at lba %lld (case %d, cmd %p)",
+						TRACE(TRACE_SCSI | TRACE_MINOR,
+						      "Corrupting guard tag at lba %lld (case %d, cmd %p)",
 							(long long)lba,
 							cmd->cmd_corrupt_dif_tag, cmd);
 						t->guard_tag = cpu_to_be16(0xebed);
@@ -9778,15 +9783,15 @@ static int scst_generate_dif_type1(struct scst_cmd *cmd)
 			case 3:
 				if (lba == (cmd->lba + 2)) {
 					if (cmd->cdb[1] & 0x80) {
-						TRACE(TRACE_SCSI|TRACE_MINOR,
-							"Corrupting ref tag at lba %lld (case %d, cmd %p)",
+						TRACE(TRACE_SCSI | TRACE_MINOR,
+						      "Corrupting ref tag at lba %lld (case %d, cmd %p)",
 							(long long)lba,
 							cmd->cmd_corrupt_dif_tag, cmd);
 						t->ref_tag = cpu_to_be32(0xebfeedad);
 						scst_check_fail_ref_tag(cmd);
 					} else {
-						TRACE(TRACE_SCSI|TRACE_MINOR,
-							"Corrupting guard tag at lba %lld (case %d, cmd %p)",
+						TRACE(TRACE_SCSI | TRACE_MINOR,
+						      "Corrupting guard tag at lba %lld (case %d, cmd %p)",
 							(long long)lba,
 							cmd->cmd_corrupt_dif_tag, cmd);
 						t->guard_tag = cpu_to_be16(0xebed);
@@ -9795,17 +9800,18 @@ static int scst_generate_dif_type1(struct scst_cmd *cmd)
 				}
 				break;
 			case 4:
-				if (lba == (cmd->lba + ((cmd->data_len >> dev->block_shift) >> 1))) {
+				if (lba == (cmd->lba +
+					    ((cmd->data_len >> dev->block_shift) >> 1))) {
 					if (cmd->cdb[1] & 0x80) {
-						TRACE(TRACE_SCSI|TRACE_MINOR,
-							"Corrupting ref tag at lba %lld (case %d, cmd %p)",
+						TRACE(TRACE_SCSI | TRACE_MINOR,
+						      "Corrupting ref tag at lba %lld (case %d, cmd %p)",
 							(long long)lba,
 							cmd->cmd_corrupt_dif_tag, cmd);
 						t->ref_tag = cpu_to_be32(0xebfeedad);
 						scst_check_fail_ref_tag(cmd);
 					} else {
-						TRACE(TRACE_SCSI|TRACE_MINOR,
-							"Corrupting guard tag at lba %lld (case %d, cmd %p)",
+						TRACE(TRACE_SCSI | TRACE_MINOR,
+						      "Corrupting guard tag at lba %lld (case %d, cmd %p)",
 							(long long)lba,
 							cmd->cmd_corrupt_dif_tag, cmd);
 						t->guard_tag = cpu_to_be16(0xebed);
@@ -9816,15 +9822,15 @@ static int scst_generate_dif_type1(struct scst_cmd *cmd)
 			case 5:
 				if (lba == (cmd->lba + ((cmd->data_len >> dev->block_shift) - 3))) {
 					if (cmd->cdb[1] & 0x80) {
-						TRACE(TRACE_SCSI|TRACE_MINOR,
-							"Corrupting ref tag at lba %lld (case %d, cmd %p)",
+						TRACE(TRACE_SCSI | TRACE_MINOR,
+						      "Corrupting ref tag at lba %lld (case %d, cmd %p)",
 							(long long)lba,
 							cmd->cmd_corrupt_dif_tag, cmd);
 						t->ref_tag = cpu_to_be32(0xebfeedad);
 						scst_check_fail_ref_tag(cmd);
 					} else {
-						TRACE(TRACE_SCSI|TRACE_MINOR,
-							"Corrupting guard tag at lba %lld (case %d, cmd %p)",
+						TRACE(TRACE_SCSI | TRACE_MINOR,
+						      "Corrupting guard tag at lba %lld (case %d, cmd %p)",
 							(long long)lba,
 							cmd->cmd_corrupt_dif_tag, cmd);
 						t->guard_tag = cpu_to_be16(0xebed);
@@ -9835,15 +9841,15 @@ static int scst_generate_dif_type1(struct scst_cmd *cmd)
 			case 6:
 				if (lba == (cmd->lba + ((cmd->data_len >> dev->block_shift) - 2))) {
 					if (cmd->cdb[1] & 0x80) {
-						TRACE(TRACE_SCSI|TRACE_MINOR,
-							"Corrupting ref tag at lba %lld (case %d, cmd %p)",
+						TRACE(TRACE_SCSI | TRACE_MINOR,
+						      "Corrupting ref tag at lba %lld (case %d, cmd %p)",
 							(long long)lba,
 							cmd->cmd_corrupt_dif_tag, cmd);
 						t->ref_tag = cpu_to_be32(0xebfeedad);
 						scst_check_fail_ref_tag(cmd);
 					} else {
-						TRACE(TRACE_SCSI|TRACE_MINOR,
-							"Corrupting guard tag at lba %lld (case %d, cmd %p)",
+						TRACE(TRACE_SCSI | TRACE_MINOR,
+						      "Corrupting guard tag at lba %lld (case %d, cmd %p)",
 							(long long)lba,
 							cmd->cmd_corrupt_dif_tag, cmd);
 						t->guard_tag = cpu_to_be16(0xebed);
@@ -9854,15 +9860,15 @@ static int scst_generate_dif_type1(struct scst_cmd *cmd)
 			case 7:
 				if (lba == (cmd->lba + ((cmd->data_len >> dev->block_shift) - 1))) {
 					if (cmd->cdb[1] & 0x80) {
-						TRACE(TRACE_SCSI|TRACE_MINOR,
-							"Corrupting ref tag at lba %lld (case %d, cmd %p)",
+						TRACE(TRACE_SCSI | TRACE_MINOR,
+						      "Corrupting ref tag at lba %lld (case %d, cmd %p)",
 							(long long)lba,
 							cmd->cmd_corrupt_dif_tag, cmd);
 						t->ref_tag = cpu_to_be32(0xebfeedad);
 						scst_check_fail_ref_tag(cmd);
 					} else {
-						TRACE(TRACE_SCSI|TRACE_MINOR,
-							"Corrupting guard tag at lba %lld (case %d, cmd %p)",
+						TRACE(TRACE_SCSI | TRACE_MINOR,
+						      "Corrupting guard tag at lba %lld (case %d, cmd %p)",
 							(long long)lba,
 							cmd->cmd_corrupt_dif_tag, cmd);
 						t->guard_tag = cpu_to_be16(0xebed);
@@ -9894,12 +9900,12 @@ static int scst_generate_dif_type1(struct scst_cmd *cmd)
 }
 
 static int scst_do_dif(struct scst_cmd *cmd,
-	int (*generate_fn)(struct scst_cmd *cmd),
+		       int (*generate_fn)(struct scst_cmd *cmd),
 	int (*verify_fn)(struct scst_cmd *cmd))
 {
 	int res;
-	enum scst_dif_actions action = scst_get_dif_action(
-			scst_get_scst_dif_actions(cmd->cmd_dif_actions));
+	enum scst_dif_actions action =
+		scst_get_dif_action(scst_get_scst_dif_actions(cmd->cmd_dif_actions));
 
 	TRACE_ENTRY();
 
@@ -10018,7 +10024,7 @@ static int scst_verify_dif_type2(struct scst_cmd *cmd)
 						cmd, scst_get_opcode_name(cmd), dev->virt_name);
 					scst_dif_acc_app_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
-						SCST_LOAD_SENSE(scst_logical_block_app_tag_check_failed));
+							   SCST_LOAD_SENSE(scst_logical_block_app_tag_check_failed));
 					res = -EIO;
 					goto out_put;
 				}
@@ -10032,7 +10038,7 @@ static int scst_verify_dif_type2(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_ref_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
-						SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
+							   SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
 					res = -EIO;
 					goto out_put;
 				}
@@ -10050,7 +10056,7 @@ static int scst_verify_dif_type2(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_guard_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
-						SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
+							   SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
 					res = -EIO;
 					goto out_put;
 				}
@@ -10129,7 +10135,7 @@ static int scst_generate_dif_type2(struct scst_cmd *cmd)
 			if (!tags_buf) {
 				tags_buf = scst_get_dif_buf(cmd, &tags_sg, &tags_len);
 				TRACE_DBG("tags_sg %p, tags_buf %p, tags_len %d",
-					tags_sg, tags_buf, tags_len);
+					  tags_sg, tags_buf, tags_len);
 				EXTRACHECKS_BUG_ON(tags_len <= 0);
 				t = (struct t10_pi_tuple *)tags_buf;
 			}
@@ -10230,7 +10236,7 @@ static int scst_verify_dif_type3(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_app_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
-						SCST_LOAD_SENSE(scst_logical_block_app_tag_check_failed));
+							   SCST_LOAD_SENSE(scst_logical_block_app_tag_check_failed));
 					res = -EIO;
 					goto out_put;
 				}
@@ -10244,7 +10250,7 @@ static int scst_verify_dif_type3(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_ref_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
-						SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
+							   SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
 					res = -EIO;
 					goto out_put;
 				}
@@ -10262,7 +10268,7 @@ static int scst_verify_dif_type3(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_guard_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
-						SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
+							   SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
 					res = -EIO;
 					goto out_put;
 				}
@@ -10336,7 +10342,7 @@ static int scst_generate_dif_type3(struct scst_cmd *cmd)
 			if (!tags_buf) {
 				tags_buf = scst_get_dif_buf(cmd, &tags_sg, &tags_len);
 				TRACE_DBG("tags_sg %p, tags_buf %p, tags_len %d",
-					tags_sg, tags_buf, tags_len);
+					  tags_sg, tags_buf, tags_len);
 				EXTRACHECKS_BUG_ON(tags_len <= 0);
 				t = (struct t10_pi_tuple *)tags_buf;
 			}
@@ -10418,8 +10424,7 @@ static void scst_init_dif_checks(struct scst_device *dev)
  * Description:
  *    Sets static app tag for both APP TAG and REF TAG (DIF mode 3)
  */
-void scst_dev_set_dif_static_app_tag_combined(
-	struct scst_device *dev, __be64 app_tag)
+void scst_dev_set_dif_static_app_tag_combined(struct scst_device *dev, __be64 app_tag)
 {
 	u64 a = be64_to_cpu(app_tag);
 
@@ -10471,120 +10476,178 @@ static int scst_init_dif_actions(struct scst_device *dev)
 	if (dev->dev_dif_mode & SCST_DIF_MODE_TGT) {
 		if (dev->dev_dif_mode & SCST_DIF_MODE_SCST) {
 			if (dev->dev_dif_mode & SCST_DIF_MODE_DEV) { /* TGT, SCST, DEV */
-				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
-				scst_set_scst_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions,
+							SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_actions,
+							 SCST_DIF_ACTION_PASS_CHECK);
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
-					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
+					scst_set_dev_dif_action(&dev->dev_dif_rd_actions,
+								SCST_DIF_ACTION_PASS_CHECK);
 				} else {
-					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+					scst_set_dev_dif_action(&dev->dev_dif_rd_actions,
+								SCST_DIF_ACTION_PASS);
 				}
 
 				if (dev->dpicz) {
-					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
-					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
-					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions,
+								SCST_DIF_ACTION_NONE);
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
+								 SCST_DIF_ACTION_NONE);
+					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+								SCST_DIF_ACTION_NONE);
 				} else {
-					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_STRIP);
-					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions,
+								SCST_DIF_ACTION_STRIP);
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
+								 SCST_DIF_ACTION_PASS_CHECK);
 					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 						/* STORE might be set as well */
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+									SCST_DIF_ACTION_PASS_CHECK);
 					} else {
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS);
+						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+									SCST_DIF_ACTION_PASS);
 					}
 				}
 
-				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
-				scst_set_scst_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions,
+							SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_actions,
+							 SCST_DIF_ACTION_PASS_CHECK);
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
-					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
+					scst_set_dev_dif_action(&dev->dev_dif_wr_actions,
+								SCST_DIF_ACTION_PASS_CHECK);
 				} else {
-					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+					scst_set_dev_dif_action(&dev->dev_dif_wr_actions,
+								SCST_DIF_ACTION_PASS);
 				}
 
-				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_INSERT);
-				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions,
+							SCST_DIF_ACTION_INSERT);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions,
+							 SCST_DIF_ACTION_PASS_CHECK);
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
-					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions,
+								SCST_DIF_ACTION_PASS_CHECK);
 				} else {
-					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS);
+					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions,
+								SCST_DIF_ACTION_PASS);
 				}
 			} else { /* TGT, SCST, no DEV */
-				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
-				scst_set_scst_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_INSERT);
-				scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_NONE);
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions,
+							SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_actions,
+							 SCST_DIF_ACTION_INSERT);
+				scst_set_dev_dif_action(&dev->dev_dif_rd_actions,
+							SCST_DIF_ACTION_NONE);
 
 				if (dev->dpicz) {
-					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
-					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions,
+								SCST_DIF_ACTION_NONE);
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
+								 SCST_DIF_ACTION_NONE);
 				} else {
-					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_STRIP);
-					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_INSERT);
+					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions,
+								SCST_DIF_ACTION_STRIP);
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
+								 SCST_DIF_ACTION_INSERT);
 				}
-				scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+							SCST_DIF_ACTION_NONE);
 
-				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
-				scst_set_scst_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_STRIP);
-				scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_NONE);
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions,
+							SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_actions,
+							 SCST_DIF_ACTION_STRIP);
+				scst_set_dev_dif_action(&dev->dev_dif_wr_actions,
+							SCST_DIF_ACTION_NONE);
 
-				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_INSERT);
-				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_STRIP);
-				scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions,
+							SCST_DIF_ACTION_INSERT);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions,
+							 SCST_DIF_ACTION_STRIP);
+				scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions,
+							SCST_DIF_ACTION_NONE);
 			}
 		} else { /* TGT, no SCST */
 			if (dev->dev_dif_mode & SCST_DIF_MODE_DEV) { /* TGT, no SCST, DEV */
-				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
-				scst_set_scst_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions,
+							SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_actions,
+							 SCST_DIF_ACTION_PASS);
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
-					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
+					scst_set_dev_dif_action(&dev->dev_dif_rd_actions,
+								SCST_DIF_ACTION_PASS_CHECK);
 				} else {
-					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+					scst_set_dev_dif_action(&dev->dev_dif_rd_actions,
+								SCST_DIF_ACTION_PASS);
 				}
 
 				if (dev->dpicz) {
-					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
-					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
-					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions,
+								SCST_DIF_ACTION_NONE);
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
+								 SCST_DIF_ACTION_NONE);
+					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+								SCST_DIF_ACTION_NONE);
 				} else {
-					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_STRIP);
-					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS);
+					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions,
+								SCST_DIF_ACTION_STRIP);
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
+								 SCST_DIF_ACTION_PASS);
 					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 						/* STORE might be set as well */
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+									SCST_DIF_ACTION_PASS_CHECK);
 					} else {
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS);
+						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+									SCST_DIF_ACTION_PASS);
 					}
 				}
 
-				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
-				scst_set_scst_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions,
+							SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_actions,
+							 SCST_DIF_ACTION_PASS);
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
-					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
+					scst_set_dev_dif_action(&dev->dev_dif_wr_actions,
+								SCST_DIF_ACTION_PASS_CHECK);
 				} else {
-					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+					scst_set_dev_dif_action(&dev->dev_dif_wr_actions,
+								SCST_DIF_ACTION_PASS);
 				}
 
-				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_INSERT);
-				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS);
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions,
+							SCST_DIF_ACTION_INSERT);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions,
+							 SCST_DIF_ACTION_PASS);
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
-					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions,
+								SCST_DIF_ACTION_PASS_CHECK);
 				} else {
-					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS);
+					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions,
+								SCST_DIF_ACTION_PASS);
 				}
 			} else {  /* TGT, no SCST, no DEV */
-				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_INSERT);
-				scst_set_scst_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_NONE);
-				scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_NONE);
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions,
+							SCST_DIF_ACTION_INSERT);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_actions,
+							 SCST_DIF_ACTION_NONE);
+				scst_set_dev_dif_action(&dev->dev_dif_rd_actions,
+							SCST_DIF_ACTION_NONE);
 
-				scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
-				scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
-				scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions,
+							SCST_DIF_ACTION_NONE);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
+							 SCST_DIF_ACTION_NONE);
+				scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+							SCST_DIF_ACTION_NONE);
 
 #if 1	/*
 	 * Workaround for Emulex ASIC errata to pass Oracle certification.
@@ -10595,120 +10658,176 @@ static int scst_init_dif_actions(struct scst_device *dev)
 	 * then, if HW is signaling that there is some tag mismatch, manually recheck
 	 * in the driver, then set correct tag mismatch sense.
 	 */
-				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
-				scst_set_scst_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions,
+							SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_actions,
+							 SCST_DIF_ACTION_PASS);
 #else
-				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_STRIP);
-				scst_set_scst_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_NONE);
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions,
+							SCST_DIF_ACTION_STRIP);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_actions,
+							 SCST_DIF_ACTION_NONE);
 #endif
-				scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_NONE);
+				scst_set_dev_dif_action(&dev->dev_dif_wr_actions,
+							SCST_DIF_ACTION_NONE);
 
-				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
-				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
-				scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions,
+							SCST_DIF_ACTION_NONE);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions,
+							 SCST_DIF_ACTION_NONE);
+				scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions,
+							SCST_DIF_ACTION_NONE);
 			}
 		}
 	} else { /* No TGT */
 		if (dev->dev_dif_mode & SCST_DIF_MODE_SCST) {  /* No TGT, SCST */
 			if (dev->dev_dif_mode & SCST_DIF_MODE_DEV) { /* No TGT, SCST, DEV */
-				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
-				scst_set_scst_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions,
+							SCST_DIF_ACTION_PASS);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_actions,
+							 SCST_DIF_ACTION_PASS_CHECK);
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
-					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
+					scst_set_dev_dif_action(&dev->dev_dif_rd_actions,
+								SCST_DIF_ACTION_PASS_CHECK);
 				} else {
-					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+					scst_set_dev_dif_action(&dev->dev_dif_rd_actions,
+								SCST_DIF_ACTION_PASS);
 				}
 
-				scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions,
+							SCST_DIF_ACTION_NONE);
 				if (dev->dpicz) {
-					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
-					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
+								 SCST_DIF_ACTION_NONE);
+					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+								SCST_DIF_ACTION_NONE);
 				} else {
-					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_STRIP);
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
+								 SCST_DIF_ACTION_STRIP);
 					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 						/* STORE might be set as well */
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+									SCST_DIF_ACTION_PASS_CHECK);
 					} else {
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS);
+						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+									SCST_DIF_ACTION_PASS);
 					}
 				}
 
-				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
-				scst_set_scst_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions,
+							SCST_DIF_ACTION_PASS);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_actions,
+							 SCST_DIF_ACTION_PASS_CHECK);
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
-					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
+					scst_set_dev_dif_action(&dev->dev_dif_wr_actions,
+								SCST_DIF_ACTION_PASS_CHECK);
 				} else {
-					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+					scst_set_dev_dif_action(&dev->dev_dif_wr_actions,
+								SCST_DIF_ACTION_PASS);
 				}
 
-				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
-				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_INSERT);
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions,
+							SCST_DIF_ACTION_NONE);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions,
+							 SCST_DIF_ACTION_INSERT);
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
-					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions,
+								SCST_DIF_ACTION_PASS_CHECK);
 				} else {
-					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS);
+					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions,
+								SCST_DIF_ACTION_PASS);
 				}
 			} else { /* No TGT, SCST, no DEV */
-				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
-				scst_set_scst_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_INSERT);
-				scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_NONE);
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions,
+							SCST_DIF_ACTION_PASS);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_actions,
+							 SCST_DIF_ACTION_INSERT);
+				scst_set_dev_dif_action(&dev->dev_dif_rd_actions,
+							SCST_DIF_ACTION_NONE);
 
-				scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
-				scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
-				scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions,
+							SCST_DIF_ACTION_NONE);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
+							 SCST_DIF_ACTION_NONE);
+				scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+							SCST_DIF_ACTION_NONE);
 
-				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
-				scst_set_scst_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_STRIP);
-				scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_NONE);
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions,
+							SCST_DIF_ACTION_PASS);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_actions,
+							 SCST_DIF_ACTION_STRIP);
+				scst_set_dev_dif_action(&dev->dev_dif_wr_actions,
+							SCST_DIF_ACTION_NONE);
 
-				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
-				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
-				scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions,
+							SCST_DIF_ACTION_NONE);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions,
+							 SCST_DIF_ACTION_NONE);
+				scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions,
+							SCST_DIF_ACTION_NONE);
 			}
 		} else { /* No TGT, no SCST */
 			if (dev->dev_dif_mode & SCST_DIF_MODE_DEV) { /* No TGT, no SCST, DEV */
-				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
-				scst_set_scst_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions,
+							SCST_DIF_ACTION_PASS);
+				scst_set_scst_dif_action(&dev->dev_dif_rd_actions,
+							 SCST_DIF_ACTION_PASS);
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
-					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
+					scst_set_dev_dif_action(&dev->dev_dif_rd_actions,
+								SCST_DIF_ACTION_PASS_CHECK);
 				} else {
-					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+					scst_set_dev_dif_action(&dev->dev_dif_rd_actions,
+								SCST_DIF_ACTION_PASS);
 				}
 
-				scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+				scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions,
+							SCST_DIF_ACTION_NONE);
 				if (dev->dpicz) {
-					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
-					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
+								 SCST_DIF_ACTION_NONE);
+					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+								SCST_DIF_ACTION_NONE);
 				} else {
-					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS);
+					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
+								 SCST_DIF_ACTION_PASS);
 					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 						/* STORE might be set as well */
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+									SCST_DIF_ACTION_PASS_CHECK);
 					} else {
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS);
+						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+									SCST_DIF_ACTION_PASS);
 					}
 				}
 
-				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
-				scst_set_scst_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions,
+							SCST_DIF_ACTION_PASS);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_actions,
+							 SCST_DIF_ACTION_PASS);
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
-					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
+					scst_set_dev_dif_action(&dev->dev_dif_wr_actions,
+								SCST_DIF_ACTION_PASS_CHECK);
 				} else {
-					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+					scst_set_dev_dif_action(&dev->dev_dif_wr_actions,
+								SCST_DIF_ACTION_PASS);
 				}
 
-				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
-				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_INSERT);
+				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions,
+							SCST_DIF_ACTION_NONE);
+				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions,
+							 SCST_DIF_ACTION_INSERT);
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
-					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
+					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions,
+								SCST_DIF_ACTION_PASS_CHECK);
 				} else {
-					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS);
+					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions,
+								SCST_DIF_ACTION_PASS);
 				}
 			} else { /* No TGT, no SCST, no DEV */
 				sBUG_ON(1);
@@ -10735,7 +10854,7 @@ out:
  *    Returns: 0 on success, negative error code otherwise.
  */
 int scst_set_dif_params(struct scst_device *dev, enum scst_dif_mode dif_mode,
-	int dif_type)
+			int dif_type)
 {
 	int res = -EINVAL;
 
@@ -10743,7 +10862,7 @@ int scst_set_dif_params(struct scst_device *dev, enum scst_dif_mode dif_mode,
 
 	BUILD_BUG_ON(SCST_DIF_ACTION_NONE != 0);
 
-	if (((dif_mode & ~(SCST_DIF_MODE_TGT|SCST_DIF_MODE_SCST|SCST_DIF_MODE_DEV)) != 0)) {
+	if (((dif_mode & ~(SCST_DIF_MODE_TGT | SCST_DIF_MODE_SCST | SCST_DIF_MODE_DEV)) != 0)) {
 		PRINT_ERROR("Invalid DIF mode %x", dif_mode);
 		goto out;
 	}
@@ -10755,7 +10874,7 @@ int scst_set_dif_params(struct scst_device *dev, enum scst_dif_mode dif_mode,
 
 	if (dif_mode == 0 && dif_type != 0) {
 		PRINT_ERROR("With DIF mode 0 DIF type must be 0 (dev %s)",
-			dev->virt_name);
+			    dev->virt_name);
 		goto out;
 	}
 
@@ -10807,7 +10926,7 @@ int scst_set_dif_params(struct scst_device *dev, enum scst_dif_mode dif_mode,
 		goto out;
 
 	PRINT_INFO("device %s: DIF mode %x, DIF type %d", dev->virt_name,
-		dev->dev_dif_mode, dev->dev_dif_type);
+		   dev->dev_dif_mode, dev->dev_dif_type);
 	TRACE_DBG("app_chk %x, ref_chk %x", dev->dif_app_chk, dev->dif_ref_chk);
 
 out:
@@ -10860,7 +10979,7 @@ static int scst_dif_none_type1(struct scst_cmd *cmd)
  * scst_get_cdb_info() semantic)
  */
 static int __scst_parse_rdprotect(struct scst_cmd *cmd, int rdprotect,
-	int rdprotect_offs)
+				  int rdprotect_offs)
 {
 	int res = 0;
 	const struct scst_device *dev = cmd->dev;
@@ -10902,13 +11021,13 @@ static int __scst_parse_rdprotect(struct scst_cmd *cmd, int rdprotect,
 		TRACE(TRACE_SCSI | TRACE_MINOR, "Invalid RDPROTECT value %x (dev %s, cmd %p)",
 		      rdprotect, dev->virt_name, cmd);
 		scst_set_invalid_field_in_cdb(cmd, rdprotect_offs,
-				5|SCST_INVAL_FIELD_BIT_OFFS_VALID);
+					      5 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		res = EINVAL;
 		goto out;
 	}
 
 	TRACE_DBG("cmd_dif_actions %x, tgt_dif_data_expected %d (cmd %p)",
-		cmd->cmd_dif_actions, cmd->tgt_dif_data_expected, cmd);
+		  cmd->cmd_dif_actions, cmd->tgt_dif_data_expected, cmd);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -10935,7 +11054,7 @@ static int scst_parse_rdprotect(struct scst_cmd *cmd)
 		      rdprotect,
 			dev->virt_name, cmd);
 		scst_set_invalid_field_in_cdb(cmd, 1,
-			5|SCST_INVAL_FIELD_BIT_OFFS_VALID);
+					      5 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		res = EINVAL;
 		goto out;
 	}
@@ -10945,7 +11064,7 @@ static int scst_parse_rdprotect(struct scst_cmd *cmd)
 		      rdprotect, dev->virt_name,
 			cmd, scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
-			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+				   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		res = EINVAL;
 		goto out;
 	}
@@ -10955,7 +11074,7 @@ static int scst_parse_rdprotect(struct scst_cmd *cmd)
 		if (cmd->dev->dev_dif_type == 1 &&
 		    ((dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) == 0)) {
 			TRACE_DBG("cmd_corrupt_dif_tag %x, rdprotect %x, cmd %p",
-				cmd->cmd_corrupt_dif_tag, rdprotect, cmd);
+				  cmd->cmd_corrupt_dif_tag, rdprotect, cmd);
 			/* Reset the highest bit used to choose which tag to corrupt */
 			rdprotect &= 3;
 		} else {
@@ -10978,10 +11097,11 @@ static int scst_parse_rdprotect(struct scst_cmd *cmd)
 			 * doesn't contain dev_store.
 			 */
 			scst_set_scst_dif_action(&cmd->cmd_dif_actions,
-				SCST_DIF_ACTION_INSERT);
-			if (scst_get_dif_action(scst_get_read_dif_tgt_actions(cmd)) == SCST_DIF_ACTION_INSERT)
+						 SCST_DIF_ACTION_INSERT);
+			if (scst_get_dif_action(scst_get_read_dif_tgt_actions(cmd)) ==
+			    SCST_DIF_ACTION_INSERT)
 				scst_set_tgt_dif_action(&cmd->cmd_dif_actions,
-					SCST_DIF_ACTION_PASS_CHECK);
+							SCST_DIF_ACTION_PASS_CHECK);
 		} else {
 			TRACE_DBG("parse rdprotect failed: %d", res);
 		}
@@ -11010,7 +11130,7 @@ static int scst_parse_rdprotect32(struct scst_cmd *cmd)
 		      dev->dev_dif_type, dev->virt_name, cmd,
 			scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
-			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+				   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		res = EINVAL;
 		goto out;
 	}
@@ -11027,7 +11147,7 @@ out:
  * scst_get_cdb_info() semantic)
  */
 static int __scst_parse_wrprotect(struct scst_cmd *cmd, int wrprotect,
-	int wrprotect_offs)
+				  int wrprotect_offs)
 {
 	int res = 0;
 	struct scst_device *dev = cmd->dev;
@@ -11074,13 +11194,13 @@ static int __scst_parse_wrprotect(struct scst_cmd *cmd, int wrprotect,
 		TRACE(TRACE_SCSI | TRACE_MINOR, "Invalid WRPROTECT value %x (dev %s, cmd %p)",
 		      wrprotect, dev->virt_name, cmd);
 		scst_set_invalid_field_in_cdb(cmd, wrprotect_offs,
-			5|SCST_INVAL_FIELD_BIT_OFFS_VALID);
+					      5 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		res = EINVAL;
 		goto out;
 	}
 
 	TRACE_DBG("cmd_dif_actions %x, tgt_dif_data_expected %d (cmd %p)",
-		cmd->cmd_dif_actions, cmd->tgt_dif_data_expected, cmd);
+		  cmd->cmd_dif_actions, cmd->tgt_dif_data_expected, cmd);
 
 out:
 	TRACE_EXIT_RES(res);
@@ -11107,7 +11227,7 @@ static int scst_parse_wrprotect(struct scst_cmd *cmd)
 		      wrprotect,
 			dev->virt_name, cmd);
 		scst_set_invalid_field_in_cdb(cmd, 1,
-			5|SCST_INVAL_FIELD_BIT_OFFS_VALID);
+					      5 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		res = EINVAL;
 		goto out;
 	}
@@ -11117,7 +11237,7 @@ static int scst_parse_wrprotect(struct scst_cmd *cmd)
 		      wrprotect, dev->virt_name,
 			cmd, scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
-			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+				   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		res = EINVAL;
 		goto out;
 	}
@@ -11146,7 +11266,7 @@ static int scst_parse_wrprotect32(struct scst_cmd *cmd)
 		      dev->dev_dif_type, dev->virt_name, cmd,
 			scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
-			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+				   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		res = EINVAL;
 		goto out;
 	}
@@ -11202,7 +11322,7 @@ static int __scst_parse_vrprotect(struct scst_cmd *cmd, int vrprotect_offs)
 			TRACE(TRACE_SCSI | TRACE_MINOR, "Invalid VRPROTECT value %x (dev %s, cmd %p)",
 			      vrprotect, dev->virt_name, cmd);
 			scst_set_invalid_field_in_cdb(cmd, vrprotect_offs,
-				5|SCST_INVAL_FIELD_BIT_OFFS_VALID);
+						      5 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
 			res = EINVAL;
 			goto out;
 		}
@@ -11229,7 +11349,7 @@ static int __scst_parse_vrprotect(struct scst_cmd *cmd, int vrprotect_offs)
 			TRACE(TRACE_SCSI | TRACE_MINOR, "Invalid VRPROTECT value %x (dev %s, cmd %p)",
 			      vrprotect, dev->virt_name, cmd);
 			scst_set_invalid_field_in_cdb(cmd, vrprotect_offs,
-				5|SCST_INVAL_FIELD_BIT_OFFS_VALID);
+						      5 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
 			res = EINVAL;
 			goto out;
 		}
@@ -11268,7 +11388,7 @@ static int scst_parse_vrprotect(struct scst_cmd *cmd)
 		      vrprotect,
 			dev->virt_name, cmd);
 		scst_set_invalid_field_in_cdb(cmd, 1,
-			5|SCST_INVAL_FIELD_BIT_OFFS_VALID);
+					      5 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		res = EINVAL;
 		goto out;
 	}
@@ -11278,7 +11398,7 @@ static int scst_parse_vrprotect(struct scst_cmd *cmd)
 		      vrprotect,
 			dev->virt_name, cmd, scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
-			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+				   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		res = EINVAL;
 		goto out;
 	}
@@ -11306,7 +11426,7 @@ static int scst_parse_vrprotect32(struct scst_cmd *cmd)
 		      dev->dev_dif_type, dev->virt_name, cmd,
 			scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
-			   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+				   SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		res = EINVAL;
 		goto out;
 	}
@@ -11329,7 +11449,7 @@ static const int scst_cdb_length[8] = { 6, 10, 10, 32, 16, 12, 0, 0 };
 #define SCST_GET_CDB_LEN(opcode) scst_cdb_length[SCST_CDB_GROUP(opcode)]
 
 static int get_cdb_info_len_10(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+			       const struct scst_sdbops *sdbops)
 {
 	cmd->cdb_len = 10;
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
@@ -11343,7 +11463,7 @@ static int get_cdb_info_len_10(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_block_limit(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				    const struct scst_sdbops *sdbops)
 {
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
@@ -11353,7 +11473,7 @@ static int get_cdb_info_block_limit(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_read_capacity(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				      const struct scst_sdbops *sdbops)
 {
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
@@ -11363,7 +11483,7 @@ static int get_cdb_info_read_capacity(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_serv_act_in(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				    const struct scst_sdbops *sdbops)
 {
 	int res = 0;
 
@@ -11399,7 +11519,7 @@ static int get_cdb_info_serv_act_in(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_single(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+			       const struct scst_sdbops *sdbops)
 {
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
@@ -11409,7 +11529,7 @@ static int get_cdb_info_single(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_read_pos(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				 const struct scst_sdbops *sdbops)
 {
 	int res = 0;
 
@@ -11431,7 +11551,7 @@ static int get_cdb_info_read_pos(struct scst_cmd *cmd,
 		break;
 	default:
 		PRINT_ERROR("READ POSITION: Invalid service action %x",
-			cmd->cdb[1] & 0x1f);
+			    cmd->cdb[1] & 0x1f);
 		goto out_inval_field1;
 	}
 
@@ -11447,7 +11567,7 @@ out_inval_field1:
 }
 
 static int get_cdb_info_prevent_allow_medium_removal(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+						     const struct scst_sdbops *sdbops)
 {
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
@@ -11462,7 +11582,7 @@ static int get_cdb_info_prevent_allow_medium_removal(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_start_stop(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				   const struct scst_sdbops *sdbops)
 {
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
@@ -11477,7 +11597,7 @@ static int get_cdb_info_start_stop(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_len_3_read_elem_stat(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+					     const struct scst_sdbops *sdbops)
 {
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
@@ -11492,7 +11612,7 @@ static int get_cdb_info_len_3_read_elem_stat(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_bidi_lba_4_len_2(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+					 const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
@@ -11502,7 +11622,7 @@ static int get_cdb_info_bidi_lba_4_len_2(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_fmt(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+			    const struct scst_sdbops *sdbops)
 {
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
@@ -11518,13 +11638,13 @@ static int get_cdb_info_fmt(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_verify10(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				 const struct scst_sdbops *sdbops)
 {
 	if (unlikely(cmd->cdb[1] & 4)) {
 		PRINT_ERROR("VERIFY(10): BYTCHK 1x not supported (dev %s)",
-				cmd->dev ? cmd->dev->virt_name : NULL);
+			    cmd->dev ? cmd->dev->virt_name : NULL);
 		scst_set_invalid_field_in_cdb(cmd, 1,
-			2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+					      2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		return 1;
 	}
 
@@ -11542,16 +11662,16 @@ static int get_cdb_info_verify10(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_verify6(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				const struct scst_sdbops *sdbops)
 {
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
 
 	if (unlikely(cmd->cdb[1] & 4)) {
 		PRINT_ERROR("VERIFY(6): BYTCHK 1x not supported (dev %s)",
-				cmd->dev ? cmd->dev->virt_name : NULL);
+			    cmd->dev ? cmd->dev->virt_name : NULL);
 		scst_set_invalid_field_in_cdb(cmd, 1,
-			2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+					      2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		return 1;
 	}
 
@@ -11568,13 +11688,13 @@ static int get_cdb_info_verify6(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_verify12(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				 const struct scst_sdbops *sdbops)
 {
 	if (unlikely(cmd->cdb[1] & 4)) {
 		PRINT_ERROR("VERIFY(12): BYTCHK 1x not supported (dev %s)",
-				cmd->dev ? cmd->dev->virt_name : NULL);
+			    cmd->dev ? cmd->dev->virt_name : NULL);
 		scst_set_invalid_field_in_cdb(cmd, 1,
-			2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+					      2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		return 1;
 	}
 
@@ -11592,13 +11712,13 @@ static int get_cdb_info_verify12(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_verify16(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				 const struct scst_sdbops *sdbops)
 {
 	if (unlikely(cmd->cdb[1] & 4)) {
 		PRINT_ERROR("VERIFY(16): BYTCHK 1x not supported (dev %s)",
-				cmd->dev ? cmd->dev->virt_name : NULL);
+			    cmd->dev ? cmd->dev->virt_name : NULL);
 		scst_set_invalid_field_in_cdb(cmd, 1,
-			2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+					      2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		return 1;
 	}
 
@@ -11616,13 +11736,13 @@ static int get_cdb_info_verify16(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_verify32(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				 const struct scst_sdbops *sdbops)
 {
 	if (unlikely(cmd->cdb[10] & 4)) {
 		PRINT_ERROR("VERIFY(16): BYTCHK 1x not supported (dev %s)",
-				cmd->dev ? cmd->dev->virt_name : NULL);
+			    cmd->dev ? cmd->dev->virt_name : NULL);
 		scst_set_invalid_field_in_cdb(cmd, 1,
-			2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+					      2 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		return 1;
 	}
 
@@ -11640,7 +11760,7 @@ static int get_cdb_info_verify32(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_len_1(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+			      const struct scst_sdbops *sdbops)
 {
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
@@ -11651,7 +11771,7 @@ static int get_cdb_info_len_1(struct scst_cmd *cmd,
 }
 
 static inline int get_cdb_info_lba_3_len_1_256(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+					       const struct scst_sdbops *sdbops)
 {
 	cmd->lba = (cmd->cdb[sdbops->info_lba_off] & 0x1F) << 16;
 	cmd->lba |= get_unaligned_be16(cmd->cdb + sdbops->info_lba_off + 1);
@@ -11672,7 +11792,7 @@ static inline int get_cdb_info_lba_3_len_1_256(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_lba_3_len_1_256_read(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+					     const struct scst_sdbops *sdbops)
 {
 	int res = get_cdb_info_lba_3_len_1_256(cmd, sdbops);
 
@@ -11691,7 +11811,7 @@ out:
 }
 
 static int get_cdb_info_lba_3_len_1_256_write(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+					      const struct scst_sdbops *sdbops)
 {
 	int res = get_cdb_info_lba_3_len_1_256(cmd, sdbops);
 
@@ -11710,7 +11830,7 @@ out:
 }
 
 static int get_cdb_info_len_2(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+			      const struct scst_sdbops *sdbops)
 {
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
@@ -11720,7 +11840,7 @@ static int get_cdb_info_len_2(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_len_3(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+			      const struct scst_sdbops *sdbops)
 {
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
@@ -11730,7 +11850,7 @@ static int get_cdb_info_len_3(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_len_4(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+			      const struct scst_sdbops *sdbops)
 {
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
@@ -11740,7 +11860,7 @@ static int get_cdb_info_len_4(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_none(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+			     const struct scst_sdbops *sdbops)
 {
 	cmd->op_flags |= SCST_LBA_NOT_VALID;
 	cmd->lba = 0;
@@ -11753,7 +11873,7 @@ static int get_cdb_info_none(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_lba_2_none(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				   const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be16(cmd->cdb + sdbops->info_lba_off);
 
@@ -11765,7 +11885,7 @@ static int get_cdb_info_lba_2_none(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_lba_4_none(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				   const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 
@@ -11777,7 +11897,7 @@ static int get_cdb_info_lba_4_none(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_lba_8_none(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				   const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 
@@ -11789,7 +11909,7 @@ static int get_cdb_info_lba_8_none(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_lba_4_len_2(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				    const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
@@ -11798,7 +11918,7 @@ static int get_cdb_info_lba_4_len_2(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_read_10(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				const struct scst_sdbops *sdbops)
 {
 	int res = get_cdb_info_lba_4_len_2(cmd, sdbops);
 
@@ -11813,7 +11933,7 @@ static int get_cdb_info_read_10(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_lba_4_len_2_wrprotect(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+					      const struct scst_sdbops *sdbops)
 {
 	int res = get_cdb_info_lba_4_len_2(cmd, sdbops);
 
@@ -11824,7 +11944,7 @@ static int get_cdb_info_lba_4_len_2_wrprotect(struct scst_cmd *cmd,
 }
 
 static inline int get_cdb_info_lba_4_len_4(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+					   const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
@@ -11833,7 +11953,7 @@ static inline int get_cdb_info_lba_4_len_4(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_lba_4_len_4_rdprotect(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+					      const struct scst_sdbops *sdbops)
 {
 	int res = get_cdb_info_lba_4_len_4(cmd, sdbops);
 
@@ -11844,7 +11964,7 @@ static int get_cdb_info_lba_4_len_4_rdprotect(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_lba_4_len_4_wrprotect(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+					      const struct scst_sdbops *sdbops)
 {
 	int res = get_cdb_info_lba_4_len_4(cmd, sdbops);
 
@@ -11855,7 +11975,7 @@ static int get_cdb_info_lba_4_len_4_wrprotect(struct scst_cmd *cmd,
 }
 
 static inline int get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+					   const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
@@ -11864,7 +11984,7 @@ static inline int get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_read_16(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				const struct scst_sdbops *sdbops)
 {
 	int res = get_cdb_info_lba_8_len_4(cmd, sdbops);
 
@@ -11879,7 +11999,7 @@ static int get_cdb_info_read_16(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_lba_8_len_4_wrprotect(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+					      const struct scst_sdbops *sdbops)
 {
 	int res = get_cdb_info_lba_8_len_4(cmd, sdbops);
 
@@ -11890,7 +12010,7 @@ static int get_cdb_info_lba_8_len_4_wrprotect(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_lba_8_len_4_wrprotect32(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+						const struct scst_sdbops *sdbops)
 {
 	int res = get_cdb_info_lba_8_len_4(cmd, sdbops);
 
@@ -11901,7 +12021,7 @@ static int get_cdb_info_lba_8_len_4_wrprotect32(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_lba_8_len_4_rdprotect32(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+						const struct scst_sdbops *sdbops)
 {
 	int res = get_cdb_info_lba_8_len_4(cmd, sdbops);
 
@@ -11924,7 +12044,7 @@ static int get_cdb_info_write_same(struct scst_cmd *cmd,
 			    " ANCHOR = %d; NDOB = %d)",
 			    scst_get_opcode_name(cmd), unmap, anchor, ndob);
 		scst_set_invalid_field_in_cdb(cmd, ctrl_offs,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | (ndob ? 0 : 4));
+					      SCST_INVAL_FIELD_BIT_OFFS_VALID | (ndob ? 0 : 4));
 		return 1;
 	}
 
@@ -11941,7 +12061,7 @@ static int get_cdb_info_write_same(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_write_same10(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				     const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 	cmd->data_len = get_unaligned_be16(cmd->cdb + sdbops->info_len_off);
@@ -11949,7 +12069,7 @@ static int get_cdb_info_write_same10(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_write_same16(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				     const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	cmd->data_len = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
@@ -11957,7 +12077,7 @@ static int get_cdb_info_write_same16(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_write_same32(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				     const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	cmd->data_len = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
@@ -11965,7 +12085,7 @@ static int get_cdb_info_write_same32(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_dyn_runtime_attr(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+					 const struct scst_sdbops *sdbops)
 {
 	/*
 	 * Read/write dyn runtime attr commands are non-standard, CDB len is 12
@@ -11982,7 +12102,7 @@ static int get_cdb_info_dyn_runtime_attr(struct scst_cmd *cmd,
  * Return: 0 on success or >0 if the SCSI command is invalid.
  */
 static int scst_set_cmd_from_cdb_info(struct scst_cmd *cmd,
-	const struct scst_sdbops *ptr)
+				      const struct scst_sdbops *ptr)
 {
 	int res;
 
@@ -12016,7 +12136,7 @@ static int scst_set_cmd_from_cdb_info(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_var_len(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				const struct scst_sdbops *sdbops)
 {
 	int res;
 	/*
@@ -12028,9 +12148,9 @@ static int get_cdb_info_var_len(struct scst_cmd *cmd,
 		{.ops = 0x7F, .devkey = "O               ",
 		 .info_op_name = "READ(32)",
 		 .info_data_direction = SCST_DATA_READ,
-		 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
+		 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED |
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-			 SCST_TEST_IO_IN_SIRQ_ALLOWED|
+			 SCST_TEST_IO_IN_SIRQ_ALLOWED |
 #endif
 			 SCST_WRITE_EXCL_ALLOWED,
 		 .info_lba_off = 12, .info_lba_len = 8,
@@ -12039,16 +12159,16 @@ static int get_cdb_info_var_len(struct scst_cmd *cmd,
 		{.ops = 0x7F, .devkey = "O               ",
 		 .info_op_name = "VERIFY(32)",
 		 .info_data_direction = SCST_DATA_UNKNOWN,
-		 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_EXCL_ALLOWED,
+		 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED | SCST_WRITE_EXCL_ALLOWED,
 		 .info_lba_off = 12, .info_lba_len = 8,
 		 .info_len_off = 28, .info_len_len = 4,
 		 .get_cdb_info = get_cdb_info_verify32},
 		{.ops = 0x7F, .devkey = "O               ",
 		 .info_op_name = "WRITE(32)",
 		 .info_data_direction = SCST_DATA_WRITE,
-		 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|
+		 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED |
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
-			SCST_TEST_IO_IN_SIRQ_ALLOWED|
+			SCST_TEST_IO_IN_SIRQ_ALLOWED |
 #endif
 			SCST_WRITE_MEDIUM,
 		 .info_lba_off = 12, .info_lba_len = 8,
@@ -12057,14 +12177,14 @@ static int get_cdb_info_var_len(struct scst_cmd *cmd,
 		{.ops = 0x7F, .devkey = "O               ",
 		 .info_op_name = "WRITE AND VERIFY(32)",
 		 .info_data_direction = SCST_DATA_WRITE,
-		 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+		 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED | SCST_WRITE_MEDIUM,
 		 .info_lba_off = 12, .info_lba_len = 8,
 		 .info_len_off = 28, .info_len_len = 4,
 		 .get_cdb_info = get_cdb_info_lba_8_len_4_wrprotect32},
 		{.ops = 0x7F, .devkey = "O               ",
 		 .info_op_name = "WRITE SAME(32)",
 		 .info_data_direction = SCST_DATA_WRITE,
-		 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED|SCST_WRITE_MEDIUM,
+		 .info_op_flags = SCST_TRANSFER_LEN_TYPE_FIXED | SCST_WRITE_MEDIUM,
 		 .info_lba_off = 12, .info_lba_len = 8,
 		 .info_len_off = 28, .info_len_len = 4,
 		 .get_cdb_info = get_cdb_info_write_same32},
@@ -12079,7 +12199,7 @@ static int get_cdb_info_var_len(struct scst_cmd *cmd,
 	/* i is unsigned, so this will handle subcodes < READ_32 as well */
 	if (unlikely(i >= ARRAY_SIZE(scst_scsi_op32_table))) {
 		TRACE(TRACE_MINOR, "Too big cmd index %d for 0x7F CDB (cmd %p)",
-			i, cmd);
+		      i, cmd);
 		goto out_unknown;
 	}
 
@@ -12106,7 +12226,7 @@ out:
 
 out_unknown:
 	TRACE(TRACE_MINOR, "Unknown opcode 0x%x, subcode %d for type %d",
-		cmd->cdb[0], subcode, cmd->dev->type);
+	      cmd->cdb[0], subcode, cmd->dev->type);
 	cmd->op_flags &= ~SCST_INFO_VALID;
 	res = -1; /* command unknown */
 	goto out;
@@ -12122,13 +12242,13 @@ static int get_cdb_info_compare_and_write(struct scst_cmd *cmd,
 }
 
 static int get_cdb_info_ext_copy(struct scst_cmd *cmd,
-	const struct scst_sdbops *sdbops)
+				 const struct scst_sdbops *sdbops)
 {
 	if (unlikely(cmd->cdb[1] != 0)) {
 		PRINT_WARNING("Not supported %s service action 0x%x",
-			scst_get_opcode_name(cmd), cmd->cdb[1]);
+			      scst_get_opcode_name(cmd), cmd->cdb[1]);
 		scst_set_invalid_field_in_cdb(cmd, 1,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID);
+					      SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		return 1;
 	}
 
@@ -12310,14 +12430,14 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 	op = cmd->cdb[0];	/* get clear opcode */
 
 	TRACE_DBG("opcode=%02x, cdblen=%d bytes, dev_type=%d", op,
-		SCST_GET_CDB_LEN(op), dev_type);
+		  SCST_GET_CDB_LEN(op), dev_type);
 
 	i = scst_scsi_op_list[op];
 	while (i < SCST_CDB_TBL_SIZE && scst_scsi_op_table[i].ops == op) {
 		if (scst_scsi_op_table[i].devkey[dev_type] != SCST_CDB_NOTSUPP) {
 			ptr = &scst_scsi_op_table[i];
 			TRACE_DBG("op = 0x%02x+'%c%c%c%c%c%c%c%c%c%c'+<%s>",
-			      ptr->ops, ptr->devkey[0],	/* disk     */
+				  ptr->ops, ptr->devkey[0],	/* disk     */
 			      ptr->devkey[1],	/* tape     */
 			      ptr->devkey[2],	/* printer */
 			      ptr->devkey[3],	/* cpu      */
@@ -12506,8 +12626,7 @@ static inline int scst_generic_parse(struct scst_cmd *cmd, const int timeout[3])
 				      cmd->out_bufflen, cmd->dev->virt_name,
 				      1 << block_shift);
 			PRINT_BUFFER("CDB", cmd->cdb, cmd->cdb_len);
-			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
-					scst_sense_block_out_range_error));
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_block_out_range_error));
 			goto out;
 		}
 		cmd->bufflen = cmd->bufflen << block_shift;
@@ -12518,10 +12637,9 @@ static inline int scst_generic_parse(struct scst_cmd *cmd, const int timeout[3])
 	if (unlikely(!(cmd->op_flags & SCST_LBA_NOT_VALID) &&
 		     shift_left_overflows(cmd->lba, block_shift))) {
 		PRINT_WARNING("offset %llu * %u >= 2**63 for device %s (len %lld)",
-			   cmd->lba, 1 << block_shift, cmd->dev->virt_name,
+			      cmd->lba, 1 << block_shift, cmd->dev->virt_name,
 			   cmd->data_len);
-		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
-					scst_sense_block_out_range_error));
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_block_out_range_error));
 		goto out;
 	}
 
@@ -12530,7 +12648,7 @@ static inline int scst_generic_parse(struct scst_cmd *cmd, const int timeout[3])
 
 out:
 	TRACE_DBG("res %d, bufflen %d, data_len %lld, direct %d", res,
-		cmd->bufflen, (long long)cmd->data_len, cmd->data_direction);
+		  cmd->bufflen, (long long)cmd->data_len, cmd->data_direction);
 
 	TRACE_EXIT_RES(res);
 	return res;
@@ -12639,8 +12757,7 @@ int scst_tape_generic_parse(struct scst_cmd *cmd)
 				      cmd->data_len, cmd->out_bufflen,
 				      cmd->dev->virt_name, block_size);
 			PRINT_BUFFER("CDB", cmd->cdb, cmd->cdb_len);
-			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(
-					scst_sense_block_out_range_error));
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_block_out_range_error));
 			res = -EINVAL;
 			goto out;
 		}
@@ -12683,7 +12800,7 @@ static int scst_null_parse(struct scst_cmd *cmd)
 #endif
 
 	TRACE_DBG("res %d bufflen %d direct %d",
-	      res, cmd->bufflen, cmd->data_direction);
+		  res, cmd->bufflen, cmd->data_direction);
 
 	TRACE_EXIT();
 	return res;
@@ -12773,7 +12890,7 @@ int scst_do_internal_parsing(struct scst_cmd *cmd)
 		break;
 	default:
 		PRINT_ERROR("Internal parse for type %d not supported",
-			cmd->dev->type);
+			    cmd->dev->type);
 		goto out_hw_err;
 	}
 
@@ -12806,7 +12923,7 @@ out_abn:
  * Generic dev_done() for block (SBC) devices
  */
 int scst_block_generic_dev_done(struct scst_cmd *cmd,
-	void (*set_block_shift)(struct scst_cmd *cmd, int block_shift))
+				void (*set_block_shift)(struct scst_cmd *cmd, int block_shift))
 {
 	int opcode = cmd->cdb[0];
 	int res = SCST_CMD_STATE_DEFAULT;
@@ -12863,7 +12980,7 @@ EXPORT_SYMBOL_GPL(scst_block_generic_dev_done);
  * Generic dev_done() for tape devices
  */
 int scst_tape_generic_dev_done(struct scst_cmd *cmd,
-	void (*set_block_size)(struct scst_cmd *cmd, int block_shift))
+			       void (*set_block_size)(struct scst_cmd *cmd, int block_shift))
 {
 	int opcode = cmd->cdb[0];
 	int res = SCST_CMD_STATE_DEFAULT;
@@ -12882,7 +12999,7 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 		if (unlikely(buffer_size <= 0)) {
 			if (buffer_size < 0) {
 				PRINT_ERROR("%s: Unable to get the buffer (%d)",
-					__func__, buffer_size);
+					    __func__, buffer_size);
 			}
 			goto out;
 		}
@@ -13069,7 +13186,7 @@ int scst_set_cdb_transf_len(struct scst_cmd *cmd, int len)
 EXPORT_SYMBOL_GPL(scst_set_cdb_transf_len);
 
 static void scst_check_internal_sense(struct scst_device *dev, int result,
-	u8 *sense, int sense_len)
+				      u8 *sense, int sense_len)
 {
 	TRACE_ENTRY();
 
@@ -13079,7 +13196,7 @@ static void scst_check_internal_sense(struct scst_device *dev, int result,
 		TRACE(TRACE_MGMT, "DID_RESET received for device %s, triggering reset UA",
 		      dev->virt_name);
 		sl = scst_set_sense(sense, sense_len, dev->d_sense,
-			SCST_LOAD_SENSE(scst_sense_reset_UA));
+				    SCST_LOAD_SENSE(scst_sense_reset_UA));
 		scst_dev_check_set_UA(dev, NULL, sense, sl);
 	} else if ((result & 0xff) == SAM_STAT_CHECK_CONDITION &&
 		   scst_is_ua_sense(sense, sense_len))
@@ -13124,7 +13241,7 @@ EXPORT_SYMBOL(scst_to_tgt_dma_dir);
  * !! scst_unblock_aborted_cmds() must be called after this function !!
  */
 void scst_process_reset(struct scst_device *dev,
-	const struct scst_session *originator, const struct scst_cmd *exclude_cmd,
+			const struct scst_session *originator, const struct scst_cmd *exclude_cmd,
 	struct scst_mgmt_cmd *mcmd, bool set_ua)
 {
 	struct scst_tgt_dev *tgt_dev;
@@ -13143,7 +13260,7 @@ void scst_process_reset(struct scst_device *dev,
 	dev->dev_double_ua_possible = 1;
 
 	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-			dev_tgt_dev_list_entry) {
+			    dev_tgt_dev_list_entry) {
 		struct scst_session *sess = tgt_dev->sess;
 
 #if 0 /* Clearing UAs and last sense isn't required by SAM and it
@@ -13153,7 +13270,7 @@ void scst_process_reset(struct scst_device *dev,
 		spin_lock_bh(&tgt_dev->tgt_dev_lock);
 		scst_free_all_UA(tgt_dev);
 		memset(tgt_dev->tgt_dev_sense, 0,
-			sizeof(tgt_dev->tgt_dev_sense));
+		       sizeof(tgt_dev->tgt_dev_sense));
 		spin_unlock_bh(&tgt_dev->tgt_dev_lock);
 #endif
 
@@ -13161,14 +13278,14 @@ void scst_process_reset(struct scst_device *dev,
 
 		TRACE_DBG("Searching in sess cmd list (sess=%p)", sess);
 		list_for_each_entry(cmd, &sess->sess_cmd_list,
-					sess_cmd_list_entry) {
+				    sess_cmd_list_entry) {
 			if (cmd == exclude_cmd)
 				continue;
 			if (cmd->tgt_dev == tgt_dev ||
 			    (!cmd->tgt_dev &&
 			     cmd->lun == tgt_dev->lun)) {
 				scst_abort_cmd(cmd, mcmd,
-					(tgt_dev->sess != originator), 0);
+					       (tgt_dev->sess != originator), 0);
 			}
 		}
 		spin_unlock_irq(&sess->sess_list_lock);
@@ -13179,7 +13296,7 @@ void scst_process_reset(struct scst_device *dev,
 	 * release them as part of clearing ACA
 	 */
 	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-			dev_tgt_dev_list_entry) {
+			    dev_tgt_dev_list_entry) {
 		scst_clear_aca(tgt_dev, (tgt_dev->sess != originator));
 	}
 
@@ -13252,7 +13369,7 @@ again:
 	}
 
 	UA_entry = list_first_entry(&cmd->tgt_dev->UA_list, typeof(*UA_entry),
-			      UA_list_entry);
+				    UA_list_entry);
 
 	TRACE_DBG("Setting pending UA %p to cmd %p", UA_entry, cmd);
 
@@ -13270,7 +13387,7 @@ again:
 			struct scst_tgt_dev *tgt_dev;
 
 			list_for_each_entry_rcu(tgt_dev, head,
-					sess_tgt_dev_list_entry) {
+						sess_tgt_dev_list_entry) {
 				/*
 				 * Lockdep reports a false positive here before
 				 * kernel version v5.1.
@@ -13287,7 +13404,7 @@ again:
 
 	if (!buf) {
 		if (scst_set_cmd_error_sense(cmd, UA_entry->UA_sense_buffer,
-				UA_entry->UA_valid_sense_len) != 0)
+					     UA_entry->UA_valid_sense_len) != 0)
 			goto out_unlock;
 	} else {
 		sBUG_ON(*size == 0);
@@ -13312,14 +13429,14 @@ again:
 			struct scst_tgt_dev *tgt_dev;
 
 			list_for_each_entry_rcu(tgt_dev, head,
-					sess_tgt_dev_list_entry) {
+						sess_tgt_dev_list_entry) {
 				struct scst_tgt_dev_UA *ua;
 
 				list_for_each_entry(ua, &tgt_dev->UA_list,
-							UA_list_entry) {
+						    UA_list_entry) {
 					if (ua->global_UA &&
 					    memcmp(ua->UA_sense_buffer,
-					      UA_entry->UA_sense_buffer,
+						   UA_entry->UA_sense_buffer,
 					      sizeof(ua->UA_sense_buffer)) == 0) {
 						TRACE_MGMT_DBG("Freeing not needed global UA %p",
 							       ua);
@@ -13342,12 +13459,12 @@ again:
 out_unlock:
 	if (global_unlock) {
 #if !defined(__CHECKER__)
-		for (i = SESS_TGT_DEV_LIST_HASH_SIZE-1; i >= 0; i--) {
+		for (i = SESS_TGT_DEV_LIST_HASH_SIZE - 1; i >= 0; i--) {
 			const struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
 
 			list_for_each_entry_rcu(tgt_dev, head,
-					sess_tgt_dev_list_entry) {
+						sess_tgt_dev_list_entry) {
 				spin_unlock(&tgt_dev->tgt_dev_lock);
 			}
 		}
@@ -13370,7 +13487,7 @@ out:
  * there's only one user of tgt_dev.
  */
 static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
-	const u8 *sense, int sense_len, int flags)
+			      const u8 *sense, int sense_len, int flags)
 {
 	struct scst_tgt_dev_UA *UA_entry = NULL;
 
@@ -13413,7 +13530,7 @@ out:
 
 /* tgt_dev_lock supposed to be held and BH off */
 static void __scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
-	const u8 *sense, int sense_len, int flags)
+				const u8 *sense, int sense_len, int flags)
 {
 	int skip_UA = 0;
 	struct scst_tgt_dev_UA *UA_entry_tmp;
@@ -13441,7 +13558,7 @@ static void __scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 }
 
 void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
-	const u8 *sense, int sense_len, int flags)
+		       const u8 *sense, int sense_len, int flags)
 {
 	TRACE_ENTRY();
 
@@ -13465,7 +13582,7 @@ void scst_dev_check_set_local_UA(struct scst_device *dev,
 		exclude_tgt_dev = exclude->tgt_dev;
 
 	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-			dev_tgt_dev_list_entry) {
+			    dev_tgt_dev_list_entry) {
 		if (tgt_dev != exclude_tgt_dev)
 			scst_check_set_UA(tgt_dev, sense, sense_len, 0);
 	}
@@ -13488,7 +13605,7 @@ static bool __scst_dev_check_set_UA(struct scst_device *dev,
 
 	/* Check for reset UA */
 	if (scst_analyze_sense(sense, sense_len, SCST_SENSE_ASC_VALID,
-				0, SCST_SENSE_ASC_UA_RESET, 0)) {
+			       0, SCST_SENSE_ASC_UA_RESET, 0)) {
 		scst_process_reset(dev,
 				   (exclude) ? exclude->sess : NULL,
 				   exclude, NULL, false);
@@ -13523,7 +13640,7 @@ void scst_set_tp_soft_threshold_reached_UA(struct scst_tgt_dev *tgt_dev)
 	TRACE_ENTRY();
 
 	len = scst_set_sense(sense, sizeof(sense), tgt_dev->dev->d_sense,
-			SCST_LOAD_SENSE(scst_sense_tp_soft_threshold_reached));
+			     SCST_LOAD_SENSE(scst_sense_tp_soft_threshold_reached));
 
 	scst_check_set_UA(tgt_dev, sense, len, 0);
 
@@ -13555,8 +13672,9 @@ static void scst_free_all_UA(struct scst_tgt_dev *tgt_dev)
  * sn_lock supposed to be locked and IRQs off. Might drop then reacquire
  * it inside.
  */
-struct scst_cmd *__scst_check_deferred_commands_locked(
-	struct scst_order_data *order_data, bool return_first)
+struct scst_cmd *__scst_check_deferred_commands_locked(struct scst_order_data *order_data,
+						       bool return_first)
+
 	__releases(&order_data->sn_lock)
 	__acquires(&order_data->sn_lock)
 {
@@ -13571,7 +13689,7 @@ struct scst_cmd *__scst_check_deferred_commands_locked(
 
 restart:
 	list_for_each_entry_safe(cmd, t, &order_data->deferred_cmd_list,
-				deferred_cmd_list_entry) {
+				 deferred_cmd_list_entry) {
 		EXTRACHECKS_BUG_ON(cmd->queue_type == SCST_CMD_QUEUE_ACA);
 
 		if (unlikely(order_data->aca_tgt_dev != 0)) {
@@ -13589,14 +13707,14 @@ restart:
 			spin_lock(&cmd->cmd_threads->cmd_list_lock);
 			TRACE_DBG("Adding cmd %p to active cmd list", cmd);
 			list_add_tail(&cmd->cmd_list_entry,
-				&cmd->cmd_threads->active_cmd_list);
+				      &cmd->cmd_threads->active_cmd_list);
 			wake_up(&cmd->cmd_threads->cmd_list_waitQ);
 			spin_unlock(&cmd->cmd_threads->cmd_list_lock);
 		} else if ((cmd->sn == expected_sn) || !cmd->sn_set) {
 			bool stop = (!cmd->sn_slot);
 
 			TRACE_SN("Deferred command %p (sn %d, set %d) found",
-				cmd, cmd->sn, cmd->sn_set);
+				 cmd, cmd->sn, cmd->sn_set);
 
 			order_data->def_cmd_count--;
 			list_del(&cmd->deferred_cmd_list_entry);
@@ -13605,7 +13723,7 @@ restart:
 				spin_lock(&cmd->cmd_threads->cmd_list_lock);
 				TRACE_SN("Adding cmd %p to active cmd list", cmd);
 				list_add_tail(&cmd->cmd_list_entry,
-					&cmd->cmd_threads->active_cmd_list);
+					      &cmd->cmd_threads->active_cmd_list);
 				wake_up(&cmd->cmd_threads->cmd_list_waitQ);
 				spin_unlock(&cmd->cmd_threads->cmd_list_lock);
 				/* !! At this point cmd can be already dead !! */
@@ -13631,7 +13749,7 @@ restart:
 		goto out;
 
 	list_for_each_entry(cmd, &order_data->skipped_sn_list,
-				deferred_cmd_list_entry) {
+			    deferred_cmd_list_entry) {
 		EXTRACHECKS_BUG_ON(cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE);
 		if (cmd->sn == expected_sn) {
 			/*
@@ -13661,8 +13779,8 @@ out:
 }
 
 /* No locks */
-struct scst_cmd *__scst_check_deferred_commands(
-	struct scst_order_data *order_data, bool return_first)
+struct scst_cmd *__scst_check_deferred_commands(struct scst_order_data *order_data,
+						bool return_first)
 {
 	struct scst_cmd *res;
 
@@ -13677,7 +13795,7 @@ struct scst_cmd *__scst_check_deferred_commands(
 }
 
 void scst_unblock_deferred(struct scst_order_data *order_data,
-	struct scst_cmd *out_of_sn_cmd)
+			   struct scst_cmd *out_of_sn_cmd)
 {
 	TRACE_ENTRY();
 
@@ -13688,7 +13806,7 @@ void scst_unblock_deferred(struct scst_order_data *order_data,
 
 	if (out_of_sn_cmd->sn == order_data->expected_sn) {
 		TRACE_SN("out of sn cmd %p (expected sn %d)",
-			out_of_sn_cmd, order_data->expected_sn);
+			 out_of_sn_cmd, order_data->expected_sn);
 		scst_inc_expected_sn(out_of_sn_cmd);
 	} else {
 		out_of_sn_cmd->out_of_sn = 1;
@@ -13717,7 +13835,7 @@ void scst_block_dev(struct scst_device *dev)
 {
 	dev->block_count++;
 	TRACE_BLOCK("Device BLOCK (new count %d), dev %s", dev->block_count,
-		dev->virt_name);
+		    dev->virt_name);
 }
 
 /*
@@ -13745,7 +13863,7 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 		goto out_block;
 	} else if ((cmd->op_flags & SCST_STRICTLY_SERIALIZED) == SCST_STRICTLY_SERIALIZED) {
 		TRACE_BLOCK("Strictly serialized cmd %p (tag %llu, op %s, dev %s)",
-			cmd, (unsigned long long)cmd->tag,
+			    cmd, (unsigned long long)cmd->tag,
 			scst_get_opcode_name(cmd), dev->virt_name);
 
 		if (cmd->cdb[0] == MAINTENANCE_OUT &&
@@ -13756,7 +13874,7 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 			 * are interested only in comparison
 			 */
 			c = list_first_entry(&scst_global_stpg_list, typeof(*c),
-				global_stpg_list_entry);
+					     global_stpg_list_entry);
 			if (cmd != c) {
 				TRACE_BLOCK("Blocking serialized STPG cmd %p (head %p)",
 					    cmd, c);
@@ -13769,7 +13887,7 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 		if (dev->on_dev_cmd_count > 1) {
 			TRACE_BLOCK("Delaying strictly serialized cmd %p (dev %s, on_dev_cmds to wait %d)",
 				    cmd,
-				dev->virt_name, dev->on_dev_cmd_count-1);
+				dev->virt_name, dev->on_dev_cmd_count - 1);
 			EXTRACHECKS_BUG_ON(dev->strictly_serialized_cmd_waiting);
 			dev->strictly_serialized_cmd_waiting = 1;
 			goto out_block;
@@ -13796,7 +13914,7 @@ out:
 out_block:
 	if (cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE)
 		list_add(&cmd->blocked_cmd_list_entry,
-			      &dev->blocked_cmd_list);
+			 &dev->blocked_cmd_list);
 	else
 		list_add_tail(&cmd->blocked_cmd_list_entry,
 			      &dev->blocked_cmd_list);
@@ -13810,7 +13928,7 @@ void scst_unblock_dev(struct scst_device *dev)
 	TRACE_ENTRY();
 
 	TRACE_BLOCK("Device UNBLOCK (new %d), dev %s",
-		dev->block_count-1, dev->virt_name);
+		    dev->block_count - 1, dev->virt_name);
 
 	if (--dev->block_count == 0) {
 		struct scst_cmd *cmd, *tcmd;
@@ -13820,7 +13938,8 @@ void scst_unblock_dev(struct scst_device *dev)
 		list_for_each_entry_safe(cmd, tcmd, &dev->blocked_cmd_list,
 					 blocked_cmd_list_entry) {
 			bool strictly_serialized =
-				((cmd->op_flags & SCST_STRICTLY_SERIALIZED) == SCST_STRICTLY_SERIALIZED);
+				((cmd->op_flags & SCST_STRICTLY_SERIALIZED) ==
+				 SCST_STRICTLY_SERIALIZED);
 
 			if (dev->strictly_serialized_cmd_waiting &&
 			    !strictly_serialized)
@@ -13833,10 +13952,10 @@ void scst_unblock_dev(struct scst_device *dev)
 			spin_lock(&cmd->cmd_threads->cmd_list_lock);
 			if (cmd->queue_type == SCST_CMD_QUEUE_HEAD_OF_QUEUE)
 				list_add(&cmd->cmd_list_entry,
-					&cmd->cmd_threads->active_cmd_list);
+					 &cmd->cmd_threads->active_cmd_list);
 			else
 				list_add_tail(&cmd->cmd_list_entry,
-					&cmd->cmd_threads->active_cmd_list);
+					      &cmd->cmd_threads->active_cmd_list);
 			wake_up(&cmd->cmd_threads->cmd_list_waitQ);
 			spin_unlock(&cmd->cmd_threads->cmd_list_lock);
 
@@ -13864,11 +13983,11 @@ void scst_unblock_dev(struct scst_device *dev)
  * Returns 0 on success and not 0 otherwise.
  */
 int scst_obtain_device_parameters(struct scst_device *dev,
-	const u8 *mode_select_cdb)
+				  const u8 *mode_select_cdb)
 {
 	int rc, i;
 	u8 cmd[16];
-	u8 buffer[4+0x0A];
+	u8 buffer[4 + 0x0A];
 	u8 sense_buffer[SCSI_SENSE_BUFFERSIZE];
 
 	TRACE_ENTRY();
@@ -13914,20 +14033,20 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 			PRINT_BUFF_FLAG(TRACE_SCSI, "Returned control mode page data",
 					buffer, sizeof(buffer));
 
-			dev->tst = buffer[4+2] >> 5;
-			dev->tmf_only = (buffer[4+2] & 0x10) >> 4;
-			dev->dpicz = (buffer[4+2] & 0x8) >> 3;
-			q = buffer[4+3] >> 4;
+			dev->tst = buffer[4 + 2] >> 5;
+			dev->tmf_only = (buffer[4 + 2] & 0x10) >> 4;
+			dev->dpicz = (buffer[4 + 2] & 0x8) >> 3;
+			q = buffer[4 + 3] >> 4;
 			if (q > SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER) {
 				PRINT_ERROR("Too big QUEUE ALG %x, dev %s, using default: unrestricted reorder",
 					    dev->queue_alg, dev->virt_name);
 				q = SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER;
 			}
 			dev->queue_alg = q;
-			dev->qerr = (buffer[4+3] & 0x6) >> 1;
-			dev->swp = (buffer[4+4] & 0x8) >> 3;
-			dev->tas = (buffer[4+5] & 0x40) >> 6;
-			dev->d_sense = (buffer[4+2] & 0x4) >> 2;
+			dev->qerr = (buffer[4 + 3] & 0x6) >> 1;
+			dev->swp = (buffer[4 + 4] & 0x8) >> 3;
+			dev->tas = (buffer[4 + 5] & 0x40) >> 6;
+			dev->d_sense = (buffer[4 + 2] & 0x4) >> 2;
 
 			/*
 			 * Unfortunately, SCSI ML doesn't provide a way to
@@ -13946,7 +14065,7 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 			goto out;
 		} else {
 			scst_check_internal_sense(dev, rc, sense_buffer,
-				sizeof(sense_buffer));
+						  sizeof(sense_buffer));
 #if 0
 			if ((rc & 0xff) == SAM_STAT_CHECK_CONDITION &&
 			    scst_sense_valid(sense_buffer)) {
@@ -13960,7 +14079,7 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 				PRINT_BUFF_FLAG(TRACE_SCSI, "MODE SENSE returned sense",
 						sense_buffer, sizeof(sense_buffer));
 				if (scst_analyze_sense(sense_buffer,
-						sizeof(sense_buffer),
+						       sizeof(sense_buffer),
 						SCST_SENSE_KEY_VALID,
 						ILLEGAL_REQUEST, 0, 0)) {
 					PRINT_INFO("Device %s doesn't support MODE SENSE or control mode page",
@@ -13971,7 +14090,7 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 						SCST_SENSE_KEY_VALID,
 						NOT_READY, 0, 0)) {
 					PRINT_ERROR("Device %s not ready",
-						dev->virt_name);
+						    dev->virt_name);
 					break;
 				}
 			} else {
@@ -14039,7 +14158,7 @@ out:
 
 /* dev_lock supposed to be locked and BHs off */
 static void scst_abort_cmds_tgt_dev(struct scst_tgt_dev *tgt_dev,
-	struct scst_cmd *exclude_cmd)
+				    struct scst_cmd *exclude_cmd)
 {
 	struct scst_session *sess = tgt_dev->sess;
 	struct scst_cmd *cmd;
@@ -14067,7 +14186,7 @@ static void scst_abort_cmds_tgt_dev(struct scst_tgt_dev *tgt_dev,
 
 /* dev_lock supposed to be locked and BHs off */
 static void scst_abort_cmds_dev(struct scst_device *dev,
-	struct scst_cmd *exclude_cmd)
+				struct scst_cmd *exclude_cmd)
 {
 	struct scst_tgt_dev *tgt_dev;
 	u8 sense_buffer[SCST_STANDARD_SENSE_LEN];
@@ -14081,7 +14200,7 @@ static void scst_abort_cmds_dev(struct scst_device *dev,
 
 	if (set_ua)
 		sl = scst_set_sense(sense_buffer, sizeof(sense_buffer), dev->d_sense,
-			SCST_LOAD_SENSE(scst_sense_cleared_by_another_ini_UA));
+				    SCST_LOAD_SENSE(scst_sense_cleared_by_another_ini_UA));
 
 	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list, dev_tgt_dev_list_entry) {
 		scst_abort_cmds_tgt_dev(tgt_dev, exclude_cmd);
@@ -14168,7 +14287,7 @@ int scst_process_check_condition(struct scst_cmd *cmd)
 	dev = cmd->dev;
 
 	TRACE((order_data->aca_tgt_dev != 0) ? TRACE_MGMT_DEBUG : TRACE_DEBUG,
-		"CHECK CONDITION for cmd %p (naca %d, cmd_aca_allowed %d, ACA allowed cmd %d, tgt_dev %p, aca_tgt_dev %lu, aca_cmd %p)",
+	      "CHECK CONDITION for cmd %p (naca %d, cmd_aca_allowed %d, ACA allowed cmd %d, tgt_dev %p, aca_tgt_dev %lu, aca_cmd %p)",
 		cmd, cmd->cmd_naca, cmd->cmd_aca_allowed,
 		cmd->queue_type == SCST_CMD_QUEUE_ACA, cmd->tgt_dev,
 		order_data->aca_tgt_dev, order_data->aca_cmd);
@@ -14177,7 +14296,7 @@ int scst_process_check_condition(struct scst_cmd *cmd)
 
 	if (order_data->aca_tgt_dev != 0) {
 		if ((cmd->queue_type == SCST_CMD_QUEUE_ACA &&
-		    order_data->aca_tgt_dev == (unsigned long)cmd->tgt_dev) ||
+		     order_data->aca_tgt_dev == (unsigned long)cmd->tgt_dev) ||
 		    (cmd->cdb[0] == PERSISTENT_RESERVE_OUT &&
 		     ((cmd->cdb[1] & 0x1f) == PR_PREEMPT_AND_ABORT))) {
 			if (!cmd->cmd_naca) {
@@ -14192,7 +14311,8 @@ int scst_process_check_condition(struct scst_cmd *cmd)
 				}
 				spin_unlock_irq(&order_data->sn_lock);
 				scst_clear_aca(cmd->tgt_dev,
-					(order_data->aca_tgt_dev != (unsigned long)cmd->tgt_dev));
+					       (order_data->aca_tgt_dev !=
+						(unsigned long)cmd->tgt_dev));
 				/*
 				 * Goto directly to avoid race when ACA
 				 * reestablished during retaking sn_lock
@@ -14220,7 +14340,7 @@ int scst_process_check_condition(struct scst_cmd *cmd)
 			 * CHECK CONDITION
 			 */
 			list_add(&cmd->deferred_cmd_list_entry,
-				&order_data->deferred_cmd_list);
+				 &order_data->deferred_cmd_list);
 			res = -1;
 			goto out_unlock;
 		}
@@ -14314,7 +14434,7 @@ int scst_get_max_lun_commands(struct scst_session *sess, u64 lun)
 			if (dev->handler == &scst_null_devtype)
 				continue;
 			TRACE_DBG("dev %s, max_tgt_dev_commands %d (res %d)",
-				dev->virt_name, dev->max_tgt_dev_commands, res);
+				  dev->virt_name, dev->max_tgt_dev_commands, res);
 			if (res > dev->max_tgt_dev_commands)
 				res = dev->max_tgt_dev_commands;
 		}
@@ -14370,7 +14490,7 @@ EXPORT_SYMBOL(scst_get_max_lun_commands);
  * Reassigns retained during nexus loss states from old_sess to new_sess.
  */
 void scst_reassign_retained_sess_states(struct scst_session *new_sess,
-	struct scst_session *old_sess)
+					struct scst_session *old_sess)
 {
 	struct scst_device *dev;
 
@@ -14405,7 +14525,7 @@ void scst_reassign_retained_sess_states(struct scst_session *new_sess,
 		TRACE_DBG("Processing dev %s", dev->virt_name);
 
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
-					dev_tgt_dev_list_entry) {
+				    dev_tgt_dev_list_entry) {
 			if (tgt_dev->sess == new_sess) {
 				new_tgt_dev = tgt_dev;
 				if (old_tgt_dev)
@@ -14447,7 +14567,7 @@ void scst_reassign_retained_sess_states(struct scst_session *new_sess,
 
 		if (old_tgt_dev->registrant) {
 			TRACE_PR("Reassigning reg %p from tgt_dev %p to %p",
-				old_tgt_dev->registrant, old_tgt_dev,
+				 old_tgt_dev->registrant, old_tgt_dev,
 				new_tgt_dev);
 
 			if (new_tgt_dev->registrant)
@@ -14465,10 +14585,10 @@ next:
 
 		if (dev->handler->reassign_retained_states) {
 			TRACE_DBG("Calling dev's %s reassign_retained_states(%p, %p)",
-				dev->virt_name, new_tgt_dev, old_tgt_dev);
+				  dev->virt_name, new_tgt_dev, old_tgt_dev);
 			dev->handler->reassign_retained_states(new_tgt_dev, old_tgt_dev);
 			TRACE_DBG("Dev's %s reassign_retained_states() returned",
-				dev->virt_name);
+				  dev->virt_name);
 		}
 	}
 
@@ -14543,7 +14663,7 @@ char *scst_get_next_token_str(char **input_str)
 	if (p[i] == '\0')
 		*input_str = &p[i];
 	else
-		*input_str = &p[i+1];
+		*input_str = &p[i + 1];
 
 	p[i] = '\0';
 
@@ -14589,7 +14709,7 @@ static int scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 
 	pd = kzalloc_objs(*pd, cnt);
 	if (!pd) {
-		PRINT_ERROR("Unable to kmalloc UNMAP %d descriptors", cnt+1);
+		PRINT_ERROR("Unable to kmalloc UNMAP %d descriptors", cnt + 1);
 		scst_set_busy(cmd);
 		goto out_abn_put;
 	}
@@ -14605,7 +14725,7 @@ static int scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 		d->sdd_blocks = get_unaligned_be32(&address[offset]);
 		offset += 8;
 		TRACE_DBG("i %d, lba %lld, blocks %lld", i,
-			(long long)d->sdd_lba, (long long)d->sdd_blocks);
+			  (long long)d->sdd_lba, (long long)d->sdd_blocks);
 	}
 
 	cmd->cmd_data_descriptors = pd;
@@ -14692,7 +14812,7 @@ static void scst_free_descriptors(struct scst_cmd *cmd)
 #define SCST_DPICZ_LABEL	"DPICZ"
 
 int scst_save_global_mode_pages(const struct scst_device *dev,
-	u8 *buf, int size)
+				u8 *buf, int size)
 {
 	int res = 0;
 
@@ -14701,49 +14821,49 @@ int scst_save_global_mode_pages(const struct scst_device *dev,
 	if (dev->tas != dev->tas_default) {
 		res += scnprintf(&buf[res], size - res, "%s=%d\n",
 			SCST_TAS_LABEL, dev->tas);
-		if (res >= size-1)
+		if (res >= size - 1)
 			goto out_overflow;
 	}
 
 	if (dev->qerr != dev->qerr_default) {
 		res += scnprintf(&buf[res], size - res, "%s=%d\n",
 			SCST_QERR_LABEL, dev->qerr);
-		if (res >= size-1)
+		if (res >= size - 1)
 			goto out_overflow;
 	}
 
 	if (dev->tmf_only != dev->tmf_only_default) {
 		res += scnprintf(&buf[res], size - res, "%s=%d\n",
 			SCST_TMF_ONLY_LABEL, dev->tmf_only);
-		if (res >= size-1)
+		if (res >= size - 1)
 			goto out_overflow;
 	}
 
 	if (dev->swp != dev->swp_default) {
 		res += scnprintf(&buf[res], size - res, "%s=%d\n",
 			SCST_SWP_LABEL, dev->swp);
-		if (res >= size-1)
+		if (res >= size - 1)
 			goto out_overflow;
 	}
 
 	if (dev->d_sense != dev->d_sense_default) {
 		res += scnprintf(&buf[res], size - res, "%s=%d\n",
 			SCST_DSENSE_LABEL, dev->d_sense);
-		if (res >= size-1)
+		if (res >= size - 1)
 			goto out_overflow;
 	}
 
 	if (dev->dpicz != dev->dpicz_default) {
 		res += scnprintf(&buf[res], size - res, "%s=%d\n",
 			SCST_DPICZ_LABEL, dev->dpicz);
-		if (res >= size-1)
+		if (res >= size - 1)
 			goto out_overflow;
 	}
 
 	if (dev->queue_alg != dev->queue_alg_default) {
 		res += scnprintf(&buf[res], size - res, "%s=%d\n",
 			SCST_QUEUE_ALG_LABEL, dev->queue_alg);
-		if (res >= size-1)
+		if (res >= size - 1)
 			goto out_overflow;
 	}
 
@@ -14766,7 +14886,7 @@ static int scst_restore_tas(struct scst_device *dev, unsigned int val)
 
 	if (val > 1) {
 		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
-			val, SCST_TAS_LABEL, dev->virt_name);
+			    val, SCST_TAS_LABEL, dev->virt_name);
 		res = -EINVAL;
 		goto out;
 	}
@@ -14775,7 +14895,7 @@ static int scst_restore_tas(struct scst_device *dev, unsigned int val)
 	dev->tas_saved = val;
 
 	PRINT_INFO("%s restored to %d for device %s", SCST_TAS_LABEL,
-		dev->tas, dev->virt_name);
+		   dev->tas, dev->virt_name);
 
 	res = 0;
 
@@ -14793,7 +14913,7 @@ static int scst_restore_qerr(struct scst_device *dev, unsigned int val)
 	if (val == SCST_QERR_2_RESERVED ||
 	    val > SCST_QERR_3_ABORT_THIS_NEXUS_ONLY) {
 		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
-			val, SCST_QERR_LABEL, dev->virt_name);
+			    val, SCST_QERR_LABEL, dev->virt_name);
 		res = -EINVAL;
 		goto out;
 	}
@@ -14802,7 +14922,7 @@ static int scst_restore_qerr(struct scst_device *dev, unsigned int val)
 	dev->qerr_saved = val;
 
 	PRINT_INFO("%s restored to %d for device %s", SCST_QERR_LABEL,
-		dev->qerr, dev->virt_name);
+		   dev->qerr, dev->virt_name);
 
 	res = 0;
 
@@ -14819,7 +14939,7 @@ static int scst_restore_tmf_only(struct scst_device *dev, unsigned int val)
 
 	if (val > 1) {
 		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
-			val, SCST_TMF_ONLY_LABEL, dev->virt_name);
+			    val, SCST_TMF_ONLY_LABEL, dev->virt_name);
 		res = -EINVAL;
 		goto out;
 	}
@@ -14828,7 +14948,7 @@ static int scst_restore_tmf_only(struct scst_device *dev, unsigned int val)
 	dev->tmf_only_saved = val;
 
 	PRINT_INFO("%s restored to %d for device %s", SCST_TMF_ONLY_LABEL,
-		dev->tmf_only, dev->virt_name);
+		   dev->tmf_only, dev->virt_name);
 
 	res = 0;
 
@@ -14845,7 +14965,7 @@ static int scst_restore_swp(struct scst_device *dev, unsigned int val)
 
 	if (val > 1) {
 		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
-			val, SCST_SWP_LABEL, dev->virt_name);
+			    val, SCST_SWP_LABEL, dev->virt_name);
 		res = -EINVAL;
 		goto out;
 	}
@@ -14854,7 +14974,7 @@ static int scst_restore_swp(struct scst_device *dev, unsigned int val)
 	dev->swp_saved = val;
 
 	PRINT_INFO("%s restored to %d for device %s", SCST_SWP_LABEL,
-		dev->swp, dev->virt_name);
+		   dev->swp, dev->virt_name);
 
 	res = 0;
 
@@ -14871,7 +14991,7 @@ static int scst_restore_dsense(struct scst_device *dev, unsigned int val)
 
 	if (val > 1) {
 		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
-			val, SCST_DSENSE_LABEL, dev->virt_name);
+			    val, SCST_DSENSE_LABEL, dev->virt_name);
 		res = -EINVAL;
 		goto out;
 	}
@@ -14880,7 +15000,7 @@ static int scst_restore_dsense(struct scst_device *dev, unsigned int val)
 	dev->d_sense_saved = val;
 
 	PRINT_INFO("%s restored to %d for device %s", SCST_DSENSE_LABEL,
-		dev->d_sense, dev->virt_name);
+		   dev->d_sense, dev->virt_name);
 
 	res = 0;
 
@@ -14897,7 +15017,7 @@ static int scst_restore_dpicz(struct scst_device *dev, unsigned int val)
 
 	if (val > 1) {
 		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
-			val, SCST_DPICZ_LABEL, dev->virt_name);
+			    val, SCST_DPICZ_LABEL, dev->virt_name);
 		res = -EINVAL;
 		goto out;
 	}
@@ -14906,7 +15026,7 @@ static int scst_restore_dpicz(struct scst_device *dev, unsigned int val)
 	dev->dpicz_saved = val;
 
 	PRINT_INFO("%s restored to %d for device %s", SCST_DPICZ_LABEL,
-		dev->dpicz, dev->virt_name);
+		   dev->dpicz, dev->virt_name);
 
 	res = 0;
 
@@ -14924,7 +15044,7 @@ static int scst_restore_queue_alg(struct scst_device *dev, unsigned int val)
 	if (val != SCST_QUEUE_ALG_0_RESTRICTED_REORDER &&
 	    val != SCST_QUEUE_ALG_1_UNRESTRICTED_REORDER) {
 		PRINT_ERROR("Invalid value %d for parameter %s (device %s)",
-			val, SCST_QUEUE_ALG_LABEL, dev->virt_name);
+			    val, SCST_QUEUE_ALG_LABEL, dev->virt_name);
 		res = -EINVAL;
 		goto out;
 	}
@@ -14933,7 +15053,7 @@ static int scst_restore_queue_alg(struct scst_device *dev, unsigned int val)
 	dev->queue_alg_saved = val;
 
 	PRINT_INFO("%s restored to %d for device %s", SCST_QUEUE_ALG_LABEL,
-		dev->queue_alg, dev->virt_name);
+		   dev->queue_alg, dev->virt_name);
 
 	res = 0;
 
@@ -14944,7 +15064,7 @@ out:
 
 /* Params are NULL-terminated */
 int scst_restore_global_mode_pages(struct scst_device *dev, char *params,
-	char **last_param)
+				   char **last_param)
 {
 	int res;
 	char *param, *p, *pp;
@@ -15005,7 +15125,7 @@ out:
 
 out_strtoul_failed:
 	PRINT_ERROR("strtoul() for %s failed: %d (device %s)", pp, res,
-		dev->virt_name);
+		    dev->virt_name);
 	goto out;
 
 out_need_param:
@@ -15073,7 +15193,7 @@ static void __scst_ext_blocking_done(struct scst_device *dev)
 		struct scst_ext_blocker *b;
 
 		b = list_first_entry(&dev->ext_blockers_list, typeof(*b),
-			ext_blockers_list_entry);
+				     ext_blockers_list_entry);
 
 		TRACE_DBG("Notifying async ext blocker %p (cnt %d)",
 			  b, dev->ext_blocks_cnt);
@@ -15141,13 +15261,13 @@ out:
 }
 
 static void scst_sync_ext_blocking_done(struct scst_device *dev,
-	u8 *data, int len)
+					u8 *data, int len)
 {
 	wait_queue_head_t *w;
 
 	TRACE_ENTRY();
 
-	w = (void *) data;
+	w = (void *)data;
 	wake_up_all(w);
 
 	TRACE_EXIT();
@@ -15310,7 +15430,7 @@ void scst_ext_unblock_dev(struct scst_device *dev, bool stpg)
 
 	dev->ext_blocks_cnt--;
 	TRACE_MGMT_DBG("Ext unblocking for dev %s (left: %d, pending %d)",
-		dev->virt_name, dev->ext_blocks_cnt,
+		       dev->virt_name, dev->ext_blocks_cnt,
 		dev->ext_blocking_pending);
 
 	if (dev->ext_blocks_cnt == 0 && dev->ext_blocking_pending) {
@@ -15318,7 +15438,7 @@ void scst_ext_unblock_dev(struct scst_device *dev, bool stpg)
 		/* Wait pending ext blocking to finish */
 		spin_unlock_bh(&dev->dev_lock);
 		TRACE_DBG("Ext unblock (dev %s): still pending...",
-			dev->virt_name);
+			  dev->virt_name);
 		rc = scst_sync_ext_block_dev(dev);
 		if (rc != 0) {
 			/* Oops, have to poll */
@@ -15359,7 +15479,7 @@ void scst_vfs_unlink_and_put(struct path *path)
 	vfs_unlink(path->dentry->d_parent->d_inode, path->dentry, NULL);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 6))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 6))
 	vfs_unlink(&init_user_ns, path->dentry->d_parent->d_inode, path->dentry,
 		   NULL);
 #else
@@ -15404,7 +15524,7 @@ int scst_copy_file(const char *src, const char *dest)
 	if (IS_ERR(file_dest)) {
 		res = PTR_ERR(file_dest);
 		TRACE_DBG("Unable to open backup file '%s' - error %d", dest,
-			res);
+			  res);
 		goto out_close;
 	}
 
@@ -15469,7 +15589,7 @@ EXPORT_SYMBOL_GPL(scst_remove_file);
 
 /* Returns 0 on success, error code otherwise */
 int scst_write_file_transactional(const char *name, const char *name1,
-	const char *signature, int signature_len, const u8 *buf, int size)
+				  const char *signature, int signature_len, const u8 *buf, int size)
 {
 	int res;
 	struct file *file;
@@ -15486,13 +15606,13 @@ int scst_write_file_transactional(const char *name, const char *name1,
 	if (IS_ERR(file)) {
 		res = PTR_ERR(file);
 		PRINT_ERROR("Unable to (re)create file '%s' - error %d",
-			name, res);
+			    name, res);
 		goto out_remove_file;
 	}
 
 	TRACE_DBG("Writing file '%s'", name);
 
-	pos = signature_len+1;
+	pos = signature_len + 1;
 
 	res = kernel_write(file, buf, size, &pos);
 	if (res != size)
@@ -15544,8 +15664,8 @@ write_error_close:
 }
 EXPORT_SYMBOL_GPL(scst_write_file_transactional);
 
-static int __scst_read_file_transactional(const char *file_name,
-	const char *signature, int signature_len, u8 *buf, int size)
+static int __scst_read_file_transactional(const char *file_name, const char *signature,
+					  int signature_len, u8 *buf, int size)
 {
 	int res;
 	struct file *file = NULL;
@@ -15570,7 +15690,7 @@ static int __scst_read_file_transactional(const char *file_name,
 
 	if (file_size > size) {
 		PRINT_ERROR("Supplied buffer (%d) too small (need %d)", size,
-			(int)file_size);
+			    (int)file_size);
 		res = -EOVERFLOW;
 		goto out_close;
 	}
@@ -15604,7 +15724,7 @@ out:
  * skipped.
  */
 int scst_read_file_transactional(const char *name, const char *name1,
-	const char *signature, int signature_len, u8 *buf, int size)
+				 const char *signature, int signature_len, u8 *buf, int size)
 {
 	int res;
 
@@ -15613,7 +15733,7 @@ int scst_read_file_transactional(const char *name, const char *name1,
 	res = __scst_read_file_transactional(name, signature, signature_len, buf, size);
 	if (res <= 0)
 		res = __scst_read_file_transactional(name1, signature,
-			signature_len, buf, size);
+						     signature_len, buf, size);
 
 	if (res > 0)
 		TRACE_BUFFER("Read data", buf, res);
@@ -15693,7 +15813,7 @@ static void __init scst_scsi_op_list_init(void)
 	}
 
 	TRACE_BUFFER("scst_scsi_op_list", scst_scsi_op_list,
-		sizeof(scst_scsi_op_list));
+		     sizeof(scst_scsi_op_list));
 
 	TRACE_EXIT();
 }
@@ -15715,9 +15835,9 @@ int __init scst_lib_init(void)
 	}
 
 	scsi_io_context_cache = kmem_cache_create("scst_scsi_io_context",
-					sizeof(struct scsi_io_context),
+						  sizeof(struct scsi_io_context),
 					__alignof__(struct scsi_io_context),
-					SCST_SLAB_FLAGS|SLAB_HWCACHE_ALIGN, NULL);
+					SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN, NULL);
 	if (!scsi_io_context_cache) {
 		PRINT_ERROR("Can't init scsi io context cache");
 		res = -ENOMEM;
@@ -15863,11 +15983,11 @@ static void tm_dbg_delay_cmd(struct scst_cmd *cmd)
 	switch (tm_dbg_state) {
 	case TM_DBG_STATE_ABORT:
 		if (tm_dbg_delayed_cmds_count == 0) {
-			unsigned long d = 58*HZ + (scst_random() % (4*HZ));
+			unsigned long d = 58 * HZ + (scst_random() % (4 * HZ));
 
 			TRACE_MGMT_DBG("STATE ABORT: delaying cmd %p (tag %llu) for %ld.%ld seconds (%ld HZ), tm_dbg_on_state_passes=%d",
 				       cmd, cmd->tag,
-				d/HZ, (d%HZ)*100/HZ, d,	tm_dbg_on_state_passes);
+				d / HZ, (d % HZ) * 100 / HZ, d,	tm_dbg_on_state_passes);
 			mod_timer(&tm_dbg_timer, jiffies + d);
 #if 0
 			tm_dbg_flags.tm_dbg_blocked = 1;
@@ -15909,13 +16029,13 @@ void tm_dbg_check_released_cmds(void)
 
 		spin_lock_irq(&scst_tm_dbg_lock);
 		list_for_each_entry_safe_reverse(cmd, tc,
-				&tm_dbg_delayed_cmd_list, cmd_list_entry) {
+						 &tm_dbg_delayed_cmd_list, cmd_list_entry) {
 			TRACE_MGMT_DBG("Releasing timed cmd %p (tag %llu), delayed_cmds_count=%d",
 				       cmd, cmd->tag,
 				tm_dbg_delayed_cmds_count);
 			spin_lock(&cmd->cmd_threads->cmd_list_lock);
 			list_move(&cmd->cmd_list_entry,
-				&cmd->cmd_threads->active_cmd_list);
+				  &cmd->cmd_threads->active_cmd_list);
 			spin_unlock(&cmd->cmd_threads->cmd_list_lock);
 		}
 		tm_dbg_flags.tm_dbg_release = 0;
@@ -16003,7 +16123,7 @@ void tm_dbg_release_cmd(struct scst_cmd *cmd)
 
 	spin_lock_irqsave(&scst_tm_dbg_lock, flags);
 	list_for_each_entry(c, &tm_dbg_delayed_cmd_list,
-				cmd_list_entry) {
+			    cmd_list_entry) {
 		if (c == cmd) {
 			TRACE_MGMT_DBG("Abort request for delayed cmd %p (tag=%llu), moving it to active cmd list (delayed_cmds_count=%d)",
 				       c, c->tag, tm_dbg_delayed_cmds_count);
@@ -16012,19 +16132,18 @@ void tm_dbg_release_cmd(struct scst_cmd *cmd)
 				msleep(2000);
 
 			if (!test_bit(SCST_CMD_ABORTED_OTHER,
-					    &cmd->cmd_flags)) {
+				      &cmd->cmd_flags)) {
 				/* Test how completed commands handled */
 				if (((scst_random() % 10) == 5)) {
 					scst_set_cmd_error(cmd,
-						SCST_LOAD_SENSE(
-							scst_sense_internal_failure));
+							   SCST_LOAD_SENSE(scst_sense_internal_failure));
 					/* It's completed now */
 				}
 			}
 
 			spin_lock(&cmd->cmd_threads->cmd_list_lock);
 			list_move(&c->cmd_list_entry,
-				&c->cmd_threads->active_cmd_list);
+				  &c->cmd_threads->active_cmd_list);
 			wake_up(&c->cmd_threads->cmd_list_waitQ);
 			spin_unlock(&cmd->cmd_threads->cmd_list_lock);
 			break;
@@ -16049,7 +16168,7 @@ void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn, int force)
 	spin_lock_irqsave(&scst_tm_dbg_lock, flags);
 	if (tm_dbg_state != TM_DBG_STATE_OFFLINE || force) {
 		TRACE_MGMT_DBG("%s: freeing %d delayed cmds", fn,
-			tm_dbg_delayed_cmds_count);
+			       tm_dbg_delayed_cmds_count);
 		tm_dbg_change_state(&flags);
 		tm_dbg_flags.tm_dbg_release = 1;
 		/*
@@ -16096,7 +16215,7 @@ void scst_check_debug_sn(struct scst_cmd *cmd)
 
 	if (old != cmd->queue_type)
 		TRACE_SN("DbgSN queue type changed for cmd %p from %d to %d",
-			cmd, old, cmd->queue_type);
+			 cmd, old, cmd->queue_type);
 }
 #endif /* CONFIG_SCST_DEBUG_SN */
 

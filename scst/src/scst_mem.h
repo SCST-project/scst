@@ -67,9 +67,9 @@ struct sgv_pool_cache_acc {
  */
 struct sgv_pool_alloc_fns {
 	struct page *(*alloc_pages_fn)(struct scatterlist *sg, gfp_t gfp_mask,
-		void *priv);
+				       void *priv);
 	void (*free_pages_fn)(struct scatterlist *sg, int sg_count,
-		void *priv);
+			      void *priv);
 }
 #ifdef CONSTIFY_PLUGIN
 /* Avoid that the Grsecurity gcc constify_plugin constifies this structure. */
@@ -136,7 +136,6 @@ extern bool scst_force_global_sgv_pool;
 
 int __init scst_sgv_pools_init(unsigned long mem_hwmark, unsigned long mem_lwmark);
 void scst_sgv_pools_deinit(void);
-
 
 void scst_sgv_pool_use_norm(struct scst_tgt_dev *tgt_dev);
 void scst_sgv_pool_use_norm_clust(struct scst_tgt_dev *tgt_dev);

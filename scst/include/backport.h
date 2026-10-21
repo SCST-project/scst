@@ -38,7 +38,7 @@
 #include <linux/bio.h>
 #include <linux/blkdev.h>	/* struct request_queue */
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0) || \
-	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 8)
+	(defined(RHEL_MAJOR) && RHEL_MAJOR - 0 >= 8)
 #include <linux/blk-mq.h>
 #endif
 #include <linux/bsg-lib.h>	/* struct bsg_job */
@@ -102,6 +102,7 @@ static __always_inline unsigned long long rdtsc(void)
 {
 	return 0;
 }
+
 #define tsc_khz 1000
 #endif
 
@@ -116,6 +117,7 @@ static inline struct bio_set *bioset_create_backport(unsigned int pool_size,
 	WARN_ON_ONCE(flags != 0);
 	return bioset_create(pool_size, front_pad);
 }
+
 #define bioset_create bioset_create_backport
 #define BIOSET_NEED_BVECS 0
 #endif
@@ -139,14 +141,14 @@ static inline void bio_set_dev(struct bio *bio, struct block_device *bdev)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 18, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 1))
 /*
  * See also commit 609be1066731 ("block: pass a block_device and opf to
  * bio_alloc_bioset") # v5.18
  */
 static inline
 struct bio *bio_alloc_bioset_backport(struct block_device *bdev,
-		unsigned short nr_vecs, unsigned int opf, gfp_t gfp_mask,
+				      unsigned short nr_vecs, unsigned int opf, gfp_t gfp_mask,
 		struct bio_set *bs)
 {
 	/*
@@ -169,7 +171,7 @@ struct bio *bio_alloc_bioset_backport(struct block_device *bdev,
  */
 static inline
 struct bio *bio_alloc_backport(struct block_device *bdev,
-		unsigned short nr_vecs, unsigned int opf, gfp_t gfp_mask)
+			       unsigned short nr_vecs, unsigned int opf, gfp_t gfp_mask)
 {
 	/*
 	 * Check that @bdev and @opf parameters are zeros.
@@ -198,7 +200,7 @@ enum {
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 2))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 2))
 /*
  * See also commit 342a72a33407 ("block: Introduce the type blk_opf_t") # v6.0
  */
@@ -210,7 +212,7 @@ typedef unsigned int blk_opf_t;
 static inline unsigned int scst_blk_rq_cpu(struct request *rq)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8)
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8)
 	return rq->cpu;
 #else
 	return blk_mq_rq_cpu(rq);
@@ -219,7 +221,7 @@ static inline unsigned int scst_blk_rq_cpu(struct request *rq)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 1))
 /*
  * See also commit e2e530867245 ("blk-mq: remove the done argument to
  * blk_execute_rq_nowait") # v5.19.
@@ -249,7 +251,7 @@ void blk_execute_rq_nowait_backport(struct request *rq, bool at_head)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 17, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 2))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(10, 2))
 static inline unsigned int blk_mq_num_queues(const struct cpumask *mask,
 					     unsigned int max_queues)
 {
@@ -274,7 +276,7 @@ static inline unsigned int blk_mq_num_online_queues(unsigned int max_queues)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 4))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 4))
 /*
  * See also commit 05bdb9965305 ("block: replace fmode_t with a block-specific
  * type for block open flags") # v6.5.
@@ -294,7 +296,7 @@ struct blk_holder_ops {
 
 static inline struct block_device *
 blkdev_get_by_path_backport(const char *path, blk_mode_t mode,
-		void *holder, const struct blk_holder_ops *hops)
+			    void *holder, const struct blk_holder_ops *hops)
 {
 	WARN_ON_ONCE(hops);
 
@@ -327,7 +329,7 @@ static inline void blkdev_put_backport(struct block_device *bdev, void *holder)
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 6, 0) >> 8 ||	\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 23)) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||					\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 5))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 5))
 /*
  * See also commit e719b4d15674 ("block: Provide bdev_open_* functions") # v6.7, v6.6.23.
  */
@@ -386,14 +388,14 @@ static inline loff_t bdev_nr_bytes_backport(struct block_device *bdev)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 1))
 /*
  * See also commit 44abff2c0b97 ("block: decouple REQ_OP_SECURE_ERASE
  * from REQ_OP_DISCARD") # v5.19.
  */
 static inline int
 blkdev_issue_discard_backport(struct block_device *bdev, sector_t sector,
-		sector_t nr_sects, gfp_t gfp_mask)
+			      sector_t nr_sects, gfp_t gfp_mask)
 {
 	return blkdev_issue_discard(bdev, sector, nr_sects, gfp_mask, 0);
 }
@@ -415,7 +417,7 @@ blkdev_issue_discard_backport(struct block_device *bdev, sector_t sector,
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(4, 9, 0) >> 8 ||	\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 9, 311)) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||					\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 0)) &&		\
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 0)) &&		\
 	(!defined(UEK_KABI_RENAME) ||					\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 /*
@@ -467,7 +469,7 @@ static inline int bdev_validate_blocksize(struct block_device *bdev, int block_s
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0) &&	\
 	(!defined(RHEL_MAJOR) ||			\
-	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 5) &&	\
+	 RHEL_MAJOR - 0 == 7 && RHEL_MINOR - 0 < 5) &&	\
 	(!defined(UEK_KABI_RENAME) ||			\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 static inline void cpu_to_be32_array(__be32 *dst, const u32 *src, size_t len)
@@ -558,8 +560,9 @@ static inline ssize_t debugfs_attr_read(struct file *file, char __user *buf,
 {
 	return -ENOENT;
 }
+
 static inline ssize_t debugfs_attr_write(struct file *file,
-		const char __user *buf, size_t len, loff_t *ppos)
+					 const char __user *buf, size_t len, loff_t *ppos)
 {
 	return -ENOENT;
 }
@@ -767,7 +770,7 @@ static inline void kunmap_local(const void *addr)
 /* <linux/iocontext.h> */
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 21, 0) || \
-	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 8)
+	(defined(RHEL_MAJOR) && RHEL_MAJOR - 0 >= 8)
 
 static inline struct io_context *
 scst_get_task_io_context(struct task_struct *task,
@@ -809,7 +812,7 @@ static inline u32 int_sqrt64(u64 x)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 5, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 6))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 6))
 static inline long get_user_pages_backport(unsigned long start,
 					   unsigned long nr_pages,
 					   unsigned int gup_flags,
@@ -853,6 +856,7 @@ static inline long get_user_pages_backport(unsigned long start,
 	return get_user_pages(start, nr_pages, gup_flags, pages, NULL);
 #endif
 }
+
 #define get_user_pages get_user_pages_backport
 #endif
 
@@ -895,7 +899,7 @@ static inline long pin_user_pages_backport(unsigned long start,
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(7, 6))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(7, 6))
 /*
  * See also commit 5f256becd868 ("[NET]: Basic network namespace
  * infrastructure."; v2.6.24). a685e08987d1 ("Delay struct net freeing while
@@ -942,7 +946,7 @@ static inline bool list_entry_in_list(const struct list_head *entry)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 1))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(8, 1))
 /*
  * See also commit 70b44595eafe ("mm, compaction: use free lists to quickly
  * locate a migration source") # v5.1.
@@ -960,8 +964,8 @@ static inline int list_is_first(const struct list_head *list, const struct list_
  * keys").
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
-	 (RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 2))
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||	\
+	 (RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 2))
 static inline void lockdep_register_key(struct lock_class_key *key)
 {
 }
@@ -977,7 +981,7 @@ static inline void lockdep_unregister_key(struct lock_class_key *key)
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 5, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 3))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(8, 3))
 #undef rwlock_release
 #define rwlock_release(l, i) lock_release(l, 1, i)
 #undef mutex_release
@@ -1003,7 +1007,7 @@ static inline void mempool_destroy_backport(mempool_t *pool)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 12, 0) &&	\
 	(!defined(RHEL_MAJOR) ||			\
-	 (RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 5)) &&	\
+	 (RHEL_MAJOR - 0 == 7 && RHEL_MINOR - 0 < 5)) &&	\
 	!defined(_COMPAT_LINUX_MM_H)
 #if !defined(UEK_KABI_RENAME)
 /* See also commit a7c3e901a46f ("mm: introduce kv[mz]alloc helpers") # v4.12 */
@@ -1074,7 +1078,7 @@ static inline void *kvmalloc_array(size_t n, size_t size, gfp_t flags)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0) &&	\
 	(!defined(RHEL_MAJOR) ||			\
-	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 7) &&	\
+	 RHEL_MAJOR - 0 == 7 && RHEL_MINOR - 0 < 7) &&	\
 	!defined(CONFIG_SUSE_KERNEL) &&			\
 	!defined(_COMPAT_LINUX_MM_H) &&			\
 	(!defined(UEK_KABI_RENAME) ||			\
@@ -1092,7 +1096,7 @@ static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 10, 0) >> 8 ||	\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 210)) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||					\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 0)) &&		\
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 0)) &&		\
 	(!defined(UEK_KABI_RENAME) ||					\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 /*
@@ -1123,7 +1127,7 @@ static inline void *vcalloc(size_t n, size_t size)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 0, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 3))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 3))
 /*
  * See also commit e33c267ab70d ("mm: shrinkers: provide shrinkers with
  * names") # v6.0.
@@ -1149,7 +1153,7 @@ register_shrinker_backport(struct shrinker *shrinker, const char *fmt, ...)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 1))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(10, 1))
 #define SCST_NAMESPACE		SCST
 #define SCST_QLA16_NAMESPACE	QLA16GB
 #define SCST_QLA32_NAMESPACE	QLA32GB
@@ -1178,8 +1182,10 @@ enum nvmefc_fcp_datadir {
 	NVMEFC_FCP_WRITE,
 	NVMEFC_FCP_READ,
 };
+
 struct nvme_fc_ersp_iu {
 };
+
 struct nvmefc_fcp_req {
 	void			*cmdaddr;
 	void			*rspaddr;
@@ -1219,7 +1225,7 @@ struct nvmefc_fcp_req {
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0) &&			\
 	(!defined(RHEL_RELEASE_CODE) ||					\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(7, 9)) &&		\
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(7, 9)) &&		\
 	(!defined(UEK_KABI_RENAME) ||					\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 /*
@@ -1261,9 +1267,9 @@ static __always_inline bool __must_check __must_check_overflow(bool overflow)
 	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 283)) &&		\
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(4, 19, 0) >> 8 ||	\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 321)) &&		\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||			\
-	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 10 ||			\
-	 RHEL_MAJOR -0 == 9 && RHEL_MINOR -0 < 3) &&			\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||			\
+	 RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 10 ||			\
+	 RHEL_MAJOR - 0 == 9 && RHEL_MINOR - 0 < 3) &&			\
 	(!defined(UEK_KABI_RENAME) ||					\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 /*
@@ -1322,8 +1328,8 @@ static __always_inline size_t __must_check size_add(size_t addend1, size_t adden
 #define __set_flex_counter(FAM, COUNT)				\
 ({								\
 	*_Generic(__flex_counter(FAM),				\
-		  void *:  &(size_t){ 0 },			\
-		  default: __flex_counter(FAM)) = (COUNT);	\
+		void *  : &(size_t){ 0 },				\
+		default : __flex_counter(FAM)) = (COUNT);	\
 })
 #endif
 
@@ -1331,7 +1337,7 @@ static __always_inline size_t __must_check size_add(size_t addend1, size_t adden
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 3, 0) &&	\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 3))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(8, 3))
 /*
  * See also commit 09ed79d6d75f ("percpu_ref: introduce PERCPU_REF_ALLOW_REINIT
  * flag") # v5.3.
@@ -1438,7 +1444,7 @@ static inline unsigned long percpu_ref_read(struct percpu_ref *ref)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0) &&	\
 	(!defined(RHEL_MAJOR) ||			\
-	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 7)
+	 RHEL_MAJOR - 0 == 7 && RHEL_MINOR - 0 < 7)
 /*
  * See also commit 546a9d8519ed ("rcu: Export debug_init_rcu_head() and
  * debug_init_rcu_head()") # v3.16.
@@ -1528,7 +1534,7 @@ static inline void kmem_cache_destroy_backport(struct kmem_cache *s)
 	(!defined(UEK_KABI_RENAME) ||			\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
-			unsigned int size, unsigned int align,
+							    unsigned int size, unsigned int align,
 			unsigned long flags,
 			unsigned int useroffset, unsigned int usersize,
 			void (*ctor)(void *))
@@ -1567,7 +1573,7 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
  * Ubuntu uses ABI 999 for custom builds and 1000+ for derivatives;
  * retain the existing fallback for these independent ABI sequences.
  */
-#define __default_gfp(a,...) a
+#define __default_gfp(a, ...) a
 #define default_gfp(...) __default_gfp(__VA_ARGS__ __VA_OPT__(,) GFP_KERNEL)
 #endif
 
@@ -1694,8 +1700,8 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 /* <linux/sockptr.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0)
-#if !defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
-	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 4
+#if !defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||	\
+	 RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 4
 /* See also commit ba423fdaa589 ("net: add a new sockptr_t type") # v5.9 */
 static inline void __user *KERNEL_SOCKPTR(void *p)
 {
@@ -1748,7 +1754,7 @@ static inline void *memdup_user_nul(const void __user *src, size_t len)
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(3, 18, 0) >> 8 ||	\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 64)) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||					\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(7, 7))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(7, 7))
 /*
  * See also commit 30035e45753b ("string: provide strscpy()") # v4.3, v3.18.64.
  */
@@ -1799,7 +1805,7 @@ static inline ssize_t strscpy(char *dest, const char *src, size_t count)
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 4, 0) >> 8 ||	\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 103)) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||					\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 5)) &&		\
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(8, 5)) &&		\
 	!defined(UEK_KABI_RENAME)
 /*
  * See also commit 2efc459d06f1 ("sysfs: Add sysfs_emit and sysfs_emit_at to format sysfs output")
@@ -1876,9 +1882,9 @@ struct t10_pi_tuple {
 	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 154)) &&		\
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 1, 0) >> 8 ||	\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 84)) &&		\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||			\
-	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 9 ||			\
-	 RHEL_MAJOR -0 == 9 && RHEL_MINOR -0 < 3) &&			\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||			\
+	 RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 9 ||			\
+	 RHEL_MAJOR - 0 == 9 && RHEL_MINOR - 0 < 3) &&			\
 	(!defined(UEK_KABI_RENAME) ||					\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 17)) &&		\
 	(!defined(UTS_UBUNTU_RELEASE_ABI) ||				\
@@ -1907,14 +1913,14 @@ static inline int timer_delete_sync(struct timer_list *timer)
 	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 1, 91)) &&		\
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 15, 0) >> 8 ||	\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 200)) &&		\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||			\
-	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 9 ||			\
-	 RHEL_MAJOR -0 == 9 && RHEL_MINOR -0 < 3) &&			\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||			\
+	 RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 9 ||			\
+	 RHEL_MAJOR - 0 == 9 && RHEL_MINOR - 0 < 3) &&			\
 	(!defined(UTS_UBUNTU_RELEASE_ABI) ||				\
 	 ((LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 15, 0) >> 8 ||	\
-	  UTS_UBUNTU_RELEASE_ABI -0 < 93) &&				\
+	  UTS_UBUNTU_RELEASE_ABI - 0 < 93) &&				\
 	 (LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(5, 4, 0) >> 8 ||	\
-	  UTS_UBUNTU_RELEASE_ABI -0 < 206)))
+	  UTS_UBUNTU_RELEASE_ABI - 0 < 206)))
 /*
  * See also commit bb663f0f3c39 ("timers: Rename del_timer() to timer_delete()") # v6.2.
  * See also commit b086d1e82fcd # v6.1.91.
@@ -1989,9 +1995,9 @@ static inline int timer_shutdown(struct timer_list *timer)
  * timer_container_of()") # v6.16.
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 16, 0) &&		\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 9 ||		\
-	 RHEL_MAJOR -0 == 9 && RHEL_MINOR -0 < 8 ||		\
-	 RHEL_MAJOR -0 == 10 && RHEL_MINOR -0 < 2)
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 9 ||		\
+	 RHEL_MAJOR - 0 == 9 && RHEL_MINOR - 0 < 8 ||		\
+	 RHEL_MAJOR - 0 == 10 && RHEL_MINOR - 0 < 2)
 #define timer_container_of from_timer
 #endif
 
@@ -2018,7 +2024,7 @@ iov_iter_kvec_backport(struct iov_iter *i, unsigned int direction,
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0) ||	\
 	(defined(RHEL_MAJOR) && \
-	 (RHEL_MAJOR -0 > 8 || (RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 >= 2)))
+	 (RHEL_MAJOR - 0 > 8 || (RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 >= 2)))
 	/*
 	 * For iov_iter_kvec() implementations that have a WARN_ON(direction &
 	 * ~(READ | WRITE)) statement. See also commit aa563d7bca6e ("iov_iter:
@@ -2036,8 +2042,8 @@ iov_iter_kvec_backport(struct iov_iter *i, unsigned int direction,
 /* <linux/unaligned.h> */
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 7, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
-	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 4)
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||	\
+	 RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 4)
 /* Only use get_unaligned_be24() if reading p - 1 is allowed. */
 static inline u32 get_unaligned_be24(const u8 *const p)
 {
@@ -2060,6 +2066,7 @@ static inline struct ib_pd *ib_alloc_pd_backport(struct ib_device *device)
 {
 	return ib_alloc_pd(device);
 }
+
 #define ib_alloc_pd(device, flags)				\
 	({							\
 		(void)(flags), ib_alloc_pd_backport(device);	\
@@ -2101,7 +2108,7 @@ static inline u8 driver_byte(u32 result)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 1, 0) || \
 	(defined(RHEL_RELEASE_CODE) &&			 \
-	 RHEL_RELEASE_CODE -0 >= RHEL_RELEASE_VERSION(8, 3))
+	 RHEL_RELEASE_CODE - 0 >= RHEL_RELEASE_VERSION(8, 3))
 /*
  * See also patch "[SCSI] bidirectional command support" (commit ID
  * 6f9a35e2dafa). See also commit ae3d56d81507 ("scsi: remove bidirectional
@@ -2115,7 +2122,7 @@ static inline int scsi_bidi_cmnd(struct scsi_cmnd *cmd)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0) &&	\
 	(!defined(RHEL_MAJOR) ||			\
-	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 7)
+	 RHEL_MAJOR - 0 == 7 && RHEL_MINOR - 0 < 7)
 /* See also commit b54197c43db8 ("virtio_scsi: use cmd_size") # v3.16. */
 static inline void *scsi_cmd_priv(struct scsi_cmnd *cmd)
 {
@@ -2137,7 +2144,7 @@ static inline void *scsi_cmd_priv(struct scsi_cmnd *cmd)
  * v5.14-rc1).
  */
 static inline void scsi_build_sense(struct scsi_cmnd *scmd, int desc,
-                            u8 key, u8 asc, u8 ascq)
+				    u8 key, u8 asc, u8 ascq)
 {
 	scsi_build_sense_buffer(desc, scmd->sense_buffer, key, asc, ascq);
 	scmd->result = (DRIVER_SENSE << 24) | SAM_STAT_CHECK_CONDITION;
@@ -2150,8 +2157,8 @@ static inline void scsi_build_sense(struct scsi_cmnd *scmd, int desc,
 	!(LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(5, 10, 0) >> 8 &&	\
 	  LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 203)) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||					\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 7) ||		\
-	 RHEL_RELEASE_CODE -0 == RHEL_RELEASE_VERSION(9, 0)) &&		\
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(8, 7) ||		\
+	 RHEL_RELEASE_CODE - 0 == RHEL_RELEASE_VERSION(9, 0)) &&		\
 	(!defined(UEK_KABI_RENAME) ||					\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 4, 17) ||		\
 	 !defined(SB_I_SKIP_SYNC))
@@ -2176,16 +2183,16 @@ static inline struct request *scsi_cmd_to_rq(struct scsi_cmnd *scmd)
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 1))
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 19, 0) ||		\
 	(defined(RHEL_RELEASE_CODE) &&				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 7)) ||	\
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(8, 7)) ||	\
 	(defined(UEK_KABI_RENAME) &&				\
 	 LINUX_VERSION_CODE >= KERNEL_VERSION(4, 14, 0))
 static inline u32 scsi_prot_ref_tag(struct scsi_cmnd *scmd)
 {
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 == 7
+#if defined(RHEL_MAJOR) && RHEL_MAJOR - 0 == 7
 	WARN_ON_ONCE(true);
 	return 0;
 #else
@@ -2214,7 +2221,7 @@ static inline unsigned int scsi_prot_interval(struct scsi_cmnd *scmd)
 	!(LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(5, 15, 0) >> 8 &&	\
 	  LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 136)) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||					\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1)) &&		\
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 1)) &&		\
 	(!defined(UEK_KABI_RENAME) ||					\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 /*
@@ -2270,7 +2277,7 @@ static inline void scsi_req_init(struct request *rq)
 #if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0)
 	rq->cmd_type = REQ_TYPE_BLOCK_PC;
 	rq->__data_len = 0;
-	rq->__sector = (sector_t) -1;
+	rq->__sector = (sector_t)-1;
 	rq->biotail = NULL;
 	rq->bio = NULL;
 	memset(rq->__cmd, 0, sizeof(rq->__cmd));
@@ -2288,9 +2295,9 @@ static inline void scsi_req_init(struct request *rq)
  * upstream kernel.
  */
 #if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 10, 0) &&	\
-     !defined(CONFIG_SUSE_KERNEL)) ||			\
-    (LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) &&	\
-     defined(CONFIG_SUSE_KERNEL))
+	!defined(CONFIG_SUSE_KERNEL)) ||			\
+	(LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0) &&	\
+	 defined(CONFIG_SUSE_KERNEL))
 static inline void *bsg_job_sense(struct fc_bsg_job *job)
 {
 	return job->req->sense;
@@ -2351,9 +2358,9 @@ static inline void *bsg_job_sense(struct bsg_job *job)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0) &&		\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||		\
-	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 9 ||		\
-	 RHEL_MAJOR -0 == 9 && RHEL_MINOR -0 < 3) &&		\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||		\
+	 RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 9 ||		\
+	 RHEL_MAJOR - 0 == 9 && RHEL_MINOR - 0 < 3) &&		\
 	(!defined(UEK_KABI_RENAME) ||				\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0))
 /*
@@ -2365,8 +2372,8 @@ fc_host_fpin_rcv_backport(struct Scsi_Host *shost, u32 fpin_len, char *fpin_buf,
 			  u8 event_acknowledge)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
-	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 2)
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||	\
+	 RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 2)
 	/*
 	 * See also commit c39e0af64bce ("scsi: scsi_transport_fc: Add FPIN fc event
 	 * codes") # v5.2
@@ -2397,8 +2404,8 @@ static inline int fc_block_rport(struct fc_rport *rport)
 
 /* See also commit a7dff3ad4787 ("scsi: fc: add FPIN ELS definition") # v5.2 */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 2, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
-	 (RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 2)) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||	\
+	 (RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 2)) &&	\
 	(!defined(UEK_KABI_RENAME) ||			\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 #define ELS_FPIN 0x16
@@ -2409,8 +2416,8 @@ static inline int fc_block_rport(struct fc_rport *rport)
  * ELS requests").
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 9, 0) &&		\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||		\
-	 (RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 4)) &&		\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||		\
+	 (RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 4)) &&		\
 	(!defined(UEK_KABI_RENAME) ||				\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(4, 14, 0))
 #define ELS_RDP 0x18

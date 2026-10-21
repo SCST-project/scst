@@ -46,7 +46,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy, unsigned lo
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
 #warning HIGHMEM kernel configurations are not supported by this module, \
 because nowadays it is not worth the effort. Consider changing \
-VMSPLIT option or use a 64-bit configuration instead. See README file \
+VMSPLIT option or use a 64 - bit configuration instead. See README file \
 for details.
 #endif
 #endif
@@ -4034,7 +4034,7 @@ static int __init init_scst_user(void)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 4))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 4))
 	dev_user_sysfs_class = class_create(THIS_MODULE, DEV_USER_NAME);
 #else
 	dev_user_sysfs_class = class_create(DEV_USER_NAME);

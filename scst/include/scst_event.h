@@ -87,7 +87,7 @@ struct scst_event_notify_done {
 
 #ifdef __KERNEL__
 void scst_event_queue(uint32_t event_code, const char *issuer_name,
-	struct scst_event_entry *e);
+		      struct scst_event_entry *e);
 #endif
 
 /*************************************************************
@@ -145,6 +145,7 @@ struct scst_event_stpg_descr {
 	uint8_t dg_name[64];
 	uint8_t tg_name[64];
 };
+
 struct scst_event_stpg_payload {
 	aligned_u64 stpg_cmd_tag;
 	uint8_t device_name[64];
@@ -154,7 +155,7 @@ struct scst_event_stpg_payload {
 
 #define SCST_EVENT_REG_VIRT_DEV		6
 struct scst_event_reg_vdev_payload {
-	uint8_t device_name[SCST_MAX_NAME+10];
+	uint8_t device_name[SCST_MAX_NAME + 10];
 };
 
 #endif /* __SCST_EVENT_H */

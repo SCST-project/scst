@@ -293,7 +293,8 @@ static bool scst_check_scsi_atomicity(struct scst_cmd *chk_cmd)
 			 * that space is used, does nothing.
 			 */
 			p = krealloc(cmd->scsi_atomic_blocked_cmds,
-				     sizeof(*cmd->scsi_atomic_blocked_cmds) * (cmd->scsi_atomic_blocked_cmds_count + 1),
+				     sizeof(*cmd->scsi_atomic_blocked_cmds) *
+				     (cmd->scsi_atomic_blocked_cmds_count + 1),
 				     GFP_ATOMIC);
 			if (!p)
 				goto out_busy_undo;
@@ -5367,7 +5368,8 @@ static int scst_set_mcmd_next_state(struct scst_mgmt_cmd *mcmd)
 
 		PRINT_CRIT_ERROR("Wrong mcmd %p state %s (fn %s, cmd_finish_wait_count %d, cmd_done_wait_count %d)",
 				 mcmd,
-				 scst_get_mcmd_state_name(state_name, sizeof(state_name), mcmd->state),
+				 scst_get_mcmd_state_name(state_name, sizeof(state_name),
+							  mcmd->state),
 				 scst_get_tm_fn_name(fn_name, sizeof(fn_name), mcmd->fn),
 				 mcmd->cmd_finish_wait_count, mcmd->cmd_done_wait_count);
 #if !defined(__CHECKER__)
@@ -5526,7 +5528,8 @@ static int scst_abort_task_set(struct scst_mgmt_cmd *mcmd)
 
 		if (tgt_dev->curr_order_data->aca_tgt_dev == (unsigned long)mcmd->mcmd_tgt_dev) {
 			/* PR cmd is clearing the commands received on the faulted I_T nexus */
-			if (orig_pr_cmd->cur_order_data->aca_tgt_dev == (unsigned long)orig_pr_cmd->tgt_dev) {
+			if (orig_pr_cmd->cur_order_data->aca_tgt_dev ==
+			    (unsigned long)orig_pr_cmd->tgt_dev) {
 				/* PR cmd received on the faulted I_T nexus */
 				if (orig_pr_cmd->queue_type == SCST_CMD_QUEUE_ACA)
 					scst_clear_aca(tgt_dev, (tgt_dev != orig_pr_cmd->tgt_dev));
@@ -6574,7 +6577,8 @@ static int scst_process_mgmt_cmd(struct scst_mgmt_cmd *mcmd)
 
 			PRINT_CRIT_ERROR("Wrong mcmd %p state %s (fn %s, cmd_finish_wait_count %d, cmd_done_wait_count %d)",
 					 mcmd,
-					 scst_get_mcmd_state_name(state_name, sizeof(state_name), mcmd->state),
+					 scst_get_mcmd_state_name(state_name, sizeof(state_name),
+								  mcmd->state),
 					 scst_get_tm_fn_name(fn_name, sizeof(fn_name), mcmd->fn),
 					 mcmd->cmd_finish_wait_count,
 					 mcmd->cmd_done_wait_count);

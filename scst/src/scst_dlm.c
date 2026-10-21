@@ -96,7 +96,7 @@ static int scst_dlm_cancel(dlm_lockspace_t *ls, struct scst_lksb *lksb,
 	int res;
 
 	res = dlm_unlock(ls, lksb->lksb.sb_lkid,
-			      DLM_LKF_CANCEL | (flags & DLM_LKF_VALBLK),
+			 DLM_LKF_CANCEL | (flags & DLM_LKF_VALBLK),
 			      &lksb->lksb, lksb);
 	if (res < 0)
 		goto out;
@@ -123,7 +123,7 @@ static int scst_dlm_lock_wait(dlm_lockspace_t *ls, int mode,
 
 	init_completion(&lksb->completion);
 	res = dlm_lock(ls, mode, &lksb->lksb, flags,
-			    (void *)name, name ? strlen(name) : 0, 0,
+		       (void *)name, name ? strlen(name) : 0, 0,
 			    scst_dlm_ast, lksb, bast);
 	if (res < 0)
 		goto out;
@@ -673,7 +673,7 @@ out:
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0) ||		\
 	(defined(RHEL_RELEASE_CODE) &&				\
-	 RHEL_RELEASE_CODE -0 >= RHEL_RELEASE_VERSION(7, 5))
+	 RHEL_RELEASE_CODE - 0 >= RHEL_RELEASE_VERSION(7, 5))
 #define HAVE_ITERATE_DIR
 #endif
 
@@ -1404,7 +1404,7 @@ static void scst_copy_to_dlm_work(struct work_struct *work)
 
 unlock_pr:
 	dlm_lock(ls, DLM_LOCK_NL, &pr_dlm->post_join_lksb.lksb,
-		      DLM_LKF_CONVERT, NULL, 0, 0, scst_dlm_post_ast,
+		 DLM_LKF_CONVERT, NULL, 0, 0, scst_dlm_post_ast,
 		      &pr_dlm->post_join_lksb, scst_dlm_post_bast);
 
 	PRINT_INFO("Finished copying PR state to the DLM");
@@ -1467,7 +1467,7 @@ static void scst_copy_from_dlm_work(struct work_struct *work)
 
 unlock_pr:
 	dlm_lock(ls, DLM_LOCK_NL, &pr_dlm->post_upd_lksb.lksb,
-		      DLM_LKF_CONVERT, NULL, 0, 0, scst_dlm_post_ast,
+		 DLM_LKF_CONVERT, NULL, 0, 0, scst_dlm_post_ast,
 		      &pr_dlm->post_upd_lksb, scst_dlm_post_bast);
 
 	scst_dlm_update_nodeids(pr_dlm);
