@@ -87,7 +87,7 @@ struct vdisk_dev {
 #if defined(DEBUG_TM_IGNORE) || defined(DEBUG_TM_IGNORE_ALL)
 	unsigned int debug_tm_ignore:1;
 #if defined(DEBUG_TM_IGNORE_ALL)
-	volatile int debug_tm_ignore_all;
+	int debug_tm_ignore_all;
 #endif
 #endif
 
