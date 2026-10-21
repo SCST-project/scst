@@ -73,7 +73,7 @@ ssize_t af_alg_final(int datafd, void *out, size_t len)
 	char buffer[1024];
 	ssize_t res;
 
-	res = send(datafd, NULL, 0, 0);
+	res = send(datafd, "", 0, 0);
 	if (res == -1)
 		return -errno;
 
