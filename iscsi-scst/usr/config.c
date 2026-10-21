@@ -50,7 +50,7 @@ static struct __qelem discovery_users_in = LIST_HEAD_INIT(discovery_users_in);
 static struct __qelem discovery_users_out = LIST_HEAD_INIT(discovery_users_out);
 
 struct iscsi_attr *iscsi_attr_lookup_by_sysfs_name(
-	struct __qelem *attrs_list, const char *sysfs_name)
+	const struct __qelem *attrs_list, const char *sysfs_name)
 {
 	struct iscsi_attr *attr;
 
@@ -63,7 +63,7 @@ struct iscsi_attr *iscsi_attr_lookup_by_sysfs_name(
 }
 
 struct iscsi_attr *iscsi_attr_lookup_by_key(
-	struct __qelem *attrs_list, const char *key)
+	const struct __qelem *attrs_list, const char *key)
 {
 	struct iscsi_attr *attr;
 
@@ -175,12 +175,13 @@ out_free:
 	goto out;
 }
 
-int iscsi_attr_replace(struct __qelem *attrs_list, const char *sysfs_name,
+int iscsi_attr_replace(const struct __qelem *attrs_list, const char *sysfs_name,
 	char *raw_value)
 {
 	int res = 0;
 	struct iscsi_attr *attr, *a;
-	char *key, *val, *new_key, *new_val;
+	char *key, *val, *new_key;
+	const char *new_val;
 
 	key = config_sep_string(&raw_value);
 	val = config_sep_string(&raw_value);
@@ -313,7 +314,7 @@ static char *config_gets(char *buf, int size, const char *data, int *offset)
 int accounts_empty(u32 tid, int dir)
 {
 	struct target *target;
-	struct __qelem *list;
+	const struct __qelem *list;
 
 	if (tid) {
 		target = target_find_by_id(tid);
@@ -330,7 +331,7 @@ int accounts_empty(u32 tid, int dir)
 static struct iscsi_attr *__account_lookup_by_name(struct target *target,
 	int dir, const char *name)
 {
-	struct __qelem *list;
+	const struct __qelem *list;
 
 	list = account_list_get(target, dir);
 
@@ -354,7 +355,7 @@ static struct iscsi_attr *account_lookup_by_name(u32 tid, int dir, const char *n
 struct iscsi_attr *account_get_first(u32 tid, int dir)
 {
 	struct target *target;
-	struct __qelem *list;
+	const struct __qelem *list;
 	struct iscsi_attr *user;
 
 	if (tid) {
@@ -376,7 +377,7 @@ struct iscsi_attr *account_get_first(u32 tid, int dir)
 struct iscsi_attr *account_lookup_by_sysfs_name(struct target *target,
 	int dir, const char *sysfs_name)
 {
-	struct __qelem *list;
+	const struct __qelem *list;
 
 	list = account_list_get(target, dir);
 
@@ -385,7 +386,7 @@ struct iscsi_attr *account_lookup_by_sysfs_name(struct target *target,
 
 int config_account_query(u32 tid, int dir, const char *name, char *pass)
 {
-	struct iscsi_attr *user;
+	const struct iscsi_attr *user;
 
 	user = account_lookup_by_name(tid, dir, name);
 	if (!user)
@@ -400,7 +401,7 @@ int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
 	char *buf, size_t buf_sz)
 {
 	struct target *target;
-	struct __qelem *list;
+	const struct __qelem *list;
 	struct iscsi_attr *user;
 
 	*cnt = *overflow = 0;
@@ -496,14 +497,14 @@ static int account_create(struct __qelem *list, const char *sysfs_name,
 int account_replace(struct target *target, int direction,
 	const char *sysfs_name, char *value)
 {
-	struct __qelem *list;
+	const struct __qelem *list;
 
 	list = account_list_get(target, direction);
 
 	return iscsi_attr_replace(list, sysfs_name, value);
 }
 
-int __config_account_add(struct target *target, int dir, char *name, char *pass,
+int __config_account_add(struct target *target, int dir, char *name, const char *pass,
 			 const char *sysfs_name, int send_to_kern, u32 cookie)
 {
 	int err = 0;
@@ -572,7 +573,7 @@ out_destroy:
 	goto out;
 }
 
-int config_account_add(u32 tid, int dir, char *name, char *pass,
+int config_account_add(u32 tid, int dir, char *name, const char *pass,
 		       const char *sysfs_name, u32 cookie)
 {
 	int err = 0;
@@ -648,7 +649,7 @@ static int netmask_match_v4(const struct sockaddr_in *sa1,
 }
 
 static int netmask_match(const sockaddress *sa1, const sockaddress *sa2,
-			 char *buf)
+			 const char *buf)
 {
 	unsigned long mbit;
 	uint8_t family = sa1->sa.sa_family;
@@ -795,7 +796,7 @@ int config_initiator_access_allowed(u32 tid, int fd)
  * Main configuration code
  */
 
-int config_target_create(u32 *tid, char *name)
+int config_target_create(u32 *tid, const char *name)
 {
 	int err;
 	struct target *target;
@@ -1026,7 +1027,8 @@ int config_parse_main(const char *data, u32 cookie)
 			target->session_params[idx] = val;
 		} else if (!((idx = params_index_by_name_numwild(p, user_keys)) < 0) &&
 			   ((target != NULL) || global_section)) {
-			char *name, *pass;
+			char *name;
+			const char *pass;
 
 			name = config_sep_string(&q);
 			pass = config_sep_string(&q);
@@ -1099,7 +1101,7 @@ static int config_isns_load(const char *config)
 			free(isns_server);
 			isns_server = server;
 		} else if (!strcasecmp(p, ISCSI_ISNS_ACCESS_CONTROL_ATTR_NAME)) {
-			char *str = config_sep_string(&q);
+			const char *str = config_sep_string(&q);
 
 			if (!strcasecmp(str, "No"))
 				isns_access_control = 0;

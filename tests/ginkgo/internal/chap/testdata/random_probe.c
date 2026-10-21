@@ -112,7 +112,7 @@ void text_key_add(struct connection *conn, const char *key, const char *value)
 	}
 }
 
-bool af_alg_supported(char *algorithm)
+bool af_alg_supported(const char *algorithm)
 {
 	return false;
 }

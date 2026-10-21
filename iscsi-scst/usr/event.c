@@ -232,7 +232,8 @@ static int handle_add_user(struct target *target, int dir,
 			   const char *sysfs_name, char *p, u32 cookie)
 {
 	int res;
-	char *name, *pass;
+	char *name;
+	const char *pass;
 
 	name = config_sep_string(&p);
 	pass = config_sep_string(&p);
@@ -242,7 +243,7 @@ static int handle_add_user(struct target *target, int dir,
 	return res;
 }
 
-static int __handle_add_attr(struct target *target, struct __qelem *attrs_list,
+static int __handle_add_attr(const struct target *target, struct __qelem *attrs_list,
 	const char *sysfs_name_tmpl, char *p, int single_param_only, u32 cookie)
 {
 	int res;
@@ -319,7 +320,7 @@ out:
 	return res;
 }
 
-static int handle_del_user(struct target *target, int dir, char *p, u32 cookie)
+static int handle_del_user(const struct target *target, int dir, char *p, u32 cookie)
 {
 	int res;
 	char *name;
@@ -332,7 +333,7 @@ static int handle_del_user(struct target *target, int dir, char *p, u32 cookie)
 	return res;
 }
 
-static int __handle_del_attr(struct target *target, struct __qelem *attrs_list,
+static int __handle_del_attr(const struct target *target, struct __qelem *attrs_list,
 	char *p, u32 cookie)
 {
 	int res;
@@ -550,7 +551,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 		if (target->session_params[idx] != session_keys[idx].local_def)
 			add_key_mark(res_str, sizeof(res_str), 1);
 	} else if (!((idx = params_index_by_name_numwild(pp, user_keys)) < 0)) {
-		struct iscsi_attr *user;
+		const struct iscsi_attr *user;
 
 		user = account_lookup_by_sysfs_name(target, idx, pp);
 		if (user == NULL) {
@@ -563,7 +564,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 			ISCSI_USER_PASS(user));
 		add_key_mark(res_str, sizeof(res_str), 0);
 	} else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_ATTR_NAME, pp) == 0) {
-		struct iscsi_attr *portal;
+		const struct iscsi_attr *portal;
 
 		if (target == NULL) {
 			log_error("Target expected for attr %s", pp);
@@ -686,7 +687,7 @@ out:
 	return res;
 }
 
-static bool is_addr(char *addr)
+static bool is_addr(const char *addr)
 {
 	struct in_addr ia;
 	struct in6_addr ia6;
@@ -933,7 +934,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 
 		target->session_params[idx] = val;
 	} else if (!((idx = params_index_by_name_numwild(pp, user_keys)) < 0)) {
-		struct iscsi_attr *user;
+		const struct iscsi_attr *user;
 
 		user = account_lookup_by_sysfs_name(target, idx, pp);
 		if (user == NULL) {
@@ -946,7 +947,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		if (res != 0)
 			goto out_free;
 	} else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_ATTR_NAME, pp) == 0) {
-		struct iscsi_attr *portal;
+		const struct iscsi_attr *portal;
 
 		if (target == NULL) {
 			log_error("Target expected for attr %s", pp);

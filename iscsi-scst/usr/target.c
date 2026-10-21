@@ -175,7 +175,7 @@ out:
 	return res;
 }
 
-static int is_addr_loopback(char *addr)
+static int is_addr_loopback(const char *addr)
 {
 	struct in_addr ia;
 	struct in6_addr ia6;
@@ -189,7 +189,7 @@ static int is_addr_loopback(char *addr)
 	return 0;
 }
 
-static int is_addr_unspecified(char *addr)
+static int is_addr_unspecified(const char *addr)
 {
 	struct in_addr ia;
 	struct in6_addr ia6;
@@ -203,7 +203,7 @@ static int is_addr_unspecified(char *addr)
 	return 0;
 }
 
-static void target_print_addr(struct connection *conn, char *addr, int family)
+static void target_print_addr(struct connection *conn, const char *addr, int family)
 {
 	char taddr[NI_MAXHOST + NI_MAXSERV + 5];
 
@@ -219,7 +219,7 @@ static void target_print_addr(struct connection *conn, char *addr, int family)
 }
 
 static void target_list_build_ifaddrs(struct connection *conn,
-	struct target *target, char *exclude_addr, int family)
+	struct target *target, const char *exclude_addr, int family)
 {
 	struct ifaddrs *ifaddr, *ifa;
 	char if_addr[NI_MAXHOST];
@@ -251,7 +251,7 @@ static void target_list_build_ifaddrs(struct connection *conn,
 	return;
 }
 
-void target_list_build(struct connection *conn, char *target_name)
+void target_list_build(struct connection *conn, const char *target_name)
 {
 	struct target *target;
 	struct sockaddr_storage ss1, ss2;
@@ -462,7 +462,7 @@ out:
 	return err;
 }
 
-bool target_redirected(struct target *target, struct connection *conn)
+bool target_redirected(const struct target *target, struct connection *conn)
 {
 	bool res = false, rc;
 	union {

@@ -52,7 +52,8 @@ static struct iscsi_key login_keys[] = {
 
 char *text_key_find(struct connection *conn, const char *searchKey)
 {
-	char *data, *key, *value;
+	char *data, *value;
+	const char *key;
 	int keylen, datasize;
 
 	keylen = strlen(searchKey);
@@ -194,7 +195,7 @@ void text_key_add(struct connection *conn, const char *key, const char *value)
 	}
 }
 
-static void text_key_add_reject(struct connection *conn, char *key)
+static void text_key_add_reject(struct connection *conn, const char *key)
 {
 	text_key_add(conn, key, "Reject");
 }
@@ -223,7 +224,8 @@ static void login_rsp_tgt_err(struct connection *conn, int status_detail)
 
 static void text_scan_security(struct connection *conn)
 {
-	char *key, *value, *data, *nextValue;
+	char *value, *data, *nextValue;
+	const char *key;
 	int datasize;
 
 	data = conn->req.data;
@@ -301,7 +303,7 @@ static int login_check_reinstatement(struct connection *conn)
 			res = -1;
 			goto out;
 		} else {
-			struct connection *c = conn_find(session, conn->cid);
+			const struct connection *c = conn_find(session, conn->cid);
 
 			if (c != NULL) {
 				/* Kernel will do connection reinstatement */
@@ -790,7 +792,8 @@ static bool name_chars_are_valid(const char *name)
 static void login_start(struct connection *conn)
 {
 	struct iscsi_login_req_hdr *req = (struct iscsi_login_req_hdr *)&conn->req.bhs;
-	char *name, *session_type, *target_name;
+	char *name, *target_name;
+	const char *session_type;
 
 	conn->cid = be16_to_cpu(req->cid);
 	conn->sid.id64 = req->sid.id64;
@@ -1021,7 +1024,7 @@ static int cmnd_exec_auth(struct connection *conn)
 	return res;
 }
 
-static bool on_internal_portal(struct connection *conn)
+static bool on_internal_portal(const struct connection *conn)
 {
 	if (!internal_portal)
 		return false;
@@ -1031,7 +1034,7 @@ static bool on_internal_portal(struct connection *conn)
 
 		if (portals) {
 			char *saveptr;
-			char *portal = strtok_r(portals, " ", &saveptr);
+			const char *portal = strtok_r(portals, " ", &saveptr);
 
 			while (portal != NULL) {
 				if (!strcmp(portal, conn->target_portal)) {
@@ -1050,7 +1053,7 @@ static bool on_internal_portal(struct connection *conn)
 
 static void cmnd_exec_login(struct connection *conn)
 {
-	struct iscsi_login_req_hdr *req = (struct iscsi_login_req_hdr *)&conn->req.bhs;
+	const struct iscsi_login_req_hdr *req = (struct iscsi_login_req_hdr *)&conn->req.bhs;
 	struct iscsi_login_rsp_hdr *rsp = (struct iscsi_login_rsp_hdr *)&conn->rsp.bhs;
 	int stay = 0, nsg_disagree = 0;
 
@@ -1242,7 +1245,8 @@ tgt_no_mem:
 static int text_scan_text(struct connection *conn)
 {
 	int res = 0;
-	char *key, *value, *data;
+	char *value, *data;
+	const char *key;
 	int datasize;
 
 	data = conn->req.data;
@@ -1326,7 +1330,7 @@ out:
 
 static void cmnd_exec_logout(struct connection *conn)
 {
-	struct iscsi_logout_req_hdr *req = (struct iscsi_logout_req_hdr *)&conn->req.bhs;
+	const struct iscsi_logout_req_hdr *req = (struct iscsi_logout_req_hdr *)&conn->req.bhs;
 	struct iscsi_logout_rsp_hdr *rsp = (struct iscsi_logout_rsp_hdr *)&conn->rsp.bhs;
 
 	memset(rsp, 0, BHS_SIZE);
@@ -1346,7 +1350,7 @@ int cmnd_execute(struct connection *conn)
 {
 	int res = 1;
 	struct buf_segment *seg;
-	struct iscsi_login_rsp_hdr *login_rsp;
+	const struct iscsi_login_rsp_hdr *login_rsp;
 
 	switch (conn->req.bhs.opcode & ISCSI_OPCODE_MASK) {
 	case ISCSI_OP_LOGIN_CMD:

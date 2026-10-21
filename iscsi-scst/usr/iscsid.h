@@ -316,13 +316,13 @@ int target_del(u32 tid, u32 cookie);
 u32 target_find_id_by_name(const char *name);
 struct target *target_find_by_name(const char *name);
 struct target *target_find_by_id(u32 tid);
-void target_list_build(struct connection *conn, char *target_name);
+void target_list_build(struct connection *conn, const char *target_name);
 int target_portal_allowed(struct target *target,
 			  const char *target_portal, const char *initiator_name);
 const char *iscsi_make_full_initiator_name(int per_portal_acl,
 					   const char *initiator_name, const char *target_portal,
 					   char *buf, int size);
-bool target_redirected(struct target *target, struct connection *conn);
+bool target_redirected(const struct target *target, struct connection *conn);
 
 /* message.c */
 int iscsi_adm_request_listen(void);
@@ -335,13 +335,13 @@ int kernel_params_set(u32 tid, u64 sid, int type, u32 partial,
 		      const struct iscsi_param *params);
 int kernel_target_create(struct target *target, u32 *tid, u32 cookie);
 int kernel_target_destroy(u32 tid, u32 cookie);
-int kernel_user_add(struct target *target, struct iscsi_attr *user,
+int kernel_user_add(const struct target *target, const struct iscsi_attr *user,
 		    u32 cookie);
-int kernel_user_del(struct target *target, struct iscsi_attr *user,
+int kernel_user_del(const struct target *target, const struct iscsi_attr *user,
 		    u32 cookie);
-int kernel_attr_add(struct target *target, const char *name,
+int kernel_attr_add(const struct target *target, const char *name,
 		    u32 mode, u32 cookie);
-int kernel_attr_del(struct target *target, const char *name, u32 cookie);
+int kernel_attr_del(const struct target *target, const char *name, u32 cookie);
 int kernel_initiator_allowed(u32 tid, const char *full_initiator_name);
 int kernel_session_create(struct connection *conn);
 int kernel_session_destroy(u32 tid, u64 sid);
@@ -358,12 +358,12 @@ char *config_sep_string(char **pp);
 char *config_strip_string(char *s);
 int config_parse_main(const char *data, u32 cookie);
 int config_load(const char *config_name);
-int config_target_create(u32 *tid, char *name);
+int config_target_create(u32 *tid, const char *name);
 int config_target_destroy(u32 tid);
-int config_account_add(u32 tid, int dir, char *name, char *pass,
+int config_account_add(u32 tid, int dir, char *name, const char *pass,
 		       const char *sysfs_name, u32 cookie);
 int __config_account_add(struct target *target, int dir, char *name,
-			 char *pass, const char *sysfs_name, int send_to_kern, u32 cookie);
+			 const char *pass, const char *sysfs_name, int send_to_kern, u32 cookie);
 int config_account_query(u32 tid, int dir, const char *name, char *pass);
 int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
 			char *buf, size_t buf_sz);
@@ -380,15 +380,15 @@ int account_replace(struct target *target, int direction,
 		    const char *sysfs_name, char *value);
 void accounts_free(struct __qelem *accounts_list);
 struct iscsi_attr *iscsi_attr_lookup_by_sysfs_name(
-						   struct __qelem *attrs_list, const char *sysfs_name);
+	const struct __qelem *attrs_list, const char *sysfs_name);
 struct iscsi_attr *iscsi_attr_lookup_by_key(
-					    struct __qelem *attrs_list, const char *key);
+	const struct __qelem *attrs_list, const char *key);
 void iscsi_attrs_free(struct __qelem *attrs_list);
 int iscsi_attr_create(int attr_size, struct __qelem *attrs_list,
 		      const char *sysfs_name_tmpl, const char *key, const char *val,
 		      u32 mode, struct iscsi_attr **res_attr);
 void iscsi_attr_destroy(struct iscsi_attr *attr);
-int iscsi_attr_replace(struct __qelem *attrs_list, const char *sysfs_name,
+int iscsi_attr_replace(const struct __qelem *attrs_list, const char *sysfs_name,
 		       char *raw_value);
 
 /* isns.c */
@@ -399,9 +399,9 @@ extern int isns_timeout;
 int isns_init(void);
 int isns_handle(int is_timeout);
 int isns_scn_handle(int is_accept);
-int isns_scn_access_allowed(u32 tid, char *name);
-int isns_target_register(char *name);
-int isns_target_deregister(char *name);
+int isns_scn_access_allowed(u32 tid, const char *name);
+int isns_target_register(const char *name);
+int isns_target_deregister(const char *name);
 void isns_exit(void);
 
 #endif	/* ISCSID_H */

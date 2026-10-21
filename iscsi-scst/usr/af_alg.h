@@ -25,6 +25,6 @@
 int af_alg_init(const char *algorithm);
 int af_alg_update(int datafd, const void *data_in, size_t len);
 ssize_t af_alg_final(int datafd, void *out, size_t len);
-bool af_alg_supported(char *alg);
+bool af_alg_supported(const char *alg);
 
 #endif

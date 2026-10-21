@@ -97,7 +97,7 @@ struct session *session_find_id(u32 tid, u64 sid)
 	return NULL;
 }
 
-static bool session_id_exists(u32 tid, u64 sid, struct session *exclude)
+static bool session_id_exists(u32 tid, u64 sid, const struct session *exclude)
 {
 	struct session *session;
 	struct target *target;
