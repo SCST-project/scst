@@ -249,7 +249,7 @@ out_unlock_put_not_completed:
 /* SPC-4 REPORT TARGET PORT GROUPS command */
 static enum scst_exec_res scst_report_tpgs(struct scst_cmd *cmd)
 {
-	struct scst_device *dev;
+	const struct scst_device *dev;
 	u8 *address;
 	void *buf;
 	s32 buf_len;

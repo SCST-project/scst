@@ -460,7 +460,7 @@ out_complete:
 /* Executes command and split CDB, if necessary */
 static enum scst_exec_res disk_exec(struct scst_cmd *cmd)
 {
-	struct scst_tgt *tgt = cmd->tgt;
+	const struct scst_tgt *tgt = cmd->tgt;
 	enum scst_exec_res res;
 	int rc;
 	struct disk_work work;

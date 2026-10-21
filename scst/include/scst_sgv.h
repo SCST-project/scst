@@ -100,7 +100,7 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 	struct sgv_pool_obj **sgv, struct scst_mem_lim *mem_lim, void *priv);
 void sgv_pool_free(struct sgv_pool_obj *obj, struct scst_mem_lim *mem_lim);
 
-void *sgv_get_priv(struct sgv_pool_obj *obj);
+void *sgv_get_priv(const struct sgv_pool_obj *obj);
 
 void scst_init_mem_lim(struct scst_mem_lim *mem_lim);
 

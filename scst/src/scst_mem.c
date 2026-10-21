@@ -1114,7 +1114,7 @@ EXPORT_SYMBOL_GPL(sgv_pool_alloc);
  * Allows to get the allocation private data for this SGV
  * cache object. The private data supposed to be set by sgv_pool_alloc().
  */
-void *sgv_get_priv(struct sgv_pool_obj *obj)
+void *sgv_get_priv(const struct sgv_pool_obj *obj)
 {
 	return obj->allocator_priv;
 }

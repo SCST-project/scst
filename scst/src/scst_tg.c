@@ -1452,7 +1452,7 @@ void scst_tg_cleanup(void)
  *
  * Returns a non-zero number if the lookup was successful and zero if not.
  */
-u16 scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt)
+u16 scst_lookup_tg_id(const struct scst_device *dev, const struct scst_tgt *tgt)
 {
 	struct scst_dev_group *dg;
 	const struct scst_target_group *tg;
@@ -1485,7 +1485,7 @@ EXPORT_SYMBOL_GPL(scst_lookup_tg_id);
  *
  * Returns a valid ALUA state (SCST_TG_STATE_OPTIMIZED is no ALUA configured)
  */
-enum scst_tg_state scst_get_alua_state(struct scst_device *dev, struct scst_tgt *tgt)
+enum scst_tg_state scst_get_alua_state(const struct scst_device *dev, const struct scst_tgt *tgt)
 {
 	struct scst_dev_group *dg;
 	const struct scst_target_group *tg;
@@ -1515,7 +1515,7 @@ EXPORT_SYMBOL_GPL(scst_get_alua_state);
  * scst_alua_configured() - Whether implicit ALUA has been configured.
  * @dev: Pointer to the SCST device to verify.
  */
-bool scst_alua_configured(struct scst_device *dev)
+bool scst_alua_configured(const struct scst_device *dev)
 {
 	struct scst_dev_group *dg;
 
@@ -1535,7 +1535,7 @@ EXPORT_SYMBOL_GPL(scst_alua_configured);
  * @data_format: Three-bit response data format specification.
  */
 int scst_tg_get_group_info(void **buf, u32 *length,
-			   struct scst_device *dev, u8 data_format)
+			   const struct scst_device *dev, u8 data_format)
 {
 	struct scst_dev_group *dg;
 	struct scst_target_group *tg;

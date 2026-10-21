@@ -386,7 +386,7 @@ struct scst_acn *scst_find_acn(struct scst_acg *acg, const char *name);
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd);
 int scst_finish_internal_cmd(struct scst_cmd *cmd);
 
-int scst_set_cmd_error_sense(struct scst_cmd *cmd, u8 *sense, unsigned int len);
+int scst_set_cmd_error_sense(struct scst_cmd *cmd, const u8 *sense, unsigned int len);
 
 int scst_process_check_condition(struct scst_cmd *cmd);
 
@@ -546,9 +546,9 @@ static inline void scst_clear_dev_reservation(struct scst_device *dev)
 
 void scst_tgt_dev_del_free_UA(struct scst_tgt_dev *tgt_dev,
 			      struct scst_tgt_dev_UA *ua);
-void scst_dev_check_set_UA(struct scst_device *dev, struct scst_cmd *exclude,
+void scst_dev_check_set_UA(struct scst_device *dev, const struct scst_cmd *exclude,
 			   const u8 *sense, int sense_len);
-void scst_dev_check_set_local_UA(struct scst_device *dev, struct scst_cmd *exclude,
+void scst_dev_check_set_local_UA(struct scst_device *dev, const struct scst_cmd *exclude,
 				 const u8 *sense, int sense_len);
 
 #define SCST_SET_UA_FLAG_AT_HEAD	1
@@ -562,8 +562,8 @@ void scst_report_luns_changed(struct scst_acg *acg);
 
 void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd, bool other_ini,
 		    bool call_dev_task_mgmt_fn_received);
-void scst_process_reset(struct scst_device *dev, struct scst_session *originator,
-			struct scst_cmd *exclude_cmd, struct scst_mgmt_cmd *mcmd, bool setUA);
+void scst_process_reset(struct scst_device *dev, const struct scst_session *originator,
+			const struct scst_cmd *exclude_cmd, struct scst_mgmt_cmd *mcmd, bool setUA);
 void __scst_unblock_aborted_cmds(const struct scst_tgt *tgt, const struct scst_session *sess,
 				 const struct scst_device *device);
 void scst_unblock_aborted_cmds(const struct scst_tgt *tgt, const struct scst_session *sess,

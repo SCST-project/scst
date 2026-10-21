@@ -2964,7 +2964,7 @@ static void scst_do_verify_work(struct work_struct *work)
  */
 static bool do_fileio_async(const struct vdisk_cmd_params *p)
 {
-	struct scst_cmd *cmd = p->cmd;
+	const struct scst_cmd *cmd = p->cmd;
 	const struct scst_device *dev = cmd->dev;
 	const struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 
@@ -2979,7 +2979,7 @@ static bool do_fileio_async(const struct vdisk_cmd_params *p)
 	}
 }
 
-static bool vdisk_alloc_async_bvec(struct scst_cmd *cmd,
+static bool vdisk_alloc_async_bvec(const struct scst_cmd *cmd,
 				   struct vdisk_cmd_params *p)
 {
 	int n;
@@ -5010,7 +5010,7 @@ static enum compl_status_e vdisk_exec_prevent_allow_medium_removal(struct vdisk_
 	return CMD_SUCCEEDED;
 }
 
-static struct kvec *vdisk_alloc_sync_kvec(struct scst_cmd *cmd,
+static struct kvec *vdisk_alloc_sync_kvec(const struct scst_cmd *cmd,
 					  struct vdisk_cmd_params *p)
 {
 	int kvec_segs;
