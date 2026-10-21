@@ -199,10 +199,10 @@ static struct cmd_state_name {
 static char *cmdstate_to_str(uint8_t state)
 {
 	int i;
-	struct cmd_state_name *e;
 
 	for (i = 1; i < ARRAY_SIZE(cmd_str); i++) {
-		e = cmd_str + i;
+		const struct cmd_state_name *e = cmd_str + i;
+
 		if (state == e->state)
 			return e->str;
 	}
@@ -243,10 +243,9 @@ int sqa_init_tag_bitmap(unsigned long **bitmap, unsigned int tag_num)
 SCST_KUNIT_VISIBLE
 int sqa_get_tag_bitmap(unsigned long *bitmap, unsigned int tag_num)
 {
-	unsigned int tag;
-
 	for (;;) {
-		tag = find_first_zero_bit(bitmap, tag_num);
+		unsigned int tag = find_first_zero_bit(bitmap, tag_num);
+
 		if (tag >= tag_num)
 			return -ENOENT;
 		if (!test_and_set_bit(tag, bitmap))
@@ -849,35 +848,32 @@ static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 	struct scsi_qla_host *vha = fcport->vha;
 	struct se_session *se_sess = fcport->se_sess;
 	struct scst_session *scst_sess = se_sess->fabric_sess_ptr;
+	DECLARE_COMPLETION_ONSTACK(c);
 
 	TRACE_ENTRY();
 
 	TRACE_MGMT_DBG("sqatgt(%ld/%d):	Deleting session %8phC fcid=%3phC\n",
 		vha->host_no, vha->vp_idx, fcport->port_name, &fcport->d_id);
 
-	{
-		DECLARE_COMPLETION_ONSTACK(c);
-
-		fcport->unreg_done = &c;
-		/*
-		 * Use wait=0 (async) to avoid a severe stall under concurrent
-		 * session teardown.  With wait=1 the workqueue thread blocks
-		 * inside scst_unregister_session() until
-		 * scst_free_session_callback() fires.  That callback cannot be
-		 * scheduled until the TM thread processes SCST_UNREG_SESS_TM,
-		 * but the TM thread is blocked on scst_mutex which the global
-		 * management thread holds during concurrent session teardown
-		 * (scst_sess_free_tgt_devs -> synchronize_rcu()).  Under load
-		 * this stall exceeds the hung-task timeout.  With wait=0 the
-		 * workqueue thread is released immediately; we wait only on
-		 * fcport->unreg_done, signalled by sqa_free_session_done() at
-		 * a point where scst_mutex is not held.
-		 * See also: iscsi-scst session_free() which carries a similar
-		 * warning.
-		 */
-		scst_unregister_session(scst_sess, 0, sqa_free_session_done);
-		wait_for_completion(&c);
-	}
+	fcport->unreg_done = &c;
+	/*
+	 * Use wait=0 (async) to avoid a severe stall under concurrent
+	 * session teardown.  With wait=1 the workqueue thread blocks
+	 * inside scst_unregister_session() until
+	 * scst_free_session_callback() fires.  That callback cannot be
+	 * scheduled until the TM thread processes SCST_UNREG_SESS_TM,
+	 * but the TM thread is blocked on scst_mutex which the global
+	 * management thread holds during concurrent session teardown
+	 * (scst_sess_free_tgt_devs -> synchronize_rcu()).  Under load
+	 * this stall exceeds the hung-task timeout.  With wait=0 the
+	 * workqueue thread is released immediately; we wait only on
+	 * fcport->unreg_done, signalled by sqa_free_session_done() at
+	 * a point where scst_mutex is not held.
+	 * See also: iscsi-scst session_free() which carries a similar
+	 * warning.
+	 */
+	scst_unregister_session(scst_sess, 0, sqa_free_session_done);
+	wait_for_completion(&c);
 
 	TRACE_MGMT_DBG("sqatgt(%ld/%d):	Unregister completed %8phC done\n",
 		vha->host_no, vha->vp_idx, fcport->port_name);
@@ -1505,13 +1501,10 @@ done:
 static void sqa_get_target_list(void)
 {
 	struct qla_tgt *tgt;
-	struct scsi_qla_host *vha;
 
 	mutex_lock(&sqa_mutex);
-	list_for_each_entry(tgt, &qla_tgt_glist, tgt_list_entry) {
-		vha = tgt->vha;
-		sqa_init_scst_tgt(vha);
-	}
+	list_for_each_entry(tgt, &qla_tgt_glist, tgt_list_entry)
+		sqa_init_scst_tgt(tgt->vha);
 	mutex_unlock(&sqa_mutex);
 }
 
@@ -2232,7 +2225,6 @@ static int sqa_enable_tgt(struct scst_tgt *scst_tgt, bool enable)
 	struct sqa_scst_tgt *sqa_tgt;
 	struct qla_tgt *tgt;
 	struct scsi_qla_host *vha;
-	int rc;
 
 	TRACE_ENTRY();
 
@@ -2264,7 +2256,8 @@ static int sqa_enable_tgt(struct scst_tgt *scst_tgt, bool enable)
 		    0, 0, sqa_lport_callback);
 		qlt_enable_vha(vha);
 	} else {
-		rc = qlt_stop_phase1(tgt);
+		int rc = qlt_stop_phase1(tgt);
+
 		if (!rc)
 			qlt_stop_phase2(tgt);
 	}

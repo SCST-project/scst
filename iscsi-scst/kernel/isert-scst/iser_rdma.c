@@ -213,10 +213,10 @@ void isert_post_drain(struct isert_conn *isert_conn)
 
 void isert_conn_disconnect(struct isert_conn *isert_conn)
 {
-	int err;
-
 	mutex_lock(&isert_conn->state_mutex);
 	if (isert_conn->state != ISER_CONN_CLOSING) {
+		int err;
+
 		isert_conn->state = ISER_CONN_CLOSING;
 
 		err = rdma_disconnect(isert_conn->cm_id);

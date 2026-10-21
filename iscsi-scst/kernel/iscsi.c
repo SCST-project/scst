@@ -824,7 +824,7 @@ static void iscsi_set_resid_no_scst_cmd(struct iscsi_cmnd *rsp)
 	struct iscsi_scsi_cmd_hdr *req_hdr = cmnd_hdr(req);
 	struct iscsi_scsi_rsp_hdr *rsp_hdr =
 		(struct iscsi_scsi_rsp_hdr *)&rsp->pdu.bhs;
-	int resid, out_resid;
+	int resid;
 
 	TRACE_ENTRY();
 
@@ -836,7 +836,8 @@ static void iscsi_set_resid_no_scst_cmd(struct iscsi_cmnd *rsp)
 
 	if ((req_hdr->flags & ISCSI_CMD_READ) &&
 	    (req_hdr->flags & ISCSI_CMD_WRITE)) {
-		out_resid = req->not_received_data_len;
+		int out_resid = req->not_received_data_len;
+
 		if (out_resid > 0) {
 			rsp_hdr->flags |= ISCSI_FLG_RESIDUAL_UNDERFLOW;
 			rsp_hdr->residual_count = cpu_to_be32(out_resid);
@@ -931,7 +932,6 @@ static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 {
 	struct iscsi_cmnd *rsp;
 	struct iscsi_scsi_cmd_hdr *req_hdr = cmnd_hdr(req);
-	struct iscsi_data_in_hdr *rsp_hdr;
 	u32 pdusize, size, offset, sn;
 	LIST_HEAD(send);
 
@@ -943,6 +943,8 @@ static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 	sn = 0;
 
 	while (1) {
+		struct iscsi_data_in_hdr *rsp_hdr;
+
 		rsp = iscsi_alloc_rsp(req);
 		TRACE_DBG("rsp %p", rsp);
 		rsp->sg = req->sg;
@@ -1060,10 +1062,10 @@ static void iscsi_tcp_send_data_rsp(struct iscsi_cmnd *req, u8 *sense, int sense
 			(ISCSI_CMD_WRITE | ISCSI_CMD_READ)) {
 		send_data_rsp(req, status, is_send_status);
 	} else {
-		struct iscsi_cmnd *rsp;
-
 		send_data_rsp(req, 0, 0);
 		if (is_send_status) {
+			struct iscsi_cmnd *rsp;
+
 			rsp = create_status_rsp(req, status, sense, sense_len);
 			iscsi_cmnd_init_write(rsp, 0);
 		}
@@ -2682,13 +2684,14 @@ static void iscsi_tcp_set_req_data(struct iscsi_cmnd *req,
 static void nop_out_exec(struct iscsi_cmnd *req)
 {
 	struct iscsi_cmnd *rsp;
-	struct iscsi_nop_in_hdr *rsp_hdr;
 
 	TRACE_ENTRY();
 
 	TRACE_DBG("%p", req);
 
 	if (req->pdu.bhs.itt != ISCSI_RESERVED_TAG) {
+		struct iscsi_nop_in_hdr *rsp_hdr;
+
 		rsp = iscsi_alloc_main_rsp(req);
 
 		rsp_hdr = (struct iscsi_nop_in_hdr *)&rsp->pdu.bhs;
@@ -3350,9 +3353,9 @@ static int iscsi_tcp_send_locally(struct iscsi_cmnd *req,
 
 static void iscsi_tcp_conn_close(struct iscsi_conn *conn, int flags)
 {
-	struct sock *sk = conn->sock->sk;
-
 	if (!flags) {
+		struct sock *sk = conn->sock->sk;
+
 		lock_sock(sk);
 		sk->sk_prot->disconnect(sk, 0);
 		release_sock(sk);
