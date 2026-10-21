@@ -85,7 +85,8 @@ static char *next_key(char **data, int *datasize, char **value)
 	char *key, *p, *q;
 	int size = *datasize;
 
-	key = p = *data;
+	p = *data;
+	key = p;
 	for (; size > 0 && *p != '='; p++, size--)
 		;
 	if (!size)

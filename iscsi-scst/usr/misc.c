@@ -84,7 +84,8 @@ int create_and_open_dev(const char *dev, int readonly)
 	else
 		flags = O_RDWR;
 
-	err = ctlfd = open(devname, flags);
+	ctlfd = open(devname, flags);
+	err = ctlfd;
 	if (ctlfd < 0) {
 		err = -errno;
 		printf("cannot open %s %s\n", devname, strerror(errno));

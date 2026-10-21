@@ -527,7 +527,8 @@ static int chap_initiator_auth_check_response(struct connection *conn)
 		goto out;
 	}
 
-	if (!(value = text_key_find(conn, "CHAP_N"))) {
+	value = text_key_find(conn, "CHAP_N");
+	if (!value) {
 		retval = CHAP_INITIATOR_ERROR;
 		goto out;
 	}
@@ -544,12 +545,14 @@ static int chap_initiator_auth_check_response(struct connection *conn)
 		goto out;
 	}
 
-	if (!(value = text_key_find(conn, "CHAP_R"))) {
+	value = text_key_find(conn, "CHAP_R");
+	if (!value) {
 		retval = CHAP_INITIATOR_ERROR;
 		goto out;
 	}
 
-	if ((encoding_format = chap_check_encoding_format(value)) < 0) {
+	encoding_format = chap_check_encoding_format(value);
+	if (encoding_format < 0) {
 		retval = CHAP_INITIATOR_ERROR;
 		goto out;
 	}
@@ -650,7 +653,8 @@ static int chap_target_auth_create_response(struct connection *conn)
 	int challenge_len = 0, digest_len = 0, retval = 0;
 	int res;
 
-	if (!(value = text_key_find(conn, "CHAP_I"))) {
+	value = text_key_find(conn, "CHAP_I");
+	if (!value) {
 		/* Initiator doesn't want target auth!? */
 		conn->state = STATE_SECURITY_DONE;
 		retval = 0;
@@ -666,14 +670,16 @@ static int chap_target_auth_create_response(struct connection *conn)
 		goto out;
 	}
 
-	if (!(value = text_key_find(conn, "CHAP_C"))) {
+	value = text_key_find(conn, "CHAP_C");
+	if (!value) {
 		log_warning("CHAP target auth.: got no challenge from initiator %s",
 			    conn->initiator);
 		retval = CHAP_INITIATOR_ERROR;
 		goto out;
 	}
 
-	if ((encoding_format = chap_check_encoding_format(value)) < 0) {
+	encoding_format = chap_check_encoding_format(value);
+	if (encoding_format < 0) {
 		retval = CHAP_INITIATOR_ERROR;
 		goto out;
 	}

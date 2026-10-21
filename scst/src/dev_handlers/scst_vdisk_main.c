@@ -5913,9 +5913,10 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 					vdisk_bio_set_hoq(bio);
 
 				if (!hbio)
-					hbio = tbio = bio;
+					hbio = bio;
 				else
-					tbio = tbio->bi_next = bio;
+					tbio->bi_next = bio;
+				tbio = bio;
 			}
 
 			bytes = min_t(unsigned int, len, PAGE_SIZE - off);

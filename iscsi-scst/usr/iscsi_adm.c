@@ -221,12 +221,14 @@ static int iscsid_request(struct iscsi_adm_req *req, void *rsp_data,
 {
 	int fd, err;
 
-	if ((fd = iscsid_connect()) < 0) {
+	fd = iscsid_connect();
+	if (fd < 0) {
 		err = fd;
 		goto out_close;
 	}
 
-	if ((err = iscsid_request_send(fd, req)) < 0)
+	err = iscsid_request_send(fd, req);
+	if (err < 0)
 		goto out_report;
 
 	err = iscsid_response_recv(fd, req, rsp_data, rsp_data_sz);
@@ -283,11 +285,13 @@ static int parse_trgt_params(struct msg_trgt *msg, char *params)
 
 		if (!*p)
 			continue;
-		if (!(q = strchr(p, '=')))
+		q = strchr(p, '=');
+		if (!q)
 			continue;
 		*q++ = '\0';
 
-		if (!((idx = params_index_by_name(p, target_keys)) < 0)) {
+		idx = params_index_by_name(p, target_keys);
+		if (idx >= 0) {
 			if (params_str_to_val(target_keys, idx, q, &val)) {
 				fprintf(stderr,
 					"Invalid %s value \"%s\".\n",
@@ -302,7 +306,8 @@ static int parse_trgt_params(struct msg_trgt *msg, char *params)
 			continue;
 		}
 
-		if (!((idx = params_index_by_name(p, session_keys)) < 0)) {
+		idx = params_index_by_name(p, session_keys);
+		if (idx >= 0) {
 			if (params_str_to_val(session_keys, idx, q, &val)) {
 				fprintf(stderr,
 					"Invalid %s value \"%s\".\n",
@@ -418,7 +423,8 @@ static int parse_user_params(char *params, u32 *auth_dir, char **user,
 		if (!*p)
 			continue;
 
-		if (!(q = strchr(p, '=')))
+		q = strchr(p, '=');
+		if (!q)
 			continue;
 		*q++ = '\0';
 		if (isspace(*q))

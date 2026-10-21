@@ -165,7 +165,8 @@ int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 	log_debug(1, "Adding target %s (attrs_num %d)", target->name,
 		info.attrs_num);
 
-	if ((err = ioctl(ctrl_fd, ADD_TARGET, &info)) < 0) {
+	err = ioctl(ctrl_fd, ADD_TARGET, &info);
+	if (err < 0) {
 		err = -errno;
 		log_error("Can't create target %s: %s\n", target->name,
 			strerror(errno));
@@ -262,7 +263,8 @@ int kernel_initiator_allowed(u32 tid, const char *full_initiator_name)
 	iscsi_strscpy(info.full_initiator_name, full_initiator_name,
 		      sizeof(info.full_initiator_name));
 
-	if ((err = ioctl(ctrl_fd, ISCSI_INITIATOR_ALLOWED, &info)) < 0) {
+	err = ioctl(ctrl_fd, ISCSI_INITIATOR_ALLOWED, &info);
+	if (err < 0) {
 		err = -errno;
 		log_error("Can't find out initiator %s permissions (%s, "
 			  "tid %u", full_initiator_name, strerror(errno), tid);
@@ -280,7 +282,8 @@ int kernel_conn_destroy(u32 tid, u64 sid, u32 cid)
 	info.sid = sid;
 	info.cid = cid;
 
-	if ((err = ioctl(ctrl_fd, DEL_CONN, &info)) < 0) {
+	err = ioctl(ctrl_fd, DEL_CONN, &info);
+	if (err < 0) {
 		err = -errno;
 		log_debug(2, "Can't destroy conn (%s, tid %u, sid 0x%"
 			  PRIx64 ", cid %u\n", strerror(errno), tid, sid, cid);
@@ -305,7 +308,8 @@ int kernel_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params)
 	info.sid = sid;
 	info.params_type = type;
 
-	if ((err = ioctl(ctrl_fd, ISCSI_PARAM_GET, &info)) < 0) {
+	err = ioctl(ctrl_fd, ISCSI_PARAM_GET, &info);
+	if (err < 0) {
 		err = -errno;
 		log_debug(1, "Can't get session params for session 0x%" PRIx64
 			" (tid %u, err %d): %s\n", sid, tid, err, strerror(errno));
@@ -347,7 +351,8 @@ int kernel_params_set(u32 tid, u64 sid, int type, u32 partial,
 		for (i = 0; i < target_key_last; i++)
 			info.target_params[i] = params[i].val;
 
-	if ((err = ioctl(ctrl_fd, ISCSI_PARAM_SET, &info)) < 0) {
+	err = ioctl(ctrl_fd, ISCSI_PARAM_SET, &info);
+	if (err < 0) {
 		err = -errno;
 		log_error("Can't set session params for session 0x%" PRIx64
 			" (tid %u, type %d, partial %d, err %d): %s\n", sid,

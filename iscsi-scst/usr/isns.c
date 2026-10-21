@@ -117,7 +117,8 @@ static int isns_get_ip(int fd)
 	case AF_INET:
 		addr = lss.sin.sin_addr.s_addr;
 
-		ip[10] = ip[11] = 0xff;
+		ip[11] = 0xff;
+		ip[10] = 0xff;
 		ip[15] = 0xff & (addr >> 24);
 		ip[14] = 0xff & (addr >> 16);
 		ip[13] = 0xff & (addr >> 8);

@@ -387,7 +387,8 @@ int config_account_query(u32 tid, int dir, const char *name, char *pass)
 {
 	struct iscsi_attr *user;
 
-	if (!(user = account_lookup_by_name(tid, dir, name)))
+	user = account_lookup_by_name(tid, dir, name);
+	if (!user)
 		return -ENOENT;
 
 	iscsi_strscpy(pass, ISCSI_USER_PASS(user), ISCSI_NAME_LEN);
@@ -706,13 +707,15 @@ static int __initiator_match(int fd, char *str)
 
 		if (*p == '[') {
 			p++;
-			if (!(q = strchr(p, ']')))
+			q = strchr(p, ']');
+			if (!q)
 				return 0;
 			*(q++) = '\0';
 		} else
 			q = p;
 
-		if ((q = strchr(q, '/')))
+		q = strchr(q, '/');
+		if (q)
 			*(q++) = '\0';
 
 		memset(&hints, 0, sizeof(hints));
@@ -742,7 +745,8 @@ static int initiator_match(u32 tid, int fd, const char *filename)
 	FILE *fp;
 	char buf[BUFSIZE], *p;
 
-	if (!(fp = fopen(filename, "r")))
+	fp = fopen(filename, "r");
+	if (!fp)
 		return err;
 
 	/*
@@ -816,7 +820,8 @@ int config_target_destroy(u32 tid)
 {
 	int err;
 
-	if ((err = target_del(tid, 0)) < 0)
+	err = target_del(tid, 0);
+	if (err < 0)
 		return err;
 
 	return err;
