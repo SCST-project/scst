@@ -12,7 +12,7 @@ var _ = Describe("Device management", Label("basic", "devices"), func() {
 	var f *fixture
 	BeforeEach(func() { f = newFixture() })
 
-	It("opens and closes a device without removing its neighbor", func(ctx SpecContext) {
+	It("opens and closes a device without removing its neighbor", Label("pr"), func(ctx SpecContext) {
 		d, neighbor := f.device(ctx, "disk"), f.device(ctx, "neighbor")
 		Expect(must(cli.Devices(ctx))).To(Equal(map[string]string{d: "vdisk_nullio", neighbor: "vdisk_nullio"}))
 		Expect(must(cli.Scalar(ctx, "dummy", "-list_device", d))).To(Equal("1"))
@@ -20,7 +20,7 @@ var _ = Describe("Device management", Label("basic", "devices"), func() {
 		Expect(must(cli.Devices(ctx))).To(Equal(map[string]string{neighbor: "vdisk_nullio"}))
 	})
 
-	It("rejects a duplicate name and preserves the existing device", Label("negative"), func(ctx SpecContext) {
+	It("rejects a duplicate name and preserves the existing device", Label("negative", "pr"), func(ctx SpecContext) {
 		d := f.device(ctx, "disk")
 		before := must(cli.Scalar(ctx, "size_mb", "-list_device", d))
 		f.reject(ctx, "-open_dev", d, "-handler", "vdisk_nullio", "-attributes", "dummy=1,size_mb=16")
@@ -51,7 +51,7 @@ var _ = Describe("Local targets", Label("basic", "targets"), func() {
 	var f *fixture
 	BeforeEach(func() { f = newFixture() })
 
-	It("creates a target with a session and removes only that target", func(ctx SpecContext) {
+	It("creates a target with a session and removes only that target", Label("pr"), func(ctx SpecContext) {
 		session := f.name("session")
 		t, neighbor := f.target(ctx, "target", "session_name="+session), f.target(ctx, "neighbor")
 		Expect(must(cli.Targets(ctx))).To(Equal(map[string]string{t: "scst_local", neighbor: "scst_local"}))
@@ -78,7 +78,7 @@ var _ = Describe("LUN mappings", Label("basic", "luns"), func() {
 	var f *fixture
 	BeforeEach(func() { f = newFixture() })
 
-	It("adds and removes a read-only LUN without changing its neighbor", func(ctx SpecContext) {
+	It("adds and removes a read-only LUN without changing its neighbor", Label("pr"), func(ctx SpecContext) {
 		t, d, neighbor := f.target(ctx, "target"), f.device(ctx, "disk"), f.device(ctx, "neighbor")
 		f.at(ctx, t, "", "-add_lun", "0", "-device", d, "-attributes", "read_only=1")
 		f.at(ctx, t, "", "-add_lun", "1", "-device", neighbor)
@@ -116,7 +116,7 @@ var _ = Describe("Initiator groups", Label("basic", "groups"), func() {
 	var f *fixture
 	BeforeEach(func() { f = newFixture() })
 
-	It("creates groups, moves an initiator and removes empty groups", func(ctx SpecContext) {
+	It("creates groups, moves an initiator and removes empty groups", Label("pr"), func(ctx SpecContext) {
 		t, a, b, init := f.target(ctx, "target"), f.name("group_a"), f.name("group_b"), f.name("initiator")
 		f.at(ctx, t, "", "-add_group", a)
 		f.at(ctx, t, "", "-add_group", b)

@@ -22,7 +22,7 @@ jobs:
   ginkgo:
     name: Build and run in VMs
     runs-on: ubuntu-24.04
-    timeout-minutes: 220
+    timeout-minutes: ${{ github.event_name == 'pull_request' && 30 || 220 }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -46,15 +46,16 @@ jobs:
           sudo apt-get install -y qemu-system-x86 qemu-utils openssh-client e2fsprogs fakeroot
       - name: Build SCST image and check Ginkgo framework
         if: steps.changes.outputs.run == 'true'
-        timeout-minutes: 40
+        timeout-minutes: ${{ github.event_name == 'pull_request' && 10 || 40 }}
         run: bash scripts/ci/build-image ginkgo "$RUNNER_TEMP/ginkgo-image"
       - name: Run local and iSCSI tests against the compiled SCST
         if: steps.changes.outputs.run == 'true'
         env:
           GINKGO_LABEL: ${{ github.event_name == 'pull_request' && 'ci-pr' || github.event_name == 'push' && 'ci-push' || '' }}
+          VM_TIMEOUT: ${{ github.event_name == 'pull_request' && '1080' || '10000' }}
         run: |
           python3 scripts/ci/vm.py ginkgo "$RUNNER_TEMP/ginkgo-image" \
-            "$RUNNER_TEMP/ginkgo-results" --timeout 10000 --ginkgo-label "$GINKGO_LABEL"
+            "$RUNNER_TEMP/ginkgo-results" --timeout "$VM_TIMEOUT" --ginkgo-label "$GINKGO_LABEL"
       - name: Save build logs, reports and serial consoles
         if: always() && steps.changes.outputs.run == 'true'
         uses: actions/upload-artifact@v7

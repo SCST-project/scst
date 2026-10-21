@@ -57,10 +57,15 @@ by the local runner and VM supervisor:
 
 | Label set | Ginkgo expression |
 | --- | --- |
-| `ci-pr` | `(basic || smoke) && !manual` |
+| `ci-pr` | `pr && !manual && !race && !stress` |
 | `ci-push` | `!race && !manual` |
 
 Each set aliases a whole filter; its definition combines ordinary Ginkgo labels.
+The `pr` label marks individual representative specs or table entries: device,
+target, LUN and group management, configuration reapplication, failed fileio
+creation, iSCSI discovery/login/logout, MD5/SHA256 CHAP, invalid portal handling,
+READ CAPACITY, read-only WRITE rejection and verified fileio/blockio I/O.
+Adding `basic` or `smoke` alone does not expand this budgeted PR selection.
 Pass either a set name or a Ginkgo expression as `GINKGO_LABEL`. Manual workflow
 runs use an empty filter and select all specs, including `manual` and
 timing-dependent `race` scenarios. The `manual` label excludes a spec from

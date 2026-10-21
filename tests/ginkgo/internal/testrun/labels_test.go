@@ -13,8 +13,13 @@ func TestLabelSetSelection(t *testing.T) {
 		labels []string
 		want   bool
 	}{
-		{"ci-pr", []string{"local", "basic"}, true},
-		{"ci-pr", []string{"iscsi", "scsi", "smoke"}, true},
+		{"ci-pr", []string{"local", "basic", "pr"}, true},
+		{"ci-pr", []string{"iscsi", "scsi", "smoke", "pr"}, true},
+		{"ci-pr", []string{"local", "basic"}, false},
+		{"ci-pr", []string{"iscsi", "scsi", "smoke"}, false},
+		{"ci-pr", []string{"iscsi", "pr", "race"}, false},
+		{"ci-pr", []string{"local", "pr", "stress"}, false},
+		{"ci-pr", []string{"local", "pr", "manual"}, false},
 		{"ci-pr", []string{"iscsi", "stress", "race", "issue-367"}, false},
 		{"ci-pr", []string{"local", "stress"}, false},
 		{"ci-pr", []string{"local", "user", "manual"}, false},
