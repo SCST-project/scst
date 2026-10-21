@@ -8742,9 +8742,9 @@ out:
  * one dst_sg element, it must be either last in the chain, or
  * copy_len == dst_sg->length.
  */
-static int sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
-			size_t *pdst_offs, struct scatterlist *src_sg,
-			size_t copy_len)
+SCST_KUNIT_VISIBLE
+int sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
+		 size_t *pdst_offs, struct scatterlist *src_sg, size_t copy_len)
 {
 	int res = 0;
 	struct scatterlist *dst_sg;
@@ -8761,13 +8761,13 @@ static int sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 	src_offs = src_sg->offset;
 
 	do {
-		void *saddr, *daddr;
+		u8 *saddr, *daddr;
 		size_t n;
 
-		saddr = kmap_atomic(src_page + (src_offs >> PAGE_SHIFT)) +
-			(src_offs & ~PAGE_MASK);
-		daddr = kmap_atomic(dst_page + (dst_offs >> PAGE_SHIFT)) +
-			(dst_offs & ~PAGE_MASK);
+		saddr = kmap_atomic(src_page + (src_offs >> PAGE_SHIFT));
+		saddr += src_offs & ~PAGE_MASK;
+		daddr = kmap_atomic(dst_page + (dst_offs >> PAGE_SHIFT));
+		daddr += dst_offs & ~PAGE_MASK;
 
 		if (((src_offs & ~PAGE_MASK) == 0) &&
 		    ((dst_offs & ~PAGE_MASK) == 0) &&
@@ -8786,8 +8786,9 @@ static int sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 		dst_offs += n;
 		src_offs += n;
 
-		kunmap_atomic(saddr);
+		/* Atomic mappings must unwind in reverse order. */
 		kunmap_atomic(daddr);
+		kunmap_atomic(saddr);
 
 		res += n;
 		copy_len -= n;
@@ -9102,16 +9103,16 @@ EXPORT_SYMBOL(scst_scsi_exec_async);
  * one dst_sg element, it must be either last in the chain, or
  * cmp_len == dst_sg->length.
  */
-static int sg_cmp_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
-			size_t *pdst_offs, struct scatterlist *src_sg,
-			size_t cmp_len, int *miscompare_offs,
-			bool *cmp_res)
+SCST_KUNIT_VISIBLE
+int sg_cmp_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
+		size_t *pdst_offs, struct scatterlist *src_sg, size_t cmp_len,
+		int *miscompare_offs, bool *cmp_res)
 {
 	int res = 0;
 	struct scatterlist *dst_sg;
 	size_t src_len, dst_len, src_offs, dst_offs;
 	struct page *src_page, *dst_page;
-	void *saddr, *daddr;
+	u8 *saddr, *daddr;
 
 	*cmp_res = true;
 
@@ -9128,10 +9129,10 @@ static int sg_cmp_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 		size_t n;
 		int rc;
 
-		saddr = kmap_atomic(src_page + (src_offs >> PAGE_SHIFT)) +
-			(src_offs & ~PAGE_MASK);
-		daddr = kmap_atomic(dst_page + (dst_offs >> PAGE_SHIFT)) +
-			(dst_offs & ~PAGE_MASK);
+		saddr = kmap_atomic(src_page + (src_offs >> PAGE_SHIFT));
+		saddr += src_offs & ~PAGE_MASK;
+		daddr = kmap_atomic(dst_page + (dst_offs >> PAGE_SHIFT));
+		daddr += dst_offs & ~PAGE_MASK;
 
 		if (((src_offs & ~PAGE_MASK) == 0) &&
 		    ((dst_offs & ~PAGE_MASK) == 0) &&
@@ -9164,8 +9165,8 @@ static int sg_cmp_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 				    ((daddr_int & align_mask) == 0) &&
 				    ((len & align_mask) == 0)) {
 					/* Fast path: both buffers and len aligned */
-					unsigned long long *s = saddr;
-					unsigned long long *d = daddr;
+					unsigned long long *s = (unsigned long long *)saddr;
+					unsigned long long *d = (unsigned long long *)daddr;
 
 					EXTRACHECKS_BUG_ON(len % align_size != 0);
 					len /= align_size;
@@ -9203,8 +9204,9 @@ static int sg_cmp_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 		dst_offs += n;
 		src_offs += n;
 
-		kunmap_atomic(saddr);
+		/* Atomic mappings must unwind in reverse order. */
 		kunmap_atomic(daddr);
+		kunmap_atomic(saddr);
 
 		res += n;
 		cmp_len -= n;
@@ -9230,8 +9232,8 @@ out:
 	return res;
 
 out_unmap:
-	kunmap_atomic(saddr);
 	kunmap_atomic(daddr);
+	kunmap_atomic(saddr);
 	goto out;
 }
 

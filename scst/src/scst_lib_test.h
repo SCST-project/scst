@@ -8,6 +8,12 @@
 
 struct scst_write_same_priv;
 
+int sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
+		 size_t *pdst_offs, struct scatterlist *src_sg, size_t copy_len);
+int sg_cmp_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
+		size_t *pdst_offs, struct scatterlist *src_sg, size_t cmp_len,
+		int *miscompare_offs, bool *cmp_res);
+
 bool __scst_is_relative_target_port_id_unique(u16 id, const struct scst_tgt *t);
 int scst_alloc_relative_target_port_id(u16 *id, unsigned int *next);
 int scst_ws_build_write_cdb(const struct scst_write_same_priv *wsp,

@@ -263,7 +263,61 @@ static void scst_lun_unaligned_encoding(struct kunit *test)
 	}
 }
 
+/* Mapping-order diagnostics require CONFIG_DEBUG_KMAP_LOCAL_FORCE_MAP. */
+static void scst_sg_copy_and_compare(struct kunit *test)
+{
+	static const struct {
+		unsigned int offset;
+		unsigned int length;
+		int mismatch;
+	} cases[] = {
+		{ 0, PAGE_SIZE, -1 },
+		{ 7, 32, -1 },
+		{ 0, PAGE_SIZE, 0 },
+		{ 0, PAGE_SIZE, 17 },
+		{ 0, PAGE_SIZE, PAGE_SIZE - 1 },
+		{ 7, 32, 0 },
+		{ 7, 32, 31 },
+	};
+	u8 *source, *destination;
+	unsigned int i;
+
+	source = kunit_kmalloc(test, PAGE_SIZE, GFP_KERNEL);
+	KUNIT_ASSERT_NOT_NULL(test, source);
+	destination = kunit_kmalloc(test, PAGE_SIZE, GFP_KERNEL);
+	KUNIT_ASSERT_NOT_NULL(test, destination);
+
+	for (i = 0; i < ARRAY_SIZE(cases); i++) {
+		struct scatterlist src, dst, *cursor = &dst;
+		size_t length, offset;
+		int mismatch = -1;
+		bool equal;
+
+		memset(source, 0x5a, PAGE_SIZE);
+		memset(destination, 0, PAGE_SIZE);
+		sg_init_one(&src, source + cases[i].offset, cases[i].length);
+		sg_init_one(&dst, destination + cases[i].offset, cases[i].length);
+		length = dst.length;
+		offset = dst.offset;
+		KUNIT_EXPECT_EQ(test, sg_copy_elem(&cursor, &length, &offset, &src,
+						   cases[i].length), (int)cases[i].length);
+		KUNIT_EXPECT_EQ(test, memcmp(source + cases[i].offset,
+					     destination + cases[i].offset, cases[i].length), 0);
+
+		if (cases[i].mismatch >= 0)
+			destination[cases[i].offset + cases[i].mismatch] ^= 1;
+		cursor = &dst;
+		length = dst.length;
+		offset = dst.offset;
+		sg_cmp_elem(&cursor, &length, &offset, &src, cases[i].length,
+			    &mismatch, &equal);
+		KUNIT_EXPECT_EQ(test, equal, cases[i].mismatch < 0);
+		KUNIT_EXPECT_EQ(test, mismatch, cases[i].mismatch);
+	}
+}
+
 static struct kunit_case scst_lib_cases[] = {
+	KUNIT_CASE(scst_sg_copy_and_compare),
 	KUNIT_CASE(scst_lun_unaligned_encoding),
 	KUNIT_CASE(scst_cdb_trace_bounds),
 #if (defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE)) && !defined(CONFIG_SCST_NO_DLM)
