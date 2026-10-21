@@ -142,10 +142,8 @@ int main(int argc, char **argv)
 					exit(1);
 				}
 			}
-			strncpy(allowed_events[allowed_events_num].issuer_name,
-				optarg, sizeof(allowed_events[allowed_events_num].issuer_name));
-			allowed_events[allowed_events_num].issuer_name[
-				sizeof(allowed_events[allowed_events_num].issuer_name)-1] = '\0';
+			snprintf(allowed_events[allowed_events_num].issuer_name,
+				 sizeof(allowed_events[allowed_events_num].issuer_name), "%s", optarg);
 			break;
 		case 'n':
 			non_blocking = 1;
@@ -198,9 +196,8 @@ int main(int argc, char **argv)
 			allowed_events[i].issuer_name);
 		memset(&e, 0, sizeof(e));
 		e.event_code = allowed_events[i].event_code;
-		strncpy(e.issuer_name, allowed_events[i].issuer_name,
-			sizeof(e.issuer_name));
-		e.issuer_name[sizeof(e.issuer_name)-1] = '\0';
+		memcpy(e.issuer_name, allowed_events[i].issuer_name,
+		       sizeof(e.issuer_name));
 
 		res = ioctl(event_fd, SCST_EVENT_ALLOW_EVENT, &e);
 		if (res != 0) {
@@ -311,9 +308,8 @@ again_poll:
 				allowed_events[0].issuer_name);
 			memset(&e, 0, sizeof(e));
 			e.event_code = allowed_events[0].event_code;
-			strncpy(e.issuer_name, allowed_events[0].issuer_name,
-				sizeof(e.issuer_name));
-			e.issuer_name[sizeof(e.issuer_name)-1] = '\0';
+			memcpy(e.issuer_name, allowed_events[0].issuer_name,
+			       sizeof(e.issuer_name));
 
 			res = ioctl(event_fd, SCST_EVENT_DISALLOW_EVENT, &e);
 			if (res != 0) {

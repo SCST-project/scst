@@ -307,9 +307,8 @@ static int stpg_event_loop(void)
 	memset(&e1, 0, sizeof(e1));
 
 	e1.event_code = SCST_EVENT_STPG_USER_INVOKE;
-	strncpy(e1.issuer_name, SCST_EVENT_SCST_CORE_ISSUER,
-		sizeof(e1.issuer_name));
-	e1.issuer_name[sizeof(e1.issuer_name)-1] = '\0';
+	memcpy(e1.issuer_name, SCST_EVENT_SCST_CORE_ISSUER,
+	       sizeof(SCST_EVENT_SCST_CORE_ISSUER));
 
 	PRINT_INFO("Setting allowed event code %u, issuer_name %s",
 		   e1.event_code, e1.issuer_name);
@@ -323,9 +322,8 @@ static int stpg_event_loop(void)
 	}
 
 	e1.event_code = SCST_EVENT_TM_FN_RECEIVED;
-	strncpy(e1.issuer_name, SCST_EVENT_SCST_CORE_ISSUER,
-		sizeof(e1.issuer_name));
-	e1.issuer_name[sizeof(e1.issuer_name) - 1] = '\0';
+	memcpy(e1.issuer_name, SCST_EVENT_SCST_CORE_ISSUER,
+	       sizeof(SCST_EVENT_SCST_CORE_ISSUER));
 
 	PRINT_INFO("Setting allowed event code %u, issuer_name %s",
 		   e1.event_code, e1.issuer_name);
