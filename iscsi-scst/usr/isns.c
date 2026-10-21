@@ -259,18 +259,17 @@ out:
 	return err;
 }
 
+static inline uint32_t correct_scn_flag_endianness(uint32_t flags)
+{
 #if __BYTE_ORDER == __LITTLE_ENDIAN
-#define correct_scn_flag_endiannes(x)						\
-{								\
-	x = (x & 0x55555555) << 1 | (x & 0xaaaaaaaa) >> 1;	\
-	x = (x & 0x33333333) << 2 | (x & 0xcccccccc) >> 2;	\
-	x = (x & 0x0f0f0f0f) << 4 | (x & 0xf0f0f0f0) >> 4;	\
-	x = (x & 0x00ff00ff) << 8 | (x & 0xff00ff00) >> 8;	\
-	x = (x & 0x0000ffff) << 16 | (x & 0xffff0000) >> 16;	\
-}
-#else
-#define correct_scn_flag_endiannes(x) { }
+	flags = (flags & 0x55555555) << 1 | (flags & 0xaaaaaaaa) >> 1;
+	flags = (flags & 0x33333333) << 2 | (flags & 0xcccccccc) >> 2;
+	flags = (flags & 0x0f0f0f0f) << 4 | (flags & 0xf0f0f0f0) >> 4;
+	flags = (flags & 0x00ff00ff) << 8 | (flags & 0xff00ff00) >> 8;
+	flags = (flags & 0x0000ffff) << 16 | (flags & 0xffff0000) >> 16;
 #endif
+	return flags;
+}
 
 static int isns_scn_register(void)
 {
@@ -316,7 +315,7 @@ static int isns_scn_register(void)
 
 	scn_flags = ISNS_SCN_FLAG_INITIATOR | ISNS_SCN_FLAG_OBJECT_REMOVE |
 			ISNS_SCN_FLAG_OBJECT_ADDED | ISNS_SCN_FLAG_OBJECT_UPDATED;
-	correct_scn_flag_endiannes(scn_flags);
+	scn_flags = correct_scn_flag_endianness(scn_flags);
 	scn_flags = htonl(scn_flags);
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_SCN_BITMAP,
@@ -707,13 +706,15 @@ static int recv_hdr(int fd, struct isns_io *rx, struct isns_hdr *hdr)
 	return 0;
 }
 
-#define get_hdr_param(hdr, function, length, flags, transaction, sequence)	\
-{										\
-	function = ntohs(hdr->function);					\
-	length = ntohs(hdr->length);						\
-	flags = ntohs(hdr->flags);						\
-	transaction = ntohs(hdr->transaction);					\
-	sequence = ntohs(hdr->sequence);					\
+static inline void get_hdr_param(const struct isns_hdr *hdr, uint16_t *function,
+				 uint16_t *length, uint16_t *flags,
+				 uint16_t *transaction, uint16_t *sequence)
+{
+	*function = ntohs(hdr->function);
+	*length = ntohs(hdr->length);
+	*flags = ntohs(hdr->flags);
+	*transaction = ntohs(hdr->transaction);
+	*sequence = ntohs(hdr->sequence);
 }
 
 static int recv_pdu(int fd, struct isns_io *rx, struct isns_hdr *hdr)
@@ -726,7 +727,7 @@ static int recv_pdu(int fd, struct isns_io *rx, struct isns_hdr *hdr)
 		return err;
 
 	/* Now we got a complete header */
-	get_hdr_param(hdr, function, length, flags, transaction, sequence);
+	get_hdr_param(hdr, &function, &length, &flags, &transaction, &sequence);
 	log_debug(1, "got a header %x %u %x %u %u", function, length, flags,
 		  transaction, sequence);
 
@@ -765,8 +766,8 @@ static int recv_pdu(int fd, struct isns_io *rx, struct isns_hdr *hdr)
 #define print_unknown_pdu(hdr)						\
 {									\
 	uint16_t function, length, flags, transaction, sequence;	\
-	get_hdr_param(hdr, function, length, flags, transaction,	\
-		      sequence)						\
+	get_hdr_param(hdr, &function, &length, &flags, &transaction,	\
+		      &sequence);					\
 	log_error("%s %d: unknown function %x %u %x %u %u",		\
 		  __func__, __LINE__,				\
 		  function, length, flags, transaction, sequence);	\
@@ -792,14 +793,10 @@ static bool isns_tlvs_valid(const struct isns_tlv *tlv, size_t length)
 static char *print_scn_pdu(struct isns_hdr *hdr)
 {
 	struct isns_tlv *tlv = (struct isns_tlv *)hdr->pdu;
-	uint16_t function __attribute__((unused));
 	uint16_t length;
-	uint16_t flags __attribute__((unused));
-	uint16_t transaction __attribute__((unused));
-	uint16_t sequence __attribute__((unused));
 	char *name = NULL;
 
-	get_hdr_param(hdr, function, length, flags, transaction, sequence);
+	length = ntohs(hdr->length);
 	if (!isns_tlvs_valid(tlv, length)) {
 		log_error("Malformed iSNS SCN attributes");
 		return NULL;
@@ -840,9 +837,6 @@ next:
 static void qry_rsp_handle(struct isns_hdr *hdr)
 {
 	struct isns_tlv *tlv;
-	uint16_t function __attribute__((unused));
-	uint16_t flags __attribute__((unused));
-	uint16_t sequence __attribute__((unused));
 	uint16_t length, transaction;
 	uint32_t status;
 	struct isns_qry_mgmt *mgmt, *n;
@@ -850,7 +844,8 @@ static void qry_rsp_handle(struct isns_hdr *hdr)
 	struct isns_initiator *ini;
 	char *name = NULL;
 
-	get_hdr_param(hdr, function, length, flags, transaction, sequence);
+	length = ntohs(hdr->length);
+	transaction = ntohs(hdr->transaction);
 
 	list_for_each_entry_safe(mgmt, n, &qry_list, qlist) {
 		if (mgmt->transaction == transaction) {
@@ -944,10 +939,6 @@ int isns_handle(int is_timeout)
 	struct isns_io *rx = &isns_rx;
 	struct isns_hdr *hdr = (struct isns_hdr *)rx->buf;
 	uint16_t function;
-	uint16_t length __attribute__((unused));
-	uint16_t flags __attribute__((unused));
-	uint16_t transaction __attribute__((unused));
-	uint16_t sequence __attribute__((unused));
 	char *name = NULL;
 
 	if (isns_server == NULL)
@@ -968,7 +959,7 @@ int isns_handle(int is_timeout)
 		return err;
 	}
 
-	get_hdr_param(hdr, function, length, flags, transaction, sequence);
+	function = ntohs(hdr->function);
 
 	switch (function) {
 	case ISNS_FUNC_DEV_ATTR_REG_RSP:
@@ -1071,9 +1062,6 @@ int isns_scn_handle(int is_accept)
 	struct isns_io *rx = &scn_rx;
 	struct isns_hdr *hdr = (struct isns_hdr *)rx->buf;
 	uint16_t function, transaction;
-	uint16_t length __attribute__((unused));
-	uint16_t flags __attribute__((unused));
-	uint16_t sequence __attribute__((unused));
 	char *name = NULL;
 
 	log_debug(3, "%s %d: %d", __func__, __LINE__, is_accept);
@@ -1093,7 +1081,8 @@ int isns_scn_handle(int is_accept)
 		return err;
 	}
 
-	get_hdr_param(hdr, function, length, flags, transaction, sequence);
+	function = ntohs(hdr->function);
+	transaction = ntohs(hdr->transaction);
 
 	switch (function) {
 	case ISNS_FUNC_SCN:
