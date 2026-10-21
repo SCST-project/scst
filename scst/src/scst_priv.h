@@ -565,7 +565,8 @@ void scst_report_luns_changed(struct scst_acg *acg);
 void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd, bool other_ini,
 		    bool call_dev_task_mgmt_fn_received);
 void scst_process_reset(struct scst_device *dev, const struct scst_session *originator,
-			const struct scst_cmd *exclude_cmd, struct scst_mgmt_cmd *mcmd, bool set_ua);
+			const struct scst_cmd *exclude_cmd, struct scst_mgmt_cmd *mcmd,
+			bool set_ua);
 void __scst_unblock_aborted_cmds(const struct scst_tgt *tgt, const struct scst_session *sess,
 				 const struct scst_device *device);
 void scst_unblock_aborted_cmds(const struct scst_tgt *tgt, const struct scst_session *sess,

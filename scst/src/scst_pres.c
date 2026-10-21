@@ -53,7 +53,7 @@
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 1))
 #include <stdarg.h>
 #else
 #include <linux/stdarg.h>
@@ -529,8 +529,9 @@ void scst_pr_send_ua_reg(struct scst_device *dev, struct scst_dev_registrant *re
 }
 
 /* Must be called under dev_pr_mutex */
-static void scst_pr_send_ua_all(struct scst_device *dev, const struct scst_dev_registrant *exclude_reg,
-				int key, int asc, int ascq)
+static void scst_pr_send_ua_all(struct scst_device *dev,
+				const struct scst_dev_registrant *exclude_reg, int key, int asc,
+				int ascq)
 {
 	struct scst_dev_registrant *reg;
 

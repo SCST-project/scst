@@ -44,7 +44,7 @@
 #include <linux/vmalloc.h>
 #include <linux/atomic.h>
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 16, 0) || \
-	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 9)
+	(defined(RHEL_MAJOR) && RHEL_MAJOR - 0 >= 9)
 #include <linux/blk-integrity.h>
 #endif
 #include <linux/kthread.h>
@@ -320,12 +320,12 @@ int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask, bool report_e
 		goto out;
 	} else {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
-	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 4)
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||	\
+	 RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 4)
 		res = blkdev_issue_flush(bdev, gfp_mask, NULL);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 12, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
-	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 6)
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||	\
+	 RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 6)
 		res = blkdev_issue_flush(bdev, gfp_mask);
 #else
 		res = blkdev_issue_flush(bdev);
@@ -454,7 +454,7 @@ static int vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 	if (virt_dev->blockio) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 19, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 1))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 1))
 		dev_tp = blk_queue_discard(bdev_get_queue(bdev_desc.bdev));
 #else
 		dev_tp = !!bdev_max_discard_sectors(bdev_desc.bdev);
@@ -880,7 +880,7 @@ static int vdisk_init_block_integrity(struct scst_vdisk_dev *virt_dev)
 	bi_profile_name = bi->name;
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 6))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 6))
 	bi_profile_name = bi->profile->name;
 #else
 	bi_profile_name = blk_integrity_profile_name(bi);
@@ -1820,7 +1820,7 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 			PRINT_ERROR("FORMAT UNIT: too small parameters list header %d (dev %s)",
 				    length, dev->virt_name);
 			scst_set_cmd_error(cmd,
-					SCST_LOAD_SENSE(scst_sense_parameter_list_length_invalid));
+					   SCST_LOAD_SENSE(scst_sense_parameter_list_length_invalid));
 			goto out_put;
 		}
 
@@ -1846,14 +1846,14 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 				PRINT_ERROR("FORMAT UNIT: P_I_INFORMATION must be 0 (dev %s)",
 					    dev->virt_name);
 				scst_set_invalid_field_in_parm_list(cmd, 3,
-							SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
+								    SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
 				goto out_put;
 			}
 			if ((buf[3] & 0xF) != 0) {
 				PRINT_ERROR("FORMAT UNIT: PROTECTION INTERVAL EXPONENT %d not supported (dev %s)",
 					    buf[3] & 0xF, dev->virt_name);
 				scst_set_invalid_field_in_parm_list(cmd, 3,
-							SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
+								    SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
 				goto out_put;
 			}
 		} else {
@@ -1870,7 +1870,7 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 				break;
 			default:
 				scst_set_invalid_field_in_parm_list(cmd, 0,
-					SCST_INVAL_FIELD_BIT_OFFS_VALID);
+								    SCST_INVAL_FIELD_BIT_OFFS_VALID);
 				goto out;
 			}
 			break;
@@ -1878,7 +1878,7 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 			switch (prot_usage) {
 			default:
 				scst_set_invalid_field_in_parm_list(cmd, 0,
-					SCST_INVAL_FIELD_BIT_OFFS_VALID);
+								    SCST_INVAL_FIELD_BIT_OFFS_VALID);
 				goto out;
 			}
 			break;
@@ -1889,7 +1889,7 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 				break;
 			default:
 				scst_set_invalid_field_in_parm_list(cmd, 0,
-					SCST_INVAL_FIELD_BIT_OFFS_VALID);
+								    SCST_INVAL_FIELD_BIT_OFFS_VALID);
 				goto out;
 			}
 			break;
@@ -1903,7 +1903,7 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 				break;
 			default:
 				scst_set_invalid_field_in_parm_list(cmd, 0,
-					SCST_INVAL_FIELD_BIT_OFFS_VALID);
+								    SCST_INVAL_FIELD_BIT_OFFS_VALID);
 				goto out;
 			}
 			break;
@@ -1920,7 +1920,7 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 		PRINT_ERROR("FORMAT UNIT: DIF type %d not supported (dev %s)",
 			    prot_type, dev->virt_name);
 		scst_set_invalid_field_in_cdb(cmd, 1,
-			SCST_INVAL_FIELD_BIT_OFFS_VALID | 6);
+					      SCST_INVAL_FIELD_BIT_OFFS_VALID | 6);
 		goto out;
 	}
 
@@ -2436,7 +2436,8 @@ static int vdisk_get_supported_opcodes(struct scst_cmd *cmd,
 	}
 	if (!dev->expl_alua) {
 		(*out_supp_opcodes_cnt)--;
-		sBUG_ON((*out_supp_opcodes)[*out_supp_opcodes_cnt]->od_serv_action != MO_SET_TARGET_PGS);
+		sBUG_ON((*out_supp_opcodes)[*out_supp_opcodes_cnt]->od_serv_action !=
+			MO_SET_TARGET_PGS);
 	}
 	return 0;
 }
@@ -3042,7 +3043,7 @@ struct bio_vec *vdisk_map_pages_to_bvec(struct bio_vec *bvec, struct page *page,
 static void fileio_async_complete(struct kiocb *iocb, long ret
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 2))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 2))
 				  , long ret2
 #endif
 				  )
@@ -3123,7 +3124,7 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0) ||	\
 		(defined(RHEL_RELEASE_CODE) &&		\
-		 RHEL_RELEASE_CODE -0 >= RHEL_RELEASE_VERSION(8, 2))
+		 RHEL_RELEASE_CODE - 0 >= RHEL_RELEASE_VERSION(8, 2))
 	iov_iter_bvec(&iter, dir, p->async.bvec, sg_cnt, total);
 #else
 	iov_iter_bvec(&iter, ITER_BVEC | dir, p->async.bvec, sg_cnt, total);
@@ -3154,7 +3155,7 @@ static enum compl_status_e fileio_exec_async(struct vdisk_cmd_params *p)
 	if (ret != -EIOCBQUEUED) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 2))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 2))
 		fileio_async_complete(iocb, ret, 0);
 #else
 		fileio_async_complete(iocb, ret);
@@ -5103,7 +5104,8 @@ static int vdev_read_dif_tags(struct vdisk_cmd_params *p)
 	EXTRACHECKS_BUG_ON(virt_dev->nullio);
 
 	EXTRACHECKS_BUG_ON(!(cmd->dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) ||
-	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) == SCST_DIF_ACTION_NONE));
+			   (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) ==
+				SCST_DIF_ACTION_NONE));
 
 	tags_num = (cmd->bufflen >> cmd->dev->block_shift);
 	if (unlikely(tags_num == 0))
@@ -5215,7 +5217,8 @@ static int vdev_write_dif_tags(struct vdisk_cmd_params *p)
 	EXTRACHECKS_BUG_ON(virt_dev->nullio);
 
 	EXTRACHECKS_BUG_ON(!(cmd->dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) ||
-	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) == SCST_DIF_ACTION_NONE));
+			   (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) ==
+				SCST_DIF_ACTION_NONE));
 
 	tags_num = (cmd->bufflen >> cmd->dev->block_shift);
 	if (unlikely(tags_num == 0))
@@ -5494,7 +5497,8 @@ restart:
 	}
 
 	if ((dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) &&
-	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE)) {
+	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) !=
+		SCST_DIF_ACTION_NONE)) {
 		err = vdev_write_dif_tags(p);
 		if (err != 0)
 			goto out;
@@ -5612,7 +5616,8 @@ static void blockio_endio(struct bio *bio)
 		if (op_is_write(bio_op(bio))) {
 #endif
 			if (error == -ENOSPC) {
-				const struct scst_vdisk_dev *virt_dev = blockio_work->cmd->dev->dh_priv;
+				const struct scst_vdisk_dev *virt_dev =
+					blockio_work->cmd->dev->dh_priv;
 
 				WARN_ON(!virt_dev->thin_provisioned);
 				scst_set_cmd_error(blockio_work->cmd,
@@ -5792,7 +5797,8 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 	struct scatterlist *dsg;
 	int dsg_offs, dsg_len;
 	bool dif = virt_dev->blk_integrity &&
-		   (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE);
+		   (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) !=
+			SCST_DIF_ACTION_NONE);
 
 	TRACE_ENTRY();
 
@@ -5970,7 +5976,8 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 	blk_finish_plug(&plug);
 
 	if ((dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) && virt_dev->dif_fd &&
-	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE)) {
+	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) !=
+		SCST_DIF_ACTION_NONE)) {
 		if (write)
 			vdev_write_dif_tags(p);
 		else
@@ -6087,7 +6094,8 @@ enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p)
 	}
 
 	if ((dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) &&
-	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE)) {
+	    (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) !=
+		SCST_DIF_ACTION_NONE)) {
 		err = vdev_read_dif_tags(p);
 		if (err != 0)
 			goto out;
@@ -6417,7 +6425,8 @@ static void vdisk_report_registering(const struct scst_vdisk_dev *virt_dev)
 					 virt_dev->dif_filename);
 		else if (virt_dev->dif_static_app_tag_combined != SCST_DIF_NO_CHECK_APP_TAG)
 			ret += scnprintf(buf + ret, buf_size - ret, ", DIF STATIC APP TAG %llx",
-					 (long long)be64_to_cpu(virt_dev->dif_static_app_tag_combined));
+					 (long long)
+					 be64_to_cpu(virt_dev->dif_static_app_tag_combined));
 	}
 
 	if (virt_dev->async)
@@ -6515,7 +6524,7 @@ static int vdisk_create_bioset(struct scst_vdisk_dev *virt_dev)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 15, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 8))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 8))
 	/*
 	 * See also commit 105ca2a2c2ff ("block: split struct bio_integrity_payload") #v6.15.
 	 */

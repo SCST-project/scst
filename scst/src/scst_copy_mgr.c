@@ -1653,7 +1653,8 @@ bool scst_cm_ec_cmd_overlap(struct scst_cmd *ec_cmd, struct scst_cmd *cmd)
 			goto out;
 
 		res = scst_lba1_inside_lba2(cmd->lba, sd->data_descr.dst_lba,
-					    sd->data_descr.data_len >> sd->dst_tgt_dev->dev->block_shift);
+					    sd->data_descr.data_len >>
+					    sd->dst_tgt_dev->dev->block_shift);
 		if (res)
 			goto out;
 	}
@@ -2446,7 +2447,8 @@ out_free:
 static bool scst_cm_is_lun_free(unsigned int lun)
 {
 	bool res = true;
-	const struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(lun)];
+	const struct list_head *head =
+		&scst_cm_sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(lun)];
 	struct scst_tgt_dev *tgt_dev;
 
 	TRACE_ENTRY();
@@ -3195,8 +3197,10 @@ skip_fcmd_create:
 		list_for_each_entry(t, &priv->cm_sorted_devs_list, cm_sorted_devs_list_entry) {
 			TRACE_DBG("t %p, cm dev %p", t, t->cm_fcmd->dev);
 			if (tp) {
-				if (((unsigned long)t->cm_fcmd->dev) <= ((unsigned long)tp->cm_fcmd->dev)) {
-					list_for_each_entry(t, &priv->cm_sorted_devs_list, cm_sorted_devs_list_entry) {
+				if (((unsigned long)t->cm_fcmd->dev) <=
+				    ((unsigned long)tp->cm_fcmd->dev)) {
+					list_for_each_entry(t, &priv->cm_sorted_devs_list,
+							    cm_sorted_devs_list_entry) {
 						pr_emerg("%s: t %p, cm dev %p\n",
 							 __func__, t,
 							 t->cm_fcmd->dev);
@@ -3513,7 +3517,8 @@ int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd)
 			break;
 		default:
 			PRINT_WARNING("Not supported target descriptor %x", buf[offs]);
-			scst_set_cmd_error(ec_cmd, SCST_LOAD_SENSE(scst_sense_unsupported_tgt_descr_type));
+			scst_set_cmd_error(ec_cmd,
+					   SCST_LOAD_SENSE(scst_sense_unsupported_tgt_descr_type));
 			goto out_free_tgt_descr;
 		}
 		tgt_descrs[i].param_offs = offs;

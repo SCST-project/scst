@@ -47,7 +47,7 @@
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
 #warning HIGHMEM kernel configurations are fully supported, but not \
 recommended for performance reasons. Consider changing VMSPLIT \
-option or use a 64-bit configuration instead. See README file for \
+option or use a 64 - bit configuration instead. See README file for \
 details.
 #endif
 
@@ -675,7 +675,8 @@ void scst_trace_cmds(scst_show_fn show, void *arg)
 					     cmd, state_name, scst_get_opcode_name(cmd),
 					     (long)(jiffies - cmd->start_time) / HZ,
 					     t->name, tgt->tgt_name, sess->sess_name,
-					     tgt_dev ? (tgt_dev->acg_dev->acg->acg_name ?: "(default)") : "?",
+					     tgt_dev ?
+				     (tgt_dev->acg_dev->acg->acg_name ?: "(default)") : "?",
 					     cmd->lun, sess->initiator_name, cdb);
 				}
 				spin_unlock_irq(&sess->sess_list_lock);
@@ -2135,7 +2136,7 @@ EXPORT_SYMBOL_GPL(scst_get_setup_id);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 4))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 4))
 static int scst_add(struct device *cdev, struct class_interface *intf)
 #else
 static int scst_add(struct device *cdev)
@@ -2158,7 +2159,7 @@ static int scst_add(struct device *cdev)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 4))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 4))
 static void scst_remove(struct device *cdev, struct class_interface *intf)
 #else
 static void scst_remove(struct device *cdev)
@@ -2450,8 +2451,9 @@ static int __init init_scst(void)
 
 		si_meminfo(&si);
 #if BITS_PER_LONG == 32
-		scst_max_cmd_mem = min((((u64)(si.totalram - si.totalhigh) << PAGE_SHIFT) >> 20) >> 2,
-				       (u64)1 << 30);
+		scst_max_cmd_mem =
+			min((((u64)(si.totalram - si.totalhigh) << PAGE_SHIFT) >> 20) >> 2,
+			    (u64)1 << 30);
 #else
 		scst_max_cmd_mem = (((si.totalram - si.totalhigh) << PAGE_SHIFT) >> 20) >> 2;
 #endif

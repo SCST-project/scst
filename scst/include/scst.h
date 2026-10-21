@@ -4034,7 +4034,7 @@ static inline unsigned int scst_cmd_get_cdb_len(const struct scst_cmd *cmd)
 }
 
 void scst_cmd_set_ext_cdb(struct scst_cmd *cmd,
-	const u8 *ext_cdb, unsigned int ext_cdb_len, gfp_t gfp_mask);
+			  const u8 *ext_cdb, unsigned int ext_cdb_len, gfp_t gfp_mask);
 
 /* Returns cmd's session */
 static inline struct scst_session *scst_cmd_get_session(const struct scst_cmd *cmd)
@@ -4134,8 +4134,10 @@ static inline s64 scst_cmd_get_data_len(const struct scst_cmd *cmd)
 /* Returns true, if cmd needs DIF buffer */
 static inline bool scst_cmd_needs_dif_buf(const struct scst_cmd *cmd)
 {
-	return (scst_get_dif_action(scst_get_scst_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE) ||
-	       (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) != SCST_DIF_ACTION_NONE);
+	return (scst_get_dif_action(scst_get_scst_dif_actions(cmd->cmd_dif_actions)) !=
+		SCST_DIF_ACTION_NONE) ||
+	       (scst_get_dif_action(scst_get_dev_dif_actions(cmd->cmd_dif_actions)) !=
+		SCST_DIF_ACTION_NONE);
 }
 
 /* Returns length of DIF buffer of this cmd */
@@ -4883,7 +4885,7 @@ static inline void sg_clear(struct scatterlist *sg)
 	memset(sg, 0, sizeof(*sg));
 #if defined(CONFIG_DEBUG_SG) &&					\
 	LINUX_VERSION_CODE < KERNEL_VERSION(4, 18, 0) &&	\
-	(!defined(RHEL_MAJOR) && RHEL_MAJOR -0 < 8)
+	(!defined(RHEL_MAJOR) && RHEL_MAJOR - 0 < 8)
 	sg->sg_magic = SG_MAGIC;
 #endif
 }
@@ -4965,7 +4967,7 @@ static inline void scst_put_buf(struct scst_cmd *cmd, void *buf)
  * !!! only inside code bound to the corresponding data SG cnt!		 !!!
  */
 static inline u8 *scst_get_dif_buf(struct scst_cmd *cmd, struct scatterlist **psg,
-					int *length)
+				   int *length)
 {
 	u8 *buf;
 	struct scatterlist *sg;
@@ -5025,7 +5027,7 @@ static inline int scst_get_sg_buf_first(struct scst_cmd *cmd, u8 **buf,
 }
 
 static inline int scst_get_sg_buf_next(struct scst_cmd *cmd, u8 **buf,
-	struct scatterlist *sg, int sg_cnt)
+				       struct scatterlist *sg, int sg_cnt)
 {
 	return __scst_get_buf(cmd, sg_cnt, buf);
 }
@@ -5654,7 +5656,7 @@ __scst_scsi_execute_cmd(struct scsi_device *sdev, const unsigned char *cmd,
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 3, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 3))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 3))
 	if (WARN_ON_ONCE(sense && sense_len != SCSI_SENSE_BUFFERSIZE))
 		return -EINVAL;
 
@@ -5662,7 +5664,7 @@ __scst_scsi_execute_cmd(struct scsi_device *sdev, const unsigned char *cmd,
 	return scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense,
 			    timeout, retries, opf, /*resid=*/NULL);
 #elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 19, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8)
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8)
 	return scsi_execute(sdev, cmd, data_direction, buffer, bufflen, sense,
 			    /*sshdr=*/NULL, timeout, retries, opf,
 			    /*rq_flags=*/0, /*resid=*/NULL);

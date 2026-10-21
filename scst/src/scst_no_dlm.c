@@ -40,12 +40,12 @@ static bool scst_no_dlm_pr_is_set(struct scst_device *dev)
 }
 
 static void scst_no_dlm_pr_init_reg(struct scst_device *dev,
-			     struct scst_dev_registrant *reg)
+				    struct scst_dev_registrant *reg)
 {
 }
 
 static void scst_no_dlm_pr_rm_reg(struct scst_device *dev,
-			   struct scst_dev_registrant *reg)
+				  struct scst_dev_registrant *reg)
 {
 }
 
