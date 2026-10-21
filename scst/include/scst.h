@@ -3828,11 +3828,11 @@ static inline void scst_sess_set_tgt_priv(struct scst_session *sess, void *val)
 	sess->sess_tgt_priv = val;
 }
 
-u16 scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt);
-enum scst_tg_state scst_get_alua_state(struct scst_device *dev, struct scst_tgt *tgt);
-bool scst_alua_configured(struct scst_device *dev);
+u16 scst_lookup_tg_id(const struct scst_device *dev, const struct scst_tgt *tgt);
+enum scst_tg_state scst_get_alua_state(const struct scst_device *dev, const struct scst_tgt *tgt);
+bool scst_alua_configured(const struct scst_device *dev);
 int scst_tg_get_group_info(void **buf, u32 *length,
-			   struct scst_device *dev, u8 data_format);
+			   const struct scst_device *dev, u8 data_format);
 int scst_tg_set_group_info(struct scst_cmd *cmd);
 const char *scst_alua_state_name(enum scst_tg_state s);
 void scst_stpg_del_unblock_next(struct scst_cmd *cmd);
@@ -4031,7 +4031,7 @@ static inline unsigned int scst_cmd_get_cdb_len(const struct scst_cmd *cmd)
 }
 
 void scst_cmd_set_ext_cdb(struct scst_cmd *cmd,
-	u8 *ext_cdb, unsigned int ext_cdb_len, gfp_t gfp_mask);
+	const u8 *ext_cdb, unsigned int ext_cdb_len, gfp_t gfp_mask);
 
 /* Returns cmd's session */
 static inline struct scst_session *scst_cmd_get_session(const struct scst_cmd *cmd)
@@ -4488,13 +4488,13 @@ static inline bool scst_cmd_aborted_on_xmit(struct scst_cmd *cmd)
 }
 
 /* Returns sense data format for cmd's dev */
-static inline bool scst_get_cmd_dev_d_sense(struct scst_cmd *cmd)
+static inline bool scst_get_cmd_dev_d_sense(const struct scst_cmd *cmd)
 {
 	return cmd->dev ? cmd->dev->d_sense : 0;
 }
 
 /* Returns if command is INQUIRY EVPD=0x83 (device identification) */
-static inline bool scst_cmd_inquired_dev_ident(struct scst_cmd *cmd)
+static inline bool scst_cmd_inquired_dev_ident(const struct scst_cmd *cmd)
 {
 	return (cmd->cdb[0] == INQUIRY) && ((cmd->cdb[1] & 0x01/*EVPD*/) == 0x01) &&
 		(cmd->cdb[2] == 0x83/*device identification*/);
@@ -5106,7 +5106,7 @@ static inline void scst_put_out_sg_page(struct scst_cmd *cmd, struct page *page,
  * Returns approximate higher rounded buffers count that
  * scst_get_buf_[first|next]() return.
  */
-static inline int scst_get_buf_count(struct scst_cmd *cmd)
+static inline int scst_get_buf_count(const struct scst_cmd *cmd)
 {
 	return (cmd->sg_cnt == 0) ? 1 : cmd->sg_cnt;
 }
@@ -5114,7 +5114,7 @@ static inline int scst_get_buf_count(struct scst_cmd *cmd)
 /*
  * Returns approximate higher rounded buffers count in pages
  */
-static inline int scst_get_buf_page_count(struct scst_cmd *cmd)
+static inline int scst_get_buf_page_count(const struct scst_cmd *cmd)
 {
 	struct scatterlist *sg;
 	int page_cnt = 0, i;
@@ -5132,7 +5132,7 @@ static inline int scst_get_buf_page_count(struct scst_cmd *cmd)
  * Returns approximate higher rounded buffers count that
  * scst_get_out_buf_[first|next]() return.
  */
-static inline int scst_get_out_buf_count(struct scst_cmd *cmd)
+static inline int scst_get_out_buf_count(const struct scst_cmd *cmd)
 {
 	return (cmd->out_sg_cnt == 0) ? 1 : cmd->out_sg_cnt;
 }
@@ -5589,7 +5589,7 @@ extern struct lockdep_map scst_dev_dep_map;
 #endif
 
 char *scst_get_next_lexem(char **token_str);
-void scst_restore_token_str(char *prev_lexem, char *token_str);
+void scst_restore_token_str(char *prev_lexem, const char *token_str);
 char *scst_get_next_token_str(char **input_str);
 
 void scst_init_threads(struct scst_cmd_threads *cmd_threads);
@@ -5733,7 +5733,7 @@ struct scst_ext_copy_seg_descr {
 	int tgt_descr_offs;
 };
 
-void scst_ext_copy_remap_done(struct scst_cmd *ec_cmd, struct scst_ext_copy_data_descr *dds,
+void scst_ext_copy_remap_done(struct scst_cmd *ec_cmd, const struct scst_ext_copy_data_descr *dds,
 			      int dds_cnt);
 int scst_ext_copy_get_cur_seg_data_len(struct scst_cmd *ec_cmd);
 

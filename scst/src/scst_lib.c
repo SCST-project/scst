@@ -2487,7 +2487,7 @@ out:
 }
 EXPORT_SYMBOL(scst_check_convert_sense);
 
-int scst_set_cmd_error_sense(struct scst_cmd *cmd, u8 *sense,
+int scst_set_cmd_error_sense(struct scst_cmd *cmd, const u8 *sense,
 	unsigned int len)
 {
 	int res;
@@ -7574,7 +7574,7 @@ EXPORT_SYMBOL(scst_cmd_put);
  * scst_cmd_set_ext_cdb() - sets cmd's extended CDB and its length
  */
 void scst_cmd_set_ext_cdb(struct scst_cmd *cmd,
-	u8 *ext_cdb, unsigned int ext_cdb_len,
+			  const u8 *ext_cdb, unsigned int ext_cdb_len,
 	gfp_t gfp_mask)
 {
 	unsigned int len = cmd->cdb_len + ext_cdb_len;
@@ -13100,7 +13100,7 @@ EXPORT_SYMBOL(scst_to_tgt_dma_dir);
  * !! scst_unblock_aborted_cmds() must be called after this function !!
  */
 void scst_process_reset(struct scst_device *dev,
-	struct scst_session *originator, struct scst_cmd *exclude_cmd,
+	const struct scst_session *originator, const struct scst_cmd *exclude_cmd,
 	struct scst_mgmt_cmd *mcmd, bool setUA)
 {
 	struct scst_tgt_dev *tgt_dev;
@@ -13429,7 +13429,7 @@ void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 
 /* Called under dev_lock and BH off */
 void scst_dev_check_set_local_UA(struct scst_device *dev,
-	struct scst_cmd *exclude, const u8 *sense, int sense_len)
+				 const struct scst_cmd *exclude, const u8 *sense, int sense_len)
 {
 	struct scst_tgt_dev *tgt_dev;
 	const struct scst_tgt_dev *exclude_tgt_dev = NULL;
@@ -13453,7 +13453,7 @@ void scst_dev_check_set_local_UA(struct scst_device *dev,
  * should be called outside of the dev_lock.
  */
 static bool __scst_dev_check_set_UA(struct scst_device *dev,
-	struct scst_cmd *exclude, const u8 *sense, int sense_len)
+				    const struct scst_cmd *exclude, const u8 *sense, int sense_len)
 {
 	bool res = false;
 
@@ -13477,7 +13477,7 @@ static bool __scst_dev_check_set_UA(struct scst_device *dev,
 }
 
 void scst_dev_check_set_UA(struct scst_device *dev,
-	struct scst_cmd *exclude, const u8 *sense, int sense_len)
+			   const struct scst_cmd *exclude, const u8 *sense, int sense_len)
 {
 	struct scst_lksb lksb;
 	bool rc;
@@ -14488,7 +14488,7 @@ EXPORT_SYMBOL_GPL(scst_get_next_lexem);
  * previous value before scst_get_next_lexem() was called. Prev_lexem is
  * a pointer to lexem returned by scst_get_next_lexem().
  */
-void scst_restore_token_str(char *prev_lexem, char *token_str)
+void scst_restore_token_str(char *prev_lexem, const char *token_str)
 {
 	if (&prev_lexem[strlen(prev_lexem)] != token_str)
 		prev_lexem[strlen(prev_lexem)] = ' ';

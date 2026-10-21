@@ -1411,7 +1411,7 @@ EXPORT_SYMBOL_GPL(scst_ext_copy_get_cur_seg_data_len);
  * If dds is NULL, then all data have been remapped, so SCST core will switch
  * to the next segment descriptor, if any.
  */
-void scst_ext_copy_remap_done(struct scst_cmd *ec_cmd, struct scst_ext_copy_data_descr *dds,
+void scst_ext_copy_remap_done(struct scst_cmd *ec_cmd, const struct scst_ext_copy_data_descr *dds,
 			      int dds_cnt)
 {
 	TRACE_ENTRY();
