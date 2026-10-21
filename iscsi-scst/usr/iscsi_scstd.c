@@ -103,7 +103,7 @@ static void create_listen_socket(struct pollfd *array)
 {
 	struct addrinfo hints, *res, *res0;
 	char servname[64];
-	int i, k, sock, opt, rc;
+	int i, k, opt;
 
 	memset(servname, 0, sizeof(servname));
 	snprintf(servname, sizeof(servname), "%d", server_port);
@@ -115,6 +115,7 @@ static void create_listen_socket(struct pollfd *array)
 	i = 0;
 	for (k = 0; k < ADDR_MAX; k++) {
 		char *server_address;
+		int rc;
 
 		server_address = server_addresses[k];
 		if (k > 0 && server_address == NULL)
@@ -133,6 +134,8 @@ static void create_listen_socket(struct pollfd *array)
 		}
 
 		for (res = res0; res && i < LISTEN_MAX; res = res->ai_next) {
+			int sock;
+
 			sock = socket(res->ai_family, res->ai_socktype, res->ai_protocol);
 			if (sock < 0) {
 				log_error("Unable to create server socket (%s) %d %d %d!",
@@ -242,8 +245,7 @@ static void create_iser_listen_socket(struct pollfd *array)
 {
 	struct addrinfo hints, *res, *res0;
 	char servname[64];
-	char *server_address;
-	int rc, i, k;
+	int i, k;
 	int iser_fd;
 	struct isert_addr_info info;
 
@@ -271,6 +273,9 @@ static void create_iser_listen_socket(struct pollfd *array)
 
 	i = 0;
 	for (k = 0; k < ADDR_MAX; k++) {
+		char *server_address;
+		int rc;
+
 		server_address = server_addresses[k];
 
 		if (k > 0 && server_address == NULL)

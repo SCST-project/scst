@@ -680,9 +680,9 @@ out:
 
 static int recv_hdr(int fd, struct isns_io *rx, struct isns_hdr *hdr)
 {
-	int err;
-
 	if (rx->offset < sizeof(*hdr)) {
+		int err;
+
 		err = read(fd, rx->buf + rx->offset,
 			   sizeof(*hdr) - rx->offset);
 		if (err < 0) {
