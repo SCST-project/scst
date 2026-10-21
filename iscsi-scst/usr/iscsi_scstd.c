@@ -910,7 +910,7 @@ int main(int argc, char **argv)
 			gid = strtoul(optarg, NULL, 0);
 			break;
 		case 'a': {
-			char *server_address, *token;
+			char *server_address, *token, *saveptr;
 			int i = 0;
 
 			server_address = strdup(optarg);
@@ -919,14 +919,14 @@ int main(int argc, char **argv)
 				exit(-1);
 			}
 
-			token = strtok(server_address, " ");
+			token = strtok_r(server_address, " ", &saveptr);
 
 			while ((i < ADDR_MAX) && token) {
 				log_debug(0, "Address to listen: %s\n", token);
 				server_addresses[i] = token;
 
 				i++;
-				token = strtok(NULL, " ");
+				token = strtok_r(NULL, " ", &saveptr);
 			}
 
 			break;

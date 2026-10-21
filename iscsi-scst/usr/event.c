@@ -1131,7 +1131,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			/* We have been provided with a string, check the contents. */
 			if (strchr(p, ' ')) {
 				char *portals = strdup(p);
-				char *portal;
+				char *portal, *saveptr;
 
 				if (!portals) {
 					log_error("Memory error (internal_portal)");
@@ -1139,7 +1139,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 					goto out_free;
 				}
 
-				portal = strtok(portals, " ");
+				portal = strtok_r(portals, " ", &saveptr);
 				while (portal != NULL) {
 					if (!is_addr(portal)) {
 						log_error("Invalid address supplied %s", portal);
@@ -1147,7 +1147,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 						res = -EINVAL;
 						goto out_free;
 					}
-					portal = strtok(NULL, " ");
+					portal = strtok_r(NULL, " ", &saveptr);
 				}
 				free(portals);
 			} else {
