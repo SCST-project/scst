@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only
 /*
  *  Copyright (C) 2002 - 2003 Ardis Technologies <roman@ardistech.com>
  *  Copyright (C) 2007 - 2018 Vladislav Bolkhovitin
