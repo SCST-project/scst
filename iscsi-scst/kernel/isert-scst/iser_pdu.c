@@ -107,7 +107,7 @@ void isert_tx_pdu_init(struct isert_cmnd *isert_pdu,
 {
 	struct iscsi_cmnd *iscsi_cmnd = &isert_pdu->iscsi;
 	struct isert_buf *isert_buf = &isert_pdu->buf;
-	void *addr = isert_buf->addr;
+	u8 *addr = isert_buf->addr;
 	struct iscsi_hdr *bhs = (struct iscsi_hdr *)(addr + sizeof(struct isert_hdr));
 
 	isert_pdu->isert_hdr = (struct isert_hdr *)addr;

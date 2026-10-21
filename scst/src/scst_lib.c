@@ -8555,7 +8555,7 @@ static struct request *__blk_map_kern_sg(struct request_queue *q,
 	bios = 0;
 	for_each_sg(sgl, sg, nents, i) {
 		struct page *page = sg_page(sg);
-		void *page_addr = page_address(page);
+		u8 *page_addr = page_address(page);
 		size_t len = sg->length, l;
 		size_t offset = sg->offset;
 
