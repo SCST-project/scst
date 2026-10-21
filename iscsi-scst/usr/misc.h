@@ -36,9 +36,11 @@ struct __qelem {
 #define LIST_HEAD(name) \
 	struct __qelem name = LIST_HEAD_INIT(name)
 
-#define INIT_LIST_HEAD(ptr) do { \
-	(ptr)->q_forw = (ptr); (ptr)->q_back = (ptr); \
-} while (0)
+static inline void INIT_LIST_HEAD(struct __qelem *head)
+{
+	head->q_forw = head;
+	head->q_back = head;
+}
 
 static inline int list_empty(const struct __qelem *head)
 {
@@ -70,10 +72,11 @@ static inline int list_length_is_one(const struct __qelem *head)
 
 #define list_del(elem) remque(elem)
 
-#define list_del_init(elem) do {		\
-		remque(elem);			\
-		INIT_LIST_HEAD(elem);		\
-	} while (0)
+static inline void list_del_init(struct __qelem *elem)
+{
+	remque(elem);
+	INIT_LIST_HEAD(elem);
+}
 
 #define list_add(new, head) insque(new, head)
 
