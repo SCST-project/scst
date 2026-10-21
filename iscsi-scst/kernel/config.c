@@ -980,60 +980,49 @@ const struct file_operations ctr_fops = {
 };
 
 #ifdef CONFIG_SCST_DEBUG
-static void iscsi_dump_char(int ch, unsigned char *text, int *pos)
+static void iscsi_dump_buffer(const u8 *buf, int size)
 {
-	int i = *pos;
+	while (size > 0) {
+		unsigned char text[16];
+		/* 16 hex bytes, three separators, text and terminators use 77 bytes. */
+		char line[80];
+		int count = min(size, 16);
+		int pos = 0;
+		int i;
 
-	if (ch < 0) {
-		while ((i % 16) != 0) {
-			pr_cont("   ");
-			text[i] = ' ';
-			i++;
-			if ((i % 16) == 0)
-				pr_cont(" | %.16s |\n", text);
-			else if ((i % 4) == 0)
-				pr_cont(" |");
+		for (i = 0; i < 16; i++) {
+			if (i < count) {
+				unsigned char ch = buf[i];
+
+				pos += scnprintf(line + pos, sizeof(line) - pos, " %02x", ch);
+				text[i] = (ch < 0x20 || (ch >= 0x80 && ch <= 0xa0)) ? ' ' : ch;
+			} else {
+				pos += scnprintf(line + pos, sizeof(line) - pos, "   ");
+				text[i] = ' ';
+			}
+			if (i != 15 && (i + 1) % 4 == 0)
+				pos += scnprintf(line + pos, sizeof(line) - pos, " |");
 		}
-		i = 0;
-		goto out;
+		scnprintf(line + pos, sizeof(line) - pos, " | %.16s |", text);
+		PRINT(KERN_DEBUG, "%s", line);
+		buf += count;
+		size -= count;
 	}
-
-	text[i] = (ch < 0x20 || (ch >= 0x80 && ch <= 0xa0)) ? ' ' : ch;
-	pr_cont(" %02x", ch);
-	i++;
-	if ((i % 16) == 0) {
-		pr_cont(" | %.16s |\n", text);
-		i = 0;
-	} else if ((i % 4) == 0) {
-		pr_cont(" |");
-	}
-
-out:
-	*pos = i;
 }
 
 void iscsi_dump_pdu(struct iscsi_pdu *pdu)
 {
-	unsigned char text[16];
-	int pos = 0;
-
 	if (trace_flag & TRACE_D_DUMP_PDU) {
-		unsigned char *buf;
-		int i;
+		const u8 *buf = (const void *)&pdu->bhs;
 
-		buf = (void *)&pdu->bhs;
-		pr_debug("BHS: (%p,%zd)\n", buf, sizeof(pdu->bhs));
-		for (i = 0; i < (int)sizeof(pdu->bhs); i++)
-			iscsi_dump_char(*buf++, text, &pos);
-		iscsi_dump_char(-1, text, &pos);
+		PRINT(KERN_DEBUG, "BHS: (%p,%zu)", buf, sizeof(pdu->bhs));
+		iscsi_dump_buffer(buf, sizeof(pdu->bhs));
 
-		buf = (void *)pdu->ahs;
-		pr_debug("AHS: (%p,%d)\n", buf, pdu->ahssize);
-		for (i = 0; i < pdu->ahssize; i++)
-			iscsi_dump_char(*buf++, text, &pos);
-		iscsi_dump_char(-1, text, &pos);
+		buf = (const void *)pdu->ahs;
+		PRINT(KERN_DEBUG, "AHS: (%p,%d)", buf, pdu->ahssize);
+		iscsi_dump_buffer(buf, pdu->ahssize);
 
-		pr_debug("Data: (%d)\n", pdu->datasize);
+		PRINT(KERN_DEBUG, "Data: (%d)", pdu->datasize);
 	}
 }
 
