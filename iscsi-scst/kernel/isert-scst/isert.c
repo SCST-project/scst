@@ -359,11 +359,6 @@ int isert_data_out_ready(struct iscsi_cmnd *cmnd)
 	return res;
 }
 
-int isert_data_in_sent(struct iscsi_cmnd *din)
-{
-	return 0;
-}
-
 void isert_pdu_err(struct iscsi_cmnd *pdu)
 {
 	struct iscsi_conn *conn = pdu->conn;

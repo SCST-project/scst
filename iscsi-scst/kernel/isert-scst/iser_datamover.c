@@ -284,11 +284,6 @@ int isert_close_connection(struct iscsi_conn *iscsi_conn)
 	return 0;
 }
 
-int isert_task_abort(struct iscsi_cmnd *cmnd)
-{
-	return 0;
-}
-
 void *isert_get_priv(struct iscsi_conn *iscsi_conn)
 {
 	struct isert_conn *isert_conn = container_of(iscsi_conn,

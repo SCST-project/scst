@@ -426,17 +426,8 @@ static void isert_send_completion_handler(struct isert_wr *wr)
 {
 	struct isert_cmnd *isert_pdu = wr->pdu;
 	struct iscsi_cmnd *iscsi_pdu = &isert_pdu->iscsi;
-	struct iscsi_cmnd *iscsi_req_pdu = iscsi_pdu->parent_req;
 
 	TRACE_ENTRY();
-
-	if (iscsi_req_pdu && iscsi_req_pdu->bufflen) {
-		struct isert_cmnd *isert_req_pdu =
-			container_of(iscsi_req_pdu, struct isert_cmnd, iscsi);
-
-		if (isert_req_pdu->is_rstag_valid)
-			isert_data_in_sent(iscsi_req_pdu);
-	}
 
 	isert_pdu_sent(iscsi_pdu);
 
@@ -465,8 +456,6 @@ static void isert_rdma_wr_completion_handler(struct isert_wr *wr)
 	ib_dma_unmap_sg(ib_dev, isert_buf->sg, isert_buf->sg_cnt,
 			isert_buf->dma_dir);
 	isert_buf->sg_cnt = 0;
-
-	isert_data_in_sent(&wr->pdu->iscsi);
 }
 
 SCST_KUNIT_VISIBLE
