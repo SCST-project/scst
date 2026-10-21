@@ -75,18 +75,15 @@ static void usage(int status)
 		fprintf(stderr, "Try `%s --help' for more information.\n", program_name);
 	} else {
 		printf("Usage: %s [OPTION]\n", program_name);
-		printf("\
-iSCSI target daemon.\n\
-  -c, --config=[path]     Execute in the config file.\n");
-		printf("\
-  -f, --foreground           make the program run in the foreground\n\
-  -d, --debug debuglevel     print debugging information\n\
-  -u, --uid=uid              run as uid, default is current user\n\
-  -g, --gid=gid              run as gid, default is current user group\n\
-  -a, --address=address ...  listen on specified space-separated list of local address instead of all\n\
-  -p, --port=port            listen on specified port instead of 3260\n\
-  -h, --help                 display this help and exit\n\
-");
+		printf("iSCSI target daemon.\n"
+		       "  -c, --config=[path]     Execute in the config file.\n");
+		printf("  -f, --foreground           make the program run in the foreground\n"
+		       "  -d, --debug debuglevel     print debugging information\n"
+		       "  -u, --uid=uid              run as uid, default is current user\n"
+		       "  -g, --gid=gid              run as gid, default is current user group\n"
+		       "  -a, --address=address ...  listen on specified space-separated list of local address instead of all\n"
+		       "  -p, --port=port            listen on specified port instead of 3260\n"
+		       "  -h, --help                 display this help and exit\n");
 	}
 	exit(1);
 }
