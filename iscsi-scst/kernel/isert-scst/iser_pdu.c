@@ -268,7 +268,6 @@ int isert_prepare_rdma(struct isert_cmnd *isert_pdu,
 	}
 
 	buff_offset = 0;
-	sg_cnt = 0;
 	for (wr_cnt = 0, sg_offset = 0; sg_offset < isert_buf->sg_cnt;
 	     ++wr_cnt) {
 		sg_cnt = min((int)isert_conn->max_sge,

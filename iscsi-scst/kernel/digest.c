@@ -26,17 +26,13 @@
 
 void digest_alg_available(int *val)
 {
-#if defined(CONFIG_LIBCRC32C_MODULE) || defined(CONFIG_LIBCRC32C) ||	\
-	defined(CONFIG_CRC32_MODULE) || defined(CONFIG_CRC32)
-	int crc32c = 1;
-#else
-	int crc32c = 0;
-#endif
-
-	if ((*val & DIGEST_CRC32C) && !crc32c) {
+#if !defined(CONFIG_LIBCRC32C_MODULE) && !defined(CONFIG_LIBCRC32C) && \
+	!defined(CONFIG_CRC32_MODULE) && !defined(CONFIG_CRC32)
+	if (*val & DIGEST_CRC32C) {
 		PRINT_ERROR("CRC32C digest algorithm not available in kernel");
 		*val &= ~DIGEST_CRC32C;
 	}
+#endif
 }
 
 /**

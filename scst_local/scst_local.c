@@ -170,7 +170,7 @@ static int scst_local_get_sas_transport_id(struct scst_local_sess *sess, uint8_t
 		goto out;
 	}
 
-	tr_id[0] = 0x00 | SCSI_TRANSPORTID_PROTOCOLID_SAS;
+	tr_id[0] = SCSI_TRANSPORTID_PROTOCOLID_SAS;
 
 	/*
 	 * Assemble a valid SAS address = 0x5OOUUIIR12345678 ... Does SCST

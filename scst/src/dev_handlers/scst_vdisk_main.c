@@ -1869,7 +1869,7 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 				break;
 			default:
 				scst_set_invalid_field_in_parm_list(cmd, 0,
-					SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+					SCST_INVAL_FIELD_BIT_OFFS_VALID);
 				goto out;
 			}
 			break;
@@ -1877,7 +1877,7 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 			switch (prot_usage) {
 			default:
 				scst_set_invalid_field_in_parm_list(cmd, 0,
-					SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+					SCST_INVAL_FIELD_BIT_OFFS_VALID);
 				goto out;
 			}
 			break;
@@ -1888,7 +1888,7 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 				break;
 			default:
 				scst_set_invalid_field_in_parm_list(cmd, 0,
-					SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+					SCST_INVAL_FIELD_BIT_OFFS_VALID);
 				goto out;
 			}
 			break;
@@ -1902,7 +1902,7 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 				break;
 			default:
 				scst_set_invalid_field_in_parm_list(cmd, 0,
-					SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+					SCST_INVAL_FIELD_BIT_OFFS_VALID);
 				goto out;
 			}
 			break;
@@ -3495,7 +3495,7 @@ static enum compl_status_e vdisk_exec_unmap(struct vdisk_cmd_params *p)
 
 	if (unlikely(cmd->cdb[1] & 1)) {
 		TRACE_DBG("ANCHOR not supported");
-		scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+		scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		goto out;
 	}
 
@@ -4402,7 +4402,7 @@ out:
 
 out_not_sup:
 	TRACE(TRACE_MINOR, "MODE SENSE: Unsupported page %x", pcode);
-	scst_set_invalid_field_in_cdb(cmd, 2, SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+	scst_set_invalid_field_in_cdb(cmd, 2, SCST_INVAL_FIELD_BIT_OFFS_VALID);
 	goto out_put;
 }
 
@@ -4598,7 +4598,7 @@ static void vdisk_caching_m_pg_select(unsigned char *p, struct scst_vdisk_dev *v
 
 	if (save && (!vdev_saved_mode_pages_enabled || virt_dev->nv_cache)) {
 		TRACE(TRACE_MINOR | TRACE_SCSI, "MODE SELECT: saved cache page not supported");
-		scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+		scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		goto out;
 	}
 
@@ -4710,7 +4710,7 @@ static enum compl_status_e vdisk_exec_mode_select(struct vdisk_cmd_params *p)
 			TRACE(TRACE_MINOR, "MODE SELECT: Invalid request %x",
 			      address[offset] & 0x3f);
 			scst_set_invalid_field_in_parm_list(cmd, offset,
-							    SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+							    SCST_INVAL_FIELD_BIT_OFFS_VALID);
 			goto out_put;
 		}
 		offset += address[offset + 1];
@@ -4731,7 +4731,7 @@ static enum compl_status_e vdisk_exec_log(struct vdisk_cmd_params *p)
 	TRACE_ENTRY();
 
 	/* No log pages are supported */
-	scst_set_invalid_field_in_cdb(cmd, 2, SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+	scst_set_invalid_field_in_cdb(cmd, 2, SCST_INVAL_FIELD_BIT_OFFS_VALID);
 
 	TRACE_EXIT();
 	return CMD_SUCCEEDED;
@@ -4882,7 +4882,7 @@ out:
 static enum compl_status_e vdisk_exec_get_lba_status(struct vdisk_cmd_params *p)
 {
 	/* Changing it don't forget to add it to vdisk_opcode_descriptors! */
-	scst_set_invalid_field_in_cdb(p->cmd, 1, 0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+	scst_set_invalid_field_in_cdb(p->cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID);
 	return CMD_SUCCEEDED;
 }
 
@@ -4896,7 +4896,7 @@ enum compl_status_e vdisk_exec_sai_16(struct vdisk_cmd_params *p)
 	case SAI_GET_LBA_STATUS:
 		return vdisk_exec_get_lba_status(p);
 	}
-	scst_set_invalid_field_in_cdb(p->cmd, 1, 0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+	scst_set_invalid_field_in_cdb(p->cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID);
 	return CMD_SUCCEEDED;
 }
 

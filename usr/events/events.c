@@ -52,7 +52,7 @@ char *app_name;
 # endif
 #endif /* DEBUG */
 
-bool log_daemon = false; /* needed for the tracing infrastructure */
+bool log_daemon; /* needed for the tracing infrastructure */
 unsigned long trace_flag = DEFAULT_LOG_FLAGS;
 #endif /* defined(DEBUG) || defined(TRACING) */
 

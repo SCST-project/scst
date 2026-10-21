@@ -3222,8 +3222,9 @@ static ssize_t scst_dev_sysfs_pr_file_name_store(struct kobject *kobj, struct ko
 		PRINT_ERROR("Unable to kasprintf() PR file name");
 		goto out;
 	}
-	p = pr_file_name;
-	strsep(&p, "\n"); /* strip trailing whitespace */
+	p = strchr(pr_file_name, '\n');
+	if (p)
+		*p = '\0';
 	if (pr_file_name[0] == '\0') {
 		kfree(pr_file_name);
 		pr_file_name = kasprintf(GFP_KERNEL, "%s/%s", SCST_PR_DIR,

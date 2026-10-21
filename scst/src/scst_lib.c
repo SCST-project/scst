@@ -7428,7 +7428,7 @@ struct scst_session *scst_alloc_session(struct scst_tgt *tgt, gfp_t gfp_mask,
 		 * To do: remove higher order allocation from the code below
 		 * for the GFP_ATOMIC case.
 		 */
-		sess->lat_stats = gfp_mask & GFP_ATOMIC ?
+		sess->lat_stats = (gfp_mask & GFP_ATOMIC) ?
 			kzalloc_obj(*sess->lat_stats, gfp_mask) :
 			vzalloc(sizeof(*sess->lat_stats));
 		if (!sess->lat_stats)
@@ -12104,7 +12104,7 @@ static int get_cdb_info_ext_copy(struct scst_cmd *cmd,
 		PRINT_WARNING("Not supported %s service action 0x%x",
 			scst_get_opcode_name(cmd), cmd->cdb[1]);
 		scst_set_invalid_field_in_cdb(cmd, 1,
-			0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+			SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		return 1;
 	}
 
@@ -15678,8 +15678,7 @@ int __init scst_lib_init(void)
 
 	scst_scsi_op_list_init();
 
-	scst_release_acg_wq = alloc_workqueue("scst_release_acg", 0
-					      | WQ_UNBOUND,
+	scst_release_acg_wq = alloc_workqueue("scst_release_acg", WQ_UNBOUND,
 					      0);
 	if (unlikely(!scst_release_acg_wq)) {
 		PRINT_ERROR("Failed to allocate scst_release_acg_wq");

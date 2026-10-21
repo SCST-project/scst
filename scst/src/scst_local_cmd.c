@@ -303,7 +303,7 @@ static enum scst_exec_res scst_exec_set_tpgs(struct scst_cmd *cmd)
 		PRINT_ERROR("SET TARGET PORT GROUPS: not explicit ALUA mode (dev %s)",
 			    dev->virt_name);
 		/* Invalid opcode, i.e. SA field */
-		scst_set_invalid_field_in_cdb(cmd, 1, 0 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		goto out;
 	}
 
@@ -415,7 +415,7 @@ static enum scst_exec_res scst_report_supported_opcodes(struct scst_cmd *cmd)
 					      req_opcode, cmd->dev->virt_name,
 					      cmd->sess->initiator_name);
 					scst_set_invalid_field_in_cdb(cmd, 2,
-								      SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+								      SCST_INVAL_FIELD_BIT_OFFS_VALID);
 					goto out_compl;
 				}
 				buf_len = 4 + op->od_cdb_size;
@@ -442,7 +442,7 @@ static enum scst_exec_res scst_report_supported_opcodes(struct scst_cmd *cmd)
 					      req_opcode, cmd->dev->virt_name,
 					      cmd->sess->initiator_name);
 					scst_set_invalid_field_in_cdb(cmd, 2,
-								      SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+								      SCST_INVAL_FIELD_BIT_OFFS_VALID);
 					goto out_compl;
 				}
 				if (req_sa != op->od_serv_action) {
@@ -465,7 +465,7 @@ static enum scst_exec_res scst_report_supported_opcodes(struct scst_cmd *cmd)
 	default:
 		PRINT_ERROR("REPORT SUPPORTED OPERATION CODES: REPORTING OPTIONS %x not supported (dev %s, initiator %s)",
 			    options, cmd->dev->virt_name, cmd->sess->initiator_name);
-		scst_set_invalid_field_in_cdb(cmd, 2, SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+		scst_set_invalid_field_in_cdb(cmd, 2, SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		goto out_compl;
 	}
 
@@ -842,7 +842,7 @@ out_done:
 	return SCST_EXEC_COMPLETED;
 
 out_unsup_act:
-	scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+	scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID);
 	goto out_complete;
 }
 
@@ -970,7 +970,7 @@ enum scst_exec_res scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 		scst_pr_register_and_move(cmd, buffer, buffer_size);
 		break;
 	default:
-		scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+		scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		goto out_unlock;
 	}
 

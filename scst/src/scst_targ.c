@@ -1152,7 +1152,7 @@ int scst_parse_cmd(struct scst_cmd *cmd)
 		PRINT_ERROR("Linked commands are not supported (opcode %s)",
 			    scst_get_opcode_name(cmd));
 		scst_set_invalid_field_in_cdb(cmd, cmd->cdb_len - 1,
-					      SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+					      SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		goto out_done;
 	}
 
