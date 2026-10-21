@@ -13,13 +13,13 @@ func Register(create func(SpecContext, Profile) *Endpoint) bool {
 		It("returns INQUIRY and VPD identity", Label("scsi", "smoke"), func(ctx SpecContext) {
 			Expect(create(ctx, Profile{Handler: "vdisk_fileio"}).Identity(ctx)).To(Succeed())
 		})
-		It("reports matching READ CAPACITY(10) and (16) geometry", Label("scsi", "smoke"), func(ctx SpecContext) {
+		It("reports matching READ CAPACITY(10) and (16) geometry", Label("scsi", "smoke", "pr"), func(ctx SpecContext) {
 			Expect(create(ctx, Profile{Handler: "vdisk_fileio"}).Capacity(ctx)).To(Succeed())
 		})
 		It("reports only the initiator's accessible LUNs", Label("scsi", "smoke"), func(ctx SpecContext) {
 			Expect(create(ctx, Profile{Handler: "vdisk_fileio", ExtraLUNs: true}).LUNs(ctx)).To(Succeed())
 		})
-		It("rejects a read-only WRITE with DATA PROTECT and preserves data", Label("scsi", "negative", "smoke"), func(ctx SpecContext) {
+		It("rejects a read-only WRITE with DATA PROTECT and preserves data", Label("scsi", "negative", "smoke", "pr"), func(ctx SpecContext) {
 			Expect(create(ctx, Profile{Handler: "vdisk_fileio", ReadOnly: true}).ReadOnlyWrite(ctx)).To(Succeed())
 		})
 		It("rejects an out-of-range READ with ILLEGAL REQUEST and remains usable", Label("scsi", "negative", "smoke"), func(ctx SpecContext) {
@@ -60,7 +60,7 @@ func Register(create func(SpecContext, Profile) *Endpoint) bool {
 			Expect(e.Capacity(ctx)).To(Succeed())
 			Expect(e.FIO(ctx)).To(Succeed())
 		},
-			Entry("buffered fileio with 512-byte sectors", Label("fileio"), "vdisk_fileio"),
-			Entry("direct blockio with 4096-byte sectors", Label("blockio"), "vdisk_blockio"))
+			Entry("buffered fileio with 512-byte sectors", Label("fileio", "pr"), "vdisk_fileio"),
+			Entry("direct blockio with 4096-byte sectors", Label("blockio", "pr"), "vdisk_blockio"))
 	})
 }

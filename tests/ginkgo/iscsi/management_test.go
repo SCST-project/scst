@@ -9,7 +9,7 @@ import (
 	. "github.com/onsi/gomega"
 )
 
-var _ = It("discovers a target, logs in with its own IQN and logs out", Label("basic", "iscsi", "sessions"), func(ctx SpecContext) {
+var _ = It("discovers a target, logs in with its own IQN and logs out", Label("basic", "iscsi", "sessions", "pr"), func(ctx SpecContext) {
 	f := newFixture(ctx)
 	Expect(f.discover(ctx)).To(Equal(map[string]string{f.Target: portal()}))
 	f.login(ctx)
@@ -55,9 +55,9 @@ var _ = DescribeTable("CHAP authentication", Label("basic", "iscsi", "chap", "ne
 		f.login(ctx)
 		f.logout(ctx)
 	},
-	Entry("MD5", "MD5"),
+	Entry("MD5", Label("pr"), "MD5"),
 	Entry("SHA1", "SHA1"),
-	Entry("SHA256", "SHA256"),
+	Entry("SHA256", Label("pr"), "SHA256"),
 	Entry("SHA3-256", "SHA3-256"),
 )
 

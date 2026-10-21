@@ -27,6 +27,12 @@ PRs. Push and manual runs retain their full checks. Selection errors fail the
 workflow; skip reasons appear in the job summary.
 
 Ginkgo uses `ci-pr` for PRs, `ci-push` for master, and all tests for manual runs.
+The PR job targets 15–20 minutes including image preparation and has a hard
+30-minute limit: up to 10 minutes for the image build and 18 minutes for VM
+execution, leaving time for setup and report upload. Its explicit `pr` selection
+covers representative management, authentication and data I/O scenarios;
+the remaining automatic coverage runs on master. Runtime must be checked in CI
+when changing this selection; fewer specs alone do not prove the time budget.
 See [test selection](../tests/ginkgo/README.md#select-tests) for the label sets.
 Kernel matrices are maintained through `.github/kernel-matrix.conf` and
 `nightly/conf/nightly.conf`; VM kernel pins are in `scripts/ci/kernel.env`

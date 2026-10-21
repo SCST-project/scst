@@ -71,7 +71,7 @@ var _ = Describe("Configuration files", Label("basic", "config"), func() {
 		Expect(f.luns(ctx, t, "")).To(Equal(map[int]string{0: d}))
 	})
 
-	It("applies the same configuration twice without changing its graph", func(ctx SpecContext) {
+	It("applies the same configuration twice without changing its graph", Label("pr"), func(ctx SpecContext) {
 		path := f.configuration()
 		f.do(ctx, "-config", path)
 		f.expectConfiguration(ctx)

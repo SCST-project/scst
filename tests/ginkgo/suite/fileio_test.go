@@ -74,7 +74,7 @@ var _ = Describe("File-backed devices", Label("basic", "fileio"), func() {
 		f.setDevice(ctx, d, "sync=1")
 	})
 
-	It("rejects a missing backing file without leaving a device behind", Label("negative"), func(ctx SpecContext) {
+	It("rejects a missing backing file without leaving a device behind", Label("negative", "pr"), func(ctx SpecContext) {
 		neighbor := f.fileDevice(ctx, "neighbor", f.backingFile("neighbor"))
 		d := f.name("missing")
 		f.devices = append(f.devices, d)

@@ -12,7 +12,7 @@ import (
 	"scst-component-tests/internal/testcfg"
 )
 
-var _ = It("rejects an invalid portal list and logs the intact offending token", Label("basic", "iscsi", "negative"), func(ctx SpecContext) {
+var _ = It("rejects an invalid portal list and logs the intact offending token", Label("basic", "iscsi", "negative", "pr"), func(ctx SpecContext) {
 	attrs := must(cli.Attributes(ctx, "-list_drv_attr", "iscsi"))
 	before, ok := attrs["internal_portal"]
 	Expect(ok).To(BeTrue())
