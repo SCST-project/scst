@@ -30,8 +30,9 @@
 #error RHEL 6 is no longer supported. Please upgrade to RHEL 7 or later.
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 10, 0)
-#error SCST does not support kernels older than 3.10.0.
+#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 7)
+#error SCST requires Linux 3.18 or later, except for supported RHEL 7 kernels.
 #endif
 
 #include <linux/bio.h>
