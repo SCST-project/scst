@@ -45,6 +45,7 @@
 #include <linux/debugfs.h>
 #include <linux/dmapool.h>
 #include <linux/eventpoll.h>
+#include <linux/highmem.h>
 #include <linux/iocontext.h>
 #include <linux/jiffies.h>
 #include <linux/kobject_ns.h>
@@ -742,6 +743,25 @@ kernel_write_backport(struct file *file, const void *buf, size_t count,
 }
 
 #define kernel_write kernel_write_backport
+#endif
+
+/* <linux/highmem.h> */
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 11, 0) && \
+	(!defined(RHEL_RELEASE_CODE) || \
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(8, 6))
+/*
+ * See also commit f3ba3c710ac5 ("mm/highmem: Provide kmap_local*") # v5.11.
+ */
+static inline void *kmap_local_page(struct page *page)
+{
+	return kmap_atomic(page);
+}
+
+static inline void kunmap_local(const void *addr)
+{
+	kunmap_atomic((void *)addr);
+}
 #endif
 
 /* <linux/iocontext.h> */
