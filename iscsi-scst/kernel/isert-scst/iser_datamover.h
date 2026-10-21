@@ -70,7 +70,6 @@ int isert_send_data_in(struct iscsi_cmnd *cmd, struct iscsi_cmnd *rsp);
 int isert_send_status(struct iscsi_cmnd *rsp);
 
 int isert_close_connection(struct iscsi_conn *iscsi_conn);
-int isert_task_abort(struct iscsi_cmnd *cmnd);
 void isert_free_connection(struct iscsi_conn *iscsi_conn);
 
 void isert_release_tx_pdu(struct iscsi_cmnd *iscsi_pdu);
@@ -82,7 +81,6 @@ int isert_conn_established(struct iscsi_conn *iscsi_conn,
 int isert_login_req_rx(struct iscsi_cmnd *login_req);
 int isert_pdu_rx(struct iscsi_cmnd *pdu);
 int isert_data_out_ready(struct iscsi_cmnd *cmd);
-int isert_data_in_sent(struct iscsi_cmnd *cmd);
 int isert_pdu_sent(struct iscsi_cmnd *pdu);
 void isert_pdu_err(struct iscsi_cmnd *pdu);
 

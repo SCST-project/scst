@@ -438,7 +438,6 @@ static void isert_dev_disconnect(struct iscsi_conn *iscsi_conn)
 		dev->state = CS_DISCONNECTED;
 		dev->conn = NULL;
 		if (dev->login_req) {
-			isert_task_abort(dev->login_req);
 			spin_lock(&dev->pdu_lock);
 			dev->login_req = NULL;
 			spin_unlock(&dev->pdu_lock);
