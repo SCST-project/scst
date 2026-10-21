@@ -30,6 +30,7 @@
 #define CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
 #define CONFIG_SCST_NO_TOTAL_MEM_CHECKS
 
+#include <linux/bitops.h>
 #include <linux/types.h>
 #include <linux/kref.h>
 #ifndef INSIDE_KERNEL_TREE
@@ -1828,7 +1829,7 @@ struct scst_session {
 	 * tgt_dev_list_mutex. Modifying is only allowed when holding
 	 * tgt_dev_list_mutex.
 	 */
-#define	SESS_TGT_DEV_LIST_HASH_SIZE (1 << 5)
+#define	SESS_TGT_DEV_LIST_HASH_SIZE BIT(5)
 #define	SESS_TGT_DEV_LIST_HASH_FN(val) ((val) & (SESS_TGT_DEV_LIST_HASH_SIZE - 1))
 	struct list_head sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_SIZE];
 

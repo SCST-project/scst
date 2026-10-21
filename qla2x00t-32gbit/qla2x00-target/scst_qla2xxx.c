@@ -107,7 +107,7 @@ static ssize_t sqa_version_show(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf);
 
 static struct kobj_attribute sqa_version_attr =
-	__ATTR(version, S_IRUGO, sqa_version_show, NULL);
+	__ATTR(version, 0444, sqa_version_show, NULL);
 
 static const struct attribute *sqa_attrs[] = {
 	&sqa_version_attr.attr,
@@ -122,7 +122,7 @@ static ssize_t sqa_store_expl_conf_enabled(struct kobject *kobj,
 					   const char *buffer, size_t size);
 
 static struct kobj_attribute sqa_expl_conf_attr =
-	__ATTR(explicit_confirmation, S_IRUGO|S_IWUSR,
+	__ATTR(explicit_confirmation, 0644,
 	       sqa_show_expl_conf_enabled, sqa_store_expl_conf_enabled);
 
 static ssize_t sqa_abort_isp_store(struct kobject *kobj,
@@ -130,20 +130,20 @@ static ssize_t sqa_abort_isp_store(struct kobject *kobj,
 				   const char *buffer, size_t size);
 
 static struct kobj_attribute sqa_abort_isp_attr =
-	__ATTR(abort_isp, S_IWUSR, NULL, sqa_abort_isp_store);
+	__ATTR(abort_isp, 0200, NULL, sqa_abort_isp_store);
 
 static ssize_t sqa_hw_target_show(struct kobject *kobj,
 				  struct kobj_attribute *attr, char *buf);
 
 static struct kobj_attribute sqa_hw_target_attr =
-	__ATTR(hw_target, S_IRUGO, sqa_hw_target_show, NULL);
+	__ATTR(hw_target, 0444, sqa_hw_target_show, NULL);
 
 static ssize_t sqa_node_name_show(struct kobject *kobj,
 				  struct kobj_attribute *attr, char *buf);
 
 #if EXCLUDED
 static struct kobj_attribute sqa_vp_node_name_attr =
-	__ATTR(node_name, S_IRUGO, sqa_node_name_show, NULL);
+	__ATTR(node_name, 0444, sqa_node_name_show, NULL);
 #endif
 
 static ssize_t sqa_node_name_store(struct kobject *kobj,
@@ -151,7 +151,7 @@ static ssize_t sqa_node_name_store(struct kobject *kobj,
 				   const char *buffer, size_t size);
 
 static struct kobj_attribute sqa_hw_node_name_attr =
-	__ATTR(node_name, S_IRUGO|S_IWUSR, sqa_node_name_show,
+	__ATTR(node_name, 0644, sqa_node_name_show,
 	       sqa_node_name_store);
 
 #if EXCLUDED
@@ -159,7 +159,7 @@ static ssize_t sqa_vp_parent_host_show(struct kobject *kobj,
 				       struct kobj_attribute *attr, char *buf);
 
 static struct kobj_attribute sqa_vp_parent_host_attr =
-	__ATTR(parent_host, S_IRUGO, sqa_vp_parent_host_show, NULL);
+	__ATTR(parent_host, 0444, sqa_vp_parent_host_show, NULL);
 #endif
 
 static const struct attribute *sqa_tgt_attrs[] = {

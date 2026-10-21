@@ -967,16 +967,16 @@ int main(int argc, char **argv)
 	}
 
 	err = kernel_attr_add(NULL, ISCSI_ISNS_SERVER_ATTR_NAME,
-			S_IRUSR|S_IRGRP|S_IROTH|S_IWUSR, 0);
+			0644, 0);
 	if (err != 0)
 		exit(err);
 
 	err = kernel_attr_add(NULL, ISCSI_ENABLED_ATTR_NAME,
-			S_IRUSR|S_IRGRP|S_IROTH|S_IWUSR, 0);
+			0644, 0);
 	if (err != 0)
 		exit(err);
 	err = kernel_attr_add(NULL, ISCSI_ISNS_ENTITY_ATTR_NAME,
-			S_IRUSR|S_IRGRP|S_IROTH|S_IWUSR, 0);
+			0644, 0);
 	if (err != 0)
 		exit(err);
 	err = kernel_attr_add(NULL, ISCSI_LINK_LOCAL_ATTR_NAME, 0644, 0);
