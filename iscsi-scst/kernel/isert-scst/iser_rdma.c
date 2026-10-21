@@ -75,7 +75,7 @@ int isert_post_recv(struct isert_conn *isert_conn,
 		    int num_wr)
 {
 	struct ib_recv_wr *first_ib_wr = &first_wr->recv_wr;
-	BAD_WR_MODIFIER struct ib_recv_wr *bad_wr;
+	struct ib_recv_wr BAD_WR_MODIFIER *bad_wr;
 	int num_posted;
 	int err;
 

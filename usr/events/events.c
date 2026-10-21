@@ -56,7 +56,7 @@ bool log_daemon; /* needed for the tracing infrastructure */
 unsigned long trace_flag = DEFAULT_LOG_FLAGS;
 #endif /* defined(DEBUG) || defined(TRACING) */
 
-static struct option const long_options[] = {
+static const struct option long_options[] = {
 	{"allowed_event", required_argument, 0, 'e'},
 	{"allowed_issuer", required_argument, 0, 'i'},
 	{"non_blocking", no_argument, 0, 'n'},
