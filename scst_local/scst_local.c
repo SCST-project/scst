@@ -50,7 +50,7 @@ static inline u32 blk_mq_unique_tag(struct request *rq)
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
 #warning HIGHMEM kernel configurations are not supported by this module, \
 because nowadays it is not worth the effort. Consider changing \
-VMSPLIT option or use a 64-bit configuration instead. See SCST core \
+VMSPLIT option or use a 64 - bit configuration instead. See SCST core \
 README file for details.
 #endif
 #endif
@@ -915,7 +915,7 @@ static enum scsi_qc_status scst_local_queuecommand(struct Scsi_Host *host, struc
 	if (scsi_bidi_cmnd(scmd)) {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 1, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(8, 3))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(8, 3))
 		dir = SCST_DATA_BIDI;
 		scst_cmd_set_expected(scst_cmd, dir, scsi_bufflen(scmd));
 		scst_cmd_set_expected_out_transfer_len(scst_cmd, scsi_in(scmd)->length);
@@ -1038,7 +1038,7 @@ out:
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 6))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 6))
 static int scst_local_slave_alloc(struct scsi_device *sdev)
 {
 	struct request_queue *q = sdev->request_queue;
@@ -1065,7 +1065,7 @@ static int scst_local_slave_alloc(struct scsi_device *sdev)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 1))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(10, 1))
 static int scst_local_slave_configure(struct scsi_device *sdev)
 #else
 static int scst_local_sdev_configure(struct scsi_device *sdev, struct queue_limits *lim)
@@ -1385,14 +1385,14 @@ static const struct scsi_host_template scst_lcl_ini_driver_template = {
 	.change_queue_depth		= scst_local_change_queue_depth,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 10, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 6))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 6))
 	.slave_alloc			= scst_local_slave_alloc,
 #else
 	.dma_alignment			= (4096 - 1),
 #endif
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 14, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(10, 1))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(10, 1))
 	.slave_configure		= scst_local_slave_configure,
 #else
 	.sdev_configure			= scst_local_sdev_configure,
@@ -1478,7 +1478,7 @@ out:
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 2))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 2))
 #define DRIVER_REMOVE_RET int
 #else
 #define DRIVER_REMOVE_RET void
@@ -1506,7 +1506,7 @@ static DRIVER_REMOVE_RET scst_local_driver_remove(struct device *dev)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 8))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 8))
 static int scst_local_bus_match(struct device *dev, struct device_driver *drv)
 #else
 static int scst_local_bus_match(struct device *dev, const struct device_driver *drv)

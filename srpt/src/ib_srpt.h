@@ -111,7 +111,6 @@ struct srp_login_req_rdma_v2 {
 	u8	reserved[6];
 };
 
-
 #define srp_login_req srp_login_req_v2
 #define srp_login_req_rdma srp_login_req_rdma_v2
 #endif

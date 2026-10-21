@@ -140,7 +140,8 @@ static void trace_conn_close(struct iscsi_conn *conn)
 	list_for_each_entry(cmnd, &conn->cmd_list, cmd_list_entry) {
 		TRACE_CONN_CLOSE_DBG("cmd %p, scst_cmd %p, scst_state %x, scst_cmd state %d, r2t_len_to_receive %d, ref_cnt %d, sn %u, parent_req %p, pending %d",
 				     cmnd, cmnd->scst_cmd, cmnd->scst_state,
-				     !cmnd->parent_req && cmnd->scst_cmd ? cmnd->scst_cmd->state : -1,
+				     !cmnd->parent_req && cmnd->scst_cmd ?
+				     cmnd->scst_cmd->state : -1,
 				     cmnd->r2t_len_to_receive, atomic_read(&cmnd->ref_cnt),
 				     cmnd->pdu.bhs.sn, cmnd->parent_req, cmnd->pending);
 	}
@@ -625,7 +626,7 @@ static int iscsi_rx_check_ddigest(struct iscsi_conn *conn)
 								   false);
 				} else {
 					set_scst_preliminary_status_rsp(orig_req, false,
-							SCST_LOAD_SENSE(iscsi_sense_crc_error));
+									SCST_LOAD_SENSE(iscsi_sense_crc_error));
 					/*
 					 * Let's prelim complete cmnd too to
 					 * handle the DATA OUT case
