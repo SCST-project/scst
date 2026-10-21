@@ -751,11 +751,11 @@ static void srpt_unregister_mad_agent(struct srpt_device *sdev)
 	struct ib_port_modify port_modify = {
 		.clr_port_cap_mask = IB_PORT_DEVICE_MGMT_SUP,
 	};
-	struct srpt_port *sport;
 	int i;
 
 	for (i = 1; i <= sdev->device->phys_port_cnt; i++) {
-		sport = &sdev->port[i - 1];
+		struct srpt_port *sport = &sdev->port[i - 1];
+
 		WARN_ON(sport->port != i);
 		if (ib_modify_port(sdev->device, i, 0, &port_modify) < 0)
 			pr_err("disabling MAD processing failed.\n");
@@ -1628,7 +1628,7 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 {
 	struct scst_cmd *cmd = &ioctx->cmd;
 	struct srp_rsp *srp_rsp;
-	int resid, max_sense_len;
+	int resid;
 
 	/*
 	 * The lowest bit of all SAM-3 status codes is zero (see also
@@ -1665,6 +1665,8 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 	if (!scst_sense_valid(sense_data)) {
 		sense_data_len = 0;
 	} else {
+		int max_sense_len;
+
 		BUILD_BUG_ON(sizeof(*srp_rsp) >= MIN_MAX_RSP_SIZE);
 		max_sense_len = ch->max_ti_iu_len - sizeof(*srp_rsp);
 		if (sense_data_len > max_sense_len) {
@@ -2948,12 +2950,13 @@ static void srpt_cm_rej_recv(struct srpt_rdma_ch *ch,
 			     u8 private_data_len)
 {
 	char *priv = NULL;
-	int i;
 
 	if (private_data_len) {
 		priv = kmalloc(private_data_len * 3 + 1, GFP_KERNEL);
 
 		if (priv) {
+			int i;
+
 			for (i = 0; i < private_data_len; i++)
 				sprintf(priv + 3 * i, " %02x", private_data[i]);
 		}
@@ -2968,8 +2971,6 @@ static void srpt_check_timeout(struct srpt_rdma_ch *ch)
 {
 	struct ib_qp_attr attr;
 	struct ib_qp_init_attr iattr;
-	uint64_t T_tr_ns, max_compl_time_ms;
-	uint64_t T_tr_ms;
 
 	if (ib_query_qp(ch->qp, &attr, IB_QP_TIMEOUT, &iattr) < 0) {
 		pr_err("Querying QP attributes failed\n");
@@ -2983,6 +2984,9 @@ static void srpt_check_timeout(struct srpt_rdma_ch *ch)
 	 */
 	WARN_ON(attr.timeout >= (1 << 5));
 	if (attr.timeout) {
+		u64 T_tr_ns, max_compl_time_ms;
+		u64 T_tr_ms;
+
 		T_tr_ns = 1ULL << (12 + attr.timeout);
 		max_compl_time_ms = attr.retry_cnt * 4 * T_tr_ns;
 		do_div(max_compl_time_ms, 1000000);
@@ -3339,9 +3343,6 @@ free_mem:
 static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				    struct srpt_send_ioctx *ioctx)
 {
-	struct scatterlist *sg;
-	scst_data_direction dir;
-
 	EXTRACHECKS_BUG_ON(!ch);
 	EXTRACHECKS_BUG_ON(!ioctx);
 
@@ -3356,6 +3357,9 @@ static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 	ioctx->n_rdma = 0;
 
 	if (ioctx->mapped_sg_count) {
+		struct scatterlist *sg;
+		scst_data_direction dir;
+
 		EXTRACHECKS_WARN_ON(ioctx
 				    != scst_cmd_get_tgt_priv(&ioctx->cmd));
 		sg = ioctx->sg;
@@ -3739,7 +3743,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 {
 	struct srpt_rdma_ch *ch;
 	struct srpt_send_ioctx *ioctx;
-	int rsp_len;
+	int rsp_len, status;
 
 	ioctx = scst_mgmt_cmd_get_tgt_priv(mcmnd);
 	BUG_ON(!ioctx);
@@ -3756,8 +3760,9 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 	WARN_ON(ioctx->state == SRPT_STATE_DONE);
 
 	ioctx->req_lim_delta = srpt_inc_req_lim(ch);
+	status = scst_mgmt_cmd_get_status(mcmnd);
 	rsp_len = srpt_build_tskmgmt_rsp(ch, ioctx,
-					 scst_to_srp_tsk_mgmt_status(scst_mgmt_cmd_get_status(mcmnd)),
+					 scst_to_srp_tsk_mgmt_status(status),
 					 ioctx->tsk_mgmt.tag);
 	/*
 	 * Note: the srpt_post_send() call below sends the task management

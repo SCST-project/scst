@@ -98,7 +98,6 @@ size_t qlt_del_vtarget(u64 port_name)
 {
 	struct qla_tgt *tgt, *t;
 	scsi_qla_host_t *vha = NULL;
-	struct Scsi_Host *shost;
 	struct fc_host_attrs *fc_host;
 	struct fc_vport *vport;
 	unsigned long flags;
@@ -107,6 +106,8 @@ size_t qlt_del_vtarget(u64 port_name)
 	pr_info("%s: %llx", __func__, port_name);
 	mutex_lock(&qla_tgt_mutex);
 	list_for_each_entry_safe(tgt, t, &qla_tgt_glist, tgt_list_entry) {
+		struct Scsi_Host *shost;
+
 		vha = tgt->vha;
 		shost = vha->host;
 		fc_host = shost_to_fc_host(shost);

@@ -143,13 +143,14 @@ static inline int isert_pdu_prepare_send(struct isert_conn *isert_conn, struct i
 {
 	struct isert_device *isert_dev = isert_conn->isert_dev;
 	struct ib_sge *sge = tx_pdu->wr[0].sge_list;
-	size_t to_sync, size;
+	size_t size;
 	int sg_cnt = 0;
 
 	size = ISER_HDRS_SZ + tx_pdu->iscsi.pdu.ahssize +
 		tx_pdu->iscsi.pdu.datasize;
 	while (size) {
-		to_sync = size > PAGE_SIZE ? PAGE_SIZE : size;
+		size_t to_sync = size > PAGE_SIZE ? PAGE_SIZE : size;
+
 		ib_dma_sync_single_for_device(isert_dev->ib_dev, sge->addr,
 					      to_sync,
 					      DMA_TO_DEVICE);
