@@ -49,7 +49,7 @@ static inline void netlink_ack_backport(struct sk_buff *in_skb,
 static struct sock *nl;
 static u32 iscsid_pid;
 
-static int event_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
+static void event_recv_msg(struct sk_buff *skb)
 {
 	u32 pid;
 
@@ -57,13 +57,10 @@ static int event_recv_msg(struct sk_buff *skb, struct nlmsghdr *nlh)
 	WARN_ON(pid == 0);
 
 	iscsid_pid = pid;
-
-	return 0;
 }
 
 static void event_recv_skb(struct sk_buff *skb)
 {
-	int err;
 	struct nlmsghdr	*nlh;
 	u32 rlen;
 
@@ -74,10 +71,8 @@ static void event_recv_skb(struct sk_buff *skb)
 		rlen = NLMSG_ALIGN(nlh->nlmsg_len);
 		if (rlen > skb->len)
 			rlen = skb->len;
-		err = event_recv_msg(skb, nlh);
-		if (err)
-			netlink_ack(skb, nlh, -err, NULL);
-		else if (nlh->nlmsg_flags & NLM_F_ACK)
+		event_recv_msg(skb);
+		if (nlh->nlmsg_flags & NLM_F_ACK)
 			netlink_ack(skb, nlh, 0, NULL);
 		skb_pull(skb, rlen);
 	}

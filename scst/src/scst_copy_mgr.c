@@ -1584,7 +1584,6 @@ out:
 
 enum scst_exec_res scst_cm_ext_copy_exec(struct scst_cmd *ec_cmd)
 {
-	enum scst_exec_res res = SCST_EXEC_COMPLETED;
 	int rc;
 	struct scst_cm_ec_cmd_priv *priv = ec_cmd->cmd_data_descriptors;
 
@@ -1606,7 +1605,7 @@ enum scst_exec_res scst_cm_ext_copy_exec(struct scst_cmd *ec_cmd)
 
 out:
 	TRACE_EXIT();
-	return res;
+	return SCST_EXEC_COMPLETED;
 
 out_local_done:
 	ec_cmd->completed = 1; /* for success */

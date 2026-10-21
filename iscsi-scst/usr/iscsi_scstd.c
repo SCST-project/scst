@@ -319,7 +319,7 @@ static int iser_getsockname(int fd, struct sockaddr *name, socklen_t *namelen)
 	memcpy(name, &addr.addr, addr.addr_len);
 	*namelen = addr.addr_len;
 
-	return ret;
+	return 0;
 }
 
 static int iser_is_discovery(int fd)
