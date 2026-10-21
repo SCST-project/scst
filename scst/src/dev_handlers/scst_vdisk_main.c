@@ -9875,7 +9875,7 @@ static void init_ops(vdisk_op_fn *ops, int count)
 			ops[i] = vdisk_invalid_opcode;
 }
 
-static int __init vdev_check_mode_pages_path(void)
+static void __init vdev_check_mode_pages_path(void)
 {
 	int res;
 	struct path path;
@@ -9891,10 +9891,7 @@ static int __init vdev_check_mode_pages_path(void)
 		vdev_saved_mode_pages_enabled = false;
 	}
 
-	res = 0; /* always succeed */
-
-	TRACE_EXIT_RES(res);
-	return res;
+	TRACE_EXIT();
 }
 
 #define SHARED_OPS							\
@@ -10016,9 +10013,7 @@ static int __init init_scst_vdisk_driver(void)
 	init_ops(blockio_ops, ARRAY_SIZE(blockio_ops));
 	init_ops(nullio_ops, ARRAY_SIZE(nullio_ops));
 
-	res = vdev_check_mode_pages_path();
-	if (res != 0)
-		goto out;
+	vdev_check_mode_pages_path();
 
 	vdisk_cmd_param_cachep = KMEM_CACHE(vdisk_cmd_params,
 					    SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN);
