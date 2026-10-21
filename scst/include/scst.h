@@ -3314,7 +3314,7 @@ struct scst_acg {
  * leaks, so don't abuse this option!
  */
 #define SCST_ACG_BLACK_HOLE_DATA_MCMD	4
-	volatile int acg_black_hole_type;
+	int acg_black_hole_type;
 
 	/* sysfs release completion */
 	struct completion *acg_kobj_release_cmpl;

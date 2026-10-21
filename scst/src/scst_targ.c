@@ -1362,7 +1362,7 @@ out_check_compl:
 		struct scst_session *sess = cmd->sess;
 		bool abort = false;
 
-		switch (sess->acg->acg_black_hole_type) {
+		switch (READ_ONCE(sess->acg->acg_black_hole_type)) {
 		case SCST_ACG_BLACK_HOLE_CMD:
 		case SCST_ACG_BLACK_HOLE_ALL:
 			abort = true;
@@ -7019,7 +7019,7 @@ static int scst_init_session(struct scst_session *sess)
 	mutex_lock(&scst_mutex);
 
 	sess->acg = scst_find_acg(sess);
-	WRITE_ONCE(sess->black_hole_type, sess->acg->acg_black_hole_type);
+	WRITE_ONCE(sess->black_hole_type, READ_ONCE(sess->acg->acg_black_hole_type));
 
 	PRINT_INFO("Using security group \"%s\" for initiator \"%s\" (target %s)",
 		   sess->acg->acg_name, sess->initiator_name, sess->tgt->tgt_name);

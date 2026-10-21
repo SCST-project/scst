@@ -1754,7 +1754,7 @@ static struct kobj_attribute scst_tgt_io_grouping_type =
 
 static ssize_t __scst_acg_black_hole_show(struct scst_acg *acg, char *buf)
 {
-	int t = acg->acg_black_hole_type;
+	int t = READ_ONCE(acg->acg_black_hole_type);
 
 	return sysfs_emit(buf, "%d\n", t);
 }
@@ -1772,7 +1772,7 @@ ssize_t __scst_acg_black_hole_store(struct scst_acg *acg, const char *buf, size_
 	}
 
 	mutex_lock(&scst_mutex);
-	prev = acg->acg_black_hole_type;
+	prev = READ_ONCE(acg->acg_black_hole_type);
 
 	BUILD_BUG_ON((SCST_ACG_BLACK_HOLE_NONE != 0) ||
 		     (SCST_ACG_BLACK_HOLE_CMD != 1) ||
@@ -1781,19 +1781,19 @@ ssize_t __scst_acg_black_hole_store(struct scst_acg *acg, const char *buf, size_
 		     (SCST_ACG_BLACK_HOLE_DATA_MCMD != 4));
 	switch (buf[0]) {
 	case '0':
-		acg->acg_black_hole_type = SCST_ACG_BLACK_HOLE_NONE;
+		WRITE_ONCE(acg->acg_black_hole_type, SCST_ACG_BLACK_HOLE_NONE);
 		break;
 	case '1':
-		acg->acg_black_hole_type = SCST_ACG_BLACK_HOLE_CMD;
+		WRITE_ONCE(acg->acg_black_hole_type, SCST_ACG_BLACK_HOLE_CMD);
 		break;
 	case '2':
-		acg->acg_black_hole_type = SCST_ACG_BLACK_HOLE_ALL;
+		WRITE_ONCE(acg->acg_black_hole_type, SCST_ACG_BLACK_HOLE_ALL);
 		break;
 	case '3':
-		acg->acg_black_hole_type = SCST_ACG_BLACK_HOLE_DATA_CMD;
+		WRITE_ONCE(acg->acg_black_hole_type, SCST_ACG_BLACK_HOLE_DATA_CMD);
 		break;
 	case '4':
-		acg->acg_black_hole_type = SCST_ACG_BLACK_HOLE_DATA_MCMD;
+		WRITE_ONCE(acg->acg_black_hole_type, SCST_ACG_BLACK_HOLE_DATA_MCMD);
 		break;
 	default:
 		PRINT_ERROR("%s: Requested action not understood: %s",
@@ -1802,7 +1802,7 @@ ssize_t __scst_acg_black_hole_store(struct scst_acg *acg, const char *buf, size_
 		goto out_unlock;
 	}
 
-	t = acg->acg_black_hole_type;
+	t = READ_ONCE(acg->acg_black_hole_type);
 
 	if (prev == t)
 		goto out_unlock;
