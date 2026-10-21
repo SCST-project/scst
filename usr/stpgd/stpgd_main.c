@@ -51,7 +51,7 @@ char *app_name;
 unsigned long trace_flag = DEFAULT_LOG_FLAGS;
 #endif /* defined(DEBUG) || defined(TRACING) */
 
-#define ARRAY_SIZE(x) (sizeof(x)/sizeof(x[0]))
+#define ARRAY_SIZE(x) (sizeof(x)/sizeof((x)[0]))
 
 bool log_daemon = true;
 int transition_timeout = DEFAULT_TRANSITION_TIME;

@@ -17,9 +17,9 @@
 #include "sha1.h"
 
 /* SHA1 transforms */
-#define F1(x, y, z)   (z ^ (x & (y ^ z)))		/* x ? y : z */
-#define F2(x, y, z)   (x ^ y ^ z)			/* XOR */
-#define F3(x, y, z)   ((x & y) + (z & (x ^ y)))	/* majority */
+#define F1(x, y, z)   ((z) ^ ((x) & ((y) ^ (z))))		/* x ? y : z */
+#define F2(x, y, z)   ((x) ^ (y) ^ (z))			/* XOR */
+#define F3(x, y, z)   (((x) & (y)) + ((z) & ((x) ^ (y))))	/* majority */
 
 /* SHA1 per-round constants */
 #define K1  0x5A827999UL		/* Rounds  0-19: sqrt(2) * 2^30 */

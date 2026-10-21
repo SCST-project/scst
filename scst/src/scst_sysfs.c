@@ -4835,7 +4835,7 @@ static ssize_t scst_sess_sysfs_##exported_name##_show(struct kobject *kobj,			\
 	BUILD_BUG_ON(SCST_DATA_BIDI != 3);							\
 	BUILD_BUG_ON(SCST_DATA_NONE != 4);							\
 												\
-	BUILD_BUG_ON(dir >= SCST_DATA_DIR_MAX);							\
+	BUILD_BUG_ON((dir) >= SCST_DATA_DIR_MAX);							\
 												\
 	sess = container_of(kobj, struct scst_session, sess_kobj);				\
 	v = sess->io_stats[dir].name;								\
@@ -4851,7 +4851,7 @@ static ssize_t scst_sess_sysfs_##exported_name##_store(struct kobject *kobj,			\
 	struct scst_session *sess;								\
 	sess = container_of(kobj, struct scst_session, sess_kobj);				\
 	spin_lock_irq(&sess->sess_list_lock);							\
-	BUILD_BUG_ON(dir >= SCST_DATA_DIR_MAX);							\
+	BUILD_BUG_ON((dir) >= SCST_DATA_DIR_MAX);							\
 	sess->io_stats[dir].cmd_count = 0;							\
 	sess->io_stats[dir].io_byte_count = 0;							\
 	sess->io_stats[dir].unaligned_cmd_count = 0;						\
