@@ -314,6 +314,7 @@ scst/src/scst_copy_mgr.c scst/src/scst_dlm.c scst/src/scst_dlm.h \
 scst/src/scst_event.c scst/src/scst_event_priv.h scst/src/scst_no_dlm.c \
 scst/src/scst_test.h \
 scst/src/scst_event_test.h \
+scst/src/scst_dlm_test.h \
 scst/src/scst_copy_mgr_test.h"
 scst_05_targ="scst/src/scst_targ.c scst/src/scst_local_cmd.c \
 scst/src/scst_local_cmd.h \

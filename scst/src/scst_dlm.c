@@ -29,6 +29,7 @@
 #include "scst_priv.h"
 #include "scst_pres.h"
 #include "scst_dlm.h"
+#include "scst_dlm_test.h"
 
 #if (defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE)) && \
 	!defined(CONFIG_SCST_NO_DLM)
@@ -744,43 +745,59 @@ out:
 #endif
 }
 
-/*
- * scst_dlm_update_nodeids - Update the Corosync node ID array pr_dlm->nodeid[]
- */
-static int scst_dlm_update_nodeids(struct scst_pr_dlm_data *pr_dlm)
+static const char scst_dlm_comms_dir[] = "/sys/kernel/config/dlm/cluster/comms";
+
+/* The caller owns *entries even when reading the directory fails. */
+SCST_KUNIT_VISIBLE
+int scst_dlm_read_nodeids(char **entries)
 {
-	static const char comms_dir[] = "/sys/kernel/config/dlm/cluster/comms";
 	struct file *comms;
-	char *p, *entries = kzalloc(1, GFP_KERNEL);
-	unsigned long nodeid;
-	uint32_t *new;
-	int i, ret, num_nodes;
-	char path[256], buf[64];
+	int ret;
 
-	lockdep_assert_held(&pr_dlm->ls_mutex);
+	SCST_KUNIT_REDIRECT(scst_dlm_read_nodeids, entries);
 
-	num_nodes = 0;
+	*entries = kzalloc(1, GFP_KERNEL);
+	if (!*entries)
+		return -ENOMEM;
 
-	comms = filp_open(comms_dir, 0, 0400);
-	if (IS_ERR(comms)) {
-		ret = PTR_ERR(comms);
-		goto out;
-	}
+	comms = filp_open(scst_dlm_comms_dir, 0, 0400);
+	if (IS_ERR(comms))
+		return PTR_ERR(comms);
 #ifndef HAVE_ITERATE_DIR
-	ret = vfs_readdir(comms, scst_dlm_filldir, &entries);
+	ret = vfs_readdir(comms, scst_dlm_filldir, entries);
 #else
 	{
 		struct scst_dlm_readdir_context ctx = {
 			.ctx = {
 				.actor = scst_dlm_filldir,
 			},
-			.entries = entries,
+			.entries = *entries,
 		};
 		ret = iterate_dir(comms, &ctx.ctx);
-		entries = ctx.entries;
+		*entries = ctx.entries;
 	}
 #endif
 	filp_close(comms, NULL);
+	return ret;
+}
+
+/*
+ * scst_dlm_update_nodeids - Update the Corosync node ID array pr_dlm->nodeid[]
+ */
+SCST_KUNIT_VISIBLE
+int scst_dlm_update_nodeids(struct scst_pr_dlm_data *pr_dlm)
+{
+	char *p, *entries = NULL;
+	unsigned long nodeid;
+	u32 *new;
+	int i, ret, num_nodes = 0;
+	char path[256], buf[64];
+
+	lockdep_assert_held(&pr_dlm->ls_mutex);
+
+	ret = scst_dlm_read_nodeids(&entries);
+	if (ret < 0)
+		goto out;
 	ret = -ENOMEM;
 	if (!entries)
 		goto out;
@@ -796,7 +813,7 @@ static int scst_dlm_update_nodeids(struct scst_pr_dlm_data *pr_dlm)
 		ret = kstrtoul(p, 0, &nodeid);
 		if (WARN_ON_ONCE(ret < 0))
 			continue;
-		snprintf(path, sizeof(path), "%s/%s/local", comms_dir, p);
+		snprintf(path, sizeof(path), "%s/%s/local", scst_dlm_comms_dir, p);
 		if (scst_read_file(path, buf, sizeof(buf)) >= 0 &&
 		    strcmp(buf, "1\n") == 0)
 			pr_dlm->local_nodeid = nodeid;

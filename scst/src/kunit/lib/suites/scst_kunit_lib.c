@@ -8,6 +8,8 @@
 #endif
 
 #include "../../../scst_lib_test.h"
+#include "../../../scst_dlm.h"
+#include "../../../scst_dlm_test.h"
 
 struct scst_port_id_fixture {
 	unsigned int free_id;
@@ -137,7 +139,69 @@ static void scst_empty_explicit_sg_buffers(struct kunit *test)
 	KUNIT_EXPECT_NULL(test, buf);
 }
 
+#if (defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE)) && !defined(CONFIG_SCST_NO_DLM)
+static int scst_dlm_read_nodeids_error(char **entries)
+{
+	struct kunit *test = kunit_get_current_test();
+	const int *error = test->priv;
+
+	/* An empty partial result must not replace an established membership. */
+	*entries = *error == -ENOMEM ? NULL : kzalloc(1, GFP_KERNEL);
+	KUNIT_EXPECT_TRUE(test, *error == -ENOMEM || *entries);
+	return *error;
+}
+
+static void scst_dlm_directory_error_preserves_membership(struct kunit *test)
+{
+	static const int errors[] = { -EIO, -EACCES, -ENOMEM };
+	struct scst_pr_dlm_data *dlm;
+	u32 *nodeids;
+	unsigned int i;
+	int error;
+
+	dlm = kunit_kzalloc(test, sizeof(*dlm), GFP_KERNEL);
+	KUNIT_ASSERT_NOT_NULL(test, dlm);
+	mutex_init(&dlm->ls_mutex);
+	kunit_activate_static_stub(test, scst_dlm_read_nodeids, scst_dlm_read_nodeids_error);
+	for (i = 0; i < ARRAY_SIZE(errors); i++) {
+		int ret;
+
+		/* The production update owns and may reallocate this array. */
+		nodeids = kmalloc_array(2, sizeof(*nodeids), GFP_KERNEL);
+		KUNIT_ASSERT_NOT_NULL(test, nodeids);
+		nodeids[0] = 17;
+		nodeids[1] = 23;
+		dlm->nodeid = nodeids;
+		dlm->participants = 2;
+		dlm->local_nodeid = 17;
+		error = errors[i];
+		test->priv = &error;
+
+		mutex_lock(&dlm->ls_mutex);
+		ret = scst_dlm_update_nodeids(dlm);
+		mutex_unlock(&dlm->ls_mutex);
+		KUNIT_EXPECT_EQ(test, ret, errors[i]);
+		KUNIT_EXPECT_PTR_EQ(test, dlm->nodeid, nodeids);
+		KUNIT_EXPECT_EQ(test, dlm->participants, 2);
+		KUNIT_EXPECT_EQ(test, dlm->local_nodeid, 17U);
+		if (dlm->nodeid == nodeids) {
+			KUNIT_EXPECT_EQ(test, nodeids[0], 17U);
+			KUNIT_EXPECT_EQ(test, nodeids[1], 23U);
+		}
+		/* Also tolerate the old bug freeing/replacing nodeids. */
+		kfree(dlm->nodeid);
+		dlm->nodeid = NULL;
+	}
+	kunit_deactivate_static_stub(test, scst_dlm_read_nodeids);
+	test->priv = NULL;
+	mutex_destroy(&dlm->ls_mutex);
+}
+#endif
+
 static struct kunit_case scst_lib_cases[] = {
+#if (defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE)) && !defined(CONFIG_SCST_NO_DLM)
+	KUNIT_CASE(scst_dlm_directory_error_preserves_membership),
+#endif
 	KUNIT_CASE(scst_port_id_boundaries),
 	KUNIT_CASE(scst_lun_flat_encoding),
 	KUNIT_CASE(scst_explicit_sg_buffers),
