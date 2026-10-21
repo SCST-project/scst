@@ -9,6 +9,7 @@ For GitHub Actions, see [CI](CI.md).
 ## Requirements
 
 Build against a configured and prepared kernel tree with `CONFIG_KUNIT=y/m`.
+The iSER test module also requires `CONFIG_INFINIBAND=y/m`.
 Run tests in a disposable VM: ordinary SCST initialization discovers SCSI devices.
 The runner requires Python 3.11+, kmod utilities, native KUnit autorun control,
 `CONFIG_DEBUG_FS=y`, `CONFIG_KUNIT_DEBUGFS=y`, and debugfs mounted at
@@ -68,7 +69,13 @@ files. Base labels come directly from suite registrations:
 | `scst_vdisk.ko` | `VDISK` |
 | `scst_user.ko` | `USER` |
 | `iscsi-scst.ko` | `ISCSI` |
+| `isert-scst.ko` | `ISER` |
 | `qla2x00tgt.ko` | `QLA` |
+
+`ISER` selects `scst-ISER-cq`, which tests CQ poll errors, batch sizes and
+completion ordering inside `isert-scst.ko` using private RDMA fixtures.
+No RDMA device is needed. Detecting out-of-bounds pointer formation on a
+negative poll result additionally requires kernel `CONFIG_UBSAN_BOUNDS=y`.
 
 `QLA` selects `scst-QLA-pool`, which tests the SCST-owned command/tag helpers inside
 `qla2x00tgt.ko`. The build and runner include its matching `qla2xxx_scst.ko`

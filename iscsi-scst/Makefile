@@ -144,16 +144,23 @@ mods: include/iscsi_scst_itf_ver.h $(CONFTEST_OUTPUTS)
 	echo "$@:  INFINIBAND_ENABLED = $(INFINIBAND_ENABLED)"
 	if $(INFINIBAND_ENABLED); then					\
 	  echo "  Building against $(OFED_FLAVOR) RDMA kernel headers.";\
-	  $(MAKE) -C $(KDIR) M=$(ISERTMOD) ISER_CFLAGS="$(ISER_CFLAGS)"	\
+	  $(MAKE) -C $(KDIR) M=$(ISERTMOD) $(SCST_KUNIT_FLAGS)		\
+	  ISER_CFLAGS="$(ISER_CFLAGS)"					\
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)")	\
 	  $(OFED_CONFIG) modules;					\
 	fi
 
 .PHONY: kunit-build
-kunit-build: include/iscsi_scst_itf_ver.h conftest/sock_recvmsg/result-$(KVER).txt
+kunit-build: include/iscsi_scst_itf_ver.h $(CONFTEST_OUTPUTS)
+	@if ! $(INFINIBAND_ENABLED); then \
+	  echo 'iSER KUnit tests require CONFIG_INFINIBAND=y or m' >&2; exit 1; \
+	fi
 	$(MAKE) -C $(KDIR) M=$(KMOD) $(SCST_KUNIT_FLAGS) \
 	  CONFTEST_CFLAGS="$(CONFTEST_CFLAGS)" \
 	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)") iscsi-scst.ko
+	$(MAKE) -C $(KDIR) M=$(ISERTMOD) $(SCST_KUNIT_FLAGS) \
+	  ISER_CFLAGS="$(ISER_CFLAGS)" $(OFED_CONFIG) \
+	  $(shell [ -n "$(PASS_CC_TO_MAKE)" ] && echo CC="$(CC)") isert-scst.ko
 
 progs: include/iscsi_scst_itf_ver.h
 	$(MAKE) -C usr

@@ -40,3 +40,6 @@ ccflags-y :=	-I$(src)/../../../scst/include		\
 obj-m		+= isert-scst.o
 isert-scst-objs	:= isert.o isert_login.o \
 		iser_datamover.o iser_rdma.o iser_buf.o iser_pdu.o iser_global.o
+
+scst-kunit-module := isert-scst
+include $(src)/../../../scst/src/kunit/Makefile

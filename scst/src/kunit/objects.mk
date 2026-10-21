@@ -23,6 +23,9 @@ scst-kunit-iscsi-scst := \
 	kunit/suites/iscsi_close_test.o \
 	kunit/suites/iscsi_tx_test.o
 
+scst-kunit-isert-scst := \
+	kunit/suites/iser_cq_test.o
+
 scst-kunit-qla2x00tgt := \
 	kunit/suites/scst_qla_pool_test.o
 

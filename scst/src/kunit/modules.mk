@@ -8,7 +8,8 @@ SCST_KUNIT_MODULES_scst := \
 	scst/src/dev_handlers/scst_user.ko
 
 SCST_KUNIT_MODULES_iscsi-scst := \
-	iscsi-scst/kernel/iscsi-scst.ko
+	iscsi-scst/kernel/iscsi-scst.ko \
+	iscsi-scst/kernel/isert-scst/isert-scst.ko
 
 SCST_KUNIT_MODULES_qla2x00t-32gbit/qla2x00-target := \
 	qla2x00t-32gbit/qla2xxx_scst.ko \
