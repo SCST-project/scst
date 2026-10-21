@@ -1122,7 +1122,7 @@ static int srpt_get_desc_tbl(struct srpt_recv_ioctx *recv_ioctx,
 		return 0;
 	} else if (fmt == SRP_DATA_DESC_INDIRECT) {
 		struct srp_indirect_buf *idb = srpt_get_desc_buf(srp_cmd);
-		struct srp_direct_buf *db;
+		const struct srp_direct_buf *db;
 
 		ioctx->n_rbuf = be32_to_cpu(idb->table_desc.len) / sizeof(*db);
 
@@ -1140,7 +1140,7 @@ static int srpt_get_desc_tbl(struct srpt_recv_ioctx *recv_ioctx,
 		if (ioctx->n_rbuf == 1) {
 			ioctx->rbufs = &ioctx->single_rbuf;
 		} else {
-			ioctx->rbufs = kmalloc_objs(*db, ioctx->n_rbuf,
+			ioctx->rbufs = kmalloc_objs(*ioctx->rbufs, ioctx->n_rbuf,
 						    GFP_ATOMIC);
 			if (!ioctx->rbufs) {
 				ioctx->n_rbuf = 0;
@@ -1464,7 +1464,7 @@ static void srpt_handle_send_err_comp(struct srpt_rdma_ch *ch, u64 wr_id,
 {
 	u32 index = idx_from_wr_id(wr_id);
 	struct srpt_send_ioctx *ioctx = ch->ioctx_ring[index];
-	struct scst_cmd *cmd = &ioctx->cmd;
+	const struct scst_cmd *cmd = &ioctx->cmd;
 	enum srpt_command_state state = ioctx->state;
 	int wr_avail_delta = 1;
 
@@ -1508,7 +1508,7 @@ static void srpt_handle_send_comp(struct srpt_rdma_ch *ch,
 				  struct srpt_send_ioctx *ioctx,
 				  enum scst_exec_context context)
 {
-	struct scst_cmd *cmd = &ioctx->cmd;
+	const struct scst_cmd *cmd = &ioctx->cmd;
 	int wr_avail_delta = 1;
 
 	switch (srpt_set_cmd_state(ioctx, SRPT_STATE_DONE)) {
@@ -1621,7 +1621,7 @@ static void srpt_handle_rdma_err_comp(struct srpt_rdma_ch *ch,
  * section 6.9 in the SRP r16a document for the format of an SRP_RSP
  * response. See also SPC-2 for more information about sense data.
  */
-static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
+static int srpt_build_cmd_rsp(const struct srpt_rdma_ch *ch,
 			      struct srpt_send_ioctx *ioctx, u64 tag,
 			      int status, const u8 *sense_data,
 			      int sense_data_len)
@@ -1904,7 +1904,7 @@ srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 		   enum scst_exec_context context)
 {
 	struct srpt_send_ioctx *send_ioctx = NULL;
-	struct srp_cmd *srp_cmd;
+	const struct srp_cmd *srp_cmd;
 	u8 opcode;
 
 	BUG_ON(!ch);
@@ -2493,7 +2493,7 @@ out:
  */
 static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 {
-	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
+	const struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
 
 	return sport && sport->enabled;
 }
@@ -2877,7 +2877,7 @@ out:
 
 static int srpt_ib_cm_req_recv(struct ib_cm_id *cm_id,
 			       const struct ib_cm_req_event_param *param,
-			       void *private_data)
+			       const void *private_data)
 {
 	char sgid[40];
 
@@ -3785,7 +3785,7 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 static int srpt_get_initiator_port_transport_id(struct scst_tgt *tgt, struct scst_session *sess,
 						u8 **transport_id)
 {
-	struct srpt_rdma_ch *ch;
+	const struct srpt_rdma_ch *ch;
 	struct spc_rdma_transport_id {
 		u8 protocol_identifier;
 		u8 reserved[7];
@@ -3941,7 +3941,7 @@ static u16 srpt_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 static ssize_t show_comp_v_mask(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
 {
-	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
+	const struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
 						 tgt_kobj);
 	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
 	int res = -E_TGT_PRIV_NOT_YET_SET;
@@ -3964,7 +3964,7 @@ static ssize_t store_comp_v_mask(struct kobject *kobj,
 				 struct kobj_attribute *attr, const char *buf,
 				 size_t count)
 {
-	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
+	const struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
 						 tgt_kobj);
 	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
 	struct srpt_device *sdev;
@@ -4002,7 +4002,7 @@ static struct kobj_attribute srpt_show_comp_v_mask_attr =
 static ssize_t srpt_show_device(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
 {
-	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
+	const struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
 						 tgt_kobj);
 	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
 	struct srpt_device *sdev;
@@ -4028,7 +4028,7 @@ static struct kobj_attribute srpt_device_attr =
 static ssize_t srpt_show_link_layer(struct kobject *kobj,
 				    struct kobj_attribute *attr, char *buf)
 {
-	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
+	const struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
 						 tgt_kobj);
 	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
 	const char *lln = "Unknown";
@@ -4059,7 +4059,7 @@ static struct kobj_attribute srpt_link_layer_attr =
 
 static ssize_t show_port_id(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
+	const struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
 	ssize_t res = -E_TGT_PRIV_NOT_YET_SET;
 
@@ -4082,7 +4082,7 @@ out:
 static ssize_t store_port_id(struct kobject *kobj, struct kobj_attribute *attr,
 			     const char *buf, size_t count)
 {
-	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
+	const struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
 						 tgt_kobj);
 	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
 	const char *end;
@@ -4114,7 +4114,7 @@ static struct kobj_attribute srpt_port_id_attr =
 static ssize_t show_login_info(struct kobject *kobj,
 			       struct kobj_attribute *attr, char *buf)
 {
-	struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
+	const struct scst_tgt *scst_tgt = container_of(kobj, struct scst_tgt,
 						 tgt_kobj);
 	struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
 	ssize_t res = -E_TGT_PRIV_NOT_YET_SET;
@@ -4154,7 +4154,7 @@ static const struct attribute *srpt_tgt_attrs[] = {
 static ssize_t show_req_lim(struct kobject *kobj,
 			    struct kobj_attribute *attr, char *buf)
 {
-	struct scst_session *sess;
+	const struct scst_session *sess;
 	struct srpt_rdma_ch *ch;
 
 	sess = container_of(kobj, struct scst_session, sess_kobj);
@@ -4168,7 +4168,7 @@ static ssize_t show_req_lim(struct kobject *kobj,
 static ssize_t show_req_lim_delta(struct kobject *kobj,
 				  struct kobj_attribute *attr, char *buf)
 {
-	struct scst_session *sess;
+	const struct scst_session *sess;
 	struct srpt_rdma_ch *ch;
 
 	sess = container_of(kobj, struct scst_session, sess_kobj);
@@ -4182,8 +4182,8 @@ static ssize_t show_req_lim_delta(struct kobject *kobj,
 static ssize_t show_ch_state(struct kobject *kobj, struct kobj_attribute *attr,
 			     char *buf)
 {
-	struct scst_session *sess;
-	struct srpt_rdma_ch *ch;
+	const struct scst_session *sess;
+	const struct srpt_rdma_ch *ch;
 
 	sess = container_of(kobj, struct scst_session, sess_kobj);
 	ch = scst_sess_get_tgt_priv(sess);
@@ -4196,7 +4196,7 @@ static ssize_t show_ch_state(struct kobject *kobj, struct kobj_attribute *attr,
 static ssize_t show_comp_vector(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
 {
-	struct scst_session *sess;
+	const struct scst_session *sess;
 	struct srpt_rdma_ch *ch;
 
 	sess = container_of(kobj, struct scst_session, sess_kobj);
@@ -4247,7 +4247,7 @@ static struct scst_tgt_template srpt_template = {
 };
 
 /* Note: the caller must have zero-initialized *@sport. */
-static void srpt_init_sport(struct srpt_port *sport, struct ib_device *ib_dev)
+static void srpt_init_sport(struct srpt_port *sport, const struct ib_device *ib_dev)
 {
 	int i;
 

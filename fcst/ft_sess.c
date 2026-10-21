@@ -418,7 +418,7 @@ static int ft_prli(struct fc_rport_priv *rdata, u32 spp_len,
 
 static void ft_sess_rcu_free(struct rcu_head *rcu)
 {
-	struct ft_sess *sess = container_of(rcu, struct ft_sess, rcu);
+	const struct ft_sess *sess = container_of(rcu, struct ft_sess, rcu);
 
 	kfree(sess);
 }
@@ -539,7 +539,7 @@ out:
 
 bool ft_tgt_enabled(struct scst_tgt *tgt)
 {
-	struct ft_tport *tport;
+	const struct ft_tport *tport;
 
 	if (!tgt)
 		return false;

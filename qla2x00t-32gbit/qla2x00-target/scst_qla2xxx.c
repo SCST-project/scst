@@ -530,7 +530,7 @@ static DEFINE_MUTEX(sqa_mutex);
 
 
 /* Stub function for unimplemented functionality. */
-static inline int scst_cmd_get_ppl_offset(struct scst_cmd *scst_cmd)
+static inline int scst_cmd_get_ppl_offset(const struct scst_cmd *scst_cmd)
 {
 	return 0;
 }
@@ -846,7 +846,7 @@ static void sqa_free_session_done(struct scst_session *scst_sess)
 static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 {
 	struct scsi_qla_host *vha = fcport->vha;
-	struct se_session *se_sess = fcport->se_sess;
+	const struct se_session *se_sess = fcport->se_sess;
 	struct scst_session *scst_sess = se_sess->fabric_sess_ptr;
 	DECLARE_COMPLETION_ONSTACK(c);
 
@@ -1068,7 +1068,7 @@ static ssize_t sqa_version_show(struct kobject *kobj,
 static ssize_t sqa_hw_target_show(struct kobject *kobj,
 				  struct kobj_attribute *attr, char *buf)
 {
-	struct scst_tgt *scst_tgt;
+	const struct scst_tgt *scst_tgt;
 	struct sqa_scst_tgt *sqa_tgt;
 	struct qla_tgt *tgt;
 
@@ -1083,7 +1083,7 @@ static ssize_t sqa_hw_target_show(struct kobject *kobj,
 static ssize_t sqa_node_name_show(struct kobject *kobj,
 				  struct kobj_attribute *attr, char *buf)
 {
-	struct scst_tgt *scst_tgt;
+	const struct scst_tgt *scst_tgt;
 	struct sqa_scst_tgt *sqa_tgt;
 	struct qla_tgt *tgt;
 	struct qla_hw_data *ha;
@@ -1129,7 +1129,7 @@ static ssize_t sqa_node_name_store(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   const char *buffer, size_t size)
 {
-	struct scst_tgt *scst_tgt;
+	const struct scst_tgt *scst_tgt;
 	struct sqa_scst_tgt *sqa_tgt;
 	struct qla_tgt *tgt;
 	struct qla_hw_data *ha;
@@ -1225,7 +1225,7 @@ static ssize_t sqa_show_expl_conf_enabled(struct kobject *kobj,
 					  struct kobj_attribute *attr,
 					  char *buffer)
 {
-	struct scst_tgt *scst_tgt;
+	const struct scst_tgt *scst_tgt;
 	struct sqa_scst_tgt *sqa_tgt;
 	struct qla_tgt *tgt;
 	struct qla_hw_data *ha;
@@ -1248,7 +1248,7 @@ static ssize_t sqa_store_expl_conf_enabled(struct kobject *kobj,
 					   struct kobj_attribute *attr,
 					   const char *buffer, size_t size)
 {
-	struct scst_tgt *scst_tgt;
+	const struct scst_tgt *scst_tgt;
 	struct sqa_scst_tgt *sqa_tgt;
 	struct qla_tgt *tgt;
 	struct qla_hw_data *ha;
@@ -1289,7 +1289,7 @@ static ssize_t sqa_abort_isp_store(struct kobject *kobj,
 				   struct kobj_attribute *attr,
 				   const char *buffer, size_t size)
 {
-	struct scst_tgt *scst_tgt;
+	const struct scst_tgt *scst_tgt;
 	struct sqa_scst_tgt *sqa_tgt;
 	struct qla_tgt *tgt;
 
@@ -1306,7 +1306,7 @@ static ssize_t sqa_abort_isp_store(struct kobject *kobj,
 	return -ENOSYS;
 
 #if EXCLUDED
-	struct scst_tgt *scst_tgt;
+	const struct scst_tgt *scst_tgt;
 	struct sqa_scst_tgt *sqa_tgt;
 	struct qla_tgt *tgt;
 	struct qla_hw_data *ha;
@@ -1967,7 +1967,7 @@ static int sqa_qla2xxx_chk_dif_tags(u32 tag)
 static int sqa_qla2xxx_dif_tags(struct qla_tgt_cmd *cmd,
 				u16 *pfw_prot_opts)
 {
-	struct scst_cmd *scst_cmd = cmd->scst_cmd;
+	const struct scst_cmd *scst_cmd = cmd->scst_cmd;
 	u32 t32 = 0;
 
 	t32 = scst_get_dif_checks(scst_cmd->cmd_dif_actions);
@@ -1985,7 +1985,7 @@ static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 	struct qla_tgt_cmd *cmd = scst_cmd_get_tgt_priv(scst_cmd);
 	struct scsi_qla_host *vha = cmd->vha;
 	struct qla_qpair *qpair = cmd->qpair;
-	struct qla_tgt_srr *srr;
+	const struct qla_tgt_srr *srr;
 	unsigned long flags;
 	bool advance_cmd = false;
 
