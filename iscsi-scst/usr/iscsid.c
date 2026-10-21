@@ -1029,14 +1029,15 @@ static bool on_internal_portal(struct connection *conn)
 		char *portals = strdup(internal_portal);
 
 		if (portals) {
-			char *portal = strtok(portals, " ");
+			char *saveptr;
+			char *portal = strtok_r(portals, " ", &saveptr);
 
 			while (portal != NULL) {
 				if (!strcmp(portal, conn->target_portal)) {
 					free(portals);
 					return true;
 				}
-				portal = strtok(NULL, " ");
+				portal = strtok_r(NULL, " ", &saveptr);
 			}
 			free(portals);
 		}
