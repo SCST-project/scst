@@ -191,10 +191,12 @@ function evaluate(stmnt, pattern, arg, op, result) {
 
   gsub("defined\\(CONFIG_SCST_STRICT_SERIALIZING\\)", "0", stmnt)
 
+  # Undefined vendor version macros evaluate to zero in #if expressions.
+  # Keep an operand so that subtraction works with both "-0" and "- 0".
   if (RHEL_MAJOR == "")
   {
     gsub("defined\\(RHEL_MAJOR\\)", "0", stmnt)
-    gsub("RHEL_MAJOR", "", stmnt)
+    gsub("RHEL_MAJOR", "0", stmnt)
   }
   else
   {
@@ -217,7 +219,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
   if (RHEL_MAJOR == "" || RHEL_MINOR == "")
   {
     gsub("defined\\(RHEL_RELEASE_CODE\\)", "0", stmnt)
-    gsub("RHEL_RELEASE_CODE", "", stmnt)
+    gsub("RHEL_RELEASE_CODE", "0", stmnt)
     gsub("RHEL_RELEASE_VERSION\\([^,)]*,[ 	]*[^,)]*\\)", "0", stmnt)
   }
   else
@@ -230,7 +232,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
 
   if (MOFED_MAJOR == "") {
     gsub("defined\\(MOFED_MAJOR\\)", "0", stmnt)
-    gsub("MOFED_MAJOR", "", stmnt)
+    gsub("MOFED_MAJOR", "0", stmnt)
   } else {
     gsub("defined\\(MOFED_MAJOR\\)", "1", stmnt)
     gsub("MOFED_MAJOR", MOFED_MAJOR, stmnt)
@@ -238,7 +240,7 @@ function evaluate(stmnt, pattern, arg, op, result) {
 
   if (MOFED_MINOR == "") {
     gsub("defined\\(MOFED_MINOR\\)", "0", stmnt)
-    gsub("MOFED_MINOR", "", stmnt)
+    gsub("MOFED_MINOR", "0", stmnt)
   } else {
     gsub("defined\\(MOFED_MINOR\\)", "1", stmnt)
     gsub("MOFED_MINOR", MOFED_MINOR, stmnt)
@@ -511,7 +513,7 @@ function process_preprocessor_statement(evaluated, condition) {
   else if (evaluated ~ "^\\+#elif")
   {
     if (if_discarded[if_nesting_level]) {
-      sub("^\\+#elif", "+#if", input_line[0])
+      sub("^\\+[[:blank:]]*#[[:blank:]]*elif", "+#if", input_line[0])
       if (debug)
         printf "/* debug specialize-patch: (g0) -> %s */\n", evaluated
     }
@@ -755,7 +757,7 @@ BEGIN {
   else
   {
     delete_next_blank_line = 0
-    if (match($0, "^\\+ *#"))
+    if (match($0, "^\\+[[:blank:]]*#"))
     {
       if (debug)
         printf "/* debug specialize-patch: line %d: %s*/\n", NR, $0

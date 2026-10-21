@@ -35,7 +35,7 @@ FROM runtime AS build
 ARG SUITE
 ARG SOURCE_COMMIT
 RUN dnf install -y --setopt=install_weak_deps=False \
-        gcc elfutils-libelf-devel openssl openssl-devel perl-ExtUtils-MakeMaker git \
+        gcc elfutils-libelf-devel openssl openssl-devel perl-ExtUtils-MakeMaker git patch \
         /tmp/kernel/kernel-devel-*.rpm && dnf clean all
 COPY . /scst
 WORKDIR /scst
