@@ -283,10 +283,10 @@ static int login_check_reinstatement(struct connection *conn)
 	 * reinstatement, if necessary, will be done in the kernel.
 	 */
 
-	sBUG_ON(conn->sess != NULL);
+	sBUG_ON(conn->sess);
 
 	session = session_find_name(conn->tid, conn->initiator, req->sid);
-	if (session != NULL) {
+	if (session) {
 		if (req->sid.id.tsih == 0) {
 			/* Kernel will do session reinstatement */
 			log_debug(1, "Session sid %#" PRIx64 " reinstatement "
@@ -305,7 +305,7 @@ static int login_check_reinstatement(struct connection *conn)
 		} else {
 			const struct connection *c = conn_find(session, conn->cid);
 
-			if (c != NULL) {
+			if (c) {
 				/* Kernel will do connection reinstatement */
 				log_debug(1, "Conn %x reinstatement "
 					"detected (tid %d, sid %#" PRIx64
@@ -356,7 +356,7 @@ static void text_scan_login(struct connection *conn)
 			;
 		else if (!strcmp(key, "AuthMethod"))
 			;
-		else if (!((idx = params_index_by_name(key, session_keys)) < 0)) {
+		else if ((idx = params_index_by_name(key, session_keys)) >= 0) {
 			unsigned int val;
 			char buf[32];
 
@@ -490,7 +490,7 @@ static int init_conn_session_params(struct connection *conn)
 	struct target *target;
 
 	target = target_find_by_id(conn->tid);
-	if (target == NULL) {
+	if (!target) {
 		log_error("target %d not found", conn->tid);
 		res = -ENOENT;
 		goto out;
@@ -581,26 +581,26 @@ static bool valid_utf8_name_char(long ch)
 
 	/* C.2.1 ASCII control characters */
 	if ((ch >= 0x0000 && ch <= 0x001F) ||		/* CONTROL CHARACTERS */
-	    (ch == 0x007F)) {				/* DELETE */
+	    ch == 0x007F) {				/* DELETE */
 		log_error("Invalid UTF-8: %lX (ASCII control characters)", ch);
 		return false;
 	}
 
 	/* C.2.2 Non-ASCII control characters */
 	if ((ch >= 0x0080 && ch <= 0x009F) ||		/* CONTROL CHARACTERS */
-	    (ch == 0x06DD) ||				/* ARABIC END OF AYAH */
-	    (ch == 0x070F) ||				/* SYRIAC ABBREVIATION MARK */
-	    (ch == 0x180E) ||				/* MONGOLIAN VOWEL SEPARATOR */
-	    (ch == 0x200C) ||				/* ZERO WIDTH NON-JOINER */
-	    (ch == 0x200D) ||				/* ZERO WIDTH JOINER */
-	    (ch == 0x2028) ||				/* LINE SEPARATOR */
-	    (ch == 0x2029) ||				/* PARAGRAPH SEPARATOR */
-	    (ch == 0x2060) ||				/* WORD JOINER */
-	    (ch == 0x2061) ||				/* FUNCTION APPLICATION */
-	    (ch == 0x2062) ||				/* INVISIBLE TIMES */
-	    (ch == 0x2063) ||				/* INVISIBLE SEPARATOR */
-	    (ch >= 0x206A && (ch <= 0x206F)) ||		/* [CONTROL CHARACTERS] */
-	    (ch == 0xFEFF) ||				/* ZERO WIDTH NO-BREAK SPACE */
+	    ch == 0x06DD ||				/* ARABIC END OF AYAH */
+	    ch == 0x070F ||				/* SYRIAC ABBREVIATION MARK */
+	    ch == 0x180E ||				/* MONGOLIAN VOWEL SEPARATOR */
+	    ch == 0x200C ||				/* ZERO WIDTH NON-JOINER */
+	    ch == 0x200D ||				/* ZERO WIDTH JOINER */
+	    ch == 0x2028 ||				/* LINE SEPARATOR */
+	    ch == 0x2029 ||				/* PARAGRAPH SEPARATOR */
+	    ch == 0x2060 ||				/* WORD JOINER */
+	    ch == 0x2061 ||				/* FUNCTION APPLICATION */
+	    ch == 0x2062 ||				/* INVISIBLE TIMES */
+	    ch == 0x2063 ||				/* INVISIBLE SEPARATOR */
+	    (ch >= 0x206A && ch <= 0x206F) ||		/* [CONTROL CHARACTERS] */
+	    ch == 0xFEFF ||				/* ZERO WIDTH NO-BREAK SPACE */
 	    (ch >= 0xFFF9 && ch <= 0xFFFC) ||		/* [CONTROL CHARACTERS] */
 	    (ch >= 0x1D173 && ch <= 0x1D17A)) {		/* [MUSICAL CONTROL CHARACTERS] */
 		log_error("Invalid UTF-8: %lX (Non-ASCII control characters)", ch);
@@ -645,11 +645,11 @@ static bool valid_utf8_name_char(long ch)
 	}
 
 	/* C.6 Inappropriate for plain text */
-	if ((ch == 0xFFF9) ||				/* INTERLINEAR ANNOTATION ANCHOR */
-	    (ch == 0xFFFA) ||				/* INTERLINEAR ANNOTATION SEPARATOR */
-	    (ch == 0xFFFB) ||				/* INTERLINEAR ANNOTATION TERMINATOR */
-	    (ch == 0xFFFC) ||				/* OBJECT REPLACEMENT CHARACTER */
-	    (ch == 0xFFFD)) {				/* REPLACEMENT CHARACTER */
+	if (ch == 0xFFF9 ||				/* INTERLINEAR ANNOTATION ANCHOR */
+	    ch == 0xFFFA ||				/* INTERLINEAR ANNOTATION SEPARATOR */
+	    ch == 0xFFFB ||				/* INTERLINEAR ANNOTATION TERMINATOR */
+	    ch == 0xFFFC ||				/* OBJECT REPLACEMENT CHARACTER */
+	    ch == 0xFFFD) {				/* REPLACEMENT CHARACTER */
 		log_error("Invalid UTF-8: %lX (Inappropriate for plain text)", ch);
 		return false;
 	}
@@ -682,7 +682,7 @@ static bool valid_utf8_name_char(long ch)
 	}
 
 	/* C.9 Tagging characters */
-	if ((ch == 0xE0001) ||				/* LANGUAGE TAG */
+	if (ch == 0xE0001 ||				/* LANGUAGE TAG */
 	    (ch >= 0xE0020 && ch <= 0xE007F)) {		/* [TAGGING CHARACTERS] */
 		log_error("Invalid UTF-8: %lX (Tagging characters)", ch);
 		return false;
@@ -810,7 +810,7 @@ static void login_start(struct connection *conn)
 	}
 
 	conn->initiator = strdup(name);
-	if (conn->initiator == NULL) {
+	if (!conn->initiator) {
 		log_error("Unable to duplicate initiator's name %s", name);
 		login_rsp_tgt_err(conn, ISCSI_STATUS_NO_RESOURCES);
 		return;
@@ -854,7 +854,7 @@ static void login_start(struct connection *conn)
 		}
 
 		target = target_find_by_name(target_name);
-		if (target == NULL) {
+		if (!target) {
 			login_rsp_ini_err(conn, ISCSI_STATUS_TGT_NOT_FOUND);
 			return;
 		}
@@ -920,8 +920,8 @@ static void login_start(struct connection *conn)
 			target->sessions_count++;
 			conn->sessions_count_incremented = 1;
 		} else if (rc != ISCSI_CONN_REINSTATEMENT) {
-			if ((target->target_params[key_max_sessions] == 0) ||
-			    (target->sessions_count < target->target_params[key_max_sessions])) {
+			if (target->target_params[key_max_sessions] == 0 ||
+			    target->sessions_count < target->target_params[key_max_sessions]) {
 				target->sessions_count++;
 				conn->sessions_count_incremented = 1;
 			} else {
@@ -1036,7 +1036,7 @@ static bool on_internal_portal(const struct connection *conn)
 			char *saveptr;
 			const char *portal = strtok_r(portals, " ", &saveptr);
 
-			while (portal != NULL) {
+			while (portal) {
 				if (!strcmp(portal, conn->target_portal)) {
 					free(portals);
 					return true;

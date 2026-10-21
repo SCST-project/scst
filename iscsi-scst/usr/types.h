@@ -42,7 +42,7 @@
 #define cpu_to_be32(x)		bswap_32(x)
 #define be32_to_cpu(x)		bswap_32(x)
 #else
-#error "unknown endianess!"
+#error "unknown endianness!"
 #endif
 
 typedef u_int8_t u8;

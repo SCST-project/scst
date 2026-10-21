@@ -59,7 +59,7 @@ int debug_print_prefix(unsigned long flags, const char *prefix,
 	if (flags & TRACE_PID)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "[%d]: ",
 			      gettid());
-	if (prefix != NULL)
+	if (prefix)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s:", prefix);
 	if (flags & TRACE_FUNCTION)
 		i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "%s:", func);
@@ -79,7 +79,7 @@ void debug_print_buffer(const void *data, int len)
 	int z, z1, i;
 	const unsigned char *buf = (const unsigned char *) data;
 
-	if (buf == NULL)
+	if (!buf)
 		return;
 
 	pthread_spin_lock(&trace_buf_lock);
@@ -92,8 +92,8 @@ void debug_print_buffer(const void *data, int len)
 					      " ");
 				for (; (z1 < z) && (i < TRACE_BUF_SIZE - 1);
 				     z1++) {
-					if ((buf[z1] >= 0x20) &&
-					    (buf[z1] < 0x80))
+					if (buf[z1] >= 0x20 &&
+					    buf[z1] < 0x80)
 						trace_buf[i++] = buf[z1];
 					else
 						trace_buf[i++] = '.';
@@ -110,7 +110,7 @@ void debug_print_buffer(const void *data, int len)
 	}
 	i += snprintf(&trace_buf[i], TRACE_BUF_SIZE - i, "  ");
 	for (; (z1 < z) && (i < TRACE_BUF_SIZE - 1); z1++) {
-		if ((buf[z1] > 0x20) && (buf[z1] < 0x80))
+		if (buf[z1] > 0x20 && buf[z1] < 0x80)
 			trace_buf[i++] = buf[z1];
 		else
 			trace_buf[i++] = '.';

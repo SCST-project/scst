@@ -411,7 +411,7 @@ static int start(int argc, char **argv)
 			goto out_unreg;
 		}
 
-		if ((prealloc_buffers_num > 0) && (prealloc_buffer_size > 0)) {
+		if (prealloc_buffers_num > 0 && prealloc_buffer_size > 0) {
 			res = prealloc_buffers(&devs[i]);
 			if (res != 0)
 				goto out_unreg;
@@ -475,7 +475,7 @@ static int start(int argc, char **argv)
 				res = errno;
 				PRINT_ERROR("pthread_join() failed: %s",
 					strerror(res));
-			} else if (rc1 != NULL) {
+			} else if (rc1) {
 				res = (long)rc1;
 				PRINT_INFO("Thread %d exited (dev %s), res %lx", j,
 					devs[i].name, (long)rc1);
@@ -643,7 +643,7 @@ int main(int argc, char **argv)
 		goto out_usage;
 
 	if (!on_free_cmd_type_set &&
-	    (memory_reuse_type != SCST_USER_MEM_REUSE_ALL))
+	    memory_reuse_type != SCST_USER_MEM_REUSE_ALL)
 		on_free_cmd_type = SCST_USER_ON_FREE_CMD_CALL;
 
 	PRINT_INFO("%s", "Options:");
@@ -721,11 +721,11 @@ int main(int argc, char **argv)
 	if (sgv_disable_clustered_pool)
 		PRINT_INFO("	%s", "Disable clustered SGV pool");
 
-	if ((prealloc_buffers_num > 0) && (prealloc_buffer_size > 0))
+	if (prealloc_buffers_num > 0 && prealloc_buffer_size > 0)
 		PRINT_INFO("	Prealloc %d buffers of %dKB",
 			prealloc_buffers_num, prealloc_buffer_size / 1024);
 
-	if (!o_direct_flag && (memory_reuse_type == SCST_USER_MEM_NO_REUSE)) {
+	if (!o_direct_flag && memory_reuse_type == SCST_USER_MEM_NO_REUSE) {
 		PRINT_INFO("	%s", "Using unaligned buffers");
 		alloc_fn = malloc;
 	}

@@ -34,7 +34,7 @@ struct connection *conn_alloc(void)
 	int i;
 
 	conn = malloc(sizeof(*conn));
-	if (conn == NULL)
+	if (!conn)
 		goto out;
 
 	memset(conn, 0, sizeof(*conn));

@@ -109,7 +109,7 @@ static bool session_id_exists(u32 tid, u64 sid, const struct session *exclude)
 	log_debug(1, "Searching for sid %#" PRIx64, sid);
 
 	list_for_each_entry(session, &target->sessions_list, slist) {
-		if ((session->sid.id64 == sid) && (session != exclude))
+		if (session->sid.id64 == sid && session != exclude)
 			return true;
 	}
 
@@ -137,7 +137,7 @@ int session_create(struct connection *conn)
 	conn->sess = session;
 
 	conn->sess->initiator = strdup(conn->initiator);
-	if (conn->sess->initiator == NULL) {
+	if (!conn->sess->initiator) {
 		res = -errno;
 		log_error("strdup() failed: %d", res);
 		goto out_free;

@@ -73,7 +73,7 @@ int isns_scn_access_allowed(uint32_t tid, const char *name)
 	struct isns_initiator *ini;
 	struct target *target = target_find_by_id(tid);
 
-	if ((isns_server == NULL) || !isns_access_control)
+	if (!isns_server || !isns_access_control)
 		return 1;
 
 	if (!target)
@@ -486,7 +486,7 @@ int isns_target_register(const char *name)
 	int err, initial = list_length_is_one(&targets_list);
 	int max_buf;
 
-	if (isns_server == NULL)
+	if (!isns_server)
 		return 0;
 
 	if (!isns_fd) {
@@ -625,7 +625,7 @@ int isns_target_deregister(const char *name)
 	if (target)
 		free_all_acl(target);
 
-	if (isns_server == NULL)
+	if (!isns_server)
 		return 0;
 
 	if (!isns_fd) {
@@ -909,7 +909,7 @@ found:
 			name = (char *)tlv->value;
 			break;
 		case ISNS_ATTR_ISCSI_NODE_TYPE:
-			if (ntohl(*(tlv->value)) == ISNS_NODE_INITIATOR && name) {
+			if (ntohl(*tlv->value) == ISNS_NODE_INITIATOR && name) {
 				log_debug(3, "%s %d: %s", __func__, __LINE__,
 					  (char *)name);
 				ini = malloc(sizeof(*ini));
@@ -943,7 +943,7 @@ int isns_handle(int is_timeout)
 	uint16_t function;
 	char *name = NULL;
 
-	if (isns_server == NULL)
+	if (!isns_server)
 		return 0;
 
 	if (is_timeout)
@@ -997,7 +997,7 @@ static int scn_accept_connection(void)
 	socklen_t slen;
 	int fd, err, opt = 1;
 
-	if (isns_server == NULL) {
+	if (!isns_server) {
 		/*
 		 * Sometimes we have (leftover?) events after disable iSNS
 		 * server, so ignore them
@@ -1214,7 +1214,7 @@ void isns_exit(void)
 {
 	struct target *target;
 
-	if (isns_server == NULL)
+	if (!isns_server)
 		goto out;
 
 	if (!isns_fd)
