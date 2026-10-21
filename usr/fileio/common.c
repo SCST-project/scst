@@ -1052,7 +1052,7 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			buf[3] = 0x3C;
 			buf[5] = 0xFF; /* No MAXIMUM COMPARE AND WRITE LENGTH limit */
 			/* Optimal transfer granuality is PAGE_SIZE */
-			max_transfer = max((int)(4096/dev->block_size), (int)1);
+			max_transfer = max((int)(4096/dev->block_size), 1);
 			buf[6] = (max_transfer >> 8) & 0xff;
 			buf[7] = max_transfer & 0xff;
 			/*

@@ -17,40 +17,46 @@
 #include "iscsi.h"
 #include "digest.h"
 
-#define	CHECK_PARAM(info, iparams, word, min, max)				\
-do {										\
-	if (!(info)->partial || ((info)->partial & 1 << key_##word)) {		\
-		TRACE_DBG("%s: %u", #word, (iparams)[key_##word]);		\
-		if ((iparams)[key_##word] < (min) ||				\
-			(iparams)[key_##word] > (max)) {			\
-			if ((iparams)[key_##word] < (min)) {			\
-				(iparams)[key_##word] = (min);			\
-				PRINT_WARNING("%s: %u is too small, resetting "	\
-					"it to allowed min %u",			\
-					#word, (iparams)[key_##word], (min));	\
-			} else {						\
-				PRINT_WARNING("%s: %u is too big, resetting "	\
-					"it to allowed max %u",			\
-					#word, (iparams)[key_##word], (max));	\
-				(iparams)[key_##word] = (max);			\
-			}							\
-		}								\
-	}									\
+static bool iscsi_param_selected(const struct iscsi_kern_params_info *info, unsigned int key)
+{
+	return !info->partial || (info->partial & (1U << key));
+}
+
+static void iscsi_param_check(const struct iscsi_kern_params_info *info, s32 *iparams,
+			      unsigned int key, const char *name, s32 min, s32 max)
+{
+	s32 *value;
+
+	if (!iscsi_param_selected(info, key))
+		return;
+
+	value = &iparams[key];
+	TRACE_DBG("%s: %d", name, *value);
+	if (*value < min) {
+		PRINT_WARNING("%s: %d is too small, resetting it to allowed min %d",
+			      name, *value, min);
+		*value = min;
+	} else if (*value > max) {
+		PRINT_WARNING("%s: %d is too big, resetting it to allowed max %d",
+			      name, *value, max);
+		*value = max;
+	}
+}
+
+#define CHECK_PARAM(info, iparams, word, min, max)			\
+	iscsi_param_check(info, iparams, key_##word, #word, min, max)
+
+#define SET_PARAM(params, info, iparams, word)				\
+do {									\
+	if (iscsi_param_selected(info, key_##word)) {			\
+		s32 __value = (iparams)[key_##word];			\
+									\
+		(params)->word = __value;				\
+		TRACE_DBG("%s set to %d", #word, __value);		\
+	}								\
 } while (0)
 
-#define	SET_PARAM(params, info, iparams, word)					\
-({										\
-	int changed = 0;							\
-	if (!(info)->partial || ((info)->partial & 1 << key_##word)) {		\
-		if ((params)->word != (iparams)[key_##word])			\
-			changed = 1;						\
-		(params)->word = (iparams)[key_##word];				\
-		TRACE_DBG("%s set to %u", #word, (params)->word);		\
-	}									\
-	changed;								\
-})
-
-#define	GET_PARAM(params, info, iparams, word)	\
+#define	GET_PARAM(params, iparams, word)	\
 	((iparams)[key_##word] = (params)->word)
 
 const char *iscsi_get_bool_value(int val)
@@ -174,30 +180,30 @@ static void sess_params_get(struct iscsi_sess_params *params, struct iscsi_kern_
 {
 	int32_t *iparams = info->session_params;
 
-	GET_PARAM(params, info, iparams, initial_r2t);
-	GET_PARAM(params, info, iparams, immediate_data);
-	GET_PARAM(params, info, iparams, max_connections);
-	GET_PARAM(params, info, iparams, max_recv_data_length);
-	GET_PARAM(params, info, iparams, max_xmit_data_length);
-	GET_PARAM(params, info, iparams, max_burst_length);
-	GET_PARAM(params, info, iparams, first_burst_length);
-	GET_PARAM(params, info, iparams, default_wait_time);
-	GET_PARAM(params, info, iparams, default_retain_time);
-	GET_PARAM(params, info, iparams, max_outstanding_r2t);
-	GET_PARAM(params, info, iparams, data_pdu_inorder);
-	GET_PARAM(params, info, iparams, data_sequence_inorder);
-	GET_PARAM(params, info, iparams, error_recovery_level);
-	GET_PARAM(params, info, iparams, header_digest);
-	GET_PARAM(params, info, iparams, data_digest);
-	GET_PARAM(params, info, iparams, ofmarker);
-	GET_PARAM(params, info, iparams, ifmarker);
-	GET_PARAM(params, info, iparams, ofmarkint);
-	GET_PARAM(params, info, iparams, ifmarkint);
+	GET_PARAM(params, iparams, initial_r2t);
+	GET_PARAM(params, iparams, immediate_data);
+	GET_PARAM(params, iparams, max_connections);
+	GET_PARAM(params, iparams, max_recv_data_length);
+	GET_PARAM(params, iparams, max_xmit_data_length);
+	GET_PARAM(params, iparams, max_burst_length);
+	GET_PARAM(params, iparams, first_burst_length);
+	GET_PARAM(params, iparams, default_wait_time);
+	GET_PARAM(params, iparams, default_retain_time);
+	GET_PARAM(params, iparams, max_outstanding_r2t);
+	GET_PARAM(params, iparams, data_pdu_inorder);
+	GET_PARAM(params, iparams, data_sequence_inorder);
+	GET_PARAM(params, iparams, error_recovery_level);
+	GET_PARAM(params, iparams, header_digest);
+	GET_PARAM(params, iparams, data_digest);
+	GET_PARAM(params, iparams, ofmarker);
+	GET_PARAM(params, iparams, ifmarker);
+	GET_PARAM(params, iparams, ofmarkint);
+	GET_PARAM(params, iparams, ifmarkint);
 
 	/* iSER related parameters */
-	GET_PARAM(params, info, iparams, rdma_extensions);
-	GET_PARAM(params, info, iparams, target_recv_data_length);
-	GET_PARAM(params, info, iparams, initiator_recv_data_length);
+	GET_PARAM(params, iparams, rdma_extensions);
+	GET_PARAM(params, iparams, target_recv_data_length);
+	GET_PARAM(params, iparams, initiator_recv_data_length);
 }
 
 /* target_mutex supposed to be locked */
@@ -273,10 +279,10 @@ static int iscsi_tgt_params_set(struct iscsi_session *session, struct iscsi_kern
 			spin_unlock_bh(&conn->conn_thr_pool->rd_lock);
 		}
 	} else {
-		GET_PARAM(params, info, iparams, queued_cmnds);
-		GET_PARAM(params, info, iparams, rsp_timeout);
-		GET_PARAM(params, info, iparams, nop_in_interval);
-		GET_PARAM(params, info, iparams, nop_in_timeout);
+		GET_PARAM(params, iparams, queued_cmnds);
+		GET_PARAM(params, iparams, rsp_timeout);
+		GET_PARAM(params, iparams, nop_in_interval);
+		GET_PARAM(params, iparams, nop_in_timeout);
 	}
 
 	return 0;
