@@ -411,17 +411,33 @@ chap_calc_digest_sha3_256(char chap_id, const char *secret, int secret_len,
  * To generate challenge for CHAP, use stronger random number generator as
  * opposed to simple rand().
  */
-static int chap_rand(void)
+static int chap_rand(unsigned int *value)
 {
-	int fd;
-	int r;
+	unsigned char *p = (unsigned char *)value;
+	size_t left = sizeof(*value);
+	int fd, err = 0;
 
 	fd = open("/dev/urandom", O_RDONLY);
-	assert(fd != -1);
-	if (read(fd, &r, sizeof(r)) < sizeof(r)) {
+	if (fd < 0)
+		return -errno;
+	while (left) {
+		ssize_t count = read(fd, p, left);
+
+		if (count < 0) {
+			if (errno == EINTR)
+				continue;
+			err = -errno;
+			break;
+		}
+		if (count == 0) {
+			err = -EIO;
+			break;
+		}
+		p += count;
+		left -= count;
 	}
 	close(fd);
-	return r;
+	return err;
 }
 
 static int chap_initiator_auth_create_challenge(struct connection *conn)
@@ -429,6 +445,7 @@ static int chap_initiator_auth_create_challenge(struct connection *conn)
 	char *value, *p;
 	char text[CHAP_CHALLENGE_MAX * 2 + 8];
 	static int chap_id;
+	unsigned int random;
 	int i;
 
 	value = text_key_find(conn, "CHAP_A");
@@ -467,7 +484,10 @@ static int chap_initiator_auth_create_challenge(struct connection *conn)
 	 * wise, or should we rather always use the max. allowed length of
 	 * 1024 for the (unencoded) challenge?
 	 */
-	conn->auth.chap.challenge_size = (chap_rand() % (CHAP_CHALLENGE_MAX / 2)) + CHAP_CHALLENGE_MAX / 2;
+	if (chap_rand(&random) < 0)
+		return CHAP_TARGET_ERROR;
+	conn->auth.chap.challenge_size =
+		random % (CHAP_CHALLENGE_MAX / 2) + CHAP_CHALLENGE_MAX / 2;
 
 	conn->auth.chap.challenge = malloc(conn->auth.chap.challenge_size);
 	if (!conn->auth.chap.challenge)
@@ -477,7 +497,13 @@ static int chap_initiator_auth_create_challenge(struct connection *conn)
 	strcpy(p, "0x");
 	p += 2;
 	for (i = 0; i < conn->auth.chap.challenge_size; i++) {
-		conn->auth.chap.challenge[i] = chap_rand();
+		if (chap_rand(&random) < 0) {
+			free(conn->auth.chap.challenge);
+			conn->auth.chap.challenge = NULL;
+			conn->auth.chap.challenge_size = 0;
+			return CHAP_TARGET_ERROR;
+		}
+		conn->auth.chap.challenge[i] = random;
 		sprintf(p, "%.2hhx", conn->auth.chap.challenge[i]);
 		p += 2;
 	}

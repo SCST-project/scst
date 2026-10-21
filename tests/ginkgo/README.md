@@ -121,6 +121,12 @@ It preserves existing records and leaves initiator services and modules loaded.
 CHAP configuration tests require Python 3 on the target and the ability to
 run file-access checks under an unprivileged UID/GID.
 
+The isolated `internal/chap` suite tests the production CHAP implementation
+with deterministic entropy I/O: length bounds, short reads, interruptions and
+failure cleanup. It runs through `ginkgo-check` and requires `cc`. Interface
+headers are prepared in a temporary directory; no daemon or storage is used.
+Run it separately with `go test ./internal/chap` from this directory.
+
 ## SCSI and I/O
 
 Install Python 3, util-linux and sg3_utils on the command host: the target for
