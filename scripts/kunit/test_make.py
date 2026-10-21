@@ -28,6 +28,8 @@ OWNERS = {
     'scst_vdisk': ('scst/src/dev_handlers', 'scst/kernel/in-tree/Makefile.dev_handlers'),
     'scst_user': ('scst/src/dev_handlers', 'scst/kernel/in-tree/Makefile.dev_handlers'),
     'iscsi-scst': ('iscsi-scst/kernel', 'iscsi-scst/kernel/Makefile.in-kernel'),
+    'isert-scst': ('iscsi-scst/kernel/isert-scst',
+                   'iscsi-scst/kernel/isert-scst/Makefile.in-kernel'),
     'qla2x00tgt': ('qla2x00t-32gbit/qla2x00-target',
                   'qla2x00t-32gbit/Makefile_in-tree'),
 }
@@ -239,6 +241,7 @@ class SelectionTests(unittest.TestCase):
             kdir = root / 'kernel'
             (kdir / 'include/config').mkdir(parents=True)
             (kdir / 'include/config/kernel.release').write_text('kunit-build-test\n')
+            (kdir / '.config').write_text('CONFIG_INFINIBAND=m\n')
             fields = ['$(patsubst $(KUNIT_TEST_ROOT)/%,%,$(M))', '$(KUNIT_LABEL)', '$(KDIR)',
                       '$(KVER)', '$(ARCH)', '$(CROSS_COMPILE)', '$(CC)',
                       '$(PASS_CC_TO_MAKE)', '$(WERROR)']
@@ -249,10 +252,12 @@ class SelectionTests(unittest.TestCase):
                 'built_module = $(if $(filter all,$@),'
                 '$(if $(filter $(qla_root),$(M)),qla2xxx_scst.ko,'
                 '$(if $(filter $(qla_root)/qla2x00-target,$(M)),qla2x00tgt.ko,all)),$@)\n'
-                '.PHONY: all scst.ko scst_vdisk.ko scst_user.ko iscsi-scst.ko\n'
-                'all scst.ko scst_vdisk.ko scst_user.ko iscsi-scst.ko:\n'
+                '.PHONY: all scst.ko scst_vdisk.ko scst_user.ko iscsi-scst.ko isert-scst.ko\n'
+                'all scst.ko scst_vdisk.ko scst_user.ko iscsi-scst.ko isert-scst.ko:\n'
                 '\t@test "$(M)" = "$(KUNIT_TEST_ROOT)/scst/src" || '
                 'test -f "$(KUNIT_TEST_ROOT)/scst/src/Module.symvers"\n'
+                '\t@test "$(M)" != "$(KUNIT_TEST_ROOT)/iscsi-scst/kernel/isert-scst" || '
+                'test -f "$(KUNIT_TEST_ROOT)/iscsi-scst/kernel/Module.symvers"\n'
                 '\t@test "$(M)" != "$(qla_root)/qla2x00-target" || '
                 'test -f "$(qla_root)/Module.symvers"\n'
                 '\t@test "$(M)" != "$(qla_root)" || '
@@ -330,6 +335,16 @@ class SelectionTests(unittest.TestCase):
         for selection in ('LIB', 'ALL', ''):
             result, rows, modules, _, _ = self.build_components('KUNIT_LABEL=' + selection)
             self.assert_full_build(result, rows, modules)
+
+    def test_iser_requires_rdma_and_propagates_build_failures(self):
+        for options in ({'options': ('INFINIBAND_ENABLED=false',)},
+                        {'fail': 'iscsi-scst/kernel/isert-scst'}):
+            with self.subTest(options=options):
+                result, _, modules, events, _ = self.build_components(
+                    *options.get('options', ()), fail=options.get('fail', ''))
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIsNone(modules)
+                self.assertNotIn('runner', events)
 
     def test_normal_build_keeps_tests_disabled(self):
         for selection in (None, 'LIB'):

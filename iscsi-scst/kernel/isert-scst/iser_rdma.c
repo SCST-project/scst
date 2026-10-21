@@ -47,6 +47,7 @@
 #include "iser.h"
 #include "isert.h"
 #include "iser_datamover.h"
+#include "iser_rdma_test.h"
 
 #define ISER_CQ_ENTRIES		(128 * 1024)
 #define ISER_LISTEN_BACKLOG	8
@@ -466,10 +467,13 @@ static void isert_rdma_wr_completion_handler(struct isert_wr *wr)
 	isert_data_in_sent(&wr->pdu->iscsi);
 }
 
-static void isert_handle_wc(struct ib_wc *wc)
+SCST_KUNIT_VISIBLE
+void isert_handle_wc(struct ib_wc *wc)
 {
 	struct isert_wr *wr = _u64_to_ptr(wc->wr_id);
 	struct isert_conn *isert_conn;
+
+	SCST_KUNIT_REDIRECT(isert_handle_wc, wc);
 
 	TRACE_ENTRY();
 
@@ -639,15 +643,25 @@ void isert_sched_conn_free(struct isert_conn *isert_conn)
 	isert_conn_queue_work(&isert_conn->release_work);
 }
 
-static void isert_handle_wc_error(struct ib_wc *wc)
+SCST_KUNIT_VISIBLE
+void isert_handle_wc_error(struct ib_wc *wc)
 {
-	struct isert_wr *wr = _u64_to_ptr(wc->wr_id);
-	struct isert_cmnd *isert_pdu = wr->pdu;
-	struct isert_conn *isert_conn = wr->conn;
-	struct isert_buf *isert_buf = wr->buf;
-	struct isert_device *isert_dev = wr->isert_dev;
-	struct ib_device *ib_dev = isert_dev->ib_dev;
+	struct isert_wr *wr;
+	struct isert_cmnd *isert_pdu;
+	struct isert_conn *isert_conn;
+	struct isert_buf *isert_buf;
+	struct isert_device *isert_dev;
+	struct ib_device *ib_dev;
 	u32 num_sge;
+
+	SCST_KUNIT_REDIRECT(isert_handle_wc_error, wc);
+
+	wr = _u64_to_ptr(wc->wr_id);
+	isert_pdu = wr->pdu;
+	isert_conn = wr->conn;
+	isert_buf = wr->buf;
+	isert_dev = wr->isert_dev;
+	ib_dev = isert_dev->ib_dev;
 
 	TRACE_ENTRY();
 
@@ -714,15 +728,19 @@ static void isert_handle_wc_error(struct ib_wc *wc)
 	TRACE_EXIT();
 }
 
-static int isert_poll_cq(struct isert_cq *cq)
+SCST_KUNIT_VISIBLE
+int isert_poll_cq(struct isert_cq *cq)
 {
 	int err;
 	struct ib_wc *wc, *last_wc;
 
 	TRACE_ENTRY();
 
-	do {
+	for (;;) {
 		err = ib_poll_cq(cq->cq, ARRAY_SIZE(cq->wc), cq->wc);
+		if (err <= 0)
+			break;
+
 		last_wc = &cq->wc[err];
 		for (wc = cq->wc; wc < last_wc; ++wc) {
 			if (likely(wc->status == IB_WC_SUCCESS))
@@ -730,8 +748,7 @@ static int isert_poll_cq(struct isert_cq *cq)
 			else
 				isert_handle_wc_error(wc);
 		}
-
-	} while (err > 0);
+	}
 
 	TRACE_EXIT_RES(err);
 	return err;

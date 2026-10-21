@@ -44,6 +44,8 @@ class CleanTests(unittest.TestCase):
                          'scst/src/dev_handlers/kunit/vdisk/suites/test.o',
                          'iscsi-scst/kernel/iscsi-scst.ko',
                          'iscsi-scst/kernel/kunit/suites/test.o',
+                         'iscsi-scst/kernel/isert-scst/isert-scst.ko',
+                         'iscsi-scst/kernel/isert-scst/kunit/suites/test.o',
                          'qla2x00t-32gbit/qla2xxx_scst.ko',
                          'qla2x00t-32gbit/qla_os.o',
                          'qla2x00t-32gbit/qla2x00-target/qla2x00tgt.ko',
