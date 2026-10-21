@@ -491,7 +491,8 @@ bool target_redirected(struct target *target, struct connection *conn)
 		goto out;
 	}
 
-	if ((p = strrchr(tmp, '%')))
+	p = strrchr(tmp, '%');
+	if (p)
 		*p = '\0';
 
 	if (sa.sa.sa_family == AF_INET6)

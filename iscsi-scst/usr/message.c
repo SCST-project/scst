@@ -40,12 +40,14 @@ int iscsi_adm_request_listen(void)
 	memcpy((char *) &addr.sun_path + 1, ISCSI_ADM_NAMESPACE,
 		strlen(ISCSI_ADM_NAMESPACE));
 
-	if ((err = bind(fd, (struct sockaddr *) &addr, sizeof(addr))) < 0) {
+	err = bind(fd, (struct sockaddr *) &addr, sizeof(addr));
+	if (err < 0) {
 		close(fd);
 		return err;
 	}
 
-	if ((err = listen(fd, 32)) < 0) {
+	err = listen(fd, 32);
+	if (err < 0) {
 		close(fd);
 		return err;
 	}
@@ -161,7 +163,8 @@ int iscsi_adm_request_handle(int accept_fd)
 
 	memset(&rsp, 0, sizeof(rsp));
 	len = sizeof(addr);
-	if ((fd = accept(accept_fd, (struct sockaddr *) &addr, &len)) < 0) {
+	fd = accept(accept_fd, (struct sockaddr *) &addr, &len);
+	if (fd < 0) {
 		if (errno == EINTR)
 			err = -EINTR;
 		else
@@ -171,7 +174,8 @@ int iscsi_adm_request_handle(int accept_fd)
 	}
 
 	len = sizeof(cred);
-	if ((err = getsockopt(fd, SOL_SOCKET, SO_PEERCRED, (void *) &cred, &len)) < 0) {
+	err = getsockopt(fd, SOL_SOCKET, SO_PEERCRED, (void *) &cred, &len);
+	if (err < 0) {
 		rsp.err = -EPERM;
 		goto send;
 	}
@@ -181,7 +185,8 @@ int iscsi_adm_request_handle(int accept_fd)
 		goto send;
 	}
 
-	if ((err = read(fd, &req, sizeof(req))) != sizeof(req)) {
+	err = read(fd, &req, sizeof(req));
+	if (err != sizeof(req)) {
 		if (err >= 0)
 			err = -EIO;
 		goto out;

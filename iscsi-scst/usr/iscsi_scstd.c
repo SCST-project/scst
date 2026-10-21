@@ -441,7 +441,8 @@ static void accept_connection(int listen)
 	char target_portal[ISCSI_PORTAL_LEN], target_portal_port[NI_MAXSERV];
 
 	namesize = sizeof(from);
-	if ((fd = accept(listen, &from.sa, &namesize)) < 0) {
+	fd = accept(listen, &from.sa, &namesize);
+	if (fd < 0) {
 		switch (errno) {
 		case EINTR:
 		case EAGAIN:
@@ -952,12 +953,14 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if ((ctrl_fd = kernel_open()) < 0)
+	ctrl_fd = kernel_open();
+	if (ctrl_fd < 0)
 		exit(-1);
 
 	init_max_params();
 
-	if ((nl_fd = nl_open()) < 0) {
+	nl_fd = nl_open();
+	if (nl_fd < 0) {
 		perror("netlink open failed");
 		exit(-1);
 	}
@@ -982,7 +985,8 @@ int main(int argc, char **argv)
 	if (err != 0)
 		exit(err);
 
-	if ((ipc_fd = iscsi_adm_request_listen()) < 0) {
+	ipc_fd = iscsi_adm_request_listen();
+	if (ipc_fd < 0) {
 		perror("Opening AF_LOCAL socket failed");
 		exit(-1);
 	}

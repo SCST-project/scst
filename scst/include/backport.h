@@ -2271,7 +2271,8 @@ static inline void scsi_req_init(struct request *rq)
 	rq->cmd_type = REQ_TYPE_BLOCK_PC;
 	rq->__data_len = 0;
 	rq->__sector = (sector_t) -1;
-	rq->bio = rq->biotail = NULL;
+	rq->biotail = NULL;
+	rq->bio = NULL;
 	memset(rq->__cmd, 0, sizeof(rq->__cmd));
 	rq->cmd = rq->__cmd;
 #else

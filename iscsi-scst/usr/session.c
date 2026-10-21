@@ -38,7 +38,8 @@ static int session_alloc(u32 tid, struct session **psess)
 		goto out;
 	}
 
-	if (!(session = malloc(sizeof(*session)))) {
+	session = malloc(sizeof(*session));
+	if (!session) {
 		res = -ENOMEM;
 		goto out;
 	}
@@ -60,7 +61,8 @@ struct session *session_find_name(u32 tid, const char *iname, union iscsi_sid si
 	struct session *session;
 	struct target *target;
 
-	if (!(target = target_find_by_id(tid))) {
+	target = target_find_by_id(tid);
+	if (!target) {
 		log_error("Target tid %d not found", tid);
 		return NULL;
 	}
@@ -81,7 +83,8 @@ struct session *session_find_id(u32 tid, u64 sid)
 	struct session *session;
 	struct target *target;
 
-	if (!(target = target_find_by_id(tid)))
+	target = target_find_by_id(tid);
+	if (!target)
 		return NULL;
 
 	log_debug(1, "Searching for sid %#" PRIx64, sid);
@@ -99,7 +102,8 @@ static bool session_id_exists(u32 tid, u64 sid, struct session *exclude)
 	struct session *session;
 	struct target *target;
 
-	if (!(target = target_find_by_id(tid)))
+	target = target_find_by_id(tid);
+	if (!target)
 		return false;
 
 	log_debug(1, "Searching for sid %#" PRIx64, sid);

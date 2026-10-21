@@ -226,7 +226,8 @@ static int digest_str_to_val(const char *str, unsigned int *val)
 			break;
 		}
 
-		if ((q = strchr(p, ',')))
+		q = strchr(p, ',');
+		if (q)
 			p = q + 1;
 	} while (q);
 

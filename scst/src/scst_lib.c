@@ -16109,9 +16109,11 @@ static void __scst_update_latency_stats(struct scst_cmd *cmd,
 				stat->maxc = deltac;
 #endif
 		} else {
-			stat->min = stat->max = delta;
+			stat->max = delta;
+			stat->min = delta;
 #ifdef SCST_MEASURE_CLOCK_CYCLES
-			stat->minc = stat->maxc = deltac;
+			stat->maxc = deltac;
+			stat->minc = deltac;
 #endif
 		}
 		stat->sum += delta;

@@ -172,7 +172,8 @@ static int handle_e_add_target(int fd, const struct iscsi_kern_event *event)
 	offs = sprintf(buf, "Target ");
 
 	while (1) {
-		if ((rc = nl_read(fd, &buf[offs], event->param1_size, true)) < 0) {
+		rc = nl_read(fd, &buf[offs], event->param1_size, true);
+		if (rc < 0) {
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
@@ -188,7 +189,8 @@ static int handle_e_add_target(int fd, const struct iscsi_kern_event *event)
 
 	if (event->param2_size > 0) {
 		while (1) {
-			if ((rc = nl_read(fd, &buf[offs], event->param2_size, true)) < 0) {
+			rc = nl_read(fd, &buf[offs], event->param2_size, true);
+			if (rc < 0) {
 				if ((errno == EINTR) || (errno == EAGAIN))
 					continue;
 				log_error("read netlink fd (%d) failed: %s", fd,
@@ -409,7 +411,8 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 	}
 
 	while (1) {
-		if ((rc = nl_read(fd, buf, event->param1_size, true)) < 0) {
+		rc = nl_read(fd, buf, event->param1_size, true);
+		if (rc < 0) {
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
@@ -501,7 +504,8 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 	}
 
 	while (1) {
-		if ((rc = nl_read(fd, buf, event->param1_size, true)) < 0) {
+		rc = nl_read(fd, buf, event->param1_size, true);
+		if (rc < 0) {
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
@@ -818,7 +822,8 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 	}
 
 	while (1) {
-		if ((rc = nl_read(fd, buf, event->param1_size, true)) < 0) {
+		rc = nl_read(fd, buf, event->param1_size, true);
+		if (rc < 0) {
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
@@ -833,7 +838,8 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 	offs += sprintf(&buf[offs], " ");
 
 	while (1) {
-		if ((rc = nl_read(fd, &buf[offs], event->param2_size, true)) < 0) {
+		rc = nl_read(fd, &buf[offs], event->param2_size, true);
+		if (rc < 0) {
 			if ((errno == EINTR) || (errno == EAGAIN))
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
