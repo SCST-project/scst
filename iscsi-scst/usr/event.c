@@ -130,7 +130,7 @@ static int send_mgmt_cmd_res(u32 tid, u32 cookie, u32 req_cmd, int result,
 	cinfo.req_cmd = req_cmd;
 	cinfo.result = result;
 
-	if (res_str != NULL)
+	if (res_str)
 		iscsi_strscpy(cinfo.value, res_str, sizeof(cinfo.value));
 
 	log_debug(1, "Sending result %d (cookie %d)", result, cookie);
@@ -163,7 +163,7 @@ static int handle_e_add_target(int fd, const struct iscsi_kern_event *event)
 		1 + NLMSG_ALIGNTO - 1;
 
 	buf = malloc(size);
-	if (buf == NULL) {
+	if (!buf) {
 		log_error("Unable to allocate tmp buffer (size %d)", size);
 		res = -ENOMEM;
 		goto out;
@@ -174,7 +174,7 @@ static int handle_e_add_target(int fd, const struct iscsi_kern_event *event)
 	while (1) {
 		rc = nl_read(fd, &buf[offs], event->param1_size, true);
 		if (rc < 0) {
-			if ((errno == EINTR) || (errno == EAGAIN))
+			if (errno == EINTR || errno == EAGAIN)
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
 				strerror(errno));
@@ -191,7 +191,7 @@ static int handle_e_add_target(int fd, const struct iscsi_kern_event *event)
 		while (1) {
 			rc = nl_read(fd, &buf[offs], event->param2_size, true);
 			if (rc < 0) {
-				if ((errno == EINTR) || (errno == EAGAIN))
+				if (errno == EINTR || errno == EAGAIN)
 					continue;
 				log_error("read netlink fd (%d) failed: %s", fd,
 					strerror(errno));
@@ -254,24 +254,24 @@ static int __handle_add_attr(const struct target *target, struct __qelem *attrs_
 	key = config_sep_string(&p);
 	val = config_sep_string(&p);
 
-	if (target == NULL) {
+	if (!target) {
 		log_error("Target expected for attr %s", name);
 		res = -EINVAL;
 		goto out;
 	}
 
-	if ((key == NULL) || (*key == '\0')) {
+	if (!key || (*key == '\0')) {
 		log_error("Value expected for attr %s", name);
 		res = -EINVAL;
 		goto out;
 	}
 
-	if (val != NULL)
+	if (val)
 		if (*val == '\0')
 			val = NULL;
 
 	if (single_param_only) {
-		if (val != NULL) {
+		if (val) {
 			log_error("Only one value expected for attr %s", key);
 			res = -EINVAL;
 			goto out;
@@ -327,7 +327,7 @@ static int handle_del_user(const struct target *target, int dir, char *p, u32 co
 
 	name = config_sep_string(&p);
 
-	res = config_account_del((target != NULL) ? target->tid : 0, dir,
+	res = config_account_del((target) ? target->tid : 0, dir,
 			name, cookie);
 
 	return res;
@@ -342,14 +342,14 @@ static int __handle_del_attr(const struct target *target, struct __qelem *attrs_
 
 	key = config_sep_string(&p);
 
-	if (target == NULL) {
+	if (!target) {
 		log_error("Target expected for attr %s", p);
 		res = -EINVAL;
 		goto out;
 	}
 
 	attr = iscsi_attr_lookup_by_key(attrs_list, key);
-	if (attr == NULL) {
+	if (!attr) {
 		log_error("Unknown portal %s", key);
 		res = -EINVAL;
 		goto out;
@@ -405,7 +405,7 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 	size = NLMSG_ALIGN(event->param1_size + 1);
 
 	buf = malloc(size);
-	if (buf == NULL) {
+	if (!buf) {
 		log_error("Unable to allocate tmp buffer (size %d)", size);
 		res = -ENOMEM;
 		goto out;
@@ -414,7 +414,7 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 	while (1) {
 		rc = nl_read(fd, buf, event->param1_size, true);
 		if (rc < 0) {
-			if ((errno == EINTR) || (errno == EAGAIN))
+			if (errno == EINTR || errno == EAGAIN)
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
 				strerror(errno));
@@ -437,7 +437,7 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 
 		pp = config_sep_string(&p);
 		target = target_find_by_name(pp);
-		if (target == NULL) {
+		if (!target) {
 			log_error("Target %s not found", pp);
 			res = -ENOENT;
 			goto out_free;
@@ -450,7 +450,7 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 
 		pp = config_sep_string(&p);
 		target = target_find_by_name(pp);
-		if (target == NULL) {
+		if (!target) {
 			log_error("Target %s not found", pp);
 			res = -ENOENT;
 			goto out_free;
@@ -498,7 +498,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 	size = NLMSG_ALIGN(event->param1_size + 1);
 
 	buf = malloc(size);
-	if (buf == NULL) {
+	if (!buf) {
 		log_error("Unable to allocate tmp buffer (size %d)", size);
 		res = -ENOMEM;
 		goto out;
@@ -507,7 +507,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 	while (1) {
 		rc = nl_read(fd, buf, event->param1_size, true);
 		if (rc < 0) {
-			if ((errno == EINTR) || (errno == EAGAIN))
+			if (errno == EINTR || errno == EAGAIN)
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
 				strerror(errno));
@@ -527,7 +527,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 	pp = config_sep_string(&p);
 	idx = params_index_by_name(pp, target_keys);
 	if (idx >= 0) {
-		if (target == NULL) {
+		if (!target) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
 			goto out_free;
@@ -538,8 +538,8 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 
 		if (target->target_params[idx] != target_keys[idx].local_def)
 			add_key_mark(res_str, sizeof(res_str), 1);
-	} else if (!((idx = params_index_by_name(pp, session_keys)) < 0)) {
-		if (target == NULL) {
+	} else if ((idx = params_index_by_name(pp, session_keys)) >= 0) {
+		if (!target) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
 			goto out_free;
@@ -550,11 +550,11 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 
 		if (target->session_params[idx] != session_keys[idx].local_def)
 			add_key_mark(res_str, sizeof(res_str), 1);
-	} else if (!((idx = params_index_by_name_numwild(pp, user_keys)) < 0)) {
+	} else if ((idx = params_index_by_name_numwild(pp, user_keys)) >= 0) {
 		const struct iscsi_attr *user;
 
 		user = account_lookup_by_sysfs_name(target, idx, pp);
-		if (user == NULL) {
+		if (!user) {
 			log_error("Unknown user attribute %s", pp);
 			res = -EINVAL;
 			goto out_free;
@@ -566,14 +566,14 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 	} else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_ATTR_NAME, pp) == 0) {
 		const struct iscsi_attr *portal;
 
-		if (target == NULL) {
+		if (!target) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
 			goto out_free;
 		}
 
 		portal = iscsi_attr_lookup_by_sysfs_name(&target->allowed_portals, pp);
-		if (portal == NULL) {
+		if (!portal) {
 			log_error("Unknown portal attribute %s", pp);
 			res = -EINVAL;
 			goto out_free;
@@ -582,7 +582,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 		snprintf(res_str, sizeof(res_str), "%s\n", portal->attr_key);
 		add_key_mark(res_str, sizeof(res_str), 0);
 	} else if (strcasecmp(ISCSI_ENABLED_ATTR_NAME, pp) == 0) {
-		if (target != NULL) {
+		if (target) {
 			log_error("Not NULL target %s for global attribute %s",
 				target->name, pp);
 			res = -EINVAL;
@@ -590,7 +590,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 		}
 		snprintf(res_str, sizeof(res_str), "%d\n", iscsi_enabled);
 	} else if (strcasecmp(ISCSI_PER_PORTAL_ACL_ATTR_NAME, pp) == 0) {
-		if (target == NULL) {
+		if (!target) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
 			goto out_free;
@@ -599,7 +599,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 		if (target->per_portal_acl)
 			add_key_mark(res_str, sizeof(res_str), 0);
 	} else if (strcasecmp(ISCSI_TARGET_REDIRECTION_ATTR_NAME, pp) == 0) {
-		if (target == NULL) {
+		if (!target) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
 			goto out_free;
@@ -618,7 +618,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 		} else
 			*res_str = '\0';
 	} else if (strcasecmp(ISCSI_TARGET_ALIAS_ATTR_NAME, pp) == 0) {
-		if (target == NULL) {
+		if (!target) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
 			goto out_free;
@@ -629,21 +629,21 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 		} else
 			*res_str = '\0';
 	} else if (strcasecmp(ISCSI_ISNS_SERVER_ATTR_NAME, pp) == 0) {
-		if (target != NULL) {
+		if (target) {
 			log_error("Not NULL target %s for global attribute %s",
 				target->name, pp);
 			res = -EINVAL;
 			goto out_free;
 		}
 
-		if (isns_server != NULL) {
+		if (isns_server) {
 			snprintf(res_str, sizeof(res_str), "%s %s\n", isns_server,
 				isns_access_control ? ISCSI_ISNS_SYSFS_ACCESS_CONTROL_ENABLED : "");
 			add_key_mark(res_str, sizeof(res_str), 0);
 		} else
 			snprintf(res_str, sizeof(res_str), "\n");
 	} else if (strcasecmp(ISCSI_ISNS_ENTITY_ATTR_NAME, pp) == 0)	{
-		if (target != NULL) {
+		if (target) {
 			log_error("Not NULL target %s for global attribute %s",
 				target->name, pp);
 			res = -EINVAL;
@@ -651,7 +651,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 		}
 		snprintf(res_str, sizeof(res_str), "%s", isns_entity_target_name);
 	} else if (strcasecmp(ISCSI_LINK_LOCAL_ATTR_NAME, pp) == 0)	{
-		if (target != NULL) {
+		if (target) {
 			log_error("Not NULL target %s for global attribute %s",
 				target->name, pp);
 			res = -EINVAL;
@@ -661,7 +661,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 		if (send_targets_link_local != DEFAULT_SEND_TARGETS_LINK_LOCAL)
 			add_key_mark(res_str, sizeof(res_str), 0);
 	} else if (strcasecmp(ISCSI_INTERNAL_PORTAL_ATTR_NAME, pp) == 0)	{
-		if (target != NULL) {
+		if (target) {
 			log_error("Not NULL target %s for global attribute %s",
 				target->name, pp);
 			res = -EINVAL;
@@ -729,15 +729,15 @@ static int handle_target_redirect(struct target *target, char *p)
 	}
 
 	t = strrchr(addr, ']');
-	if (t != NULL)
+	if (t)
 		port = strchr(t, ':');
 	else
 		port = strrchr(addr, ':');
-	if (port != NULL) {
+	if (port) {
 		*port = '\0';
 		port++;
 		port_num = strtol(port, (char **) NULL, 10);
-		if ((port_num <= 0) || (errno == EINVAL)) {
+		if (port_num <= 0 || errno == EINVAL) {
 			log_error("Invalid port %s", port);
 			res = -EINVAL;
 			goto out;
@@ -816,7 +816,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		NLMSG_ALIGNTO - 1;
 
 	buf = malloc(size);
-	if (buf == NULL) {
+	if (!buf) {
 		log_error("Unable to allocate tmp buffer (size %d)", size);
 		res = -ENOMEM;
 		goto out;
@@ -825,7 +825,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 	while (1) {
 		rc = nl_read(fd, buf, event->param1_size, true);
 		if (rc < 0) {
-			if ((errno == EINTR) || (errno == EAGAIN))
+			if (errno == EINTR || errno == EAGAIN)
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
 				strerror(errno));
@@ -841,7 +841,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 	while (1) {
 		rc = nl_read(fd, &buf[offs], event->param2_size, true);
 		if (rc < 0) {
-			if ((errno == EINTR) || (errno == EAGAIN))
+			if (errno == EINTR || errno == EAGAIN)
 				continue;
 			log_error("read netlink fd (%d) failed: %s", fd,
 				strerror(errno));
@@ -865,7 +865,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		struct iscsi_param params[target_key_last];
 		struct session *session;
 
-		if (target == NULL) {
+		if (!target) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
 			goto out_free;
@@ -902,8 +902,8 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			kernel_params_set(event->tid, session->sid.id64,
 				key_target, 1 << idx, params);
 		}
-	} else if (!((idx = params_index_by_name(pp, session_keys)) < 0)) {
-		if (target == NULL) {
+	} else if ((idx = params_index_by_name(pp, session_keys)) >= 0) {
+		if (!target) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
 			goto out_free;
@@ -933,11 +933,11 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		}
 
 		target->session_params[idx] = val;
-	} else if (!((idx = params_index_by_name_numwild(pp, user_keys)) < 0)) {
+	} else if ((idx = params_index_by_name_numwild(pp, user_keys)) >= 0) {
 		const struct iscsi_attr *user;
 
 		user = account_lookup_by_sysfs_name(target, idx, pp);
-		if (user == NULL) {
+		if (!user) {
 			log_error("Unknown user attribute %s", pp);
 			res = -EINVAL;
 			goto out_free;
@@ -949,14 +949,14 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 	} else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_ATTR_NAME, pp) == 0) {
 		const struct iscsi_attr *portal;
 
-		if (target == NULL) {
+		if (!target) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
 			goto out_free;
 		}
 
 		portal = iscsi_attr_lookup_by_sysfs_name(&target->allowed_portals, pp);
-		if (portal == NULL) {
+		if (!portal) {
 			log_error("Unknown portal attribute %s", pp);
 			res = -EINVAL;
 			goto out_free;
@@ -966,7 +966,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		if (res != 0)
 			goto out_free;
 	} else if (strcasecmp(ISCSI_ENABLED_ATTR_NAME, pp) == 0) {
-		if (target != NULL) {
+		if (target) {
 			log_error("Not NULL target %s for global attribute %s",
 				target->name, pp);
 			res = -EINVAL;
@@ -983,7 +983,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			goto out_free;
 		}
 	} else if (strcasecmp(ISCSI_PER_PORTAL_ACL_ATTR_NAME, pp) == 0) {
-		if (target == NULL) {
+		if (!target) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
 			goto out_free;
@@ -999,7 +999,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			goto out_free;
 		}
 	} else if (strcasecmp(ISCSI_TARGET_REDIRECTION_ATTR_NAME, pp) == 0) {
-		if (target == NULL) {
+		if (!target) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
 			goto out_free;
@@ -1010,7 +1010,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 	} else if (strcasecmp(ISCSI_TARGET_ALIAS_ATTR_NAME, pp) == 0) {
 		bool alias_changed = false;
 
-		if (target == NULL) {
+		if (!target) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
 			goto out_free;
@@ -1025,7 +1025,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		} else {
 			char *newval = strdup(p);
 
-			if (newval == NULL) {
+			if (!newval) {
 				log_error("Unable to duplicate alias name %s", p);
 				res = -ENOMEM;
 				goto out_free;
@@ -1050,14 +1050,14 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			}
 		}
 	} else if (strcasecmp(ISCSI_ISNS_SERVER_ATTR_NAME, pp) == 0) {
-		if (target != NULL) {
+		if (target) {
 			log_error("Not NULL target %s for global attribute %s",
 				target->name, pp);
 			res = -EINVAL;
 			goto out_free;
 		}
 
-		if (isns_server != NULL)
+		if (isns_server)
 			isns_exit();
 
 		pp = config_sep_string(&p);
@@ -1067,7 +1067,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 
 		isns_access_control = 0;
 		isns_server = strdup(pp);
-		if (isns_server == NULL) {
+		if (!isns_server) {
 			log_error("Unable to duplicate iSNS server name %s", pp);
 			res = -ENOMEM;
 			goto out_free;
@@ -1109,7 +1109,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		pp = config_sep_string(&p);
 		iscsi_strscpy(isns_entity_target_name, pp, sizeof(isns_entity_target_name));
 	} else if (strcasecmp(ISCSI_LINK_LOCAL_ATTR_NAME, pp) == 0) {
-		if (target != NULL) {
+		if (target) {
 			log_error("Not NULL target %s for global attribute %s",
 				target->name, pp);
 			res = -EINVAL;
@@ -1126,7 +1126,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			goto out_free;
 		}
 	} else if (strcasecmp(ISCSI_INTERNAL_PORTAL_ATTR_NAME, pp) == 0) {
-		if (target != NULL) {
+		if (target) {
 			log_error("Not NULL target %s for global attribute %s",
 				target->name, pp);
 			res = -EINVAL;
@@ -1149,7 +1149,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 				}
 
 				portal = strtok_r(portals, " ", &saveptr);
-				while (portal != NULL) {
+				while (portal) {
 					if (!is_addr(portal)) {
 						log_error("Invalid address supplied %s", portal);
 						free(portals);
@@ -1263,7 +1263,7 @@ retry:
 
 	case E_ENABLE_TARGET:
 		target = target_find_by_id(event.tid);
-		if (target == NULL) {
+		if (!target) {
 			log_error("Target %d not found", event.tid);
 			rc = -ENOENT;
 		} else
@@ -1277,7 +1277,7 @@ retry:
 
 	case E_DISABLE_TARGET:
 		target = target_find_by_id(event.tid);
-		if (target == NULL) {
+		if (!target) {
 			log_error("Target %d not found", event.tid);
 			rc = -ENOENT;
 		} else
@@ -1303,13 +1303,13 @@ retry:
 
 	case E_CONN_CLOSE:
 		session = session_find_id(event.tid, event.sid);
-		if (session == NULL) {
+		if (!session) {
 			log_error("Session %#" PRIx64 " not found", event.sid);
 			goto retry;
 		}
 
 		conn = conn_find(session, event.cid);
-		if (conn == NULL) {
+		if (!conn) {
 			log_error("Connection %x for session %#" PRIx64 " not "
 				"found", event.cid, event.sid);
 			goto retry;

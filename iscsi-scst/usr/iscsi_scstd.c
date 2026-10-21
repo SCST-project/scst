@@ -118,7 +118,7 @@ static void create_listen_socket(struct pollfd *array)
 		int rc;
 
 		server_address = server_addresses[k];
-		if (k > 0 && server_address == NULL)
+		if (k > 0 && !server_address)
 			break;
 
 		if (i == LISTEN_MAX) {
@@ -279,7 +279,7 @@ static void create_iser_listen_socket(struct pollfd *array)
 
 		server_address = server_addresses[k];
 
-		if (k > 0 && server_address == NULL)
+		if (k > 0 && !server_address)
 			break;
 
 		if (i == ISERT_MAX_PORTALS) {
@@ -383,7 +383,7 @@ static void iser_accept(int fd)
 		goto out_close;
 
 	conn->target_portal = strdup(target_portal);
-	if (conn->target_portal == NULL) {
+	if (!conn->target_portal) {
 		log_error("Unable to duplicate target portal %s", target_portal);
 		goto out_free;
 	}
@@ -502,7 +502,7 @@ static void accept_connection(int listen)
 		goto out_close;
 
 	conn->target_portal = strdup(target_portal);
-	if (conn->target_portal == NULL) {
+	if (!conn->target_portal) {
 		log_error("Unable to duplicate target portal %s", target_portal);
 		goto out_free;
 	}
@@ -921,7 +921,7 @@ int main(int argc, char **argv)
 			int i = 0;
 
 			server_address = strdup(optarg);
-			if (server_address == NULL) {
+			if (!server_address) {
 				perror("strdup failed");
 				exit(-1);
 			}

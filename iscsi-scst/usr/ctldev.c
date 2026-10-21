@@ -75,7 +75,7 @@ int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 
 	memset(&info, 0, sizeof(info));
 	iscsi_strscpy(info.name, target->name, sizeof(info.name));
-	info.tid = (tid != NULL) ? *tid : 0;
+	info.tid = tid ? *tid : 0;
 	info.cookie = cookie;
 
 	/*
@@ -104,7 +104,7 @@ int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 	}
 
 	kern_attrs = calloc(info.attrs_num, sizeof(*kern_attrs));
-	if (kern_attrs == NULL) {
+	if (!kern_attrs) {
 		err = -ENOMEM;
 		goto out;
 	}
@@ -172,7 +172,7 @@ int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 			strerror(errno));
 	} else {
 		target->tid = err;
-		if (tid != NULL)
+		if (tid)
 			*tid = err;
 		err = 0;
 	}
@@ -209,7 +209,7 @@ int kernel_attr_add(const struct target *target, const char *name, u32 mode,
 	int res;
 
 	memset(&info, 0, sizeof(info));
-	if (target != NULL)
+	if (target)
 		info.tid = target->tid;
 	info.cookie = cookie;
 
@@ -229,7 +229,7 @@ int kernel_attr_del(const struct target *target, const char *name, u32 cookie)
 	int res;
 
 	memset(&info, 0, sizeof(info));
-	if (target != NULL)
+	if (target)
 		info.tid = target->tid;
 	info.cookie = cookie;
 
@@ -298,7 +298,7 @@ int kernel_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params)
 	struct iscsi_kern_params_info info;
 
 	if (sid == 0) {
-		log_error("kernel_params_get(): sid must be not %d", 0);
+		log_error("%s(): sid must be not %d", __func__, 0);
 		err = -EINVAL;
 		goto out;
 	}
@@ -333,7 +333,7 @@ int kernel_params_set(u32 tid, u64 sid, int type, u32 partial,
 	struct iscsi_kern_params_info info;
 
 	if (sid == 0) {
-		log_error("kernel_params_set(): sid must be not %d", 0);
+		log_error("%s(): sid must be not %d", __func__, 0);
 		err = -EINVAL;
 		goto out;
 	}
@@ -370,7 +370,7 @@ int kernel_session_create(struct connection *conn)
 	struct target *target;
 
 	target = target_find_by_id(conn->tid);
-	if (target == NULL) {
+	if (!target) {
 		log_error("Target %d not found", conn->tid);
 		res = -EINVAL;
 		goto out;

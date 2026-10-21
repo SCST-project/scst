@@ -113,28 +113,28 @@ int iscsi_attr_create(int attr_size, struct __qelem *attrs_list,
 	struct iscsi_attr *attr;
 	int num = 0;
 
-	if (iscsi_attr_lookup_by_key(attrs_list, key) != NULL) {
+	if (iscsi_attr_lookup_by_key(attrs_list, key)) {
 		log_error("Attribute %s already exists", key);
 		res = -EINVAL;
 		goto out;
 	}
 
 	attr = malloc(attr_size);
-	if (attr == NULL)
+	if (!attr)
 		goto out;
 
 	memset(attr, 0, attr_size);
 
 	attr->attr_key = strdup(key);
-	if (attr->attr_key == NULL) {
+	if (!attr->attr_key) {
 		log_error("Unable to duplicate attr_key %s", key);
 		res = -ENOMEM;
 		goto out_free;
 	}
 
-	if ((val != NULL) && (*val != '\0')) {
+	if ((val) && (*val != '\0')) {
 		attr->attr_value = strdup(val);
-		if (attr->attr_value == NULL) {
+		if (!attr->attr_value) {
 			log_error("Unable to duplicate attr_value %s", val);
 			res = -ENOMEM;
 			goto out_free;
@@ -143,12 +143,12 @@ int iscsi_attr_create(int attr_size, struct __qelem *attrs_list,
 
 	attr->sysfs_mode = mode;
 
-	if (sysfs_name_tmpl == NULL)
+	if (!sysfs_name_tmpl)
 		goto add;
 
-	if (sysfs_name_tmpl != NULL) {
+	if (sysfs_name_tmpl) {
 		iscsi_strscpy(attr->sysfs_name, sysfs_name_tmpl, sizeof(attr->sysfs_name));
-		if (iscsi_attr_lookup_by_sysfs_name(attrs_list, attr->sysfs_name) == NULL)
+		if (!iscsi_attr_lookup_by_sysfs_name(attrs_list, attr->sysfs_name))
 			goto add;
 	}
 
@@ -157,7 +157,7 @@ int iscsi_attr_create(int attr_size, struct __qelem *attrs_list,
 			num++;
 		snprintf(attr->sysfs_name, sizeof(attr->sysfs_name),
 			"%s%d", sysfs_name_tmpl, num);
-		if (iscsi_attr_lookup_by_sysfs_name(attrs_list, attr->sysfs_name) == NULL)
+		if (!iscsi_attr_lookup_by_sysfs_name(attrs_list, attr->sysfs_name))
 			break;
 		num++;
 	}
@@ -187,7 +187,7 @@ int iscsi_attr_replace(const struct __qelem *attrs_list, const char *sysfs_name,
 	val = config_sep_string(&raw_value);
 
 	attr = iscsi_attr_lookup_by_sysfs_name(attrs_list, sysfs_name);
-	if (attr == NULL) {
+	if (!attr) {
 		log_error("Unknown parameter %s\n", sysfs_name);
 		res = -EINVAL;
 		goto out;
@@ -195,7 +195,7 @@ int iscsi_attr_replace(const struct __qelem *attrs_list, const char *sysfs_name,
 
 	a = iscsi_attr_lookup_by_key(attrs_list, key);
 
-	if ((a != NULL) && (a != attr)) {
+	if (a && a != attr) {
 		log_error("Attr %s (sysfs_name %s) already exists\n", key,
 			a->sysfs_name);
 		res = -EEXIST;
@@ -203,15 +203,15 @@ int iscsi_attr_replace(const struct __qelem *attrs_list, const char *sysfs_name,
 	}
 
 	new_key = strdup(key);
-	if (new_key == NULL) {
+	if (!new_key) {
 		log_error("Unable to duplicate attr_key %s", key);
 		res = -ENOMEM;
 		goto out;
 	}
 
-	if ((val != NULL) && (*val != '\0')) {
+	if ((val) && (*val != '\0')) {
 		new_val = strdup(val);
-		if (new_val == NULL) {
+		if (!new_val) {
 			log_error("Unable to duplicate attr_value %s", val);
 			res = -ENOMEM;
 			free(new_key);
@@ -234,7 +234,7 @@ static struct __qelem *account_list_get(struct target *target, int dir)
 {
 	struct __qelem *list = NULL;
 
-	if (target != NULL) {
+	if (target) {
 		list = (dir == ISCSI_USER_DIR_INCOMING) ?
 			&target->target_in_accounts : &target->target_out_accounts;
 	} else
@@ -250,7 +250,7 @@ char *config_sep_string(char **pp)
 	char *q;
 	static char blank = '\0';
 
-	if ((pp == NULL) || (*pp == NULL))
+	if (!pp || (!*pp))
 		return &blank;
 
 	for (p = *pp; isspace(*p) || (*p == '='); p++)
@@ -299,7 +299,7 @@ static char *config_gets(char *buf, int size, const char *data, int *offset)
 	while ((i < size-1) && (data[offs] != '\n') && (data[offs] != ';') && (data[offs] != '\0'))
 		buf[i++] = data[offs++];
 
-	if ((i == 0) && (data[offs] == '\0'))
+	if (i == 0 && (data[offs] == '\0'))
 		return NULL;
 
 	if (data[offs] != '\0')
@@ -318,7 +318,7 @@ int accounts_empty(u32 tid, int dir)
 
 	if (tid) {
 		target = target_find_by_id(tid);
-		if (target == NULL)
+		if (!target)
 			return 0;
 	} else
 		target = NULL;
@@ -344,7 +344,7 @@ static struct iscsi_attr *account_lookup_by_name(u32 tid, int dir, const char *n
 
 	if (tid) {
 		target = target_find_by_id(tid);
-		if (target == NULL)
+		if (!target)
 			return NULL;
 	} else
 		target = NULL;
@@ -360,7 +360,7 @@ struct iscsi_attr *account_get_first(u32 tid, int dir)
 
 	if (tid) {
 		target = target_find_by_id(tid);
-		if (target == NULL)
+		if (!target)
 			return NULL;
 	} else
 		target = NULL;
@@ -408,7 +408,7 @@ int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
 
 	if (tid) {
 		target = target_find_by_id(tid);
-		if (target == NULL)
+		if (!target)
 			return -ENOENT;
 	} else
 		target = NULL;
@@ -457,7 +457,7 @@ int config_account_del(u32 tid, int dir, char *name, u32 cookie)
 
 	if (tid) {
 		target = target_find_by_id(tid);
-		if (target == NULL) {
+		if (!target) {
 			log_error("Target %d not found", tid);
 			res = -ESRCH;
 			goto out;
@@ -466,7 +466,7 @@ int config_account_del(u32 tid, int dir, char *name, u32 cookie)
 		target = NULL;
 
 	user = __account_lookup_by_name(target, dir, name);
-	if (user == NULL) {
+	if (!user) {
 		log_error("User %s not found", name);
 		res = -ENOENT;
 		goto out;
@@ -531,7 +531,7 @@ int __config_account_add(struct target *target, int dir, char *name, const char 
 		goto out;
 	}
 
-	if (sysfs_name == NULL)
+	if (!sysfs_name)
 		sysfs_name = (dir == ISCSI_USER_DIR_OUTGOING) ?
 				user_keys[ISCSI_USER_DIR_OUTGOING].name :
 				user_keys[ISCSI_USER_DIR_INCOMING].name;
@@ -554,7 +554,7 @@ int __config_account_add(struct target *target, int dir, char *name, const char 
 	if (err != 0)
 		goto out;
 
-	if (send_to_kern && (sysfs_name != NULL)) {
+	if (send_to_kern && (sysfs_name)) {
 		err = kernel_user_add(target, user, cookie);
 		if (err != 0)
 			goto out_destroy;
@@ -581,7 +581,7 @@ int config_account_add(u32 tid, int dir, char *name, const char *pass,
 
 	if (tid) {
 		target = target_find_by_id(tid);
-		if (target == NULL) {
+		if (!target) {
 			err = -ENOENT;
 			goto out;
 		}
@@ -841,7 +841,7 @@ int config_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params)
 	err = 0;
 
 	target = target_find_by_id(tid);
-	if (target == NULL) {
+	if (!target) {
 		log_error("target %d not found", tid);
 		err = -EINVAL;
 		goto out;
@@ -938,7 +938,7 @@ int config_parse_main(const char *data, u32 cookie)
 		 * If stop_on_errors is false, let's always continue parsing
 		 * and only report errors.
 		 */
-		if (stop_on_errors && (res != 0))
+		if (stop_on_errors && res != 0)
 			goto out_target_free;
 
 		q = buf;
@@ -949,7 +949,7 @@ int config_parse_main(const char *data, u32 cookie)
 		if (!strcasecmp(p, "Target")) {
 			global_section = 0;
 
-			if (target != NULL) {
+			if (target) {
 				res = target_add(target, NULL, cookie);
 				if (res != 0)
 					target_free(target);
@@ -975,7 +975,7 @@ int config_parse_main(const char *data, u32 cookie)
 				goto out;
 		} else if (!strcasecmp(p, "Alias") && target) {
 			;
-		} else if (!((idx = params_index_by_name(p, target_keys)) < 0) && (target != NULL)) {
+		} else if ((idx = params_index_by_name(p, target_keys)) >= 0 && (target)) {
 			char *str = config_sep_string(&q);
 
 			n = config_sep_string(&q);
@@ -1000,7 +1000,7 @@ int config_parse_main(const char *data, u32 cookie)
 				continue;
 			}
 			target->target_params[idx] = val;
-		} else if (!((idx = params_index_by_name(p, session_keys)) < 0) && (target != NULL)) {
+		} else if ((idx = params_index_by_name(p, session_keys)) >= 0 && (target)) {
 			char *str = config_sep_string(&q);
 
 			n = config_sep_string(&q);
@@ -1025,8 +1025,8 @@ int config_parse_main(const char *data, u32 cookie)
 				continue;
 			}
 			target->session_params[idx] = val;
-		} else if (!((idx = params_index_by_name_numwild(p, user_keys)) < 0) &&
-			   ((target != NULL) || global_section)) {
+		} else if ((idx = params_index_by_name_numwild(p, user_keys)) >= 0 &&
+			   ((target) || global_section)) {
 			char *name;
 			const char *pass;
 
@@ -1055,10 +1055,10 @@ int config_parse_main(const char *data, u32 cookie)
 		}
 	}
 
-	if (stop_on_errors && (res != 0))
+	if (stop_on_errors && res != 0)
 		goto out_target_free;
 
-	if (target != NULL) {
+	if (target) {
 		res = target_add(target, NULL, cookie);
 		if (res != 0)
 			goto out_target_free;
@@ -1066,7 +1066,7 @@ int config_parse_main(const char *data, u32 cookie)
 
 out:
 	if (stop_on_errors) {
-		if ((res == 0) && !parsed_something)
+		if (res == 0 && !parsed_something)
 			res = -ENOENT;
 	} else
 		res = 0;
@@ -1074,7 +1074,7 @@ out:
 	return res;
 
 out_target_free:
-	if (target != NULL)
+	if (target)
 		target_free(target);
 	goto out;
 }
@@ -1121,14 +1121,14 @@ int config_load(const char *config_name)
 	int size;
 	char *buf;
 
-	if (config_name != NULL)
+	if (config_name)
 		cname = config_name;
 	else
 		cname = CONFIG_FILE;
 
 	config = open(cname, O_RDONLY);
 	if (config == -1) {
-		if ((errno == ENOENT) && (config_name == NULL)) {
+		if (errno == ENOENT && !config_name) {
 			goto out;
 		} else {
 			err = -errno;
@@ -1146,7 +1146,7 @@ int config_load(const char *config_name)
 	}
 
 	buf = malloc(size+1);
-	if (buf == NULL) {
+	if (!buf) {
 		err = -ENOMEM;
 		log_error("malloc() failed: %s", strerror(-err));
 		goto out_close;

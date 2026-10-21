@@ -162,7 +162,7 @@ int main(int argc, char **argv)
 	}
 
 	if (allowed_events_num == 0) {
-		if ((allowed_events[0].event_code == 0) &&
+		if (allowed_events[0].event_code == 0 &&
 		    (allowed_events[0].issuer_name[0] == '\0'))
 			allowed_events[0].issuer_name[0] = '*';
 	}

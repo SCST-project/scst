@@ -128,7 +128,7 @@ static void decode_base64_string(const char *string, u8 *intnum, int int_len)
 	u8 num[4];
 	int octets;
 
-	if ((string == NULL) || (intnum == NULL))
+	if (!string || !intnum)
 		return;
 	len = strlen(string);
 	if (len == 0)
@@ -142,7 +142,7 @@ static void decode_base64_string(const char *string, u8 *intnum, int int_len)
 		num[1] = decode_base64_digit(string[count + 1]);
 		num[2] = decode_base64_digit(string[count + 2]);
 		num[3] = decode_base64_digit(string[count + 3]);
-		if ((num[0] == 65) || (num[1] == 65) || (num[2] == 65) || (num[3] == 65))
+		if (num[0] == 65 || num[1] == 65 || num[2] == 65 || num[3] == 65)
 			return;
 		count += 4;
 		octets =
@@ -158,7 +158,7 @@ static void decode_base64_string(const char *string, u8 *intnum, int int_len)
 	num[3] = decode_base64_digit(string[count + 3]);
 	//XXX Check for the special "bad character in string" value here like above?
 	//XXX Also check the string for missing/incorrect padding?
-	if ((num[0] == 64) || (num[1] == 64))
+	if (num[0] == 64 || num[1] == 64)
 		return;
 	if (num[2] == 64) {
 		if (num[3] != 64)
@@ -201,7 +201,7 @@ static void encode_base64_string(const u8 *intnum, long length, char *string)
 					   '4', '5', '6', '7', '8', '9', '+',
 					   '/', '=' };
 
-	if ((!intnum) || (!string) || (!length))
+	if (!intnum || !string || !length)
 		return;
 
 	count = 0;
@@ -663,7 +663,7 @@ static int chap_target_auth_create_response(struct connection *conn)
 	chap_id = strtol(value, &value, 10);
 
 	user = account_get_first(conn->tid, ISCSI_USER_DIR_OUTGOING);
-	if (user == NULL) {
+	if (!user) {
 		log_warning("CHAP target auth.: no outgoing credentials configured%s",
 			    conn->tid ? "." : " for discovery.");
 		retval = CHAP_AUTH_ERROR;

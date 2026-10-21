@@ -84,14 +84,14 @@ static void scst_no_dlm_res_unlock(struct scst_device *dev,
 static bool scst_no_dlm_is_rsv_holder(struct scst_device *dev,
 				      struct scst_session *sess)
 {
-	EXTRACHECKS_BUG_ON(sess == NULL);
+	EXTRACHECKS_BUG_ON(!sess);
 	return dev->reserved_by == sess;
 }
 
 static bool scst_no_dlm_is_not_rsv_holder(struct scst_device *dev,
 					  struct scst_session *sess)
 {
-	EXTRACHECKS_BUG_ON(sess == NULL);
+	EXTRACHECKS_BUG_ON(!sess);
 	return dev->reserved_by && dev->reserved_by != sess;
 }
 

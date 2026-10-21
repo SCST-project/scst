@@ -67,7 +67,7 @@ static int __wildcmp(const char *wild, const char *string, int recursion_level)
 	const char *cp = NULL, *mp = NULL;
 
 	while ((*string) && (*wild != '*')) {
-		if ((*wild == '!') && (recursion_level == 0))
+		if ((*wild == '!') && recursion_level == 0)
 			return !__wildcmp(++wild, string, ++recursion_level);
 
 		if ((tolower(*wild) != tolower(*string)) && (*wild != '?'))
@@ -78,7 +78,7 @@ static int __wildcmp(const char *wild, const char *string, int recursion_level)
 	}
 
 	while (*string) {
-		if ((*wild == '!') && (recursion_level == 0))
+		if ((*wild == '!') && recursion_level == 0)
 			return !__wildcmp(++wild, string, ++recursion_level);
 
 		if (*wild == '*') {
@@ -233,7 +233,7 @@ static void target_list_build_ifaddrs(struct connection *conn,
 		int sa_family = ifa->ifa_addr->sa_family;
 
 		if (sa_family == family) {
-			if (getnameinfo(ifa->ifa_addr, (family == AF_INET) ?
+			if (getnameinfo(ifa->ifa_addr, family == AF_INET ?
 						sizeof(struct sockaddr_in) :
 						sizeof(struct sockaddr_in6),
 					if_addr, sizeof(if_addr),
@@ -411,13 +411,13 @@ int target_create(const char *name, struct target **out_target)
 	int res = 0;
 	struct target *target;
 
-	if (name == NULL) {
+	if (!name) {
 		res = EINVAL;
 		goto out;
 	}
 
 	target = malloc(sizeof(*target));
-	if (target == NULL) {
+	if (!target) {
 		res = -ENOMEM;
 		goto out;
 	}

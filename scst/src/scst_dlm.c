@@ -426,8 +426,8 @@ static int scst_copy_from_dlm(struct scst_device *dev, dlm_lockspace_t *ls,
 		}
 
 		/* Does the registrant have UAs that need to be delivered here? */
-		if (unlikely((reg->registered_by_nodeid == pr_dlm->local_nodeid) &&
-			     (reg->next_rem_ua_idx))) {
+		if (unlikely(reg->registered_by_nodeid == pr_dlm->local_nodeid &&
+			     reg->next_rem_ua_idx)) {
 			int j;
 
 			for (j = 0; j < reg->next_rem_ua_idx; j++) {
@@ -1683,7 +1683,7 @@ static struct scst_dlm_rem_ua *scst_dlm_alloc_rem_ua(void)
 	struct scst_dlm_rem_ua *ua = NULL;
 
 	ua = kzalloc_obj(struct scst_dlm_rem_ua);
-	if (ua == NULL) {
+	if (!ua) {
 		PRINT_ERROR("Unable to allocate unit attention");
 		goto out;
 	}
@@ -1716,7 +1716,7 @@ static void scst_dlm_pr_reg_queue_rem_ua(struct scst_device *dev,
 	TRACE_ENTRY();
 
 	ua = scst_dlm_alloc_rem_ua();
-	if (ua == NULL) {
+	if (!ua) {
 		PRINT_ERROR("Unable to allocate unit attention for dlm registrant");
 		return;
 	}

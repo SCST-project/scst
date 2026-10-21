@@ -114,8 +114,8 @@ size_t qlt_del_vtarget(u64 port_name)
 		spin_lock_irqsave(shost->host_lock, flags);
 		/* We only allow support on Channel 0 !!! */
 		list_for_each_entry(vport, &fc_host->vports, peers) {
-			if ((vport->channel == 0) &&
-			    (vport->port_name == port_name)) {
+			if (vport->channel == 0 &&
+			    vport->port_name == port_name) {
 				match = 1;
 				dev_info(&vha->hw->pdev->dev,
 				    "%s: port_name %llx\n",

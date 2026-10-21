@@ -353,7 +353,7 @@ static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd,
 		return;
 	}
 
-	if (scst_cmd->status && (dir == SCST_DATA_NONE)) {
+	if (scst_cmd->status && dir == SCST_DATA_NONE) {
 		/* scst_set_cmd_error() will over ride the data direction
 		 * in the error case at the back end.  Need to figure out
 		 * the
@@ -562,7 +562,7 @@ static int sqa_qla2xxx_handle_cmd(scsi_qla_host_t *vha,
 		cmd->cdb_len,
 		SCST_ATOMIC);
 
-	if (cmd->scst_cmd == NULL) {
+	if (!cmd->scst_cmd) {
 		PRINT_ERROR("sqatgt(%ld/%d): scst_rx_cmd function failed.",
 			vha->host_no, vha->vp_idx);
 		res = -EFAULT;
@@ -920,7 +920,7 @@ static int sqa_qla2xxx_check_initiator_node_acl(scsi_qla_host_t *vha,
 	res = -ESRCH;
 	scst_sess = scst_register_session(sqa_tgt->scst_tgt, 0,
 	    ini_name, fcport, NULL, NULL);
-	if (scst_sess == NULL) {
+	if (!scst_sess) {
 		PRINT_ERROR("sqatgt(%ld/%d): SCST session registration failed, all commands will be refused: pwwn=%s",
 			    vha->host_no, vha->vp_idx, ini_name);
 		goto free_sess;
@@ -1360,7 +1360,7 @@ static int sqa_parse_wwn(const char *ns, u64 *nm)
 		if (i % 2) {
 			wwn[i/2] = j & 0xff;
 			j = 0;
-			if ((i < 15) && (':' != *ns++))
+			if (i < 15 && (':' != *ns++))
 				return -EINVAL;
 		}
 	}
@@ -1700,7 +1700,7 @@ static int sqa_xmit_response(struct scst_cmd *scst_cmd)
 			  scst_cmd->cdb_buf[0], cmd->prot_sg, cmd->prot_sg_cnt,
 			  cmd->se_cmd.prot_type, cmd->se_cmd.prot_op);
 
-		if ((cmd->se_cmd.prot_op == TARGET_PROT_DIN_INSERT) &&
+		if (cmd->se_cmd.prot_op == TARGET_PROT_DIN_INSERT &&
 			(!cmd->prot_sg_cnt || !cmd->prot_sg)) {
 			PRINT_ERROR("qla2x00t(%ld): %s: DIN Insert w/out DIF buf[%p:%d]",
 				    cmd->vha->host_no, __func__, cmd->prot_sg,
@@ -1875,7 +1875,7 @@ static void sqa_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 	TRACE_ENTRY();
 
 	mcmd = scst_mgmt_cmd_get_tgt_priv(scst_mcmd);
-	if (unlikely(mcmd == NULL)) {
+	if (unlikely(!mcmd)) {
 		PRINT_ERROR("sqatgt: Null target pointer for SCST task management, command=%p",
 			    scst_mcmd);
 		goto out;
@@ -1909,13 +1909,13 @@ static int sqa_get_initiator_port_transport_id(struct scst_tgt *tgt,
 
 	TRACE_ENTRY();
 
-	if (scst_sess == NULL) {
+	if (!scst_sess) {
 		res = SCSI_TRANSPORTID_PROTOCOLID_FCP2;
 		goto out;
 	}
 
 	sess = scst_sess_get_tgt_priv(scst_sess);
-	if (sess == NULL) {
+	if (!sess) {
 		res = SCSI_TRANSPORTID_PROTOCOLID_FCP2;
 		goto out;
 	}
@@ -1926,7 +1926,7 @@ static int sqa_get_initiator_port_transport_id(struct scst_tgt *tgt,
 
 	tr_id_size = 24;
 	tr_id = kzalloc(tr_id_size, GFP_KERNEL);
-	if (tr_id == NULL) {
+	if (!tr_id) {
 		PRINT_ERROR("sqatgt(%ld/%d): Allocation of TransportID size=%d failed.",
 			    sess->vha->host_no, sess->vha->vp_idx, tr_id_size);
 		res = -ENOMEM;
@@ -2300,7 +2300,7 @@ static ssize_t sqa_add_vtarget(const char *target_name, char *params)
 
 	while (1) {
 		param = scst_get_next_token_str(&params);
-		if (param == NULL)
+		if (!param)
 			break;
 
 		p = scst_get_next_lexem(&param);
