@@ -51,7 +51,7 @@ char *app_name;
 unsigned long trace_flag = DEFAULT_LOG_FLAGS;
 #endif /* defined(DEBUG) || defined(TRACING) */
 
-#define ARRAY_SIZE(x) (sizeof(x)/sizeof((x)[0]))
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 bool log_daemon = true;
 int transition_timeout = DEFAULT_TRANSITION_TIME;
@@ -97,7 +97,7 @@ static void stpg_handle_tm_received(const struct scst_event_user *event_user)
 }
 
 static int invoke_stpg(const uint8_t *device_name,
-	const struct scst_event_stpg_descr *descr, pid_t *out_pid)
+		       const struct scst_event_stpg_descr *descr, pid_t *out_pid)
 {
 	char *args[7], *env[7];
 	int res = 0, ret, i;
@@ -208,13 +208,14 @@ static int wait_until_finished(pid_t pid, unsigned long deadline, int *status, i
 
 static int handle_stpg_received(struct scst_event_user *event_user)
 {
-	const struct scst_event_stpg_payload *p = (struct scst_event_stpg_payload *)event_user->out_event.payload;
+	const struct scst_event_stpg_payload *p =
+		(struct scst_event_stpg_payload *)event_user->out_event.payload;
 	int num, k;
 	int res = 0;
 	pid_t pids[p->stpg_descriptors_cnt];
 
 	TRACE_DBG("device name %s, stpg_descriptors_cnt %d", p->device_name,
-		p->stpg_descriptors_cnt);
+		  p->stpg_descriptors_cnt);
 
 	for (num = 0; num < p->stpg_descriptors_cnt; num++) {
 		res = invoke_stpg(p->device_name, &p->stpg_descriptors[num], &pids[num]);
@@ -248,7 +249,7 @@ static int handle_stpg_received(struct scst_event_user *event_user)
 		rc = killpg(pids[k], SIGTERM);
 		if (rc < 0)
 			PRINT_ERROR("Failed to send SIGTERM to child %d (pid %d): %d/%s",
-				k, pids[k], errno, strerror(errno));
+				    k, pids[k], errno, strerror(errno));
 
 		rc = wait_until_finished(pids[k], 1, &status, k);
 		if (rc != 0)
@@ -479,7 +480,7 @@ int main(int argc, char **argv)
 	app_name = argv[0];
 
 	while ((ch = getopt_long(argc, argv, "+d:fp:t:hv",
-			long_options, &longindex)) >= 0) {
+				 long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 'p':
 			stpg_path = optarg;
@@ -487,7 +488,7 @@ int main(int argc, char **argv)
 #if defined(DEBUG) || defined(TRACING)
 		case 'd':
 		       trace_flag = strtol(optarg, (char **)NULL, 0);
-		       break;
+		break;
 #endif
 		case 'v':
 			printf("%s version %s\n", app_name, VERSION_STR);
@@ -538,7 +539,8 @@ int main(int argc, char **argv)
 			int res1 = -1;
 
 			close(stpg_init_report_pipe[1]);
-			if ((unsigned int)read(stpg_init_report_pipe[0], &res1, sizeof(res1)) < sizeof(res1)) {
+			if ((unsigned int)read(stpg_init_report_pipe[0], &res1, sizeof(res1)) <
+			    sizeof(res1)) {
 				res = -1;
 				goto out_done;
 			} else {

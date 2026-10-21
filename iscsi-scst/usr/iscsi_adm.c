@@ -154,7 +154,7 @@ static int iscsid_request_send(int fd, const struct iscsi_adm_req *req)
 }
 
 static int iscsid_response_recv(int fd, struct iscsi_adm_req *req, void *rsp_data,
-			      int rsp_data_sz)
+				int rsp_data_sz)
 {
 	int err, ret;
 	struct iovec iov[2];
@@ -182,7 +182,7 @@ static int iscsid_response_recv(int fd, struct iscsi_adm_req *req, void *rsp_dat
 		if (ret != rsp_data_sz) {
 			err = (ret < 0) ? -errno : -EIO;
 			fprintf(stderr, "read failed: read %d instead of %d (%s)\n",
-				 ret, (int)rsp_data_sz, strerror(-err));
+				ret, (int)rsp_data_sz, strerror(-err));
 		}
 	}
 
@@ -203,9 +203,9 @@ static int iscsid_connect(void)
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_LOCAL;
-	memcpy((char *) &addr.sun_path + 1, ISCSI_ADM_NAMESPACE, strlen(ISCSI_ADM_NAMESPACE));
+	memcpy((char *)&addr.sun_path + 1, ISCSI_ADM_NAMESPACE, strlen(ISCSI_ADM_NAMESPACE));
 
-	if (connect(fd, (struct sockaddr *) &addr, sizeof(addr))) {
+	if (connect(fd, (struct sockaddr *)&addr, sizeof(addr))) {
 		close(fd);
 		fd = -errno;
 		fprintf(stderr, "Unable to connect to iscsid: %s\n",
@@ -218,7 +218,7 @@ out:
 }
 
 static int iscsid_request(struct iscsi_adm_req *req, void *rsp_data,
-			int rsp_data_sz)
+			  int rsp_data_sz)
 {
 	int fd, err;
 

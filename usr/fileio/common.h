@@ -93,15 +93,14 @@ struct vdisk_dev {
 
 	struct vdisk_tgt_dev tgt_devs[64];
 
-	char *name;		/* Name of virtual device,
-				   must be <= SCSI Model + 1 */
+	/* Name of virtual device, must be <= SCSI Model + 1. */
+	char *name;
 	char *file_name;	/* File name */
 	char usn[MAX_USN_LEN];
 	int type;
 };
 
-struct vdisk_cmd
-{
+struct vdisk_cmd {
 	int fd;
 	struct scst_user_get_cmd *cmd;
 	struct vdisk_dev *dev;
@@ -115,16 +114,16 @@ struct vdisk_cmd
  * strict type-checking.. See the
  * "unnecessary" pointer comparison.
  */
-#define min(x, y) ({ 		\
+#define min(x, y) ({		\
 	typeof(x) _x = (x);	\
 	typeof(y) _y = (y);	\
-	(void) (&_x == &_y);	\
+	(void)(&_x == &_y);	\
 	_x < _y ? _x : _y; })
 
-#define max(x, y) ({ 		\
+#define max(x, y) ({		\
 	typeof(x) _x = (x);	\
 	typeof(y) _y = (y);	\
-	(void) (&_x == &_y);	\
+	(void)(&_x == &_y);	\
 	_x > _y ? _x : _y; })
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))

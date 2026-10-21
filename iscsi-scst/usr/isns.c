@@ -187,7 +187,7 @@ static void isns_hdr_init(struct isns_hdr *hdr, uint16_t function,
 }
 
 static int isns_tlv_set(struct isns_tlv **tlv, int max_tlv_buflen,
-	uint32_t tag, uint32_t length, const void *value)
+			uint32_t tag, uint32_t length, const void *value)
 {
 	int l = length;
 	int res;
@@ -197,7 +197,7 @@ static int isns_tlv_set(struct isns_tlv **tlv, int max_tlv_buflen,
 
 	if (sizeof(struct isns_tlv) + l > max_tlv_buflen) {
 		log_error("Too big tlv len %d (max allowed %d)", l,
-			max_tlv_buflen);
+			  max_tlv_buflen);
 		res = -EOVERFLOW;
 		goto out;
 	}
@@ -237,13 +237,13 @@ static int isns_scn_deregister(const char *name)
 	max_buf = sizeof(buf) - offsetof(struct isns_hdr, pdu);
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
-				strlen(name) + 1, name);
+			   strlen(name) + 1, name);
 	if (err < 0)
 		goto out;
 	length += err;
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
-				strlen(name) + 1, name);
+			   strlen(name) + 1, name);
 	if (err < 0)
 		goto out;
 	length += err;
@@ -299,10 +299,10 @@ static int isns_scn_register(void)
 	if (strlen(isns_entity_target_name) < 1) {
 		target = list_entry(targets_list.q_forw, struct target, tlist);
 		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
-			strlen(target->name) + 1, target->name);
+				   strlen(target->name) + 1, target->name);
 	} else {
 		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
-		strlen(isns_entity_target_name) + 1, isns_entity_target_name);
+				   strlen(isns_entity_target_name) + 1, isns_entity_target_name);
 	}
 
 	if (err < 0)
@@ -320,7 +320,7 @@ static int isns_scn_register(void)
 	scn_flags = htonl(scn_flags);
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_SCN_BITMAP,
-				sizeof(scn_flags), &scn_flags);
+			   sizeof(scn_flags), &scn_flags);
 	if (err < 0)
 		goto out;
 	length += err;
@@ -375,13 +375,13 @@ static int isns_attr_query(const char *name)
 	}
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
-				strlen(name) + 1, name);
+			   strlen(name) + 1, name);
 	if (err < 0)
 		goto out;
 	length += err;
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NODE_TYPE,
-				sizeof(node), &node);
+			   sizeof(node), &node);
 	if (err < 0)
 		goto out;
 	length += err;
@@ -445,7 +445,7 @@ static int isns_deregister(void)
 	target = list_entry(targets_list.q_forw, struct target, tlist);
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
-				strlen(target->name) + 1, target->name);
+			   strlen(target->name) + 1, target->name);
 	if (err < 0)
 		goto out;
 	length += err;
@@ -456,7 +456,7 @@ static int isns_deregister(void)
 	length += err;
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ENTITY_IDENTIFIER,
-				strlen(eid) + 1, eid);
+			   strlen(eid) + 1, eid);
 	if (err < 0)
 		goto out;
 	length += err;
@@ -503,17 +503,17 @@ int isns_target_register(const char *name)
 	if (strlen(isns_entity_target_name) < 1) {
 		target = list_entry(targets_list.q_forw, struct target, tlist);
 		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
-				strlen(target->name) + 1, target->name);
+				   strlen(target->name) + 1, target->name);
 	} else {
 		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
-				strlen(isns_entity_target_name) + 1, isns_entity_target_name);
+				   strlen(isns_entity_target_name) + 1, isns_entity_target_name);
 	}
 	if (err < 0)
 		goto out;
 	length += err;
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ENTITY_IDENTIFIER,
-				strlen(eid) + 1, eid);
+			   strlen(eid) + 1, eid);
 	if (err < 0)
 		goto out;
 	length += err;
@@ -524,26 +524,26 @@ int isns_target_register(const char *name)
 	length += err;
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ENTITY_IDENTIFIER,
-				strlen(eid) + 1, eid);
+			   strlen(eid) + 1, eid);
 	if (err < 0)
 		goto out;
 	length += err;
 
 	if (initial) {
 		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ENTITY_PROTOCOL,
-					sizeof(type), &type);
+				   sizeof(type), &type);
 		if (err < 0)
 			goto out;
 		length += err;
 
 		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_PORTAL_IP_ADDRESS,
-					sizeof(ip), &ip);
+				   sizeof(ip), &ip);
 		if (err < 0)
 			goto out;
 		length += err;
 
 		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_PORTAL_PORT,
-					sizeof(port), &port);
+				   sizeof(port), &port);
 		if (err < 0)
 			goto out;
 		length += err;
@@ -554,7 +554,7 @@ int isns_target_register(const char *name)
 			uint32_t sport = htonl(scn_listen_port);
 
 			err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_SCN_PORT,
-						sizeof(sport), &sport);
+					   sizeof(sport), &sport);
 			if (err < 0)
 				goto out;
 			length += err;
@@ -562,21 +562,21 @@ int isns_target_register(const char *name)
 	}
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
-				strlen(name) + 1, name);
+			   strlen(name) + 1, name);
 	if (err < 0)
 		goto out;
 	length += err;
 
 	if (alias_target && alias_target->alias) {
 		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_ALIAS,
-					strlen(alias_target->alias) + 1, alias_target->alias);
+				   strlen(alias_target->alias) + 1, alias_target->alias);
 		if (err < 0)
 			goto out;
 		length += err;
 	}
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NODE_TYPE,
-				sizeof(node), &node);
+			   sizeof(node), &node);
 	if (err < 0)
 		goto out;
 	length += err;
@@ -641,7 +641,7 @@ int isns_target_deregister(const char *name)
 	max_buf = sizeof(buf) - offsetof(struct isns_hdr, pdu);
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
-				strlen(name) + 1, name);
+			   strlen(name) + 1, name);
 	if (err < 0)
 		goto out;
 	length += err;
@@ -653,13 +653,13 @@ int isns_target_deregister(const char *name)
 
 	if (last) {
 		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ENTITY_IDENTIFIER,
-					strlen(eid) + 1, eid);
+				   strlen(eid) + 1, eid);
 		if (err < 0)
 			goto out;
 		length += err;
 	} else {
 		err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
-					strlen(name) + 1, name);
+				   strlen(name) + 1, name);
 		if (err < 0)
 			goto out;
 		length += err;
@@ -814,7 +814,7 @@ static char *print_scn_pdu(struct isns_hdr *hdr)
 
 		switch (ntohl(tlv->tag)) {
 		case ISNS_ATTR_ISCSI_NAME:
-			((char *)tlv->value)[vlen-1] = '\0';
+			((char *)tlv->value)[vlen - 1] = '\0';
 			log_debug(3, "scn name: %u, %s", vlen, (char *)tlv->value);
 			if (!name)
 				name = (char *)tlv->value;
@@ -907,7 +907,7 @@ found:
 
 		switch (ntohl(tlv->tag)) {
 		case ISNS_ATTR_ISCSI_NAME:
-			((char *)tlv->value)[vlen-1] = '\0';
+			((char *)tlv->value)[vlen - 1] = '\0';
 			name = (char *)tlv->value;
 			break;
 		case ISNS_ATTR_ISCSI_NODE_TYPE:
@@ -1045,7 +1045,7 @@ static int send_scn_rsp(const char *name, uint16_t transaction)
 	length += 4;
 
 	err = isns_tlv_set(&tlv, max_buf - length, ISNS_ATTR_ISCSI_NAME,
-				strlen(name) + 1, name);
+			   strlen(name) + 1, name);
 	if (err < 0)
 		goto out;
 	length += err;
@@ -1177,7 +1177,7 @@ int isns_init(void)
 	err = getaddrinfo(isns_server, (char *)&port, &hints, &res);
 	if (err) {
 		log_error("getaddrinfo error: %s, %s", get_error_str(err),
-			isns_server);
+			  isns_server);
 		goto out;
 	}
 	memcpy(&ss, res->ai_addr, sizeof(*res->ai_addr));

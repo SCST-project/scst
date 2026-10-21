@@ -75,8 +75,8 @@ char *text_key_find(struct connection *conn, const char *search_key)
 		data++;
 		datasize--;
 
-		if (keylen == value - key - 1
-		     && !strncasecmp(key, search_key, keylen))
+		if (keylen == value - key - 1 &&
+		    !strncasecmp(key, search_key, keylen))
 			return value;
 	}
 }
@@ -110,7 +110,7 @@ static char *next_key(char **data, int *datasize, char **value)
 }
 
 static struct buf_segment *conn_alloc_buf_segment(struct connection *conn,
-						   size_t sz)
+						  size_t sz)
 {
 	struct buf_segment *seg = malloc(sizeof(*seg) + sz);
 
@@ -287,12 +287,15 @@ static int login_check_reinstatement(struct connection *conn)
 	if (session) {
 		if (req->sid.id.tsih == 0) {
 			/* Kernel will do session reinstatement */
-			log_debug(1, "Session sid %#" PRIx64 " reinstatement detected (tid %d, initiator %s)", req->sid.id64,
+			log_debug(1, "Session sid %#" PRIx64 " reinstatement detected (tid %d, initiator %s)",
+				  req->sid.id64,
 				conn->tid, conn->initiator);
 			res = ISCSI_SESS_REINSTATEMENT;
 		} else if (req->sid.id.tsih != session->sid.id.tsih) {
 			log_error("TSIH for existing session sid %#" PRIx64
-				") doesn't match (tid %d, initiator %s, sid requested %#" PRIx64, session->sid.id64, conn->tid,
+				") doesn't match (tid %d, initiator %s, sid requested %#" PRIx64,
+				  session->sid.id64,
+				  conn->tid,
 				conn->initiator, req->sid.id64);
 			/* Fail the login */
 			login_rsp_ini_err(conn, ISCSI_STATUS_SESSION_NOT_FOUND);
@@ -321,14 +324,15 @@ static int login_check_reinstatement(struct connection *conn)
 	} else {
 		if (req->sid.id.tsih != 0) {
 			log_error("Requested TSIH not 0 (TSIH %d, tid %d, initiator %s, sid requisted %#" PRIx64 ")",
-				req->sid.id.tsih, conn->tid, conn->initiator,
-				req->sid.id64);
+				  req->sid.id.tsih, conn->tid, conn->initiator,
+				  req->sid.id64);
 			/* Fail the login */
 			login_rsp_ini_err(conn, ISCSI_STATUS_SESSION_NOT_FOUND);
 			res = -1;
 			goto out;
 		} else {
-			log_debug(1, "New session sid %#" PRIx64 "(tid %d, initiator %s)", req->sid.id64,
+			log_debug(1, "New session sid %#" PRIx64 "(tid %d, initiator %s)",
+				  req->sid.id64,
 				conn->tid, conn->initiator);
 		}
 	}
@@ -411,7 +415,7 @@ static void text_scan_login(struct connection *conn)
 				if (val != conn->session_params[idx].val) {
 					login_rsp_ini_err(conn, ISCSI_STATUS_INIT_ERR);
 					log_warning("%s %u %u\n", key,
-						val, conn->session_params[idx].val);
+						    val, conn->session_params[idx].val);
 					goto out;
 				}
 				conn->session_params[idx].key_state = KEY_STATE_DONE;
@@ -445,7 +449,7 @@ static int text_check_params(struct connection *conn)
 				continue;
 			} else if (p[i].key_state == KEY_STATE_DONE_ADDED) {
 				log_debug(1, "Key %s was already added, val %d",
-					session_keys[i].name, p[i].val);
+					  session_keys[i].name, p[i].val);
 				continue;
 			}
 			switch (conn->state) {
@@ -500,7 +504,6 @@ out:
 
 static bool valid_ascii_name_char(char ch)
 {
-
 	/*
 	 * From rtf3722
 	 *
@@ -859,7 +862,7 @@ static void login_start(struct connection *conn)
 		/* We may "leak" here if we have an iSCSI event on the wrong time */
 		if (!iscsi_enabled) {
 			log_info("Connect from %s to disabled iSCSI-SCST refused",
-				name);
+				 name);
 			login_rsp_tgt_err(conn, 0);
 			conn->state = STATE_DROP;
 			return;
@@ -867,7 +870,7 @@ static void login_start(struct connection *conn)
 
 		if (!target->tgt_enabled) {
 			log_info("Connect from %s to disabled target %s refused",
-				name, target_name);
+				 name, target_name);
 			login_rsp_tgt_err(conn, 0);
 			conn->state = STATE_DROP;
 			return;
@@ -890,7 +893,7 @@ static void login_start(struct connection *conn)
 				(struct iscsi_login_rsp_hdr *)&conn->rsp.bhs;
 
 			log_debug(1, "Redirecting target %s login to %s:%d",
-				target->name, target->redirect.addr,
+				  target->name, target->redirect.addr,
 				target->redirect.port);
 
 			rsp->status_class = ISCSI_STATUS_REDIRECT;
@@ -931,7 +934,7 @@ static void login_start(struct connection *conn)
 		if (target->alias)
 			text_key_add(conn, "TargetAlias", target->alias);
 		log_debug(1, "target %s, sessions_count %d", target_name,
-			target->sessions_count);
+			  target->sessions_count);
 	}
 
 	conn->exp_cmd_sn = be32_to_cpu(req->cmd_sn);
@@ -1117,7 +1120,7 @@ static void cmnd_exec_login(struct connection *conn)
 			if (rsp->status_class)
 				return;
 			if (!accounts_empty(conn->tid, ISCSI_USER_DIR_INCOMING) &&
-				!on_internal_portal(conn))
+			    !on_internal_portal(conn))
 				goto auth_err;
 			if (rsp->status_class)
 				return;
@@ -1349,7 +1352,7 @@ int cmnd_execute(struct connection *conn)
 			break;
 		}
 		cmnd_exec_login(conn);
-		login_rsp = (struct iscsi_login_rsp_hdr *) &conn->rsp.bhs;
+		login_rsp = (struct iscsi_login_rsp_hdr *)&conn->rsp.bhs;
 		if (login_rsp->status_class && login_rsp->status_class != ISCSI_STATUS_REDIRECT)
 			conn_free_rsp_buf_list(conn);
 		break;

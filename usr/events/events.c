@@ -31,11 +31,12 @@ char *app_name;
 #if defined(DEBUG) || defined(TRACING)
 
 #ifdef DEBUG
-/*#define DEFAULT_LOG_FLAGS (TRACE_ALL & ~TRACE_MEMORY & ~TRACE_BUFF \
-	 & ~TRACE_FUNCTION)
-#define DEFAULT_LOG_FLAGS (TRACE_ALL & ~TRACE_MEMORY & ~TRACE_BUFF & \
-	~TRACE_SCSI & ~TRACE_SCSI_SERIALIZING & ~TRACE_DEBUG)
-*/
+/*
+ * #define DEFAULT_LOG_FLAGS (TRACE_ALL & ~TRACE_MEMORY & ~TRACE_BUFF \
+ *       & ~TRACE_FUNCTION)
+ * #define DEFAULT_LOG_FLAGS (TRACE_ALL & ~TRACE_MEMORY & ~TRACE_BUFF & \
+ *      ~TRACE_SCSI & ~TRACE_SCSI_SERIALIZING & ~TRACE_DEBUG)
+ */
 #define DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR | TRACE_PID | \
 	TRACE_FUNCTION | TRACE_SPECIAL | TRACE_MGMT | TRACE_MGMT_DEBUG | \
 	TRACE_TIME)
@@ -87,13 +88,16 @@ static void usage(void)
 
 static void handle_reg_vdev_received(struct scst_event_user *event_user)
 {
-	const struct scst_event_reg_vdev_payload *p = (struct scst_event_reg_vdev_payload *)event_user->out_event.payload;
+	const struct scst_event_reg_vdev_payload *p =
+		(struct scst_event_reg_vdev_payload *)event_user->out_event.payload;
+
 	printf("Virtual device %s registration received.\n", p->device_name);
 }
 
 static void handle_tm_received(struct scst_event_user *event_user)
 {
-	const struct scst_event_tm_fn_received_payload *p = (struct scst_event_tm_fn_received_payload *)event_user->out_event.payload;
+	const struct scst_event_tm_fn_received_payload *p =
+		(struct scst_event_tm_fn_received_payload *)event_user->out_event.payload;
 
 	printf("fn %u, device %s\n", p->fn, p->device_name);
 }
@@ -116,14 +120,14 @@ int main(int argc, char **argv)
 	app_name = argv[0];
 
 	while ((ch = getopt_long(argc, argv, "+e:i:d:nhv",
-			long_options, &longindex)) >= 0) {
+				 long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 'e':
 			if (allowed_events[allowed_events_num].event_code != 0) {
 				allowed_events_num++;
 				if (allowed_events_num >= MAX_ALLOWED_EVENTS) {
 					PRINT_ERROR("Too many allowed events %d",
-						allowed_events_num);
+						    allowed_events_num);
 					exit(1);
 				}
 			}
@@ -134,12 +138,13 @@ int main(int argc, char **argv)
 				allowed_events_num++;
 				if (allowed_events_num >= MAX_ALLOWED_EVENTS) {
 					PRINT_ERROR("Too many allowed events %d",
-						allowed_events_num);
+						    allowed_events_num);
 					exit(1);
 				}
 			}
 			snprintf(allowed_events[allowed_events_num].issuer_name,
-				 sizeof(allowed_events[allowed_events_num].issuer_name), "%s", optarg);
+				 sizeof(allowed_events[allowed_events_num].issuer_name), "%s",
+				 optarg);
 			break;
 		case 'n':
 			non_blocking = 1;
@@ -176,7 +181,7 @@ int main(int argc, char **argv)
 	if (event_fd < 0) {
 		res = -errno;
 		PRINT_ERROR("Unable to open SCST event device %s (%s)",
-			SCST_EVENT_DEV, strerror(-res));
+			    SCST_EVENT_DEV, strerror(-res));
 		goto out_done;
 	}
 
@@ -188,7 +193,7 @@ int main(int argc, char **argv)
 		struct scst_event e;
 
 		PRINT_INFO("Setting allowed event code %d, issuer_name %s",
-			allowed_events[i].event_code,
+			   allowed_events[i].event_code,
 			allowed_events[i].issuer_name);
 		memset(&e, 0, sizeof(e));
 		e.event_code = allowed_events[i].event_code;
@@ -198,7 +203,7 @@ int main(int argc, char **argv)
 		res = ioctl(event_fd, SCST_EVENT_ALLOW_EVENT, &e);
 		if (res != 0) {
 			PRINT_ERROR("SCST_EVENT_ALLOW_EVENT failed: %s (res %d)",
-				strerror(errno), res);
+				    strerror(errno), res);
 			goto out_done;
 		}
 	}
@@ -224,7 +229,7 @@ int main(int argc, char **argv)
 				continue;
 			default:
 				PRINT_ERROR("SCST_EVENT_GET_NEXT_EVENT failed: %s (res %d)",
-					strerror(errno), res);
+					    strerror(errno), res);
 				goto out_done;
 			}
 again_poll:
@@ -252,7 +257,6 @@ again_poll:
 #endif
 				}
 			}
-
 		}
 
 		PRINT_INFO("\nevent_code %u, issuer_name %s",
@@ -260,7 +264,7 @@ again_poll:
 			   event_user->out_event.issuer_name);
 		if (event_user->out_event.payload_len != 0)
 			PRINT_BUFFER("payoad", event_user->out_event.payload,
-				event_user->out_event.payload_len);
+				     event_user->out_event.payload_len);
 		PRINT_INFO("%s", "");
 
 		if (event_user->out_event.event_code == 0x12345) {
@@ -297,7 +301,7 @@ again_poll:
 			struct scst_event e;
 
 			PRINT_INFO("Deleting allowed event code %d, issuer_name %s",
-				allowed_events[0].event_code,
+				   allowed_events[0].event_code,
 				allowed_events[0].issuer_name);
 			memset(&e, 0, sizeof(e));
 			e.event_code = allowed_events[0].event_code;

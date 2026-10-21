@@ -119,7 +119,8 @@ static void create_listen_socket(struct pollfd *array)
 			break;
 
 		if (i == LISTEN_MAX) {
-			log_error("Cannot handle address %s! Too many were specified.", server_address);
+			log_error("Cannot handle address %s! Too many were specified.",
+				  server_address);
 			exit(1);
 		}
 
@@ -149,7 +150,7 @@ static void create_listen_socket(struct pollfd *array)
 					    strerror(errno));
 			opt = 1;
 			if (res->ai_family == AF_INET6 &&
-				setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt))) {
+			    setsockopt(sock, IPPROTO_IPV6, IPV6_V6ONLY, &opt, sizeof(opt))) {
 				log_error("Unable to restrict IPv6 socket (%s)", strerror(errno));
 				close(sock);
 				continue;
@@ -162,7 +163,8 @@ static void create_listen_socket(struct pollfd *array)
 			}
 
 			if (listen(sock, INCOMING_MAX)) {
-				log_error("Unable to listen to server socket (%s)!", strerror(errno));
+				log_error("Unable to listen to server socket (%s)!",
+					  strerror(errno));
 				close(sock);
 				continue;
 			}
@@ -280,14 +282,15 @@ static void create_iser_listen_socket(struct pollfd *array)
 			break;
 
 		if (i == ISERT_MAX_PORTALS) {
-			log_error("iSER: Cannot handle address %s! Too many were specified.", server_address);
+			log_error("iSER: Cannot handle address %s! Too many were specified.",
+				  server_address);
 			exit(1);
 		}
 
 		rc = getaddrinfo(server_address, servname, &hints, &res0);
 		if (rc != 0) {
 			log_error("iSER: Unable to get address info[%s] (%s)!",
-				server_address, get_error_str(rc));
+				  server_address, get_error_str(rc));
 			exit(1);
 		}
 
@@ -298,7 +301,7 @@ static void create_iser_listen_socket(struct pollfd *array)
 			rc = ioctl(iser_fd, SET_LISTEN_ADDR, &info);
 			if (rc != 0) {
 				log_error("iSER: Unable to set listen address (%s)!",
-					strerror(errno));
+					  strerror(errno));
 			}
 			++i;
 		}
@@ -347,7 +350,7 @@ static void iser_accept(int fd)
 	conn_fd = open(buff, O_RDWR);
 	if (conn_fd == -1) {
 		log_error("open(iser_connection) %s failed: %s\n",
-			buff, strerror(errno));
+			  buff, strerror(errno));
 		goto out;
 	}
 
@@ -359,12 +362,12 @@ static void iser_accept(int fd)
 	}
 
 	ret = getnameinfo((struct sockaddr *)&addr, sizeof(addr), target_portal,
-			 sizeof(target_portal), target_portal_port,
+			  sizeof(target_portal), target_portal_port,
 			 sizeof(target_portal_port),
 			 NI_NUMERICHOST | NI_NUMERICSERV);
 	if (ret != 0) {
 		log_error("Target portal getnameinfo() failed: %s!",
-			get_error_str(ret));
+			  get_error_str(ret));
 		goto out_close;
 	}
 
@@ -455,7 +458,7 @@ static void accept_connection(int listen)
 			break;
 		default:
 			log_error("accept(incoming_socket) failed: %s",
-				strerror(errno));
+				  strerror(errno));
 			exit(1);
 		}
 		goto out;
@@ -469,25 +472,25 @@ static void accept_connection(int listen)
 	}
 
 	rc = getnameinfo(&to.sa, sizeof(to), target_portal, sizeof(target_portal),
-		target_portal_port, sizeof(target_portal_port),
+			 target_portal_port, sizeof(target_portal_port),
 		NI_NUMERICHOST | NI_NUMERICSERV);
 	if (rc != 0) {
 		log_error("Target portal getnameinfo() failed: %s!",
-			get_error_str(rc));
+			  get_error_str(rc));
 		goto out_close;
 	}
 
 	rc = getnameinfo(&from.sa, sizeof(from), initiator_addr,
-		 sizeof(initiator_addr), initiator_port,
+			 sizeof(initiator_addr), initiator_port,
 		 sizeof(initiator_port), NI_NUMERICHOST | NI_NUMERICSERV);
 	if (rc != 0) {
 		log_error("Initiator getnameinfo() failed: %s!",
-			get_error_str(rc));
+			  get_error_str(rc));
 		goto out_close;
 	}
 
 	log_info("Connect from %s:%s to %s:%s", initiator_addr, initiator_port,
-		target_portal, target_portal_port);
+		 target_portal, target_portal_port);
 
 	if (conn_blocked) {
 		log_warning("Connection refused due to blocking\n");
@@ -544,12 +547,12 @@ again:
 	switch (conn->iostate) {
 	case IOSTATE_READ_BHS:
 	case IOSTATE_READ_AHS_DATA:
-	      read_again:
+read_again:
 		errno = 0;	/* for the log_debug() */
 		res = read(pollfd->fd, conn->buffer, conn->rwsize);
 		if (res <= 0) {
 			log_debug(1, "read(%u, %p, %u) returned %d, errno=%u",
-			      pollfd->fd, conn->buffer, conn->rwsize, res, errno);
+				  pollfd->fd, conn->buffer, conn->rwsize, res, errno);
 			if (res == 0 || (errno != EINTR && errno != EAGAIN)) {
 				conn->state = STATE_DROP;
 				goto out;
@@ -573,7 +576,7 @@ again:
 			conn->rwsize = (conn->req.ahssize + conn->req.datasize + 3) & -4;
 			if (conn->rwsize > INCOMING_BUFSIZE) {
 				log_warning("Recv PDU with invalid size %d (max: %d)", conn->rwsize,
-					INCOMING_BUFSIZE);
+					    INCOMING_BUFSIZE);
 				conn->state = STATE_DROP;
 				goto out;
 			}
@@ -612,12 +615,12 @@ again:
 	case IOSTATE_WRITE_BHS:
 	case IOSTATE_WRITE_AHS:
 	case IOSTATE_WRITE_DATA:
-	      write_again:
+write_again:
 		conn->cork_transmit(pollfd->fd);
 		res = write(pollfd->fd, conn->buffer, conn->rwsize);
 		if (res < 0) {
 			log_debug(1, "write(%u, %p, %u) returned %d, errno=%u",
-			      pollfd->fd, conn->buffer, conn->rwsize, res, errno);
+				  pollfd->fd, conn->buffer, conn->rwsize, res, errno);
 			if (errno != EINTR && errno != EAGAIN) {
 				conn->state = STATE_DROP;
 				goto out;
@@ -651,7 +654,7 @@ again:
 				o = conn->rwsize & 3;
 				if (o) {
 					for (o = 4 - o; o; o--)
-						*((u8 *) conn->buffer + conn->rwsize++) =
+						*((u8 *)conn->buffer + conn->rwsize++) =
 						    0;
 				}
 				goto write_again;
@@ -684,7 +687,7 @@ again:
 		break;
 	default:
 		log_error("illegal iostate %d for port %d!\n", conn->iostate,
-			pollfd->fd);
+			  pollfd->fd);
 		exit(1);
 	}
 out:
@@ -734,13 +737,13 @@ static void event_loop(void)
 					  __func__);
 			else
 				log_error("%s: poll() failed: %s", __func__,
-					strerror(errno));
+					  strerror(errno));
 			exit(1);
 		}
 
 		for (i = 0; i < LISTEN_MAX; i++) {
-			if (poll_array[POLL_LISTEN + i].revents
-			    && incoming_cnt < INCOMING_MAX)
+			if (poll_array[POLL_LISTEN + i].revents &&
+			    incoming_cnt < INCOMING_MAX)
 				accept_connection(poll_array[POLL_LISTEN + i].fd);
 		}
 
@@ -827,9 +830,9 @@ static void init_max_params(void)
 	target_keys[key_queued_cmnds].local_def = min((int)target_keys[key_queued_cmnds].local_def,
 						      iscsi_init_params.max_queued_cmds);
 	target_keys[key_queued_cmnds].max = min_t(int, target_keys[key_queued_cmnds].max,
-						iscsi_init_params.max_queued_cmds);
+						  iscsi_init_params.max_queued_cmds);
 	target_keys[key_queued_cmnds].min = min_t(int, target_keys[key_queued_cmnds].min,
-						iscsi_init_params.max_queued_cmds);
+						  iscsi_init_params.max_queued_cmds);
 
 	/* MaxRecvDataSegmentLength */
 	session_keys[key_max_recv_data_length].local_def = iscsi_init_params.max_data_seg_len;
@@ -870,7 +873,6 @@ int main(int argc, char **argv)
 	gid_t gid = 0;
 	int err;
 
-
 	if (pipe(init_report_pipe) == -1) {
 		perror("pipe failed");
 		exit(-1);
@@ -885,6 +887,7 @@ int main(int argc, char **argv)
 	 */
 	struct sigaction act = (struct sigaction) { .sa_handler = SIG_IGN };
 	int rc = sigaction(SIGPIPE, &act, NULL);
+
 	assert(rc == 0);
 
 	act = (struct sigaction) { .sa_handler = suspend_logins };
@@ -963,16 +966,16 @@ int main(int argc, char **argv)
 	}
 
 	err = kernel_attr_add(NULL, ISCSI_ISNS_SERVER_ATTR_NAME,
-			0644, 0);
+			      0644, 0);
 	if (err != 0)
 		exit(err);
 
 	err = kernel_attr_add(NULL, ISCSI_ENABLED_ATTR_NAME,
-			0644, 0);
+			      0644, 0);
 	if (err != 0)
 		exit(err);
 	err = kernel_attr_add(NULL, ISCSI_ISNS_ENTITY_ATTR_NAME,
-			0644, 0);
+			      0644, 0);
 	if (err != 0)
 		exit(err);
 	err = kernel_attr_add(NULL, ISCSI_LINK_LOCAL_ATTR_NAME, 0644, 0);
@@ -994,7 +997,7 @@ int main(int argc, char **argv)
 		pid_t pid;
 		int fd;
 
-		fd = open("/run/iscsi-scstd.pid", O_WRONLY|O_CREAT, 0644);
+		fd = open("/run/iscsi-scstd.pid", O_WRONLY | O_CREAT, 0644);
 		if (fd < 0) {
 			log_error("unable to create pid file");
 			exit(1);

@@ -45,11 +45,12 @@ char *app_name;
 #if defined(DEBUG) || defined(TRACING)
 
 #ifdef DEBUG
-/*#define DEFAULT_LOG_FLAGS (TRACE_ALL & ~TRACE_MEMORY & ~TRACE_BUFF \
-	 & ~TRACE_FUNCTION)
-#define DEFAULT_LOG_FLAGS (TRACE_ALL & ~TRACE_MEMORY & ~TRACE_BUFF & \
-	~TRACE_SCSI & ~TRACE_SCSI_SERIALIZING & ~TRACE_DEBUG)
-*/
+/*
+ * #define DEFAULT_LOG_FLAGS (TRACE_ALL & ~TRACE_MEMORY & ~TRACE_BUFF \
+ *       & ~TRACE_FUNCTION)
+ * #define DEFAULT_LOG_FLAGS (TRACE_ALL & ~TRACE_MEMORY & ~TRACE_BUFF & \
+ *      ~TRACE_SCSI & ~TRACE_SCSI_SERIALIZING & ~TRACE_DEBUG)
+ */
 #define DEFAULT_LOG_FLAGS (TRACE_OUT_OF_MEM | TRACE_MINOR | TRACE_PID | \
 	TRACE_FUNCTION | TRACE_SPECIAL | TRACE_MGMT | TRACE_MGMT_DEBUG | \
 	TRACE_TIME)
@@ -102,8 +103,7 @@ bool use_multi = true;
 
 static void *(*alloc_fn)(size_t size) = align_alloc;
 
-static const struct option long_options[] =
-{
+static const struct option long_options[] = {
 	{"block", required_argument, 0, 'b'},
 	{"threads", required_argument, 0, 'e'},
 	{"write_through", no_argument, 0, 't'},
@@ -177,7 +177,7 @@ static int scst_calc_block_shift(int sector_size)
 	if (sector_size == 0)
 		goto out;
 
-	while(1) {
+	while (1) {
 		if ((t & 1) != 0)
 			break;
 		t >>= 1;
@@ -280,7 +280,7 @@ static int prealloc_buffers(struct vdisk_dev *dev)
 			if (pre.in.pbuf == 0) {
 				res = errno;
 				PRINT_ERROR("Unable to prealloc buffer: %s",
-					strerror(res));
+					    strerror(res));
 				goto out;
 			}
 
@@ -288,7 +288,7 @@ static int prealloc_buffers(struct vdisk_dev *dev)
 			if (res != 0) {
 				res = errno;
 				PRINT_ERROR("Unable to send prealloced buffer: %s",
-					strerror(res));
+					    strerror(res));
 				free((void *)(unsigned long)pre.in.pbuf);
 				goto out;
 			}
@@ -318,7 +318,7 @@ static int start(int argc, char **argv)
 		int j;
 
 		optind += 2;
-		if (optind > (argc-2))
+		if (optind > (argc - 2))
 			break;
 
 		devs[i].block_size = block_size;
@@ -336,14 +336,14 @@ static int start(int argc, char **argv)
 #endif
 		devs[i].type = TYPE_DISK;
 		devs[i].name = argv[optind];
-		devs[i].file_name = argv[optind+1];
+		devs[i].file_name = argv[optind + 1];
 
 		TRACE_DBG("Opening file %s", devs[i].file_name);
-		fd = open(devs[i].file_name, O_RDONLY|O_LARGEFILE);
+		fd = open(devs[i].file_name, O_RDONLY | O_LARGEFILE);
 		if (fd < 0) {
 			res = -errno;
 			PRINT_ERROR("Unable to open file %s (%s)", devs[i].file_name,
-				strerror(-res));
+				    strerror(-res));
 			continue;
 		}
 
@@ -355,11 +355,11 @@ static int start(int argc, char **argv)
 		PRINT_INFO("%s", " ");
 		PRINT_INFO("Virtual device \"%s\", path \"%s\", size %" PRId64 "MB, block size %d, nblocks %" PRId64 ", options:",
 			   devs[i].name,
-			devs[i].file_name, (uint64_t)devs[i].file_size/1024/1024,
+			devs[i].file_name, (uint64_t)devs[i].file_size / 1024 / 1024,
 			devs[i].block_size, (uint64_t)devs[i].nblocks);
 
 		snprintf(devs[i].usn, sizeof(devs[i].usn), "%" PRIx64,
-			gen_dev_id_num(&devs[i]));
+			 gen_dev_id_num(&devs[i]));
 		TRACE_DBG("usn %s", devs[i].usn);
 
 		devs[i].scst_usr_fd = open(DEV_USER_PATH DEV_USER_NAME, O_RDWR |
@@ -367,7 +367,7 @@ static int start(int argc, char **argv)
 		if (devs[i].scst_usr_fd < 0) {
 			res = -errno;
 			PRINT_ERROR("Unable to open SCST device %s (%s)",
-				DEV_USER_PATH DEV_USER_NAME, strerror(-res));
+				    DEV_USER_PATH DEV_USER_NAME, strerror(-res));
 			goto out_unreg;
 		}
 
@@ -448,7 +448,7 @@ static int start(int argc, char **argv)
 			if (rc != 0) {
 				res = errno;
 				PRINT_ERROR("pthread_create() failed: %s",
-					strerror(res));
+					    strerror(res));
 				break;
 			}
 		}
@@ -463,19 +463,20 @@ static int start(int argc, char **argv)
 
 	for (i = 0; i < num_devs; i++) {
 		int j = 0;
+
 		while (thread[i][j] != 0) {
 			rc = pthread_join(thread[i][j], &rc1);
 			if (rc != 0) {
 				res = errno;
 				PRINT_ERROR("pthread_join() failed: %s",
-					strerror(res));
+					    strerror(res));
 			} else if (rc1) {
 				res = (long)rc1;
 				PRINT_INFO("Thread %d exited (dev %s), res %lx", j,
-					devs[i].name, (long)rc1);
+					   devs[i].name, (long)rc1);
 			} else {
 				PRINT_INFO("Thread %d exited (dev %s)", j,
-					devs[i].name);
+					   devs[i].name);
 			}
 			j++;
 		}
@@ -491,7 +492,7 @@ out_unreg:
 			if (res != 0) {
 				res = errno;
 				PRINT_ERROR("Unable to unregister device: %s",
-					strerror(res));
+					    strerror(res));
 				/* Close the descriptor even if unregistering failed. */
 			}
 		}
@@ -518,7 +519,7 @@ int main(int argc, char **argv)
 	memset(devs, 0, sizeof(devs));
 
 	while ((ch = getopt_long(argc, argv, "+b:e:trongluF:I:cp:f:m:d:vsS:P:hDR:Z:M:",
-			long_options, &longindex)) >= 0) {
+				 long_options, &longindex)) >= 0) {
 		switch (ch) {
 		case 'b':
 			block_size = atoi(optarg);
@@ -614,7 +615,7 @@ int main(int argc, char **argv)
 			flush_interval = strtol(optarg, (char **)NULL, 0);
 			if (flush_interval < 0) {
 				PRINT_ERROR("Wrong flush interval %d",
-					flush_interval);
+					    flush_interval);
 				flush_interval = 0;
 			}
 			break;
@@ -634,7 +635,7 @@ int main(int argc, char **argv)
 		}
 	}
 
-	if (optind > (argc-2))
+	if (optind > (argc - 2))
 		goto out_usage;
 
 	if (!on_free_cmd_type_set &&
@@ -656,7 +657,7 @@ int main(int argc, char **argv)
 	if (non_blocking)
 		PRINT_INFO("	%s", "NON-BLOCKING");
 
-	switch(parse_type) {
+	switch (parse_type) {
 	case SCST_USER_PARSE_STANDARD:
 		PRINT_INFO("	%s", "Standard parse");
 		break;
@@ -670,7 +671,7 @@ int main(int argc, char **argv)
 		sBUG();
 	}
 
-	switch(on_free_cmd_type) {
+	switch (on_free_cmd_type) {
 	case SCST_USER_ON_FREE_CMD_IGNORE:
 		PRINT_INFO("	%s", "Ignore on_free_cmd");
 		break;
@@ -681,7 +682,7 @@ int main(int argc, char **argv)
 		sBUG();
 	}
 
-	switch(memory_reuse_type) {
+	switch (memory_reuse_type) {
 	case SCST_USER_MEM_REUSE_ALL:
 		PRINT_INFO("	%s", "Full memory reuse enabled");
 		break;
@@ -703,12 +704,12 @@ int main(int argc, char **argv)
 
 	if (sgv_single_alloc_pages != 0)
 		PRINT_INFO("	Use single entry SGV cache with %d pages/entry",
-			sgv_single_alloc_pages);
+			   sgv_single_alloc_pages);
 
 	if (sgv_purge_interval != 0) {
 		if (sgv_purge_interval > 0)
 			PRINT_INFO("	Use SGV cache purge interval %d seconds",
-				sgv_purge_interval);
+				   sgv_purge_interval);
 		else
 			PRINT_INFO("	%s", "SGV cache purging disabled");
 	}
@@ -718,7 +719,7 @@ int main(int argc, char **argv)
 
 	if (prealloc_buffers_num > 0 && prealloc_buffer_size > 0)
 		PRINT_INFO("	Prealloc %d buffers of %dKB",
-			prealloc_buffers_num, prealloc_buffer_size / 1024);
+			   prealloc_buffers_num, prealloc_buffer_size / 1024);
 
 	if (!o_direct_flag && memory_reuse_type == SCST_USER_MEM_NO_REUSE) {
 		PRINT_INFO("	%s", "Using unaligned buffers");
@@ -745,7 +746,7 @@ int main(int argc, char **argv)
 	if (res != 0) {
 		res = errno;
 		PRINT_ERROR("sigaction() failed: %s",
-			strerror(res));
+			    strerror(res));
 		/* don't do anything */
 	}
 
@@ -758,7 +759,7 @@ int main(int argc, char **argv)
 		if (res != 0) {
 			res = errno;
 			PRINT_ERROR("sigaction() failed: %s",
-				strerror(res));
+				    strerror(res));
 			goto out_done;
 		}
 
@@ -766,7 +767,7 @@ int main(int argc, char **argv)
 		if (res != 0) {
 			res = errno;
 			PRINT_ERROR("alarm() failed: %s",
-				strerror(res));
+				    strerror(res));
 			goto out_done;
 		}
 	}

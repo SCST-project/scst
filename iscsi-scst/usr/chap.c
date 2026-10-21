@@ -225,7 +225,8 @@ static void encode_base64_string(const u8 *intnum, long length, char *string)
 		strptr += 4;
 	} else if (delta == 2) {
 		string[strptr] = base64code[(intnum[count] & 0xfc) >> 2];
-		string[strptr + 1] = base64code[((intnum[count] & 0x03) << 4) | ((intnum[count + 1] & 0xf0) >> 4)];
+		string[strptr + 1] = base64code[((intnum[count] & 0x03) << 4) |
+					      ((intnum[count + 1] & 0xf0) >> 4)];
 		string[strptr + 2] = base64code[(intnum[count + 1] & 0x0f) << 2];
 		string[strptr + 3] = base64code[64];
 		strptr += 4;
@@ -288,7 +289,7 @@ static int chap_decode_string(char *encoded, u8 *decode_buf, int buf_len, int en
 	if (encoding_fmt == HEX_FORMAT) {
 		if ((strlen(encoded) - 2) > (2 * buf_len)) {
 			log_error("%s(%d) BUG?  buf[%d] !sufficient to decode string[%d]",
-				  __func__, __LINE__, buf_len, (int) strlen(encoded));
+				  __func__, __LINE__, buf_len, (int)strlen(encoded));
 			return CHAP_TARGET_ERROR;
 		}
 		decode_hex_string(encoded + 2, decode_buf, buf_len);
@@ -296,7 +297,7 @@ static int chap_decode_string(char *encoded, u8 *decode_buf, int buf_len, int en
 	} else if (encoding_fmt == BASE64_FORMAT) {
 		if ((strlen(encoded) - 2) > ((buf_len - 1) / 3 + 1) * 4) {
 			log_error("%s(%d) BUG?  buf[%d] !sufficient to decode string[%d]",
-				  __func__, __LINE__, buf_len, (int) strlen(encoded));
+				  __func__, __LINE__, buf_len, (int)strlen(encoded));
 			return CHAP_TARGET_ERROR;
 		}
 		decode_base64_string(encoded + 2, decode_buf, buf_len);
@@ -308,7 +309,8 @@ static int chap_decode_string(char *encoded, u8 *decode_buf, int buf_len, int en
 	return 0;
 }
 
-static inline void chap_encode_string(const u8 *intnum, int buf_len, char *encode_buf, int encoding_fmt)
+static inline void chap_encode_string(const u8 *intnum, int buf_len, char *encode_buf,
+				      int encoding_fmt)
 {
 	encode_buf[0] = '0';
 	if (encoding_fmt == HEX_FORMAT) {
@@ -321,7 +323,7 @@ static inline void chap_encode_string(const u8 *intnum, int buf_len, char *encod
 }
 
 static inline void chap_calc_digest_md5(char chap_id, const char *secret, int secret_len,
-	const u8 *challenge, int challenge_len, u8 *digest)
+					const u8 *challenge, int challenge_len, u8 *digest)
 {
 	struct md5_ctx ctx;
 
@@ -333,7 +335,7 @@ static inline void chap_calc_digest_md5(char chap_id, const char *secret, int se
 }
 
 static inline void chap_calc_digest_sha1(char chap_id, const char *secret, int secret_len,
-	const u8 *challenge, int challenge_len, u8 *digest)
+					 const u8 *challenge, int challenge_len, u8 *digest)
 {
 	struct sha1_ctx ctx;
 
@@ -468,7 +470,6 @@ static int chap_initiator_auth_create_challenge(struct connection *conn)
 			conn->auth_state = CHAP_AUTH_STATE_CHALLENGE;
 			break;
 		}
-
 	}
 	if (!p)
 		return CHAP_INITIATOR_ERROR;
@@ -753,11 +754,13 @@ static int chap_target_auth_create_response(struct connection *conn)
 	switch (conn->auth.chap.digest_alg) {
 	case CHAP_DIGEST_ALG_MD5:
 		chap_calc_digest_md5(chap_id, ISCSI_USER_PASS(user),
-			strlen(ISCSI_USER_PASS(user)), challenge, challenge_len, digest);
+				     strlen(ISCSI_USER_PASS(user)), challenge, challenge_len,
+				     digest);
 		break;
 	case CHAP_DIGEST_ALG_SHA1:
 		chap_calc_digest_sha1(chap_id, ISCSI_USER_PASS(user),
-			strlen(ISCSI_USER_PASS(user)), challenge, challenge_len, digest);
+				      strlen(ISCSI_USER_PASS(user)), challenge, challenge_len,
+				      digest);
 		break;
 	case CHAP_DIGEST_ALG_SHA256:
 		res = chap_calc_digest_sha256(chap_id, ISCSI_USER_PASS(user),

@@ -28,7 +28,7 @@
 	 (w) = ((w) << (s) | (w) >> (32 - (s))) + (x))
 
 static void __md5_transform(u32 hash[MD5_DIGEST_WORDS],
-		      const u32 in[MD5_BLOCK_WORDS])
+			    const u32 in[MD5_BLOCK_WORDS])
 {
 	register u32 a, b, c, d;
 

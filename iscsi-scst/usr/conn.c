@@ -66,10 +66,10 @@ void conn_pass_to_kern(struct connection *conn, int fd)
 	int err;
 
 	log_debug(1, "fd %d, cid %u, stat_sn %u, exp_stat_sn %u sid %" PRIx64,
-		fd, conn->cid, conn->stat_sn, conn->exp_stat_sn, conn->sid.id64);
+		  fd, conn->cid, conn->stat_sn, conn->exp_stat_sn, conn->sid.id64);
 
 	err = kernel_conn_create(conn->tid, conn->sess->sid.id64, conn->cid,
-			      conn->stat_sn, conn->exp_stat_sn, fd);
+				 conn->stat_sn, conn->exp_stat_sn, fd);
 
 	if (err == 0)
 		conn->passed_to_kern = 1;

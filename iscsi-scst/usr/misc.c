@@ -114,18 +114,22 @@ void sock_set_keepalive(int sock, int timeout)
 		int opt = 2;
 
 		if (setsockopt(sock, SOL_TCP, TCP_KEEPCNT, &opt, sizeof(opt)))
-			log_warning("unable to set TCP_KEEPCNT on server socket (%s)!", strerror(errno));
+			log_warning("unable to set TCP_KEEPCNT on server socket (%s)!",
+				    strerror(errno));
 
 		if (setsockopt(sock, SOL_TCP, TCP_KEEPIDLE, &timeout, sizeof(timeout)))
-			log_warning("unable to set TCP_KEEPIDLE on server socket (%s)!", strerror(errno));
+			log_warning("unable to set TCP_KEEPIDLE on server socket (%s)!",
+				    strerror(errno));
 
 		opt = 3;
 		if (setsockopt(sock, SOL_TCP, TCP_KEEPINTVL, &opt, sizeof(opt)))
-			log_warning("unable to set KEEPINTVL on server socket (%s)!", strerror(errno));
+			log_warning("unable to set KEEPINTVL on server socket (%s)!",
+				    strerror(errno));
 
 		opt = 1;
 		if (setsockopt(sock, SOL_SOCKET, SO_KEEPALIVE, &opt, sizeof(opt)))
-			log_warning("unable to set SO_KEEPALIVE on server socket (%s)!", strerror(errno));
+			log_warning("unable to set SO_KEEPALIVE on server socket (%s)!",
+				    strerror(errno));
 	}
 }
 

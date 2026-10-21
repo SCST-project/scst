@@ -29,7 +29,7 @@ struct __qelem {
 #ifdef __compiler_offsetof
 #define offsetof(TYPE, MEMBER) __compiler_offsetof(TYPE, MEMBER)
 #else
-#define offsetof(TYPE, MEMBER) ((size_t) &((TYPE *)0)->MEMBER)
+#define offsetof(TYPE, MEMBER) ((size_t)&((TYPE *)0)->MEMBER)
 #endif
 
 #define LIST_HEAD_INIT(name) { &(name), &(name) }
@@ -53,7 +53,7 @@ static inline int list_length_is_one(const struct __qelem *head)
 }
 
 #define container_of(ptr, type, member) ({			\
-	const typeof( ((type *)0)->member ) *__mptr = (ptr); \
+	const typeof(((type *)0)->member) * __mptr = (ptr); \
 	(type *)((char *)__mptr - offsetof(type, member)); })
 
 #define list_entry(ptr, type, member) \
@@ -67,7 +67,7 @@ static inline int list_length_is_one(const struct __qelem *head)
 #define list_for_each_entry_safe(pos, n, head, member)			\
 	for (pos = list_entry((head)->q_forw, typeof(*pos), member),	\
 		n = list_entry(pos->member.q_forw, typeof(*pos), member);	\
-	     &pos->member != (head); 					\
+	     &pos->member != (head);					\
 	     pos = n, n = list_entry(n->member.q_forw, typeof(*n), member))
 
 #define list_del(elem) remque(elem)
@@ -86,13 +86,13 @@ static inline void list_del_init(struct __qelem *elem)
 #define min(x, y) ({				\
 	typeof(x) _min1 = (x);			\
 	typeof(y) _min2 = (y);			\
-	(void) (&_min1 == &_min2);		\
+	(void)(&_min1 == &_min2);		\
 	_min1 < _min2 ? _min1 : _min2; })
 
 #define max(x, y) ({				\
 	typeof(x) _max1 = (x);			\
 	typeof(y) _max2 = (y);			\
-	(void) (&_max1 == &_max2);		\
+	(void)(&_max1 == &_max2);		\
 	_max1 > _max2 ? _max1 : _max2; })
 
 /* ... and their non-checking counterparts, also taken from the kernel. */

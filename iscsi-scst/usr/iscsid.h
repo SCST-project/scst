@@ -379,10 +379,9 @@ struct iscsi_attr *account_lookup_by_sysfs_name(struct target *target,
 int account_replace(struct target *target, int direction,
 		    const char *sysfs_name, char *value);
 void accounts_free(struct __qelem *accounts_list);
-struct iscsi_attr *iscsi_attr_lookup_by_sysfs_name(
-	const struct __qelem *attrs_list, const char *sysfs_name);
-struct iscsi_attr *iscsi_attr_lookup_by_key(
-	const struct __qelem *attrs_list, const char *key);
+struct iscsi_attr *iscsi_attr_lookup_by_sysfs_name(const struct __qelem *attrs_list,
+						   const char *sysfs_name);
+struct iscsi_attr *iscsi_attr_lookup_by_key(const struct __qelem *attrs_list, const char *key);
 void iscsi_attrs_free(struct __qelem *attrs_list);
 int iscsi_attr_create(int attr_size, struct __qelem *attrs_list,
 		      const char *sysfs_name_tmpl, const char *key, const char *val,

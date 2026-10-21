@@ -41,7 +41,7 @@ static char trace_buf[TRACE_BUF_SIZE];
 static pthread_spinlock_t trace_buf_lock;
 
 int debug_print_prefix(unsigned long flags, const char *prefix,
-	const char *func, int line)
+		       const char *func, int line)
 {
 	int i = 0;
 
@@ -77,7 +77,7 @@ int debug_print_prefix(unsigned long flags, const char *prefix,
 void debug_print_buffer(const void *data, int len)
 {
 	int z, z1, i;
-	const unsigned char *buf = (const unsigned char *) data;
+	const unsigned char *buf = (const unsigned char *)data;
 
 	if (!buf)
 		return;

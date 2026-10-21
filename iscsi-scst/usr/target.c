@@ -37,12 +37,12 @@ struct __qelem targets_list = LIST_HEAD_INIT(targets_list);
 int send_targets_link_local = DEFAULT_SEND_TARGETS_LINK_LOCAL;
 
 const char *iscsi_make_full_initiator_name(int per_portal_acl,
-	const char *initiator_name, const char *target_portal,
+					   const char *initiator_name, const char *target_portal,
 	char *buf, int size)
 {
 	if (per_portal_acl)
 		snprintf(buf, size, "%s#%s", initiator_name,
-			target_portal);
+			 target_portal);
 	else
 		snprintf(buf, size, "%s", initiator_name);
 
@@ -86,7 +86,7 @@ static int __wildcmp(const char *wild, const char *string, int recursion_level)
 				return 1;
 
 			mp = wild;
-			cp = string+1;
+			cp = string + 1;
 		} else if ((tolower(*wild) == tolower(*string)) || (*wild == '?')) {
 			wild++;
 			string++;
@@ -140,7 +140,7 @@ static int wildcmp(const char *wild, const char *string)
  *   the positive patterns must match and none of the negative.
  */
 int target_portal_allowed(struct target *target,
-	const char *target_portal, const char *initiator_name)
+			  const char *target_portal, const char *initiator_name)
 {
 	int res;
 	char full_initiator_name[ISCSI_FULL_NAME_LEN];
@@ -164,9 +164,9 @@ int target_portal_allowed(struct target *target,
 			goto out;
 	}
 
-	initiator_name = iscsi_make_full_initiator_name(target->per_portal_acl,
-						     initiator_name, target_portal,
-						     full_initiator_name, sizeof(full_initiator_name));
+	initiator_name = iscsi_make_full_initiator_name(target->per_portal_acl, initiator_name,
+							target_portal, full_initiator_name,
+							sizeof(full_initiator_name));
 	res = kernel_initiator_allowed(target->tid, initiator_name);
 	if (res < 0)
 		res = 0; /* false */
@@ -212,14 +212,14 @@ static void target_print_addr(struct connection *conn, const char *addr, int fam
 		return;
 
 	snprintf(taddr, sizeof(taddr),
-		(family == AF_INET) ? "%s:%d,1" : "[%s]:%d,1",
+		 (family == AF_INET) ? "%s:%d,1" : "[%s]:%d,1",
 							addr, server_port);
 
 	text_key_add(conn, "TargetAddress", taddr);
 }
 
 static void target_list_build_ifaddrs(struct connection *conn,
-	struct target *target, const char *exclude_addr, int family)
+				      struct target *target, const char *exclude_addr, int family)
 {
 	struct ifaddrs *ifaddr, *ifa;
 	char if_addr[NI_MAXHOST];
@@ -258,7 +258,7 @@ void target_list_build(struct connection *conn, const char *target_name)
 	char portal[NI_MAXHOST];
 	int family, i;
 
-	if (conn->getsockname(conn->fd, (struct sockaddr *) &ss1, &slen)) {
+	if (conn->getsockname(conn->fd, (struct sockaddr *)&ss1, &slen)) {
 		log_error("getsockname failed: %m");
 		return;
 	}
@@ -282,10 +282,10 @@ void target_list_build(struct connection *conn, const char *target_name)
 			slen = sizeof(struct sockaddr_storage);
 
 			if (getsockname(poll_array[i].fd,
-					(struct sockaddr *) &ss2, &slen))
+					(struct sockaddr *)&ss2, &slen))
 				continue;
 
-			if (getnameinfo((struct sockaddr *) &ss2, slen, portal,
+			if (getnameinfo((struct sockaddr *)&ss2, slen, portal,
 					sizeof(portal), NULL, 0, NI_NUMERICHOST))
 				continue;
 
@@ -294,12 +294,12 @@ void target_list_build(struct connection *conn, const char *target_name)
 
 			if (is_addr_unspecified(portal))
 				target_list_build_ifaddrs(conn, target,
-					conn->target_portal, family);
+							  conn->target_portal, family);
 			else if (strcmp(conn->target_portal, portal) &&
 				 !is_addr_loopback(portal) &&
 				 target_portal_allowed(target, portal,
 						       conn->initiator))
-					target_print_addr(conn, portal, family);
+				target_print_addr(conn, portal, family);
 		}
 	}
 }
@@ -454,7 +454,6 @@ int target_add(struct target *target, u32 *tid, u32 cookie)
 
 	list_add_tail(&target->tlist, &targets_list);
 
-
 out:
 	return err;
 }
@@ -498,7 +497,7 @@ bool target_redirected(const struct target *target, struct connection *conn)
 		snprintf(addr, sizeof(addr), "%s", tmp);
 
 	snprintf(redirect, sizeof(redirect), "%s:%d", target->redirect.addr,
-		target->redirect.port);
+		 target->redirect.port);
 
 	if (strcmp(target->redirect.addr, addr)) {
 		text_key_add(conn, "TargetAddress", redirect);
