@@ -252,7 +252,7 @@ static void __scst_event_queue(struct scst_event_entry *event_entry)
 					  new_event_entry->event.issuer_name,
 					  new_event_entry->event.event_id, new_event_entry);
 
-				wake_up_all(&priv->queued_events_waitQ);
+				wake_up_all(&priv->queued_events_waitq);
 				break;
 			}
 		}
@@ -565,7 +565,7 @@ static int scst_event_release(struct inode *inode, struct file *file)
 	TRACE_DBG("Going to release event priv %p", priv);
 
 	priv->going_to_exit = 1;
-	wake_up_all(&priv->queued_events_waitQ);
+	wake_up_all(&priv->queued_events_waitq);
 
 	list_for_each_entry_safe(e, et, &priv->allowed_events_list, events_list_entry) {
 		TRACE_MEM("Deleting allowed event entry %p", e);
@@ -774,7 +774,7 @@ static int scst_event_user_next_event(struct scst_event_priv *priv, void __user 
 	/* Waiting for at least one event, if blocking */
 	while (list_empty(&priv->queued_events_list)) {
 		mutex_unlock(&scst_event_mutex);
-		wait_event_interruptible(priv->queued_events_waitQ,
+		wait_event_interruptible(priv->queued_events_waitq,
 					 (!list_empty(&priv->queued_events_list) ||
 					  priv->going_to_exit || !priv->blocking ||
 					  signal_pending(current)));
@@ -916,7 +916,7 @@ static int scst_event_create_priv(struct file *file)
 
 	priv->owner_pid = current->pid;
 	INIT_LIST_HEAD(&priv->allowed_events_list);
-	init_waitqueue_head(&priv->queued_events_waitQ);
+	init_waitqueue_head(&priv->queued_events_waitq);
 	INIT_LIST_HEAD(&priv->queued_events_list);
 	INIT_LIST_HEAD(&priv->processing_events_list);
 	if (file->f_flags & O_NONBLOCK) {
@@ -1027,7 +1027,7 @@ static __poll_t scst_event_poll(struct file *file, poll_table *wait)
 	mutex_unlock(&scst_event_mutex);
 
 	TRACE_DBG("Before poll_wait() (priv %p)", priv);
-	poll_wait(file, &priv->queued_events_waitQ, wait);
+	poll_wait(file, &priv->queued_events_waitq, wait);
 	TRACE_DBG("After poll_wait() (priv %p)", priv);
 
 	mutex_lock(&scst_event_mutex);

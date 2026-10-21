@@ -20,7 +20,7 @@ struct scst_event_priv {
 	 */
 	struct list_head allowed_events_list;
 	struct list_head queued_events_list;
-	wait_queue_head_t queued_events_waitQ;
+	wait_queue_head_t queued_events_waitq;
 	struct list_head processing_events_list;
 };
 

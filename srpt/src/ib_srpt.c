@@ -2181,7 +2181,7 @@ static void srpt_unreg_ch(struct srpt_rdma_ch *ch)
 	 */
 	mutex_lock(&sport->mutex);
 	list_del_rcu(&ch->list);
-	wake_up(&sport->ch_releaseQ);
+	wake_up(&sport->ch_release_waitq);
 	mutex_unlock(&sport->mutex);
 
 	kref_put(&ch->kref, srpt_free_ch);
@@ -3880,7 +3880,7 @@ static int srpt_release_sport(struct srpt_port *sport)
 	__srpt_close_all_ch(sport);
 	mutex_unlock(&sport->mutex);
 
-	while (wait_event_timeout(sport->ch_releaseQ,
+	while (wait_event_timeout(sport->ch_release_waitq,
 				  srpt_ch_list_empty(sport), 5 * HZ) <= 0) {
 		pr_info("%s: waiting for session unregistration ...\n",
 			sport->scst_tgt->tgt_name);
@@ -4251,7 +4251,7 @@ static void srpt_init_sport(struct srpt_port *sport, const struct ib_device *ib_
 	int i;
 
 	INIT_LIST_HEAD(&sport->nexus_list);
-	init_waitqueue_head(&sport->ch_releaseQ);
+	init_waitqueue_head(&sport->ch_release_waitq);
 	mutex_init(&sport->mutex);
 	strscpy(sport->port_id, DEFAULT_SRPT_ID_STRING,
 		sizeof(sport->port_id));

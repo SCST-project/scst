@@ -183,7 +183,7 @@ int event_test_init(struct kunit *test)
 	INIT_LIST_HEAD(&f->priv.allowed_events_list);
 	INIT_LIST_HEAD(&f->priv.queued_events_list);
 	INIT_LIST_HEAD(&f->priv.processing_events_list);
-	init_waitqueue_head(&f->priv.queued_events_waitQ);
+	init_waitqueue_head(&f->priv.queued_events_waitq);
 	f->file.private_data = &f->priv;
 	f->user_size = INT_MAX;
 	memset(f->output, 0xa5, sizeof(f->output));

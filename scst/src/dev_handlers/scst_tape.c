@@ -267,20 +267,20 @@ static int tape_done(struct scst_cmd *cmd)
 
 		if (opcode == READ_6 && !(cmd->cdb[1] & SILI_BIT) && (cmd->sense[2] & 0xe0)) {
 			/* EOF, EOM, or ILI */
-			unsigned int TransferLength, Residue = 0;
+			unsigned int transfer_length, residue = 0;
 
 			if ((cmd->sense[2] & 0x0f) == BLANK_CHECK)
 				/* No need for EOM in this case */
 				cmd->sense[2] &= 0xcf;
-			TransferLength = get_unaligned_be24(&cmd->cdb[2]);
+			transfer_length = get_unaligned_be24(&cmd->cdb[2]);
 			/* Compute the residual count */
 			if ((cmd->sense[0] & 0x80) != 0)
-				Residue = get_unaligned_be32(&cmd->sense[3]);
+				residue = get_unaligned_be32(&cmd->sense[3]);
 			TRACE_DBG("Checking the sense key sn[2]=%x cmd->cdb[0,1]=%x,%x TransLen/Resid %d/%d",
-				  (int)cmd->sense[2], cmd->cdb[0], cmd->cdb[1], TransferLength,
-				  Residue);
-			if (TransferLength > Residue) {
-				int resp_data_len = TransferLength - Residue;
+				  (int)cmd->sense[2], cmd->cdb[0], cmd->cdb[1], transfer_length,
+				  residue);
+			if (transfer_length > residue) {
+				int resp_data_len = transfer_length - residue;
 
 				if (cmd->cdb[1] & 1) {
 					/*

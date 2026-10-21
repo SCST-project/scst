@@ -464,7 +464,7 @@ struct srpt_nexus {
  * @lid:       cached value of the port's lid.
  * @gid:       cached value of the port's gid.
  * @work:      work structure for refreshing the aforementioned cached values.
- * @ch_releaseQ: Enables waiting for removal from nexus_list.
+ * @ch_release_waitq: Enables waiting for removal from nexus_list.
  * @mutex:       Protects @nexus_list and srpt_nexus.ch_list.
  * @nexus_list:  Per-device I_T nexus list.
  * @scst_tgt:    SCST target information associated with this HCA.
@@ -481,7 +481,7 @@ struct srpt_port {
 	u32			lid;
 	union ib_gid		gid;
 	struct work_struct	work;
-	wait_queue_head_t	ch_releaseQ;
+	wait_queue_head_t	ch_release_waitq;
 	struct mutex		mutex;
 	struct list_head	nexus_list;
 	struct scst_tgt		*scst_tgt;
