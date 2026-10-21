@@ -247,8 +247,8 @@ out_close:
 
 static void show_iscsi_params(int type, struct iscsi_param *param)
 {
-	int i, nr, len;
-	char buf[1024], *p;
+	int i, nr;
+	char buf[1024];
 	struct iscsi_key *keys;
 
 	if (type == key_session) {
@@ -260,6 +260,9 @@ static void show_iscsi_params(int type, struct iscsi_param *param)
 	}
 
 	for (i = 0; i < nr; i++) {
+		int len;
+		char *p;
+
 		memset(buf, 0, sizeof(buf));
 		iscsi_strscpy(buf, keys[i].name, sizeof(buf));
 		len = strlen(buf);

@@ -164,10 +164,10 @@ int target_portal_allowed(struct target *target,
 			goto out;
 	}
 
-	res = kernel_initiator_allowed(target->tid,
-		iscsi_make_full_initiator_name(target->per_portal_acl,
-			initiator_name, target_portal,
-			full_initiator_name, sizeof(full_initiator_name)));
+	initiator_name = iscsi_make_full_initiator_name(target->per_portal_acl,
+						     initiator_name, target_portal,
+						     full_initiator_name, sizeof(full_initiator_name));
+	res = kernel_initiator_allowed(target->tid, initiator_name);
 	if (res < 0)
 		res = 0; /* false */
 

@@ -189,7 +189,7 @@ static inline void encode_hex_string(u8 *intnum, long length, char *string)
 /* Base64 encoding, taken from UNH iSCSI "IntegerToBase64String()" */
 static void encode_base64_string(u8 *intnum, long length, char *string)
 {
-	int count, octets, strptr, delta;
+	int count, strptr, delta;
 	static const char base64code[] = { 'A', 'B', 'C', 'D', 'E', 'F', 'G',
 					   'H', 'I', 'J', 'K', 'L', 'M', 'N',
 					   'O', 'P', 'Q', 'R', 'S', 'T', 'U',
@@ -208,6 +208,8 @@ static void encode_base64_string(u8 *intnum, long length, char *string)
 	strptr = 0;
 
 	while ((delta = (length - count)) > 2) {
+		int octets;
+
 		octets = (intnum[count] << 16) | (intnum[count + 1] << 8) | intnum[count + 2];
 		string[strptr] = base64code[(octets & 0xfc0000) >> 18];
 		string[strptr + 1] = base64code[(octets & 0x03f000) >> 12];

@@ -605,7 +605,7 @@ typedef union {
 static int netmask_match_v6(const struct sockaddr_in6 *sa1,
 			    const struct sockaddr_in6 *sa2, uint32_t mbit)
 {
-	uint16_t mask, a1[8], a2[8];
+	uint16_t a1[8], a2[8];
 	int i;
 
 	for (i = 0; i < 8; i++) {
@@ -618,6 +618,8 @@ static int netmask_match_v6(const struct sockaddr_in6 *sa1,
 			return 0;
 
 	if (mbit % 16) {
+		uint16_t mask;
+
 		mask = ~((1 << (16 - (mbit % 16))) - 1);
 		if ((mask & a1[mbit / 16]) ^ (mask & a2[mbit / 16]))
 			return 0;
@@ -1074,11 +1076,11 @@ static int config_isns_load(const char *config)
 {
 	char buf[BUFSIZE];
 	int offset = 0;
-	char *p, *q;
 
 	while (config_gets(buf, sizeof(buf), config, &offset)) {
-		q = buf;
-		p = config_sep_string(&q);
+		char *q = buf;
+		const char *p = config_sep_string(&q);
+
 		if ((*p == '\0') || (*p == '#'))
 			continue;
 		if (!strcasecmp(p, ISCSI_ISNS_SERVER_ATTR_NAME)) {
