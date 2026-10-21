@@ -236,7 +236,35 @@ static void scst_cdb_trace_bounds(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, buf[1], 'x');
 }
 
+static void scst_lun_unaligned_encoding(struct kunit *test)
+{
+	u8 data[16] __aligned(8);
+	unsigned int offset, len, tail;
+
+	for (offset = 0; offset < 8; offset++) {
+		for (len = 2; len <= 8; len += 2) {
+			u8 *lun = data + offset;
+
+			/* Nonzero bytes outside len must not affect decoding. */
+			memset(data, 0x5a, sizeof(data));
+			memset(lun, 0, len);
+			lun[0] = 0x52;
+			lun[1] = 0x34;
+			KUNIT_EXPECT_EQ_MSG(test, scst_unpack_lun(lun, len), (u64)0x1234,
+					    "offset=%u len=%u", offset, len);
+			for (tail = 2; tail < len; tail++) {
+				lun[tail] = 1;
+				KUNIT_EXPECT_EQ_MSG(test, scst_unpack_lun(lun, len),
+						    (u64)NO_SUCH_LUN, "offset=%u len=%u tail=%u",
+						    offset, len, tail);
+				lun[tail] = 0;
+			}
+		}
+	}
+}
+
 static struct kunit_case scst_lib_cases[] = {
+	KUNIT_CASE(scst_lun_unaligned_encoding),
 	KUNIT_CASE(scst_cdb_trace_bounds),
 #if (defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE)) && !defined(CONFIG_SCST_NO_DLM)
 	KUNIT_CASE(scst_dlm_directory_error_preserves_membership),
