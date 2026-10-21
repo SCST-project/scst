@@ -87,7 +87,7 @@ static void usage(void)
 
 static void handle_reg_vdev_received(struct scst_event_user *event_user)
 {
-	struct scst_event_reg_vdev_payload *p = (struct scst_event_reg_vdev_payload *)event_user->out_event.payload;
+	const struct scst_event_reg_vdev_payload *p = (struct scst_event_reg_vdev_payload *)event_user->out_event.payload;
 	printf("Virtual device %s registration received.\n", p->device_name);
 
 	return;
@@ -95,7 +95,7 @@ static void handle_reg_vdev_received(struct scst_event_user *event_user)
 
 static void handle_tm_received(struct scst_event_user *event_user)
 {
-	struct scst_event_tm_fn_received_payload *p = (struct scst_event_tm_fn_received_payload *)event_user->out_event.payload;
+	const struct scst_event_tm_fn_received_payload *p = (struct scst_event_tm_fn_received_payload *)event_user->out_event.payload;
 
 	printf("fn %u, device %s\n", p->fn, p->device_name);
 

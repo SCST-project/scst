@@ -88,7 +88,7 @@ static void usage(int status)
 	}
 }
 
-static void stpg_handle_tm_received(struct scst_event_user *event_user)
+static void stpg_handle_tm_received(const struct scst_event_user *event_user)
 {
 	/*
 	 * Put code to abort state transition here, if this STPG cmd,
