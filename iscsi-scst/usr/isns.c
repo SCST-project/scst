@@ -772,6 +772,23 @@ static int recv_pdu(int fd, struct isns_io *rx, struct isns_hdr *hdr)
 		  function, length, flags, transaction, sequence);	\
 }
 
+/* Validate the complete payload before a handler changes names or ACLs. */
+static bool isns_tlvs_valid(const struct isns_tlv *tlv, size_t length)
+{
+	while (length) {
+		uint32_t vlen;
+
+		if (length < sizeof(*tlv))
+			return false;
+		vlen = ntohl(tlv->length);
+		if (vlen > length - sizeof(*tlv) || vlen % ISNS_ALIGN != 0)
+			return false;
+		length -= sizeof(*tlv) + vlen;
+		tlv = (const struct isns_tlv *)((const char *)tlv->value + vlen);
+	}
+	return true;
+}
+
 static char *print_scn_pdu(struct isns_hdr *hdr)
 {
 	struct isns_tlv *tlv = (struct isns_tlv *)hdr->pdu;
@@ -783,12 +800,13 @@ static char *print_scn_pdu(struct isns_hdr *hdr)
 	char *name = NULL;
 
 	get_hdr_param(hdr, function, length, flags, transaction, sequence);
+	if (!isns_tlvs_valid(tlv, length)) {
+		log_error("Malformed iSNS SCN attributes");
+		return NULL;
+	}
 
 	while (length) {
 		uint32_t vlen = ntohl(tlv->length);
-
-		if (vlen + sizeof(*tlv) > length)
-			vlen = length - sizeof(*tlv);
 
 		if (vlen < 4)
 			goto next;
@@ -826,7 +844,7 @@ static void qry_rsp_handle(struct isns_hdr *hdr)
 	uint16_t flags __attribute__((unused));
 	uint16_t sequence __attribute__((unused));
 	uint16_t length, transaction;
-	uint32_t status = (uint32_t) (*hdr->pdu);
+	uint32_t status;
 	struct isns_qry_mgmt *mgmt, *n;
 	struct target *target;
 	struct isns_initiator *ini;
@@ -847,10 +865,23 @@ static void qry_rsp_handle(struct isns_hdr *hdr)
 	return;
 
 found:
+	if (length < sizeof(status)) {
+		log_error("Short iSNS query response status");
+		goto free_qry_mgmt;
+	}
+	status = ntohl(*hdr->pdu);
 	if (status) {
 		log_error("%s %d: error response %u",
 			  __func__, __LINE__, status);
 
+		goto free_qry_mgmt;
+	}
+
+	/* Skip the status only after proving that it is present. */
+	tlv = (struct isns_tlv *)((char *)hdr->pdu + sizeof(status));
+	length -= sizeof(status);
+	if (!isns_tlvs_valid(tlv, length)) {
+		log_error("Malformed iSNS query response attributes");
 		goto free_qry_mgmt;
 	}
 
@@ -869,17 +900,8 @@ found:
 
 	free_all_acl(target);
 
-	/* skip status */
-	if (length < 4)
-		goto free_qry_mgmt;
-	tlv = (struct isns_tlv *)((char *)hdr->pdu + 4);
-	length -= 4;
-
 	while (length) {
 		uint32_t vlen = ntohl(tlv->length);
-
-		if (vlen + sizeof(*tlv) > length)
-			vlen = length - sizeof(*tlv);
 
 		if (vlen < 4)
 			goto next;

@@ -127,6 +127,11 @@ failure cleanup. It runs through `ginkgo-check` and requires `cc`. Interface
 headers are prepared in a temporary directory; no daemon or storage is used.
 Run it separately with `go test ./internal/chap` from this directory.
 
+The isolated `internal/isns` suite checks production iSNS handlers against
+malformed payloads ending at a guard page, including preservation of existing
+ACLs. It also runs through `ginkgo-check`; use `go test ./internal/isns` to
+run it separately. It requires `cc` and opens no sockets.
+
 ## SCSI and I/O
 
 Install Python 3, util-linux and sg3_utils on the command host: the target for
