@@ -2319,34 +2319,44 @@ static int __init init_scst(void)
 	}
 
 /* Used for rarely used or read-mostly on fast path structures */
-#define INIT_CACHEP(p, s) ({						\
-		(p) = KMEM_CACHE(s, SCST_SLAB_FLAGS);			\
-		TRACE_MEM("Slab create: %s at %p size %zd", #s, (p),	\
-			  sizeof(struct s));				\
-		(p);							\
+#define INIT_CACHEP(p, s) ({							\
+		struct kmem_cache *__scst_cache =				\
+			KMEM_CACHE(s, SCST_SLAB_FLAGS);				\
+										\
+		(p) = __scst_cache;						\
+		TRACE_MEM("Slab create: %s at %p size %zu", #s, __scst_cache,	\
+			  sizeof(struct s));					\
+		__scst_cache;							\
 	})
 
-#define INIT_CACHEP_USERCOPY(p, s, f) ({				\
-		(p) = KMEM_CACHE_USERCOPY(s, SCST_SLAB_FLAGS, f);	\
-		TRACE_MEM("Slab create: %s at %p size %zd", #s, (p),	\
-			  sizeof(struct s));				\
-		(p);							\
+#define INIT_CACHEP_USERCOPY(p, s, f) ({					\
+		struct kmem_cache *__scst_cache =				\
+			KMEM_CACHE_USERCOPY(s, SCST_SLAB_FLAGS, f);		\
+										\
+		(p) = __scst_cache;						\
+		TRACE_MEM("Slab create: %s at %p size %zu", #s, __scst_cache,	\
+			  sizeof(struct s));					\
+		__scst_cache;							\
 	})
 
 /* Used for structures with fast path write access */
-#define INIT_CACHEP_ALIGN(p, s) ({					\
-		(p) = KMEM_CACHE(s,					\
-				 SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN);	\
-		TRACE_MEM("Slab create: %s at %p size %zd", #s, (p),	\
-			  sizeof(struct s));				\
-		(p);							\
+#define INIT_CACHEP_ALIGN(p, s) ({						\
+		struct kmem_cache *__scst_cache =				\
+			KMEM_CACHE(s, SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN);	\
+										\
+		(p) = __scst_cache;						\
+		TRACE_MEM("Slab create: %s at %p size %zu", #s, __scst_cache,	\
+			  sizeof(struct s));					\
+		__scst_cache;							\
 	})
-#define INIT_CACHEP_ALIGN_USERCOPY(p, s, f) ({				\
-		(p) = KMEM_CACHE_USERCOPY(s, SCST_SLAB_FLAGS |		\
-					  SLAB_HWCACHE_ALIGN, f);	\
-		TRACE_MEM("Slab create: %s at %p size %zd", #s, (p),	\
-			  sizeof(struct s));				\
-		(p);							\
+#define INIT_CACHEP_ALIGN_USERCOPY(p, s, f) ({					\
+		struct kmem_cache *__scst_cache =				\
+			KMEM_CACHE_USERCOPY(s, SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN, f);	\
+										\
+		(p) = __scst_cache;						\
+		TRACE_MEM("Slab create: %s at %p size %zu", #s, __scst_cache,	\
+			  sizeof(struct s));					\
+		__scst_cache;							\
 	})
 
 	res = -ENOMEM;
@@ -2616,9 +2626,11 @@ static void __exit exit_scst(void)
 
 	rcu_barrier();
 
-#define DEINIT_CACHEP(p) do {		\
-		kmem_cache_destroy(p);	\
-		p = NULL;		\
+#define DEINIT_CACHEP(p) do {							\
+		struct kmem_cache **__scst_cache = &(p);			\
+										\
+		kmem_cache_destroy(*__scst_cache);				\
+		*__scst_cache = NULL;						\
 	} while (0)
 
 	mempool_destroy(scst_mgmt_mempool);
