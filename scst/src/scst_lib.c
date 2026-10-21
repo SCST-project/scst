@@ -3118,7 +3118,7 @@ next:
 	}
 
 	sess->acg = acg;
-	WRITE_ONCE(sess->black_hole_type, acg->acg_black_hole_type);
+	WRITE_ONCE(sess->black_hole_type, READ_ONCE(acg->acg_black_hole_type));
 
 	TRACE_DBG("Moving sess %p from acg %s to acg %s", sess,
 		old_acg->acg_name, acg->acg_name);
@@ -5579,7 +5579,7 @@ int scst_alloc_add_tgt_dev(struct scst_session *sess,
 
 	tgt_dev->sess = sess;
 	atomic_set(&tgt_dev->tgt_dev_cmd_count, 0);
-	if (acg_dev->acg->acg_black_hole_type != SCST_ACG_BLACK_HOLE_NONE)
+	if (READ_ONCE(acg_dev->acg->acg_black_hole_type) != SCST_ACG_BLACK_HOLE_NONE)
 		set_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
 	else
 		clear_bit(SCST_TGT_DEV_BLACK_HOLE, &tgt_dev->tgt_dev_flags);
