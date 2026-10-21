@@ -1082,8 +1082,15 @@ static int config_isns_load(const char *config)
 		if ((*p == '\0') || (*p == '#'))
 			continue;
 		if (!strcasecmp(p, ISCSI_ISNS_SERVER_ATTR_NAME)) {
+			const char *name = config_sep_string(&q);
+			char *server = strdup(name);
+
+			if (!server) {
+				log_error("Unable to duplicate iSNS server name %s", name);
+				return -ENOMEM;
+			}
 			free(isns_server);
-			isns_server = strdup(config_sep_string(&q));
+			isns_server = server;
 		} else if (!strcasecmp(p, ISCSI_ISNS_ACCESS_CONTROL_ATTR_NAME)) {
 			char *str = config_sep_string(&q);
 
@@ -1159,7 +1166,9 @@ int config_load(const char *config_name)
 	buf[size] = '\0';
 
 	err = config_isns_load(buf);
-	if ((err == 0) && (isns_server != NULL)) {
+	if (err != 0)
+		goto out_free;
+	if (isns_server) {
 		rc = isns_init();
 
 		if (rc != 0) {
