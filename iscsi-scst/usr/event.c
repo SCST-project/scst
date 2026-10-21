@@ -1140,8 +1140,8 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 				portal = strtok(portals, " ");
 				while (portal != NULL) {
 					if (!is_addr(portal)) {
-						free(portals);
 						log_error("Invalid address supplied %s", portal);
+						free(portals);
 						res = -EINVAL;
 						goto out_free;
 					}
