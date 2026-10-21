@@ -5277,6 +5277,7 @@ found:
 			t->acg_dev->acg->acg_io_grouping_type);
 	} else {
 		wait_event(a->ioctx_wq, a->io_context_ready);
+		/* Pair with scst_ioctx_get() before reading the published I/O context. */
 		smp_rmb();
 		TRACE_DBG("Going to share IO context %p (res %p, ini %s, dev %s, cmd_threads %p, grouping type %d)",
 			  res->active_cmd_threads->io_context, res,

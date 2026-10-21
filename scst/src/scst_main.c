@@ -101,6 +101,7 @@ char *scst_cluster_name;
 
 unsigned int scst_setup_id;
 
+/* Protects the initialization command queue and poll accounting. */
 spinlock_t scst_init_lock;
 wait_queue_head_t scst_init_cmd_list_waitQ;
 struct list_head scst_init_cmd_list;
@@ -123,12 +124,14 @@ struct percpu_ref scst_cmd_count;
 struct percpu_ref scst_mcmd_count;
 struct scst_percpu_info scst_percpu_infos[NR_CPUS];
 
+/* Protects the active and delayed management-command queues. */
 spinlock_t scst_mcmd_lock;
 struct list_head scst_active_mgmt_cmd_list;
 struct list_head scst_delayed_mgmt_cmd_list;
 wait_queue_head_t scst_mgmt_cmd_list_waitQ;
 
 wait_queue_head_t scst_mgmt_waitQ;
+/* Protects the session initialization and shutdown queues. */
 spinlock_t scst_mgmt_lock;
 struct list_head scst_sess_init_list;
 struct list_head scst_sess_shut_list;
@@ -162,6 +165,7 @@ static int scst_virt_dev_last_id; /* protected by scst_mutex */
 
 cpumask_t default_cpu_mask;
 
+/* Serializes read/replace operations on the latency-measurement mode. */
 spinlock_t scst_measure_latency_lock;
 atomic_t scst_measure_latency;
 
@@ -1773,6 +1777,7 @@ out_wait:
 		 */
 		wait_event(cmd_threads->ioctx_wq,
 			   cmd_threads->io_context_ready);
+		/* Pair with scst_ioctx_get() before sharing the initialized I/O context. */
 		smp_rmb();
 	}
 

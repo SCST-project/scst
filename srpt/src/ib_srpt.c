@@ -3025,7 +3025,7 @@ static void srpt_cm_rtu_recv(struct srpt_rdma_ch *ch)
 
 	/*
 	 * Note: calling srpt_close_ch() if the transition to the LIVE state
-	 * fails is not necessary since that means that that function has
+	 * fails is not necessary since that means that the function has
 	 * already been invoked from another thread.
 	 */
 	if (!srpt_set_ch_state(ch, CH_LIVE))

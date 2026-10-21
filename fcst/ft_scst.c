@@ -25,6 +25,7 @@ unsigned int ft_debug_logging;
 module_param_named(debug_logging, ft_debug_logging, int, 0644);
 MODULE_PARM_DESC(debug_logging, "log levels bigmask");
 
+/* Serializes local-port publication/removal and session management. */
 DEFINE_MUTEX(ft_lport_lock);
 
 static struct notifier_block ft_notifier = {

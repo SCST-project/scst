@@ -68,6 +68,7 @@ struct isert_listener_dev {
 	struct cdev cdev;
 	dev_t devno;
 	wait_queue_head_t waitqueue;
+	/* Protects the new/current connection lists and listener portal slots. */
 	struct mutex conn_lock;
 	struct list_head new_conn_list;
 	struct list_head curr_conn_list;
@@ -99,6 +100,7 @@ struct isert_conn_dev {
 	struct iscsi_conn *conn;
 	unsigned int idx;
 	int occupied;
+	/* Protects login request/response PDU ownership. */
 	spinlock_t pdu_lock;
 	struct iscsi_cmnd *login_req;
 	struct iscsi_cmnd *login_rsp;

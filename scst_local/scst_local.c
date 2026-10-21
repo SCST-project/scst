@@ -112,11 +112,13 @@ struct scst_local_sess {
 
 	int number;
 
+	/* Protects transport_id replacement and access to its length/data. */
 	struct mutex tr_id_mutex;
 	u8 *transport_id;
 	int transport_id_len;
 
 	struct work_struct aen_work;
+	/* Protects the pending AEN work list. */
 	spinlock_t aen_lock;
 	struct list_head aen_work_list; /* protected by aen_lock */
 

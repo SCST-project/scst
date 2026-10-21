@@ -142,6 +142,7 @@ struct scst_cm_ec_cmd_priv {
 #define SCST_CM_ERROR_WRITE	2
 	int cm_error;
 
+	/* Serializes descriptor progress and generated-command completion. */
 	struct mutex cm_mutex;
 
 	int cm_cur_in_flight; /* commands */
@@ -2276,7 +2277,7 @@ static void scst_cm_init_inq_finish(struct scst_cmd *cmd)
 
 	/*
 	 * Since scst_cm_inq_retry_fn() uses cmd->tgt_i_priv, only free that
-	 * pointer once it is clear that that function won't be called.
+	 * pointer once it is clear that the function won't be called.
 	 */
 	kfree(priv);
 	priv = NULL;

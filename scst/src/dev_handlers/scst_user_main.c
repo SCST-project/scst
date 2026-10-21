@@ -1176,7 +1176,7 @@ out:
 out_nomem:
 	if (ucmd->cmd)
 		scst_set_busy(ucmd->cmd);
-	/* fall through */
+	/* Continue with abnormal command completion. */
 
 out_err:
 	if (ucmd->cmd)

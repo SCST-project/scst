@@ -182,6 +182,7 @@ const char *debug_transport_id_to_initiator_name(const uint8_t *transport_id)
 	 * missing their NULL terminator.
 	 */
 	memset(name_buf, 0, SIZEOF_NAME_BUF);
+	/* Order clearing the terminator before filling the next diagnostic name. */
 	smp_mb();
 
 	switch (transport_id[0] & 0x0f) {

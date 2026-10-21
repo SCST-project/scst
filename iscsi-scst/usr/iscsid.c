@@ -1411,7 +1411,6 @@ void cmnd_finish(struct connection *conn)
 		conn->state = STATE_LOGIN;
 		break;
 	case STATE_SECURITY_FULL:
-		/* fall through */
 	case STATE_LOGIN_FULL:
 		if (conn->session_type == SESSION_NORMAL)
 			conn->state = STATE_KERNEL;

@@ -1725,6 +1725,7 @@ struct scst_tgt {
 	int retry_cmds;
 	struct timer_list retry_timer;
 	struct list_head retry_cmd_list;
+	/* Protects the target retry queue and timer state above. */
 	spinlock_t tgt_lock;
 
 	/* Used to wait until session finished to unregister */
@@ -1968,6 +1969,7 @@ struct scst_pr_abort_all_pending_mgmt_cmds_counter {
  * Structure to control commands' queuing and threads pool processing the queue
  */
 struct scst_cmd_threads {
+	/* Protects the active command queue shared by the pool threads. */
 	spinlock_t cmd_list_lock;
 	struct list_head active_cmd_list; /* commands queue */
 	wait_queue_head_t cmd_list_waitQ;
