@@ -43,7 +43,7 @@ static void exec_read_capacity(struct vdisk_cmd *vcmd);
 static void exec_read_capacity16(struct vdisk_cmd *vcmd);
 static void exec_read_toc(struct vdisk_cmd *vcmd);
 static void exec_prevent_allow_medium_removal(struct vdisk_cmd *vcmd);
-static int exec_fsync(struct vdisk_cmd *vcmd);
+static int exec_fsync(const struct vdisk_cmd *vcmd);
 static void exec_read(struct vdisk_cmd *vcmd, loff_t loff);
 static void exec_write(struct vdisk_cmd *vcmd, loff_t loff);
 static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff);
@@ -225,7 +225,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	uint64_t lba_start = cmd->lba;
 	int64_t data_len = cmd->data_len;
-	uint8_t *cdb = cmd->cdb;
+	const uint8_t *cdb = cmd->cdb;
 	int opcode = cdb[0];
 	loff_t loff;
 	int fua = 0;
@@ -329,7 +329,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 	case WRITE_12:
 	case WRITE_16:
 		if (!dev->rd_only_flag) {
-			struct vdisk_tgt_dev *tgt_dev;
+			const struct vdisk_tgt_dev *tgt_dev;
 
 			tgt_dev = find_tgt_dev(dev, cmd->sess_h);
 			if (tgt_dev == NULL) {
@@ -355,7 +355,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 	case WRITE_VERIFY_12:
 	case WRITE_VERIFY_16:
 		if (!dev->rd_only_flag) {
-			struct vdisk_tgt_dev *tgt_dev;
+			const struct vdisk_tgt_dev *tgt_dev;
 
 			tgt_dev = find_tgt_dev(dev, cmd->sess_h);
 			if (tgt_dev == NULL) {
@@ -692,7 +692,7 @@ reply:
 static int process_cmd(struct vdisk_cmd *vcmd)
 {
 	struct scst_user_get_cmd *cmd = vcmd->cmd;
-	struct scst_user_reply_cmd *reply = vcmd->reply;
+	const struct scst_user_reply_cmd *reply = vcmd->reply;
 	int res = 0;
 
 	TRACE_ENTRY();
@@ -963,9 +963,9 @@ uint64_t gen_dev_id_num(const struct vdisk_dev *dev)
 
 static void exec_inquiry(struct vdisk_cmd *vcmd)
 {
-	struct vdisk_dev *dev = vcmd->dev;
+	const struct vdisk_dev *dev = vcmd->dev;
 	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
-	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
+	const struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	int resp_len = 0;
 	int length = cmd->bufflen;
 	unsigned int i;
@@ -1147,7 +1147,7 @@ out:
 static void exec_request_sense(struct vdisk_cmd *vcmd)
 {
 	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
-	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
+	const struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	int length = cmd->bufflen, l;
 	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
 	uint8_t b[SCST_STANDARD_SENSE_LEN];
@@ -1196,7 +1196,7 @@ static int disconnect_pg(unsigned char *p, int pcontrol)
 }
 
 static int rigid_geo_pg(unsigned char *p, int pcontrol,
-	struct vdisk_dev *dev)
+	const struct vdisk_dev *dev)
 {
 	unsigned char geo_m_pg[] = {0x04, 0x16, 0, 0, 0, DEF_HEADS, 0, 0,
 				    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -1216,7 +1216,7 @@ static int rigid_geo_pg(unsigned char *p, int pcontrol,
 }
 
 static int format_pg(unsigned char *p, int pcontrol,
-			     struct vdisk_dev *dev)
+			     const struct vdisk_dev *dev)
 {       /* Format device page for mode_sense */
 	const unsigned char format_pg[] = {0x3, 0x16, 0, 0, 0, 0, 0, 0,
 					   0, 0, 0, 0, 0, 0, 0, 0,
@@ -1233,7 +1233,7 @@ static int format_pg(unsigned char *p, int pcontrol,
 }
 
 static int caching_pg(unsigned char *p, int pcontrol,
-			     struct vdisk_dev *dev)
+			     const struct vdisk_dev *dev)
 { 	/* Caching page for mode_sense */
 	const unsigned char caching_pg[] = {0x8, 18, 0x10, 0, 0xff, 0xff, 0, 0,
 		0xff, 0xff, 0xff, 0xff, 0x80, 0x14, 0, 0, 0, 0, 0, 0};
@@ -1246,7 +1246,7 @@ static int caching_pg(unsigned char *p, int pcontrol,
 }
 
 static int ctrl_m_pg(unsigned char *p, int pcontrol,
-			    struct vdisk_dev *dev)
+			    const struct vdisk_dev *dev)
 { 	/* Control mode page for mode_sense */
 	const unsigned char ctrl_m_pg[] = {0xa, 0xa, 0x20, 0, 0, 0x40, 0, 0,
 					   0, 0, 0x2, 0x4b};
@@ -1271,9 +1271,9 @@ static int iec_m_pg(unsigned char *p, int pcontrol)
 
 static void exec_mode_sense(struct vdisk_cmd *vcmd)
 {
-	struct vdisk_dev *dev = vcmd->dev;
+	const struct vdisk_dev *dev = vcmd->dev;
 	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
-	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
+	const struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	int length = cmd->bufflen;
 	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
 	uint8_t buf[MSENSE_BUF_SZ];
@@ -1432,7 +1432,7 @@ static void exec_mode_select(struct vdisk_cmd *vcmd)
 	struct vdisk_dev *dev = vcmd->dev;
 	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
 	int length = cmd->bufflen;
-	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
+	const uint8_t *address = (uint8_t *)(unsigned long)cmd->pbuf;
 	int mselect_6, offset;
 
 	TRACE_ENTRY();
@@ -1496,9 +1496,9 @@ out:
 
 static void exec_read_capacity(struct vdisk_cmd *vcmd)
 {
-	struct vdisk_dev *dev = vcmd->dev;
+	const struct vdisk_dev *dev = vcmd->dev;
 	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
-	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
+	const struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	int length = cmd->bufflen;
 	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
 	uint32_t blocksize;
@@ -1541,9 +1541,9 @@ static void exec_read_capacity(struct vdisk_cmd *vcmd)
 
 static void exec_read_capacity16(struct vdisk_cmd *vcmd)
 {
-	struct vdisk_dev *dev = vcmd->dev;
-	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
-	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
+	const struct vdisk_dev *dev = vcmd->dev;
+	const struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
+	const struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	int length = cmd->bufflen;
 	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
 	uint32_t blocksize;
@@ -1600,9 +1600,9 @@ static void exec_read_capacity16(struct vdisk_cmd *vcmd)
 
 static void exec_read_toc(struct vdisk_cmd *vcmd)
 {
-	struct vdisk_dev *dev = vcmd->dev;
+	const struct vdisk_dev *dev = vcmd->dev;
 	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
-	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
+	const struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	int32_t off = 0;
 	int length = cmd->bufflen;
 	uint8_t *address = (uint8_t *)(unsigned long)cmd->pbuf;
@@ -1692,10 +1692,10 @@ static void exec_prevent_allow_medium_removal(struct vdisk_cmd *vcmd)
 	return;
 }
 
-static int exec_fsync(struct vdisk_cmd *vcmd)
+static int exec_fsync(const struct vdisk_cmd *vcmd)
 {
 	int res = 0;
-	struct vdisk_dev *dev = vcmd->dev;
+	const struct vdisk_dev *dev = vcmd->dev;
 
 	/* Hopefully, the compiler will generate the single comparison */
 	if (dev->nv_cache || dev->wt_flag || dev->rd_only_flag ||
@@ -1712,8 +1712,8 @@ out:
 
 static void exec_read(struct vdisk_cmd *vcmd, loff_t loff)
 {
-	struct vdisk_dev *dev = vcmd->dev;
-	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
+	const struct vdisk_dev *dev = vcmd->dev;
+	const struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
 	int length = cmd->bufflen;
 	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
 	int fd = vcmd->fd;
@@ -1759,11 +1759,11 @@ out:
 
 static void exec_write(struct vdisk_cmd *vcmd, loff_t loff)
 {
-	struct vdisk_dev *dev = vcmd->dev;
-	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
+	const struct vdisk_dev *dev = vcmd->dev;
+	const struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
 	loff_t err;
 	int length = cmd->bufflen;
-	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
+	const uint8_t *address = (uint8_t *)(unsigned long)cmd->pbuf;
 	int fd = vcmd->fd;
 
 	TRACE_ENTRY();
@@ -1820,8 +1820,8 @@ out:
 
 static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 {
-	struct vdisk_dev *dev = vcmd->dev;
-	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
+	const struct vdisk_dev *dev = vcmd->dev;
+	const struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
 	loff_t err;
 	int64_t length = cmd->bufflen;
 	uint8_t *address = (uint8_t *)(unsigned long)cmd->pbuf;
@@ -1903,8 +1903,8 @@ out:
 
 static void exec_write_same(struct vdisk_cmd *vcmd)
 {
-	struct vdisk_dev *dev = vcmd->dev;
-	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
+	const struct vdisk_dev *dev = vcmd->dev;
+	const struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
 	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	uint64_t blocks = cmd->data_len >> dev->block_shift;
 	static struct scst_user_data_descriptor uwhere[3];
