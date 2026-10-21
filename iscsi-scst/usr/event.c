@@ -184,7 +184,7 @@ static int handle_e_add_target(int fd, const struct iscsi_kern_event *event)
 		break;
 	}
 
-	offs += min((unsigned)rc, (unsigned)event->param1_size);
+	offs += min((unsigned int)rc, (unsigned int)event->param1_size);
 	offs += sprintf(&buf[offs], "; ");
 
 	if (event->param2_size > 0) {
@@ -200,7 +200,7 @@ static int handle_e_add_target(int fd, const struct iscsi_kern_event *event)
 			}
 			break;
 		}
-		offs += min((unsigned)rc, (unsigned)event->param2_size);
+		offs += min((unsigned int)rc, (unsigned int)event->param2_size);
 	}
 
 	buf[offs] = '\0';
@@ -424,7 +424,7 @@ static int handle_e_mgmt_cmd(int fd, const struct iscsi_kern_event *event)
 		break;
 	}
 
-	buf[min((unsigned)rc, (unsigned)event->param1_size)] = '\0';
+	buf[min((unsigned int)rc, (unsigned int)event->param1_size)] = '\0';
 
 	log_debug(1, "Going to parse %s", buf);
 
@@ -516,7 +516,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 		break;
 	}
 
-	buf[min((unsigned)rc, (unsigned)event->param1_size)] = '\0';
+	buf[min((unsigned int)rc, (unsigned int)event->param1_size)] = '\0';
 
 	log_debug(1, "Going to parse name %s", buf);
 
@@ -838,7 +838,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		break;
 	}
 
-	offs = min((unsigned)rc, (unsigned)event->param1_size);
+	offs = min((unsigned int)rc, (unsigned int)event->param1_size);
 	offs += sprintf(&buf[offs], " ");
 
 	while (1) {
@@ -854,7 +854,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		break;
 	}
 
-	offs += min((unsigned)rc, (unsigned)event->param2_size);
+	offs += min((unsigned int)rc, (unsigned int)event->param2_size);
 	buf[offs] = '\0';
 
 	log_debug(1, "Going to parse %s", buf);

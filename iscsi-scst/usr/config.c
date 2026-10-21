@@ -602,11 +602,11 @@ out:
  * Access control code
  */
 
-typedef union {
+union sockaddress {
 	struct sockaddr		sa;
 	struct sockaddr_in	sa_in;
 	struct sockaddr_in6	sa_in6;
-} sockaddress;
+};
 
 static int netmask_match_v6(const struct sockaddr_in6 *sa1,
 			    const struct sockaddr_in6 *sa2, uint32_t mbit)
@@ -652,7 +652,7 @@ static int netmask_match_v4(const struct sockaddr_in *sa1,
 	return 0;
 }
 
-static int netmask_match(const sockaddress *sa1, const sockaddress *sa2,
+static int netmask_match(const union sockaddress *sa1, const union sockaddress *sa2,
 			 const char *buf)
 {
 	unsigned long mbit;
@@ -670,7 +670,7 @@ static int netmask_match(const sockaddress *sa1, const sockaddress *sa2,
 	return netmask_match_v6(&sa1->sa_in6, &sa2->sa_in6, mbit);
 }
 
-static int address_match(const sockaddress *sa1, const sockaddress *sa2)
+static int address_match(const union sockaddress *sa1, const union sockaddress *sa2)
 {
 	if (sa1->sa.sa_family == AF_INET) {
 		return sa1->sa_in.sin_addr.s_addr ==
@@ -692,7 +692,7 @@ static int address_match(const sockaddress *sa1, const sockaddress *sa2)
 
 static int __initiator_match(int fd, char *str)
 {
-	sockaddress from;
+	union sockaddress from;
 	socklen_t len;
 	char *p, *q;
 	int err = 0;
@@ -732,9 +732,9 @@ static int __initiator_match(int fd, char *str)
 			return 0;
 
 		if (q)
-			err = netmask_match((sockaddress *)res->ai_addr, &from, q);
+			err = netmask_match((union sockaddress *)res->ai_addr, &from, q);
 		else
-			err = address_match((sockaddress *)res->ai_addr, &from);
+			err = address_match((union sockaddress *)res->ai_addr, &from);
 
 		freeaddrinfo(res);
 
