@@ -26,6 +26,7 @@
 #include <linux/version.h>
 #endif
 #include <linux/kernel.h>
+#include <linux/math64.h>
 #include <linux/wait.h>
 #include <linux/aio.h>
 #include <linux/file.h>
@@ -1683,7 +1684,9 @@ static int vdisk_format_dif(struct scst_cmd *cmd, uint64_t start_lba, uint64_t b
 			done -= full_len - err;
 		}
 
+		spin_lock(&virt_dev->flags_lock);
 		virt_dev->format_progress_done = done;
+		spin_unlock(&virt_dev->flags_lock);
 	}
 
 out_free_data_page:
@@ -1928,11 +1931,10 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 	}
 
 	spin_lock(&virt_dev->flags_lock);
-	virt_dev->format_active = 1;
-	spin_unlock(&virt_dev->flags_lock);
-
 	virt_dev->format_progress_done = 0;
 	virt_dev->format_progress_to_do = virt_dev->nblocks << SCST_DIF_TAG_SHIFT;
+	virt_dev->format_active = 1;
+	spin_unlock(&virt_dev->flags_lock);
 
 	if (virt_dev->thin_provisioned) {
 		int rc = vdisk_unmap_range(cmd, virt_dev, 0, virt_dev->nblocks);
@@ -3986,30 +3988,48 @@ out:
 	return CMD_SUCCEEDED;
 }
 
-static enum compl_status_e vdisk_exec_request_sense(struct vdisk_cmd_params *p)
+static u16 vdisk_format_progress(u64 done, u64 total)
+{
+	u64 progress;
+
+	if (!total)
+		return 0;
+	if (done >= total)
+		return USHRT_MAX;
+
+	/* Scale the fraction without overflowing either operand. */
+	if (total <= ULLONG_MAX >> 16)
+		progress = div64_u64(done << 16, total);
+	else
+		progress = div64_u64(done, total >> 16);
+
+	/* The large-volume approximation can round up by one progress unit. */
+	return min_t(u64, progress, USHRT_MAX);
+}
+
+SCST_KUNIT_VISIBLE
+enum compl_status_e vdisk_exec_request_sense(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
 	struct scst_device *dev = cmd->dev;
 	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	u64 done, total;
+	bool format_active;
 	int32_t length, sl;
 	uint8_t *address;
 	uint8_t b[SCST_STANDARD_SENSE_LEN];
 
 	TRACE_ENTRY();
 
-	/*
-	 * No need to make it volatile, because at worst we will have a couple
-	 * of extra commands refused after formatting actually finished, which
-	 * is acceptable.
-	 */
-	if (virt_dev->format_active) {
-		uint64_t d, div;
-		uint16_t v;
+	/* Keep the active flag and both 64-bit counters in one consistent snapshot. */
+	spin_lock(&virt_dev->flags_lock);
+	format_active = virt_dev->format_active;
+	done = virt_dev->format_progress_done;
+	total = virt_dev->format_progress_to_do;
+	spin_unlock(&virt_dev->flags_lock);
 
-		div = virt_dev->format_progress_to_do >> 16;
-		d = virt_dev->format_progress_done;
-		do_div(d, div);
-		v = d;
+	if (format_active) {
+		u16 v = vdisk_format_progress(done, total);
 
 		TRACE_DBG("Format progress %d", v);
 
@@ -4021,6 +4041,7 @@ static enum compl_status_e vdisk_exec_request_sense(struct vdisk_cmd_params *p)
 			uint8_t *p = &b[7];
 			int o = 8;
 			*p += 8;
+			sl += 8;
 			b[o] = 2;
 			b[o + 1] = 6;
 			b[o + 4] = 0x80;

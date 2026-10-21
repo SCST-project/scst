@@ -178,7 +178,75 @@ static void vdisk_cache_test(struct kunit *test)
 			p->error == -ENOMEM ? SAM_STAT_BUSY : SAM_STAT_CHECK_CONDITION);
 }
 
+struct vdisk_format_case {
+	const char *name;
+	u64 done;
+	u64 total;
+	u16 expected;
+};
+
+static const struct vdisk_format_case vdisk_format_cases[] = {
+	{ "unknown_total", 0, 0, 0 },
+	{ "small_start", 0, 8, 0 },
+	{ "small_half", 4, 8, 0x8000 },
+	{ "small_third", 1, 3, 0x5555 },
+	{ "small_complete", 8, 8, 0xffff },
+	{ "over_total", 9, 8, 0xffff },
+	{ "old_divisor_truncates_to_zero", 1ULL << 47, 1ULL << 48, 0x8000 },
+	{ "old_divisor_truncates_to_one", (1ULL << 47) + (1ULL << 15),
+	  (1ULL << 48) + (1ULL << 16), 0x8000 },
+	{ "large_half", 1ULL << 62, 1ULL << 63, 0x8000 },
+	{ "largest_half", 1ULL << 63, ULLONG_MAX, 0x8000 },
+	{ "largest_nearly_complete", ULLONG_MAX - 1, ULLONG_MAX, 0xffff },
+	{ "large_complete", 1ULL << 48, 1ULL << 48, 0xffff },
+};
+
+static void vdisk_format_desc(const struct vdisk_format_case *p, char *desc)
+{
+	snprintf(desc, KUNIT_PARAM_DESC_SIZE, "%s", p->name);
+}
+
+KUNIT_ARRAY_PARAM(vdisk_format, vdisk_format_cases, vdisk_format_desc);
+
+static void vdisk_format_progress_test(struct kunit *test)
+{
+	const struct vdisk_format_case *p = test->param_value;
+	struct vdisk_test_fixture *f = test->priv;
+	u8 *sense = f->input[0];
+	unsigned int descriptor;
+
+	f->vdev.format_active = 1;
+	f->vdev.format_progress_done = p->done;
+	f->vdev.format_progress_to_do = p->total;
+	f->cmd.sg_cnt = 1;
+	f->cmd.data_direction = SCST_DATA_READ;
+	f->cmd.bufflen = 512;
+	f->cmd.cdb[0] = REQUEST_SENSE;
+
+	for (descriptor = 0; descriptor < 2; descriptor++) {
+		f->dev.d_sense = descriptor;
+		scst_set_resp_data_len(&f->cmd, 512);
+		memset(sense, 0xa5, 512);
+		KUNIT_ASSERT_EQ(test, vdisk_exec_request_sense(&f->params), CMD_SUCCEEDED);
+		KUNIT_EXPECT_EQ(test, f->cmd.status, SAM_STAT_GOOD);
+		KUNIT_ASSERT_EQ(test, f->cmd.resp_data_len, descriptor ? 16 : 18);
+		KUNIT_EXPECT_EQ(test, sense[0], descriptor ? 0x72 : 0x70);
+		KUNIT_EXPECT_EQ(test, sense[descriptor ? 1 : 2], NOT_READY);
+		KUNIT_EXPECT_EQ(test, sense[descriptor ? 2 : 12], 0x04);
+		KUNIT_EXPECT_EQ(test, sense[descriptor ? 3 : 13], 0x04);
+		KUNIT_EXPECT_EQ(test, sense[descriptor ? 12 : 15], 0x80);
+		KUNIT_EXPECT_EQ(test, get_unaligned_be16(&sense[descriptor ? 13 : 16]),
+				p->expected);
+		if (descriptor) {
+			KUNIT_EXPECT_EQ(test, sense[7], 8);
+			KUNIT_EXPECT_EQ(test, sense[8], 2);
+			KUNIT_EXPECT_EQ(test, sense[9], 6);
+		}
+	}
+}
+
 static struct kunit_case vdisk_protocol_cases[] = {
+	KUNIT_CASE_PARAM(vdisk_format_progress_test, vdisk_format_gen_params),
 	KUNIT_CASE_PARAM(vdisk_cdb_test, vdisk_cdb_gen_params),
 	KUNIT_CASE_PARAM(vdisk_cache_test, vdisk_cache_gen_params),
 	{}

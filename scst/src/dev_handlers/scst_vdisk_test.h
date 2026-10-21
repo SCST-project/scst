@@ -16,6 +16,7 @@ int vdisk_fsync(loff_t loff, loff_t len, struct scst_device *dev, gfp_t gfp_flag
 		struct scst_cmd *cmd, bool async);
 void vdisk_on_free_cmd_params(const struct vdisk_cmd_params *p);
 enum compl_status_e vdisk_exec_sai_16(struct vdisk_cmd_params *p);
+enum compl_status_e vdisk_exec_request_sense(struct vdisk_cmd_params *p);
 enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p);
 enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p);
 bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd);

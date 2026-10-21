@@ -140,6 +140,7 @@ int vdisk_test_init(struct kunit *test)
 	f->dev.block_shift = 9;
 	f->dev.dev_dif_fn = vdisk_test_no_dif;
 	f->vdev.dev = &f->dev;
+	spin_lock_init(&f->vdev.flags_lock);
 	f->vdev.dev_active = true;
 	f->vdev.file_size = 16384;
 	vdisk_test_file_init(&f->data, f);

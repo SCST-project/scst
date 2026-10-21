@@ -86,6 +86,7 @@ struct scst_vdisk_dev {
 	struct bio_set vdisk_bioset_struct;
 #endif
 
+	/* Protected by flags_lock, together with format_active. */
 	uint64_t format_progress_to_do, format_progress_done;
 
 	int virt_id;
