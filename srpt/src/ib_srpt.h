@@ -421,6 +421,7 @@ struct srpt_rdma_ch {
 	int			req_lim;
 	int			req_lim_delta;
 	u16			imm_data_offset;
+	/* Protects channel state, request credits and the free send-context list. */
 	spinlock_t		spinlock;
 	struct list_head	free_list;
 	enum rdma_ch_state	state;
@@ -482,6 +483,7 @@ struct srpt_port {
 	union ib_gid		gid;
 	struct work_struct	work;
 	wait_queue_head_t	ch_release_waitq;
+	/* Protects port configuration, nexus/channel lists and login admission. */
 	struct mutex		mutex;
 	struct list_head	nexus_list;
 	struct scst_tgt		*scst_tgt;

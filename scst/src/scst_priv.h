@@ -203,6 +203,7 @@ extern wait_queue_head_t scst_mgmt_cmd_list_waitQ;
 extern struct percpu_ref scst_cmd_count;
 extern struct percpu_ref scst_mcmd_count;
 struct scst_percpu_info {
+	/* Protects this CPU's tasklet command queue. */
 	spinlock_t tasklet_lock;
 	struct list_head tasklet_cmd_list;
 	struct tasklet_struct tasklet;
@@ -218,6 +219,7 @@ extern cpumask_t default_cpu_mask;
 
 struct scst_cmd_thread_t {
 	struct list_head thr_active_cmd_list;
+	/* Protects this thread's active command queue. */
 	spinlock_t thr_cmd_list_lock;
 	struct task_struct *cmd_thread;
 	struct scst_cmd_threads *thr_cmd_threads;

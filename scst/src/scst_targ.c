@@ -1323,7 +1323,6 @@ set_res:
 			       "Atomic context and non-WRITE data direction, rescheduling (cmd %p)",
 			       cmd);
 		res = SCST_CMD_STATE_RES_NEED_THREAD;
-		/* fall through */
 	}
 #endif
 
@@ -4403,7 +4402,8 @@ int scst_init_thread(void *arg)
  * Note: A more elegant approach would be to allocate the I/O context in
  * scst_init_threads() instead of this function. That approach is only possible
  * though after exporting alloc_io_context(). A previous discussion of this
- * topic can be found here: http://lkml.org/lkml/2008/12/11/282.
+ * topic, including the proposed exports, can be found here:
+ * https://lore.kernel.org/lkml/20081211190627.GA23742@kernel.dk/
  */
 static void scst_ioctx_get(struct scst_cmd_threads *p_cmd_threads)
 {
@@ -4437,6 +4437,7 @@ static void scst_ioctx_get(struct scst_cmd_threads *p_cmd_threads)
 
 	mutex_unlock(&p_cmd_threads->io_context_mutex);
 
+	/* Publish the I/O context before the ready flag; waiters pair with smp_rmb(). */
 	smp_wmb();
 	p_cmd_threads->io_context_ready = true;
 }

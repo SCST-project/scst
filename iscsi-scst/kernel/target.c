@@ -26,6 +26,7 @@
 
 #define MAX_NR_TARGETS		BIT(30)
 
+/* Serializes target, session and connection management requests. */
 DEFINE_MUTEX(target_mgmt_mutex);
 
 /* All 3 protected by target_mgmt_mutex */

@@ -79,6 +79,7 @@ struct iscsi_thread {
 };
 
 struct iscsi_thread_pool {
+	/* Protects read scheduling and connection close flags. */
 	spinlock_t rd_lock;
 	struct list_head rd_list;
 	wait_queue_head_t rd_waitq;
@@ -96,6 +97,7 @@ struct iscsi_thread_pool {
 	/* Entry in iscsi_thread_pools_list */
 	struct list_head thread_pools_list_entry;
 
+	/* Protects thread-list membership and enumeration. */
 	struct mutex tp_mutex;
 	struct list_head threads_list; /* protected by tp_mutex */
 };
@@ -113,6 +115,7 @@ struct iscsi_attr {
 struct iscsi_target {
 	struct scst_tgt *scst_tgt;
 
+	/* Serializes session/connection management and target attributes. */
 	struct mutex target_mutex;
 
 	struct list_head session_list; /* protected by target_mutex */
@@ -144,6 +147,7 @@ struct iscsi_session {
 	struct iscsi_tgt_params tgt_params;
 	atomic_t active_cmds;
 
+	/* Protects CmdSN sequencing, pending commands and delayed TM responses. */
 	spinlock_t sn_lock;
 	u32 exp_cmd_sn; /* protected by sn_lock */
 
@@ -210,6 +214,7 @@ struct iscsi_conn {
 
 	atomic_t conn_ref_cnt;
 
+	/* Protects queued writes, response timeout lists and timer state. */
 	spinlock_t write_list_lock;
 	/* List of data pdus to be sent. Protected by write_list_lock */
 	struct list_head write_list;
@@ -315,6 +320,7 @@ struct iscsi_conn {
 	unsigned int nop_in_interval; /* in jiffies */
 	unsigned int nop_in_timeout; /* in jiffies */
 	struct list_head nop_req_list;
+	/* Protects the list of outstanding NOP-In requests. */
 	spinlock_t nop_req_list_lock;
 	u32 nop_in_ttt;
 

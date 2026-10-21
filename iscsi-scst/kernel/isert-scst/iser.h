@@ -171,6 +171,7 @@ struct isert_conn {
 	struct isert_wr		*post_recv_first;
 	struct isert_wr		*post_recv_curr;
 
+	/* Protects the receive WR chain and its pending count above. */
 	spinlock_t		post_recv_lock;
 
 	spinlock_t		tx_lock ____cacheline_aligned;
@@ -185,6 +186,7 @@ struct isert_conn {
 	struct isert_cq		*cq_desc;
 
 	enum isert_conn_state	state;
+	/* Serializes connection-state changes, disconnect and drain posting. */
 	struct mutex		state_mutex;
 
 	u32			responder_resources;
@@ -249,6 +251,7 @@ struct isert_device {
 };
 
 struct isert_global {
+	/* Protects portal-list membership and live portal accounting. */
 	spinlock_t		portal_lock;
 	/* protected by portal_lock */
 	struct list_head	portal_list;
