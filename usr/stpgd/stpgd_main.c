@@ -144,8 +144,8 @@ static int invoke_stpg(const uint8_t *device_name,
 	}
 	env[6] = NULL;
 
-	PRINT_INFO("Invoking script %s with parameters: %s %s %s %s %s and environment: "
-		"%s %s %s %s %s", stpg_path, args[1], args[2], args[3],
+	PRINT_INFO("Invoking script %s with parameters: %s %s %s %s %s and environment: %s %s %s %s %s",
+		   stpg_path, args[1], args[2], args[3],
 		args[4], args[5], env[1], env[2], env[3], env[4], env[5]);
 
 	c_pid = fork();
@@ -191,8 +191,8 @@ static int wait_until_finished(pid_t pid, unsigned long deadline, int *status, i
 		if (res != 0) {
 			if (res < 0) {
 				res = -errno;
-				PRINT_ERROR("Waitpid for pid %d (child %d) "
-					"failed: %d (%s)", pid, child,
+				PRINT_ERROR("Waitpid for pid %d (child %d) failed: %d (%s)",
+					    pid, child,
 					errno, strerror(errno));
 			}
 			break;
@@ -241,8 +241,8 @@ static int handle_stpg_received(struct scst_event_user *event_user)
 			continue;
 		}
 
-		PRINT_WARNING("on_stpg %d (pid %d) did not finish on time - "
-			"sending SIGTERM", k, pids[k]);
+		PRINT_WARNING("on_stpg %d (pid %d) did not finish on time - sending SIGTERM",
+			      k, pids[k]);
 		if (res == 0)
 			res = -ETIMEDOUT;
 		rc = killpg(pids[k], SIGTERM);
@@ -255,12 +255,12 @@ static int handle_stpg_received(struct scst_event_user *event_user)
 			continue;
 
 		while (1) {
-			PRINT_WARNING("on_stpg %d (pid %d) did not finish on time - "
-					"sending SIGKILL", k, pids[k]);
+			PRINT_WARNING("on_stpg %d (pid %d) did not finish on time - sending SIGKILL",
+				      k, pids[k]);
 			rc = killpg(pids[k], SIGKILL);
 			if (rc < 0) {
-				PRINT_ERROR("Failed to send SIGKILL to child %d "
-					"(pid %d): %d/%s", k, pids[k], errno,
+				PRINT_ERROR("Failed to send SIGKILL to child %d (pid %d): %d/%s",
+					    k, pids[k], errno,
 					strerror(errno));
 				break;
 			}
@@ -515,8 +515,7 @@ int main(int argc, char **argv)
 		stpg_path = "/usr/local/bin/scst/scst_on_stpg";
 
 	if (access(stpg_path, X_OK) == -1) {
-		PRINT_ERROR("Script file \" %s \"does not exist or not "
-			"executable", stpg_path);
+		PRINT_ERROR("Script file \" %s \"does not exist or not executable", stpg_path);
 		res = -1;
 		goto out_done;
 	}

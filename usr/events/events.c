@@ -212,14 +212,13 @@ int main(int argc, char **argv)
 			switch (res) {
 			case ESRCH:
 			case EBUSY:
-				TRACE_MGMT_DBG("SCST_EVENT_GET_NEXT_EVENT returned "
-					"%d (%s)", res, strerror(res));
+				TRACE_MGMT_DBG("SCST_EVENT_GET_NEXT_EVENT returned %d (%s)",
+					       res, strerror(res));
 				/* fall through */
 			case EINTR:
 				continue;
 			case EAGAIN:
-				TRACE_DBG("SCST_EVENT_GET_NEXT_EVENT, returned "
-					"EAGAIN (%d)", res);
+				TRACE_DBG("SCST_EVENT_GET_NEXT_EVENT, returned EAGAIN (%d)", res);
 				if (non_blocking)
 					break;
 				continue;
@@ -240,8 +239,8 @@ again_poll:
 				case ESRCH:
 				case EBUSY:
 				case EAGAIN:
-					TRACE_MGMT_DBG("poll() returned %d "
-						"(%s)", res, strerror(res));
+					TRACE_MGMT_DBG("poll() returned %d (%s)",
+						       res, strerror(res));
 				case EINTR:
 					goto again_poll;
 				default:
@@ -267,8 +266,7 @@ again_poll:
 		if (event_user->out_event.event_code == 0x12345) {
 			struct scst_event_notify_done d;
 
-			PRINT_INFO("%s", "Press any key to send reply to event "
-				"0x12345");
+			PRINT_INFO("%s", "Press any key to send reply to event 0x12345");
 			getchar();
 
 			memset(&d, 0, sizeof(d));
@@ -276,8 +274,8 @@ again_poll:
 			d.status = -19;
 			res = ioctl(event_fd, SCST_EVENT_NOTIFY_DONE, &d);
 			if (res != 0)
-				PRINT_ERROR("SCST_EVENT_NOTIFY_DONE failed: %s "
-					"(res %d)", strerror(errno), res);
+				PRINT_ERROR("SCST_EVENT_NOTIFY_DONE failed: %s (res %d)",
+					    strerror(errno), res);
 		} else if (event_user->out_event.event_code == SCST_EVENT_REG_VIRT_DEV) {
 			handle_reg_vdev_received(event_user);
 		} else if (event_user->out_event.event_code == SCST_EVENT_TM_FN_RECEIVED) {
@@ -290,8 +288,8 @@ again_poll:
 			d.status = -20;
 			res = ioctl(event_fd, SCST_EVENT_NOTIFY_DONE, &d);
 			if (res != 0)
-				PRINT_ERROR("SCST_EVENT_NOTIFY_DONE failed: %s "
-					"(res %d)", strerror(errno), res);
+				PRINT_ERROR("SCST_EVENT_NOTIFY_DONE failed: %s (res %d)",
+					    strerror(errno), res);
 		}
 
 #if 0
@@ -308,8 +306,8 @@ again_poll:
 
 			res = ioctl(event_fd, SCST_EVENT_DISALLOW_EVENT, &e);
 			if (res != 0) {
-				PRINT_ERROR("SCST_EVENT_DISALLOW_EVENT failed: "
-					"%s (res %d)", strerror(errno), res);
+				PRINT_ERROR("SCST_EVENT_DISALLOW_EVENT failed: %s (res %d)",
+					    strerror(errno), res);
 			}
 		}
 #endif

@@ -271,12 +271,12 @@ static int do_exec(struct vdisk_cmd *vcmd)
 #endif
 			cmd->pbuf = (unsigned long)dev->alloc_fn(cmd->alloc_len);
 		vcmd->may_need_to_free_pbuf = 1;
-		TRACE_MEM("Buf %"PRIx64" alloced, len %d", cmd->pbuf,
+		TRACE_MEM("Buf %" PRIx64 " alloced, len %d", cmd->pbuf,
 			cmd->alloc_len);
 		reply->pbuf = cmd->pbuf;
 		if (cmd->pbuf == 0) {
-			TRACE(TRACE_OUT_OF_MEM, "Unable to allocate buffer "
-				"(len %d)", cmd->alloc_len);
+			TRACE(TRACE_OUT_OF_MEM, "Unable to allocate buffer (len %d)",
+			      cmd->alloc_len);
 #ifndef DEBUG_NOMEM
 			set_busy(vcmd);
 #endif
@@ -288,12 +288,11 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		reply->resp_data_len = cmd->bufflen;
 
 	loff = (loff_t)lba_start << dev->block_shift;
-	TRACE_DBG("cmd %d, buf %"PRIx64", lba_start %"PRId64", loff %"PRId64
-		", data_len %"PRId64, vcmd->cmd->cmd_h, cmd->pbuf, lba_start,
+	TRACE_DBG("cmd %d, buf %" PRIx64 ", lba_start %" PRId64 ", loff %" PRId64
+		", data_len %" PRId64, vcmd->cmd->cmd_h, cmd->pbuf, lba_start,
 		(uint64_t)loff, data_len);
 	if (loff < 0 || data_len < 0 || ((loff + data_len) > dev->file_size)) {
-	    	PRINT_INFO("Access beyond the end of the device "
-			"(%"PRId64" of %"PRId64", len %"PRId64")", (uint64_t)loff,
+		PRINT_INFO("Access beyond the end of the device (%" PRId64 " of %" PRId64 ", len %" PRId64 ")", (uint64_t)loff,
 			(uint64_t)dev->file_size, data_len);
 		set_cmd_error(vcmd, SCST_LOAD_SENSE(
 				scst_sense_block_out_range_error));
@@ -306,8 +305,8 @@ static int do_exec(struct vdisk_cmd *vcmd)
 	case WRITE_16:
 		fua = (cdb[1] & 0x8);
 		if (cdb[1] & 0x8) {
-			TRACE(TRACE_ORDER, "FUA(%d): loff=%"PRId64", "
-				"data_len=%"PRId64, fua, (uint64_t)loff,
+			TRACE(TRACE_ORDER, "FUA(%d): loff=%" PRId64 ", data_len=%" PRId64,
+			      fua, (uint64_t)loff,
 				data_len);
 		}
 		break;
@@ -329,7 +328,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 
 			tgt_dev = find_tgt_dev(dev, cmd->sess_h);
 			if (!tgt_dev) {
-				PRINT_ERROR("Session %"PRIx64" not found",
+				PRINT_ERROR("Session %" PRIx64 " not found",
 					cmd->sess_h);
 				set_cmd_error(vcmd,
 				    SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -341,8 +340,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 			if (fua)
 				exec_fsync(vcmd);
 		} else {
-			PRINT_WARNING("Attempt to write to read-only "
-				"device %s", dev->name);
+			PRINT_WARNING("Attempt to write to read-only device %s", dev->name);
 			set_cmd_error(vcmd,
 		    		SCST_LOAD_SENSE(scst_sense_data_protect));
 		}
@@ -355,7 +353,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 
 			tgt_dev = find_tgt_dev(dev, cmd->sess_h);
 			if (!tgt_dev) {
-				PRINT_ERROR("Session %"PRIx64" not found",
+				PRINT_ERROR("Session %" PRIx64 " not found",
 					cmd->sess_h);
 				set_cmd_error(vcmd,
 				    SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -367,8 +365,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 			if (reply->status == 0)
 				exec_verify(vcmd, loff);
 		} else {
-			PRINT_WARNING("Attempt to write to read-only "
-				"device %s", dev->name);
+			PRINT_WARNING("Attempt to write to read-only device %s", dev->name);
 			set_cmd_error(vcmd,
 				SCST_LOAD_SENSE(scst_sense_data_protect));
 		}
@@ -380,8 +377,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		if (data_len == 0)
 			data_len = dev->file_size -
 				((loff_t)lba_start << dev->block_shift);
-		TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: "
-			"loff=%"PRId64", data_len=%"PRId64", immed=%d",
+		TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: loff=%" PRId64 ", data_len=%" PRId64 ", immed=%d",
 			(uint64_t)loff, data_len, immed);
 		/* ToDo: execute immediate synchronization in the background. */
 		exec_fsync(vcmd);
@@ -432,8 +428,8 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16) {
 			exec_read_capacity16(vcmd);
 		} else {
-			TRACE_DBG("Invalid service action %d for SERVICE "
-				"ACTION IN", cmd->cdb[1] & 0x1f);
+			TRACE_DBG("Invalid service action %d for SERVICE ACTION IN",
+				  cmd->cdb[1] & 0x1f);
 			set_cmd_error(vcmd,
 			    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		}
@@ -458,8 +454,7 @@ static int do_alloc_mem(struct vdisk_cmd *vcmd)
 
 	TRACE_ENTRY();
 
-	TRACE_MEM("Alloc mem (cmd %d, sess_h %"PRIx64", cdb_len %d, "
-		"alloc_len %d, queue_type %d, data_direction %d)",
+	TRACE_MEM("Alloc mem (cmd %d, sess_h %" PRIx64 ", cdb_len %d, alloc_len %d, queue_type %d, data_direction %d)",
 		cmd->cmd_h, cmd->alloc_cmd.sess_h,
 		cmd->alloc_cmd.cdb_len, cmd->alloc_cmd.alloc_len,
 		cmd->alloc_cmd.queue_type, cmd->alloc_cmd.data_direction);
@@ -477,7 +472,7 @@ static int do_alloc_mem(struct vdisk_cmd *vcmd)
 #endif
 		reply->alloc_reply.pbuf = (unsigned long)vcmd->dev->alloc_fn(
 						cmd->alloc_cmd.alloc_len);
-	TRACE_MEM("Buf %"PRIx64" alloced, len %d", reply->alloc_reply.pbuf,
+	TRACE_MEM("Buf %" PRIx64 " alloced, len %d", reply->alloc_reply.pbuf,
 		cmd->alloc_cmd.alloc_len);
 	if (reply->alloc_reply.pbuf == 0) {
 		TRACE(TRACE_OUT_OF_MEM, "Unable to allocate buffer (len %d)",
@@ -496,7 +491,7 @@ static int do_cached_mem_free(struct vdisk_cmd *vcmd)
 
 	TRACE_ENTRY();
 
-	TRACE_MEM("Cached mem free (cmd %x, buf %"PRIx64")", cmd->cmd_h,
+	TRACE_MEM("Cached mem free (cmd %x, buf %" PRIx64 ")", cmd->cmd_h,
 		cmd->on_cached_mem_free.pbuf);
 
 	free((void *)(unsigned long)cmd->on_cached_mem_free.pbuf);
@@ -517,8 +512,8 @@ static int do_on_free_cmd(struct vdisk_cmd *vcmd)
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("On free cmd (cmd %u, resp_data_len %d, aborted %d, "
-		"status %d, delivery_status %d)", cmd->cmd_h,
+	TRACE_DBG("On free cmd (cmd %u, resp_data_len %d, aborted %d, status %d, delivery_status %d)",
+		  cmd->cmd_h,
 		cmd->on_free_cmd.resp_data_len, cmd->on_free_cmd.aborted,
 		cmd->on_free_cmd.status, cmd->on_free_cmd.delivery_status);
 
@@ -527,7 +522,7 @@ static int do_on_free_cmd(struct vdisk_cmd *vcmd)
 		  cmd->on_free_cmd.buffer_cached);
 
 	if (!cmd->on_free_cmd.buffer_cached && cmd->on_free_cmd.pbuf != 0) {
-		TRACE_MEM("Freeing buf %"PRIx64, cmd->on_free_cmd.pbuf);
+		TRACE_MEM("Freeing buf %" PRIx64, cmd->on_free_cmd.pbuf);
 		free((void *)(unsigned long)cmd->on_free_cmd.pbuf);
 	}
 
@@ -592,13 +587,13 @@ static int do_tm(struct vdisk_cmd *vcmd, int done)
 	TRACE_ENTRY();
 
 	if (cmd->tm_cmd.fn <= SCST_TARGET_RESET)
-		TRACE(TRACE_MGMT, "%s TM fn %d (sess_h %"PRIx64", "
-			"cmd_h_to_abort %d)", done ? "Done" : "Received",
+		TRACE(TRACE_MGMT, "%s TM fn %d (sess_h %" PRIx64 ", cmd_h_to_abort %d)",
+		      done ? "Done" : "Received",
 			cmd->tm_cmd.fn, cmd->tm_cmd.sess_h,
 			cmd->tm_cmd.cmd_h_to_abort);
 	else
-		TRACE_MGMT_DBG("%s TM fn %d (sess_h %"PRIx64", "
-			"cmd_h_to_abort %d)", done ? "Done" : "Received",
+		TRACE_MGMT_DBG("%s TM fn %d (sess_h %" PRIx64 ", cmd_h_to_abort %d)",
+			       done ? "Done" : "Received",
 			cmd->tm_cmd.fn, cmd->tm_cmd.sess_h,
 			cmd->tm_cmd.cmd_h_to_abort);
 
@@ -641,7 +636,7 @@ static int do_sess(struct vdisk_cmd *vcmd)
 
 	if (cmd->subcode == SCST_USER_ATTACH_SESS) {
 		if (tgt_dev) {
-			PRINT_ERROR("Session %"PRIx64" already exists)",
+			PRINT_ERROR("Session %" PRIx64 " already exists)",
 				cmd->sess.sess_h);
 			res = EEXIST;
 			goto reply;
@@ -649,7 +644,7 @@ static int do_sess(struct vdisk_cmd *vcmd)
 
 		tgt_dev = find_empty_tgt_dev(vcmd->dev);
 		if (!tgt_dev) {
-			PRINT_ERROR("Too many initiators, session %"PRIx64
+			PRINT_ERROR("Too many initiators, session %" PRIx64
 				" refused)", cmd->sess.sess_h);
 			res = ENOMEM;
 			goto reply;
@@ -657,21 +652,20 @@ static int do_sess(struct vdisk_cmd *vcmd)
 
 		tgt_dev->sess_h = cmd->sess.sess_h;
 
-		PRINT_INFO("Session from initiator %s (target %s) attached "
-			"(LUN %"PRIx64", threads_num %d, rd_only %d, sess_h "
-			"%"PRIx64")", cmd->sess.initiator_name,
+		PRINT_INFO("Session from initiator %s (target %s) attached (LUN %" PRIx64 ", threads_num %d, rd_only %d, sess_h %" PRIx64 ")",
+			   cmd->sess.initiator_name,
 			cmd->sess.target_name, cmd->sess.lun,
 			cmd->sess.threads_num, cmd->sess.rd_only,
 			cmd->sess.sess_h);
 	} else {
 		if (!tgt_dev) {
-			PRINT_ERROR("Session %"PRIx64" not found)",
+			PRINT_ERROR("Session %" PRIx64 " not found)",
 				cmd->sess.sess_h);
 			res = ESRCH;
 			goto reply;
 		}
 		tgt_dev->sess_h = 0;
-		PRINT_INFO("Session detached (sess_h %"PRIx64")",
+		PRINT_INFO("Session detached (sess_h %" PRIx64 ")",
 			cmd->sess.sess_h);
 	}
 
@@ -824,8 +818,8 @@ void *main_loop(void *arg)
 #endif
 
 		if (use_multi) {
-			TRACE_DBG("preplies %p (first: %p), replies_cnt %d, "
-				"replies_done %d, cmds_cnt %d", (void *)(uintptr_t)multi.multi_cmd.preplies,
+			TRACE_DBG("preplies %p (first: %p), replies_cnt %d, replies_done %d, cmds_cnt %d",
+				  (void *)(uintptr_t)multi.multi_cmd.preplies,
 				&multi.replies[0], multi.multi_cmd.replies_cnt,
 				multi.multi_cmd.replies_done, multi.multi_cmd.cmds_cnt);
 			res = ioctl(scst_usr_fd, SCST_USER_REPLY_AND_GET_MULTI, &multi.multi_cmd);
@@ -878,8 +872,8 @@ again_poll:
 				case ESRCH:
 				case EBUSY:
 				case EAGAIN:
-					TRACE_MGMT_DBG("poll() returned %d "
-						"(%s)", res, strerror(res));
+					TRACE_MGMT_DBG("poll() returned %d (%s)",
+						       res, strerror(res));
 				case EINTR:
 					goto again_poll;
 				default:
@@ -1010,7 +1004,7 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			buf[num + 1] = 0x1;	/* Vendor ID */
 			memcpy(&buf[num + 4], VENDOR, 8);
 			snprintf(t10_id, sizeof(buf) - num - 12,
-				"%"PRIx64"-%s", dev_id_num, dev->name);
+				"%" PRIx64 "-%s", dev_id_num, dev->name);
 			i = strlen(t10_id) + 1;
 			TRACE_DBG("t10_dev_id %s", t10_id);
 			buf[num + 3] = 8 + i;
@@ -1431,8 +1425,7 @@ static void exec_mode_select(struct vdisk_cmd *vcmd)
 	mselect_6 = (cmd->cdb[0] == MODE_SELECT);
 
 	if (!(cmd->cdb[1] & PF) || (cmd->cdb[1] & SP)) {
-		PRINT_ERROR("MODE SELECT: PF and/or SP are wrongly set "
-			"(cdb[1]=%x)", cmd->cdb[1]);
+		PRINT_ERROR("MODE SELECT: PF and/or SP are wrongly set (cdb[1]=%x)", cmd->cdb[1]);
 		set_cmd_error(vcmd,
 		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		goto out;
@@ -1446,8 +1439,7 @@ static void exec_mode_select(struct vdisk_cmd *vcmd)
 	if (address[offset - 1] == 8) {
 		offset += 8;
 	} else if (address[offset - 1] != 0) {
-		PRINT_ERROR("%s", "MODE SELECT: Wrong parameters list "
-			"length");
+		PRINT_ERROR("%s", "MODE SELECT: Wrong parameters list length");
 		set_cmd_error(vcmd,
 		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
 		goto out;
@@ -1462,8 +1454,7 @@ static void exec_mode_select(struct vdisk_cmd *vcmd)
 		}
 		if ((address[offset] & 0x3f) == 0x8) {	/* Caching page */
 			if (address[offset + 1] != 18) {
-				PRINT_ERROR("%s", "MODE SELECT: Invalid "
-					"caching page request");
+				PRINT_ERROR("%s", "MODE SELECT: Invalid caching page request");
 				set_cmd_error(vcmd, SCST_LOAD_SENSE(
 				    	scst_sense_invalid_field_in_parm_list));
 				goto out;
@@ -1705,14 +1696,14 @@ static void exec_read(struct vdisk_cmd *vcmd, loff_t loff)
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("reading off %"PRId64", len %d", loff, length);
+	TRACE_DBG("reading off %" PRId64 ", len %d", loff, length);
 	if (dev->nullio) {
 		err = length;
 	} else {
 		/* SEEK */
 		err = lseek64(fd, loff, 0/*SEEK_SET*/);
 		if (err != loff) {
-			PRINT_ERROR("lseek trouble %"PRId64" != %"PRId64
+			PRINT_ERROR("lseek trouble %" PRId64 " != %" PRId64
 				" (errno %d)", (uint64_t)err, (uint64_t)loff,
 				errno);
 			set_cmd_error(vcmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -1723,7 +1714,7 @@ static void exec_read(struct vdisk_cmd *vcmd, loff_t loff)
 	}
 
 	if (err < 0 || err < length) {
-		PRINT_ERROR("read() returned %"PRId64" from %d (errno %d)",
+		PRINT_ERROR("read() returned %" PRId64 " from %d (errno %d)",
 			(uint64_t)err, length, errno);
 		if (err == -EAGAIN) {
 			set_busy(vcmd);
@@ -1752,7 +1743,7 @@ static void exec_write(struct vdisk_cmd *vcmd, loff_t loff)
 	TRACE_ENTRY();
 
 restart:
-	TRACE_DBG("writing off %"PRId64", len %d", loff, length);
+	TRACE_DBG("writing off %" PRId64 ", len %d", loff, length);
 
 	if (dev->nullio) {
 		err = length;
@@ -1760,7 +1751,7 @@ restart:
 		/* SEEK */
 		err = lseek64(fd, loff, 0/*SEEK_SET*/);
 		if (err != loff) {
-			PRINT_ERROR("lseek trouble %"PRId64" != %"PRId64
+			PRINT_ERROR("lseek trouble %" PRId64 " != %" PRId64
 				" (errno %d)", (uint64_t)err, (uint64_t)loff,
 				errno);
 			set_cmd_error(vcmd,
@@ -1773,8 +1764,8 @@ restart:
 	}
 
 	if (err < 0) {
-		PRINT_ERROR("write() returned %"PRId64" from %d (errno %d, "
-			"cmd_h %x)", err, length, errno, vcmd->cmd->cmd_h);
+		PRINT_ERROR("write() returned %" PRId64 " from %d (errno %d, cmd_h %x)",
+			    err, length, errno, vcmd->cmd->cmd_h);
 		if (err == -EAGAIN) {
 			set_busy(vcmd);
 		} else {
@@ -1789,8 +1780,7 @@ restart:
 		 */
 		TRACE_MGMT_DBG("write() returned %d from %d", (int)err, length);
 		if (err == 0)
-			PRINT_INFO("Suspicious: write() returned 0 from "
-				"%d", length);
+			PRINT_INFO("Suspicious: write() returned 0 from %d", length);
 		length -= err;
 		goto restart;
 	}
@@ -1827,7 +1817,7 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 	if (!dev->nullio) {
 		err = lseek64(fd, loff, 0/*SEEK_SET*/);
 		if (err != loff) {
-			PRINT_ERROR("lseek trouble %"PRId64" != %"PRId64
+			PRINT_ERROR("lseek trouble %" PRId64 " != %" PRId64
 				" (errno %d)", (uint64_t)err,
 				(uint64_t)loff, errno);
 			set_cmd_error(vcmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
@@ -1845,7 +1835,7 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 	while (length > 0) {
 		int64_t len_mem = (length > (int)sizeof(mem_verify)) ?
 					(int)sizeof(mem_verify) : length;
-		TRACE_DBG("Verify: length %"PRId64" - len_mem %"PRId64,
+		TRACE_DBG("Verify: length %" PRId64 " - len_mem %" PRId64,
 			length, len_mem);
 
 		if (!dev->nullio)
@@ -1853,8 +1843,8 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 		else
 			err = len_mem;
 		if (err < 0 || err < len_mem) {
-			PRINT_ERROR("read() returned %"PRId64" from %"PRId64" "
-				"(errno %d)", (uint64_t)err, len_mem, errno);
+			PRINT_ERROR("read() returned %" PRId64 " from %" PRId64 " (errno %d)",
+				    (uint64_t)err, len_mem, errno);
 			if (err == -EAGAIN) {
 				set_busy(vcmd);
 			} else {
@@ -1864,7 +1854,7 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 			goto out;
 		}
 		if (compare && memcmp(address, mem_verify, len_mem) != 0) {
-			TRACE_DBG("Verify: error memcmp length %"PRId64, length);
+			TRACE_DBG("Verify: error memcmp length %" PRId64, length);
 			set_cmd_error(vcmd,
 			    SCST_LOAD_SENSE(scst_sense_miscompare_error));
 			goto out;
@@ -1874,7 +1864,7 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 	}
 
 	if (length < 0) {
-		PRINT_ERROR("Failure: %"PRId64, length);
+		PRINT_ERROR("Failure: %" PRId64, length);
 		set_cmd_error(vcmd, SCST_LOAD_SENSE(scst_sense_hardw_error));
 	}
 

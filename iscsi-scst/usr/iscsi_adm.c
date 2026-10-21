@@ -144,8 +144,8 @@ static int iscsid_request_send(int fd, const struct iscsi_adm_req *req)
 
 	if (ret != sizeof(*req)) {
 		err = (ret < 0) ? -errno : -EIO;
-		fprintf(stderr, "%s failed: written %d, to write %d, "
-			"error: %s\n", __func__, ret, err, strerror(-err));
+		fprintf(stderr, "%s failed: written %d, to write %d, error: %s\n",
+			__func__, ret, err, strerror(-err));
 	} else {
 		err = 0;
 	}

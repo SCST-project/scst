@@ -287,8 +287,7 @@ static int chap_decode_string(char *encoded, u8 *decode_buf, int buf_len, int en
 {
 	if (encoding_fmt == HEX_FORMAT) {
 		if ((strlen(encoded) - 2) > (2 * buf_len)) {
-			log_error("%s(%d) BUG? "
-				  " buf[%d] !sufficient to decode string[%d]",
+			log_error("%s(%d) BUG?  buf[%d] !sufficient to decode string[%d]",
 				  __func__, __LINE__, buf_len, (int) strlen(encoded));
 			return CHAP_TARGET_ERROR;
 		}
@@ -296,8 +295,7 @@ static int chap_decode_string(char *encoded, u8 *decode_buf, int buf_len, int en
 
 	} else if (encoding_fmt == BASE64_FORMAT) {
 		if ((strlen(encoded) - 2) > ((buf_len - 1) / 3 + 1) * 4) {
-			log_error("%s(%d) BUG? "
-				  " buf[%d] !sufficient to decode string[%d]",
+			log_error("%s(%d) BUG?  buf[%d] !sufficient to decode string[%d]",
 				  __func__, __LINE__, buf_len, (int) strlen(encoded));
 			return CHAP_TARGET_ERROR;
 		}

@@ -174,7 +174,7 @@ out_free:
 
 void session_free(struct session *session)
 {
-	log_debug(1, "Freeing session sid %#"PRIx64, session->sid.id64);
+	log_debug(1, "Freeing session sid %#" PRIx64, session->sid.id64);
 
 	if (session->target) {
 		struct target *target = session->target;
