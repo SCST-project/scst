@@ -517,7 +517,7 @@ static int scst_cm_setup_seg_descr(struct scst_cmd *ec_cmd)
 {
 	int res;
 	struct scst_cm_ec_cmd_priv *priv = ec_cmd->cmd_data_descriptors;
-	struct scst_ext_copy_seg_descr *sd;
+	const struct scst_ext_copy_seg_descr *sd;
 
 	TRACE_ENTRY();
 
@@ -750,7 +750,7 @@ static void scst_cm_store_list_id_details(struct scst_cmd *ec_cmd)
 static void scst_cm_ec_cmd_done(struct scst_cmd *ec_cmd)
 {
 #ifdef CONFIG_SCST_EXTRACHECKS
-	struct scst_cm_ec_cmd_priv *priv = ec_cmd->cmd_data_descriptors;
+	const struct scst_cm_ec_cmd_priv *priv = ec_cmd->cmd_data_descriptors;
 #endif
 
 	TRACE_ENTRY();
@@ -890,7 +890,7 @@ static int __scst_cm_push_single_read(struct scst_cmd *ec_cmd, s64 lba, int bloc
 	int res;
 	struct scst_cm_ec_cmd_priv *priv = ec_cmd->cmd_data_descriptors;
 	u8 read_cdb[32];
-	struct scst_device *rdev = priv->cm_read_tgt_dev->dev;
+	const struct scst_device *rdev = priv->cm_read_tgt_dev->dev;
 	int block_shift = rdev->block_shift;
 	int len = blocks << block_shift;
 	struct scst_cmd *rcmd;
@@ -1585,7 +1585,7 @@ out:
 enum scst_exec_res scst_cm_ext_copy_exec(struct scst_cmd *ec_cmd)
 {
 	int rc;
-	struct scst_cm_ec_cmd_priv *priv = ec_cmd->cmd_data_descriptors;
+	const struct scst_cm_ec_cmd_priv *priv = ec_cmd->cmd_data_descriptors;
 
 	TRACE_ENTRY();
 
@@ -1766,7 +1766,7 @@ bool scst_cm_check_block_all_devs(struct scst_cmd *cmd)
 	}
 
 	if (unlikely(res)) {
-		struct scst_cmd *blocked_cmd = e->cm_fcmd;
+		const struct scst_cmd *blocked_cmd = e->cm_fcmd;
 
 		list_for_each_entry(e, &d->cm_sorted_devs_list, cm_sorted_devs_list_entry) {
 			if (e->cm_fcmd == blocked_cmd)
@@ -2445,7 +2445,7 @@ out_free:
 static bool scst_cm_is_lun_free(unsigned int lun)
 {
 	bool res = true;
-	struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(lun)];
+	const struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[SESS_TGT_DEV_LIST_HASH_FN(lun)];
 	struct scst_tgt_dev *tgt_dev;
 
 	TRACE_ENTRY();
@@ -2476,7 +2476,7 @@ unsigned int scst_cm_get_lun(const struct scst_device *dev)
 
 	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-		struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[i];
+		const struct list_head *head = &scst_cm_sess->sess_tgt_dev_list[i];
 		struct scst_tgt_dev *tgt_dev;
 
 		list_for_each_entry_rcu(tgt_dev, head,
@@ -2747,7 +2747,7 @@ void scst_cm_on_dev_unregister(struct scst_device *dev)
 }
 
 /* scst_mutex supposed to be held */
-int scst_cm_on_add_acg(struct scst_acg *acg)
+int scst_cm_on_add_acg(const struct scst_acg *acg)
 {
 	int res = 0;
 
@@ -3189,7 +3189,7 @@ skip_fcmd_create:
 
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_EXTRACHECKS)
 	{
-		struct scst_cm_dev_entry *tp = NULL;
+		const struct scst_cm_dev_entry *tp = NULL;
 
 		list_for_each_entry(t, &priv->cm_sorted_devs_list, cm_sorted_devs_list_entry) {
 			TRACE_DBG("t %p, cm dev %p", t, t->cm_fcmd->dev);
@@ -3633,7 +3633,7 @@ out_abn:
 
 void scst_cm_free_descriptors(struct scst_cmd *ec_cmd)
 {
-	struct scst_cm_ec_cmd_priv *priv = ec_cmd->cmd_data_descriptors;
+	const struct scst_cm_ec_cmd_priv *priv = ec_cmd->cmd_data_descriptors;
 
 	TRACE_ENTRY();
 

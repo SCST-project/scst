@@ -662,7 +662,7 @@ out:
 }
 
 /* scst_mutex supposed to be locked */
-static int scst_check_devt_ptr(struct scst_dev_type *devt, struct list_head *list)
+static int scst_check_devt_ptr(struct scst_dev_type *devt, const struct list_head *list)
 {
 	int res = 0;
 	struct scst_dev_type *dt;
@@ -704,7 +704,7 @@ out:
 }
 
 /* No locks */
-static int scst_check_grab_devt_ptr(struct scst_dev_type *devt, struct list_head *list)
+static int scst_check_grab_devt_ptr(struct scst_dev_type *devt, const struct list_head *list)
 {
 	int res = 0;
 	struct scst_dev_type *dt;
@@ -986,7 +986,7 @@ static struct kobj_attribute scst_tgtt_mgmt =
 static ssize_t scst_tgtt_dif_capable_show(struct kobject *kobj, struct kobj_attribute *attr,
 					  char *buf)
 {
-	struct scst_tgt_template *tgtt;
+	const struct scst_tgt_template *tgtt;
 	ssize_t ret = 0;
 
 	TRACE_ENTRY();
@@ -1121,7 +1121,7 @@ void scst_kobject_put_and_wait(struct kobject *kobj, const char *category,
 #endif
 			       )
 {
-	char *name;
+	const char *name;
 
 	TRACE_ENTRY();
 
@@ -1518,7 +1518,7 @@ static ssize_t scst_luns_mgmt_store(struct kobject *kobj,
 static struct kobj_attribute scst_luns_mgmt =
 	__ATTR(mgmt, 0644, scst_luns_mgmt_show, scst_luns_mgmt_store);
 
-static ssize_t __scst_acg_addr_method_show(struct scst_acg *acg, char *buf)
+static ssize_t __scst_acg_addr_method_show(const struct scst_acg *acg, char *buf)
 {
 	ssize_t ret;
 
@@ -1566,8 +1566,8 @@ static ssize_t __scst_acg_addr_method_store(struct scst_acg *acg, const char *bu
 static ssize_t scst_tgt_addr_method_show(struct kobject *kobj, struct kobj_attribute *attr,
 					 char *buf)
 {
-	struct scst_acg *acg;
-	struct scst_tgt *tgt;
+	const struct scst_acg *acg;
+	const struct scst_tgt *tgt;
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	acg = tgt->default_acg;
@@ -1752,7 +1752,7 @@ static struct kobj_attribute scst_tgt_io_grouping_type =
 	__ATTR(io_grouping_type, 0644, scst_tgt_io_grouping_type_show,
 	       scst_tgt_io_grouping_type_store);
 
-static ssize_t __scst_acg_black_hole_show(struct scst_acg *acg, char *buf)
+static ssize_t __scst_acg_black_hole_show(const struct scst_acg *acg, char *buf)
 {
 	int t = READ_ONCE(acg->acg_black_hole_type);
 
@@ -1813,7 +1813,7 @@ ssize_t __scst_acg_black_hole_store(struct scst_acg *acg, const char *buf, size_
 		WRITE_ONCE(sess->black_hole_type, t);
 		rcu_read_lock();
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-			struct list_head *head = &sess->sess_tgt_dev_list[i];
+			const struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
 
 			list_for_each_entry_rcu(tgt_dev, head,
@@ -1839,8 +1839,8 @@ out:
 static ssize_t scst_tgt_black_hole_show(struct kobject *kobj, struct kobj_attribute *attr,
 					char *buf)
 {
-	struct scst_acg *acg;
-	struct scst_tgt *tgt;
+	const struct scst_acg *acg;
+	const struct scst_tgt *tgt;
 
 	tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	acg = tgt->default_acg;
@@ -1915,7 +1915,7 @@ static int __scst_acg_process_cpu_mask_store(struct scst_tgt *tgt, struct scst_a
 		rcu_read_lock();
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			struct scst_tgt_dev *tgt_dev;
-			struct list_head *head = &sess->sess_tgt_dev_list[i];
+			const struct list_head *head = &sess->sess_tgt_dev_list[i];
 
 			list_for_each_entry_rcu(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
@@ -2515,7 +2515,7 @@ static ssize_t scst_tgt_forward_dst_store(struct kobject *kobj, struct kobj_attr
 
 		rcu_read_lock();
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-			struct list_head *head = &sess->sess_tgt_dev_list[i];
+			const struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
 
 			list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry) {
@@ -2617,7 +2617,7 @@ static ssize_t scst_tgt_aen_disabled_store(struct kobject *kobj, struct kobj_att
 
 		rcu_read_lock();
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-			struct list_head *head = &sess->sess_tgt_dev_list[i];
+			const struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
 
 			list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry) {
@@ -2768,7 +2768,7 @@ EXPORT_SYMBOL(scst_create_tgt_attr);
 static ssize_t scst_tgt_dif_capable_show(struct kobject *kobj, struct kobj_attribute *attr,
 					 char *buf)
 {
-	struct scst_tgt *tgt;
+	const struct scst_tgt *tgt;
 	ssize_t ret = 0;
 
 	TRACE_ENTRY();
@@ -3530,7 +3530,7 @@ static struct kobj_attribute dev_threads_num_attr =
 static ssize_t scst_dev_sysfs_threads_pool_type_show(struct kobject *kobj,
 						     struct kobj_attribute *attr, char *buf)
 {
-	struct scst_device *dev;
+	const struct scst_device *dev;
 	ssize_t ret;
 
 	TRACE_ENTRY();
@@ -4086,7 +4086,7 @@ void scst_dev_sysfs_del(struct scst_device *dev)
 
 static ssize_t scst_dev_dif_mode_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	struct scst_device *dev;
+	const struct scst_device *dev;
 	ssize_t ret = 0;
 
 	TRACE_ENTRY();
@@ -4613,7 +4613,7 @@ static int scst_sysfs_sess_get_active_commands(struct scst_session *sess)
 
 	rcu_read_lock();
 	for (t = SESS_TGT_DEV_LIST_HASH_SIZE - 1; t >= 0; t--) {
-		struct list_head *head = &sess->sess_tgt_dev_list[t];
+		const struct list_head *head = &sess->sess_tgt_dev_list[t];
 		struct scst_tgt_dev *tgt_dev;
 
 		list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry)
@@ -4675,7 +4675,7 @@ static int scst_sysfs_sess_get_dif_checks_failed_work_fn(struct scst_sysfs_work_
 
 	rcu_read_lock();
 	for (t = SESS_TGT_DEV_LIST_HASH_SIZE - 1; t >= 0; t--) {
-		struct list_head *head = &sess->sess_tgt_dev_list[t];
+		const struct list_head *head = &sess->sess_tgt_dev_list[t];
 		struct scst_tgt_dev *tgt_dev;
 
 		list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry) {
@@ -4750,7 +4750,7 @@ static int scst_sess_zero_dif_checks_failed(struct scst_sysfs_work_item *work)
 
 	rcu_read_lock();
 	for (t = SESS_TGT_DEV_LIST_HASH_SIZE - 1; t >= 0; t--) {
-		struct list_head *head = &sess->sess_tgt_dev_list[t];
+		const struct list_head *head = &sess->sess_tgt_dev_list[t];
 		struct scst_tgt_dev *tgt_dev;
 
 		list_for_each_entry_rcu(tgt_dev, head,
@@ -5153,7 +5153,7 @@ static void scst_acg_dev_release(struct kobject *kobj)
 static ssize_t scst_lun_rd_only_show(struct kobject *kobj, struct kobj_attribute *attr,
 				     char *buf)
 {
-	struct scst_acg_dev *acg_dev;
+	const struct scst_acg_dev *acg_dev;
 
 	acg_dev = container_of(kobj, struct scst_acg_dev, acg_dev_kobj);
 
@@ -5464,7 +5464,7 @@ static struct kobj_attribute scst_acg_luns_mgmt =
 static ssize_t scst_acg_addr_method_show(struct kobject *kobj, struct kobj_attribute *attr,
 					 char *buf)
 {
-	struct scst_acg *acg;
+	const struct scst_acg *acg;
 
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 
@@ -5528,7 +5528,7 @@ static struct kobj_attribute scst_acg_io_grouping_type =
 static ssize_t scst_acg_black_hole_show(struct kobject *kobj, struct kobj_attribute *attr,
 					char *buf)
 {
-	struct scst_acg *acg;
+	const struct scst_acg *acg;
 
 	acg = container_of(kobj, struct scst_acg, acg_kobj);
 
@@ -5881,7 +5881,7 @@ static struct kobj_type scst_devt_ktype = {
 #endif
 };
 
-static char *scst_dev_params(struct scst_dev_type *devt)
+static char *scst_dev_params(const struct scst_dev_type *devt)
 {
 	char *p, *r;
 	const char *const *q;
@@ -5914,7 +5914,7 @@ static ssize_t scst_devt_mgmt_show(struct kobject *kobj, struct kobj_attribute *
 		"where parameters are one or more param_name=value pairs separated by ';'\n\n"
 		"%s%s%s%s%s%s%s%s%s\n";
 	struct scst_dev_type *devt;
-	char *p;
+	const char *p;
 	int res;
 
 	devt = container_of(kobj, struct scst_dev_type, devt_kobj);
@@ -6067,7 +6067,8 @@ static ssize_t scst_devt_pass_through_mgmt_show(struct kobject *kobj, struct kob
 static int scst_process_devt_pass_through_mgmt_store(char *buffer, struct scst_dev_type *devt)
 {
 	int res = 0;
-	char *pp, *action, *devstr;
+	char *pp, *action;
+	const char *devstr;
 	unsigned int host, channel, id;
 	u64 lun;
 	struct scst_device *d, *dev = NULL;
@@ -6311,7 +6312,8 @@ static ssize_t scst_dg_devs_mgmt_show(struct kobject *kobj, struct kobj_attribut
 static int scst_dg_devs_mgmt_store_work_fn(struct scst_sysfs_work_item *w)
 {
 	struct scst_dev_group *dg;
-	char *cmd, *p, *pp, *dev_name;
+	char *cmd, *p, *pp;
+	const char *dev_name;
 	int res;
 
 	TRACE_ENTRY();
@@ -6596,7 +6598,7 @@ static ssize_t scst_tg_state_show(struct kobject *kobj,
 				  struct kobj_attribute *attr,
 				  char *buf)
 {
-	struct scst_target_group *tg;
+	const struct scst_target_group *tg;
 	const char *n;
 
 	tg = container_of(kobj, struct scst_target_group, kobj);
@@ -6686,7 +6688,8 @@ static ssize_t scst_tg_mgmt_show(struct kobject *kobj,
 static int scst_tg_mgmt_store_work_fn(struct scst_sysfs_work_item *w)
 {
 	struct scst_target_group *tg;
-	char *cmd, *p, *pp, *target_name;
+	char *cmd, *p, *pp;
+	const char *target_name;
 	int res;
 
 	TRACE_ENTRY();
@@ -6808,7 +6811,8 @@ static ssize_t scst_dg_tgs_mgmt_show(struct kobject *kobj, struct kobj_attribute
 static int scst_dg_tgs_mgmt_store_work_fn(struct scst_sysfs_work_item *w)
 {
 	struct scst_dev_group *dg;
-	char *cmd, *p, *pp, *dev_name;
+	char *cmd, *p, *pp;
+	const char *dev_name;
 	int res;
 
 	TRACE_ENTRY();
@@ -6950,7 +6954,8 @@ static ssize_t scst_device_groups_mgmt_store(struct kobject *kobj,
 					     const char *buf, size_t count)
 {
 	int res;
-	char *p, *pp, *input, *group_name;
+	char *p, *pp, *input;
+	const char *group_name;
 
 	TRACE_ENTRY();
 

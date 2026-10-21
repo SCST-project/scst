@@ -127,7 +127,7 @@ bool tid_equal(const u8 *tid_a, const u8 *tid_b)
 			tid_a_len = strnlen(tid_a, tid_a_max);
 		} else if (tid_a_fmt == 0x40) {
 			if (tid_a_fmt != tid_b_fmt) {
-				u8 *p = strnchr(tid_a, tid_a_max, ',');
+				const u8 *p = strnchr(tid_a, tid_a_max, ',');
 
 				if (!p)
 					goto out_error;
@@ -145,7 +145,7 @@ bool tid_equal(const u8 *tid_a, const u8 *tid_b)
 			tid_b_len = strnlen(tid_b, tid_b_max);
 		} else if (tid_b_fmt == 0x40) {
 			if (tid_a_fmt != tid_b_fmt) {
-				u8 *p = strnchr(tid_b, tid_b_max, ',');
+				const u8 *p = strnchr(tid_b, tid_b_max, ',');
 
 				if (!p)
 					goto out_error;
@@ -529,7 +529,7 @@ void scst_pr_send_ua_reg(struct scst_device *dev, struct scst_dev_registrant *re
 }
 
 /* Must be called under dev_pr_mutex */
-static void scst_pr_send_ua_all(struct scst_device *dev, struct scst_dev_registrant *exclude_reg,
+static void scst_pr_send_ua_all(struct scst_device *dev, const struct scst_dev_registrant *exclude_reg,
 				int key, int asc, int ascq)
 {
 	struct scst_dev_registrant *reg;
@@ -701,7 +701,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev, const char *file
 	pos += sizeof(version);
 
 	while (data_size + 1 < file_size) {
-		u8 *tid;
+		const u8 *tid;
 
 		data_size++;
 		tid = &buf[data_size];
@@ -733,7 +733,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev, const char *file
 
 	while (pos + 1 < file_size) {
 		u8 is_holder;
-		u8 *tid;
+		const u8 *tid;
 		struct scst_dev_registrant *reg = NULL;
 
 		is_holder = buf[pos++];
@@ -1726,7 +1726,7 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, u8 *buffer, int buffer_size
 	__be64 key, action_key;
 	struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
-	struct scst_session *sess = cmd->sess;
+	const struct scst_session *sess = cmd->sess;
 	struct scst_dev_registrant *reg, *reg_move;
 	const u8 *transport_id = NULL;
 	u8 *transport_id_move = NULL;
@@ -2275,7 +2275,7 @@ out:
 bool scst_pr_crh_case(struct scst_cmd *cmd)
 {
 	bool allowed;
-	struct scst_device *dev = cmd->dev;
+	const struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	struct scst_dev_registrant *reg;
 	u8 type;
@@ -2334,8 +2334,8 @@ bool scst_pr_is_cmd_allowed(struct scst_cmd *cmd)
 {
 	bool allowed;
 	struct scst_device *dev = cmd->dev;
-	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
-	struct scst_dev_registrant *reg;
+	const struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+	const struct scst_dev_registrant *reg;
 	u8 type;
 
 	TRACE_ENTRY();

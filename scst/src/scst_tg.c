@@ -207,7 +207,7 @@ static struct scst_target_group *__lookup_tg_by_tgt(struct scst_dev_group *dg,
 
 /* Look up a device node by device pointer in the given device group. */
 static struct scst_dg_dev *__lookup_dg_dev_by_dev(struct scst_dev_group *dg,
-						  struct scst_device *dev)
+						  const struct scst_device *dev)
 {
 	struct scst_dg_dev *dgd;
 
@@ -266,7 +266,7 @@ static struct scst_dev_group *__lookup_dg_by_name(const char *name)
 }
 
 /* Look up a device group by device pointer. */
-static struct scst_dev_group *__lookup_dg_by_dev(struct scst_device *dev)
+static struct scst_dev_group *__lookup_dg_by_dev(const struct scst_device *dev)
 {
 	struct scst_dev_group *dg;
 
@@ -285,7 +285,7 @@ static struct scst_dev_group *__lookup_dg_by_dev(struct scst_device *dev)
 
 static void scst_release_tg_tgt(struct kobject *kobj)
 {
-	struct scst_tg_tgt *tg_tgt;
+	const struct scst_tg_tgt *tg_tgt;
 
 	tg_tgt = container_of(kobj, struct scst_tg_tgt, kobj);
 	kfree(tg_tgt->name);
@@ -604,8 +604,8 @@ void scst_tg_init_tgt_dev(struct scst_tgt_dev *tgt_dev)
  * Update the ALUA filter of all tgt_devs associated with target group @tg
  * and target @tgt.
  */
-static void scst_update_tgt_alua_filter(struct scst_target_group *tg,
-					struct scst_tgt *tgt)
+static void scst_update_tgt_alua_filter(const struct scst_target_group *tg,
+					const struct scst_tgt *tgt)
 {
 	struct scst_dg_dev *dgd;
 	struct scst_tgt_dev *tgt_dev;
@@ -628,8 +628,8 @@ static void scst_update_tgt_alua_filter(struct scst_target_group *tg,
  * Reset the ALUA filter of all tgt_devs associated with target group @tg
  * and target @tgt.
  */
-static void scst_reset_tgt_alua_filter(struct scst_target_group *tg,
-				       struct scst_tgt *tgt)
+static void scst_reset_tgt_alua_filter(const struct scst_target_group *tg,
+				       const struct scst_tgt *tgt)
 {
 	struct scst_dg_dev *dgd;
 	struct scst_tgt_dev *tgt_dev;
@@ -743,7 +743,7 @@ out:
 }
 
 /* Called from the target removal code. */
-void scst_tg_tgt_remove_by_tgt(struct scst_tgt *tgt)
+void scst_tg_tgt_remove_by_tgt(const struct scst_tgt *tgt)
 {
 	struct scst_dev_group *dg;
 	struct scst_target_group *tg;
@@ -764,7 +764,7 @@ void scst_tg_tgt_remove_by_tgt(struct scst_tgt *tgt)
 
 static void scst_release_tg(struct kobject *kobj)
 {
-	struct scst_target_group *tg;
+	const struct scst_target_group *tg;
 
 	tg = container_of(kobj, struct scst_target_group, kobj);
 	kfree(tg->name);
@@ -820,7 +820,7 @@ out_put:
 	goto out;
 }
 
-static void __scst_tg_remove(struct scst_dev_group *dg,
+static void __scst_tg_remove(const struct scst_dev_group *dg,
 			     struct scst_target_group *tg)
 {
 	struct scst_tg_tgt *tg_tgt;
@@ -944,14 +944,14 @@ out_fail:
  * @invoke_callbacks: Whether or not to invoke the on_alua_state_changed_*
  *	callback functions.
  */
-static void __scst_tgt_set_state(struct scst_target_group *tg, struct scst_tgt_dev *tgt_dev,
+static void __scst_tgt_set_state(const struct scst_target_group *tg, struct scst_tgt_dev *tgt_dev,
 				 enum scst_tg_state state, bool invoke_callbacks)
 {
 	bool gen_ua = state != SCST_TG_STATE_TRANSITIONING;
-	struct scst_tgt *tgt = tgt_dev->sess->tgt;
+	const struct scst_tgt *tgt = tgt_dev->sess->tgt;
 	enum scst_tg_state old_state = tg->state;
 	struct scst_device *dev = tgt_dev->dev;
-	struct scst_dev_group *dg = tg->dg;
+	const struct scst_dev_group *dg = tg->dg;
 
 	if (invoke_callbacks && dev->handler->on_alua_state_change_start)
 		dev->handler->on_alua_state_change_start(dev, old_state,
@@ -981,7 +981,7 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 	struct scst_dg_dev *dg_dev;
 	struct scst_device *dev;
 	struct scst_tgt_dev *tgt_dev;
-	struct scst_tgt *tgt;
+	const struct scst_tgt *tgt;
 	bool tg_is_remote;
 
 	sBUG_ON(state >= ARRAY_SIZE(scst_alua_filter));
@@ -1081,7 +1081,7 @@ static void __scst_gen_alua_state_changed_ua(struct scst_target_group *tg)
 	struct scst_dg_dev *dg_dev;
 	struct scst_device *dev;
 	struct scst_tgt_dev *tgt_dev;
-	struct scst_tgt *tgt;
+	const struct scst_tgt *tgt;
 
 	lockdep_assert_held(&scst_dg_mutex);
 
@@ -1260,7 +1260,7 @@ out:
 }
 
 /* Called from the device removal code. */
-int scst_dg_dev_remove_by_dev(struct scst_device *dev)
+int scst_dg_dev_remove_by_dev(const struct scst_device *dev)
 {
 	struct scst_dev_group *dg;
 	struct scst_dg_dev *dgdev;
@@ -1289,7 +1289,7 @@ out:
 
 static void scst_release_dg(struct kobject *kobj)
 {
-	struct scst_dev_group *dg;
+	const struct scst_dev_group *dg;
 
 	dg = container_of(kobj, struct scst_dev_group, kobj);
 	kfree(dg->name);
@@ -1396,7 +1396,7 @@ out:
  * Note: The caller must hold a reference on the kobject to avoid that the
  * object disappears before the caller stops using the device group pointer.
  */
-struct scst_dev_group *scst_lookup_dg_by_kobj(struct kobject *kobj)
+struct scst_dev_group *scst_lookup_dg_by_kobj(const struct kobject *kobj)
 {
 	int res;
 	struct scst_dev_group *dg;
@@ -1415,7 +1415,7 @@ out:
 	return dg;
 }
 
-struct scst_dev_group *scst_lookup_dg_by_dev(struct scst_device *dev)
+struct scst_dev_group *scst_lookup_dg_by_dev(const struct scst_device *dev)
 {
 	return __lookup_dg_by_dev(dev);
 }
@@ -1455,8 +1455,8 @@ void scst_tg_cleanup(void)
 u16 scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt)
 {
 	struct scst_dev_group *dg;
-	struct scst_target_group *tg;
-	struct scst_tg_tgt *tg_tgt;
+	const struct scst_target_group *tg;
+	const struct scst_tg_tgt *tg_tgt;
 	u16 tg_id = 0;
 
 	TRACE_ENTRY();
@@ -1488,8 +1488,8 @@ EXPORT_SYMBOL_GPL(scst_lookup_tg_id);
 enum scst_tg_state scst_get_alua_state(struct scst_device *dev, struct scst_tgt *tgt)
 {
 	struct scst_dev_group *dg;
-	struct scst_target_group *tg;
-	struct scst_tg_tgt *tg_tgt;
+	const struct scst_target_group *tg;
+	const struct scst_tg_tgt *tg_tgt;
 	enum scst_tg_state res = SCST_TG_STATE_OPTIMIZED;
 
 	TRACE_ENTRY();

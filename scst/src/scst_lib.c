@@ -84,7 +84,7 @@ static void scst_ext_blocking_done_fn(struct work_struct *work);
 static DEFINE_SPINLOCK(scst_global_stpg_list_lock);
 static LIST_HEAD(scst_global_stpg_list);
 
-static void scst_free_acn(struct scst_acn *acn, bool reassign);
+static void scst_free_acn(const struct scst_acn *acn, bool reassign);
 
 struct scsi_io_context {
 	void *data;
@@ -2020,7 +2020,7 @@ go:
 
 	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-		struct list_head *head = &cmd->sess->sess_tgt_dev_list[i];
+		const struct list_head *head = &cmd->sess->sess_tgt_dev_list[i];
 
 		list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
@@ -2550,7 +2550,7 @@ void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
 
 	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-		struct list_head *head = &sess->sess_tgt_dev_list[i];
+		const struct list_head *head = &sess->sess_tgt_dev_list[i];
 		struct scst_tgt_dev *tgt_dev;
 
 		list_for_each_entry_rcu(tgt_dev, head,
@@ -2753,7 +2753,7 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 					      int flags)
 {
 	u8 sense_buffer[SCST_STANDARD_SENSE_LEN];
-	struct list_head *head;
+	const struct list_head *head;
 	struct scst_tgt_dev *tgt_dev;
 	int i;
 
@@ -2833,7 +2833,7 @@ static void scst_report_luns_changed_sess(struct scst_session *sess)
 
 	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-		struct list_head *head;
+		const struct list_head *head;
 		struct scst_tgt_dev *tgt_dev;
 
 		head = &sess->sess_tgt_dev_list[i];
@@ -4730,7 +4730,7 @@ out:
 	return acg_dev;
 }
 
-static int scst_tgt_devs_cmds(struct list_head *tgt_dev_list)
+static int scst_tgt_devs_cmds(const struct list_head *tgt_dev_list)
 {
 	struct scst_tgt_dev *tgt_dev;
 	int res = 0;
@@ -4741,7 +4741,7 @@ static int scst_tgt_devs_cmds(struct list_head *tgt_dev_list)
 	return res;
 }
 
-static void scst_wait_for_tgt_devs(struct list_head *tgt_dev_list)
+static void scst_wait_for_tgt_devs(const struct list_head *tgt_dev_list)
 {
 	while (scst_tgt_devs_cmds(tgt_dev_list) > 0)
 		msleep(100);
@@ -5344,7 +5344,7 @@ int scst_tgt_dev_setup_threads(struct scst_tgt_dev *tgt_dev)
 {
 	int res = 0;
 	struct scst_session *sess = tgt_dev->sess;
-	struct scst_tgt_template *tgtt = sess->tgt->tgtt;
+	const struct scst_tgt_template *tgtt = sess->tgt->tgtt;
 	struct scst_device *dev = tgt_dev->dev;
 	struct scst_async_io_context_keeper *aic_keeper;
 
@@ -5587,7 +5587,7 @@ int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	scst_sgv_pool_use_norm(tgt_dev);
 
 	if (dev->scsi_dev != NULL) {
-		struct Scsi_Host *shost = dev->scsi_dev->host;
+		const struct Scsi_Host *shost = dev->scsi_dev->host;
 
 		ini_sg = shost->sg_tablesize;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 13, 0)
@@ -5771,7 +5771,7 @@ static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev)
 SCST_KUNIT_VISIBLE
 void scst_free_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
-	struct scst_tgt_template *tgtt = tgt_dev->tgtt;
+	const struct scst_tgt_template *tgtt = tgt_dev->tgtt;
 	struct scst_device *dev = tgt_dev->dev;
 
 	SCST_KUNIT_REDIRECT(scst_free_tgt_dev, tgt_dev);
@@ -5874,7 +5874,7 @@ int scst_acg_add_acn(struct scst_acg *acg, const char *name)
 {
 	int res = 0;
 	struct scst_acn *acn;
-	char *nm;
+	const char *nm;
 
 	TRACE_ENTRY();
 
@@ -5929,7 +5929,7 @@ out_free:
 }
 
 /* The activity supposed to be suspended and scst_mutex held */
-static void scst_free_acn(struct scst_acn *acn, bool reassign)
+static void scst_free_acn(const struct scst_acn *acn, bool reassign)
 {
 	kfree(acn->name);
 	kfree(acn);
@@ -7627,7 +7627,7 @@ int scst_pre_init_cmd(struct scst_cmd *cmd, const u8 *cdb,
 	/* cmd supposed to be zeroed */
 	{
 		int i;
-		u8 *b = (u8 *)cmd;
+		const u8 *b = (const u8 *)cmd;
 
 		for (i = 0; i < sizeof(*cmd); i++)
 			EXTRACHECKS_BUG_ON(b[i] != 0);
@@ -9679,7 +9679,7 @@ static void scst_check_fail_guard_tag(struct scst_cmd *cmd)
 static int scst_generate_dif_type1(struct scst_cmd *cmd)
 {
 	int res = 0;
-	struct scst_device *dev = cmd->dev;
+	const struct scst_device *dev = cmd->dev;
 	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
 	struct scatterlist *tags_sg = NULL;
 	u8 *buf, *tags_buf = NULL;
@@ -10081,7 +10081,7 @@ out_put:
 static int scst_generate_dif_type2(struct scst_cmd *cmd)
 {
 	int res = 0;
-	struct scst_device *dev = cmd->dev;
+	const struct scst_device *dev = cmd->dev;
 	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
 	struct scatterlist *tags_sg = NULL;
 	u8 *buf, *tags_buf = NULL;
@@ -10292,7 +10292,7 @@ out_put:
 static int scst_generate_dif_type3(struct scst_cmd *cmd)
 {
 	int res = 0;
-	struct scst_device *dev = cmd->dev;
+	const struct scst_device *dev = cmd->dev;
 	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
 	struct scatterlist *tags_sg = NULL;
 	u8 *buf, *tags_buf = NULL;
@@ -11655,7 +11655,7 @@ static int get_cdb_info_lba_3_len_1_256_read(struct scst_cmd *cmd,
 	if (res != 0)
 		goto out;
 	else {
-		struct scst_device *dev = cmd->dev;
+		const struct scst_device *dev = cmd->dev;
 
 		if ((dev->dev_dif_mode != SCST_DIF_MODE_NONE) && !dev->dpicz)
 			cmd->cmd_dif_actions = dev->dev_dif_rd_prot0_actions |
@@ -11674,7 +11674,7 @@ static int get_cdb_info_lba_3_len_1_256_write(struct scst_cmd *cmd,
 	if (res != 0)
 		goto out;
 	else {
-		struct scst_device *dev = cmd->dev;
+		const struct scst_device *dev = cmd->dev;
 
 		if (dev->dev_dif_mode != SCST_DIF_MODE_NONE)
 			cmd->cmd_dif_actions = dev->dev_dif_wr_prot0_actions |
@@ -13241,7 +13241,7 @@ again:
 
 		rcu_read_lock();
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-			struct list_head *head = &sess->sess_tgt_dev_list[i];
+			const struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
 
 			list_for_each_entry_rcu(tgt_dev, head,
@@ -13283,7 +13283,7 @@ again:
 
 	if (UA_entry->global_UA) {
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-			struct list_head *head = &sess->sess_tgt_dev_list[i];
+			const struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
 
 			list_for_each_entry_rcu(tgt_dev, head,
@@ -13318,7 +13318,7 @@ out_unlock:
 	if (global_unlock) {
 #if !defined(__CHECKER__)
 		for (i = SESS_TGT_DEV_LIST_HASH_SIZE-1; i >= 0; i--) {
-			struct list_head *head = &sess->sess_tgt_dev_list[i];
+			const struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
 
 			list_for_each_entry_rcu(tgt_dev, head,
@@ -13431,7 +13431,8 @@ void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 void scst_dev_check_set_local_UA(struct scst_device *dev,
 	struct scst_cmd *exclude, const u8 *sense, int sense_len)
 {
-	struct scst_tgt_dev *tgt_dev, *exclude_tgt_dev = NULL;
+	struct scst_tgt_dev *tgt_dev;
+	const struct scst_tgt_dev *exclude_tgt_dev = NULL;
 
 	TRACE_ENTRY();
 
@@ -14297,7 +14298,7 @@ int scst_get_max_lun_commands(struct scst_session *sess, u64 lun)
 	}
 
 	if (lun != NO_SUCH_LUN) {
-		struct list_head *head;
+		const struct list_head *head;
 		struct scst_tgt_dev *tgt_dev;
 
 		rcu_read_lock();
@@ -14319,7 +14320,7 @@ int scst_get_max_lun_commands(struct scst_session *sess, u64 lun)
 
 	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-		struct list_head *head = &sess->sess_tgt_dev_list[i];
+		const struct list_head *head = &sess->sess_tgt_dev_list[i];
 		struct scst_tgt_dev *tgt_dev;
 
 		list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry) {
@@ -15015,7 +15016,7 @@ static inline void scst_ext_blocker_get(struct scst_ext_blocker *b)
 
 static inline void scst_ext_blocker_release(struct kref *kref)
 {
-	struct scst_ext_blocker *b = container_of(kref, struct scst_ext_blocker, refcount);
+	const struct scst_ext_blocker *b = container_of(kref, struct scst_ext_blocker, refcount);
 
 	kfree(b);
 }

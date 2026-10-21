@@ -59,7 +59,7 @@ static int unmap_init(struct kunit *test)
 
 static void unmap_exit(struct kunit *test)
 {
-	struct unmap_fixture *f = test->priv;
+	const struct unmap_fixture *f = test->priv;
 
 	test->priv = NULL;
 	if (f)

@@ -64,7 +64,7 @@ enum scst_exec_res scst_report_luns_local(struct scst_cmd *cmd)
 
 	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-		struct list_head *head = &cmd->sess->sess_tgt_dev_list[i];
+		const struct list_head *head = &cmd->sess->sess_tgt_dev_list[i];
 
 		list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {

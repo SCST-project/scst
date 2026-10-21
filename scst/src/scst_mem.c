@@ -559,7 +559,7 @@ static int sgv_alloc_sg_entries(struct scatterlist *sg, int pages, gfp_t gfp_mas
 #endif
 
 	for (pg = 0; pg < pages; pg++) {
-		void *ret;
+		const void *ret;
 
 #ifdef CONFIG_SCST_DEBUG_OOM
 		if (((gfp_mask & __GFP_NOFAIL) != __GFP_NOFAIL) &&
@@ -1287,7 +1287,7 @@ static void sgv_pool_init_cache(struct sgv_pool *pool, int cache_num, bool per_c
 {
 	int size;
 	int pages;
-	struct sgv_pool_obj *obj;
+	const struct sgv_pool_obj *obj;
 
 	atomic_set(&pool->cache_acc[cache_num].total_alloc, 0);
 	atomic_set(&pool->cache_acc[cache_num].hit_alloc, 0);
