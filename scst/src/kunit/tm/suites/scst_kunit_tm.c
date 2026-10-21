@@ -173,7 +173,7 @@ static void tm_check_teardown_commands(struct kunit *test, bool dropped)
 
 static void tm_set_black_hole(struct kunit *test, struct scst_acg *acg, int mode)
 {
-	char buf[] = { '0' + mode, '\0' };
+	const char buf[] = { '0' + mode, '\0' };
 
 	KUNIT_EXPECT_EQ(test, __scst_acg_black_hole_store(acg, buf, 1), (ssize_t)0);
 	KUNIT_EXPECT_EQ(test, acg->acg_black_hole_type, mode);
@@ -188,7 +188,7 @@ static void tm_black_hole_test(struct kunit *test)
 	tm_check_teardown_commands(test, p->dropped);
 }
 
-static void tm_reassign(struct kunit *test)
+static void tm_reassign(const struct kunit *test)
 {
 	struct tm_fixture *f = test->priv;
 

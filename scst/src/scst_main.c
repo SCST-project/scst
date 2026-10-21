@@ -629,7 +629,8 @@ char *scst_get_cmd_state_name(char *name, int len, unsigned int state)
 SCST_KUNIT_VISIBLE
 char *scst_dump_cdb(char *buf, size_t buf_len, const struct scst_cmd *cmd)
 {
-	char *p = buf, *end;
+	char *p = buf;
+	const char *end;
 	int i;
 
 	if (!buf_len)
@@ -1103,7 +1104,7 @@ out_unlock:
 	goto out;
 }
 
-static struct scst_device *__scst_lookup_device(struct scsi_device *scsidp)
+static struct scst_device *__scst_lookup_device(const struct scsi_device *scsidp)
 {
 	struct scst_device *d;
 
@@ -2264,11 +2265,10 @@ static int __init init_scst(void)
 	TRACE_ENTRY();
 
 	{
-		struct scsi_sense_hdr *shdr;
-		struct scst_order_data *o;
-		struct scst_cmd *c;
+		const struct scst_order_data *o;
+		const struct scst_cmd *c;
 
-		BUILD_BUG_ON(sizeof(*shdr) > SCST_SENSE_BUFFERSIZE);
+		BUILD_BUG_ON(sizeof(struct scsi_sense_hdr) > SCST_SENSE_BUFFERSIZE);
 		BUILD_BUG_ON(sizeof(o->curr_sn) != sizeof(o->expected_sn));
 		BUILD_BUG_ON(sizeof(c->sn) != sizeof(o->expected_sn));
 	}

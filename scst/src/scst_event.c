@@ -388,7 +388,7 @@ out:
 }
 
 /* No locks */
-int scst_event_queue_ext_blocking_done(struct scst_device *dev, void *data, int len)
+int scst_event_queue_ext_blocking_done(struct scst_device *dev, const void *data, int len)
 {
 	int res, event_entry_len;
 	struct scst_event_entry *event_entry;
@@ -836,7 +836,7 @@ out:
 }
 
 /* scst_event_mutex supposed to be held. Might drop it, then get back. */
-static int scst_event_user_notify_done(struct scst_event_priv *priv, void __user *arg)
+static int scst_event_user_notify_done(struct scst_event_priv *priv, const void __user *arg)
 {
 	int res, rc;
 	struct scst_event_notify_done n;

@@ -67,7 +67,7 @@ static void scst_dlm_pr_reg_send_rem_ua(struct scst_device *dev,
 static void scst_dlm_rm_rem_ua_ls(dlm_lockspace_t *ls, struct scst_dlm_rem_ua *ua);
 static struct scst_dlm_rem_ua *scst_dlm_pr_reg_recv_rem_ua(struct scst_device *dev,
 							   dlm_lockspace_t *ls,
-							   struct scst_dev_registrant *reg,
+							   const struct scst_dev_registrant *reg,
 							   int index);
 static void scst_dlm_remove_lock(dlm_lockspace_t *ls, struct scst_lksb *lksb,
 				 const char *name);
@@ -1818,7 +1818,7 @@ static void scst_dlm_rm_rem_ua_ls(dlm_lockspace_t *ls, struct scst_dlm_rem_ua *u
  */
 static struct scst_dlm_rem_ua *scst_dlm_pr_reg_recv_rem_ua(struct scst_device *dev,
 							   dlm_lockspace_t *ls,
-							   struct scst_dev_registrant *reg,
+							   const struct scst_dev_registrant *reg,
 							   int index)
 {
 	char reg_ua_name[32];

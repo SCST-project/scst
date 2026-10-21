@@ -640,7 +640,7 @@ static int vdev_save_mode_pages(const struct scst_vdisk_dev *virt_dev)
 	int res, rc, offs;
 	u8 *buf;
 	int size;
-	char *name, *name1;
+	const char *name, *name1;
 
 	TRACE_ENTRY();
 
@@ -796,7 +796,8 @@ static int vdev_load_mode_pages(struct scst_vdisk_dev *virt_dev)
 	struct scst_device *dev = virt_dev->dev;
 	u8 *buf;
 	int size;
-	char *name, *name1, *params;
+	const char *name, *name1;
+	char *params;
 
 	TRACE_ENTRY();
 
@@ -1493,7 +1494,7 @@ int vdisk_fsync(loff_t loff, loff_t len, struct scst_device *dev, gfp_t gfp_flag
 		struct scst_cmd *cmd, bool async)
 {
 	int res = 0;
-	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	const struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 
 	TRACE_ENTRY();
 
@@ -1542,7 +1543,7 @@ enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 	      (unsigned long long)data_len, immed);
 
 	if (data_len == 0) {
-		struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+		const struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 
 		data_len = virt_dev->file_size -
 			((loff_t)scst_cmd_get_lba(cmd) << dev->block_shift);
@@ -2424,7 +2425,7 @@ static int vdisk_get_supported_opcodes(struct scst_cmd *cmd,
 				       const struct scst_opcode_descriptor ***out_supp_opcodes,
 				       int *out_supp_opcodes_cnt)
 {
-	struct scst_device *dev = cmd->dev;
+	const struct scst_device *dev = cmd->dev;
 
 	if (cmd->dev->dev_dif_type != 2) {
 		*out_supp_opcodes = vdisk_opcode_descriptors;
@@ -2458,7 +2459,7 @@ bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd)
 {
 	u64 lba_start;
 	s64 data_len;
-	u8 *cdb = cmd->cdb;
+	const u8 *cdb = cmd->cdb;
 	int opcode = cdb[0];
 	loff_t loff;
 	struct scst_device *dev = cmd->dev;
@@ -2635,10 +2636,10 @@ static enum scst_exec_res vdev_do_job(struct scst_cmd *cmd,
 				      const vdisk_op_fn *ops)
 {
 	enum scst_exec_res res;
-	u8 *cdb = cmd->cdb;
+	const u8 *cdb = cmd->cdb;
 	int opcode = cdb[0];
 	struct vdisk_cmd_params *p = cmd->dh_priv;
-	struct scst_vdisk_dev *virt_dev;
+	const struct scst_vdisk_dev *virt_dev;
 	vdisk_op_fn op = ops[opcode];
 	enum compl_status_e s;
 
@@ -2947,7 +2948,7 @@ static void scst_do_verify_work(struct work_struct *work)
 {
 	struct scst_verify_work *w = container_of(work, typeof(*w), work);
 	struct scst_cmd *cmd = w->cmd;
-	struct scst_device *dev = cmd->dev;
+	const struct scst_device *dev = cmd->dev;
 	loff_t loff = scst_cmd_get_lba(cmd) << dev->block_shift;
 
 	kfree(w);
@@ -2964,8 +2965,8 @@ static void scst_do_verify_work(struct work_struct *work)
 static bool do_fileio_async(const struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
-	struct scst_device *dev = cmd->dev;
-	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	const struct scst_device *dev = cmd->dev;
+	const struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 
 	if (!virt_dev->async || dev->dev_dif_mode != SCST_DIF_MODE_NONE)
 		return false;
@@ -3535,8 +3536,8 @@ out:
 }
 
 /* Supported VPD Pages VPD page (00h). */
-static int vdisk_sup_vpd(u8 *buf, struct scst_cmd *cmd,
-			 struct scst_vdisk_dev *virt_dev)
+static int vdisk_sup_vpd(u8 *buf, const struct scst_cmd *cmd,
+			 const struct scst_vdisk_dev *virt_dev)
 {
 	char *page_list = &buf[4], *p = page_list;
 
@@ -3557,7 +3558,7 @@ static int vdisk_sup_vpd(u8 *buf, struct scst_cmd *cmd,
 
 /* Unit Serial Number VPD page (80h) */
 static int vdisk_usn_vpd(u8 *buf, struct scst_cmd *cmd,
-			 struct scst_vdisk_dev *virt_dev)
+			 const struct scst_vdisk_dev *virt_dev)
 {
 	u16 usn_len;
 
@@ -3578,11 +3579,11 @@ static int vdisk_usn_vpd(u8 *buf, struct scst_cmd *cmd,
 
 /* Device Identification VPD page (83h) */
 static int vdisk_dev_id_vpd(u8 *buf, struct scst_cmd *cmd,
-			    struct scst_vdisk_dev *virt_dev)
+			    const struct scst_vdisk_dev *virt_dev)
 {
 	int i, eui64_len = 0, naa_len = 0, resp_len, num = 4;
 	u16 tg_id;
-	u8 *eui64_id = NULL, *naa_id = NULL;
+	const u8 *eui64_id = NULL, *naa_id = NULL;
 
 	buf[1] = 0x83;
 
@@ -3695,10 +3696,10 @@ static int vdisk_dev_id_vpd(u8 *buf, struct scst_cmd *cmd,
 }
 
 /* Extended INQUIRY Data (86h) */
-static int vdisk_ext_inq(u8 *buf, struct scst_cmd *cmd,
-			 struct scst_vdisk_dev *virt_dev)
+static int vdisk_ext_inq(u8 *buf, const struct scst_cmd *cmd,
+			 const struct scst_vdisk_dev *virt_dev)
 {
-	struct scst_device *dev = cmd->dev;
+	const struct scst_device *dev = cmd->dev;
 
 	buf[1] = 0x86;
 	buf[3] = 0x3C;
@@ -3733,7 +3734,7 @@ static int vdisk_ext_inq(u8 *buf, struct scst_cmd *cmd,
 static int vdisk_block_limits(u8 *buf, struct scst_cmd *cmd,
 			      struct scst_vdisk_dev *virt_dev)
 {
-	struct scst_device *dev = cmd->dev;
+	const struct scst_device *dev = cmd->dev;
 	int max_transfer;
 
 	buf[1] = 0xB0;
@@ -3776,7 +3777,7 @@ static int vdisk_block_limits(u8 *buf, struct scst_cmd *cmd,
 
 /* Block Device Characteristics VPD Page (B1h) */
 static int vdisk_bdev_char(u8 *buf, struct scst_cmd *cmd,
-			   struct scst_vdisk_dev *virt_dev)
+			   const struct scst_vdisk_dev *virt_dev)
 {
 	buf[1] = 0xB1;
 	buf[3] = 0x3C;
@@ -3791,7 +3792,7 @@ static int vdisk_bdev_char(u8 *buf, struct scst_cmd *cmd,
 
 /* Logical Block Provisioning a.k.a. Thin Provisioning VPD page (B2h) */
 static int vdisk_tp_vpd(u8 *buf, struct scst_cmd *cmd,
-			struct scst_vdisk_dev *virt_dev)
+			const struct scst_vdisk_dev *virt_dev)
 {
 	buf[1] = 0xB2;
 	buf[3] = 4;
@@ -3806,7 +3807,7 @@ static int vdisk_tp_vpd(u8 *buf, struct scst_cmd *cmd,
 static int vdisk_inq(u8 *buf, struct scst_cmd *cmd,
 		     struct scst_vdisk_dev *virt_dev)
 {
-	struct scst_device *dev = cmd->dev;
+	const struct scst_device *dev = cmd->dev;
 	int num;
 
 	if (virt_dev->removable)
@@ -4094,7 +4095,7 @@ static int vdisk_disconnect_pg(unsigned char *p, int pcontrol, struct scst_vdisk
 	return sizeof(disconnect_pg);
 }
 
-static int vdisk_rigid_geo_pg(unsigned char *p, int pcontrol, struct scst_vdisk_dev *virt_dev)
+static int vdisk_rigid_geo_pg(unsigned char *p, int pcontrol, const struct scst_vdisk_dev *virt_dev)
 {
 	unsigned char geo_m_pg[] = {0x04, 0x16, 0, 0, 0, DEF_HEADS, 0, 0,
 				    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -4134,7 +4135,7 @@ static int vdisk_format_pg(unsigned char *p, int pcontrol, struct scst_vdisk_dev
 	return sizeof(format_pg);
 }
 
-static int vdisk_caching_pg(unsigned char *p, int pcontrol, struct scst_vdisk_dev *virt_dev)
+static int vdisk_caching_pg(unsigned char *p, int pcontrol, const struct scst_vdisk_dev *virt_dev)
 {
 	/* Caching page for mode_sense */
 	static const unsigned char caching_pg[] = {
@@ -4441,7 +4442,7 @@ out_err:
 	goto out;
 }
 
-static void vdisk_ctrl_m_pg_select(unsigned char *p, struct scst_vdisk_dev *virt_dev,
+static void vdisk_ctrl_m_pg_select(const unsigned char *p, struct scst_vdisk_dev *virt_dev,
 				   struct scst_cmd *cmd, bool save, int param_offset)
 {
 	struct scst_device *dev = virt_dev->dev;
@@ -4589,7 +4590,7 @@ out:
 	TRACE_EXIT();
 }
 
-static void vdisk_caching_m_pg_select(unsigned char *p, struct scst_vdisk_dev *virt_dev,
+static void vdisk_caching_m_pg_select(unsigned const char *p, struct scst_vdisk_dev *virt_dev,
 				      struct scst_cmd *cmd, bool save, bool read_only)
 {
 	int old_wt = virt_dev->wt_flag, new_wt, rc;
@@ -4742,7 +4743,7 @@ static enum compl_status_e vdisk_exec_read_capacity(struct vdisk_cmd_params *p)
 	struct scst_cmd *cmd = p->cmd;
 	s32 length;
 	u8 *address;
-	struct scst_vdisk_dev *virt_dev;
+	const struct scst_vdisk_dev *virt_dev;
 	u32 blocksize;
 	u64 nblocks;
 	u8 buffer[8];
@@ -4918,7 +4919,7 @@ static enum compl_status_e vdisk_exec_read_toc(struct vdisk_cmd_params *p)
 	struct scst_cmd *cmd = p->cmd;
 	s32 length, off = 0;
 	u8 *address;
-	struct scst_vdisk_dev *virt_dev;
+	const struct scst_vdisk_dev *virt_dev;
 	u32 nblocks;
 	u8 buffer[4 + 8 + 8] = { 0x00, 0x0a, 0x01, 0x01, 0x00, 0x14,
 				      0x01, 0x00, 0x00, 0x00, 0x00, 0x00 };
@@ -5039,8 +5040,8 @@ SCST_KUNIT_VISIBLE
 enum compl_status_e nullio_exec_read(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
-	struct scst_device *dev = cmd->dev;
-	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	const struct scst_device *dev = cmd->dev;
+	const struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 
 	TRACE_ENTRY();
 
@@ -5376,7 +5377,7 @@ SCST_KUNIT_VISIBLE
 enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
-	struct scst_device *dev = cmd->dev;
+	const struct scst_device *dev = cmd->dev;
 	loff_t loff = p->loff;
 	loff_t err = 0;
 	ssize_t length, full_len;
@@ -5611,7 +5612,7 @@ static void blockio_endio(struct bio *bio)
 		if (op_is_write(bio_op(bio))) {
 #endif
 			if (error == -ENOSPC) {
-				struct scst_vdisk_dev *virt_dev = blockio_work->cmd->dev->dh_priv;
+				const struct scst_vdisk_dev *virt_dev = blockio_work->cmd->dev->dh_priv;
 
 				WARN_ON(!virt_dev->thin_provisioned);
 				scst_set_cmd_error(blockio_work->cmd,
@@ -5779,7 +5780,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 	int block_shift = dev->block_shift;
 	struct block_device *bdev = virt_dev->bdev_desc.bdev;
 	struct bio_set *bs = virt_dev->vdisk_bioset;
-	struct request_queue *q = bdev_get_queue(bdev);
+	const struct request_queue *q = bdev_get_queue(bdev);
 	int length, max_nr_vecs = 0, offset;
 	struct page *page;
 	struct bio *bio = NULL, *hbio = NULL, *tbio = NULL;
@@ -6118,8 +6119,8 @@ static enum compl_status_e nullio_exec_write(struct vdisk_cmd_params *p)
 static enum compl_status_e blockio_exec_write(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
-	struct scst_device *dev = cmd->dev;
-	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	const struct scst_device *dev = cmd->dev;
+	const struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	int res, rc;
 
 	TRACE_ENTRY();
@@ -7919,7 +7920,7 @@ static ssize_t vdisk_sysfs_gen_tp_soft_threshold_reached_UA(struct kobject *kobj
 							    const char *buf, size_t count)
 {
 	struct scst_device *dev;
-	struct scst_vdisk_dev *virt_dev;
+	const struct scst_vdisk_dev *virt_dev;
 	struct scst_tgt_dev *tgt_dev;
 
 	TRACE_ENTRY();
@@ -8034,8 +8035,8 @@ static ssize_t vdev_sysfs_dummy_show(struct kobject *kobj,
 static ssize_t vdev_sysfs_rz_show(struct kobject *kobj,
 				  struct kobj_attribute *attr, char *buf)
 {
-	struct scst_device *dev = container_of(kobj, struct scst_device, dev_kobj);
-	struct scst_vdisk_dev *virt_dev = dev->dh_priv;
+	const struct scst_device *dev = container_of(kobj, struct scst_device, dev_kobj);
+	const struct scst_vdisk_dev *virt_dev = dev->dh_priv;
 	bool read_zero = virt_dev->read_zero;
 	ssize_t ret;
 
@@ -8142,7 +8143,7 @@ static int vdev_sysfs_process_get_filename(struct scst_sysfs_work_item *work)
 {
 	int res = 0;
 	struct scst_device *dev;
-	struct scst_vdisk_dev *virt_dev;
+	const struct scst_vdisk_dev *virt_dev;
 
 	TRACE_ENTRY();
 
@@ -8359,7 +8360,7 @@ static ssize_t vdev_sysfs_cluster_mode_show(struct kobject *kobj, struct kobj_at
 static int vdev_sysfs_process_cluster_mode_store(struct scst_sysfs_work_item *work)
 {
 	struct scst_device *dev = work->dev;
-	struct scst_vdisk_dev *virt_dev;
+	const struct scst_vdisk_dev *virt_dev;
 	long clm;
 	int res;
 
@@ -8492,7 +8493,7 @@ static ssize_t vdev_sysfs_t10_vend_id_store(struct kobject *kobj,
 {
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
-	char *p;
+	const char *p;
 	int res, len;
 
 	TRACE_ENTRY();
@@ -8555,7 +8556,7 @@ static ssize_t vdev_sysfs_vend_specific_id_store(struct kobject *kobj,
 {
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
-	char *p;
+	const char *p;
 	int res, len;
 
 	TRACE_ENTRY();
@@ -8618,7 +8619,7 @@ static ssize_t vdev_sysfs_prod_id_store(struct kobject *kobj,
 {
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
-	char *p;
+	const char *p;
 	int res, len;
 
 	TRACE_ENTRY();
@@ -8681,7 +8682,7 @@ static ssize_t vdev_sysfs_prod_rev_lvl_store(struct kobject *kobj,
 {
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
-	char *p;
+	const char *p;
 	int res, len;
 
 	TRACE_ENTRY();
@@ -8743,7 +8744,7 @@ static ssize_t vdev_sysfs_scsi_device_name_store(struct kobject *kobj, struct ko
 {
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
-	char *p;
+	const char *p;
 	int res, len;
 
 	TRACE_ENTRY();
@@ -9100,7 +9101,7 @@ static ssize_t vdev_sysfs_inq_vend_specific_store(struct kobject *kobj,
 {
 	struct scst_device *dev;
 	struct scst_vdisk_dev *virt_dev;
-	char *p;
+	const char *p;
 	int res = -EINVAL, len;
 
 	dev = container_of(kobj, struct scst_device, dev_kobj);

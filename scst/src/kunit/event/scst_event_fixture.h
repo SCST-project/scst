@@ -58,7 +58,7 @@ long event_test_ioctl(struct event_test_fixture *f, unsigned int command);
 struct scst_event_entry *event_test_queue(struct event_test_fixture *f,
 					  unsigned int length, u32 id, bool notify);
 void event_test_ack_input(struct event_test_fixture *f, u32 id, int status);
-unsigned int event_test_list_count(struct list_head *head);
+unsigned int event_test_list_count(const struct list_head *head);
 int event_test_init(struct kunit *test);
 void event_test_exit(struct kunit *test);
 

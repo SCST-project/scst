@@ -306,7 +306,7 @@ static void disk_pre_unregister(struct scst_device *dev)
 
 static void disk_detach(struct scst_device *dev)
 {
-	struct disk_dh_priv *priv = dev->dh_priv;
+	const struct disk_dh_priv *priv = dev->dh_priv;
 
 	if (!priv)
 		return;
@@ -324,7 +324,7 @@ static void disk_detach(struct scst_device *dev)
 
 static int disk_parse(struct scst_cmd *cmd)
 {
-	struct scst_tgt *tgt = cmd->tgt;
+	const struct scst_tgt *tgt = cmd->tgt;
 	int res = SCST_CMD_STATE_DEFAULT, rc;
 
 	rc = scst_sbc_generic_parse(cmd);

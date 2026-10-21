@@ -65,13 +65,13 @@ static int dev_user_process_reply_on_free(struct scst_user_cmd *ucmd);
 static int dev_user_process_reply_tm_exec(struct scst_user_cmd *ucmd, int status);
 static int dev_user_process_reply_sess(struct scst_user_cmd *ucmd, int status);
 static int dev_user_register_dev(struct file *file, const struct scst_user_dev_desc *dev_desc);
-static int dev_user_unregister_dev(struct file *file);
-static int dev_user_flush_cache(struct file *file);
-static int dev_user_capacity_changed(struct file *file);
-static int dev_user_prealloc_buffer(struct file *file, void __user *arg);
+static int dev_user_unregister_dev(const struct file *file);
+static int dev_user_flush_cache(const struct file *file);
+static int dev_user_capacity_changed(const struct file *file);
+static int dev_user_prealloc_buffer(const struct file *file, void __user *arg);
 static int __dev_user_set_opt(struct scst_user_dev *dev, const struct scst_user_opt *opt);
-static int dev_user_set_opt(struct file *file, const struct scst_user_opt *opt);
-static int dev_user_get_opt(struct file *file, void __user *arg);
+static int dev_user_set_opt(const struct file *file, const struct scst_user_opt *opt);
+static int dev_user_get_opt(const struct file *file, void __user *arg);
 
 static __poll_t dev_user_poll(struct file *file, poll_table *wait);
 static long dev_user_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
@@ -182,7 +182,7 @@ static void __dev_user_not_reg(void)
 	TRACE_MGMT_DBG("Device not registered");
 }
 
-static inline int dev_user_check_reg(struct scst_user_dev *dev)
+static inline int dev_user_check_reg(const struct scst_user_dev *dev)
 {
 	if (!dev) {
 		__dev_user_not_reg();
@@ -198,7 +198,7 @@ static inline int scst_user_cmd_hashfn(int h)
 
 static inline struct scst_user_cmd *__ucmd_find_hash(struct scst_user_dev *dev, unsigned int h)
 {
-	struct list_head *head;
+	const struct list_head *head;
 	struct scst_user_cmd *ucmd;
 
 	head = &dev->ucmd_hash[scst_user_cmd_hashfn(h)];
@@ -215,7 +215,7 @@ static void cmd_insert_hash(struct scst_user_cmd *ucmd)
 {
 	struct list_head *head;
 	struct scst_user_dev *dev = ucmd->dev;
-	struct scst_user_cmd *u;
+	const struct scst_user_cmd *u;
 	unsigned long flags;
 
 	spin_lock_irqsave(&dev->udev_cmd_threads.cmd_list_lock, flags);
@@ -934,7 +934,7 @@ out_reply:
 static void dev_user_set_block_shift(struct scst_cmd *cmd, int block_shift)
 {
 	struct scst_device *dev = cmd->dev;
-	struct scst_user_dev *udev = cmd->dev->dh_priv;
+	const struct scst_user_dev *udev = cmd->dev->dh_priv;
 	int new_block_shift;
 
 	TRACE_ENTRY();
@@ -972,7 +972,7 @@ static void dev_user_set_block_size(struct scst_cmd *cmd, int block_size)
 	if (block_size != 0) {
 		dev->block_size = block_size;
 	} else {
-		struct scst_user_dev *udev = cmd->dev->dh_priv;
+		const struct scst_user_dev *udev = cmd->dev->dh_priv;
 
 		dev->block_size = udev->def_block_size;
 	}
@@ -1005,7 +1005,7 @@ static int dev_user_tape_done(struct scst_cmd *cmd)
 	return res;
 }
 
-static inline bool dev_user_mgmt_ucmd(struct scst_user_cmd *ucmd)
+static inline bool dev_user_mgmt_ucmd(const struct scst_user_cmd *ucmd)
 {
 	return (ucmd->state == UCMD_STATE_TM_RECEIVED_EXECING) ||
 	       (ucmd->state == UCMD_STATE_TM_DONE_EXECING) ||
@@ -1892,7 +1892,7 @@ out_unlock:
 	goto out;
 }
 
-static int dev_user_reply_cmd(struct file *file, void __user *arg)
+static int dev_user_reply_cmd(const struct file *file, void __user *arg)
 {
 	int res = 0, rc;
 	struct scst_user_dev *dev;
@@ -1985,7 +1985,7 @@ out_unlock:
 	return ERR_PTR(res);
 }
 
-static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
+static int dev_user_get_ext_cdb(const struct file *file, void __user *arg)
 {
 	int res = 0, rc;
 	struct scst_user_dev *dev;
@@ -2218,7 +2218,7 @@ again:
 	return res;
 }
 
-static int dev_user_reply_get_cmd(struct file *file,
+static int dev_user_reply_get_cmd(const struct file *file,
 				  struct scst_user_get_cmd __user *get_cmd)
 {
 	int res = 0, rc;
@@ -2268,7 +2268,7 @@ out:
 	return res;
 }
 
-static int dev_user_reply_get_multi(struct file *file,
+static int dev_user_reply_get_multi(const struct file *file,
 				    struct scst_user_get_multi __user *gm)
 {
 	int res = 0, rc;
@@ -3414,7 +3414,7 @@ out_put:
 	goto out;
 }
 
-static int dev_user_unregister_dev(struct file *file)
+static int dev_user_unregister_dev(const struct file *file)
 {
 	struct scst_user_dev *dev;
 	int res;
@@ -3434,7 +3434,7 @@ out:
 	return res;
 }
 
-static int dev_user_flush_cache(struct file *file)
+static int dev_user_flush_cache(const struct file *file)
 {
 	int res;
 	struct scst_user_dev *dev;
@@ -3460,7 +3460,7 @@ out:
 	return res;
 }
 
-static int dev_user_capacity_changed(struct file *file)
+static int dev_user_capacity_changed(const struct file *file)
 {
 	int res;
 	struct scst_user_dev *dev;
@@ -3479,7 +3479,7 @@ out:
 	return res;
 }
 
-static int dev_user_prealloc_buffer(struct file *file, void __user *arg)
+static int dev_user_prealloc_buffer(const struct file *file, void __user *arg)
 {
 	int res = 0, rc;
 	struct scst_user_dev *dev;
@@ -3649,7 +3649,7 @@ out:
 	return res;
 }
 
-static int dev_user_set_opt(struct file *file, const struct scst_user_opt *opt)
+static int dev_user_set_opt(const struct file *file, const struct scst_user_opt *opt)
 {
 	int res;
 	struct scst_user_dev *dev;
@@ -3674,7 +3674,7 @@ out:
 	return res;
 }
 
-static int dev_user_get_opt(struct file *file, void __user *arg)
+static int dev_user_get_opt(const struct file *file, void __user *arg)
 {
 	int res, rc;
 	struct scst_user_dev *dev;
@@ -3896,7 +3896,7 @@ static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj, struct kobj_at
 
 	spin_lock_irqsave(&udev->udev_cmd_threads.cmd_list_lock, flags);
 	for (i = 0; i < ARRAY_SIZE(udev->ucmd_hash); i++) {
-		struct list_head *head = &udev->ucmd_hash[i];
+		const struct list_head *head = &udev->ucmd_hash[i];
 		struct scst_user_cmd *ucmd;
 
 		list_for_each_entry(ucmd, head, hash_list_entry) {

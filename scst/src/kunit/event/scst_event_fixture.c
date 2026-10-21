@@ -162,9 +162,9 @@ void event_test_ack_input(struct event_test_fixture *f, u32 id, int status)
 	f->importing = false;
 }
 
-unsigned int event_test_list_count(struct list_head *head)
+unsigned int event_test_list_count(const struct list_head *head)
 {
-	struct list_head *pos;
+	const struct list_head *pos;
 	unsigned int count = 0;
 
 	list_for_each(pos, head)

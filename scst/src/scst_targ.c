@@ -928,7 +928,7 @@ int scst_pre_parse(struct scst_cmd *cmd)
 {
 	int res;
 #ifndef CONFIG_SCST_STRICT_SERIALIZING
-	struct scst_device *dev = cmd->dev;
+	const struct scst_device *dev = cmd->dev;
 #endif
 	struct scst_dev_type *devt = cmd->devt;
 	int rc;
@@ -2170,7 +2170,8 @@ scst_optimize_post_exec_context(struct scst_cmd *cmd, enum scst_exec_context con
  */
 static void scst_replace_port_info(struct scst_cmd *cmd)
 {
-	u8 *buf, *end, *p, designator_length;
+	u8 *buf, *p, designator_length;
+	const u8 *end;
 	s32 length, page_length;
 
 	if (!scst_cmd_inquired_dev_ident(cmd))
@@ -2643,7 +2644,7 @@ static scst_local_exec_fn scst_local_fns[256] = {
 static enum scst_exec_res scst_do_local_exec(struct scst_cmd *cmd)
 {
 	enum scst_exec_res res;
-	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+	const struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 
 	TRACE_ENTRY();
 
@@ -4017,7 +4018,7 @@ out:
  */
 struct scst_tgt_dev *scst_lookup_tgt_dev(struct scst_session *sess, u64 lun)
 {
-	struct list_head *head;
+	const struct list_head *head;
 	struct scst_tgt_dev *tgt_dev;
 
 #if defined(CONFIG_SCST_EXTRACHECKS) && defined(CONFIG_PREEMPT_RCU) && \
@@ -5189,7 +5190,7 @@ void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd, bool other
 	spin_lock_irqsave(&other_ini_lock, flags);
 
 	if (other_ini) {
-		struct scst_device *dev = NULL;
+		const struct scst_device *dev = NULL;
 
 		/* Might be necessary if command aborted several times */
 		if (!test_bit(SCST_CMD_ABORTED, &cmd->cmd_flags))
@@ -5555,7 +5556,7 @@ static int scst_abort_task_set(struct scst_mgmt_cmd *mcmd)
 static bool scst_is_cmd_belongs_to_dev(struct scst_cmd *cmd,
 				       struct scst_device *dev)
 {
-	struct scst_tgt_dev *tgt_dev;
+	const struct scst_tgt_dev *tgt_dev;
 	bool res;
 
 	TRACE_ENTRY();
@@ -5966,7 +5967,7 @@ static void scst_do_nexus_loss_sess(struct scst_mgmt_cmd *mcmd)
 
 	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-		struct list_head *head = &sess->sess_tgt_dev_list[i];
+		const struct list_head *head = &sess->sess_tgt_dev_list[i];
 
 		list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry) {
 			scst_nexus_loss(tgt_dev, (mcmd->fn != SCST_UNREG_SESS_TM));
@@ -5996,7 +5997,7 @@ static int scst_abort_all_nexus_loss_sess(struct scst_mgmt_cmd *mcmd, int nexus_
 
 	rcu_read_lock();
 	for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-		struct list_head *head = &sess->sess_tgt_dev_list[i];
+		const struct list_head *head = &sess->sess_tgt_dev_list[i];
 		struct scst_tgt_dev *tgt_dev;
 
 		list_for_each_entry_rcu(tgt_dev, head,
@@ -6041,7 +6042,7 @@ static void scst_do_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd)
 	rcu_read_lock();
 	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-			struct list_head *head = &sess->sess_tgt_dev_list[i];
+			const struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
 
 			list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry)
@@ -6075,7 +6076,7 @@ static int scst_abort_all_nexus_loss_tgt(struct scst_mgmt_cmd *mcmd, int nexus_l
 	rcu_read_lock();
 	list_for_each_entry(sess, &tgt->sess_list, sess_list_entry) {
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-			struct list_head *head = &sess->sess_tgt_dev_list[i];
+			const struct list_head *head = &sess->sess_tgt_dev_list[i];
 			struct scst_tgt_dev *tgt_dev;
 
 			list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry) {
@@ -6402,7 +6403,7 @@ static int scst_mgmt_affected_cmds_done(struct scst_mgmt_cmd *mcmd)
 	case SCST_UNREG_SESS_TM:
 		rcu_read_lock();
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-			struct list_head *head = &sess->sess_tgt_dev_list[i];
+			const struct list_head *head = &sess->sess_tgt_dev_list[i];
 
 			list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry) {
 				scst_call_dev_task_mgmt_fn_done(mcmd, tgt_dev);
@@ -6421,7 +6422,7 @@ static int scst_mgmt_affected_cmds_done(struct scst_mgmt_cmd *mcmd)
 		rcu_read_lock();
 		list_for_each_entry(s, &tgt->sess_list, sess_list_entry) {
 			for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
-				struct list_head *head = &s->sess_tgt_dev_list[i];
+				const struct list_head *head = &s->sess_tgt_dev_list[i];
 
 				list_for_each_entry_rcu(tgt_dev, head, sess_tgt_dev_list_entry) {
 					if (mcmd->sess == tgt_dev->sess)
@@ -6983,7 +6984,7 @@ bool scst_initiator_has_luns(struct scst_tgt *tgt, const char *initiator_name)
 EXPORT_SYMBOL_GPL(scst_initiator_has_luns);
 
 /* Supposed to be called under scst_mutex */
-static char *scst_get_unique_sess_name(struct list_head *sysfs_sess_list,
+static char *scst_get_unique_sess_name(const struct list_head *sysfs_sess_list,
 				       const char *initiator_name)
 {
 	char *name = (char *)initiator_name;

@@ -75,7 +75,7 @@ static int sync_alloc(int (*fn)(struct scst_sysfs_work_item *), bool read_only,
 		      struct scst_sysfs_work_item **work)
 {
 	struct kunit *test = kunit_get_current_test();
-	struct sync_fixture *f = test->priv;
+	const struct sync_fixture *f = test->priv;
 	int ret;
 
 	KUNIT_EXPECT_FALSE(test, read_only);
