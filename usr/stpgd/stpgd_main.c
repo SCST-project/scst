@@ -169,7 +169,7 @@ static int invoke_stpg(const uint8_t *device_name,
 
 	*out_pid = c_pid;
 
-	for (i = 1; i < (signed)ARRAY_SIZE(env); i++)
+	for (i = 1; i < (signed int)ARRAY_SIZE(env); i++)
 		free(env[i]);
 
 out:
@@ -539,7 +539,7 @@ int main(int argc, char **argv)
 			int res1 = -1;
 
 			close(stpg_init_report_pipe[1]);
-			if ((unsigned)read(stpg_init_report_pipe[0], &res1, sizeof(res1)) < sizeof(res1)) {
+			if ((unsigned int)read(stpg_init_report_pipe[0], &res1, sizeof(res1)) < sizeof(res1)) {
 				res = -1;
 				goto out_done;
 			} else {
