@@ -28,6 +28,7 @@
 #include <netdb.h>
 #include <ifaddrs.h>
 #include <unistd.h>
+#include <time.h>
 
 #include "iscsid.h"
 
@@ -376,7 +377,7 @@ int target_del(u32 tid, u32 cookie)
 
 		/* We have not yet received session(s) removal event(s), so keep waiting */
 		log_debug(1, "Target %d has sessions, keep waiting", tid);
-		usleep(50000);
+		nanosleep(&(const struct timespec){ .tv_nsec = 50000000 }, NULL);
 	}
 
 	/*
