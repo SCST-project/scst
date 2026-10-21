@@ -73,7 +73,7 @@ static int __dev_user_set_opt(struct scst_user_dev *dev, const struct scst_user_
 static int dev_user_set_opt(struct file *file, const struct scst_user_opt *opt);
 static int dev_user_get_opt(struct file *file, void __user *arg);
 
-static __poll_t dev_user_poll(struct file *filp, poll_table *wait);
+static __poll_t dev_user_poll(struct file *file, poll_table *wait);
 static long dev_user_ioctl(struct file *file, unsigned int cmd, unsigned long arg);
 static int dev_user_release(struct inode *inode, struct file *file);
 static int dev_user_exit_dev(struct scst_user_dev *dev);

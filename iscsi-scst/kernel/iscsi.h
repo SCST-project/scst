@@ -593,7 +593,7 @@ void target_del_all(void);
 extern const struct attribute *iscsi_attrs[];
 
 int conn_sysfs_add(struct iscsi_conn *conn);
-int iscsi_add_attr(struct iscsi_target *target, const struct iscsi_kern_attr *user_info);
+int iscsi_add_attr(struct iscsi_target *target, const struct iscsi_kern_attr *attr_info);
 void __iscsi_del_attr(struct iscsi_target *target, struct iscsi_attr *tgt_attr);
 
 /* session.c */
@@ -601,7 +601,7 @@ extern const struct attribute *iscsi_sess_attrs[];
 extern const struct attribute *iscsi_acg_attrs[];
 
 struct iscsi_session *session_lookup(struct iscsi_target *target, u64 sid);
-void sess_reinst_finished(struct iscsi_session *session);
+void sess_reinst_finished(struct iscsi_session *sess);
 int __add_session(struct iscsi_target *target, struct iscsi_kern_session_info *info);
 int __del_session(struct iscsi_target *target, u64 sid);
 int session_free(struct iscsi_session *session, bool del);

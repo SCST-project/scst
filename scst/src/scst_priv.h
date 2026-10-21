@@ -317,7 +317,7 @@ static inline void scst_make_deferred_commands_active_locked(struct scst_order_d
 bool scst_inc_expected_sn(const struct scst_cmd *cmd);
 int scst_check_hq_cmd(struct scst_cmd *cmd);
 
-void scst_unblock_deferred(struct scst_order_data *order_data, struct scst_cmd *cmd_sn);
+void scst_unblock_deferred(struct scst_order_data *order_data, struct scst_cmd *out_of_sn_cmd);
 
 void scst_on_hq_cmd_response(struct scst_cmd *cmd);
 void scst_xmit_process_aborted_cmd(struct scst_cmd *cmd);
@@ -561,7 +561,7 @@ int scst_set_pending_UA(struct scst_cmd *cmd, uint8_t *buf, int *size);
 void scst_report_luns_changed(struct scst_acg *acg);
 
 void scst_abort_cmd(struct scst_cmd *cmd, struct scst_mgmt_cmd *mcmd, bool other_ini,
-		    bool call_dev_task_mgmt_fn);
+		    bool call_dev_task_mgmt_fn_received);
 void scst_process_reset(struct scst_device *dev, struct scst_session *originator,
 			struct scst_cmd *exclude_cmd, struct scst_mgmt_cmd *mcmd, bool setUA);
 void __scst_unblock_aborted_cmds(const struct scst_tgt *tgt, const struct scst_session *sess,
@@ -742,10 +742,10 @@ void scst_cm_on_del_acg(struct scst_acg *acg);
 int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun, unsigned int *flags);
 bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev, bool gen_report_luns_changed);
 
-int scst_cm_parse_descriptors(struct scst_cmd *cmd);
-void scst_cm_free_descriptors(struct scst_cmd *cmd);
+int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd);
+void scst_cm_free_descriptors(struct scst_cmd *ec_cmd);
 
-enum scst_exec_res scst_cm_ext_copy_exec(struct scst_cmd *cmd);
+enum scst_exec_res scst_cm_ext_copy_exec(struct scst_cmd *ec_cmd);
 enum scst_exec_res scst_cm_rcv_copy_res_exec(struct scst_cmd *cmd);
 
 void sess_cm_list_id_cleanup_work_fn(struct work_struct *work);

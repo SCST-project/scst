@@ -34,9 +34,9 @@
 
 #define RAID_RETRIES		2
 
-static int raid_attach(struct scst_device *);
+static int raid_attach(struct scst_device *dev);
 /* static void raid_detach(struct scst_device *); */
-static int raid_parse(struct scst_cmd *);
+static int raid_parse(struct scst_cmd *cmd);
 /* static int raid_done(struct scst_cmd *); */
 
 static struct scst_dev_type raid_devtype = {

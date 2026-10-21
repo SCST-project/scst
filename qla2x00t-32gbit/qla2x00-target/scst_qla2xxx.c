@@ -85,7 +85,7 @@ static int sqa_target_release(struct scst_tgt *scst_tgt);
 static int sqa_xmit_response(struct scst_cmd *scst_cmd);
 static int sqa_rdy_to_xfer(struct scst_cmd *scst_cmd);
 static void sqa_on_free_cmd(struct scst_cmd *scst_cmd);
-static void sqa_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd);
+static void sqa_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd);
 static void sqa_on_abort_cmd(struct scst_cmd *scst_cmd);
 static int sqa_get_initiator_port_transport_id(struct scst_tgt *tgt,
 					       struct scst_session *scst_sess,
@@ -93,8 +93,8 @@ static int sqa_get_initiator_port_transport_id(struct scst_tgt *tgt,
 static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd);
 static uint16_t sqa_get_scsi_transport_version(struct scst_tgt *scst_tgt);
 static uint16_t sqa_get_phys_transport_version(struct scst_tgt *scst_tgt);
-static int sqa_enable_tgt(struct scst_tgt *tgt, bool enable);
-static bool sqa_is_tgt_enabled(struct scst_tgt *tgt);
+static int sqa_enable_tgt(struct scst_tgt *scst_tgt, bool enable);
+static bool sqa_is_tgt_enabled(struct scst_tgt *scst_tgt);
 static ssize_t sqa_add_vtarget(const char *target_name, char *params);
 static ssize_t sqa_del_vtarget(const char *target_name);
 

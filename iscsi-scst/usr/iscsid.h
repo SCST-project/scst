@@ -243,42 +243,42 @@ extern struct pollfd poll_array[POLL_MAX];
 extern int nl_fd;
 
 /* chap.c */
-extern int cmnd_exec_auth_chap(struct connection *conn);
+int cmnd_exec_auth_chap(struct connection *conn);
 
 /* conn.c */
-extern struct connection *conn_alloc(void);
-extern void conn_free(struct connection *conn);
-extern void conn_pass_to_kern(struct connection *conn, int fd);
-extern void conn_read_pdu(struct connection *conn);
-extern void conn_write_pdu(struct connection *conn);
-extern void conn_free_pdu(struct connection *conn);
-extern void conn_free_rsp_buf_list(struct connection *conn);
+struct connection *conn_alloc(void);
+void conn_free(struct connection *conn);
+void conn_pass_to_kern(struct connection *conn, int fd);
+void conn_read_pdu(struct connection *conn);
+void conn_write_pdu(struct connection *conn);
+void conn_free_pdu(struct connection *conn);
+void conn_free_rsp_buf_list(struct connection *conn);
 
 /* iscsi_scstd.c */
 extern uint16_t server_port;
 extern struct iscsi_init_params iscsi_init_params;
-extern void isns_set_fd(int isns, int scn_listen, int scn);
-extern const char *get_error_str(int error);
+void isns_set_fd(int isns, int scn_listen, int scn);
+const char *get_error_str(int error);
 
 /* iscsid.c */
 extern int iscsi_enabled;
 extern char *internal_portal;
 extern int logins_suspended;
 
-extern int cmnd_execute(struct connection *conn);
-extern void cmnd_finish(struct connection *conn);
-extern char *text_key_find(struct connection *conn, const char *searchKey);
-extern void text_key_add(struct connection *conn, const char *key,
-			 const char *value);
+int cmnd_execute(struct connection *conn);
+void cmnd_finish(struct connection *conn);
+char *text_key_find(struct connection *conn, const char *searchKey);
+void text_key_add(struct connection *conn, const char *key,
+		  const char *value);
 
 /* log.c */
 extern int log_daemon;
 extern int log_level;
 
-extern void log_init(void);
-extern void __log(const char *func, int line, int prio, int level, const char *fmt, ...)
-	__attribute__ ((format (printf, 5, 6)));
-extern void __log_pdu(const char *func, int line, int level, struct PDU *pdu);
+void log_init(void);
+void __log(const char *func, int line, int prio, int level, const char *fmt, ...)
+	   __attribute__ ((format (printf, 5, 6)));
+void __log_pdu(const char *func, int line, int level, struct PDU *pdu);
 
 #define log_info(args...)		__log(__func__, __LINE__, LOG_INFO, 0, ## args)
 #define log_warning(args...)		__log(__func__, __LINE__, LOG_WARNING, 0, ## args)
@@ -299,109 +299,109 @@ extern void __log_pdu(const char *func, int line, int level, struct PDU *pdu);
 	__log(__func__, __LINE__, LOG_ERR, level, ## args)
 
 /* session.c */
-extern struct session *session_find_name(u32 tid, const char *iname, union iscsi_sid sid);
-extern struct session *session_find_id(u32 tid, u64 sid);
-extern int session_create(struct connection *conn);
-extern void session_free(struct session *session);
-extern struct connection *conn_find(struct session *session, u16 cid);
+struct session *session_find_name(u32 tid, const char *iname, union iscsi_sid sid);
+struct session *session_find_id(u32 tid, u64 sid);
+int session_create(struct connection *conn);
+void session_free(struct session *session);
+struct connection *conn_find(struct session *session, u16 cid);
 
 /* target.c */
 #define DEFAULT_SEND_TARGETS_LINK_LOCAL 1
 extern int send_targets_link_local;
 extern struct __qelem targets_list;
-extern int target_create(const char *name, struct target **out_target);
-extern void target_free(struct target *target);
-extern int target_add(struct target *target, u32 *tid, u32 cookie);
-extern int target_del(u32 tid, u32 cookie);
-extern u32 target_find_id_by_name(const char *name);
-extern struct target *target_find_by_name(const char *name);
-extern struct target *target_find_by_id(u32);
-extern void target_list_build(struct connection *, char *);
-extern int target_portal_allowed(struct target *target,
-	const char *target_portal, const char *initiator_name);
-extern const char *iscsi_make_full_initiator_name(int per_portal_acl,
-	const char *initiator_name, const char *target_portal,
-	char *buf, int size);
-extern bool target_redirected(struct target *target, struct connection *conn);
+int target_create(const char *name, struct target **out_target);
+void target_free(struct target *target);
+int target_add(struct target *target, u32 *tid, u32 cookie);
+int target_del(u32 tid, u32 cookie);
+u32 target_find_id_by_name(const char *name);
+struct target *target_find_by_name(const char *name);
+struct target *target_find_by_id(u32 tid);
+void target_list_build(struct connection *conn, char *target_name);
+int target_portal_allowed(struct target *target,
+			  const char *target_portal, const char *initiator_name);
+const char *iscsi_make_full_initiator_name(int per_portal_acl,
+					   const char *initiator_name, const char *target_portal,
+					   char *buf, int size);
+bool target_redirected(struct target *target, struct connection *conn);
 
 /* message.c */
-extern int iscsi_adm_request_listen(void);
-extern int iscsi_adm_request_handle(int accept_fd);
+int iscsi_adm_request_listen(void);
+int iscsi_adm_request_handle(int accept_fd);
 
 /* ctldev.c */
-extern int kernel_open(void);
-extern int kernel_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params);
-extern int kernel_params_set(u32 tid, u64 sid, int type, u32 partial,
-	const struct iscsi_param *params);
-extern int kernel_target_create(struct target *target, u32 *tid, u32 cookie);
-extern int kernel_target_destroy(u32 tid, u32 cookie);
-extern int kernel_user_add(struct target *target, struct iscsi_attr *attr,
-		u32 cookie);
-extern int kernel_user_del(struct target *target, struct iscsi_attr *attr,
-		u32 cookie);
-extern int kernel_attr_add(struct target *target, const char *name,
-	u32 mode, u32 cookie);
-extern int kernel_attr_del(struct target *target, const char *name, u32 cookie);
-extern int kernel_initiator_allowed(u32 tid, const char *initiator_name);
-extern int kernel_session_create(struct connection *conn);
-extern int kernel_session_destroy(u32 tid, u64 sid);
-extern int kernel_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
-	int fd);
-extern int kernel_conn_destroy(u32 tid, u64 sid, u32 cid);
+int kernel_open(void);
+int kernel_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params);
+int kernel_params_set(u32 tid, u64 sid, int type, u32 partial,
+		      const struct iscsi_param *params);
+int kernel_target_create(struct target *target, u32 *tid, u32 cookie);
+int kernel_target_destroy(u32 tid, u32 cookie);
+int kernel_user_add(struct target *target, struct iscsi_attr *user,
+		    u32 cookie);
+int kernel_user_del(struct target *target, struct iscsi_attr *user,
+		    u32 cookie);
+int kernel_attr_add(struct target *target, const char *name,
+		    u32 mode, u32 cookie);
+int kernel_attr_del(struct target *target, const char *name, u32 cookie);
+int kernel_initiator_allowed(u32 tid, const char *full_initiator_name);
+int kernel_session_create(struct connection *conn);
+int kernel_session_destroy(u32 tid, u64 sid);
+int kernel_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
+		       int fd);
+int kernel_conn_destroy(u32 tid, u64 sid, u32 cid);
 
 /* event.c */
-extern int handle_iscsi_events(int fd, bool wait);
-extern int nl_open(void);
+int handle_iscsi_events(int fd, bool wait);
+int nl_open(void);
 
 /* config.c */
-extern char *config_sep_string(char **pp);
-extern char *config_strip_string(char *s);
-extern int config_parse_main(const char *data, u32 cookie);
-extern int config_load(const char *config_name);
-extern int config_target_create(u32 *tid, char *name);
-extern int config_target_destroy(u32 tid);
-extern int config_account_add(u32 tid, int dir, char *name, char *pass,
-	const char *sysfs_name, u32 cookie);
-extern int __config_account_add(struct target *target, int dir, char *name,
-	char *pass, const char *sysfs_name, int send_to_kern, u32 cookie);
-extern int config_account_query(u32 tid, int dir, const char *name, char *pass);
-extern int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
-	char *buf, size_t buf_sz);
-extern int config_account_del(u32 tid, int dir, char *name, u32 cookie);
-extern int config_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params);
-extern int config_params_set(u32 tid, u64 sid, int type, u32 partial,
-	struct iscsi_param *params);
-extern int config_initiator_access_allowed(u32 tid, int fd);
-extern int accounts_empty(u32 tid, int dir);
-extern struct iscsi_attr *account_get_first(u32 tid, int dir);
-extern struct iscsi_attr *account_lookup_by_sysfs_name(struct target *target,
-	int dir, const char *sysfs_name);
-extern int account_replace(struct target *target, int direction,
-	const char *sysfs_name, char *value);
-extern void accounts_free(struct __qelem *accounts_list);
-extern struct iscsi_attr *iscsi_attr_lookup_by_sysfs_name(
-	struct __qelem *attrs_list, const char *sysfs_name);
-extern struct iscsi_attr *iscsi_attr_lookup_by_key(
-	struct __qelem *attrs_list, const char *key);
-extern void iscsi_attrs_free(struct __qelem *attrs_list);
-extern int iscsi_attr_create(int attr_size, struct __qelem *attrs_list,
-	const char *sysfs_name_tmpl, const char *key, const char *val,
-	u32 mode, struct iscsi_attr **res_attr);
-extern void iscsi_attr_destroy(struct iscsi_attr *attr);
-extern int iscsi_attr_replace(struct __qelem *attrs_list, const char *sysfs_name,
-	char *raw_value);
+char *config_sep_string(char **pp);
+char *config_strip_string(char *s);
+int config_parse_main(const char *data, u32 cookie);
+int config_load(const char *config_name);
+int config_target_create(u32 *tid, char *name);
+int config_target_destroy(u32 tid);
+int config_account_add(u32 tid, int dir, char *name, char *pass,
+		       const char *sysfs_name, u32 cookie);
+int __config_account_add(struct target *target, int dir, char *name,
+			 char *pass, const char *sysfs_name, int send_to_kern, u32 cookie);
+int config_account_query(u32 tid, int dir, const char *name, char *pass);
+int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
+			char *buf, size_t buf_sz);
+int config_account_del(u32 tid, int dir, char *name, u32 cookie);
+int config_params_get(u32 tid, u64 sid, int type, struct iscsi_param *params);
+int config_params_set(u32 tid, u64 sid, int type, u32 partial,
+		      struct iscsi_param *params);
+int config_initiator_access_allowed(u32 tid, int fd);
+int accounts_empty(u32 tid, int dir);
+struct iscsi_attr *account_get_first(u32 tid, int dir);
+struct iscsi_attr *account_lookup_by_sysfs_name(struct target *target,
+						int dir, const char *sysfs_name);
+int account_replace(struct target *target, int direction,
+		    const char *sysfs_name, char *value);
+void accounts_free(struct __qelem *accounts_list);
+struct iscsi_attr *iscsi_attr_lookup_by_sysfs_name(
+						   struct __qelem *attrs_list, const char *sysfs_name);
+struct iscsi_attr *iscsi_attr_lookup_by_key(
+					    struct __qelem *attrs_list, const char *key);
+void iscsi_attrs_free(struct __qelem *attrs_list);
+int iscsi_attr_create(int attr_size, struct __qelem *attrs_list,
+		      const char *sysfs_name_tmpl, const char *key, const char *val,
+		      u32 mode, struct iscsi_attr **res_attr);
+void iscsi_attr_destroy(struct iscsi_attr *attr);
+int iscsi_attr_replace(struct __qelem *attrs_list, const char *sysfs_name,
+		       char *raw_value);
 
 /* isns.c */
 extern char *isns_server;
 extern int isns_access_control;
 extern char isns_entity_target_name[ISCSI_NAME_LEN];
 extern int isns_timeout;
-extern int isns_init(void);
-extern int isns_handle(int is_timeout);
-extern int isns_scn_handle(int accept);
-extern int isns_scn_access_allowed(u32 tid, char *name);
-extern int isns_target_register(char *name);
-extern int isns_target_deregister(char *name);
-extern void isns_exit(void);
+int isns_init(void);
+int isns_handle(int is_timeout);
+int isns_scn_handle(int is_accept);
+int isns_scn_access_allowed(u32 tid, char *name);
+int isns_target_register(char *name);
+int isns_target_deregister(char *name);
+void isns_exit(void);
 
 #endif	/* ISCSID_H */

@@ -45,11 +45,11 @@
 /* The fixed bit in READ/WRITE/VERIFY */
 #define SILI_BIT		2
 
-static int tape_attach(struct scst_device *);
-static void tape_detach(struct scst_device *);
-static int tape_parse(struct scst_cmd *);
-static int tape_done(struct scst_cmd *);
-static enum scst_exec_res tape_perf_exec(struct scst_cmd *);
+static int tape_attach(struct scst_device *dev);
+static void tape_detach(struct scst_device *dev);
+static int tape_parse(struct scst_cmd *cmd);
+static int tape_done(struct scst_cmd *cmd);
+static enum scst_exec_res tape_perf_exec(struct scst_cmd *cmd);
 
 static struct scst_dev_type tape_devtype = {
 	.name =			TAPE_NAME,

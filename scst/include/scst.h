@@ -3831,7 +3831,7 @@ static inline void scst_sess_set_tgt_priv(struct scst_session *sess, void *val)
 uint16_t scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt);
 enum scst_tg_state scst_get_alua_state(struct scst_device *dev, struct scst_tgt *tgt);
 bool scst_alua_configured(struct scst_device *dev);
-int scst_tg_get_group_info(void **buf, uint32_t *response_length,
+int scst_tg_get_group_info(void **buf, uint32_t *length,
 			   struct scst_device *dev, uint8_t data_format);
 int scst_tg_set_group_info(struct scst_cmd *cmd);
 const char *scst_alua_state_name(enum scst_tg_state s);
@@ -4739,7 +4739,7 @@ static inline unsigned int scst_get_active_cmd_count(struct scst_cmd *cmd)
 		return (unsigned int)-1;
 }
 
-int scst_set_cdb_lba(struct scst_cmd *cmd, int64_t len);
+int scst_set_cdb_lba(struct scst_cmd *cmd, int64_t lba);
 int scst_set_cdb_transf_len(struct scst_cmd *cmd, int len);
 
 /*

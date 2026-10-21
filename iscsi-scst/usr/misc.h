@@ -110,8 +110,8 @@ static inline void list_del_init(struct __qelem *elem)
 #define IPV6_V6ONLY	26
 #endif
 
-extern void set_non_blocking(int fd);
-extern void sock_set_keepalive(int sock, int timeout);
-extern int create_and_open_dev(const char *dev, int readonly);
+void set_non_blocking(int fd);
+void sock_set_keepalive(int sock, int timeout);
+int create_and_open_dev(const char *dev, int readonly);
 
 #endif

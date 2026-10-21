@@ -6083,7 +6083,7 @@ struct scst_request_sense_priv {
 	struct scst_cmd		*orig_cmd;
 };
 
-static void scst_complete_request_sense(struct scst_cmd *cmd);
+static void scst_complete_request_sense(struct scst_cmd *req_cmd);
 
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 {
