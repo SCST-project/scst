@@ -572,8 +572,7 @@ again:
 					      conn->req.bhs.datalength[2]);
 			conn->rwsize = (conn->req.ahssize + conn->req.datasize + 3) & -4;
 			if (conn->rwsize > INCOMING_BUFSIZE) {
-				log_warning("Recv PDU with invalid size %d "
-					"(max: %d)", conn->rwsize,
+				log_warning("Recv PDU with invalid size %d (max: %d)", conn->rwsize,
 					INCOMING_BUFSIZE);
 				conn->state = STATE_DROP;
 				goto out;

@@ -6175,7 +6175,7 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 			TRACE_MGMT_DBG("REQUEST SENSE %p was aborted, but orig_cmd %p - not, retry",
 				       req_cmd, orig_cmd);
 		} else {
-			PRINT_ERROR("%s", "Unable to get the sense via REQUEST SENSE, returning HARDWARE ERROR");
+			PRINT_ERROR("Unable to get the sense via REQUEST SENSE, returning HARDWARE ERROR");
 			scst_set_cmd_error(orig_cmd,
 				SCST_LOAD_SENSE(scst_sense_internal_failure));
 		}
@@ -7941,7 +7941,7 @@ struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(gfp_t gfp_mask)
 
 	mcmd = mempool_alloc(scst_mgmt_mempool, gfp_mask);
 	if (!mcmd) {
-		PRINT_CRIT_ERROR("%s", "Allocation of management command failed, some commands and their data could leak");
+		PRINT_CRIT_ERROR("Allocation of management command failed, some commands and their data could leak");
 		goto out;
 	}
 	memset(mcmd, 0, sizeof(*mcmd));
@@ -13377,7 +13377,7 @@ static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 
 	UA_entry = mempool_alloc(scst_ua_mempool, GFP_ATOMIC);
 	if (!UA_entry) {
-		PRINT_CRIT_ERROR("%s", "UNIT ATTENTION memory allocation failed. The UNIT ATTENTION on some sessions will be missed");
+		PRINT_CRIT_ERROR("UNIT ATTENTION memory allocation failed. The UNIT ATTENTION on some sessions will be missed");
 		PRINT_BUFFER("Lost UA", sense, sense_len);
 		goto out;
 	}
@@ -16111,16 +16111,16 @@ static void __scst_update_latency_stats(struct scst_cmd *cmd,
 	if (stat && ktime_to_ns(cmd->last_state_update) != 0) {
 		delta = ktime_to_ns(ktime_sub(now, cmd->last_state_update));
 		if (delta > NSEC_PER_SEC) {
-			printk_once(KERN_INFO "%d: ignoring large time delta %lld\n",
-				    cmd->state, delta);
+			pr_info_once("%d: ignoring large time delta %lld\n",
+				     cmd->state, delta);
 			delta = 0;
 		}
 		do_div(delta, 100);
 #ifdef SCST_MEASURE_CLOCK_CYCLES
 		deltac = nowc - cmd->last_state_update_tsc;
 		if (deltac < 0 || deltac > tsc_khz * 1000) {
-			printk_once(KERN_INFO "%d: ignoring large cc delta %lld\n",
-				    cmd->state, deltac);
+			pr_info_once("%d: ignoring large cc delta %lld\n",
+				     cmd->state, deltac);
 			deltac = 0;
 		}
 		do_div(deltac, 100);

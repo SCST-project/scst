@@ -522,8 +522,8 @@ int __config_account_add(struct target *target, int dir, char *name, const char 
 
 	/* Check for minimum RFC defined value */
 	if (strlen(pass) < 12) {
-		log_error("Secret for user %s is too short. At least 12 bytes "
-			"are required\n", name);
+		log_error("Secret for user %s is too short. At least 12 bytes are required\n",
+			  name);
 		err = -EINVAL;
 		goto out;
 	}
@@ -545,8 +545,7 @@ int __config_account_add(struct target *target, int dir, char *name, const char 
 		struct iscsi_attr *old;
 
 		list_for_each_entry(old, list, ulist) {
-			log_warning("Only one outgoing %s account is "
-				"supported. Replacing the old one.\n",
+			log_warning("Only one outgoing %s account is supported. Replacing the old one.\n",
 				target ? "target" : "discovery");
 			account_destroy(old);
 			break;
@@ -563,8 +562,8 @@ int __config_account_add(struct target *target, int dir, char *name, const char 
 			goto out_destroy;
 	}
 
-	log_debug(1, "User %s (%p, sysfs name %s) added to target %s "
-		"(direction %s)", ISCSI_USER_NAME(user), user, user->sysfs_name,
+	log_debug(1, "User %s (%p, sysfs name %s) added to target %s (direction %s)",
+		  ISCSI_USER_NAME(user), user, user->sysfs_name,
 		target ? target->name : "discovery",
 		(dir == ISCSI_USER_DIR_OUTGOING) ? "outgoing" : "incoming");
 

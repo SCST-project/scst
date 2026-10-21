@@ -49,8 +49,7 @@ static int driver_major(const char *dev)
 	fclose(f);
 
 	if (devn < 0)
-		printf("cannot find %s in /proc/devices - "
-		     "make sure the module is loaded\n", dev);
+		printf("cannot find %s in /proc/devices - make sure the module is loaded\n", dev);
 
 out:
 	return devn;

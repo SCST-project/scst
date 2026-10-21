@@ -953,8 +953,7 @@ static void dump_lockspace(const char *cl_dev_id)
 	char *argv2 = kasprintf(GFP_KERNEL,
 				"{ echo lockspace-dump-start;"
 				" grep -aH '' /sys/kernel/debug/dlm/%s%s*;"
-				" echo lockspace-dump-end; } 2>&1 |"
-				" while read line; do logger \"$line\"; done",
+				" echo lockspace-dump-end; } 2>&1 | while read line; do logger \"$line\"; done",
 				SCST_DLM_LOCKSPACE_PFX, cl_dev_id);
 	char *argv[] = { argv0, argv1, argv2, NULL };
 	char *envp[] = {

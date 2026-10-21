@@ -846,9 +846,7 @@ static ssize_t scst_tgtt_mgmt_show(struct kobject *kobj, struct kobj_attribute *
 	static const char help[] =
 		"Usage: echo \"add_target target_name [parameters]\" >mgmt\n"
 		"       echo \"del_target target_name\" >mgmt\n"
-		"%s%s"
-		"%s"
-		"\n"
+		"%s%s%s\n"
 		"where parameters are one or more param_name=value pairs separated by ';'\n\n"
 		"%s%s%s%s%s%s%s%s%s%s\n";
 	struct scst_tgt_template *tgtt;
@@ -5908,9 +5906,7 @@ static ssize_t scst_devt_mgmt_show(struct kobject *kobj, struct kobj_attribute *
 	static const char help[] =
 		"Usage: echo \"add_device device_name [parameters]\" >mgmt\n"
 		"       echo \"del_device device_name\" >mgmt\n"
-		"%s%s"
-		"%s"
-		"\n"
+		"%s%s%s\n"
 		"where parameters are one or more param_name=value pairs separated by ';'\n\n"
 		"%s%s%s%s%s%s%s%s%s\n";
 	struct scst_dev_type *devt;

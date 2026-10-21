@@ -1746,9 +1746,7 @@ static int __init scst_local_init(void)
 
 #ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
-	PRINT_ERROR("HIGHMEM kernel configurations are not supported. "
-		    "Consider changing VMSPLIT option or use a 64-bit configuration instead. "
-		    "See SCST core README file for details.");
+	PRINT_ERROR("HIGHMEM kernel configurations are not supported. Consider changing VMSPLIT option or use a 64-bit configuration instead. See SCST core README file for details.");
 	ret = -EINVAL;
 	goto out;
 #endif

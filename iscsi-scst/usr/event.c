@@ -89,8 +89,8 @@ static int nl_read(int fd, void *data, int len, bool wait)
 		if (res < 0)
 			res = -EPIPE;
 		else if (res < iov[1].iov_len)
-			log_error("read netlink fd (%d) error: received %d"
-				  " bytes but expected %zd bytes (%d)", fd, res,
+			log_error("read netlink fd (%d) error: received %d bytes but expected %zd bytes (%d)",
+				  fd, res,
 				  iov[1].iov_len, len);
 	}
 
@@ -138,8 +138,8 @@ static int send_mgmt_cmd_res(u32 tid, u32 cookie, u32 req_cmd, int result,
 	res = ioctl(ctrl_fd, MGMT_CMD_CALLBACK, &cinfo);
 	if (res != 0) {
 		res = -errno;
-		log_error("Can't send mgmt reply (cookie %d, result %d, "
-			"res %d): %s\n", cookie, result, res, strerror(errno));
+		log_error("Can't send mgmt reply (cookie %d, result %d, res %d): %s\n",
+			  cookie, result, res, strerror(errno));
 	}
 
 	return res;
@@ -1315,8 +1315,7 @@ retry:
 
 		conn = conn_find(session, event.cid);
 		if (!conn) {
-			log_error("Connection %x for session %#" PRIx64 " not "
-				"found", event.cid, event.sid);
+			log_error("Connection %x for session %#" PRIx64 " not found", event.cid, event.sid);
 			goto retry;
 		}
 

@@ -287,14 +287,12 @@ static int login_check_reinstatement(struct connection *conn)
 	if (session) {
 		if (req->sid.id.tsih == 0) {
 			/* Kernel will do session reinstatement */
-			log_debug(1, "Session sid %#" PRIx64 " reinstatement "
-				"detected (tid %d, initiator %s)", req->sid.id64,
+			log_debug(1, "Session sid %#" PRIx64 " reinstatement detected (tid %d, initiator %s)", req->sid.id64,
 				conn->tid, conn->initiator);
 			res = ISCSI_SESS_REINSTATEMENT;
 		} else if (req->sid.id.tsih != session->sid.id.tsih) {
 			log_error("TSIH for existing session sid %#" PRIx64
-				") doesn't match (tid %d, initiator %s, sid requested "
-				"%#" PRIx64, session->sid.id64, conn->tid,
+				") doesn't match (tid %d, initiator %s, sid requested %#" PRIx64, session->sid.id64, conn->tid,
 				conn->initiator, req->sid.id64);
 			/* Fail the login */
 			login_rsp_ini_err(conn, ISCSI_STATUS_SESSION_NOT_FOUND);
@@ -305,16 +303,15 @@ static int login_check_reinstatement(struct connection *conn)
 
 			if (c) {
 				/* Kernel will do connection reinstatement */
-				log_debug(1, "Conn %x reinstatement "
-					"detected (tid %d, sid %#" PRIx64
+				log_debug(1, "Conn %x reinstatement detected (tid %d, sid %#" PRIx64
 					"initiator %s)", conn->cid, conn->tid,
 					req->sid.id64, conn->initiator);
 				conn->sess = session;
 				list_add_tail(&conn->clist, &session->conn_list);
 				res = ISCSI_CONN_REINSTATEMENT;
 			} else {
-				log_error("Only a single connection supported "
-					"(initiator %s)", conn->initiator);
+				log_error("Only a single connection supported (initiator %s)",
+					  conn->initiator);
 				/* Fail the login */
 				login_rsp_ini_err(conn, ISCSI_STATUS_TOO_MANY_CONN);
 				res = -1;
@@ -323,8 +320,7 @@ static int login_check_reinstatement(struct connection *conn)
 		}
 	} else {
 		if (req->sid.id.tsih != 0) {
-			log_error("Requested TSIH not 0 (TSIH %d, tid %d, "
-				"initiator %s, sid requisted %#" PRIx64 ")",
+			log_error("Requested TSIH not 0 (TSIH %d, tid %d, initiator %s, sid requisted %#" PRIx64 ")",
 				req->sid.id.tsih, conn->tid, conn->initiator,
 				req->sid.id64);
 			/* Fail the login */
@@ -332,8 +328,7 @@ static int login_check_reinstatement(struct connection *conn)
 			res = -1;
 			goto out;
 		} else {
-			log_debug(1, "New session sid %#" PRIx64 "(tid %d, "
-				"initiator %s)", req->sid.id64,
+			log_debug(1, "New session sid %#" PRIx64 "(tid %d, initiator %s)", req->sid.id64,
 				conn->tid, conn->initiator);
 		}
 	}
@@ -443,8 +438,8 @@ static int text_check_params(struct connection *conn)
 	for (i = 0, cnt = 0; session_keys[i].name; i++) {
 		if (p[i].val != session_keys[i].rfc_def) {
 			if (p[i].key_state == KEY_STATE_START) {
-				log_debug(1, "Key %s was not negotiated, use RFC "
-					"defined default %d",  session_keys[i].name,
+				log_debug(1, "Key %s was not negotiated, use RFC defined default %d",
+					  session_keys[i].name,
 					session_keys[i].rfc_def);
 				p[i].val = session_keys[i].rfc_def;
 				continue;
@@ -884,8 +879,8 @@ static void login_start(struct connection *conn)
 		    !target_portal_allowed(target, conn->target_portal,
 							conn->initiator) ||
 		    !isns_scn_access_allowed(conn->tid, name)) {
-			log_info("Initiator %s not allowed to connect to "
-				"target %s", name, target_name);
+			log_info("Initiator %s not allowed to connect to target %s",
+				 name, target_name);
 			login_rsp_ini_err(conn, ISCSI_STATUS_TGT_NOT_FOUND);
 			return;
 		}
@@ -925,9 +920,8 @@ static void login_start(struct connection *conn)
 				target->sessions_count++;
 				conn->sessions_count_incremented = 1;
 			} else {
-				log_warning("Initiator %s not allowed to connect to "
-					"target %s - max sessions limit "
-					"reached (%d)",	name, target_name,
+				log_warning("Initiator %s not allowed to connect to target %s - max sessions limit reached (%d)",
+					    name, target_name,
 					target->target_params[key_max_sessions]);
 				login_rsp_tgt_err(conn, ISCSI_STATUS_NO_RESOURCES);
 				conn->state = STATE_EXIT;
@@ -1207,8 +1201,7 @@ static void cmnd_exec_login(struct connection *conn)
 	 */
 	if (!list_empty(&conn->rsp_buf_list) &&
 	    !list_length_is_one(&conn->rsp_buf_list)) {
-		log_error("Target error: \'key=value\' pairs spanning several "
-			  "Login PDUs are not implemented, yet\n");
+		log_error("Target error: \'key=value\' pairs spanning several Login PDUs are not implemented, yet\n");
 		goto target_err;
 	}
 
@@ -1256,9 +1249,8 @@ static int text_scan_text(struct connection *conn)
 				value = conn->sess->target->name;
 			} else if (strcasecmp(value, "All") == 0) {
 				if (conn->session_type != SESSION_DISCOVERY) {
-					log_error("SendTargets=All allowed only in "
-						"Discovery session, rejecting "
-						"(initiator %s)", conn->initiator);
+					log_error("SendTargets=All allowed only in Discovery session, rejecting (initiator %s)",
+						  conn->initiator);
 					cmnd_reject(conn, ISCSI_REASON_PROTOCOL_ERROR);
 					res = -EINVAL;
 					goto out;
@@ -1303,8 +1295,7 @@ static void cmnd_exec_text(struct connection *conn)
 		else
 			conn->ttt = ISCSI_RESERVED_TAG;
 	} else if (list_empty(&conn->rsp_buf_list) || conn->ttt != req->ttt) {
-		log_error("Rejecting unexpected text request. TTT recv %#x, "
-			  "expected %#x; %stext segments queued\n",
+		log_error("Rejecting unexpected text request. TTT recv %#x, expected %#x; %stext segments queued\n",
 			  req->ttt, conn->ttt, list_empty(&conn->rsp_buf_list) ?
 			  "no " : "");
 		cmnd_reject(conn, ISCSI_REASON_INVALID_PDU_FIELD);

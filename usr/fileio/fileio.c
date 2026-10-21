@@ -147,12 +147,9 @@ static void usage(void)
 	printf("  -o, --direct		O_DIRECT mode\n");
 	printf("  -n, --nullio		NULLIO mode\n");
 	printf("  -c, --nv_cache	NV_CACHE mode\n");
-	printf("  -p, --parse=type	Parse type, one of \"std\" "
-		"(default), \"call\" or \"excpt\"\n");
-	printf("  -f, --on_free=type	On free call type, one of \"ignore\" "
-		"(default) or \"call\"\n");
-	printf("  -m, --mem_reuse=type	Memory reuse type, one of \"all\" "
-		"(default), \"read\", \"write\" or \"none\"\n");
+	printf("  -p, --parse=type	Parse type, one of \"std\" (default), \"call\" or \"excpt\"\n");
+	printf("  -f, --on_free=type	On free call type, one of \"ignore\" (default) or \"call\"\n");
+	printf("  -m, --mem_reuse=type	Memory reuse type, one of \"all\" (default), \"read\", \"write\" or \"none\"\n");
 	printf("  -l, --non_blocking	Use non-blocking operations\n");
 	printf("  -I, --vdisk_id=ID	Vdisk ID (used in multi-targets setups)\n");
 	printf("  -F, --flush=n		Flush SGV cache each n seconds\n");
@@ -356,12 +353,12 @@ static int start(int argc, char **argv)
 		close(fd);
 
 		PRINT_INFO("%s", " ");
-		PRINT_INFO("Virtual device \"%s\", path \"%s\", size %"PRId64"MB, "
-			"block size %d, nblocks %"PRId64", options:", devs[i].name,
+		PRINT_INFO("Virtual device \"%s\", path \"%s\", size %" PRId64 "MB, block size %d, nblocks %" PRId64 ", options:",
+			   devs[i].name,
 			devs[i].file_name, (uint64_t)devs[i].file_size/1024/1024,
 			devs[i].block_size, (uint64_t)devs[i].nblocks);
 
-		snprintf(devs[i].usn, sizeof(devs[i].usn), "%"PRIx64,
+		snprintf(devs[i].usn, sizeof(devs[i].usn), "%" PRIx64,
 			gen_dev_id_num(&devs[i]));
 		TRACE_DBG("usn %s", devs[i].usn);
 

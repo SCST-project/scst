@@ -45,8 +45,8 @@ int kernel_open(void)
 	err = ioctl(ctlfd, REGISTER_USERD, &reg);
 	if (err != 0) {
 		err = -errno;
-		log_error("Unable to register: %s. Incompatible version of the "
-			"kernel module?\n", strerror(errno));
+		log_error("Unable to register: %s. Incompatible version of the kernel module?\n",
+			  strerror(errno));
 		goto out_close;
 	} else {
 		log_debug(0, "max_data_seg_len %d, max_queued_cmds %d",
@@ -266,8 +266,8 @@ int kernel_initiator_allowed(u32 tid, const char *full_initiator_name)
 	err = ioctl(ctrl_fd, ISCSI_INITIATOR_ALLOWED, &info);
 	if (err < 0) {
 		err = -errno;
-		log_error("Can't find out initiator %s permissions (%s, "
-			  "tid %u", full_initiator_name, strerror(errno), tid);
+		log_error("Can't find out initiator %s permissions (%s, tid %u",
+			  full_initiator_name, strerror(errno), tid);
 	}
 
 	return err;
@@ -397,8 +397,7 @@ int kernel_session_create(struct connection *conn)
 	res = ioctl(ctrl_fd, ADD_SESSION, &info);
 	if (res < 0) {
 		res = -errno;
-		log_error("Can't create sess 0x%" PRIx64 " (tid %d, "
-			"initiator %s): %s\n", conn->sess->sid.id64, conn->tid,
+		log_error("Can't create sess 0x%" PRIx64 " (tid %d, initiator %s): %s\n", conn->sess->sid.id64, conn->tid,
 			conn->sess->initiator, strerror(errno));
 	}
 
