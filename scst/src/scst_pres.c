@@ -1882,7 +1882,7 @@ void scst_pr_reserve(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
 
 	if (!scst_pr_type_valid(type)) {
 		TRACE_PR("Invalid reservation type %d", type);
-		scst_set_invalid_field_in_cdb(cmd, 2, SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+		scst_set_invalid_field_in_cdb(cmd, 2, SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		goto out;
 	}
 
@@ -2080,7 +2080,7 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, uint8_t *buffer, int buffer
 
 	if (!scst_pr_type_valid(type)) {
 		TRACE_PR("Invalid reservation type %d", type);
-		scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+		scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		goto out;
 	}
 

@@ -1113,8 +1113,7 @@ int scst_event_init(void)
 
 	TRACE_ENTRY();
 
-	scst_event_wq = alloc_workqueue("scst_event_wq", 0
-					| WQ_UNBOUND,
+	scst_event_wq = alloc_workqueue("scst_event_wq", WQ_UNBOUND,
 					0);
 	if (unlikely(!scst_event_wq)) {
 		PRINT_ERROR("Failed to allocate scst_event_wq");

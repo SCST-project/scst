@@ -69,7 +69,7 @@ char *app_name;
 unsigned long trace_flag = DEFAULT_LOG_FLAGS;
 #endif /* defined(DEBUG) || defined(TRACING) */
 
-bool log_daemon = false;
+bool log_daemon;
 
 #define DEF_BLOCK_SHIFT		9
 #define THREADS			7

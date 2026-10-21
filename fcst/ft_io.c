@@ -107,8 +107,6 @@ int ft_send_read_data(struct scst_cmd *cmd)
 #endif
 	}
 
-	/* no scatter/gather in skb for odd word length due to fc_seq_send() */
-	use_sg = !(remaining % 4) && lport->sg_supp;
 	/*
 	 * Note: since libfc_function_template.seq_send() sends frames
 	 * asynchronously and since the SCST data buffer is freed as soon as

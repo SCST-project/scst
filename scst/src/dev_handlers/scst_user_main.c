@@ -3834,7 +3834,7 @@ SCST_KUNIT_VISIBLE
 int dev_user_process_cleanup(struct scst_user_dev *dev)
 {
 	struct scst_user_cmd *ucmd;
-	int rc = 0, res = 1;
+	int rc, res = 1;
 
 	TRACE_ENTRY();
 

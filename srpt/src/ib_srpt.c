@@ -1649,14 +1649,14 @@ static int srpt_build_cmd_rsp(struct srpt_rdma_ch *ch,
 		if (scst_cmd_get_data_direction(cmd) & SCST_DATA_READ) {
 			if (resid > 0)
 				srp_rsp->flags |= SRP_RSP_FLAG_DIUNDER;
-			else if (resid < 0)
+			else
 				srp_rsp->flags |= SRP_RSP_FLAG_DIOVER;
 			srp_rsp->data_in_res_cnt = cpu_to_be32(abs(resid));
 		}
 		if (scst_cmd_get_data_direction(cmd) & SCST_DATA_WRITE) {
 			if (resid > 0)
 				srp_rsp->flags |= SRP_RSP_FLAG_DOUNDER;
-			else if (resid < 0)
+			else
 				srp_rsp->flags |= SRP_RSP_FLAG_DOOVER;
 			srp_rsp->data_out_res_cnt = cpu_to_be32(abs(resid));
 		}
@@ -2651,7 +2651,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 		list_add_tail(&ch->ioctx_ring[i]->free_list, &ch->free_list);
 	}
 	if (!sdev->use_srq) {
-		u16 imm_data_offset = req->req_flags & SRP_IMMED_REQUESTED ?
+		u16 imm_data_offset = (req->req_flags & SRP_IMMED_REQUESTED) ?
 			be16_to_cpu(req->imm_data_offset) : 0;
 		u16 alignment_offset;
 		u32 req_sz;

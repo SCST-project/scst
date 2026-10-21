@@ -24,7 +24,7 @@
 #include "iscsid.h"
 
 int log_daemon = 1;
-int log_level = 0;
+int log_level;
 
 void log_init(void)
 {

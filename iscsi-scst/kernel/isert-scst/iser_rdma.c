@@ -286,7 +286,6 @@ static void isert_rx_pdu_parse_headers(struct isert_cmnd *isert_pdu)
 	u8 *addr = isert_buf->addr;
 	struct isert_hdr *isert_hdr = (struct isert_hdr *)addr;
 	struct iscsi_hdr *bhs = (struct iscsi_hdr *)(addr + sizeof(*isert_hdr));
-	unsigned int data_offset = ISER_HDRS_SZ;
 	unsigned int ahssize;
 
 	TRACE_ENTRY();
@@ -317,7 +316,6 @@ static void isert_rx_pdu_parse_headers(struct isert_cmnd *isert_pdu)
 		isert_pdu->ahs = NULL;
 	} else {
 		isert_pdu->ahs = addr + ISER_HDRS_SZ;
-		data_offset += ahssize;
 	}
 	iscsi_cmnd->pdu.ahs = isert_pdu->ahs;
 

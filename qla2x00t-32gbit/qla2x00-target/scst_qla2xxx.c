@@ -486,7 +486,7 @@ static struct qla_tgt_cmd *sqa_qla2xxx_get_cmd(struct fc_port *sess)
 	struct sqa_scst_tgt *sqa_tgt =
 		(struct sqa_scst_tgt *)sess->vha->vha_tgt.target_lport_ptr;
 	struct qla_tgt_cmd *cmd;
-	int tag = -ENOENT;
+	int tag;
 
 #if QLT_USE_PERCPU_IDA
 	tag = percpu_ida_alloc(&sqa_tgt->tgt_tag_pool, TASK_RUNNING);

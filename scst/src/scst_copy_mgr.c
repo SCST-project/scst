@@ -582,7 +582,7 @@ static void scst_cm_prepare_final_sense(struct scst_cmd *ec_cmd)
 	int d_sense = scst_get_cmd_dev_d_sense(ec_cmd);
 	bool copy_sense = false;
 	int sense_to_copy = ec_cmd->sense_valid_len;
-	int sense_len = ec_cmd->sense_valid_len;
+	int sense_len = sense_to_copy;
 
 	TRACE_ENTRY();
 
@@ -2228,7 +2228,7 @@ enum scst_exec_res scst_cm_rcv_copy_res_exec(struct scst_cmd *cmd)
 	default:
 		TRACE(TRACE_MINOR, "%s: action %d not supported",
 		      cmd->op_name, action);
-		scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+		scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		break;
 	}
 
@@ -2970,7 +2970,7 @@ static int scst_cm_parse_id_tgt_descr(struct scst_cmd *cmd, const uint8_t *seg, 
 		PRINT_WARNING("PERIPHERAL DEVICE TYPE %d not supported",
 			      seg[1] & 0xF);
 		scst_set_invalid_field_in_parm_list(cmd, offs + 1,
-						    SCST_INVAL_FIELD_BIT_OFFS_VALID | 0);
+						    SCST_INVAL_FIELD_BIT_OFFS_VALID);
 		goto out_err;
 	}
 
@@ -3203,7 +3203,6 @@ skip_fcmd_create:
 					sBUG();
 					break;
 				}
-				tp = t;
 			}
 			tp = t;
 		}
