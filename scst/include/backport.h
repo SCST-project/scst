@@ -51,10 +51,7 @@
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 18, 0)
 #include <linux/overflow.h>
 #endif
-#if defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7 ||	\
-	LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
 #include <linux/percpu-refcount.h>
-#endif
 #include <linux/preempt.h>
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/shrinker.h>
@@ -104,15 +101,6 @@ static __always_inline unsigned long long rdtsc(void)
 	return 0;
 }
 #define tsc_khz 1000
-#endif
-
-/* <linux/err.h> */
-
-/*
- * See also commit 6e8b8726ad50 ("PTR_RET is now PTR_ERR_OR_ZERO") # v3.12
- */
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 12, 0) && !defined(RHEL_RELEASE_CODE)
-#define PTR_ERR_OR_ZERO(p) PTR_RET(p)
 #endif
 
 /* <linux/bio.h> */
@@ -915,22 +903,6 @@ static inline void kobj_ns_drop_backport(enum kobj_ns_type type, void *ns)
 #define kref_read(kref) (atomic_read(&(kref)->refcount))
 #endif
 
-/* <linux/ktime.h> */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0) && !defined(RHEL_MAJOR)
-/**
- * ktime_before - Compare if a ktime_t value is smaller than another one.
- * @cmp1:	comparable1
- * @cmp2:	comparable2
- *
- * Return: true if cmp1 happened before cmp2.
- */
-static inline bool ktime_before(const ktime_t cmp1, const ktime_t cmp2)
-{
-	return ktime_compare(cmp1, cmp2) < 0;
-}
-#endif
-
 /* <linux/list.h> */
 
 #ifndef __list_for_each
@@ -1090,23 +1062,6 @@ static inline void *kvmalloc_array(size_t n, size_t size, gfp_t flags)
 static inline void *kvcalloc(size_t n, size_t size, gfp_t flags)
 {
 	return kvmalloc(n * size, flags | __GFP_ZERO);
-}
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) &&		       \
-	!(LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(3, 12, 0) >> 8 &&  \
-	  LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 41)) &&	       \
-	!defined(RHEL_MAJOR)
-/*
- * See also commit 39f1f78d53b9 ("nick kvfree() from apparmor") # v3.15.
- * See also commit fb6a2a8ebe27 ("nick kvfree() from apparmor") # v3.12.41.
- */
-static inline void kvfree(void *addr)
-{
-	if (is_vmalloc_addr(addr))
-		vfree(addr);
-	else
-		kfree(addr);
 }
 #endif
 
@@ -1363,255 +1318,33 @@ static __always_inline size_t __must_check size_add(size_t addend1, size_t adden
 #define PERCPU_REF_ALLOW_REINIT 0
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
-#define PERCPU_COUNT_BIAS (1U << 31)
-#endif
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0) && !defined(RHEL_MAJOR)
-typedef unsigned int percpu_count_t;
-#define READ_REF_COUNT(ref) atomic_read(&(ref)->count)
-#else
 typedef unsigned long percpu_count_t;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 #define READ_REF_COUNT(ref) atomic_long_read(&(ref)->count)
 #else
 #define READ_REF_COUNT(ref) atomic_long_read(&(ref)->data->count)
 #endif
-#endif
-
-/*
- * For kernel versions that have <linux/percpu-refcount.h>, backport the
- * functionality that is missing from that header file.
- */
-#if (defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7) ||	\
-	LINUX_VERSION_CODE >= KERNEL_VERSION(3, 11, 0)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0) &&	\
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8)
-
 /*
  * See also commit 18c9a6bbe064 ("percpu-refcount: Introduce
  * percpu_ref_resurrect()") # v4.20.
  */
 static inline void percpu_ref_resurrect(struct percpu_ref *ref)
 {
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0) ||	\
-	(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7)
 	percpu_ref_reinit(ref);
-#else
-	unsigned __percpu *pcpu_count = (unsigned __percpu *)
-		((uintptr_t)ref->pcpu_count & ~PCPU_REF_DEAD);
-	int cpu;
-
-	BUG_ON(!pcpu_count);
-	//WARN_ON(!percpu_ref_is_zero(ref));
-
-	atomic_set(&ref->count, 1 + PERCPU_COUNT_BIAS);
-
-	/*
-	 * Restore per-cpu operation. The barrier guarantees that the zeroing
-	 * is visible to all percpu accesses which can see the following
-	 * PCPU_REF_DEAD clearing.
-	 */
-	for_each_possible_cpu(cpu)
-		*per_cpu_ptr(pcpu_count, cpu) = 0;
-
-	ref->pcpu_count = (unsigned __percpu *)
-		((uintptr_t)ref->pcpu_count & ~PCPU_REF_DEAD);
-	smp_mb();
-#endif
 }
+#endif
 
-#if !(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7)
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0) && !defined(RHEL_MAJOR)
 /*
  * See also commit 4c907baf36d8 ("percpu_ref: implement percpu_ref_is_dying()")
  * # v4.0.
  */
 static inline bool percpu_ref_is_dying(struct percpu_ref *ref)
 {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
-	return (uintptr_t)ref->pcpu_count & PCPU_REF_DEAD;
-#else
-	return ref->pcpu_count_ptr & PCPU_REF_DEAD;
-#endif
-}
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0)
-static inline bool percpu_ref_is_dying(struct percpu_ref *ref)
-{
 	return ref->percpu_count_ptr & __PERCPU_REF_DEAD;
-}
-#endif
-#endif /* !(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7) */
-
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0) */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0) &&	\
-	!(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7)
-/*
- * See also commit 2aad2a86f668 ("percpu_ref: add PERCPU_REF_INIT_* flags")
- * # v3.18.
- */
-static inline int __must_check percpu_ref_init_backport(struct percpu_ref *ref,
-				 percpu_ref_func_t *release, unsigned int flags,
-				 gfp_t gfp)
-{
-	WARN_ON_ONCE(flags != 0);
-	WARN_ON_ONCE(gfp != GFP_KERNEL);
-	return percpu_ref_init(ref, release);
-}
-#define percpu_ref_init percpu_ref_init_backport
-
-/*
- * See also commit 9e804d1f58da ("percpu_ref: rename things to prepare for
- * decoupling percpu/atomic mode switch") # v3.18.
- */
-static inline bool __ref_is_percpu(struct percpu_ref *ref,
-				   percpu_count_t __percpu **percpu_countp)
-{
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0)
-	uintptr_t pcpu_ptr = (uintptr_t)ACCESS_ONCE(ref->pcpu_count);
-
-	if (unlikely(pcpu_ptr & PCPU_REF_DEAD))
-		return false;
-
-	*percpu_countp = (percpu_count_t __percpu *)pcpu_ptr;
-	return true;
-#else
-	return __pcpu_ref_alive(ref, percpu_countp);
-#endif
-}
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 0) */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0) &&	\
-	!(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7)
-/*
- * See also commit 2d7227828e14 ("percpu-refcount: implement percpu_ref_reinit()
- * and percpu_ref_is_zero()") # v3.17.
- */
-static inline bool percpu_ref_is_zero(struct percpu_ref *ref)
-{
-	return !atomic_read(&ref->count);
-}
-/*
- * See also commit 9a1049da9bd2 ("percpu-refcount: require percpu_ref to be
- * exited explicitly") # v3.17.
- */
-static inline void percpu_ref_exit(struct percpu_ref *ref)
-{
-}
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 17, 0) */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0) &&	\
-	!(defined(RHEL_MAJOR) && RHEL_MAJOR -0 >= 7)
-static inline bool percpu_ref_tryget_live(struct percpu_ref *ref)
-{
-	percpu_count_t __percpu *percpu_count;
-	bool ret = false;
-
-	rcu_read_lock();
-
-	if (__ref_is_percpu(ref, &percpu_count)) {
-		this_cpu_inc(*percpu_count);
-		ret = true;
-	} else if (!percpu_ref_is_dying(ref)) {
-		ret = atomic_long_inc_not_zero(&ref->count);
-	}
-
-	rcu_read_unlock();
-
-	return ret;
-}
-#endif /* LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 0) */
-
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0) &&	\
-	(!defined(RHEL_MAJOR) ||			\
-	 RHEL_MAJOR -0 == 7 && RHEL_MINOR -0 < 5)
-
-struct percpu_ref;
-typedef void (percpu_ref_func_t)(struct percpu_ref *);
-
-struct percpu_ref {
-	atomic_t		count;
-	percpu_ref_func_t	*release;
-	bool			dead;
-};
-
-static inline int __must_check percpu_ref_init(struct percpu_ref *ref,
-				 percpu_ref_func_t *release, unsigned int flags,
-				 gfp_t gfp)
-{
-	WARN_ON_ONCE(flags != 0);
-	atomic_set(&ref->count, 1);
-	ref->release = release;
-	ref->dead = false;
-	return 0;
-}
-
-static inline void percpu_ref_exit(struct percpu_ref *ref)
-{
-}
-
-static inline void percpu_ref_get(struct percpu_ref *ref)
-{
-	atomic_inc(&ref->count);
-}
-
-static inline bool percpu_ref_tryget_live(struct percpu_ref *ref)
-{
-	bool ret = false;
-
-	rcu_read_lock();
-	if (!ref->dead)
-		ret = atomic_inc_not_zero(&ref->count);
-	rcu_read_unlock();
-
-	return ret;
-}
-
-static inline void percpu_ref_put(struct percpu_ref *ref)
-{
-	if (unlikely(atomic_dec_and_test(&ref->count)))
-		ref->release(ref);
-}
-
-static inline void
-percpu_ref_kill_and_confirm(struct percpu_ref *ref, percpu_ref_func_t *confirm_kill)
-{
-	WARN_ON_ONCE(ref->dead);
-	ref->dead = true;
-	if (confirm_kill)
-		confirm_kill(ref);
-	percpu_ref_put(ref);
-}
-
-static inline void percpu_ref_kill(struct percpu_ref *ref)
-{
-	percpu_ref_kill_and_confirm(ref, NULL);
-}
-
-static inline void percpu_ref_resurrect(struct percpu_ref *ref)
-{
-	WARN_ON_ONCE(!ref->dead);
-	ref->dead = false;
-	percpu_ref_get(ref);
-}
-
-static inline bool __ref_is_percpu(struct percpu_ref *ref,
-				   unsigned __percpu **percpu_countp)
-{
-	*percpu_countp = NULL;
-	return !ref->dead;
-}
-
-static inline bool percpu_ref_is_dying(struct percpu_ref *ref)
-{
-	return ref->dead;
-}
-
-static inline bool percpu_ref_is_zero(struct percpu_ref *ref)
-{
-	return !atomic_read(&ref->count);
 }
 #endif
 
@@ -1937,14 +1670,12 @@ static inline void *memdup_user_nul(const void __user *src, size_t len)
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0) &&			\
-	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(3, 16, 0) >> 8 ||	\
-	 LINUX_VERSION_CODE < KERNEL_VERSION(3, 16, 60)) &&		\
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(3, 18, 0) >> 8 ||	\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(3, 18, 64)) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||					\
 	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(7, 7))
 /*
- * See also commit 30035e45753b ("string: provide strscpy()") # v4.3, v3.16.60, v3.18.64.
+ * See also commit 30035e45753b ("string: provide strscpy()") # v4.3, v3.18.64.
  */
 static inline ssize_t strscpy(char *dest, const char *src, size_t count)
 {
@@ -1979,11 +1710,6 @@ static inline ssize_t strscpy(char *dest, const char *src, size_t count)
 #endif
 
 /* <linux/sysfs.h> */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 11, 0) && !defined(RHEL_MAJOR)
-/* See also commit b9b3259746d7 ("sysfs.h: add __ATTR_RW() macro") # v3.11. */
-#define __ATTR_RW(_name) __ATTR(_name, 0644, _name##_show, _name##_store)
-#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0) &&			\
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(4, 9, 0) >> 8 ||	\
@@ -2513,16 +2239,6 @@ static inline void *bsg_job_sense(struct bsg_job *job)
 #endif
 
 /* <scsi/scsi_transport_fc.h> */
-
-#if LINUX_VERSION_CODE < KERNEL_VERSION(3, 15, 0) && !defined(RHEL_MAJOR)
-/*
- * See also commit 624f28be8109 ("[SCSI] scsi_transport_fc: Add 32Gbps speed
- * definition.") # v3.15.
- */
-enum {
-	FC_PORTSPEED_32GBIT = 0x40
-};
-#endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0) &&	\
 	!defined(FC_PORTSPEED_64GBIT)
