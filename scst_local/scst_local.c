@@ -151,7 +151,7 @@ MODULE_LICENSE("GPL");
 MODULE_VERSION(SCST_LOCAL_VERSION);
 MODULE_IMPORT_NS(SCST_NAMESPACE);
 
-static int scst_local_get_sas_transport_id(struct scst_local_sess *sess, u8 **transport_id,
+static int scst_local_get_sas_transport_id(const struct scst_local_sess *sess, u8 **transport_id,
 					   int *len)
 {
 	int res = 0;
@@ -293,7 +293,7 @@ static const struct attribute *scst_local_tgtt_attrs[] = {
 static ssize_t scst_local_scsi_transport_version_show(struct kobject *kobj,
 						      struct kobj_attribute *attr, char *buf)
 {
-	struct scst_tgt *scst_tgt;
+	const struct scst_tgt *scst_tgt;
 	struct scst_local_tgt *tgt;
 	ssize_t res = -ENOENT;
 
@@ -324,7 +324,7 @@ static ssize_t scst_local_scsi_transport_version_store(struct kobject *kobj,
 						       const char *buffer, size_t size)
 {
 	ssize_t res = -ENOENT;
-	struct scst_tgt *scst_tgt;
+	const struct scst_tgt *scst_tgt;
 	struct scst_local_tgt *tgt;
 	unsigned long val;
 
@@ -362,7 +362,7 @@ static struct kobj_attribute scst_local_scsi_transport_version_attr =
 static ssize_t scst_local_phys_transport_version_show(struct kobject *kobj,
 						      struct kobj_attribute *attr, char *buf)
 {
-	struct scst_tgt *scst_tgt;
+	const struct scst_tgt *scst_tgt;
 	struct scst_local_tgt *tgt;
 	ssize_t res = -ENOENT;
 
@@ -392,7 +392,7 @@ static ssize_t scst_local_phys_transport_version_store(struct kobject *kobj,
 						       const char *buffer, size_t size)
 {
 	ssize_t res = -ENOENT;
-	struct scst_tgt *scst_tgt;
+	const struct scst_tgt *scst_tgt;
 	struct scst_local_tgt *tgt;
 	unsigned long val;
 
@@ -439,7 +439,7 @@ static const struct attribute *scst_local_tgt_attrs[] = {
 
 static ssize_t host_no_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	struct scst_session *scst_sess = container_of(kobj, struct scst_session, sess_kobj);
+	const struct scst_session *scst_sess = container_of(kobj, struct scst_session, sess_kobj);
 	struct scst_local_sess *sess = scst_sess_get_tgt_priv(scst_sess);
 	struct Scsi_Host *host;
 
@@ -455,7 +455,7 @@ static struct kobj_attribute scst_local_host_no_attr = __ATTR_RO(host_no);
 static ssize_t scst_local_transport_id_show(struct kobject *kobj, struct kobj_attribute *attr,
 					    char *buf)
 {
-	struct scst_session *scst_sess;
+	const struct scst_session *scst_sess;
 	struct scst_local_sess *sess;
 	u8 *tr_id;
 	int tr_id_len, i;
@@ -495,7 +495,7 @@ static ssize_t scst_local_transport_id_store(struct kobject *kobj, struct kobj_a
 					     const char *buffer, size_t size)
 {
 	ssize_t res;
-	struct scst_session *scst_sess;
+	const struct scst_session *scst_sess;
 	struct scst_local_sess *sess;
 
 	if (down_read_trylock(&scst_local_exit_rwsem) == 0)
@@ -790,7 +790,7 @@ static int scst_local_target_reset(struct scsi_cmnd *scmd)
 	return ret;
 }
 
-static void scst_local_copy_sense(struct scsi_cmnd *cmnd, struct scst_cmd *scst_cmnd)
+static void scst_local_copy_sense(struct scsi_cmnd *cmnd, const struct scst_cmd *scst_cmnd)
 {
 	int scst_cmnd_sense_len = scst_cmd_get_sense_buffer_len(scst_cmnd);
 
@@ -1323,7 +1323,7 @@ static void scst_local_targ_task_mgmt_done(struct scst_mgmt_cmd *mgmt_cmd)
 
 static u16 scst_local_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
-	struct scst_local_tgt *tgt = scst_tgt_get_tgt_priv(scst_tgt);
+	const struct scst_local_tgt *tgt = scst_tgt_get_tgt_priv(scst_tgt);
 
 	/*
 	 * It's OK to not check tgt != NULL here, because new sessions
@@ -1338,7 +1338,7 @@ static u16 scst_local_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 
 static u16 scst_local_get_phys_transport_version(struct scst_tgt *scst_tgt)
 {
-	struct scst_local_tgt *tgt = scst_tgt_get_tgt_priv(scst_tgt);
+	const struct scst_local_tgt *tgt = scst_tgt_get_tgt_priv(scst_tgt);
 
 	/*
 	 * It's OK to not check tgt != NULL here, because new sessions
@@ -1532,7 +1532,7 @@ static struct device *scst_local_root;
 
 static void scst_local_free_sess(struct scst_session *scst_sess)
 {
-	struct scst_local_sess *sess = scst_sess_get_tgt_priv(scst_sess);
+	const struct scst_local_sess *sess = scst_sess_get_tgt_priv(scst_sess);
 
 	kfree(sess);
 }
