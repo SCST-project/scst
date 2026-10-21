@@ -1814,19 +1814,13 @@ int sysfs_emit(char *buf, const char *fmt, ...)
 {
 	va_list args;
 	int len;
+	bool invalid = !buf;
 
-	if (WARN(!buf ||
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0)
-		/*
-		 * For kernel releases older than 4.20, using the SLUB allocator will cause
-		 * this alignment check to fail as that allocator did NOT align kmalloc
-		 * allocations on a PAGE_SIZE boundary.
-		 */
-		 false,
-#else
-		 offset_in_page(buf),
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+	/* Older SLUB allocators need not align the buffer to a page boundary. */
+	invalid = invalid || offset_in_page(buf);
 #endif
-		 "invalid sysfs_emit: buf:%p\n", buf))
+	if (WARN(invalid, "invalid %s: buf:%p\n", __func__, buf))
 		return 0;
 
 	va_start(args, fmt);
@@ -1841,20 +1835,14 @@ int sysfs_emit_at(char *buf, int at, const char *fmt, ...)
 {
 	va_list args;
 	int len;
+	bool invalid = !buf;
 
-	if (WARN(!buf ||
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0)
-		/*
-		 * For kernel releases older than 4.20, using the SLUB allocator will cause
-		 * this alignment check to fail as that allocator did NOT align kmalloc
-		 * allocations on a PAGE_SIZE boundary.
-		 */
-		 false ||
-#else
-		 offset_in_page(buf) ||
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)
+	/* Older SLUB allocators need not align the buffer to a page boundary. */
+	invalid = invalid || offset_in_page(buf);
 #endif
-		 at < 0 || at >= PAGE_SIZE,
-		 "invalid sysfs_emit_at: buf:%p at:%d\n", buf, at))
+	if (WARN(invalid || at < 0 || at >= PAGE_SIZE,
+		 "invalid %s: buf:%p at:%d\n", __func__, buf, at))
 		return 0;
 
 	va_start(args, fmt);
