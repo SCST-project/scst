@@ -19,6 +19,7 @@ enum compl_status_e vdisk_exec_sai_16(struct vdisk_cmd_params *p);
 enum compl_status_e vdisk_exec_request_sense(struct vdisk_cmd_params *p);
 enum compl_status_e fileio_exec_write(struct vdisk_cmd_params *p);
 enum compl_status_e fileio_exec_read(struct vdisk_cmd_params *p);
+enum compl_status_e nullio_exec_read(struct vdisk_cmd_params *p);
 bool vdisk_parse_offset(struct vdisk_cmd_params *p, struct scst_cmd *cmd);
 enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p);
 ssize_t vdisk_sysfs_sync_store(struct kobject *kobj, struct kobj_attribute *attr,

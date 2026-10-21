@@ -9,8 +9,14 @@
 struct write_same_fixture {
 	struct scst_cmd cmd;
 	struct scst_device dev;
+	struct scst_session sess;
 	struct scst_write_same_priv wsp;
 	u8 cdb[32];
+	u8 *data;
+	size_t copied;
+	unsigned int writes;
+	unsigned int completions;
+	bool replicated;
 };
 
 static int write_same_init(struct kunit *test)
@@ -21,7 +27,10 @@ static int write_same_init(struct kunit *test)
 		return -ENOMEM;
 	test->priv = f;
 	f->cmd.dev = &f->dev;
+	f->cmd.sess = &f->sess;
 	f->cmd.cdb = f->cdb;
+	atomic_set(&f->sess.sess_cmd_count, 1);
+	f->sess.initiator_name = "kunit-write-same";
 	f->dev.dev_dif_type = 2;
 	f->wsp.ws_orig_cmd = &f->cmd;
 	f->wsp.dif_valid = 1;
@@ -275,11 +284,116 @@ static void write_same_flags(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, cdb[p->needs_dif ? 10 : 1], p->expected);
 }
 
+static int write_same_no_dif(struct scst_cmd *cmd)
+{
+	return 0;
+}
+
+static void write_same_done(struct scst_cmd *cmd, int next_state,
+			    enum scst_exec_context context)
+{
+	struct write_same_fixture *f = container_of(cmd, struct write_same_fixture, cmd);
+
+	f->completions++;
+}
+
+static int write_same_capture_write(struct scst_write_same_priv *wsp, s64 lba, int blocks)
+{
+	struct kunit *test = kunit_get_current_test();
+	struct write_same_fixture *f = test->priv;
+	struct scatterlist *sg;
+	int sg_cnt;
+
+	f->writes++;
+	KUNIT_EXPECT_EQ(test, lba, f->cmd.lba);
+	KUNIT_EXPECT_EQ(test, blocks, (int)(PAGE_SIZE >> f->dev.block_shift));
+	if (blocks == wsp->ws_max_each) {
+		sg = wsp->ws_sg_full;
+		sg_cnt = wsp->ws_sg_full_cnt;
+	} else {
+		sg = wsp->ws_sg_tails[wsp->ws_cur_descr].sg;
+		sg_cnt = wsp->ws_sg_tails[wsp->ws_cur_descr].sg_cnt;
+	}
+	KUNIT_EXPECT_EQ(test, sg_cnt, 1);
+	if (sg && sg_cnt > 0) {
+		f->replicated = sg_page(sg) != sg_page(f->cmd.sg);
+		f->copied = sg_copy_to_buffer(sg, sg_cnt, f->data, PAGE_SIZE);
+	}
+
+	/* Stop before submitting I/O; the caller frees the prepared buffers. */
+	return -EIO;
+}
+
+struct write_same_data_case {
+	const char *name;
+	unsigned int offset;
+};
+
+static const struct write_same_data_case write_same_data_cases[] = {
+	{ "aligned_block", 0 },
+	{ "offset_block", 512 },
+	{ "page_crossing_block", PAGE_SIZE - 512 },
+};
+
+static void write_same_data_desc(const struct write_same_data_case *p, char *desc)
+{
+	snprintf(desc, KUNIT_PARAM_DESC_SIZE, "%s", p->name);
+}
+
+KUNIT_ARRAY_PARAM(write_same_data, write_same_data_cases, write_same_data_desc);
+
+/* CONFIG_DEBUG_KMAP_LOCAL_FORCE_MAP exposes reads past a single-page mapping. */
+static void write_same_data(struct kunit *test)
+{
+	const struct write_same_data_case *p = test->param_value;
+	struct write_same_fixture *f = test->priv;
+	struct scatterlist sg;
+	unsigned int i;
+	u8 *source;
+
+	source = kunit_kmalloc(test, 2 * PAGE_SIZE, GFP_KERNEL);
+	KUNIT_ASSERT_NOT_NULL(test, source);
+	f->data = kunit_kmalloc(test, PAGE_SIZE, GFP_KERNEL);
+	KUNIT_ASSERT_NOT_NULL(test, f->data);
+	/* Give the two halves of the crossing block different byte patterns. */
+	for (i = 0; i < 2 * PAGE_SIZE; i++)
+		source[i] = i ^ (i >> 8);
+	memset(f->data, 0xa5, PAGE_SIZE);
+	sg_init_one(&sg, source + p->offset, 1024);
+	KUNIT_ASSERT_EQ(test, sg.offset, p->offset);
+	f->cmd.sg = &sg;
+	f->cmd.sg_cnt = 1;
+	f->cmd.bufflen = 1024;
+	f->cmd.data_len = PAGE_SIZE;
+	f->cmd.lba = 123;
+	f->cmd.cdb_len = 16;
+	f->cdb[0] = WRITE_SAME_16;
+	f->cmd.data_direction = SCST_DATA_WRITE;
+	f->cmd.scst_cmd_done = write_same_done;
+	f->dev.block_shift = 10;
+	f->dev.block_size = 1024;
+	f->dev.max_write_same_len = PAGE_SIZE;
+	f->dev.dev_dif_fn = write_same_no_dif;
+
+	kunit_activate_static_stub(test, scst_ws_push_single_write, write_same_capture_write);
+	scst_write_same(&f->cmd, NULL);
+	kunit_deactivate_static_stub(test, scst_ws_push_single_write);
+
+	KUNIT_EXPECT_EQ(test, f->completions, 1U);
+	KUNIT_EXPECT_TRUE(test, f->cmd.completed);
+	KUNIT_ASSERT_EQ(test, f->writes, 1U);
+	KUNIT_ASSERT_TRUE(test, f->replicated);
+	KUNIT_ASSERT_EQ(test, f->copied, (size_t)PAGE_SIZE);
+	for (i = 0; i < PAGE_SIZE; i += f->cmd.bufflen)
+		KUNIT_EXPECT_MEMEQ(test, f->data + i, source + p->offset, f->cmd.bufflen);
+}
+
 static struct kunit_case write_same_cases[] = {
 	KUNIT_CASE_PARAM(write_same_app_tag, write_same_tag_gen_params),
 	KUNIT_CASE_PARAM(write_same_cdb_image, write_same_cdb_gen_params),
 	KUNIT_CASE_PARAM(write_same_app_tag_mask, write_same_mask_gen_params),
 	KUNIT_CASE_PARAM(write_same_flags, write_same_flags_gen_params),
+	KUNIT_CASE_PARAM(write_same_data, write_same_data_gen_params),
 	{}
 };
 

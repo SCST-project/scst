@@ -223,9 +223,62 @@ static void vdisk_async_test(struct kunit *test)
 	}
 }
 
+struct vdisk_nullio_case {
+	const char *name;
+	unsigned int offset;
+	unsigned int length;
+	bool read_zero;
+};
+
+static const struct vdisk_nullio_case vdisk_nullio_cases[] = {
+	{ "full_page", 0, PAGE_SIZE, true },
+	{ "multiple_pages", 0, 3 * PAGE_SIZE, true },
+	{ "partial_page", 17, 31, true },
+	{ "cross_page", PAGE_SIZE - 17, 34, true },
+	{ "multiple_pages_with_offset", 37, 2 * PAGE_SIZE + 71, true },
+	{ "read_zero_disabled", 37, 2 * PAGE_SIZE + 71, false },
+};
+
+static void vdisk_nullio_desc(const struct vdisk_nullio_case *p, char *desc)
+{
+	snprintf(desc, KUNIT_PARAM_DESC_SIZE, "%s", p->name);
+}
+
+KUNIT_ARRAY_PARAM(vdisk_nullio, vdisk_nullio_cases, vdisk_nullio_desc);
+
+static void vdisk_nullio_read_test(struct kunit *test)
+{
+	const struct vdisk_nullio_case *p = test->param_value;
+	struct vdisk_test_fixture *f = test->priv;
+	const size_t size = 4 * PAGE_SIZE;
+	unsigned int end = p->offset + p->length;
+	u8 *buffer;
+
+	/* A page-aligned, physically contiguous allocation for one clustered SG entry. */
+	buffer = kunit_kmalloc(test, size, GFP_KERNEL);
+	KUNIT_ASSERT_NOT_NULL(test, buffer);
+	memset(buffer, 0xa5, size);
+	sg_init_table(f->sg, 1);
+	sg_set_page(f->sg, virt_to_page(buffer), p->length, p->offset);
+	f->cmd.sg_cnt = 1;
+	f->cmd.data_direction = SCST_DATA_READ;
+	f->cmd.data_len = p->length;
+	f->cmd.bufflen = p->length;
+	f->cmd.resp_data_len = p->length;
+	f->vdev.read_zero = p->read_zero;
+
+	KUNIT_EXPECT_EQ(test, nullio_exec_read(&f->params), CMD_SUCCEEDED);
+	KUNIT_EXPECT_EQ(test, f->cmd.status, (u8)SAM_STAT_GOOD);
+	KUNIT_EXPECT_PTR_EQ(test, memchr_inv(buffer, 0xa5, p->offset), NULL);
+	KUNIT_EXPECT_PTR_EQ(test, memchr_inv(buffer + p->offset, p->read_zero ? 0 : 0xa5,
+					     p->length), NULL);
+	KUNIT_EXPECT_PTR_EQ(test, memchr_inv(buffer + end, 0xa5, size - end), NULL);
+}
+
 static struct kunit_case vdisk_io_cases[] = {
 	KUNIT_CASE_PARAM(vdisk_write_test, vdisk_write_gen_params),
 	KUNIT_CASE_PARAM(vdisk_async_test, vdisk_async_gen_params),
+	KUNIT_CASE_PARAM(vdisk_nullio_read_test, vdisk_nullio_gen_params),
 	{}
 };
 

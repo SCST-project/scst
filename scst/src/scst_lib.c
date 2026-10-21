@@ -6467,8 +6467,8 @@ int scst_ws_build_write_cdb(const struct scst_write_same_priv *wsp,
 }
 
 /* ws_mutex suppose to be locked */
-static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
-	int64_t lba, int blocks)
+SCST_KUNIT_VISIBLE
+int scst_ws_push_single_write(struct scst_write_same_priv *wsp, s64 lba, int blocks)
 {
 	struct scst_cmd *ws_cmd = wsp->ws_orig_cmd;
 	struct scatterlist *ws_sg;
@@ -6479,6 +6479,8 @@ static int scst_ws_push_single_write(struct scst_write_same_priv *wsp,
 	int len = blocks << ws_cmd->dev->block_shift;
 	struct scst_cmd *cmd;
 	bool needs_dif = wsp->dif_valid;
+
+	SCST_KUNIT_REDIRECT(scst_ws_push_single_write, wsp, lba, blocks);
 
 	TRACE_ENTRY();
 
@@ -6905,18 +6907,16 @@ void scst_write_same(struct scst_cmd *cmd, struct scst_data_descriptor *where)
 	if (cmd->bufflen <= PAGE_SIZE / 2)
 		pg = alloc_page(GFP_KERNEL);
 	if (pg) {
-		struct page *src_pg;
-		void *src, *dst;
+		u8 *dst;
 		int k;
 
-		mult = 0;
-		src_pg = sg_page(cmd->sg);
-		src = kmap(src_pg);
-		dst = kmap(pg);
-		for (k = 0; k < PAGE_SIZE; k += cmd->bufflen, mult++)
-			memcpy(dst + k, src + cmd->sg->offset, cmd->bufflen);
-		kunmap(pg);
-		kunmap(src_pg);
+		dst = kmap_local_page(pg);
+		/* A single SG entry can hold a block spanning multiple pages. */
+		sg_copy_to_buffer(cmd->sg, cmd->sg_cnt, dst, cmd->bufflen);
+		mult = 1;
+		for (k = cmd->bufflen; k < PAGE_SIZE; k += cmd->bufflen, mult++)
+			memcpy(dst + k, dst, cmd->bufflen);
+		kunmap_local(dst);
 		offset = 0;
 		length = k;
 	} else {
@@ -8764,9 +8764,9 @@ int sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 		u8 *saddr, *daddr;
 		size_t n;
 
-		saddr = kmap_atomic(src_page + (src_offs >> PAGE_SHIFT));
+		saddr = kmap_local_page(src_page + (src_offs >> PAGE_SHIFT));
 		saddr += src_offs & ~PAGE_MASK;
-		daddr = kmap_atomic(dst_page + (dst_offs >> PAGE_SHIFT));
+		daddr = kmap_local_page(dst_page + (dst_offs >> PAGE_SHIFT));
 		daddr += dst_offs & ~PAGE_MASK;
 
 		if (((src_offs & ~PAGE_MASK) == 0) &&
@@ -8786,9 +8786,9 @@ int sg_copy_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 		dst_offs += n;
 		src_offs += n;
 
-		/* Atomic mappings must unwind in reverse order. */
-		kunmap_atomic(daddr);
-		kunmap_atomic(saddr);
+		/* Local mappings must unwind in reverse order. */
+		kunmap_local(daddr);
+		kunmap_local(saddr);
 
 		res += n;
 		copy_len -= n;
@@ -9129,9 +9129,9 @@ int sg_cmp_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 		size_t n;
 		int rc;
 
-		saddr = kmap_atomic(src_page + (src_offs >> PAGE_SHIFT));
+		saddr = kmap_local_page(src_page + (src_offs >> PAGE_SHIFT));
 		saddr += src_offs & ~PAGE_MASK;
-		daddr = kmap_atomic(dst_page + (dst_offs >> PAGE_SHIFT));
+		daddr = kmap_local_page(dst_page + (dst_offs >> PAGE_SHIFT));
 		daddr += dst_offs & ~PAGE_MASK;
 
 		if (((src_offs & ~PAGE_MASK) == 0) &&
@@ -9204,9 +9204,9 @@ int sg_cmp_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 		dst_offs += n;
 		src_offs += n;
 
-		/* Atomic mappings must unwind in reverse order. */
-		kunmap_atomic(daddr);
-		kunmap_atomic(saddr);
+		/* Local mappings must unwind in reverse order. */
+		kunmap_local(daddr);
+		kunmap_local(saddr);
 
 		res += n;
 		cmp_len -= n;
@@ -9232,8 +9232,8 @@ out:
 	return res;
 
 out_unmap:
-	kunmap_atomic(daddr);
-	kunmap_atomic(saddr);
+	kunmap_local(daddr);
+	kunmap_local(saddr);
 	goto out;
 }
 

@@ -5035,7 +5035,8 @@ out:
 	return p->sync.kvec;
 }
 
-static enum compl_status_e nullio_exec_read(struct vdisk_cmd_params *p)
+SCST_KUNIT_VISIBLE
+enum compl_status_e nullio_exec_read(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
 	struct scst_device *dev = cmd->dev;
@@ -5045,18 +5046,28 @@ static enum compl_status_e nullio_exec_read(struct vdisk_cmd_params *p)
 
 	if (virt_dev->read_zero) {
 		struct scatterlist *sge;
-		struct page *page;
 		int i;
-		void *p;
 
 		for_each_sg(cmd->sg, sge, cmd->sg_cnt, i) {
-			page = sg_page(sge);
-			p = kmap(page);
-			if (sge->offset == 0 && sge->length == PAGE_SIZE)
-				clear_page(p);
-			else
-				memset(p + sge->offset, 0, sge->length);
-			kunmap(page);
+			unsigned int page_index = sge->offset >> PAGE_SHIFT;
+			unsigned int offset = sge->offset & ~PAGE_MASK;
+			unsigned int remaining = sge->length;
+
+			while (remaining) {
+				struct page *page = pfn_to_page(page_to_pfn(sg_page(sge)) +
+							      page_index++);
+				unsigned int len = min_t(unsigned int, remaining,
+							 PAGE_SIZE - offset);
+				u8 *data = kmap_local_page(page);
+
+				if (len == PAGE_SIZE)
+					clear_page(data);
+				else
+					memset(data + offset, 0, len);
+				kunmap_local(data);
+				remaining -= len;
+				offset = 0;
+			}
 		}
 	}
 
