@@ -15,6 +15,7 @@
 #include <stdio.h>
 #include <pthread.h>
 #include <unistd.h>
+#include <time.h>
 #include <syslog.h>
 #include <signal.h>
 #include <syslog.h>
@@ -196,7 +197,7 @@ static int wait_until_finished(pid_t pid, unsigned long deadline, int *status, i
 			}
 			break;
 		}
-		usleep(100*1000);
+		nanosleep(&(const struct timespec){ .tv_nsec = 100000000 }, NULL);
 		time(&end);
 		elapsed = difftime(end, start);
 	} while (elapsed < deadline);
