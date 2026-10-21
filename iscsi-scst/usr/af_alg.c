@@ -86,7 +86,7 @@ ssize_t af_alg_final(int datafd, void *out, size_t len)
 	return res;
 }
 
-bool af_alg_supported(char *alg)
+bool af_alg_supported(const char *alg)
 {
 	int sock = af_alg_init(alg);
 

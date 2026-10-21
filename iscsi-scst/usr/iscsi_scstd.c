@@ -243,7 +243,8 @@ static int uncork_transmit_iser(int fd)
 
 static void create_iser_listen_socket(struct pollfd *array)
 {
-	struct addrinfo hints, *res, *res0;
+	struct addrinfo hints, *res0;
+	const struct addrinfo *res;
 	char servname[64];
 	int i, k;
 	int iser_fd;
@@ -868,7 +869,7 @@ static void resume_logins(int sig)
 int main(int argc, char **argv)
 {
 	int ch, longindex;
-	char *config = NULL;
+	const char *config = NULL;
 	uid_t uid = 0;
 	gid_t gid = 0;
 	int err;

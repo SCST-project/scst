@@ -78,7 +78,7 @@ static inline int decode_hex_digit(char c)
 
 static void decode_hex_string(char *hex_string, u8 *intnum, int intlen)
 {
-	char *ptr;
+	const char *ptr;
 	int j;
 
 	j = strlen(hex_string);
@@ -120,7 +120,7 @@ static u8 decode_base64_digit(char base64)
 }
 
 /* Base64 decoding, taken from UNH-iSCSI "Base64StringToInteger()" */
-static void decode_base64_string(char *string, u8 *intnum, int int_len)
+static void decode_base64_string(const char *string, u8 *intnum, int int_len)
 {
 	int len;
 	int count;
@@ -176,7 +176,7 @@ static void decode_base64_string(char *string, u8 *intnum, int int_len)
 	}
 }
 
-static inline void encode_hex_string(u8 *intnum, long length, char *string)
+static inline void encode_hex_string(const u8 *intnum, long length, char *string)
 {
 	int i;
 	char *strptr;
@@ -187,7 +187,7 @@ static inline void encode_hex_string(u8 *intnum, long length, char *string)
 }
 
 /* Base64 encoding, taken from UNH iSCSI "IntegerToBase64String()" */
-static void encode_base64_string(u8 *intnum, long length, char *string)
+static void encode_base64_string(const u8 *intnum, long length, char *string)
 {
 	int count, strptr, delta;
 	static const char base64code[] = { 'A', 'B', 'C', 'D', 'E', 'F', 'G',
@@ -234,7 +234,7 @@ static void encode_base64_string(u8 *intnum, long length, char *string)
 	string[strptr] = '\0';
 }
 
-static inline int chap_check_encoding_format(char *encoded)
+static inline int chap_check_encoding_format(const char *encoded)
 {
 	int encoding_fmt;
 
@@ -253,7 +253,7 @@ static inline int chap_check_encoding_format(char *encoded)
 	return encoding_fmt;
 }
 
-static int chap_alloc_decode_buffer(char *encoded, u8 **decode_buf, int encoding_fmt)
+static int chap_alloc_decode_buffer(const char *encoded, u8 **decode_buf, int encoding_fmt)
 {
 	int i;
 	int decode_len = 0;
@@ -310,7 +310,7 @@ static int chap_decode_string(char *encoded, u8 *decode_buf, int buf_len, int en
 	return 0;
 }
 
-static inline void chap_encode_string(u8 *intnum, int buf_len, char *encode_buf, int encoding_fmt)
+static inline void chap_encode_string(const u8 *intnum, int buf_len, char *encode_buf, int encoding_fmt)
 {
 	encode_buf[0] = '0';
 	if (encoding_fmt == HEX_FORMAT) {
@@ -649,7 +649,7 @@ static int chap_target_auth_create_response(struct connection *conn)
 	char chap_id, *value, *response = NULL;
 	u8 *challenge = NULL, *digest = NULL;
 	int encoding_format, response_len;
-	struct iscsi_attr *user;
+	const struct iscsi_attr *user;
 	int challenge_len = 0, digest_len = 0, retval = 0;
 	int res;
 

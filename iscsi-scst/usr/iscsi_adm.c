@@ -37,7 +37,7 @@
 #define	SET_CONNECTION	(1 << 2)
 #define	SET_USER	(1 << 4)
 
-typedef int (user_handle_fn_t)(struct iscsi_adm_req *req, char *user, char *pass);
+typedef int (user_handle_fn_t)(struct iscsi_adm_req *req, const char *user, const char *pass);
 
 enum iscsi_adm_op {
 	OP_NEW,
@@ -117,7 +117,7 @@ Report bugs to <scst-devel@lists.sourceforge.net>.\n");
 	exit(status == 0 ? 0 : -1);
 }
 
-static int str_to_op(char *str)
+static int str_to_op(const char *str)
 {
 	int op;
 
@@ -135,7 +135,7 @@ static int str_to_op(char *str)
 	return op;
 }
 
-static int iscsid_request_send(int fd, struct iscsi_adm_req *req)
+static int iscsid_request_send(int fd, const struct iscsi_adm_req *req)
 {
 	int err, ret;
 
@@ -247,11 +247,11 @@ out_close:
 	return err;
 }
 
-static void show_iscsi_params(int type, struct iscsi_param *param)
+static void show_iscsi_params(int type, const struct iscsi_param *param)
 {
 	int i, nr;
 	char buf[1024];
-	struct iscsi_key *keys;
+	const struct iscsi_key *keys;
 
 	if (type == key_session) {
 		nr = session_key_last;
@@ -457,7 +457,7 @@ static int parse_user_params(char *params, u32 *auth_dir, char **user,
 	return 0;
 }
 
-static void show_account(int auth_dir, char *user, char *pass)
+static void show_account(int auth_dir, const char *user, const char *pass)
 {
 	char buf[(ISCSI_NAME_LEN  + 1) * 2] = {0};
 
@@ -469,7 +469,7 @@ static void show_account(int auth_dir, char *user, char *pass)
 	       "Incoming" : "Outgoing", buf);
 }
 
-static int user_handle_show_user(struct iscsi_adm_req *req, char *user)
+static int user_handle_show_user(struct iscsi_adm_req *req, const char *user)
 {
 	int err;
 
@@ -537,7 +537,7 @@ static int user_handle_show_list(struct iscsi_adm_req *req)
 	return err;
 }
 
-static int user_handle_show(struct iscsi_adm_req *req, char *user, char *pass)
+static int user_handle_show(struct iscsi_adm_req *req, const char *user, const char *pass)
 {
 	if (pass)
 		fprintf(stderr, "Ignoring specified password\n");
@@ -548,7 +548,7 @@ static int user_handle_show(struct iscsi_adm_req *req, char *user, char *pass)
 		return user_handle_show_list(req);
 }
 
-static int user_handle_new(struct iscsi_adm_req *req, char *user, char *pass)
+static int user_handle_new(struct iscsi_adm_req *req, const char *user, const char *pass)
 {
 	if (!user || !pass) {
 		fprintf(stderr, "Username and password must be specified\n");
@@ -563,7 +563,7 @@ static int user_handle_new(struct iscsi_adm_req *req, char *user, char *pass)
 	return iscsid_request(req, NULL, 0);
 }
 
-static int user_handle_del(struct iscsi_adm_req *req, char *user, char *pass)
+static int user_handle_del(struct iscsi_adm_req *req, const char *user, const char *pass)
 {
 	if (!user) {
 		fprintf(stderr, "Username must be specified\n");

@@ -68,7 +68,7 @@ static char eid[ISCSI_NAME_LEN];
 static uint8_t ip[16]; /* SCST iSCSI supports only one portal */
 static struct sockaddr_storage ss;
 
-int isns_scn_access_allowed(uint32_t tid, char *name)
+int isns_scn_access_allowed(uint32_t tid, const char *name)
 {
 	struct isns_initiator *ini;
 	struct target *target = target_find_by_id(tid);
@@ -187,7 +187,7 @@ static void isns_hdr_init(struct isns_hdr *hdr, uint16_t function,
 }
 
 static int isns_tlv_set(struct isns_tlv **tlv, int max_tlv_buflen,
-	uint32_t tag, uint32_t length, void *value)
+	uint32_t tag, uint32_t length, const void *value)
 {
 	int l = length;
 	int res;
@@ -217,7 +217,7 @@ out:
 	return res;
 }
 
-static int isns_scn_deregister(char *name)
+static int isns_scn_deregister(const char *name)
 {
 	int err;
 	uint16_t flags, length = 0;
@@ -281,7 +281,7 @@ static int isns_scn_register(void)
 	struct isns_hdr *hdr = (struct isns_hdr *)buf;
 	int max_buf;
 	struct isns_tlv *tlv;
-	struct target *target;
+	const struct target *target;
 
 	if (list_empty(&targets_list))
 		return 0;
@@ -336,14 +336,14 @@ out:
 	return err;
 }
 
-static int isns_attr_query(char *name)
+static int isns_attr_query(const char *name)
 {
 	int err;
 	uint16_t flags, length = 0;
 	char buf[4096];
 	struct isns_hdr *hdr = (struct isns_hdr *)buf;
 	struct isns_tlv *tlv;
-	struct target *target;
+	const struct target *target;
 	uint32_t node = htonl(ISNS_NODE_INITIATOR);
 	struct isns_qry_mgmt *mgmt;
 	int max_buf;
@@ -426,7 +426,7 @@ static int isns_deregister(void)
 	char buf[4096];
 	struct isns_hdr *hdr = (struct isns_hdr *)buf;
 	struct isns_tlv *tlv;
-	struct target *target;
+	const struct target *target;
 	int max_buf;
 
 	if (list_empty(&targets_list))
@@ -472,7 +472,7 @@ out:
 	return err;
 }
 
-int isns_target_register(char *name)
+int isns_target_register(const char *name)
 {
 	char buf[4096];
 	uint16_t flags = 0, length = 0;
@@ -481,7 +481,8 @@ int isns_target_register(char *name)
 	uint32_t port = htonl(server_port);
 	uint32_t node = htonl(ISNS_NODE_TARGET);
 	uint32_t type = htonl(2);
-	struct target *target, *alias_target;
+	const struct target *target;
+	struct target *alias_target;
 	int err, initial = list_length_is_one(&targets_list);
 	int max_buf;
 
@@ -610,7 +611,7 @@ static void free_all_acl(struct target *target)
 	}
 }
 
-int isns_target_deregister(char *name)
+int isns_target_deregister(const char *name)
 {
 	char buf[4096];
 	uint16_t flags, length = 0;
@@ -679,7 +680,7 @@ out:
 	return err;
 }
 
-static int recv_hdr(int fd, struct isns_io *rx, struct isns_hdr *hdr)
+static int recv_hdr(int fd, struct isns_io *rx, const struct isns_hdr *hdr)
 {
 	if (rx->offset < sizeof(*hdr)) {
 		int err;
@@ -718,7 +719,7 @@ static inline void get_hdr_param(const struct isns_hdr *hdr, uint16_t *function,
 	*sequence = ntohs(hdr->sequence);
 }
 
-static int recv_pdu(int fd, struct isns_io *rx, struct isns_hdr *hdr)
+static int recv_pdu(int fd, struct isns_io *rx, const struct isns_hdr *hdr)
 {
 	uint16_t function, length, flags, transaction, sequence;
 	int err;
@@ -1026,7 +1027,7 @@ out:
 	return 0;
 }
 
-static int send_scn_rsp(char *name, uint16_t transaction)
+static int send_scn_rsp(const char *name, uint16_t transaction)
 {
 	char buf[1024];
 	struct isns_hdr *hdr = (struct isns_hdr *)buf;
@@ -1063,7 +1064,7 @@ int isns_scn_handle(int is_accept)
 	struct isns_io *rx = &scn_rx;
 	struct isns_hdr *hdr = (struct isns_hdr *)rx->buf;
 	uint16_t function, transaction;
-	char *name = NULL;
+	const char *name = NULL;
 
 	log_debug(3, "%s %d: %d", __func__, __LINE__, is_accept);
 

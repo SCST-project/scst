@@ -202,7 +202,7 @@ int kernel_target_destroy(u32 tid, u32 cookie)
 }
 
 
-int kernel_attr_add(struct target *target, const char *name, u32 mode,
+int kernel_attr_add(const struct target *target, const char *name, u32 mode,
 	u32 cookie)
 {
 	struct iscsi_kern_attr_info info;
@@ -223,7 +223,7 @@ int kernel_attr_add(struct target *target, const char *name, u32 mode,
 	return res;
 }
 
-int kernel_attr_del(struct target *target, const char *name, u32 cookie)
+int kernel_attr_del(const struct target *target, const char *name, u32 cookie)
 {
 	struct iscsi_kern_attr_info info;
 	int res;
@@ -242,12 +242,12 @@ int kernel_attr_del(struct target *target, const char *name, u32 cookie)
 	return res;
 }
 
-int kernel_user_add(struct target *target, struct iscsi_attr *user, u32 cookie)
+int kernel_user_add(const struct target *target, const struct iscsi_attr *user, u32 cookie)
 {
 	return kernel_attr_add(target, user->sysfs_name, 0600, cookie);
 }
 
-int kernel_user_del(struct target *target, struct iscsi_attr *user, u32 cookie)
+int kernel_user_del(const struct target *target, const struct iscsi_attr *user, u32 cookie)
 {
 	return kernel_attr_del(target, user->sysfs_name, cookie);
 }
