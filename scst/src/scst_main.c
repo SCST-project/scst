@@ -39,7 +39,7 @@
 #include "scst_priv.h"
 #include "scst_mem.h"
 #include "scst_pres.h"
-#include "scst_test.h"
+#include "scst_main_test.h"
 
 #undef DEFAULT_SYMBOL_NAMESPACE
 #define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
@@ -626,10 +626,16 @@ char *scst_get_cmd_state_name(char *name, int len, unsigned int state)
 	return name;
 }
 
-static char *scst_dump_cdb(char *buf, int buf_len, struct scst_cmd *cmd)
+SCST_KUNIT_VISIBLE
+char *scst_dump_cdb(char *buf, size_t buf_len, const struct scst_cmd *cmd)
 {
-	char *p = buf, *end = buf + buf_len;
+	char *p = buf, *end;
 	int i;
+
+	if (!buf_len)
+		return buf;
+	*buf = '\0';
+	end = buf + buf_len;
 
 	for (i = 0; i < cmd->cdb_len && p < end; i++)
 		p += scnprintf(p, end - p, "%s%02x", i ? " " : "", cmd->cdb[i]);
