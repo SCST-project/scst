@@ -373,10 +373,10 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA);
 #define SCST_REPL_LUN_GEN_UA	8
 
 int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent, struct scst_device *dev,
-		     uint64_t lun, unsigned int flags, struct scst_acg_dev **out_acg_dev);
-int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun, bool gen_report_luns_changed);
+		     u64 lun, unsigned int flags, struct scst_acg_dev **out_acg_dev);
+int scst_acg_del_lun(struct scst_acg *acg, u64 lun, bool gen_report_luns_changed);
 int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
-		      struct scst_device *dev, uint64_t lun,
+		      struct scst_device *dev, u64 lun,
 		      unsigned int flags);
 
 int scst_acg_add_acn(struct scst_acg *acg, const char *name);
@@ -386,7 +386,7 @@ struct scst_acn *scst_find_acn(struct scst_acg *acg, const char *name);
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd);
 int scst_finish_internal_cmd(struct scst_cmd *cmd);
 
-int scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense, unsigned int len);
+int scst_set_cmd_error_sense(struct scst_cmd *cmd, u8 *sense, unsigned int len);
 
 int scst_process_check_condition(struct scst_cmd *cmd);
 
@@ -405,7 +405,7 @@ void scst_check_retries(struct scst_tgt *tgt);
 
 static inline int scst_dlm_new_lockspace(const char *name, int namelen,
 					 dlm_lockspace_t **lockspace,
-					 uint32_t flags,
+					 u32 flags,
 					 int lvblen)
 {
 	return dlm_new_lockspace(name, scst_cluster_name, flags, lvblen,
@@ -547,16 +547,16 @@ static inline void scst_clear_dev_reservation(struct scst_device *dev)
 void scst_tgt_dev_del_free_UA(struct scst_tgt_dev *tgt_dev,
 			      struct scst_tgt_dev_UA *ua);
 void scst_dev_check_set_UA(struct scst_device *dev, struct scst_cmd *exclude,
-			   const uint8_t *sense, int sense_len);
+			   const u8 *sense, int sense_len);
 void scst_dev_check_set_local_UA(struct scst_device *dev, struct scst_cmd *exclude,
-				 const uint8_t *sense, int sense_len);
+				 const u8 *sense, int sense_len);
 
 #define SCST_SET_UA_FLAG_AT_HEAD	1
 #define SCST_SET_UA_FLAG_GLOBAL		2
 
-void scst_check_set_UA(struct scst_tgt_dev *tgt_dev, const uint8_t *sense, int sense_len,
+void scst_check_set_UA(struct scst_tgt_dev *tgt_dev, const u8 *sense, int sense_len,
 		       int flags);
-int scst_set_pending_UA(struct scst_cmd *cmd, uint8_t *buf, int *size);
+int scst_set_pending_UA(struct scst_cmd *cmd, u8 *buf, int *size);
 
 void scst_report_luns_changed(struct scst_acg *acg);
 
@@ -570,10 +570,10 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt, const struct scst_ses
 			       const struct scst_device *device);
 void scst_clear_aca(struct scst_tgt_dev *tgt_dev, bool other_ini);
 
-bool scst_is_ua_global(const uint8_t *sense, int len);
-void scst_requeue_ua(struct scst_cmd *cmd, const uint8_t *buf, int size);
+bool scst_is_ua_global(const u8 *sense, int len);
+void scst_requeue_ua(struct scst_cmd *cmd, const u8 *buf, int size);
 
-struct scst_aen *scst_alloc_aen(struct scst_session *sess, uint64_t unpacked_lun);
+struct scst_aen *scst_alloc_aen(struct scst_session *sess, u64 unpacked_lun);
 void scst_free_aen(struct scst_aen *aen);
 
 void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev, int key, int asc, int ascq);
@@ -675,8 +675,8 @@ static inline void scst_sess_put(struct scst_session *sess)
 	percpu_ref_put(&sess->refcnt);
 }
 
-struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb, unsigned int cdb_len, gfp_t gfp_mask);
-int scst_pre_init_cmd(struct scst_cmd *cmd, const uint8_t *cdb, unsigned int cdb_len,
+struct scst_cmd *scst_alloc_cmd(const u8 *cdb, unsigned int cdb_len, gfp_t gfp_mask);
+int scst_pre_init_cmd(struct scst_cmd *cmd, const u8 *cdb, unsigned int cdb_len,
 		      gfp_t gfp_mask);
 void scst_free_cmd(struct kref *ref);
 
@@ -712,12 +712,12 @@ void scst_vfs_unlink_and_put(struct path *path);
 
 int scst_copy_file(const char *src, const char *dest);
 
-struct scst_cmd *__scst_create_prepare_internal_cmd(const uint8_t *cdb, unsigned int cdb_len,
+struct scst_cmd *__scst_create_prepare_internal_cmd(const u8 *cdb, unsigned int cdb_len,
 						    enum scst_cmd_queue_type queue_type,
 						    struct scst_tgt_dev *tgt_dev, gfp_t gfp_mask,
 						    bool fantom);
 
-static inline bool scst_lba1_inside_lba2(int64_t lba1, int64_t lba2, int64_t lba2_blocks)
+static inline bool scst_lba1_inside_lba2(s64 lba1, s64 lba2, s64 lba2_blocks)
 {
 	bool res;
 
@@ -739,7 +739,7 @@ void scst_cm_on_dev_unregister(struct scst_device *dev);
 
 int scst_cm_on_add_acg(struct scst_acg *acg);
 void scst_cm_on_del_acg(struct scst_acg *acg);
-int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun, unsigned int *flags);
+int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, u64 lun, unsigned int *flags);
 bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev, bool gen_report_luns_changed);
 
 int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd);
@@ -797,13 +797,13 @@ static inline void scst_check_debug_sn(struct scst_cmd *cmd)
 }
 #endif
 
-static inline int scst_sn_before(uint32_t seq1, uint32_t seq2)
+static inline int scst_sn_before(u32 seq1, u32 seq2)
 {
-	return (int32_t)(seq1 - seq2) < 0;
+	return (s32)(seq1 - seq2) < 0;
 }
 
-int gen_relative_target_port_id(uint16_t *id);
-bool scst_is_relative_target_port_id_unique(uint16_t id, const struct scst_tgt *t);
+int gen_relative_target_port_id(u16 *id);
+bool scst_is_relative_target_port_id_unique(u16 id, const struct scst_tgt *t);
 
 int scst_event_init(void);
 void scst_event_exit(void);

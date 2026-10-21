@@ -2367,7 +2367,7 @@ static int __init init_scst(void)
 	if (!INIT_CACHEP(scst_ua_cachep, scst_tgt_dev_UA))
 		goto out_destroy_mgmt_stub_cache;
 	{
-		struct scst_sense { uint8_t s[SCST_SENSE_BUFFERSIZE]; };
+		struct scst_sense { u8 s[SCST_SENSE_BUFFERSIZE]; };
 		if (!INIT_CACHEP_USERCOPY(scst_sense_cachep, scst_sense, s))
 			goto out_destroy_ua_cache;
 	}
@@ -2445,8 +2445,8 @@ static int __init init_scst(void)
 
 		si_meminfo(&si);
 #if BITS_PER_LONG == 32
-		scst_max_cmd_mem = min((((uint64_t)(si.totalram - si.totalhigh) << PAGE_SHIFT) >> 20) >> 2,
-				       (uint64_t)1 << 30);
+		scst_max_cmd_mem = min((((u64)(si.totalram - si.totalhigh) << PAGE_SHIFT) >> 20) >> 2,
+				       (u64)1 << 30);
 #else
 		scst_max_cmd_mem = (((si.totalram - si.totalhigh) << PAGE_SHIFT) >> 20) >> 2;
 #endif
@@ -2462,7 +2462,7 @@ static int __init init_scst(void)
 		scst_max_dev_cmd_mem = scst_max_cmd_mem * 2 / 5;
 	}
 
-	res = scst_sgv_pools_init(((uint64_t)scst_max_cmd_mem << 10) >> (PAGE_SHIFT - 10), 0);
+	res = scst_sgv_pools_init(((u64)scst_max_cmd_mem << 10) >> (PAGE_SHIFT - 10), 0);
 	if (res != 0)
 		goto out_sysfs_cleanup;
 

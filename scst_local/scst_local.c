@@ -97,8 +97,8 @@ struct scst_local_tgt {
 	struct list_head tgts_list_entry;
 
 	/* SCSI version descriptors */
-	uint16_t scsi_transport_version;
-	uint16_t phys_transport_version;
+	u16 scsi_transport_version;
+	u16 phys_transport_version;
 };
 
 struct scst_local_sess {
@@ -113,7 +113,7 @@ struct scst_local_sess {
 	int number;
 
 	struct mutex tr_id_mutex;
-	uint8_t *transport_id;
+	u8 *transport_id;
 	int transport_id_len;
 
 	struct work_struct aen_work;
@@ -151,12 +151,12 @@ MODULE_LICENSE("GPL");
 MODULE_VERSION(SCST_LOCAL_VERSION);
 MODULE_IMPORT_NS(SCST_NAMESPACE);
 
-static int scst_local_get_sas_transport_id(struct scst_local_sess *sess, uint8_t **transport_id,
+static int scst_local_get_sas_transport_id(struct scst_local_sess *sess, u8 **transport_id,
 					   int *len)
 {
 	int res = 0;
 	int tr_id_size = 0;
-	uint8_t *tr_id = NULL;
+	u8 *tr_id = NULL;
 
 	TRACE_ENTRY();
 
@@ -201,7 +201,7 @@ out:
 
 static int scst_local_get_initiator_port_transport_id(struct scst_tgt *tgt,
 						      struct scst_session *scst_sess,
-						      uint8_t **transport_id)
+						      u8 **transport_id)
 {
 	int res = 0;
 	struct scst_local_sess *sess;
@@ -457,7 +457,7 @@ static ssize_t scst_local_transport_id_show(struct kobject *kobj, struct kobj_at
 {
 	struct scst_session *scst_sess;
 	struct scst_local_sess *sess;
-	uint8_t *tr_id;
+	u8 *tr_id;
 	int tr_id_len, i;
 	ssize_t res;
 
@@ -1321,7 +1321,7 @@ static void scst_local_targ_task_mgmt_done(struct scst_mgmt_cmd *mgmt_cmd)
 	TRACE_EXIT();
 }
 
-static uint16_t scst_local_get_scsi_transport_version(struct scst_tgt *scst_tgt)
+static u16 scst_local_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
 	struct scst_local_tgt *tgt = scst_tgt_get_tgt_priv(scst_tgt);
 
@@ -1336,7 +1336,7 @@ static uint16_t scst_local_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 		return tgt->scsi_transport_version;
 }
 
-static uint16_t scst_local_get_phys_transport_version(struct scst_tgt *scst_tgt)
+static u16 scst_local_get_phys_transport_version(struct scst_tgt *scst_tgt)
 {
 	struct scst_local_tgt *tgt = scst_tgt_get_tgt_priv(scst_tgt);
 

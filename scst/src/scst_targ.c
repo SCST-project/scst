@@ -52,7 +52,7 @@ static void scst_cmd_set_sn(struct scst_cmd *cmd);
 #define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
 
 static int __scst_init_cmd(struct scst_cmd *cmd);
-static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess, uint64_t tag,
+static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess, u64 tag,
 					       bool to_abort);
 static void scst_process_redirect_cmd(struct scst_cmd *cmd, enum scst_exec_context context,
 				      int check_retries);
@@ -95,7 +95,7 @@ static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 	preempt_enable();
 }
 
-static bool scst_unmap_overlap(struct scst_cmd *cmd, int64_t lba2, int64_t lba2_blocks)
+static bool scst_unmap_overlap(struct scst_cmd *cmd, s64 lba2, s64 lba2_blocks)
 {
 	bool res = false;
 	struct scst_data_descriptor *pd = cmd->cmd_data_descriptors;
@@ -571,7 +571,7 @@ void scst_check_unblock_dev(struct scst_cmd *cmd)
 	TRACE_EXIT();
 }
 
-static void __scst_rx_cmd(struct scst_cmd *cmd, struct scst_session *sess, const uint8_t *lun,
+static void __scst_rx_cmd(struct scst_cmd *cmd, struct scst_session *sess, const u8 *lun,
 			  int lun_len, gfp_t gfp_mask)
 {
 	TRACE_ENTRY();
@@ -612,8 +612,8 @@ static void __scst_rx_cmd(struct scst_cmd *cmd, struct scst_session *sess, const
  *
  * Return: 0 upon success or a negative error code otherwise.
  */
-int scst_rx_cmd_prealloced(struct scst_cmd *cmd, struct scst_session *sess, const uint8_t *lun,
-			   int lun_len, const uint8_t *cdb, unsigned int cdb_len, bool atomic)
+int scst_rx_cmd_prealloced(struct scst_cmd *cmd, struct scst_session *sess, const u8 *lun,
+			   int lun_len, const u8 *cdb, unsigned int cdb_len, bool atomic)
 {
 	int res;
 	gfp_t gfp_mask = atomic ? GFP_ATOMIC : cmd->cmd_gfp_mask;
@@ -658,8 +658,8 @@ EXPORT_SYMBOL(scst_rx_cmd_prealloced);
  * Return: pointer to newly allocated SCST command upon success or NULL upon
  * failure.
  */
-struct scst_cmd *scst_rx_cmd(struct scst_session *sess, const uint8_t *lun, int lun_len,
-			     const uint8_t *cdb, unsigned int cdb_len, bool atomic)
+struct scst_cmd *scst_rx_cmd(struct scst_session *sess, const u8 *lun, int lun_len,
+			     const u8 *cdb, unsigned int cdb_len, bool atomic)
 {
 	struct scst_cmd *cmd;
 	gfp_t gfp_mask = atomic ? GFP_ATOMIC : GFP_NOIO;
@@ -2110,7 +2110,7 @@ out:
 	return res;
 }
 
-static void scst_do_cmd_done(struct scst_cmd *cmd, int result, const uint8_t *rq_sense,
+static void scst_do_cmd_done(struct scst_cmd *cmd, int result, const u8 *rq_sense,
 			     int rq_sense_len, int resid)
 {
 	TRACE_ENTRY();
@@ -2170,8 +2170,8 @@ scst_optimize_post_exec_context(struct scst_cmd *cmd, enum scst_exec_context con
  */
 static void scst_replace_port_info(struct scst_cmd *cmd)
 {
-	uint8_t *buf, *end, *p, designator_length;
-	int32_t length, page_length;
+	u8 *buf, *end, *p, designator_length;
+	s32 length, page_length;
 
 	if (!scst_cmd_inquired_dev_ident(cmd))
 		return;
@@ -2184,9 +2184,9 @@ static void scst_replace_port_info(struct scst_cmd *cmd)
 	end = buf + min(length, 4 + page_length);
 
 	for (p = buf + 4; p + 4 <= end; p += 4 + designator_length) {
-		const uint8_t code_set = p[0] & 0xf;
-		const uint8_t association = (p[1] & 0x30) >> 4;
-		const uint8_t designator_type = p[1] & 0xf;
+		const u8 code_set = p[0] & 0xf;
+		const u8 association = (p[1] & 0x30) >> 4;
+		const u8 designator_type = p[1] & 0xf;
 
 		designator_length = p[3];
 
@@ -3020,7 +3020,7 @@ static int scst_check_sense(struct scst_cmd *cmd)
 			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_reset_UA));
 		} else {
 			int sl;
-			uint8_t sense[SCST_STANDARD_SENSE_LEN];
+			u8 sense[SCST_STANDARD_SENSE_LEN];
 
 			TRACE(TRACE_MGMT,
 			      "DID_RESET received for device %s, triggering reset UA",
@@ -3199,8 +3199,8 @@ next:
 		     cmd->dev->type == TYPE_WORM ||
 		     cmd->dev->type == TYPE_MOD ||
 		     cmd->dev->type == TYPE_TAPE)) {
-			int32_t length;
-			uint8_t *address;
+			s32 length;
+			u8 *address;
 			bool err = false;
 
 			length = scst_get_buf_full(cmd, &address, true);
@@ -3261,7 +3261,7 @@ static int scst_mode_select_checks(struct scst_cmd *cmd)
 			     cmd->cdb[0] == LOG_SELECT)) {
 			struct scst_device *dev = cmd->dev;
 			int sl;
-			uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+			u8 sense_buffer[SCST_STANDARD_SENSE_LEN];
 
 			if (atomic && dev->scsi_dev) {
 				TRACE_DBG("MODE/LOG SELECT: thread context required");
@@ -5632,7 +5632,7 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 	__scst_unblock_aborted_cmds(NULL, NULL, dev);
 
 	if (!dev->tas) {
-		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+		u8 sense_buffer[SCST_STANDARD_SENSE_LEN];
 		int sl;
 
 		sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
@@ -7470,7 +7470,7 @@ int scst_global_mgmt_thread(void *arg)
 }
 
 /* Called under sess->sess_list_lock */
-static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess, uint64_t tag,
+static struct scst_cmd *__scst_find_cmd_by_tag(struct scst_session *sess, u64 tag,
 					       bool to_abort)
 {
 	struct scst_cmd *cmd, *res = NULL;
@@ -7573,7 +7573,7 @@ EXPORT_SYMBOL(scst_find_cmd);
  * that previously set by scst_cmd_set_tag(). Returns the found command on
  * success or NULL otherwise.
  */
-struct scst_cmd *scst_find_cmd_by_tag(struct scst_session *sess, uint64_t tag)
+struct scst_cmd *scst_find_cmd_by_tag(struct scst_session *sess, u64 tag)
 {
 	unsigned long flags;
 	struct scst_cmd *cmd;

@@ -54,7 +54,7 @@
 /* Persistent reservation SCOPE field */
 #define SCOPE_LU				0x00
 
-static inline bool scst_pr_type_valid(uint8_t type)
+static inline bool scst_pr_type_valid(u8 type)
 {
 	switch (type) {
 	case TYPE_WRITE_EXCLUSIVE:
@@ -111,33 +111,33 @@ void scst_pr_clear_tgt_dev(struct scst_tgt_dev *tgt_dev);
 bool scst_pr_crh_case(struct scst_cmd *cmd);
 bool scst_pr_is_cmd_allowed(struct scst_cmd *cmd);
 
-void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size);
-void scst_pr_register_and_ignore(struct scst_cmd *cmd, uint8_t *buffer,
+void scst_pr_register(struct scst_cmd *cmd, u8 *buffer, int buffer_size);
+void scst_pr_register_and_ignore(struct scst_cmd *cmd, u8 *buffer,
 	int buffer_size);
-void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer,
+void scst_pr_register_and_move(struct scst_cmd *cmd, u8 *buffer,
 	int buffer_size);
-void scst_pr_reserve(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size);
-void scst_pr_release(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size);
-void scst_pr_clear(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size);
-void scst_pr_preempt(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size);
-void scst_pr_preempt_and_abort(struct scst_cmd *cmd, uint8_t *buffer,
-	int buffer_size);
-
-void scst_pr_read_keys(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size);
-void scst_pr_read_reservation(struct scst_cmd *cmd, uint8_t *buffer,
-	int buffer_size);
-void scst_pr_report_caps(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size);
-void scst_pr_read_full_status(struct scst_cmd *cmd, uint8_t *buffer,
+void scst_pr_reserve(struct scst_cmd *cmd, u8 *buffer, int buffer_size);
+void scst_pr_release(struct scst_cmd *cmd, u8 *buffer, int buffer_size);
+void scst_pr_clear(struct scst_cmd *cmd, u8 *buffer, int buffer_size);
+void scst_pr_preempt(struct scst_cmd *cmd, u8 *buffer, int buffer_size);
+void scst_pr_preempt_and_abort(struct scst_cmd *cmd, u8 *buffer,
 	int buffer_size);
 
-uint32_t scst_tid_size(const uint8_t *tid);
-bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b);
+void scst_pr_read_keys(struct scst_cmd *cmd, u8 *buffer, int buffer_size);
+void scst_pr_read_reservation(struct scst_cmd *cmd, u8 *buffer,
+	int buffer_size);
+void scst_pr_report_caps(struct scst_cmd *cmd, u8 *buffer, int buffer_size);
+void scst_pr_read_full_status(struct scst_cmd *cmd, u8 *buffer,
+	int buffer_size);
+
+u32 scst_tid_size(const u8 *tid);
+bool tid_equal(const u8 *tid_a, const u8 *tid_b);
 
 struct scst_dev_registrant *scst_pr_find_reg(struct scst_device *dev,
-	const uint8_t *transport_id, const uint16_t rel_tgt_id);
+	const u8 *transport_id, const u16 rel_tgt_id);
 struct scst_dev_registrant *scst_pr_add_registrant(struct scst_device *dev,
-						   const uint8_t *transport_id,
-						   const uint16_t rel_tgt_id,
+						   const u8 *transport_id,
+						   const u16 rel_tgt_id,
 						   __be64 key,
 						   bool dev_lock_locked);
 void scst_pr_remove_registrant(struct scst_device *dev,
@@ -146,8 +146,8 @@ void scst_pr_send_ua_reg(struct scst_device *dev,
 			 struct scst_dev_registrant *reg,
 			 int key, int asc, int ascq);
 void scst_pr_set_holder(struct scst_device *dev,
-			struct scst_dev_registrant *holder, uint8_t scope,
-			uint8_t type);
+			struct scst_dev_registrant *holder, u8 scope,
+			u8 type);
 void scst_pr_clear_holder(struct scst_device *dev);
 
 void scst_pr_sync_device_file(struct scst_device *dev);

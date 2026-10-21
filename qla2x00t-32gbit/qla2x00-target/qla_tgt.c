@@ -54,7 +54,7 @@ size_t qlt_add_vtarget(u64 port_name, u64 node_name, u64 parent_host)
 	scsi_qla_host_t *vha = NULL, *npiv_vha;
 	struct qla_tgt *tgt;
 	struct fc_vport_identifiers vid;
-	uint8_t parent_wwn[WWN_SIZE];
+	u8 parent_wwn[WWN_SIZE];
 
 	memset(&vid, 0, sizeof(vid));
 

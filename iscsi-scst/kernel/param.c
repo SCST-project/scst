@@ -113,7 +113,7 @@ static void log_params(struct iscsi_sess_params *params)
 /* target_mutex supposed to be locked */
 static void sess_params_check(struct iscsi_kern_params_info *info)
 {
-	int32_t *iparams = info->session_params;
+	s32 *iparams = info->session_params;
 	const int max_len = ISCSI_CONN_IOV_MAX * PAGE_SIZE;
 
 	/*
@@ -148,7 +148,7 @@ static void sess_params_check(struct iscsi_kern_params_info *info)
 /* target_mutex supposed to be locked */
 static void sess_params_set(struct iscsi_sess_params *params, struct iscsi_kern_params_info *info)
 {
-	int32_t *iparams = info->session_params;
+	s32 *iparams = info->session_params;
 
 	SET_PARAM(params, info, iparams, initial_r2t);
 	SET_PARAM(params, info, iparams, immediate_data);
@@ -178,7 +178,7 @@ static void sess_params_set(struct iscsi_sess_params *params, struct iscsi_kern_
 
 static void sess_params_get(struct iscsi_sess_params *params, struct iscsi_kern_params_info *info)
 {
-	int32_t *iparams = info->session_params;
+	s32 *iparams = info->session_params;
 
 	GET_PARAM(params, iparams, initial_r2t);
 	GET_PARAM(params, iparams, immediate_data);
@@ -209,7 +209,7 @@ static void sess_params_get(struct iscsi_sess_params *params, struct iscsi_kern_
 /* target_mutex supposed to be locked */
 static void tgt_params_check(struct iscsi_session *session, struct iscsi_kern_params_info *info)
 {
-	int32_t *iparams = info->target_params;
+	s32 *iparams = info->target_params;
 	unsigned int rsp_timeout, nop_in_timeout;
 
 	/*
@@ -243,7 +243,7 @@ static int iscsi_tgt_params_set(struct iscsi_session *session, struct iscsi_kern
 				int set)
 {
 	struct iscsi_tgt_params *params = &session->tgt_params;
-	int32_t *iparams = info->target_params;
+	s32 *iparams = info->target_params;
 
 	lockdep_assert_held(&session->target->target_mutex);
 

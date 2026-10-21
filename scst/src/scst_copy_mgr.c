@@ -70,7 +70,7 @@ struct scst_cm_desig {
 	struct scst_tgt_dev *desig_tgt_dev;
 
 	int desig_len;
-	uint8_t desig[];
+	u8 desig[];
 };
 
 /* It's IRQ and inner for sess_list_lock */
@@ -91,13 +91,13 @@ struct scst_cm_list_id {
 	unsigned int cm_can_be_immed_free:1;
 
 	int cm_segs_processed;
-	int64_t cm_written_size; /* in bytes */
+	s64 cm_written_size; /* in bytes */
 
 	unsigned long cm_time_to_free; /* in jiffies */
 
 	int cm_status;
 	unsigned short cm_sense_len;
-	uint8_t cm_sense[SCST_SENSE_BUFFERSIZE];
+	u8 cm_sense[SCST_SENSE_BUFFERSIZE];
 };
 
 struct scst_cm_internal_cmd_priv {
@@ -150,8 +150,8 @@ struct scst_cm_ec_cmd_priv {
 	 ** READ commands stuff
 	 **/
 	struct scst_tgt_dev *cm_read_tgt_dev;
-	int64_t cm_start_read_lba; /* in blocks */
-	int64_t cm_cur_read_lba; /* in blocks */
+	s64 cm_start_read_lba; /* in blocks */
+	s64 cm_cur_read_lba; /* in blocks */
 	int cm_left_to_read; /* in blocks */
 	int cm_max_each_read;/* in blocks */
 
@@ -159,8 +159,8 @@ struct scst_cm_ec_cmd_priv {
 	 ** WRITE commands stuff
 	 **/
 	struct scst_tgt_dev *cm_write_tgt_dev;
-	int64_t cm_start_write_lba; /* in blocks */
-	int64_t cm_written; /* in bytes */
+	s64 cm_start_write_lba; /* in blocks */
+	s64 cm_written; /* in bytes */
 
 	/**
 	 ** Current data descriptors and their count
@@ -578,7 +578,7 @@ static void scst_cm_advance_seg_descr(struct scst_cmd *ec_cmd)
 static void scst_cm_prepare_final_sense(struct scst_cmd *ec_cmd)
 {
 	struct scst_cm_ec_cmd_priv *priv = ec_cmd->cmd_data_descriptors;
-	uint8_t add_sense_len, *fsense = NULL;
+	u8 add_sense_len, *fsense = NULL;
 	int d_sense = scst_get_cmd_dev_d_sense(ec_cmd);
 	bool copy_sense = false;
 	int sense_to_copy = ec_cmd->sense_valid_len;
@@ -885,11 +885,11 @@ static void scst_cm_del_free_from_internal_cmd_list(struct scst_cmd *cmd, bool u
 static void scst_cm_read_cmd_finished(struct scst_cmd *rcmd);
 
 /* cm_mutex suppose to be locked */
-static int __scst_cm_push_single_read(struct scst_cmd *ec_cmd, int64_t lba, int blocks)
+static int __scst_cm_push_single_read(struct scst_cmd *ec_cmd, s64 lba, int blocks)
 {
 	int res;
 	struct scst_cm_ec_cmd_priv *priv = ec_cmd->cmd_data_descriptors;
-	uint8_t read_cdb[32];
+	u8 read_cdb[32];
 	struct scst_device *rdev = priv->cm_read_tgt_dev->dev;
 	int block_shift = rdev->block_shift;
 	int len = blocks << block_shift;
@@ -993,7 +993,7 @@ static void scst_cm_read_retry_fn(struct scst_cmd *rcmd)
 	TRACE_EXIT();
 }
 
-static int scst_cm_push_single_write(struct scst_cmd *ec_cmd, int64_t lba, int blocks,
+static int scst_cm_push_single_write(struct scst_cmd *ec_cmd, s64 lba, int blocks,
 				     struct scst_cmd *rcmd);
 
 static void scst_cm_write_retry_fn(struct scst_cmd *wcmd)
@@ -1125,12 +1125,12 @@ out_finished:
 	goto out_put;
 }
 
-static int scst_cm_push_single_write(struct scst_cmd *ec_cmd, int64_t lba, int blocks,
+static int scst_cm_push_single_write(struct scst_cmd *ec_cmd, s64 lba, int blocks,
 				     struct scst_cmd *rcmd)
 {
 	int res;
 	struct scst_cm_ec_cmd_priv *priv = ec_cmd->cmd_data_descriptors;
-	uint8_t write16_cdb[16];
+	u8 write16_cdb[16];
 	struct scst_cmd *wcmd;
 	int len;
 
@@ -1199,7 +1199,7 @@ static void scst_cm_read_cmd_finished(struct scst_cmd *rcmd)
 	struct scst_cm_internal_cmd_priv *p = rcmd->tgt_i_priv;
 	struct scst_cmd *ec_cmd = p->cm_orig_cmd;
 	struct scst_cm_ec_cmd_priv *priv = ec_cmd->cmd_data_descriptors;
-	int64_t lba;
+	s64 lba;
 	int rc, len, blocks;
 
 	TRACE_ENTRY();
@@ -1454,7 +1454,7 @@ static int scst_cm_try_to_remap(struct scst_cmd *ec_cmd)
 	struct scst_ext_copy_seg_descr *sd = &priv->cm_seg_descrs[priv->cm_cur_seg_descr];
 	struct scst_ext_copy_data_descr *dd = &sd->data_descr;
 	struct scst_dev_type *handler = ec_cmd->dev->handler;
-	uint8_t cdb[16];
+	u8 cdb[16];
 	struct scst_cmd *cmd;
 
 	TRACE_ENTRY();
@@ -1985,7 +1985,7 @@ void scst_cm_free_pending_list_ids(struct scst_session *sess)
 static void scst_cm_copy_status(struct scst_cmd *cmd)
 {
 	ssize_t length = 0;
-	uint8_t *buf, tbuf[12];
+	u8 *buf, tbuf[12];
 	int list_id;
 	struct scst_cm_list_id *l;
 	struct scst_session *sess = cmd->sess;
@@ -2053,7 +2053,7 @@ out_list_id_not_found:
 static void scst_cm_failed_seg_details(struct scst_cmd *cmd)
 {
 	ssize_t length = 0;
-	uint8_t *buf, *tbuf;
+	u8 *buf, *tbuf;
 	int list_id, size;
 	struct scst_cm_list_id *l;
 	struct scst_session *sess = cmd->sess;
@@ -2149,7 +2149,7 @@ out_busy:
 static void scst_cm_oper_parameters(struct scst_cmd *cmd)
 {
 	ssize_t length = 0;
-	uint8_t *buf, tbuf[44 + 2] /* 2 descriptors implemented */;
+	u8 *buf, tbuf[44 + 2] /* 2 descriptors implemented */;
 
 	TRACE_ENTRY();
 
@@ -2262,7 +2262,7 @@ static void scst_cm_inq_retry_fn(struct scst_cmd *cmd)
 static void scst_cm_init_inq_finish(struct scst_cmd *cmd)
 {
 	int length, page_len, off, rc;
-	uint8_t *buf;
+	u8 *buf;
 	struct scst_cm_init_inq_priv *priv = cmd->tgt_i_priv;
 	struct scst_device *dev = priv->dev;
 
@@ -2387,7 +2387,7 @@ SCST_KUNIT_VISIBLE
 int scst_cm_send_init_inquiry(struct scst_device *dev, unsigned int unpacked_lun,
 			      struct scst_cm_init_inq_priv *priv)
 {
-	static const uint8_t inq_cdb[6] = { INQUIRY, 1, 0x83, 0x10, 0, 0 };
+	static const u8 inq_cdb[6] = { INQUIRY, 1, 0x83, 0x10, 0, 0 };
 	__be64 lun;
 	struct scst_cmd *cmd;
 	int res = 0;
@@ -2415,7 +2415,7 @@ int scst_cm_send_init_inquiry(struct scst_device *dev, unsigned int unpacked_lun
 
 	lun = scst_pack_lun(unpacked_lun, scst_cm_sess->acg->addr_method);
 
-	cmd = scst_rx_cmd(scst_cm_sess, (const uint8_t *)&lun, sizeof(lun), inq_cdb,
+	cmd = scst_rx_cmd(scst_cm_sess, (const u8 *)&lun, sizeof(lun), inq_cdb,
 			  sizeof(inq_cdb), false);
 	if (!cmd) {
 		res = -ENOMEM;
@@ -2497,9 +2497,9 @@ out:
 	return res;
 }
 
-static uint64_t scst_cm_get_free_lun(void)
+static u64 scst_cm_get_free_lun(void)
 {
-	uint64_t lun;
+	u64 lun;
 
 	while (1) {
 		lun = scst_cm_next_lun++;
@@ -2516,7 +2516,7 @@ static uint64_t scst_cm_get_free_lun(void)
 }
 
 SCST_KUNIT_VISIBLE
-int scst_cm_dev_register(struct scst_device *dev, uint64_t lun)
+int scst_cm_dev_register(struct scst_device *dev, u64 lun)
 {
 	int res;
 	struct scst_acg_dev *acg_dev;
@@ -2788,7 +2788,7 @@ struct scst_acg *scst_cm_default_acg(void)
 }
 
 /* scst_mutex supposed to be held */
-int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, uint64_t lun, unsigned int *flags)
+int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, u64 lun, unsigned int *flags)
 {
 	int res = 0;
 
@@ -2939,7 +2939,7 @@ struct scst_cm_tgt_descr {
 };
 
 /* Parse the copy source or copy destination (CSCD) descriptors. */
-static int scst_cm_parse_id_tgt_descr(struct scst_cmd *cmd, const uint8_t *seg, int offs,
+static int scst_cm_parse_id_tgt_descr(struct scst_cmd *cmd, const u8 *seg, int offs,
 				      struct scst_cm_tgt_descr *tgt_descr)
 {
 	int res = 32;
@@ -3228,7 +3228,7 @@ out_enomem:
 	goto out;
 }
 
-static int scst_cm_parse_b2b_seg_descr(struct scst_cmd *ec_cmd, const uint8_t *seg,
+static int scst_cm_parse_b2b_seg_descr(struct scst_cmd *ec_cmd, const u8 *seg,
 				       const struct scst_cm_tgt_descr *tgt_descrs,
 				       int tgt_descrs_cnt, int seg_num)
 {
@@ -3377,7 +3377,7 @@ int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd)
 	int res = 0, rc;
 	struct scst_cm_list_id *plist_id = NULL;
 	ssize_t length = 0;
-	uint8_t *buf;
+	u8 *buf;
 	int list_id, list_id_usage, len, tgt_len, seg_len;
 	struct scst_cm_ec_cmd_priv *p;
 	int tgt_cnt, seg_cnt, i, offs, t;
@@ -3706,10 +3706,10 @@ static const struct attribute *scst_cm_tgtt_attrs[] = {
 
 static int scst_cm_get_initiator_port_transport_id(struct scst_tgt *tgt,
 						   struct scst_session *scst_sess,
-						   uint8_t **transport_id)
+						   u8 **transport_id)
 {
 	int res = 0;
-	uint8_t *tid = NULL;
+	u8 *tid = NULL;
 
 	TRACE_ENTRY();
 

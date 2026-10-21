@@ -1384,7 +1384,7 @@ static int dev_user_process_reply_ext_copy_remap(struct scst_user_cmd *ucmd,
 	int res = 0, rc, count = 0, i, len;
 	struct scst_user_ext_copy_reply_remap *rreply = &reply->remap_reply;
 	struct scst_cmd *cmd = ucmd->cmd;
-	uint8_t *buf;
+	u8 *buf;
 	struct scst_user_ext_copy_data_descr *uleft;
 	struct scst_ext_copy_data_descr *left = NULL;
 
@@ -1525,7 +1525,7 @@ static int dev_user_process_ws_reply(struct scst_user_cmd *ucmd,
 {
 	int res = 0, rc, count, i;
 	struct scst_cmd *cmd = ucmd->cmd;
-	uint8_t *buf;
+	u8 *buf;
 	struct scst_user_data_descriptor *uwhere;
 	struct scst_data_descriptor *where;
 
@@ -2274,7 +2274,7 @@ static int dev_user_reply_get_multi(struct file *file,
 	int res = 0, rc;
 	struct scst_user_dev *dev = file->private_data;
 	struct scst_user_reply_cmd __user *replies;
-	int16_t i, replies_cnt, replies_done = 0, cmds_cnt = 0;
+	s16 i, replies_cnt, replies_done = 0, cmds_cnt = 0;
 
 	TRACE_ENTRY();
 
@@ -3029,7 +3029,7 @@ static int dev_user_attach_tgt(struct scst_tgt_dev *tgt_dev)
 	ucmd->user_cmd.cmd_h = ucmd->h;
 	ucmd->user_cmd.subcode = SCST_USER_ATTACH_SESS;
 	ucmd->user_cmd.sess.sess_h = (unsigned long)tgt_dev;
-	ucmd->user_cmd.sess.lun = (uint64_t)tgt_dev->lun;
+	ucmd->user_cmd.sess.lun = (u64)tgt_dev->lun;
 	ucmd->user_cmd.sess.threads_num = tgt_dev->tgtt->threads_num;
 	ucmd->user_cmd.sess.rd_only = tgt_dev->tgt_dev_rd_only;
 	if (tgtt->get_phys_transport_version)
@@ -3485,7 +3485,7 @@ static int dev_user_prealloc_buffer(struct file *file, void __user *arg)
 	struct scst_user_dev *dev;
 	union scst_user_prealloc_buffer pre;
 	aligned_u64 pbuf;
-	uint32_t bufflen;
+	u32 bufflen;
 	struct scst_user_cmd *ucmd;
 	int pages, sg_cnt;
 	struct sgv_pool *pool;

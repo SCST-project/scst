@@ -290,7 +290,7 @@ static void scst_event_queue_work_fn(struct work_struct *work)
 }
 
 /* Can be called on IRQ with any lock held */
-void scst_event_queue(uint32_t event_code, const char *issuer_name, struct scst_event_entry *e)
+void scst_event_queue(u32 event_code, const char *issuer_name, struct scst_event_entry *e)
 {
 	TRACE_ENTRY();
 
@@ -604,7 +604,7 @@ static int scst_event_get_event_from_user(struct scst_event_user __user *arg,
 {
 	int res, rc;
 	int event_entry_len, event_len;
-	uint32_t payload_len;
+	u32 payload_len;
 	struct scst_event_entry *event_entry;
 	struct scst_event *event;
 
@@ -759,7 +759,7 @@ out:
 static int scst_event_user_next_event(struct scst_event_priv *priv, void __user *arg)
 {
 	int res, rc;
-	int32_t max_event_size, needed_size;
+	s32 max_event_size, needed_size;
 	struct scst_event_entry *event_entry;
 	struct scst_event_user __user *event_user = arg;
 

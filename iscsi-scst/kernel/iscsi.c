@@ -125,7 +125,7 @@ static inline int cmnd_read_size(struct iscsi_cmnd *cmnd)
 
 		ahdr = (struct iscsi_ahs_hdr *)cmnd->pdu.ahs;
 		if (ahdr) {
-			uint8_t *p = (uint8_t *)ahdr;
+			u8 *p = (u8 *)ahdr;
 			unsigned int size = 0;
 
 			do {
@@ -1993,7 +1993,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 
 	EXTRACHECKS_BUG_ON(!session->scst_sess);
 
-	scst_cmd = scst_rx_cmd(session->scst_sess, (uint8_t *)&req_hdr->lun, sizeof(req_hdr->lun),
+	scst_cmd = scst_rx_cmd(session->scst_sess, (u8 *)&req_hdr->lun, sizeof(req_hdr->lun),
 			       req_hdr->scb, sizeof(req_hdr->scb), SCST_NON_ATOMIC);
 	if (!scst_cmd) {
 		res = create_preliminary_no_scst_rsp(req, SAM_STAT_BUSY, NULL, 0);
@@ -2060,7 +2060,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 
 	ahdr = (struct iscsi_ahs_hdr *)req->pdu.ahs;
 	if (ahdr) {
-		uint8_t *p = (uint8_t *)ahdr;
+		u8 *p = (u8 *)ahdr;
 		unsigned int size = 0;
 
 		do {
@@ -2600,7 +2600,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 			params.fn = SCST_ABORT_TASK;
 			params.tag = (__force u32)req_hdr->rtt;
 			params.tag_set = 1;
-			params.lun = (uint8_t *)&req_hdr->lun;
+			params.lun = (u8 *)&req_hdr->lun;
 			params.lun_len = sizeof(req_hdr->lun);
 			params.lun_set = 1;
 			params.cmd_sn = req_hdr->cmd_sn;
@@ -2611,7 +2611,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		break;
 	case ISCSI_FUNCTION_ABORT_TASK_SET:
 		params.fn = SCST_ABORT_TASK_SET;
-		params.lun = (uint8_t *)&req_hdr->lun;
+		params.lun = (u8 *)&req_hdr->lun;
 		params.lun_len = sizeof(req_hdr->lun);
 		params.lun_set = 1;
 		params.cmd_sn = req_hdr->cmd_sn;
@@ -2621,7 +2621,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		break;
 	case ISCSI_FUNCTION_CLEAR_TASK_SET:
 		params.fn = SCST_CLEAR_TASK_SET;
-		params.lun = (uint8_t *)&req_hdr->lun;
+		params.lun = (u8 *)&req_hdr->lun;
 		params.lun_len = sizeof(req_hdr->lun);
 		params.lun_set = 1;
 		params.cmd_sn = req_hdr->cmd_sn;
@@ -2631,7 +2631,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		break;
 	case ISCSI_FUNCTION_CLEAR_ACA:
 		params.fn = SCST_CLEAR_ACA;
-		params.lun = (uint8_t *)&req_hdr->lun;
+		params.lun = (u8 *)&req_hdr->lun;
 		params.lun_len = sizeof(req_hdr->lun);
 		params.lun_set = 1;
 		params.cmd_sn = req_hdr->cmd_sn;
@@ -2649,7 +2649,7 @@ static void execute_task_management(struct iscsi_cmnd *req)
 		break;
 	case ISCSI_FUNCTION_LOGICAL_UNIT_RESET:
 		params.fn = SCST_LUN_RESET;
-		params.lun = (uint8_t *)&req_hdr->lun;
+		params.lun = (u8 *)&req_hdr->lun;
 		params.lun_len = sizeof(req_hdr->lun);
 		params.lun_set = 1;
 		params.cmd_sn = req_hdr->cmd_sn;
@@ -3671,7 +3671,7 @@ static int iscsi_scsi_aen(struct scst_aen *aen)
 {
 	int res = SCST_AEN_RES_SUCCESS;
 	__be64 lun = scst_aen_get_lun(aen);
-	const uint8_t *sense = scst_aen_get_sense(aen);
+	const u8 *sense = scst_aen_get_sense(aen);
 	int sense_len = scst_aen_get_sense_len(aen);
 	struct iscsi_session *sess = scst_sess_get_tgt_priv(scst_aen_get_sess(aen));
 	struct iscsi_conn *conn;
@@ -3797,13 +3797,13 @@ static int iscsi_report_aen(struct scst_aen *aen)
 
 static int iscsi_get_initiator_port_transport_id(struct scst_tgt *tgt,
 						 struct scst_session *scst_sess,
-						 uint8_t **transport_id)
+						 u8 **transport_id)
 {
 	struct iscsi_session *sess;
 	int res = 0;
 	union iscsi_sid sid;
 	int tr_id_size;
-	uint8_t *tr_id;
+	u8 *tr_id;
 
 	TRACE_ENTRY();
 
@@ -3933,7 +3933,7 @@ static struct scst_trace_log iscsi_local_trace_tbl[] = {
 #define ISCSI_TRACE_TBL_HELP	", d_write, conn, conn_dbg, iov, pdu, net_page"
 #endif
 
-static uint16_t iscsi_get_scsi_transport_version(struct scst_tgt *scst_tgt)
+static u16 iscsi_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
 	return 0x0960; /* iSCSI */
 }

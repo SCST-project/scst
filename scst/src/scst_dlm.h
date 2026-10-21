@@ -73,13 +73,13 @@ struct scst_pr_dlm_data {
 	unsigned long latest_lscr_attempt;
 
 	/* Corosync node ID of the local node. */
-	uint32_t local_nodeid;
+	u32 local_nodeid;
 
 	/* Number of elements in the nodeid array. */
 	int participants;
 
 	/* Corosync cluster node ID's. Protected by ls_mutex. */
-	uint32_t *nodeid;
+	u32 *nodeid;
 
 	/* Workqueue for copy_from_dlm_work. */
 	struct workqueue_struct *from_wq;
@@ -106,10 +106,10 @@ struct scst_pr_dlm_data {
 	struct scst_lksb post_upd_lksb;
 
 	/* PR_DATA_LOCK LVB. */
-	uint8_t  lvb[PR_DLM_LVB_LEN];
+	u8  lvb[PR_DLM_LVB_LEN];
 
 	/* SPC-2 reservation state information. */
-	uint32_t reserved_by_nodeid;
+	u32 reserved_by_nodeid;
 };
 
 /**

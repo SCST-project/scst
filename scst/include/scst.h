@@ -679,7 +679,7 @@ struct scst_opcode_descriptor;
  * SCST uses 64-bit numbers to represent LUN's internally. The value
  * NO_SUCH_LUN is guaranteed to be different of every valid LUN.
  */
-#define NO_SUCH_LUN ((uint64_t)-1)
+#define NO_SUCH_LUN ((u64)-1)
 
 /*
  * SCST target template: defines target driver's parameters and callback
@@ -1038,7 +1038,7 @@ struct scst_tgt_template {
 	 * SHOULD HAVE, because it's required for Persistent Reservations.
 	 */
 	int (*get_initiator_port_transport_id)(struct scst_tgt *tgt, struct scst_session *sess,
-					       uint8_t **transport_id);
+					       u8 **transport_id);
 
 	/*
 	 * This function allows to enable or disable particular target.
@@ -1117,7 +1117,7 @@ struct scst_tgt_template {
 	 *
 	 * OPTIONAL
 	 */
-	uint16_t (*get_phys_transport_version)(struct scst_tgt *tgt);
+	u16 (*get_phys_transport_version)(struct scst_tgt *tgt);
 
 	/*
 	 * Should return SCSI transport version. Used in the corresponding
@@ -1125,7 +1125,7 @@ struct scst_tgt_template {
 	 *
 	 * OPTIONAL
 	 */
-	uint16_t (*get_scsi_transport_version)(struct scst_tgt *tgt);
+	u16 (*get_scsi_transport_version)(struct scst_tgt *tgt);
 
 	/*
 	 * Name of the template. Must be unique to identify
@@ -1735,7 +1735,7 @@ struct scst_tgt {
 	/* User comment to it to let easier distinguish targets */
 	char *tgt_comment;
 
-	uint16_t rel_tgt_id;
+	u16 rel_tgt_id;
 
 	/* How many DIF failures detected on this target on the corresponding stage */
 	atomic_t tgt_dif_app_failed_tgt, tgt_dif_ref_failed_tgt, tgt_dif_guard_failed_tgt;
@@ -1766,17 +1766,17 @@ struct scst_tgt {
  * Size: 96 bytes.
  */
 struct scst_lat_stat_entry {
-	uint32_t count;
-	uint32_t padding;
-	uint64_t min;
-	uint64_t max;
-	uint64_t sum;
-	uint64_t sumsq;
+	u32 count;
+	u32 padding;
+	u64 min;
+	u64 max;
+	u64 sum;
+	u64 sumsq;
 #ifdef SCST_MEASURE_CLOCK_CYCLES
-	uint64_t minc;
-	uint64_t maxc;
-	uint64_t sumc;
-	uint64_t sumsqc;
+	u64 minc;
+	u64 maxc;
+	u64 sumc;
+	u64 sumsqc;
 #endif
 };
 
@@ -1796,9 +1796,9 @@ struct scst_lat_stats {
 };
 
 struct scst_io_stat_entry {
-	uint64_t cmd_count;
-	uint64_t io_byte_count;
-	uint64_t unaligned_cmd_count;
+	u64 cmd_count;
+	u64 io_byte_count;
+	u64 unaligned_cmd_count;
 };
 
 /*
@@ -1864,7 +1864,7 @@ struct scst_session {
 	int black_hole_type;
 
 	/* Initiator port transport id */
-	uint8_t *transport_id;
+	u8 *transport_id;
 
 	/* List entry for the sessions list inside ACG */
 	struct list_head acg_sess_list_entry;
@@ -2075,7 +2075,7 @@ struct scst_cmd {
 	ktime_t last_state_update;
 #ifdef SCST_MEASURE_CLOCK_CYCLES
 	/* Time of the last state update in 100 clock cycles.*/
-	uint64_t last_state_update_tsc;
+	u64 last_state_update_tsc;
 #endif
 
 	/*************************************************************
@@ -2281,12 +2281,12 @@ struct scst_cmd {
 
 	struct scst_order_data *cur_order_data; /* to save extra dereferences */
 
-	uint64_t lun;			/* LUN for this cmd */
+	u64 lun;			/* LUN for this cmd */
 
 	unsigned long start_time;
 
 	ktime_t init_wait_time;
-	uint64_t init_wait_tsc;
+	u64 init_wait_tsc;
 
 	/* List entry for tgt_dev's deferred (SN, ACA, etc.) lists */
 	struct list_head deferred_cmd_list_entry;
@@ -2301,18 +2301,18 @@ struct scst_cmd {
 	 * Used to found the cmd by scst_find_cmd_by_tag(). Set by the
 	 * target driver on the cmd's initialization time
 	 */
-	uint64_t tag;
+	u64 tag;
 
 	/* Cmd's serial number, used to execute cmd's in order of arrival */
 	unsigned int sn;
 
-	uint32_t tgt_sn; /* SN set by target driver (for TM purposes) */
+	u32 tgt_sn; /* SN set by target driver (for TM purposes) */
 
-	uint16_t tg_id; /* Only used during TYPE_DISK INQUIRY EVPD=0x83 */
+	u16 tg_id; /* Only used during TYPE_DISK INQUIRY EVPD=0x83 */
 
-	uint8_t *cdb; /* Pointer on CDB. Points on cdb_buf for small CDBs. */
+	u8 *cdb; /* Pointer on CDB. Points on cdb_buf for small CDBs. */
 	unsigned short cdb_len;
-	uint8_t cdb_buf[SCST_MAX_CDB_SIZE];
+	u8 cdb_buf[SCST_MAX_CDB_SIZE];
 
 	/* List entry for dev's dev_exec_cmd_list */
 	struct list_head dev_exec_cmd_list_entry;
@@ -2323,13 +2323,13 @@ struct scst_cmd {
 	 */
 	struct scst_cmd **scsi_atomic_blocked_cmds;
 
-	uint8_t lba_off;	/* LBA offset in cdb */
-	uint8_t lba_len;	/* LBA length in cdb */
-	uint8_t len_off;	/* length offset in cdb */
-	uint8_t len_len;	/* length of length in cdb */
+	u8 lba_off;	/* LBA offset in cdb */
+	u8 lba_len;	/* LBA length in cdb */
+	u8 len_off;	/* length offset in cdb */
+	u8 len_len;	/* length of length in cdb */
 	/* If not zero, logarithm base 2 of the maximum data buffer length. */
-	uint8_t log2_max_buf_len;
-	uint32_t op_flags;	/* various flags of this opcode */
+	u8 log2_max_buf_len;
+	u32 op_flags;	/* various flags of this opcode */
 	const char *op_name;	/* op code SCSI full name */
 
 	enum scst_cmd_queue_type queue_type;
@@ -2348,14 +2348,14 @@ struct scst_cmd {
 	int expected_transfer_len_full; /* both data and DIF tags, if any */
 	int expected_out_transfer_len; /* for bidi writes */
 
-	int64_t lba; /* LBA of this cmd */
+	s64 lba; /* LBA of this cmd */
 
 	/*
 	 * Cmd data length. Could be different from bufflen for commands like
 	 * VERIFY, which transfer different amount of data (if any), than
 	 * processed.
 	 */
-	int64_t data_len;
+	s64 data_len;
 
 	/* Completion routine */
 	void (*scst_cmd_done)(struct scst_cmd *cmd, int next_state,
@@ -2432,18 +2432,18 @@ struct scst_cmd {
 	 * The status fields in case of errors must be set using
 	 * scst_set_cmd_error_status()!
 	 */
-	uint8_t status;		/* status byte from target device */
-	uint8_t msg_status;	/* return status from host adapter itself */
-	uint8_t host_status;	/* set by low-level driver to indicate status */
-	uint8_t driver_status;	/* set by mid-level */
+	u8 status;		/* status byte from target device */
+	u8 msg_status;	/* return status from host adapter itself */
+	u8 host_status;	/* set by low-level driver to indicate status */
+	u8 driver_status;	/* set by mid-level */
 
 	/* DIF actions on this cmd */
 	enum scst_dif_actions cmd_dif_actions;
 #ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
-	uint32_t cmd_corrupt_dif_tag;
+	u32 cmd_corrupt_dif_tag;
 #endif
 
-	uint8_t *sense;		/* pointer to sense buffer */
+	u8 *sense;		/* pointer to sense buffer */
 	unsigned short sense_valid_len; /* length of valid sense data */
 	unsigned short sense_buflen; /* length of the sense buffer, if any */
 
@@ -2522,10 +2522,10 @@ struct scst_cmd {
  */
 struct scst_rx_mgmt_params {
 	int fn;
-	uint64_t tag;
-	const uint8_t *lun;
+	u64 tag;
+	const u8 *lun;
 	int lun_len;
-	uint32_t cmd_sn;
+	u32 cmd_sn;
 	int atomic;
 	void *tgt_priv;
 	unsigned char tag_set;
@@ -2588,11 +2588,11 @@ struct scst_mgmt_cmd {
 	/* Number of completed commands, protected by scst_mcmd_lock */
 	int completed_cmd_count;
 
-	uint64_t lun;	/* LUN for this mgmt cmd */
+	u64 lun;	/* LUN for this mgmt cmd */
 	/* or (and for iSCSI) */
-	uint64_t tag;	/* for ABORT TASK, tag of the cmd to abort */
+	u64 tag;	/* for ABORT TASK, tag of the cmd to abort */
 
-	uint32_t cmd_sn; /* affected command's highest SN */
+	u32 cmd_sn; /* affected command's highest SN */
 
 	/* corresponding cmd (to be aborted, found by tag) */
 	struct scst_cmd *cmd_to_abort;
@@ -2614,8 +2614,8 @@ struct scst_mgmt_cmd {
  * Persistent reservations registrant
  */
 struct scst_dev_registrant {
-	uint8_t *transport_id;
-	uint16_t rel_tgt_id;
+	u8 *transport_id;
+	u16 rel_tgt_id;
 	__be64 key;
 
 	/* tgt_dev (I_T nexus) for this registrant, if any */
@@ -2632,7 +2632,7 @@ struct scst_dev_registrant {
 	int dlm_idx;
 	struct scst_lksb lksb;
 	char lvb[PR_DLM_LVB_LEN];
-	uint32_t registered_by_nodeid;
+	u32 registered_by_nodeid;
 
 	/* List of UNIT ATTENTIONs to be sent by this node to this registrant on a remote node */
 	struct list_head pending_rem_ua_list;
@@ -2651,7 +2651,7 @@ struct scst_dev_registrant {
 	 * It will be incremented by the sender of each UA, and cleared by the recipiant node when
 	 * it reads all the UNIT ATTENTIONs directed to it.
 	 */
-	uint16_t next_rem_ua_idx;
+	u16 next_rem_ua_idx;
 };
 
 /**
@@ -2704,7 +2704,7 @@ struct scst_cl_ops {
  * Extended, e.g. via sysfs, blockers
  */
 typedef void (*ext_blocker_done_fn_t) (struct scst_device *dev,
-	uint8_t *data, int len);
+	u8 *data, int len);
 
 struct scst_ext_blocker {
 	struct list_head ext_blockers_list_entry;
@@ -2712,7 +2712,7 @@ struct scst_ext_blocker {
 
 	ext_blocker_done_fn_t ext_blocker_done_fn;
 	int ext_blocker_data_len;
-	uint8_t ext_blocker_data[];
+	u8 ext_blocker_data[];
 };
 
 /*
@@ -2974,10 +2974,10 @@ struct scst_device {
 	unsigned int cluster_mode:1;
 
 	/* Persistent reservation type */
-	uint8_t pr_type;
+	u8 pr_type;
 
 	/* Persistent reservation scope */
-	uint8_t pr_scope;
+	u8 pr_scope;
 
 	/* Data structures for managing PR data via the DLM */
 	struct scst_pr_dlm_data *pr_dlm;
@@ -2986,7 +2986,7 @@ struct scst_device {
 	struct mutex dev_pr_mutex;
 
 	/* Persistent reservation generation value */
-	uint32_t pr_generation;
+	u32 pr_generation;
 
 	/* Reference to registrant - persistent reservation holder */
 	struct scst_dev_registrant *pr_holder;
@@ -3030,7 +3030,7 @@ struct scst_device {
 	struct work_struct ext_blockers_work;
 
 	/* MAXIMUM WRITE SAME LENGTH in bytes */
-	uint64_t max_write_same_len;
+	u64 max_write_same_len;
 
 	/* A list entry used during TM */
 	struct list_head tm_dev_list_entry;
@@ -3088,7 +3088,7 @@ struct scst_tgt_dev {
 
 	struct scst_tgt_template *tgtt; /* to avoid use-after-free issues */
 	struct scst_device *dev; /* to save extra dereferences */
-	uint64_t lun;		 /* to save extra dereferences */
+	u64 lun;		 /* to save extra dereferences */
 
 	/*
 	 * Extra flags in GFP mask for data buffers allocations of this
@@ -3206,7 +3206,7 @@ struct scst_tgt_dev {
 	 * subsequent REQUEST SENSE. Both protected by tgt_dev_lock.
 	 */
 	unsigned short tgt_dev_valid_sense_len;
-	uint8_t tgt_dev_sense[SCST_SENSE_BUFFERSIZE];
+	u8 tgt_dev_sense[SCST_SENSE_BUFFERSIZE];
 
 	/*
 	 * LUN thread index assigned by scst_add_threads(). Exported via
@@ -3230,7 +3230,7 @@ struct scst_tgt_dev {
 struct scst_acg_dev {
 	struct scst_device *dev; /* corresponding device */
 
-	uint64_t lun; /* device's LUN in this acg */
+	u64 lun; /* device's LUN in this acg */
 
 	/* If set, the corresponding LU is read only */
 	unsigned int acg_dev_rd_only:1;
@@ -3370,8 +3370,8 @@ struct scst_dev_group {
 	struct kobject		kobj;
 	struct kobject		*dev_kobj;
 	struct kobject		*tg_kobj;
-	uint8_t			*stpg_transport_id;
-	uint16_t		stpg_rel_tgt_id;
+	u8			*stpg_transport_id;
+	u16		stpg_rel_tgt_id;
 };
 
 /**
@@ -3399,7 +3399,7 @@ struct scst_dg_dev {
 struct scst_target_group {
 	struct scst_dev_group	*dg;
 	char			*name;
-	uint16_t		group_id;
+	u16		group_id;
 	enum scst_tg_state	state;
 	bool			preferred;
 	struct list_head	entry;
@@ -3421,7 +3421,7 @@ struct scst_tg_tgt {
 	struct kobject          kobj;
 	struct scst_tgt		*tgt;
 	char			*name;
-	uint16_t		rel_tgt_id;
+	u16		rel_tgt_id;
 };
 
 /*
@@ -3437,7 +3437,7 @@ struct scst_tgt_dev_UA {
 	/* Unit Attention valid sense len */
 	unsigned short UA_valid_sense_len;
 	/* Unit Attention sense buf */
-	uint8_t UA_sense_buffer[SCST_SENSE_BUFFERSIZE];
+	u8 UA_sense_buffer[SCST_SENSE_BUFFERSIZE];
 };
 
 /* Used to deliver AENs */
@@ -3451,7 +3451,7 @@ struct scst_aen {
 		/* SCSI AEN data */
 		struct {
 			int aen_sense_len;
-			uint8_t aen_sense[SCST_STANDARD_SENSE_LEN];
+			u8 aen_sense[SCST_STANDARD_SENSE_LEN];
 		};
 	};
 
@@ -3462,15 +3462,15 @@ struct scst_aen {
 #define SCST_OD_DEFAULT_CONTROL_BYTE	4 /* NACA */
 
 struct scst_opcode_descriptor {
-	uint16_t od_serv_action;
-	uint8_t od_opcode;
-	uint8_t od_serv_action_valid:1;
-	uint8_t od_support:3; /* SUPPORT bits */
-	uint16_t od_cdb_size;
-	uint8_t od_comm_specific_timeout;
-	uint32_t od_nominal_timeout;
-	uint32_t od_recommended_timeout;
-	uint8_t od_cdb_usage_bits[];
+	u16 od_serv_action;
+	u8 od_opcode;
+	u8 od_serv_action_valid:1;
+	u8 od_support:3; /* SUPPORT bits */
+	u16 od_cdb_size;
+	u8 od_comm_specific_timeout;
+	u32 od_nominal_timeout;
+	u32 od_recommended_timeout;
+	u8 od_cdb_usage_bits[];
 } __packed;
 
 extern const struct scst_opcode_descriptor scst_op_descr_log_select;
@@ -3580,10 +3580,10 @@ void scst_unregister_virtual_dev_driver(struct scst_dev_type *dev_type);
 
 bool scst_initiator_has_luns(struct scst_tgt *tgt, const char *initiator_name);
 
-struct scst_cmd *scst_rx_cmd(struct scst_session *sess, const uint8_t *lun, int lun_len,
-			     const uint8_t *cdb, unsigned int cdb_len, bool atomic);
-int scst_rx_cmd_prealloced(struct scst_cmd *cmd, struct scst_session *sess, const uint8_t *lun,
-			   int lun_len, const uint8_t *cdb, unsigned int cdb_len, bool atomic);
+struct scst_cmd *scst_rx_cmd(struct scst_session *sess, const u8 *lun, int lun_len,
+			     const u8 *cdb, unsigned int cdb_len, bool atomic);
+int scst_rx_cmd_prealloced(struct scst_cmd *cmd, struct scst_session *sess, const u8 *lun,
+			   int lun_len, const u8 *cdb, unsigned int cdb_len, bool atomic);
 void scst_cmd_init_done(struct scst_cmd *cmd, enum scst_exec_context pref_context);
 
 /*
@@ -3619,7 +3619,7 @@ static inline void scst_rx_mgmt_params_init(struct scst_rx_mgmt_params *params)
  *
  * Obsolete in favor of scst_rx_mgmt_fn()
  */
-static inline int scst_rx_mgmt_fn_tag(struct scst_session *sess, int fn, uint64_t tag, int atomic,
+static inline int scst_rx_mgmt_fn_tag(struct scst_session *sess, int fn, u64 tag, int atomic,
 				      void *tgt_priv)
 {
 	struct scst_rx_mgmt_params params;
@@ -3667,7 +3667,7 @@ int scst_get_cdb_info(struct scst_cmd *cmd);
 int scst_set_cmd_error_status(struct scst_cmd *cmd, int status);
 int scst_set_cmd_error(struct scst_cmd *cmd, int key, int asc, int ascq);
 int scst_set_cmd_error_and_inf(struct scst_cmd *cmd, int key, int asc, int ascq,
-			       uint64_t information);
+			       u64 information);
 void scst_set_busy(struct scst_cmd *cmd);
 
 void scst_check_convert_sense(struct scst_cmd *cmd);
@@ -3676,7 +3676,7 @@ void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq);
 
 void scst_capacity_data_changed(struct scst_device *dev);
 
-struct scst_cmd *scst_find_cmd_by_tag(struct scst_session *sess, uint64_t tag);
+struct scst_cmd *scst_find_cmd_by_tag(struct scst_session *sess, u64 tag);
 struct scst_cmd *scst_find_cmd(struct scst_session *sess, void *data,
 			       int (*cmp_fn)(struct scst_cmd *cmd,
 					     void *data));
@@ -3828,11 +3828,11 @@ static inline void scst_sess_set_tgt_priv(struct scst_session *sess, void *val)
 	sess->sess_tgt_priv = val;
 }
 
-uint16_t scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt);
+u16 scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt);
 enum scst_tg_state scst_get_alua_state(struct scst_device *dev, struct scst_tgt *tgt);
 bool scst_alua_configured(struct scst_device *dev);
-int scst_tg_get_group_info(void **buf, uint32_t *length,
-			   struct scst_device *dev, uint8_t data_format);
+int scst_tg_get_group_info(void **buf, u32 *length,
+			   struct scst_device *dev, u8 data_format);
 int scst_tg_set_group_info(struct scst_cmd *cmd);
 const char *scst_alua_state_name(enum scst_tg_state s);
 void scst_stpg_del_unblock_next(struct scst_cmd *cmd);
@@ -3852,7 +3852,7 @@ static inline __be32 scst_dev_get_dif_static_app_ref_tag(const struct scst_devic
 
 static inline __be64 scst_dev_get_dif_static_app_tag_combined(struct scst_device *dev)
 {
-	uint64_t a = (((uint64_t)be32_to_cpu(dev->dev_dif_static_app_ref_tag)) << 16) |
+	u64 a = (((u64)be32_to_cpu(dev->dev_dif_static_app_ref_tag)) << 16) |
 			be16_to_cpu(dev->dev_dif_static_app_tag);
 	return cpu_to_be64(a);
 }
@@ -4019,7 +4019,7 @@ static inline enum scst_exec_context scst_estimate_context_atomic(void)
 }
 
 /* Returns cmd's CDB */
-static inline const uint8_t *scst_cmd_get_cdb(const struct scst_cmd *cmd)
+static inline const u8 *scst_cmd_get_cdb(const struct scst_cmd *cmd)
 {
 	return cmd->cdb;
 }
@@ -4031,7 +4031,7 @@ static inline unsigned int scst_cmd_get_cdb_len(const struct scst_cmd *cmd)
 }
 
 void scst_cmd_set_ext_cdb(struct scst_cmd *cmd,
-	uint8_t *ext_cdb, unsigned int ext_cdb_len, gfp_t gfp_mask);
+	u8 *ext_cdb, unsigned int ext_cdb_len, gfp_t gfp_mask);
 
 /* Returns cmd's session */
 static inline struct scst_session *scst_cmd_get_session(const struct scst_cmd *cmd)
@@ -4102,7 +4102,7 @@ static inline int scst_cmd_get_dif_sg_cnt(const struct scst_cmd *cmd)
 }
 
 /* Returns cmd's LBA */
-static inline int64_t scst_cmd_get_lba(const struct scst_cmd *cmd)
+static inline s64 scst_cmd_get_lba(const struct scst_cmd *cmd)
 {
 	return cmd->lba;
 }
@@ -4123,7 +4123,7 @@ static inline int scst_cmd_get_bufflen(const struct scst_cmd *cmd)
  * Returns cmd's data_len. See the corresponding field's description in
  * struct scst_cmd above.
  */
-static inline int64_t scst_cmd_get_data_len(const struct scst_cmd *cmd)
+static inline s64 scst_cmd_get_data_len(const struct scst_cmd *cmd)
 {
 	return cmd->data_len;
 }
@@ -4303,31 +4303,31 @@ static inline bool scst_get_resid(struct scst_cmd *cmd, int *resid, int *bidi_ou
 }
 
 /* Returns cmd's status byte from host device */
-static inline uint8_t scst_cmd_get_status(const struct scst_cmd *cmd)
+static inline u8 scst_cmd_get_status(const struct scst_cmd *cmd)
 {
 	return cmd->status;
 }
 
 /* Returns cmd's status from host adapter itself */
-static inline uint8_t scst_cmd_get_msg_status(const struct scst_cmd *cmd)
+static inline u8 scst_cmd_get_msg_status(const struct scst_cmd *cmd)
 {
 	return cmd->msg_status;
 }
 
 /* Returns cmd's status set by low-level driver to indicate its status */
-static inline uint8_t scst_cmd_get_host_status(const struct scst_cmd *cmd)
+static inline u8 scst_cmd_get_host_status(const struct scst_cmd *cmd)
 {
 	return cmd->host_status;
 }
 
 /* Returns cmd's status set by SCSI mid-level */
-static inline uint8_t scst_cmd_get_driver_status(const struct scst_cmd *cmd)
+static inline u8 scst_cmd_get_driver_status(const struct scst_cmd *cmd)
 {
 	return cmd->driver_status;
 }
 
 /* Returns pointer to cmd's sense buffer */
-static inline uint8_t *scst_cmd_get_sense_buffer(const struct scst_cmd *cmd)
+static inline u8 *scst_cmd_get_sense_buffer(const struct scst_cmd *cmd)
 {
 	return cmd->sense;
 }
@@ -4355,12 +4355,12 @@ static inline void scst_cmd_set_queue_type(struct scst_cmd *cmd,
 /*
  * Get/Set functions for cmd's target SN
  */
-static inline uint64_t scst_cmd_get_tag(const struct scst_cmd *cmd)
+static inline u64 scst_cmd_get_tag(const struct scst_cmd *cmd)
 {
 	return cmd->tag;
 }
 
-static inline void scst_cmd_set_tag(struct scst_cmd *cmd, uint64_t tag)
+static inline void scst_cmd_set_tag(struct scst_cmd *cmd, u64 tag)
 {
 	cmd->tag = tag;
 }
@@ -4443,7 +4443,7 @@ static inline int scst_cmd_get_tgt_sn(const struct scst_cmd *cmd)
 	return cmd->tgt_sn;
 }
 
-static inline void scst_cmd_set_tgt_sn(struct scst_cmd *cmd, uint32_t tgt_sn)
+static inline void scst_cmd_set_tgt_sn(struct scst_cmd *cmd, u32 tgt_sn)
 {
 	cmd->tgt_sn_set = 1;
 	cmd->tgt_sn = tgt_sn;
@@ -4636,7 +4636,7 @@ static inline int scst_cmd_get_dif_prot_type(struct scst_cmd *cmd)
  * support Application Tag mode page. ToDo, not implemented yet.
  */
 static inline __be16 scst_cmd_get_dif_app_tag(struct scst_cmd *cmd,
-					      uint64_t lba_start/*, uint64_t *out_lba_end*/)
+					      u64 lba_start/*, uint64_t *out_lba_end*/)
 {
 #ifdef CONFIG_SCST_EXTRACHECKS
 	WARN_ON(!(scst_get_dif_checks(cmd->cmd_dif_actions) & SCST_DIF_CHECK_APP_TAG));
@@ -4648,7 +4648,7 @@ static inline __be16 scst_cmd_get_dif_app_tag(struct scst_cmd *cmd,
  * Returns T10-PI type 2 expected initial reference tag as LBA, i.e. converted
  * into CPU endianness. Valid only with protection type 2.
  */
-static inline uint32_t scst_cmd_get_dif_exp_ref_tag(struct scst_cmd *cmd)
+static inline u32 scst_cmd_get_dif_exp_ref_tag(struct scst_cmd *cmd)
 {
 #ifdef CONFIG_SCST_EXTRACHECKS
 	BUG_ON(cmd->dev->dev_dif_type != 2);
@@ -4664,7 +4664,7 @@ static inline uint32_t scst_cmd_get_dif_exp_ref_tag(struct scst_cmd *cmd)
  * Returns T10-PI type 2 expected logical block application tag converted
  * into CPU endianness. Valid only with protection type 2.
  */
-static inline uint16_t scst_cmd_get_dif_exp_app_tag(struct scst_cmd *cmd)
+static inline u16 scst_cmd_get_dif_exp_app_tag(struct scst_cmd *cmd)
 {
 #ifdef CONFIG_SCST_EXTRACHECKS
 	BUG_ON(cmd->dev->dev_dif_type != 2);
@@ -4681,7 +4681,7 @@ static inline uint16_t scst_cmd_get_dif_exp_app_tag(struct scst_cmd *cmd)
  * Returns T10-PI type 2 logical block application tag mask converted
  * into CPU endianness. Valid only with protection type 2.
  */
-static inline uint16_t scst_cmd_get_dif_app_tag_mask(struct scst_cmd *cmd)
+static inline u16 scst_cmd_get_dif_app_tag_mask(struct scst_cmd *cmd)
 {
 #ifdef CONFIG_SCST_EXTRACHECKS
 	BUG_ON(cmd->dev->dev_dif_type != 2);
@@ -4739,7 +4739,7 @@ static inline unsigned int scst_get_active_cmd_count(struct scst_cmd *cmd)
 		return (unsigned int)-1;
 }
 
-int scst_set_cdb_lba(struct scst_cmd *cmd, int64_t lba);
+int scst_set_cdb_lba(struct scst_cmd *cmd, s64 lba);
 int scst_set_cdb_transf_len(struct scst_cmd *cmd, int len);
 
 /*
@@ -4812,7 +4812,7 @@ static inline __be64 scst_aen_get_lun(const struct scst_aen *aen)
 }
 
 /* Returns SCSI AEN's sense */
-static inline const uint8_t *scst_aen_get_sense(const struct scst_aen *aen)
+static inline const u8 *scst_aen_get_sense(const struct scst_aen *aen)
 {
 	return aen->aen_sense;
 }
@@ -4905,7 +4905,7 @@ void scst_copy_sg(struct scst_cmd *cmd, enum scst_sg_copy_dir copy_dir);
  *
  * The "put" function unmaps the buffer.
  */
-static inline int __scst_get_buf(struct scst_cmd *cmd, int sg_cnt, uint8_t **buf)
+static inline int __scst_get_buf(struct scst_cmd *cmd, int sg_cnt, u8 **buf)
 {
 	int res = 0;
 	struct scatterlist *sg = cmd->get_sg_buf_cur_sg_entry;
@@ -4925,7 +4925,7 @@ out:
 	return res;
 }
 
-static inline int scst_get_buf_first(struct scst_cmd *cmd, uint8_t **buf)
+static inline int scst_get_buf_first(struct scst_cmd *cmd, u8 **buf)
 {
 	if (unlikely(!cmd->sg)) {
 		*buf = NULL;
@@ -4937,7 +4937,7 @@ static inline int scst_get_buf_first(struct scst_cmd *cmd, uint8_t **buf)
 	return __scst_get_buf(cmd, cmd->sg_cnt, buf);
 }
 
-static inline int scst_get_buf_next(struct scst_cmd *cmd, uint8_t **buf)
+static inline int scst_get_buf_next(struct scst_cmd *cmd, u8 **buf)
 {
 	return __scst_get_buf(cmd, cmd->sg_cnt, buf);
 }
@@ -4961,10 +4961,10 @@ static inline void scst_put_buf(struct scst_cmd *cmd, void *buf)
  * !!! NOTE: this function does not check DIF SG cnt, hence must be used !!!
  * !!! only inside code bound to the corresponding data SG cnt!		 !!!
  */
-static inline uint8_t *scst_get_dif_buf(struct scst_cmd *cmd, struct scatterlist **psg,
+static inline u8 *scst_get_dif_buf(struct scst_cmd *cmd, struct scatterlist **psg,
 					int *length)
 {
-	uint8_t *buf;
+	u8 *buf;
 	struct scatterlist *sg;
 
 	if (!*psg)
@@ -4986,7 +4986,7 @@ static inline void scst_put_dif_buf(struct scst_cmd *cmd, void *buf)
 	/* Nothing to do */
 }
 
-static inline int scst_get_out_buf_first(struct scst_cmd *cmd, uint8_t **buf)
+static inline int scst_get_out_buf_first(struct scst_cmd *cmd, u8 **buf)
 {
 	if (unlikely(!cmd->out_sg)) {
 		*buf = NULL;
@@ -4998,7 +4998,7 @@ static inline int scst_get_out_buf_first(struct scst_cmd *cmd, uint8_t **buf)
 	return __scst_get_buf(cmd, cmd->out_sg_cnt, buf);
 }
 
-static inline int scst_get_out_buf_next(struct scst_cmd *cmd, uint8_t **buf)
+static inline int scst_get_out_buf_next(struct scst_cmd *cmd, u8 **buf)
 {
 	return __scst_get_buf(cmd, cmd->out_sg_cnt, buf);
 }
@@ -5008,7 +5008,7 @@ static inline void scst_put_out_buf(struct scst_cmd *cmd, void *buf)
 	/* Nothing to do */
 }
 
-static inline int scst_get_sg_buf_first(struct scst_cmd *cmd, uint8_t **buf,
+static inline int scst_get_sg_buf_first(struct scst_cmd *cmd, u8 **buf,
 					struct scatterlist *sg, int sg_cnt)
 {
 	if (unlikely(!sg)) {
@@ -5021,7 +5021,7 @@ static inline int scst_get_sg_buf_first(struct scst_cmd *cmd, uint8_t **buf,
 	return __scst_get_buf(cmd, sg_cnt, buf);
 }
 
-static inline int scst_get_sg_buf_next(struct scst_cmd *cmd, uint8_t **buf,
+static inline int scst_get_sg_buf_next(struct scst_cmd *cmd, u8 **buf,
 	struct scatterlist *sg, int sg_cnt)
 {
 	return __scst_get_buf(cmd, sg_cnt, buf);
@@ -5137,9 +5137,9 @@ static inline int scst_get_out_buf_count(struct scst_cmd *cmd)
 	return (cmd->out_sg_cnt == 0) ? 1 : cmd->out_sg_cnt;
 }
 
-int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf, bool always_copy);
-int scst_get_buf_full_sense(struct scst_cmd *cmd, uint8_t **buf);
-void scst_put_buf_full(struct scst_cmd *cmd, uint8_t *buf);
+int scst_get_buf_full(struct scst_cmd *cmd, u8 **buf, bool always_copy);
+int scst_get_buf_full_sense(struct scst_cmd *cmd, u8 **buf);
+void scst_put_buf_full(struct scst_cmd *cmd, u8 *buf);
 
 static inline gfp_t scst_cmd_get_gfp_mask(const struct scst_cmd *cmd)
 {
@@ -5274,17 +5274,17 @@ static inline const char *scst_get_tgt_name(const struct scst_tgt *tgt)
 }
 
 int scst_alloc_sense(struct scst_cmd *cmd, int atomic);
-int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic, const uint8_t *sense, unsigned int len);
+int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic, const u8 *sense, unsigned int len);
 
-int scst_set_sense(uint8_t *buffer, int len, bool d_sense, int key, int asc, int ascq);
+int scst_set_sense(u8 *buffer, int len, bool d_sense, int key, int asc, int ascq);
 
 #define SCST_INVAL_FIELD_BIT_OFFS_VALID		0x8000
 int scst_set_invalid_field_in_cdb(struct scst_cmd *cmd, int field_offs, int bit_offs);
 int scst_set_invalid_field_in_parm_list(struct scst_cmd *cmd, int field_offs, int bit_offs);
 
-bool scst_is_ua_sense(const uint8_t *sense, int len);
+bool scst_is_ua_sense(const u8 *sense, int len);
 
-bool scst_analyze_sense(const uint8_t *sense, int len, unsigned int valid_mask, int key, int asc,
+bool scst_analyze_sense(const u8 *sense, int len, unsigned int valid_mask, int key, int asc,
 			int ascq);
 
 unsigned long scst_random(void);
@@ -5311,12 +5311,12 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 			       void (*set_block_size)(struct scst_cmd *cmd, int block_size));
 
-int scst_obtain_device_parameters(struct scst_device *dev, const uint8_t *mode_select_cdb);
+int scst_obtain_device_parameters(struct scst_device *dev, const u8 *mode_select_cdb);
 
 void scst_reassign_retained_sess_states(struct scst_session *new_sess,
 					struct scst_session *old_sess);
 
-int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun);
+int scst_get_max_lun_commands(struct scst_session *sess, u64 lun);
 
 void scst_dev_inquiry_data_changed(struct scst_device *dev);
 
@@ -5485,7 +5485,7 @@ static inline const char *scst_get_opcode_name(struct scst_cmd *cmd)
  */
 struct scst_sysfs_user_info {
 	/* Unique cookie to identify request */
-	uint32_t info_cookie;
+	u32 info_cookie;
 
 	/* Entry in the global list */
 	struct list_head info_list_entry;
@@ -5506,7 +5506,7 @@ struct scst_sysfs_user_info {
 
 int scst_sysfs_user_add_info(struct scst_sysfs_user_info **out_info);
 void scst_sysfs_user_del_info(struct scst_sysfs_user_info *info);
-struct scst_sysfs_user_info *scst_sysfs_user_get_info(uint32_t cookie);
+struct scst_sysfs_user_info *scst_sysfs_user_get_info(u32 cookie);
 int scst_wait_info_completion(struct scst_sysfs_user_info *info, unsigned long timeout);
 
 unsigned int scst_get_setup_id(void);
@@ -5614,8 +5614,8 @@ int scst_open_bdev_by_path(const char *path, blk_mode_t mode, void *holder,
 void scst_release_bdev(struct scst_bdev_descriptor *bdev_desc);
 
 struct scst_data_descriptor {
-	uint64_t sdd_lba;
-	uint64_t sdd_blocks;
+	u64 sdd_lba;
+	u64 sdd_blocks;
 };
 
 loff_t scst_file_size(const char *path, umode_t *mode);
@@ -5684,16 +5684,16 @@ __scst_scsi_execute_cmd(struct scsi_device *sdev, const unsigned char *cmd,
 	__scst_scsi_execute_cmd(sdev, cmd, data_direction, buffer, bufflen, sense,	\
 				sizeof(sense), timeout, retries, opf)
 
-__be64 scst_pack_lun(const uint64_t lun, enum scst_lun_addr_method addr_method);
-uint64_t scst_unpack_lun(const uint8_t *lun, int len);
+__be64 scst_pack_lun(const u64 lun, enum scst_lun_addr_method addr_method);
+u64 scst_unpack_lun(const u8 *lun, int len);
 
-int scst_save_global_mode_pages(const struct scst_device *dev, uint8_t *buf, int size);
+int scst_save_global_mode_pages(const struct scst_device *dev, u8 *buf, int size);
 int scst_restore_global_mode_pages(struct scst_device *dev, char *params, char **last_param);
 
 int scst_read_file_transactional(const char *name, const char *name1, const char *signature,
-				 int signature_len, uint8_t *buf, int size);
+				 int signature_len, u8 *buf, int size);
 int scst_write_file_transactional(const char *name, const char *name1, const char *signature,
-				  int signature_len, const uint8_t *buf, int size);
+				  int signature_len, const u8 *buf, int size);
 
 int scst_remove_file(const char *name);
 
@@ -5710,8 +5710,8 @@ void scst_alua_unlock(void);
 void lockdep_assert_alua_lock_held(void);
 
 struct scst_ext_copy_data_descr {
-	uint64_t src_lba;
-	uint64_t dst_lba;
+	u64 src_lba;
+	u64 dst_lba;
 	int data_len; /* in bytes */
 };
 

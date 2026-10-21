@@ -129,7 +129,7 @@ static int tape_attach(struct scst_device *dev)
 	int retries;
 	struct scsi_mode_data data;
 	const int buffer_size = 512;
-	uint8_t *buffer = NULL;
+	u8 *buffer = NULL;
 
 	TRACE_ENTRY();
 

@@ -2039,12 +2039,12 @@ iov_iter_kvec_backport(struct iov_iter *i, unsigned int direction,
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8 ||	\
 	 RHEL_MAJOR -0 == 8 && RHEL_MINOR -0 < 4)
 /* Only use get_unaligned_be24() if reading p - 1 is allowed. */
-static inline uint32_t get_unaligned_be24(const uint8_t *const p)
+static inline u32 get_unaligned_be24(const u8 *const p)
 {
 	return get_unaligned_be32(p - 1) & 0xffffffU;
 }
 
-static inline void put_unaligned_be24(const uint32_t v, uint8_t *const p)
+static inline void put_unaligned_be24(const u32 v, u8 *const p)
 {
 	p[0] = v >> 16;
 	p[1] = v >>  8;
@@ -2074,13 +2074,13 @@ static inline struct ib_pd *ib_alloc_pd_backport(struct ib_device *device)
  * See also commit 54cf31d07aa8 ("scsi: core: Drop message byte helper";
  * v5.14-rc1).
  */
-static inline uint8_t msg_byte(uint32_t result)
+static inline u8 msg_byte(u32 result)
 {
 	return (result >> 8) & 0xff;
 }
 #endif
 #ifndef host_byte
-static inline uint8_t host_byte(uint32_t result)
+static inline u8 host_byte(u32 result)
 {
 	return (result >> 16) & 0xff;
 }
@@ -2090,7 +2090,7 @@ static inline uint8_t host_byte(uint32_t result)
  * See also commit 54c29086195f ("scsi: core: Drop the now obsolete driver_byte
  * definitions"; v5.14-rc1).
  */
-static inline uint8_t driver_byte(uint32_t result)
+static inline u8 driver_byte(u32 result)
 {
 	return (result >> 24) & 0xff;
 }

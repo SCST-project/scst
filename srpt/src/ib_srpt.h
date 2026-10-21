@@ -264,8 +264,8 @@ enum srpt_command_state {
 struct srpt_ioctx {
 	void			*buf;
 	dma_addr_t		dma;
-	uint32_t		offset;
-	uint32_t		index;
+	u32			offset;
+	u32			index;
 };
 
 /**
@@ -336,7 +336,7 @@ struct srpt_send_ioctx {
 	struct srpt_tsk_mgmt	tsk_mgmt;
 	u8			rdma_ius_buf[2 * sizeof(struct rdma_iu)
 					     + 2 * sizeof(struct ib_sge)]
-				__aligned(sizeof(uint64_t));
+				__aligned(sizeof(u64));
 	struct scst_cmd		cmd;
 	scst_data_direction	dir;
 };
@@ -431,7 +431,7 @@ struct srpt_rdma_ch {
 	struct ib_wc		wc[16];
 	struct list_head	list;
 	struct list_head	cmd_wait_list;
-	uint16_t		pkey;
+	u16			pkey;
 	u16			comp_vector;
 	bool			using_rdma_cm;
 	bool			processing_wait_list;

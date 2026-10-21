@@ -19,7 +19,7 @@
 #define INQ_BUF_SZ			256
 
 struct scst_vdisk_dev {
-	uint64_t nblocks;
+	u64 nblocks;
 	unsigned int opt_trans_len;
 
 	/*
@@ -87,14 +87,14 @@ struct scst_vdisk_dev {
 #endif
 
 	/* Protected by flags_lock, together with format_active. */
-	uint64_t format_progress_to_do, format_progress_done;
+	u64 format_progress_to_do, format_progress_done;
 
 	int virt_id;
 	/* Name of the virtual device, must be <= SCSI Model + 1 */
 	char name[64 + 1];
 	/* File name, protected by scst_mutex and suspended activities */
 	char *filename;
-	uint16_t command_set_version;
+	u16 command_set_version;
 
 	unsigned int initial_cluster_mode:1;
 
@@ -114,15 +114,15 @@ struct scst_vdisk_dev {
 	char scsi_device_name[256 + 1];
 	char t10_dev_id[16 + 8 + 2]; /* T10 device ID */
 	int eui64_id_len;
-	uint8_t eui64_id[16];
+	u8 eui64_id[16];
 	int naa_id_len;
-	uint8_t naa_id[16];
+	u8 naa_id[16];
 	char usn[MAX_USN_LEN];
-	uint8_t inq_vend_specific[MAX_INQ_VEND_SPECIFIC_LEN];
+	u8 inq_vend_specific[MAX_INQ_VEND_SPECIFIC_LEN];
 	int inq_vend_specific_len;
 
 	/* Unmap INQUIRY parameters */
-	uint32_t unmap_opt_gran, unmap_align, unmap_max_lba_cnt;
+	u32 unmap_opt_gran, unmap_align, unmap_max_lba_cnt;
 
 	struct scst_device *dev;
 	struct list_head vdev_list_entry;

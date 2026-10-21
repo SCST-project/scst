@@ -76,7 +76,7 @@ static inline void scst_assert_pr_mutex_held(struct scst_device *dev)
 #endif
 }
 
-uint32_t scst_tid_size(const uint8_t *tid)
+u32 scst_tid_size(const u8 *tid)
 {
 	sBUG_ON(!tid);
 
@@ -87,10 +87,10 @@ uint32_t scst_tid_size(const uint8_t *tid)
 }
 
 /* Secures transport ID by setting 0 in the last byte of ASCII transport IDs */
-static bool tid_secure(uint8_t *tid, unsigned int buf_size)
+static bool tid_secure(u8 *tid, unsigned int buf_size)
 {
 	if ((tid[0] & 0x0f) == SCSI_TRANSPORTID_PROTOCOLID_ISCSI) {
-		const uint32_t size = scst_tid_size(tid);
+		const u32 size = scst_tid_size(tid);
 
 		if (size > buf_size)
 			return false;
@@ -101,7 +101,7 @@ static bool tid_secure(uint8_t *tid, unsigned int buf_size)
 }
 
 /* Returns false if tid's are not equal, true otherwise */
-bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b)
+bool tid_equal(const u8 *tid_a, const u8 *tid_b)
 {
 	int len;
 
@@ -114,10 +114,10 @@ bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b)
 	}
 
 	if ((tid_a[0] & 0x0f) == SCSI_TRANSPORTID_PROTOCOLID_ISCSI) {
-		const uint8_t tid_a_fmt = tid_a[0] & 0xc0;
-		const uint8_t tid_b_fmt = tid_b[0] & 0xc0;
-		uint32_t tid_a_len, tid_a_max = scst_tid_size(tid_a) - 4;
-		uint32_t tid_b_len, tid_b_max = scst_tid_size(tid_b) - 4;
+		const u8 tid_a_fmt = tid_a[0] & 0xc0;
+		const u8 tid_b_fmt = tid_b[0] & 0xc0;
+		u32 tid_a_len, tid_a_max = scst_tid_size(tid_a) - 4;
+		u32 tid_b_len, tid_b_max = scst_tid_size(tid_b) - 4;
 		int i;
 
 		tid_a += 4;
@@ -127,7 +127,7 @@ bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b)
 			tid_a_len = strnlen(tid_a, tid_a_max);
 		} else if (tid_a_fmt == 0x40) {
 			if (tid_a_fmt != tid_b_fmt) {
-				uint8_t *p = strnchr(tid_a, tid_a_max, ',');
+				u8 *p = strnchr(tid_a, tid_a_max, ',');
 
 				if (!p)
 					goto out_error;
@@ -145,7 +145,7 @@ bool tid_equal(const uint8_t *tid_a, const uint8_t *tid_b)
 			tid_b_len = strnlen(tid_b, tid_b_max);
 		} else if (tid_b_fmt == 0x40) {
 			if (tid_a_fmt != tid_b_fmt) {
-				uint8_t *p = strnchr(tid_b, tid_b_max, ',');
+				u8 *p = strnchr(tid_b, tid_b_max, ',');
 
 				if (!p)
 					goto out_error;
@@ -181,8 +181,8 @@ out_error:
 }
 
 /* Must be called under dev_pr_mutex */
-void scst_pr_set_holder(struct scst_device *dev, struct scst_dev_registrant *holder, uint8_t scope,
-			uint8_t type)
+void scst_pr_set_holder(struct scst_device *dev, struct scst_dev_registrant *holder, u8 scope,
+			u8 type)
 {
 	scst_assert_pr_mutex_held(dev);
 
@@ -316,8 +316,8 @@ static void scst_pr_find_registrants_list_key(struct scst_device *dev, __be64 ke
 }
 
 /* dev_pr_mutex must be locked */
-struct scst_dev_registrant *scst_pr_find_reg(struct scst_device *dev, const uint8_t *transport_id,
-					     const uint16_t rel_tgt_id)
+struct scst_dev_registrant *scst_pr_find_reg(struct scst_device *dev, const u8 *transport_id,
+					     const u16 rel_tgt_id)
 {
 	struct scst_dev_registrant *reg, *res = NULL;
 
@@ -378,8 +378,8 @@ void scst_pr_clear_holder(struct scst_device *dev)
 
 /* Must be called under dev_pr_mutex */
 struct scst_dev_registrant *scst_pr_add_registrant(struct scst_device *dev,
-						   const uint8_t *transport_id,
-						   const uint16_t rel_tgt_id, __be64 key,
+						   const u8 *transport_id,
+						   const u16 rel_tgt_id, __be64 key,
 						   bool dev_lock_locked)
 {
 	struct scst_dev_registrant *reg;
@@ -508,7 +508,7 @@ static void scst_pr_remove_registrants(struct scst_device *dev)
 void scst_pr_send_ua_reg(struct scst_device *dev, struct scst_dev_registrant *reg,
 			 int key, int asc, int ascq)
 {
-	static uint8_t ua[SCST_STANDARD_SENSE_LEN];
+	static u8 ua[SCST_STANDARD_SENSE_LEN];
 
 	TRACE_ENTRY();
 
@@ -587,7 +587,7 @@ static void scst_pr_abort_reg(struct scst_device *dev, struct scst_cmd *pr_cmd,
 	}
 
 	if (reg->tgt_dev != pr_cmd->tgt_dev && !dev->tas) {
-		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+		u8 sense_buffer[SCST_STANDARD_SENSE_LEN];
 		int sl;
 
 		sl = scst_set_sense(sense_buffer, sizeof(sense_buffer), dev->d_sense,
@@ -617,10 +617,10 @@ static int scst_pr_do_load_device_file(struct scst_device *dev, const char *file
 	struct file *file = NULL;
 	char *buf = NULL;
 	loff_t file_size, pos, data_size;
-	uint64_t sign, version;
-	uint8_t pr_is_set, aptpl;
+	u64 sign, version;
+	u8 pr_is_set, aptpl;
 	__be64 key;
-	uint16_t rel_tgt_id;
+	u16 rel_tgt_id;
 
 	TRACE_ENTRY();
 
@@ -682,7 +682,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev, const char *file
 
 	pos = 0;
 
-	sign = get_unaligned((uint64_t *)&buf[pos]);
+	sign = get_unaligned((u64 *)&buf[pos]);
 	if (sign != SCST_PR_FILE_SIGN) {
 		res = -EINVAL;
 		PRINT_ERROR("Invalid persistent file signature %016llx (expected %016llx)",
@@ -691,7 +691,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev, const char *file
 	}
 	pos += sizeof(sign);
 
-	version = get_unaligned((uint64_t *)&buf[pos]);
+	version = get_unaligned((u64 *)&buf[pos]);
 	if (version != SCST_PR_FILE_VERSION) {
 		res = -EINVAL;
 		PRINT_ERROR("Invalid persistent file version %016llx (expected %016llx)",
@@ -701,7 +701,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev, const char *file
 	pos += sizeof(version);
 
 	while (data_size + 1 < file_size) {
-		uint8_t *tid;
+		u8 *tid;
 
 		data_size++;
 		tid = &buf[data_size];
@@ -732,8 +732,8 @@ static int scst_pr_do_load_device_file(struct scst_device *dev, const char *file
 	pos += sizeof(dev->pr_scope);
 
 	while (pos + 1 < file_size) {
-		uint8_t is_holder;
-		uint8_t *tid;
+		u8 is_holder;
+		u8 *tid;
 		struct scst_dev_registrant *reg = NULL;
 
 		is_holder = buf[pos++];
@@ -744,7 +744,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev, const char *file
 		key = get_unaligned((__be64 *)&buf[pos]);
 		pos += sizeof(key);
 
-		rel_tgt_id = get_unaligned((uint16_t *)&buf[pos]);
+		rel_tgt_id = get_unaligned((u16 *)&buf[pos]);
 		pos += sizeof(rel_tgt_id);
 
 		reg = scst_pr_add_registrant(dev, tid, rel_tgt_id, key, false);
@@ -824,9 +824,9 @@ void scst_pr_sync_device_file(struct scst_device *dev)
 	int res = 0;
 	struct file *file;
 	loff_t pos = 0;
-	uint64_t sign;
-	uint64_t version;
-	uint8_t pr_is_set, aptpl;
+	u64 sign;
+	u64 version;
+	u8 pr_is_set, aptpl;
 	struct scst_dev_registrant *reg;
 
 	TRACE_ENTRY();
@@ -896,8 +896,8 @@ void scst_pr_sync_device_file(struct scst_device *dev)
 	 */
 	list_for_each_entry(reg, &dev->dev_registrants_list,
 			    dev_registrants_list_entry) {
-		uint8_t is_holder = 0;
-		uint32_t size;
+		u8 is_holder = 0;
+		u32 size;
 
 		is_holder = (dev->pr_holder == reg);
 
@@ -1143,8 +1143,8 @@ int scst_pr_init_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	int res = 0;
 	struct scst_dev_registrant *reg;
 	struct scst_device *dev = tgt_dev->dev;
-	const uint8_t *transport_id = tgt_dev->sess->transport_id;
-	const uint16_t rel_tgt_id = tgt_dev->sess->tgt->rel_tgt_id;
+	const u8 *transport_id = tgt_dev->sess->transport_id;
+	const u16 rel_tgt_id = tgt_dev->sess->tgt->rel_tgt_id;
 
 	TRACE_ENTRY();
 
@@ -1207,8 +1207,8 @@ void scst_pr_clear_tgt_dev(struct scst_tgt_dev *tgt_dev)
 }
 
 /* Called with dev_pr_mutex locked. Might also be called under scst_mutex2. */
-static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd, const uint16_t rel_tgt_id,
-					   uint8_t *buffer, int buffer_size,
+static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd, const u16 rel_tgt_id,
+					   u8 *buffer, int buffer_size,
 					   struct list_head *rollback_list)
 {
 	int res = 0;
@@ -1233,8 +1233,8 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd, const uint16_t 
 
 	offset = 0;
 	while (offset < ext_size) {
-		uint8_t *const transport_id = &buffer[28 + offset];
-		const uint32_t tid_size = scst_tid_size(transport_id);
+		u8 *const transport_id = &buffer[28 + offset];
+		const u32 tid_size = scst_tid_size(transport_id);
 
 		if (offset + tid_size > ext_size) {
 			TRACE_PR("Invalid transport_id size %d (max %d)",
@@ -1249,7 +1249,7 @@ static int scst_pr_register_with_spec_i_pt(struct scst_cmd *cmd, const uint16_t 
 
 	offset = 0;
 	while (offset < ext_size) {
-		uint8_t *transport_id = &buffer[28 + offset];
+		u8 *transport_id = &buffer[28 + offset];
 		struct scst_tgt_dev *t;
 
 		TRACE_PR("rel_tgt_id %d, transport_id %s",
@@ -1324,7 +1324,7 @@ out:
 static void scst_pr_unregister(struct scst_device *dev, struct scst_dev_registrant *reg)
 {
 	bool is_holder;
-	uint8_t pr_type;
+	u8 pr_type;
 
 	TRACE_ENTRY();
 
@@ -1352,10 +1352,10 @@ static void scst_pr_unregister(struct scst_device *dev, struct scst_dev_registra
 }
 
 /* Called with dev_pr_mutex locked, no IRQ */
-static void scst_pr_unregister_all_tg_pt(struct scst_device *dev, const uint8_t *transport_id)
+static void scst_pr_unregister_all_tg_pt(struct scst_device *dev, const u8 *transport_id)
 {
 	struct scst_tgt_template *tgtt;
-	uint8_t proto_id = transport_id[0] & 0x0f;
+	u8 proto_id = transport_id[0] & 0x0f;
 
 	TRACE_ENTRY();
 
@@ -1393,8 +1393,8 @@ static void scst_pr_unregister_all_tg_pt(struct scst_device *dev, const uint8_t 
 }
 
 /* Called with dev_pr_mutex locked. Might also be called under scst_mutex2. */
-static int scst_pr_register_on_tgt_id(struct scst_cmd *cmd, const uint16_t rel_tgt_id,
-				      uint8_t *buffer, int buffer_size, bool spec_i_pt,
+static int scst_pr_register_on_tgt_id(struct scst_cmd *cmd, const u16 rel_tgt_id,
+				      u8 *buffer, int buffer_size, bool spec_i_pt,
 				      struct list_head *rollback_list)
 {
 	int res;
@@ -1439,7 +1439,7 @@ out:
 }
 
 /* Add registrants for remote ports. Called with dev_pr_mutex locked, no IRQ. */
-static int scst_register_remote_ports(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size,
+static int scst_register_remote_ports(struct scst_cmd *cmd, u8 *buffer, int buffer_size,
 				      bool spec_i_pt, struct list_head *rollback_list)
 {
 	struct scst_dev_group *dg;
@@ -1476,12 +1476,12 @@ out_unlock:
 }
 
 /* Register all target ports. Called with dev_pr_mutex locked, no IRQ. */
-static int scst_pr_register_all_tg_pt(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size,
+static int scst_pr_register_all_tg_pt(struct scst_cmd *cmd, u8 *buffer, int buffer_size,
 				      bool spec_i_pt, struct list_head *rollback_list)
 {
 	int res = 0;
 	struct scst_tgt_template *tgtt;
-	uint8_t proto_id = cmd->sess->transport_id[0] & 0x0f;
+	u8 proto_id = cmd->sess->transport_id[0] & 0x0f;
 
 	TRACE_ENTRY();
 
@@ -1531,7 +1531,7 @@ out_unlock:
 }
 
 /* Called with dev_pr_mutex locked, no IRQ */
-static int __scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size,
+static int __scst_pr_register(struct scst_cmd *cmd, u8 *buffer, int buffer_size,
 			      bool spec_i_pt, bool all_tg_pt)
 {
 	int res;
@@ -1575,7 +1575,7 @@ out_rollback:
 }
 
 /* Called with dev_pr_mutex locked, no IRQ */
-void scst_pr_register(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
+void scst_pr_register(struct scst_cmd *cmd, u8 *buffer, int buffer_size)
 {
 	int aptpl, spec_i_pt, all_tg_pt;
 	__be64 key, action_key;
@@ -1657,7 +1657,7 @@ out:
 }
 
 /* Called with dev_pr_mutex locked, no IRQ */
-void scst_pr_register_and_ignore(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
+void scst_pr_register_and_ignore(struct scst_cmd *cmd, u8 *buffer, int buffer_size)
 {
 	int aptpl, all_tg_pt;
 	__be64 action_key;
@@ -1718,7 +1718,7 @@ out:
 }
 
 /* Called with dev_pr_mutex locked, no IRQ */
-void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
+void scst_pr_register_and_move(struct scst_cmd *cmd, u8 *buffer, int buffer_size)
 {
 	int aptpl;
 	int unreg;
@@ -1728,9 +1728,9 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer, int buffer
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	struct scst_session *sess = cmd->sess;
 	struct scst_dev_registrant *reg, *reg_move;
-	const uint8_t *transport_id = NULL;
-	uint8_t *transport_id_move = NULL;
-	uint16_t rel_tgt_id_move;
+	const u8 *transport_id = NULL;
+	u8 *transport_id_move = NULL;
+	u16 rel_tgt_id_move;
 
 	TRACE_ENTRY();
 
@@ -1791,7 +1791,7 @@ void scst_pr_register_and_move(struct scst_cmd *cmd, uint8_t *buffer, int buffer
 	}
 
 	transport_id = sess->transport_id;
-	transport_id_move = (uint8_t *)&buffer[24];
+	transport_id_move = (u8 *)&buffer[24];
 	rel_tgt_id_move = get_unaligned_be16(&buffer[18]);
 
 	if ((scst_tid_size(transport_id_move) + 24) > buffer_size) {
@@ -1858,9 +1858,9 @@ out:
 }
 
 /* Called with dev_pr_mutex locked, no IRQ */
-void scst_pr_reserve(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
+void scst_pr_reserve(struct scst_cmd *cmd, u8 *buffer, int buffer_size)
 {
-	uint8_t scope, type;
+	u8 scope, type;
 	__be64 key;
 	struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
@@ -1936,14 +1936,14 @@ out:
 }
 
 /* Called with dev_pr_mutex locked, no IRQ */
-void scst_pr_release(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
+void scst_pr_release(struct scst_cmd *cmd, u8 *buffer, int buffer_size)
 {
 	int scope, type;
 	__be64 key;
 	struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	struct scst_dev_registrant *reg;
-	uint8_t cur_pr_type;
+	u8 cur_pr_type;
 
 	TRACE_ENTRY();
 
@@ -2008,7 +2008,7 @@ out:
 }
 
 /* Called with dev_pr_mutex locked, no IRQ */
-void scst_pr_clear(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
+void scst_pr_clear(struct scst_cmd *cmd, u8 *buffer, int buffer_size)
 {
 	__be64 key;
 	struct scst_device *dev = cmd->dev;
@@ -2054,7 +2054,7 @@ out:
 	TRACE_EXIT();
 }
 
-static void scst_pr_do_preempt(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size, bool abort)
+static void scst_pr_do_preempt(struct scst_cmd *cmd, u8 *buffer, int buffer_size, bool abort)
 {
 	__be64 key, action_key;
 	int scope, type;
@@ -2204,7 +2204,7 @@ out_error:
 }
 
 /* Called with dev_pr_mutex locked, no IRQ */
-void scst_pr_preempt(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
+void scst_pr_preempt(struct scst_cmd *cmd, u8 *buffer, int buffer_size)
 {
 	TRACE_ENTRY();
 
@@ -2240,7 +2240,7 @@ out:
  * Called with dev_pr_mutex locked, no IRQ. Expects session_list_lock
  * not locked
  */
-void scst_pr_preempt_and_abort(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
+void scst_pr_preempt_and_abort(struct scst_cmd *cmd, u8 *buffer, int buffer_size)
 {
 	TRACE_ENTRY();
 
@@ -2278,7 +2278,7 @@ bool scst_pr_crh_case(struct scst_cmd *cmd)
 	struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	struct scst_dev_registrant *reg;
-	uint8_t type;
+	u8 type;
 
 	TRACE_ENTRY();
 
@@ -2336,7 +2336,7 @@ bool scst_pr_is_cmd_allowed(struct scst_cmd *cmd)
 	struct scst_device *dev = cmd->dev;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
 	struct scst_dev_registrant *reg;
-	uint8_t type;
+	u8 type;
 
 	TRACE_ENTRY();
 
@@ -2408,7 +2408,7 @@ out_unlock:
 }
 
 /* Called with dev_pr_mutex locked, no IRQ */
-void scst_pr_read_keys(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
+void scst_pr_read_keys(struct scst_cmd *cmd, u8 *buffer, int buffer_size)
 {
 	int offset = 0, size, size_max;
 	struct scst_device *dev = cmd->dev;
@@ -2456,10 +2456,10 @@ skip:
 }
 
 /* Called with dev_pr_mutex locked, no IRQ */
-void scst_pr_read_reservation(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
+void scst_pr_read_reservation(struct scst_cmd *cmd, u8 *buffer, int buffer_size)
 {
 	struct scst_device *dev = cmd->dev;
-	uint8_t b[24] = { };
+	u8 b[24] = { };
 	int size = 0;
 
 	TRACE_ENTRY();
@@ -2511,7 +2511,7 @@ out:
 }
 
 /* Called with dev_pr_mutex locked, no IRQ */
-void scst_pr_report_caps(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
+void scst_pr_report_caps(struct scst_cmd *cmd, u8 *buffer, int buffer_size)
 {
 	int offset = 0;
 	unsigned int crh = 1;
@@ -2552,7 +2552,7 @@ skip:
 }
 
 /* Called with dev_pr_mutex locked, no IRQ */
-void scst_pr_read_full_status(struct scst_cmd *cmd, uint8_t *buffer, int buffer_size)
+void scst_pr_read_full_status(struct scst_cmd *cmd, u8 *buffer, int buffer_size)
 {
 	int offset = 0, size, size_max;
 	struct scst_device *dev = cmd->dev;
@@ -2572,8 +2572,8 @@ void scst_pr_read_full_status(struct scst_cmd *cmd, uint8_t *buffer, int buffer_
 	size_max = buffer_size - 8;
 
 	list_for_each_entry(reg, &dev->dev_registrants_list, dev_registrants_list_entry) {
-		const uint32_t ts = scst_tid_size(reg->transport_id);
-		const uint32_t rec_len = 24 + ts;
+		const u32 ts = scst_tid_size(reg->transport_id);
+		const u32 rec_len = 24 + ts;
 
 		if (size_max - size > rec_len) {
 			memset(&buffer[offset], 0, rec_len);
