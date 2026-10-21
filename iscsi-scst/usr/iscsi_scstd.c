@@ -760,6 +760,7 @@ static void event_loop(void)
 		for (i = 0; i < INCOMING_MAX; i++) {
 			struct connection *conn = incoming[i];
 			struct pollfd *pollfd = &poll_array[POLL_INCOMING + i];
+			struct session *sess;
 
 			if (!conn || !pollfd->revents)
 				continue;
@@ -768,39 +769,38 @@ static void event_loop(void)
 
 			event_conn(conn, pollfd);
 
-			if ((conn->state == STATE_CLOSE) ||
-			    (conn->state == STATE_EXIT) ||
-			    (conn->state == STATE_DROP)) {
-				struct session *sess = conn->sess;
+			if (conn->state != STATE_CLOSE &&
+			    conn->state != STATE_EXIT &&
+			    conn->state != STATE_DROP)
+				continue;
 
-				log_debug(1, "closing conn %p state=0x%x fd=%u",
-					  conn, conn->state, pollfd->fd);
-				conn_free_pdu(conn);
-				close(pollfd->fd);
-				pollfd->fd = -1;
-				incoming[i] = NULL;
-				incoming_cnt--;
-				if (conn->state != STATE_CLOSE) {
-					if (conn->passed_to_kern) {
-						kernel_conn_destroy(conn->tid,
-							conn->sess->sid.id64,
-							conn->cid);
-					} else {
-						/*
-						 * Check if session could not be established,
-						 * but sessions count was already incremented
-						 */
-						if (!sess && conn->sessions_count_incremented)
-							conn->target->sessions_count--;
-						log_debug(1, "conn %p freed (sess %p, empty %d)",
-							conn, sess,
-							sess ? list_empty(&sess->conn_list) : -1);
-						conn_free(conn);
-						if (sess && list_empty(&sess->conn_list))
-							session_free(sess);
-					}
-				}
+			sess = conn->sess;
+			log_debug(1, "closing conn %p state=0x%x fd=%u",
+				  conn, conn->state, pollfd->fd);
+			conn_free_pdu(conn);
+			close(pollfd->fd);
+			pollfd->fd = -1;
+			incoming[i] = NULL;
+			incoming_cnt--;
+			if (conn->state == STATE_CLOSE)
+				continue;
+
+			if (conn->passed_to_kern) {
+				kernel_conn_destroy(conn->tid, conn->sess->sid.id64, conn->cid);
+				continue;
 			}
+
+			/*
+			 * The count may have been incremented before session
+			 * establishment failed.
+			 */
+			if (!sess && conn->sessions_count_incremented)
+				conn->target->sessions_count--;
+			log_debug(1, "conn %p freed (sess %p, empty %d)",
+				  conn, sess, sess ? list_empty(&sess->conn_list) : -1);
+			conn_free(conn);
+			if (sess && list_empty(&sess->conn_list))
+				session_free(sess);
 		}
 	}
 }
