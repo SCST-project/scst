@@ -41,7 +41,7 @@ static int driver_major(const char *dev)
 
 	devn = -ENOENT;
 	while (fgets(buf, sizeof(buf), f)) {
-		if (sscanf(buf, "%d %s", &devn, devname) == 2 &&
+		if (sscanf(buf, "%d %255s", &devn, devname) == 2 &&
 		    devn > 0 && strcmp(devname, dev) == 0)
 			break;
 		devn = -ENOENT;
