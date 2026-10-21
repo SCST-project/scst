@@ -322,7 +322,7 @@ static int scst_copy_from_dlm(struct scst_device *dev, dlm_lockspace_t *ls,
 	struct scst_dev_registrant *reg, *tmp_reg;
 	int i, res = -ENOMEM;
 	uint32_t nr_registrants;
-	void *reg_lvb_content = NULL;
+	u8 *reg_lvb_content = NULL;
 
 	lockdep_assert_held(&pr_dlm->ls_mutex);
 
@@ -335,8 +335,7 @@ static int scst_copy_from_dlm(struct scst_device *dev, dlm_lockspace_t *ls,
 				    sizeof(*reg_lksb) + PR_DLM_LVB_LEN);
 			goto out;
 		}
-		reg_lvb_content = (void *)reg_lksb +
-			nr_registrants * sizeof(*reg_lksb);
+		reg_lvb_content = (u8 *)(reg_lksb + nr_registrants);
 	}
 
 	for (i = 0; i < nr_registrants; i++) {
@@ -344,7 +343,7 @@ static int scst_copy_from_dlm(struct scst_device *dev, dlm_lockspace_t *ls,
 		struct pr_reg_lvb *reg_lvb;
 
 		snprintf(reg_name, sizeof(reg_name), PR_REG_LOCK, i);
-		reg_lvb = reg_lvb_content + i * PR_DLM_LVB_LEN;
+		reg_lvb = (struct pr_reg_lvb *)(reg_lvb_content + i * PR_DLM_LVB_LEN);
 		reg_lksb[i].lksb.sb_lvbptr = (void *)reg_lvb;
 		res = scst_dlm_lock_wait(ls, DLM_LOCK_PW, &reg_lksb[i],
 					 DLM_LKF_VALBLK, reg_name, NULL);

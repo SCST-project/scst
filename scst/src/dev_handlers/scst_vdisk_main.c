@@ -2757,7 +2757,7 @@ static ssize_t blockio_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	struct block_device *bdev = virt_dev->bdev_desc.bdev;
 	const bool is_vmalloc = is_vmalloc_addr(buf);
 	struct bio *bio;
-	void *p;
+	u8 *data = buf, *p;
 	struct page *q;
 	int max_nr_vecs, rc;
 	unsigned int bytes, off;
@@ -2789,9 +2789,9 @@ static ssize_t blockio_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 #else
 	bio->bi_iter.bi_sector = *loff >> 9;
 #endif
-	for (p = buf; p < buf + len; p += bytes) {
+	for (p = data; p < data + len; p += bytes) {
 		off = offset_in_page(p);
-		bytes = min_t(size_t, PAGE_SIZE - off, buf + len - p);
+		bytes = min_t(size_t, PAGE_SIZE - off, data + len - p);
 		q = is_vmalloc ? vmalloc_to_page(p) : virt_to_page(p);
 		rc = bio_add_page(bio, q, bytes, off);
 		if (rc < bytes) {
@@ -2814,7 +2814,7 @@ static ssize_t blockio_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	wait_for_completion(&s.c);
 	ret = (unsigned long)s.error;
 	if (likely(ret == 0)) {
-		ret = p - buf;
+		ret = p - data;
 		*loff += ret;
 	}
 
@@ -2835,7 +2835,7 @@ static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 		return len;
 	} else if (virt_dev->blockio) {
 		for (read = 0; read < len; read += res) {
-			res = blockio_read_sync(virt_dev, buf + read,
+			res = blockio_read_sync(virt_dev, (u8 *)buf + read,
 						len - read, loff);
 			if (res < 0)
 				return res;

@@ -107,7 +107,7 @@ struct isert_conn_dev {
 	char *read_buf;
 	size_t write_len;
 	char *write_buf;
-	void *sg_virt;
+	u8 *sg_virt;
 	struct page *pages[DIV_ROUND_UP(ISER_MAX_LOGIN_RDSL, PAGE_SIZE)];
 	enum isert_conn_dev_state state;
 	int is_discovery;

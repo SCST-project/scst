@@ -1154,7 +1154,7 @@ static int srpt_get_desc_tbl(struct srpt_recv_ioctx *recv_ioctx,
 		return 0;
 	} else if (fmt == SRP_DATA_DESC_IMM) {
 		struct srp_imm_buf *imm_buf = srpt_get_desc_buf(srp_cmd);
-		void *data = (void *)srp_cmd + imm_data_offset;
+		void *data = (u8 *)srp_cmd + imm_data_offset;
 		uint32_t len = be32_to_cpu(imm_buf->len);
 		uint32_t req_size = imm_data_offset + len;
 
@@ -1740,7 +1740,8 @@ static int srpt_handle_cmd(struct srpt_rdma_ch *ch,
 
 	BUG_ON(!send_ioctx);
 
-	srp_cmd = recv_ioctx->ioctx.buf + recv_ioctx->ioctx.offset;
+	srp_cmd = (struct srp_cmd *)((u8 *)recv_ioctx->ioctx.buf +
+				   recv_ioctx->ioctx.offset);
 
 	cmd = &send_ioctx->cmd;
 	ret = scst_rx_cmd_prealloced(cmd, ch->sess, (u8 *)&srp_cmd->lun,
@@ -1821,7 +1822,8 @@ static void srpt_handle_tsk_mgmt(struct srpt_rdma_ch *ch,
 
 	srpt_set_cmd_state(send_ioctx, SRPT_STATE_MGMT);
 
-	srp_tsk = recv_ioctx->ioctx.buf + recv_ioctx->ioctx.offset;
+	srp_tsk = (struct srp_tsk_mgmt *)((u8 *)recv_ioctx->ioctx.buf +
+					recv_ioctx->ioctx.offset);
 
 	pr_debug("recv_tsk_mgmt= %d for task_tag= %lld using tag= %lld ch= %p sess= %p\n",
 		 srp_tsk->tsk_mgmt_func, srp_tsk->task_tag, srp_tsk->tag,
@@ -1914,7 +1916,8 @@ srpt_handle_new_iu(struct srpt_rdma_ch *ch,
 				   recv_ioctx->ioctx.offset + srp_max_req_size,
 				   DMA_FROM_DEVICE);
 
-	srp_cmd = recv_ioctx->ioctx.buf + recv_ioctx->ioctx.offset;
+	srp_cmd = (struct srp_cmd *)((u8 *)recv_ioctx->ioctx.buf +
+				   recv_ioctx->ioctx.offset);
 	opcode = srp_cmd->opcode;
 	if (opcode == SRP_CMD || opcode == SRP_TSK_MGMT) {
 		send_ioctx = srpt_get_send_ioctx(ch);

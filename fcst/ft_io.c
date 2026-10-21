@@ -55,7 +55,7 @@ int ft_send_read_data(struct scst_cmd *cmd)
 	struct page *page;
 	int use_sg;
 	int error;
-	void *to = NULL;
+	u8 *to = NULL;
 	u8 *from = NULL;
 	int loop_limit = 10000;
 
@@ -228,8 +228,8 @@ void ft_recv_write_data(struct scst_cmd *cmd, struct fc_frame *fp)
 	size_t frame_len;
 	size_t mem_len;
 	size_t tlen;
-	void *from;
-	void *to;
+	const u8 *from;
+	u8 *to;
 	int dir;
 	u8 *buf;
 
