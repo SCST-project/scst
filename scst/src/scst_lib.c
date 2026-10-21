@@ -11302,7 +11302,7 @@ out:
  */
 static const int scst_cdb_length[8] = { 6, 10, 10, 32, 16, 12, 0, 0 };
 
-#define SCST_CDB_GROUP(opcode)   ((opcode >> 5) & 0x7)
+#define SCST_CDB_GROUP(opcode)   (((opcode) >> 5) & 0x7)
 #define SCST_GET_CDB_LEN(opcode) scst_cdb_length[SCST_CDB_GROUP(opcode)]
 
 static int get_cdb_info_len_10(struct scst_cmd *cmd,

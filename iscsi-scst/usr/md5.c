@@ -17,14 +17,15 @@
 #include "md5.h"
 
 /* MD5 Transforms */
-#define F1(x, y, z)	(z ^ (x & (y ^ z)))
+#define F1(x, y, z)	((z) ^ ((x) & ((y) ^ (z))))
 #define F2(x, y, z)	F1(z, x, y)
-#define F3(x, y, z)	(x ^ y ^ z)
-#define F4(x, y, z)	(y ^ (x | ~z))
+#define F3(x, y, z)	((x) ^ (y) ^ (z))
+#define F4(x, y, z)	((y) ^ ((x) | ~(z)))
 
 /* Macro for applying transforms */
 #define MD5STEP(f, w, x, y, z, i, k, s) \
-	(w += f(x, y, z) + i + k, w = (w << s | w >> (32 - s)) + x)
+	((w) += f(x, y, z) + (i) + (k), \
+	 (w) = ((w) << (s) | (w) >> (32 - (s))) + (x))
 
 static void __md5_transform(u32 hash[MD5_DIGEST_WORDS],
 		      const u32 in[MD5_BLOCK_WORDS])

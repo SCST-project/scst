@@ -68,17 +68,13 @@
 
 #define FILE_BUFFER_SIZE	512
 
-#if defined(CONFIG_LOCKDEP)
-#define scst_assert_pr_mutex_held(dev)						\
-do {										\
-	if ((dev)->dev_list_entry.next && !list_empty(&(dev)->dev_list_entry))	\
-		lockdep_assert_held(&(dev)->dev_pr_mutex);			\
-} while (0)
-#else
 static inline void scst_assert_pr_mutex_held(struct scst_device *dev)
 {
-}
+#if defined(CONFIG_LOCKDEP)
+	if (dev->dev_list_entry.next && !list_empty(&dev->dev_list_entry))
+		lockdep_assert_held(&dev->dev_pr_mutex);
 #endif
+}
 
 uint32_t scst_tid_size(const uint8_t *tid)
 {
