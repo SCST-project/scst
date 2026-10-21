@@ -12371,15 +12371,15 @@ uint64_t scst_unpack_lun(const uint8_t *lun, int len)
 	case 2:
 		break;
 	case 8:
-		if ((*((__be64 const *)lun) & cpu_to_be64(0x0000FFFFFFFFFFFFLL)) != 0)
+		if (get_unaligned_be64(lun) & 0x0000FFFFFFFFFFFFULL)
 			goto out_err;
 		break;
 	case 4:
-		if (*((__be16 const *)&lun[2]) != 0)
+		if (get_unaligned_be16(lun + 2) != 0)
 			goto out_err;
 		break;
 	case 6:
-		if (*((__be32 const *)&lun[2]) != 0)
+		if (get_unaligned_be32(lun + 2) != 0)
 			goto out_err;
 		break;
 	case 1:
