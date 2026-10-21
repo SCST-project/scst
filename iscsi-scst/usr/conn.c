@@ -59,7 +59,6 @@ void conn_free(struct connection *conn)
 	if (conn->auth_method == AUTH_CHAP)
 		free(conn->auth.chap.challenge);
 	free(conn);
-	return;
 }
 
 void conn_pass_to_kern(struct connection *conn, int fd)
@@ -76,7 +75,6 @@ void conn_pass_to_kern(struct connection *conn, int fd)
 		conn->passed_to_kern = 1;
 
 	/* We don't need to return err, because we are going to close conn anyway */
-	return;
 }
 
 void conn_read_pdu(struct connection *conn)
@@ -84,7 +82,6 @@ void conn_read_pdu(struct connection *conn)
 	conn->iostate = IOSTATE_READ_BHS;
 	conn->buffer = (void *)&conn->req.bhs;
 	conn->rwsize = BHS_SIZE;
-	return;
 }
 
 void conn_write_pdu(struct connection *conn)
@@ -93,7 +90,6 @@ void conn_write_pdu(struct connection *conn)
 	memset(&conn->rsp, 0, sizeof(conn->rsp));
 	conn->buffer = (void *)&conn->rsp.bhs;
 	conn->rwsize = BHS_SIZE;
-	return;
 }
 
 void conn_free_rsp_buf_list(struct connection *conn)
@@ -107,7 +103,6 @@ void conn_free_rsp_buf_list(struct connection *conn)
 
 	conn->rsp.datasize = 0;
 	conn->rsp.data = NULL;
-	return;
 }
 
 void conn_free_pdu(struct connection *conn)
@@ -122,5 +117,4 @@ void conn_free_pdu(struct connection *conn)
 		conn->rsp.ahs = NULL;
 	}
 	conn_free_rsp_buf_list(conn);
-	return;
 }

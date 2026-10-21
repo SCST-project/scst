@@ -312,11 +312,10 @@ static void isert_rx_pdu_parse_headers(struct isert_cmnd *isert_pdu)
 	iscsi_cmnd_get_length(&iscsi_cmnd->pdu); /* get ahssize and datasize */
 
 	ahssize = isert_pdu->iscsi.pdu.ahssize;
-	if (likely(!ahssize)) {
+	if (likely(!ahssize))
 		isert_pdu->ahs = NULL;
-	} else {
+	else
 		isert_pdu->ahs = addr + ISER_HDRS_SZ;
-	}
 	iscsi_cmnd->pdu.ahs = isert_pdu->ahs;
 
 	iscsi_cmnd->bufflen = iscsi_cmnd->pdu.datasize;

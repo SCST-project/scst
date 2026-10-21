@@ -1189,10 +1189,9 @@ static int srpt_get_desc_tbl(struct srpt_recv_ioctx *recv_ioctx,
 	} else if (fmt != 0) {
 		pr_err("Unsupported data format %d\n\n", fmt);
 		return -EINVAL;
-	} else {
-		*data_len = 0;
-		return 0;
 	}
+	*data_len = 0;
+	return 0;
 }
 
 /**

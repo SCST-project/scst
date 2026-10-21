@@ -104,8 +104,9 @@ void set_non_blocking(int fd)
 		res = fcntl(fd, F_SETFL, res | O_NONBLOCK);
 		if (res)
 			log_warning("unable to set fd flags (%s)!", strerror(errno));
-	} else
+	} else {
 		log_warning("unable to get fd flags (%s)!", strerror(errno));
+	}
 }
 
 void sock_set_keepalive(int sock, int timeout)

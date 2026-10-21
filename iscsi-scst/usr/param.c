@@ -84,8 +84,6 @@ void params_set_defaults(unsigned int *params, const struct iscsi_key *keys)
 
 	for (i = 0; keys[i].name; i++)
 		params[i] = keys[i].local_def;
-
-	return;
 }
 
 static int range_val_to_str(unsigned int val, char *str, int len)
@@ -217,11 +215,11 @@ static int digest_str_to_val(const char *str, unsigned int *val)
 	do {
 		while ((*p != '\0') && isspace(*p))
 			p++;
-		if (!strncasecmp(p, "None", strlen("None")))
+		if (!strncasecmp(p, "None", strlen("None"))) {
 			*val |= DIGEST_NONE;
-		else if (!strncasecmp(p, "CRC32C", strlen("CRC32C")))
+		} else if (!strncasecmp(p, "CRC32C", strlen("CRC32C"))) {
 			*val |= DIGEST_CRC32C;
-		else {
+		} else {
 			err = -EINVAL;
 			break;
 		}
@@ -287,10 +285,11 @@ int params_str_to_val(const struct iscsi_key *keys, int idx, const char *str,
 	if (!strcmp(":default:", str)) {
 		*val = keys[idx].local_def;
 		return 0;
-	} else if (keys[idx].ops->str_to_val)
+	} else if (keys[idx].ops->str_to_val) {
 		return keys[idx].ops->str_to_val(str, val);
-	else
+	} else {
 		return 0;
+	}
 }
 
 int params_check_val(const struct iscsi_key *keys, int idx, unsigned int *val)

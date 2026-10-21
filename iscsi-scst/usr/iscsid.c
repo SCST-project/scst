@@ -208,7 +208,6 @@ static void login_rsp_ini_err(struct connection *conn, int status_detail)
 	rsp->status_class = ISCSI_STATUS_INITIATOR_ERR;
 	rsp->status_detail = status_detail;
 	conn->state = STATE_EXIT;
-	return;
 }
 
 static void login_rsp_tgt_err(struct connection *conn, int status_detail)
@@ -219,7 +218,6 @@ static void login_rsp_tgt_err(struct connection *conn, int status_detail)
 	rsp->status_class = ISCSI_STATUS_TARGET_ERR;
 	rsp->status_detail = status_detail;
 	conn->state = STATE_EXIT;
-	return;
 }
 
 static void text_scan_security(struct connection *conn)
@@ -232,9 +230,9 @@ static void text_scan_security(struct connection *conn)
 	datasize = conn->req.datasize;
 
 	while ((key = next_key(&data, &datasize, &value))) {
-		if (!(params_index_by_name(key, login_keys) < 0))
+		if (!(params_index_by_name(key, login_keys) < 0)) {
 			;
-		else if (!strcmp(key, "AuthMethod")) {
+		} else if (!strcmp(key, "AuthMethod")) {
 			do {
 				nextValue = strchr(value, ',');
 				if (nextValue)
@@ -257,12 +255,12 @@ static void text_scan_security(struct connection *conn)
 
 			if (conn->auth_method == AUTH_UNKNOWN)
 				text_key_add_reject(conn, key);
-		} else
+		} else {
 			text_key_add(conn, key, "NotUnderstood");
+		}
 	}
 	if (conn->auth_method == AUTH_UNKNOWN)
 		login_rsp_ini_err(conn, ISCSI_STATUS_AUTH_FAILED);
-	return;
 }
 
 #define ISCSI_SESS_REINSTATEMENT	1
@@ -333,10 +331,11 @@ static int login_check_reinstatement(struct connection *conn)
 			login_rsp_ini_err(conn, ISCSI_STATUS_SESSION_NOT_FOUND);
 			res = -1;
 			goto out;
-		} else
+		} else {
 			log_debug(1, "New session sid %#" PRIx64 "(tid %d, "
 				"initiator %s)", req->sid.id64,
 				conn->tid, conn->initiator);
+		}
 	}
 
 out:
@@ -352,11 +351,11 @@ static void text_scan_login(struct connection *conn)
 	datasize = conn->req.datasize;
 
 	while ((key = next_key(&data, &datasize, &value))) {
-		if (!(params_index_by_name(key, login_keys) < 0))
+		if (!(params_index_by_name(key, login_keys) < 0)) {
 			;
-		else if (!strcmp(key, "AuthMethod"))
+		} else if (!strcmp(key, "AuthMethod")) {
 			;
-		else if ((idx = params_index_by_name(key, session_keys)) >= 0) {
+		} else if ((idx = params_index_by_name(key, session_keys)) >= 0) {
 			unsigned int val;
 			char buf[32];
 
@@ -426,8 +425,9 @@ static void text_scan_login(struct connection *conn)
 			case KEY_STATE_DONE:
 				break;
 			}
-		} else
+		} else {
 			text_key_add(conn, key, "NotUnderstood");
+		}
 	}
 
 out:
@@ -914,9 +914,9 @@ static void login_start(struct connection *conn)
 		}
 
 		rc = login_check_reinstatement(conn);
-		if (rc < 0)
+		if (rc < 0) {
 			return;
-		else if (rc == ISCSI_SESS_REINSTATEMENT) {
+		} else if (rc == ISCSI_SESS_REINSTATEMENT) {
 			target->sessions_count++;
 			conn->sessions_count_incremented = 1;
 		} else if (rc != ISCSI_CONN_REINSTATEMENT) {
@@ -943,7 +943,6 @@ static void login_start(struct connection *conn)
 	conn->exp_cmd_sn = be32_to_cpu(req->cmd_sn);
 	log_debug(1, "exp_cmd_sn %u, cmd_sn %u", conn->exp_cmd_sn, req->cmd_sn);
 	text_key_add(conn, "TargetPortalGroupTag", "1");
-	return;
 }
 
 static int login_finish(struct connection *conn)
@@ -1239,7 +1238,6 @@ target_err:
 tgt_no_mem:
 	rsp->flags = 0;
 	login_rsp_tgt_err(conn, ISCSI_STATUS_NO_RESOURCES);
-	return;
 }
 
 static int text_scan_text(struct connection *conn)
@@ -1254,9 +1252,9 @@ static int text_scan_text(struct connection *conn)
 
 	while ((key = next_key(&data, &datasize, &value))) {
 		if (!strcmp(key, "SendTargets")) {
-			if (value[0] == '\0')
+			if (value[0] == '\0') {
 				value = conn->sess->target->name;
-			else if (strcasecmp(value, "All") == 0) {
+			} else if (strcasecmp(value, "All") == 0) {
 				if (conn->session_type != SESSION_DISCOVERY) {
 					log_error("SendTargets=All allowed only in "
 						"Discovery session, rejecting "
@@ -1269,8 +1267,9 @@ static int text_scan_text(struct connection *conn)
 
 			target_list_build(conn,
 					  strcmp(value, "All") ? value : NULL);
-		} else
+		} else {
 			text_key_add(conn, key, "NotUnderstood");
+		}
 	}
 
 out:

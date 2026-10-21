@@ -85,7 +85,6 @@ static void set_resp_data_len(struct vdisk_cmd *vcmd, int32_t resp_data_len)
 	reply->resp_data_len = resp_data_len;
 
 	TRACE_EXIT();
-	return;
 }
 
 static inline void set_cmd_error_status(struct vdisk_cmd *vcmd,
@@ -94,7 +93,6 @@ static inline void set_cmd_error_status(struct vdisk_cmd *vcmd,
 	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	reply->status = status;
 	set_resp_data_len(vcmd, 0);
-	return;
 }
 
 static int set_sense(uint8_t *buffer, int len, int key, int asc, int ascq)
@@ -134,7 +132,6 @@ static void set_cmd_error(struct vdisk_cmd *vcmd, int key, int asc, int ascq)
 	reply->psense_buffer = (unsigned long)vcmd->sense;
 
 	TRACE_EXIT();
-	return;
 }
 
 static void set_busy(struct vdisk_cmd *vcmd)
@@ -145,7 +142,6 @@ static void set_busy(struct vdisk_cmd *vcmd)
 	TRACE_MGMT_DBG("%s", "Sending QUEUE_FULL status");
 
 	TRACE_EXIT();
-	return;
 }
 
 static int do_parse(struct vdisk_cmd *vcmd)
@@ -174,9 +170,9 @@ static int do_parse(struct vdisk_cmd *vcmd)
 	reply->out_bufflen = cmd->expected_out_transfer_len;
 	reply->cdb_len = cmd->cdb_len;
 
-	if (cmd->op_flags & SCST_INFO_VALID)
+	if (cmd->op_flags & SCST_INFO_VALID) {
 		reply->op_flags = cmd->op_flags;
-	else {
+	} else {
 		TRACE_DBG("Extra parse (op %x)", cmd->cdb[0]);
 
 		if (reply->data_direction & SCST_DATA_WRITE)
@@ -433,9 +429,9 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		exec_write_same(vcmd);
 		break;
         case SERVICE_ACTION_IN_16:
-		if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16)
+		if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16) {
 			exec_read_capacity16(vcmd);
-		else {
+		} else {
 			TRACE_DBG("Invalid service action %d for SERVICE "
 				"ACTION IN", cmd->cdb[1] & 0x1f);
 			set_cmd_error(vcmd,
@@ -743,9 +739,8 @@ static int process_cmd(struct vdisk_cmd *vcmd)
 	case SCST_USER_TASK_MGMT_DONE:
 		res = do_tm(vcmd, 1);
 #ifdef DEBUG_TM_FN_IGNORE
-		if (dev->debug_tm_ignore) {
+		if (dev->debug_tm_ignore)
 			sleep(15);
-		}
 #endif
 		break;
 
@@ -810,7 +805,7 @@ void *main_loop(void *arg)
 	multi.multi_cmd.replies_cnt = 0;
 	multi.multi_cmd.cmds_cnt = MULTI_CMDS_CNT;
 
-	while(1) {
+	while (1) {
 #ifdef DEBUG_TM_IGNORE_ALL
 		int ignore_all;
 
@@ -823,9 +818,8 @@ void *main_loop(void *arg)
 		pthread_mutex_unlock(&dev->dev_mutex);
 		if (ignore_all) {
 			/* Go Astral */
-			while(1) {
+			while (1)
 				sleep(60);
-			}
 		}
 #endif
 
@@ -835,8 +829,9 @@ void *main_loop(void *arg)
 				&multi.replies[0], multi.multi_cmd.replies_cnt,
 				multi.multi_cmd.replies_done, multi.multi_cmd.cmds_cnt);
 			res = ioctl(scst_usr_fd, SCST_USER_REPLY_AND_GET_MULTI, &multi.multi_cmd);
-		} else
+		} else {
 			res = ioctl(scst_usr_fd, SCST_USER_REPLY_AND_GET_CMD, &cmd);
+		}
 		if (res != 0) {
 			res = errno;
 			switch(res) {
@@ -858,8 +853,7 @@ void *main_loop(void *arg)
 				multi.multi_cmd.cmds_cnt = MULTI_CMDS_CNT;
 				if (dev->non_blocking)
 					break;
-				else
-					continue;
+				continue;
 			default:
 				PRINT_ERROR("SCST_USER failed: %s (%d)", strerror(res), res);
 #if 1
@@ -874,11 +868,11 @@ void *main_loop(void *arg)
 			}
 again_poll:
 			res = poll(&pl, 1, -1);
-			if (res > 0)
+			if (res > 0) {
 				continue;
-			else if (res == 0)
+			} else if (res == 0) {
 				goto again_poll;
-			else {
+			} else {
 				res = errno;
 				switch(res) {
 				case ESRCH:
@@ -1141,7 +1135,6 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 static void exec_request_sense(struct vdisk_cmd *vcmd)
@@ -1164,7 +1157,6 @@ static void exec_request_sense(struct vdisk_cmd *vcmd)
 		set_resp_data_len(vcmd, length);
 
 	TRACE_EXIT();
-	return;
 }
 
 /*
@@ -1388,9 +1380,9 @@ static void exec_mode_sense(struct vdisk_cmd *vcmd)
 
 	offset += len;
 
-	if (msense_6)
+	if (msense_6) {
 		buf[0] = offset - 1;
-	else {
+	} else {
 		buf[0] = ((offset - 2) >> 8) & 0xff;
 		buf[1] = (offset - 2) & 0xff;
 	}
@@ -1406,7 +1398,6 @@ static void exec_mode_sense(struct vdisk_cmd *vcmd)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 static int set_wt(struct vdisk_dev *dev, int wt)
@@ -1447,11 +1438,10 @@ static void exec_mode_select(struct vdisk_cmd *vcmd)
 		goto out;
 	}
 
-	if (mselect_6) {
+	if (mselect_6)
 		offset = 4;
-	} else {
+	else
 		offset = 8;
-	}
 
 	if (address[offset - 1] == 8) {
 		offset += 8;
@@ -1491,7 +1481,6 @@ static void exec_mode_select(struct vdisk_cmd *vcmd)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 static void exec_read_capacity(struct vdisk_cmd *vcmd)
@@ -1536,7 +1525,6 @@ static void exec_read_capacity(struct vdisk_cmd *vcmd)
 		set_resp_data_len(vcmd, length);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void exec_read_capacity16(struct vdisk_cmd *vcmd)
@@ -1595,7 +1583,6 @@ static void exec_read_capacity16(struct vdisk_cmd *vcmd)
 		set_resp_data_len(vcmd, length);
 
 	TRACE_EXIT();
-	return;
 }
 
 static void exec_read_toc(struct vdisk_cmd *vcmd)
@@ -1675,7 +1662,6 @@ static void exec_read_toc(struct vdisk_cmd *vcmd)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 static void exec_prevent_allow_medium_removal(struct vdisk_cmd *vcmd)
@@ -1688,8 +1674,6 @@ static void exec_prevent_allow_medium_removal(struct vdisk_cmd *vcmd)
 	pthread_mutex_lock(&dev->dev_mutex);
 	dev->prevent_allow_medium_removal = cmd->cdb[4] & 0x01 ? 1 : 0;
 	pthread_mutex_unlock(&dev->dev_mutex);
-
-	return;
 }
 
 static int exec_fsync(const struct vdisk_cmd *vcmd)
@@ -1722,9 +1706,9 @@ static void exec_read(struct vdisk_cmd *vcmd, loff_t loff)
 	TRACE_ENTRY();
 
 	TRACE_DBG("reading off %"PRId64", len %d", loff, length);
-	if (dev->nullio)
+	if (dev->nullio) {
 		err = length;
-	else {
+	} else {
 		/* SEEK */
 		err = lseek64(fd, loff, 0/*SEEK_SET*/);
 		if (err != loff) {
@@ -1741,9 +1725,9 @@ static void exec_read(struct vdisk_cmd *vcmd, loff_t loff)
 	if (err < 0 || err < length) {
 		PRINT_ERROR("read() returned %"PRId64" from %d (errno %d)",
 			(uint64_t)err, length, errno);
-		if (err == -EAGAIN)
+		if (err == -EAGAIN) {
 			set_busy(vcmd);
-		else {
+		} else {
 			set_cmd_error(vcmd,
 			    SCST_LOAD_SENSE(scst_sense_read_error));
 		}
@@ -1754,7 +1738,6 @@ static void exec_read(struct vdisk_cmd *vcmd, loff_t loff)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 static void exec_write(struct vdisk_cmd *vcmd, loff_t loff)
@@ -1771,9 +1754,9 @@ static void exec_write(struct vdisk_cmd *vcmd, loff_t loff)
 restart:
 	TRACE_DBG("writing off %"PRId64", len %d", loff, length);
 
-	if (dev->nullio)
+	if (dev->nullio) {
 		err = length;
-	else {
+	} else {
 		/* SEEK */
 		err = lseek64(fd, loff, 0/*SEEK_SET*/);
 		if (err != loff) {
@@ -1792,9 +1775,9 @@ restart:
 	if (err < 0) {
 		PRINT_ERROR("write() returned %"PRId64" from %d (errno %d, "
 			"cmd_h %x)", err, length, errno, vcmd->cmd->cmd_h);
-		if (err == -EAGAIN)
+		if (err == -EAGAIN) {
 			set_busy(vcmd);
-		else {
+		} else {
 			set_cmd_error(vcmd,
 			    SCST_LOAD_SENSE(scst_sense_write_error));
 		}
@@ -1805,17 +1788,15 @@ restart:
 		 * value less, than requested. Let's restart.
 		 */
 		TRACE_MGMT_DBG("write() returned %d from %d", (int)err, length);
-		if (err == 0) {
+		if (err == 0)
 			PRINT_INFO("Suspicious: write() returned 0 from "
 				"%d", length);
-		}
 		length -= err;
 		goto restart;
 	}
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
@@ -1857,8 +1838,9 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 	if (length == 0 && cmd->data_len != 0) {
 		length = cmd->data_len;
 		compare = 0;
-	} else
+	} else {
 		compare = 1;
+	}
 
 	while (length > 0) {
 		int64_t len_mem = (length > (int)sizeof(mem_verify)) ?
@@ -1873,9 +1855,9 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 		if (err < 0 || err < len_mem) {
 			PRINT_ERROR("read() returned %"PRId64" from %"PRId64" "
 				"(errno %d)", (uint64_t)err, len_mem, errno);
-			if (err == -EAGAIN)
+			if (err == -EAGAIN) {
 				set_busy(vcmd);
-			else {
+			} else {
 				set_cmd_error(vcmd,
 				    SCST_LOAD_SENSE(scst_sense_read_error));
 			}
@@ -1898,7 +1880,6 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 static void exec_write_same(struct vdisk_cmd *vcmd)
@@ -1929,5 +1910,4 @@ static void exec_write_same(struct vdisk_cmd *vcmd)
 
 out:
 	TRACE_EXIT();
-	return;
 }

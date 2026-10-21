@@ -1712,15 +1712,15 @@ static int scst_rdy_to_xfer(struct scst_cmd *cmd)
 
 	if (!tgtt->rdy_to_xfer || unlikely(cmd->internal)) {
 		scst_set_cmd_state(cmd, SCST_CMD_STATE_TGT_PRE_EXEC);
+		res = SCST_CMD_STATE_RES_CONT_SAME;
 #ifndef CONFIG_SCST_TEST_IO_IN_SIRQ
 		/* We can't allow atomic command on the exec stages */
 		if (scst_cmd_atomic(cmd)) {
 			TRACE_DBG("NULL rdy_to_xfer() and atomic context, rescheduling (cmd %p)",
 				  cmd);
 			res = SCST_CMD_STATE_RES_NEED_THREAD;
-		} else
+		}
 #endif
-			res = SCST_CMD_STATE_RES_CONT_SAME;
 		goto out;
 	}
 

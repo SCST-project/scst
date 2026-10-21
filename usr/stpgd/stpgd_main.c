@@ -73,9 +73,9 @@ char *stpg_path;
 
 static void usage(int status)
 {
-	if (status != 0)
+	if (status != 0) {
 		fprintf(stderr, "Try '%s --help' for more information.\n", app_name);
-	else {
+	} else {
 		printf("Usage: %s [OPTIONS]\n", app_name);
 		printf("STPG target daemon\n");
 		printf("  -f, --foreground	make the program run in the foreground\n");

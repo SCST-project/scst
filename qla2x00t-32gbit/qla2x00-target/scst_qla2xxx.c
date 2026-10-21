@@ -421,11 +421,10 @@ static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd,
 			cmd->se_cmd.prot_op = TARGET_PROT_DIN_PASS;
 			break;
 		case SCST_DATA_BIDI:
-			if (xmit_rsp) {
+			if (xmit_rsp)
 				cmd->se_cmd.prot_op = TARGET_PROT_DOUT_PASS;
-			} else {
+			else
 				cmd->se_cmd.prot_op = TARGET_PROT_DIN_PASS;
-			}
 			break;
 		case SCST_DATA_NONE:
 			cmd->se_cmd.prot_op = TARGET_PROT_NORMAL;

@@ -190,7 +190,6 @@ void session_free(struct session *session)
 
 	free(session->initiator);
 	free(session);
-	return;
 }
 
 struct connection *conn_find(struct session *session, u16 cid)

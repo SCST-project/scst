@@ -107,15 +107,14 @@ static u8 decode_base64_digit(char base64)
 	default:
 		if ((base64 >= 'A') && (base64 <= 'Z'))
 			return base64 - 'A';
-		else if ((base64 >= 'a') && (base64 <= 'z'))
+		if ((base64 >= 'a') && (base64 <= 'z'))
 			return 26 + (base64 - 'a');
-		else if ((base64 >= '0') && (base64 <= '9'))
+		if ((base64 >= '0') && (base64 <= '9'))
 			return 52 + (base64 - '0');
-		else
-			//XXX This return value should be unsigned; and anyway
-			//XXX in case of a bad character in the string, our
-			//XXX caller (sometimes) checks for 65, not 255 or -1
-			return -1;
+		//XXX This return value should be unsigned; and anyway
+		//XXX in case of a bad character in the string, our
+		//XXX caller (sometimes) checks for 65, not 255 or -1
+		return -1;
 	}
 }
 
@@ -261,9 +260,9 @@ static int chap_alloc_decode_buffer(const char *encoded, u8 **decode_buf, int en
 	i = strlen(encoded);
 	i -= 2;
 
-	if (encoding_fmt == HEX_FORMAT)
+	if (encoding_fmt == HEX_FORMAT) {
 		decode_len = (i - 1) / 2 + 1;
-	else if (encoding_fmt == BASE64_FORMAT) {
+	} else if (encoding_fmt == BASE64_FORMAT) {
 		if (i % 4)
 			return CHAP_INITIATOR_ERROR;
 
@@ -304,8 +303,9 @@ static int chap_decode_string(char *encoded, u8 *decode_buf, int buf_len, int en
 		}
 		decode_base64_string(encoded + 2, decode_buf, buf_len);
 
-	} else
+	} else {
 		return CHAP_INITIATOR_ERROR;
+	}
 
 	return 0;
 }
