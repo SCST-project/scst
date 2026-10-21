@@ -74,7 +74,7 @@ int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 	struct iscsi_kern_attr *kern_attrs;
 
 	memset(&info, 0, sizeof(info));
-	strlcpy(info.name, target->name, sizeof(info.name));
+	iscsi_strscpy(info.name, target->name, sizeof(info.name));
 	info.tid = (tid != NULL) ? *tid : 0;
 	info.cookie = cookie;
 
@@ -113,52 +113,52 @@ int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 	i = 0;
 
 	kern_attrs[i].mode = 0644;
-	strlcpy(kern_attrs[i].name, ISCSI_PER_PORTAL_ACL_ATTR_NAME,
-		sizeof(ISCSI_PER_PORTAL_ACL_ATTR_NAME));
+	iscsi_strscpy(kern_attrs[i].name, ISCSI_PER_PORTAL_ACL_ATTR_NAME,
+		      sizeof(ISCSI_PER_PORTAL_ACL_ATTR_NAME));
 	i++;
 
 	kern_attrs[i].mode = 0644;
-	strlcpy(kern_attrs[i].name, ISCSI_TARGET_REDIRECTION_ATTR_NAME,
-		sizeof(ISCSI_TARGET_REDIRECTION_ATTR_NAME));
+	iscsi_strscpy(kern_attrs[i].name, ISCSI_TARGET_REDIRECTION_ATTR_NAME,
+		      sizeof(ISCSI_TARGET_REDIRECTION_ATTR_NAME));
 	i++;
 
 	kern_attrs[i].mode = 0644;
-	strlcpy(kern_attrs[i].name, ISCSI_TARGET_ALIAS_ATTR_NAME,
-		sizeof(ISCSI_TARGET_ALIAS_ATTR_NAME));
+	iscsi_strscpy(kern_attrs[i].name, ISCSI_TARGET_ALIAS_ATTR_NAME,
+		      sizeof(ISCSI_TARGET_ALIAS_ATTR_NAME));
 	i++;
 
 	for (j = 0; j < session_key_last; j++) {
 		if (!session_keys[j].show_in_sysfs)
 			continue;
 		kern_attrs[i].mode = 0644;
-		strlcpy(kern_attrs[i].name, session_keys[j].name,
-			sizeof(kern_attrs[i].name));
+		iscsi_strscpy(kern_attrs[i].name, session_keys[j].name,
+			      sizeof(kern_attrs[i].name));
 		i++;
 	}
 	for (j = 0; j < target_key_last; j++) {
 		if (!target_keys[j].show_in_sysfs)
 			continue;
 		kern_attrs[i].mode = 0644;
-		strlcpy(kern_attrs[i].name, target_keys[j].name,
-			sizeof(kern_attrs[i].name));
+		iscsi_strscpy(kern_attrs[i].name, target_keys[j].name,
+			      sizeof(kern_attrs[i].name));
 		i++;
 	}
 	list_for_each_entry(user, &target->target_in_accounts, ulist) {
 		kern_attrs[i].mode = user->sysfs_mode;
-		strlcpy(kern_attrs[i].name, user->sysfs_name,
-			sizeof(kern_attrs[i].name));
+		iscsi_strscpy(kern_attrs[i].name, user->sysfs_name,
+			      sizeof(kern_attrs[i].name));
 		i++;
 	}
 	list_for_each_entry(user, &target->target_out_accounts, ulist) {
 		kern_attrs[i].mode = user->sysfs_mode;
-		strlcpy(kern_attrs[i].name, user->sysfs_name,
-			sizeof(kern_attrs[i].name));
+		iscsi_strscpy(kern_attrs[i].name, user->sysfs_name,
+			      sizeof(kern_attrs[i].name));
 		i++;
 	}
 	list_for_each_entry(portal, &target->allowed_portals, ulist) {
 		kern_attrs[i].mode = portal->sysfs_mode;
-		strlcpy(kern_attrs[i].name, portal->sysfs_name,
-			sizeof(kern_attrs[i].name));
+		iscsi_strscpy(kern_attrs[i].name, portal->sysfs_name,
+			      sizeof(kern_attrs[i].name));
 		i++;
 	}
 
@@ -213,7 +213,7 @@ int kernel_attr_add(struct target *target, const char *name, u32 mode,
 	info.cookie = cookie;
 
 	info.attr.mode = mode;
-	strlcpy(info.attr.name, name, sizeof(info.attr.name));
+	iscsi_strscpy(info.attr.name, name, sizeof(info.attr.name));
 
 	res = ioctl(ctrl_fd, ISCSI_ATTR_ADD, &info);
 	if (res < 0)
@@ -232,7 +232,7 @@ int kernel_attr_del(struct target *target, const char *name, u32 cookie)
 		info.tid = target->tid;
 	info.cookie = cookie;
 
-	strlcpy(info.attr.name, name, sizeof(info.attr.name));
+	iscsi_strscpy(info.attr.name, name, sizeof(info.attr.name));
 
 	res = ioctl(ctrl_fd, ISCSI_ATTR_DEL, &info);
 	if (res < 0)
@@ -259,7 +259,8 @@ int kernel_initiator_allowed(u32 tid, const char *full_initiator_name)
 
 	memset(&info, 0, sizeof(info));
 	info.tid = tid;
-	strlcpy(info.full_initiator_name, full_initiator_name, sizeof(info.full_initiator_name));
+	iscsi_strscpy(info.full_initiator_name, full_initiator_name,
+		      sizeof(info.full_initiator_name));
 
 	if ((err = ioctl(ctrl_fd, ISCSI_INITIATOR_ALLOWED, &info)) < 0) {
 		err = -errno;
@@ -375,7 +376,7 @@ int kernel_session_create(struct connection *conn)
 	info.tid = conn->tid;
 	info.sid = conn->sess->sid.id64;
 	info.exp_cmd_sn = conn->exp_cmd_sn;
-	strlcpy(info.initiator_name, conn->sess->initiator, sizeof(info.initiator_name));
+	iscsi_strscpy(info.initiator_name, conn->sess->initiator, sizeof(info.initiator_name));
 
 
 	iscsi_make_full_initiator_name(target->per_portal_acl,

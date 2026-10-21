@@ -261,7 +261,7 @@ static void show_iscsi_params(int type, struct iscsi_param *param)
 
 	for (i = 0; i < nr; i++) {
 		memset(buf, 0, sizeof(buf));
-		strlcpy(buf, keys[i].name, sizeof(buf));
+		iscsi_strscpy(buf, keys[i].name, sizeof(buf));
 		len = strlen(buf);
 		p = buf + len;
 		*p++ = '=';
@@ -348,7 +348,7 @@ static int trgt_handle(int op, u32 set, u32 tid, char *params)
 			goto out;
 		}
 		req.rcmnd = C_TRGT_NEW;
-		strlcpy(req.u.trgt.name, p, sizeof(req.u.trgt.name));
+		iscsi_strscpy(req.u.trgt.name, p, sizeof(req.u.trgt.name));
 		break;
 	}
 	case OP_DELETE:
@@ -464,7 +464,7 @@ static int user_handle_show_user(struct iscsi_adm_req *req, char *user)
 	int err;
 
 	req->rcmnd = C_ACCT_SHOW;
-	strlcpy(req->u.acnt.u.user.name, user, sizeof(req->u.acnt.u.user.name));
+	iscsi_strscpy(req->u.acnt.u.user.name, user, sizeof(req->u.acnt.u.user.name));
 
 	err = iscsid_request(req, NULL, 0);
 	if (!err)
@@ -547,8 +547,8 @@ static int user_handle_new(struct iscsi_adm_req *req, char *user, char *pass)
 
 	req->rcmnd = C_ACCT_NEW;
 
-	strlcpy(req->u.acnt.u.user.name, user, sizeof(req->u.acnt.u.user.name));
-	strlcpy(req->u.acnt.u.user.pass, pass, sizeof(req->u.acnt.u.user.pass));
+	iscsi_strscpy(req->u.acnt.u.user.name, user, sizeof(req->u.acnt.u.user.name));
+	iscsi_strscpy(req->u.acnt.u.user.pass, pass, sizeof(req->u.acnt.u.user.pass));
 
 	return iscsid_request(req, NULL, 0);
 }
@@ -565,7 +565,7 @@ static int user_handle_del(struct iscsi_adm_req *req, char *user, char *pass)
 
 	req->rcmnd = C_ACCT_DEL;
 
-	strlcpy(req->u.acnt.u.user.name, user, sizeof(req->u.acnt.u.user.name));
+	iscsi_strscpy(req->u.acnt.u.user.name, user, sizeof(req->u.acnt.u.user.name));
 
 	return iscsid_request(req, NULL, 0);
 }

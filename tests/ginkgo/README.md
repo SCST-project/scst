@@ -137,6 +137,10 @@ malformed payloads ending at a guard page, including preservation of existing
 ACLs. It also runs through `ginkgo-check`; use `go test ./internal/isns` to
 run it separately. It requires `cc` and opens no sockets.
 
+The isolated `internal/param` suite checks the daemon string-copy helper
+with guard pages, covering empty, fitting and truncated strings and zero
+capacity. It runs through `ginkgo-check` with `cc`, without a running daemon.
+
 ## SCSI and I/O
 
 Install Python 3, util-linux and sg3_utils on the command host: the target for

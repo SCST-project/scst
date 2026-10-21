@@ -422,7 +422,7 @@ int target_create(const char *name, struct target **out_target)
 	}
 
 	memset(target, 0, sizeof(*target));
-	strlcpy(target->name, name, sizeof(target->name));
+	iscsi_strscpy(target->name, name, sizeof(target->name));
 
 	params_set_defaults(target->target_params, target_keys);
 	params_set_defaults(target->session_params, session_keys);

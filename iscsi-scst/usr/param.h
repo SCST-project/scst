@@ -57,7 +57,7 @@ extern struct iscsi_key session_keys[];
 extern struct iscsi_key target_keys[];
 extern struct iscsi_key user_keys[];
 
-extern size_t strlcpy(char *dest, const char *src, size_t size);
+ssize_t iscsi_strscpy(char *dest, const char *src, size_t size);
 
 extern void params_set_defaults(unsigned int *, const struct iscsi_key *);
 extern int params_index_by_name(const char *, const struct iscsi_key *);

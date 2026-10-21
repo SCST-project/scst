@@ -131,7 +131,7 @@ static int send_mgmt_cmd_res(u32 tid, u32 cookie, u32 req_cmd, int result,
 	cinfo.result = result;
 
 	if (res_str != NULL)
-		strlcpy(cinfo.value, res_str, sizeof(cinfo.value));
+		iscsi_strscpy(cinfo.value, res_str, sizeof(cinfo.value));
 
 	log_debug(1, "Sending result %d (cookie %d)", result, cookie);
 
@@ -751,7 +751,7 @@ static int handle_target_redirect(struct target *target, char *p)
 			t = addr+1;
 		else
 			t = addr;
-		strlcpy(tmp, t, strchrnul(t, ']')-t+1);
+		iscsi_strscpy(tmp, t, strchrnul(t, ']') - t + 1);
 		if (inet_pton(AF_INET6, tmp, &ia) != 1) {
 			log_error("Invalid addr %s", addr);
 			res = -EINVAL;
@@ -1096,7 +1096,7 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			goto out_free_server;
 	} else if (strcasecmp(ISCSI_ISNS_ENTITY_ATTR_NAME, pp) == 0) {
 		pp = config_sep_string(&p);
-		strlcpy(isns_entity_target_name, pp, sizeof(isns_entity_target_name));
+		iscsi_strscpy(isns_entity_target_name, pp, sizeof(isns_entity_target_name));
 	} else if (strcasecmp(ISCSI_LINK_LOCAL_ATTR_NAME, pp) == 0) {
 		if (target != NULL) {
 			log_error("Not NULL target %s for global attribute %s",
