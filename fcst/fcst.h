@@ -87,7 +87,7 @@ struct ft_sess {
  * Hash lookup by remote port FC_ID.
  */
 #define FT_SESS_HASH_BITS	6
-#define FT_SESS_HASH_SIZE	(1 << FT_SESS_HASH_BITS)
+#define FT_SESS_HASH_SIZE	BIT(FT_SESS_HASH_BITS)
 
 /*
  * Per local port data.
