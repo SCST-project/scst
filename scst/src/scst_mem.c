@@ -1449,11 +1449,11 @@ void sgv_pool_flush(struct sgv_pool *pool)
 	TRACE_ENTRY();
 
 	for (i = 0; i < pool->max_caches; i++) {
-		struct sgv_pool_obj *obj;
-
 		spin_lock_bh(&pool->sgv_pool_lock);
 
 		while (!list_empty(&pool->recycling_lists[i])) {
+			struct sgv_pool_obj *obj;
+
 			obj = list_first_entry(&pool->recycling_lists[i], struct sgv_pool_obj,
 					       recycling_list_entry);
 

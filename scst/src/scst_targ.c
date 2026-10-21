@@ -1809,7 +1809,6 @@ static void scst_process_redirect_cmd(struct scst_cmd *cmd, enum scst_exec_conte
 				      int check_retries)
 {
 	struct scst_tgt *tgt = cmd->tgt;
-	unsigned long flags;
 
 	TRACE_ENTRY();
 
@@ -1843,6 +1842,7 @@ static void scst_process_redirect_cmd(struct scst_cmd *cmd, enum scst_exec_conte
 	case SCST_CONTEXT_THREAD:
 	{
 		struct list_head *active_cmd_list;
+		unsigned long flags;
 
 		if (cmd->cmd_thr) {
 			TRACE_DBG("Using assigned thread %p for cmd %p",
@@ -1991,8 +1991,8 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	if (unlikely(trace_flag & TRACE_DATA_RECEIVED) &&
 	    (cmd->data_direction & SCST_DATA_WRITE)) {
-		int i, sg_cnt;
-		struct scatterlist *sg, *sgi;
+		int sg_cnt;
+		struct scatterlist *sg;
 
 		if (cmd->out_sg) {
 			sg = cmd->out_sg;
@@ -2008,6 +2008,9 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 			sg_cnt = cmd->sg_cnt;
 		}
 		if (sg) {
+			struct scatterlist *sgi;
+			int i;
+
 			PRINT_INFO("Received data for cmd %p (sg_cnt %d, sg %p, sg[0].page %p)",
 				   cmd, sg_cnt, sg, (void *)sg_page(&sg[0]));
 			for_each_sg(sg, sgi, sg_cnt, i) {
@@ -3617,8 +3620,8 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
 	if (unlikely(trace_flag & TRACE_DATA_SEND) &&
 	    (cmd->data_direction & SCST_DATA_READ)) {
-		int i, sg_cnt;
-		struct scatterlist *sg, *sgi;
+		int sg_cnt;
+		struct scatterlist *sg;
 
 		if (cmd->tgt_i_sg) {
 			sg = cmd->tgt_i_sg;
@@ -3628,6 +3631,9 @@ static int scst_xmit_response(struct scst_cmd *cmd)
 			sg_cnt = cmd->sg_cnt;
 		}
 		if (sg) {
+			struct scatterlist *sgi;
+			int i;
+
 			PRINT_INFO("Xmitting data for cmd %p (sg_cnt %d, sg %p, sg[0].page %p, buf %p, resp len %d)",
 				   cmd, sg_cnt, sg, (void *)sg_page(&sg[0]), sg_virt(sg),
 				   cmd->resp_data_len);
@@ -4048,11 +4054,12 @@ static int scst_translate_lun(struct scst_cmd *cmd)
 {
 	struct scst_tgt_dev *tgt_dev = NULL;
 	int res;
-	bool nul_dev = false;
 
 	TRACE_ENTRY();
 
 	if (likely(scst_get_cmd(cmd))) {
+		bool nul_dev = false;
+
 		TRACE_DBG("Finding tgt_dev for cmd %p (lun %lld)",
 			  cmd, (unsigned long long)cmd->lun);
 		res = -1;
@@ -5799,7 +5806,7 @@ static int scst_reset_scsi_device(struct scsi_device *sdev)
 /* Returns 0 if the command processing should be continued, <0 otherwise */
 static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 {
-	int res, rc;
+	int res;
 	struct scst_device *dev;
 	struct scst_acg *acg = mcmd->sess->acg;
 	struct scst_acg_dev *acg_dev;
@@ -5858,6 +5865,8 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 	 */
 
 	list_for_each_entry(dev, &host_devs, tm_dev_list_entry) {
+		int rc;
+
 		/* dev->scsi_dev must be non-NULL here */
 		TRACE(TRACE_MGMT, "Resetting host %d bus ",
 		      dev->scsi_dev->host->host_no);
@@ -5898,7 +5907,7 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 /* Returns 0 if the command processing should be continued, <0 otherwise */
 static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 {
-	int res, rc;
+	int res;
 	struct scst_tgt_dev *tgt_dev = mcmd->mcmd_tgt_dev;
 	struct scst_device *dev = tgt_dev->dev;
 	struct scst_lksb pr_lksb;
@@ -5918,6 +5927,8 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 	scst_call_dev_task_mgmt_fn_received(mcmd, tgt_dev);
 
 	if (dev->scsi_dev) {
+		int rc;
+
 		TRACE(TRACE_MGMT, "Resetting host %d bus ",
 		      dev->scsi_dev->host->host_no);
 		rc = scst_reset_scsi_device(dev->scsi_dev);

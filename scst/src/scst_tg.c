@@ -239,12 +239,12 @@ static struct scst_dg_dev *__lookup_dg_dev_by_name(struct scst_dev_group *dg,
 static struct scst_dg_dev *__global_lookup_dg_dev_by_name(const char *name)
 {
 	struct scst_dev_group *dg;
-	struct scst_dg_dev *dgd;
 
 	lockdep_assert_held(&scst_dg_mutex);
 
 	list_for_each_entry(dg, &scst_dev_group_list, entry) {
-		dgd = __lookup_dg_dev_by_name(dg, name);
+		struct scst_dg_dev *dgd = __lookup_dg_dev_by_name(dg, name);
+
 		if (dgd)
 			return dgd;
 	}
@@ -522,7 +522,6 @@ static void scst_check_alua_invariant(void)
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_dev_group *dg;
 	struct scst_target_group *tg;
-	enum scst_tg_state expected_state;
 
 #if 0
 	lockdep_assert_held(&scst_mutex); /* scst_dev_list, dev_tgt_dev_list */
@@ -536,6 +535,8 @@ static void scst_check_alua_invariant(void)
 		dg = __lookup_dg_by_dev(dev);
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 				    dev_tgt_dev_list_entry) {
+			enum scst_tg_state expected_state;
+
 			tg = dg ?
 			    __lookup_tg_by_tgt(dg, tgt_dev->acg_dev->acg->tgt) :
 			    NULL;
@@ -584,11 +585,12 @@ static void scst_tg_change_tgt_dev_state(struct scst_tgt_dev *tgt_dev,
 void scst_tg_init_tgt_dev(struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_dev_group *dg;
-	struct scst_target_group *tg;
 
 	mutex_lock(&scst_dg_mutex);
 	dg = __lookup_dg_by_dev(tgt_dev->dev);
 	if (dg) {
+		const struct scst_target_group *tg;
+
 		tg = __lookup_tg_by_tgt(dg, tgt_dev->acg_dev->acg->tgt);
 		if (tg) {
 			scst_update_tgt_dev_alua_filter(tgt_dev, tg->state);
@@ -980,7 +982,6 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 	struct scst_device *dev;
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_tgt *tgt;
-	bool invoke_callbacks;
 	bool tg_is_remote;
 
 	sBUG_ON(state >= ARRAY_SIZE(scst_alua_filter));
@@ -1001,7 +1002,8 @@ static void __scst_tg_set_state(struct scst_target_group *tg,
 	tg_is_remote = __scst_tg_have_tgt(tg, NULL);
 
 	list_for_each_entry(dg_dev, &tg->dg->dev_list, entry) {
-		invoke_callbacks = true;
+		bool invoke_callbacks = true;
+
 		dev = dg_dev->dev;
 
 		list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
@@ -1140,12 +1142,13 @@ static void scst_update_dev_alua_filter(struct scst_dev_group *dg,
 					struct scst_device *dev)
 {
 	struct scst_tgt_dev *tgt_dev;
-	struct scst_target_group *tg;
 
 	lockdep_assert_held(&scst_dg_mutex);
 
 	list_for_each_entry(tgt_dev, &dev->dev_tgt_dev_list,
 			    dev_tgt_dev_list_entry) {
+		const struct scst_target_group *tg;
+
 		tg = __lookup_tg_by_tgt(dg, tgt_dev->acg_dev->acg->tgt);
 		if (tg)
 			scst_update_tgt_dev_alua_filter(tgt_dev, tg->state);
@@ -1427,10 +1430,10 @@ void scst_tg_init(void)
 
 void scst_tg_cleanup(void)
 {
-	struct scst_dev_group *tg;
-
 	mutex_lock(&scst_dg_mutex);
 	while (!list_empty(&scst_dev_group_list)) {
+		struct scst_dev_group *tg;
+
 		tg = list_first_entry(&scst_dev_group_list,
 				      struct scst_dev_group, entry);
 		__scst_dg_remove(tg);

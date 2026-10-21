@@ -268,7 +268,6 @@ static void order_slot_test(struct kunit *test)
 	struct order_test_fixture *f = test->priv;
 	bool busy = *(const bool *)test->param_value;
 	struct scst_cmd *cmd = f->commands;
-	unsigned int i;
 
 	if (!order_test_normal_policy(test))
 		return;
@@ -279,6 +278,8 @@ static void order_slot_test(struct kunit *test)
 	f->order.cur_sn_slot = &f->order.sn_slots[ARRAY_SIZE(f->order.sn_slots) - 1];
 	atomic_set(f->order.cur_sn_slot, 1);
 	if (busy) {
+		unsigned int i;
+
 		for (i = 0; i < ARRAY_SIZE(f->order.sn_slots); i++)
 			atomic_set(&f->order.sn_slots[i], 1);
 	}

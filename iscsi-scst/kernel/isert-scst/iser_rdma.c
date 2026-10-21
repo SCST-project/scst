@@ -723,11 +723,13 @@ SCST_KUNIT_VISIBLE
 int isert_poll_cq(struct isert_cq *cq)
 {
 	int err;
-	struct ib_wc *wc, *last_wc;
+	struct ib_wc *wc;
 
 	TRACE_ENTRY();
 
 	for (;;) {
+		struct ib_wc *last_wc;
+
 		err = ib_poll_cq(cq->cq, ARRAY_SIZE(cq->wc), cq->wc);
 		if (err <= 0)
 			break;

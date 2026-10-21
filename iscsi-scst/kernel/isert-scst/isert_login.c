@@ -1035,8 +1035,6 @@ void isert_close_all_portals(void)
 
 void isert_cleanup_login_devs(void)
 {
-	int i;
-
 	TRACE_ENTRY();
 
 	isert_close_all_portals();
@@ -1044,6 +1042,8 @@ void isert_cleanup_login_devs(void)
 	isert_datamover_cleanup();
 
 	if (isert_conn_devices) {
+		int i;
+
 		for (i = 0; i < n_devs; i++) {
 			device_destroy(isert_class,
 				       isert_conn_devices[i].devno);
