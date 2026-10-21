@@ -146,7 +146,8 @@ static void sess_params_check(struct iscsi_kern_params_info *info)
 }
 
 /* target_mutex supposed to be locked */
-static void sess_params_set(struct iscsi_sess_params *params, const struct iscsi_kern_params_info *info)
+static void sess_params_set(struct iscsi_sess_params *params,
+			    const struct iscsi_kern_params_info *info)
 {
 	const s32 *iparams = info->session_params;
 
@@ -176,7 +177,8 @@ static void sess_params_set(struct iscsi_sess_params *params, const struct iscsi
 	SET_PARAM(params, info, iparams, initiator_recv_data_length);
 }
 
-static void sess_params_get(const struct iscsi_sess_params *params, struct iscsi_kern_params_info *info)
+static void sess_params_get(const struct iscsi_sess_params *params,
+			    struct iscsi_kern_params_info *info)
 {
 	s32 *iparams = info->session_params;
 
@@ -274,7 +276,7 @@ static int iscsi_tgt_params_set(struct iscsi_session *session, struct iscsi_kern
 				TRACE_DBG("Schedule Nop-In work for conn %p",
 					  conn);
 				schedule_delayed_work(&conn->nop_in_delayed_work,
-						conn->nop_in_interval + ISCSI_ADD_SCHED_TIME);
+						      conn->nop_in_interval + ISCSI_ADD_SCHED_TIME);
 			}
 			spin_unlock_bh(&conn->conn_thr_pool->rd_lock);
 		}

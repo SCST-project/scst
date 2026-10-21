@@ -87,7 +87,7 @@ size_t qlt_add_vtarget(u64 port_name, u64 node_name, u64 parent_host)
 		return -EINVAL;
 	}
 
-	npiv_vha = (struct scsi_qla_host *) vport->dd_data;
+	npiv_vha = (struct scsi_qla_host *)vport->dd_data;
 	scsi_host_get(npiv_vha->host);
 
 	return 0;
@@ -118,7 +118,7 @@ size_t qlt_del_vtarget(u64 port_name)
 			    vport->port_name == port_name) {
 				match = 1;
 				dev_info(&vha->hw->pdev->dev,
-				    "%s: port_name %llx\n",
+					 "%s: port_name %llx\n",
 				    __func__, port_name);
 				break;
 			}

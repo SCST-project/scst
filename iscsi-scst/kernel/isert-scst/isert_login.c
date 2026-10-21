@@ -997,7 +997,7 @@ int __init isert_init_login_devs(unsigned int ndevs)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 4, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
-	 RHEL_RELEASE_CODE -0 < RHEL_RELEASE_VERSION(9, 4))
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 4))
 	isert_class = class_create(THIS_MODULE, "isert_scst");
 #else
 	isert_class = class_create("isert_scst");

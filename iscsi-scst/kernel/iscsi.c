@@ -1088,7 +1088,8 @@ static int iscsi_set_prelim_r2t_len_to_receive(struct iscsi_cmnd *req)
 	if (req_hdr->flags & ISCSI_CMD_FINAL) {
 		if (req_hdr->flags & ISCSI_CMD_WRITE)
 			iscsi_set_not_received_data_len(req,
-					be32_to_cpu(req_hdr->data_length) - req->pdu.datasize);
+							be32_to_cpu(req_hdr->data_length) -
+							req->pdu.datasize);
 		goto out;
 	}
 
@@ -1216,7 +1217,7 @@ static int create_reject_rsp(struct iscsi_cmnd *req, int reason, bool get_data)
 			 * RFC 3720.
 			 */
 			set_scst_preliminary_status_rsp(req, get_data,
-						SCST_LOAD_SENSE(scst_sense_invalid_message));
+							SCST_LOAD_SENSE(scst_sense_invalid_message));
 		}
 	}
 
@@ -1953,7 +1954,7 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 			PRINT_ERROR("Unexpected unsolicited data (ITT %x CDB %x)",
 				    req->pdu.bhs.itt, req_hdr->scb[0]);
 			set_scst_preliminary_status_rsp(req, true,
-				SCST_LOAD_SENSE(iscsi_sense_unexpected_unsolicited_data));
+							SCST_LOAD_SENSE(iscsi_sense_unexpected_unsolicited_data));
 		}
 	}
 
@@ -2011,7 +2012,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 		if (unlikely(sz < 0)) {
 			PRINT_ERROR("BIDI data transfer, but initiator not supplied Bidirectional Read Expected Data Transfer Length AHS");
 			set_scst_preliminary_status_rsp(req, true,
-					SCST_LOAD_SENSE(scst_sense_parameter_value_invalid));
+							SCST_LOAD_SENSE(scst_sense_parameter_value_invalid));
 		} else {
 			dir = SCST_DATA_BIDI;
 			scst_cmd_set_expected(scst_cmd, dir, sz);
@@ -2151,7 +2152,7 @@ static int data_out_start(struct iscsi_cmnd *cmnd)
 		PRINT_ERROR("Data size (%d) > R2T length to receive (%d)",
 			    cmnd->pdu.datasize, orig_req->r2t_len_to_receive);
 		set_scst_preliminary_status_rsp(orig_req, false,
-					SCST_LOAD_SENSE(iscsi_sense_incorrect_amount_of_data));
+						SCST_LOAD_SENSE(iscsi_sense_incorrect_amount_of_data));
 		goto go;
 	}
 
@@ -4179,8 +4180,8 @@ static int __init iscsi_init(void)
 	sg_init_table(&dummy_sg[0], ARRAY_SIZE(dummy_sg));
 	sg_set_page(&dummy_sg[0], dummy_page, PAGE_SIZE, 0);
 
-	iscsi_cmnd_abort_mempool = mempool_create_kmalloc_pool(2500,
-							sizeof(struct iscsi_cmnd_abort_params));
+	iscsi_cmnd_abort_mempool =
+		mempool_create_kmalloc_pool(2500, sizeof(struct iscsi_cmnd_abort_params));
 	if (!iscsi_cmnd_abort_mempool) {
 		err = -ENOMEM;
 		goto out_free_dummy;
