@@ -844,7 +844,8 @@ static void scst_pr_toggle_lock(struct scst_pr_dlm_data *pr_dlm,
 	for (i = 0; i < pr_dlm->participants; i++) {
 		if (pr_dlm->nodeid[i] == pr_dlm->local_nodeid)
 			continue;
-		snprintf(lock_name, sizeof(lock_name), fmt, pr_dlm->nodeid[i]);
+		/* Preserve the signed node-ID representation in existing lock names. */
+		snprintf(lock_name, sizeof(lock_name), fmt, (int)pr_dlm->nodeid[i]);
 		lksb.lksb.sb_lkid = 0;
 		res = scst_dlm_lock_wait(ls, DLM_LOCK_PR, &lksb, 0,
 					 lock_name, NULL);
@@ -1062,7 +1063,7 @@ static dlm_lockspace_t *get_lockspace(struct scst_device *dev)
 		goto unlock_dlm_pr;
 
 	snprintf(lock_name, sizeof(lock_name), PR_POST_JOIN_LOCK,
-		 pr_dlm->local_nodeid);
+		 (int)pr_dlm->local_nodeid);
 	pr_dlm->post_join_lksb.pr_dlm = pr_dlm;
 	res = scst_dlm_lock_wait(ls, DLM_LOCK_NL,
 				 &pr_dlm->post_join_lksb, 0, lock_name,
@@ -1071,7 +1072,7 @@ static dlm_lockspace_t *get_lockspace(struct scst_device *dev)
 		goto release_lockspace;
 
 	snprintf(lock_name, sizeof(lock_name), PR_PRE_JOIN_LOCK,
-		 pr_dlm->local_nodeid);
+		 (int)pr_dlm->local_nodeid);
 	pr_dlm->pre_join_lksb.pr_dlm = pr_dlm;
 	res = scst_dlm_lock_wait(ls, DLM_LOCK_EX,
 				 &pr_dlm->pre_join_lksb, 0, lock_name,
@@ -1091,7 +1092,7 @@ static dlm_lockspace_t *get_lockspace(struct scst_device *dev)
 	}
 
 	snprintf(lock_name, sizeof(lock_name), PR_POST_UPDATE_LOCK,
-		 pr_dlm->local_nodeid);
+		 (int)pr_dlm->local_nodeid);
 	pr_dlm->post_upd_lksb.pr_dlm = pr_dlm;
 	res = scst_dlm_lock_wait(ls, DLM_LOCK_NL,
 				 &pr_dlm->post_upd_lksb, 0, lock_name,
@@ -1100,7 +1101,7 @@ static dlm_lockspace_t *get_lockspace(struct scst_device *dev)
 		goto release_lockspace;
 
 	snprintf(lock_name, sizeof(lock_name), PR_PRE_UPDATE_LOCK,
-		 pr_dlm->local_nodeid);
+		 (int)pr_dlm->local_nodeid);
 	pr_dlm->pre_upd_lksb.pr_dlm = pr_dlm;
 	res = scst_dlm_lock_wait(ls, DLM_LOCK_EX, &pr_dlm->pre_upd_lksb,
 				 0, lock_name, scst_dlm_pre_bast);

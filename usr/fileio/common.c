@@ -237,10 +237,10 @@ static int do_exec(struct vdisk_cmd *vcmd)
 
 	switch(cmd->queue_type) {
 	case SCST_CMD_QUEUE_ORDERED:
-		TRACE(TRACE_ORDER, "ORDERED cmd_h %d", vcmd->cmd->cmd_h);
+		TRACE(TRACE_ORDER, "ORDERED cmd_h %u", vcmd->cmd->cmd_h);
 		break;
 	case SCST_CMD_QUEUE_HEAD_OF_QUEUE:
-		TRACE(TRACE_ORDER, "HQ cmd_h %d", vcmd->cmd->cmd_h);
+		TRACE(TRACE_ORDER, "HQ cmd_h %u", vcmd->cmd->cmd_h);
 		break;
 	default:
 		break;
@@ -521,14 +521,14 @@ static int do_on_free_cmd(struct vdisk_cmd *vcmd)
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("On free cmd (cmd %d, resp_data_len %d, aborted %d, "
+	TRACE_DBG("On free cmd (cmd %u, resp_data_len %d, aborted %d, "
 		"status %d, delivery_status %d)", cmd->cmd_h,
 		cmd->on_free_cmd.resp_data_len, cmd->on_free_cmd.aborted,
 		cmd->on_free_cmd.status, cmd->on_free_cmd.delivery_status);
 
-	TRACE_MEM("On free cmd (cmd %d, buf %"PRIx64", buffer_cached %d)",
-		cmd->cmd_h, cmd->on_free_cmd.pbuf,
-		cmd->on_free_cmd.buffer_cached);
+	TRACE_MEM("On free cmd (cmd %u, buf %" PRIx64 ", buffer_cached %d)",
+		  cmd->cmd_h, cmd->on_free_cmd.pbuf,
+		  cmd->on_free_cmd.buffer_cached);
 
 	if (!cmd->on_free_cmd.buffer_cached && (cmd->on_free_cmd.pbuf != 0)) {
 		TRACE_MEM("Freeing buf %"PRIx64, cmd->on_free_cmd.pbuf);
@@ -555,7 +555,7 @@ static int do_ext_copy_remap(struct vdisk_cmd *vcmd)
 
 	TRACE_ENTRY();
 
-	TRACE_DBG("Ext copy remap cmd %d", cmd->cmd_h);
+	TRACE_DBG("Ext copy remap cmd %u", cmd->cmd_h);
 
 	memset(reply, 0, sizeof(*reply));
 	reply->cmd_h = cmd->cmd_h;

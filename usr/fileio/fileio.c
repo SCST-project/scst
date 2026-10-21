@@ -207,7 +207,7 @@ static void *align_alloc(size_t size)
 		assert(page_size > 0);
 	}
 
-	TRACE_MEM("Request to alloc %zdKB", size / 1024);
+	TRACE_MEM("Request to alloc %zuKB", size / 1024);
 	return memalign(page_size, size);
 }
 

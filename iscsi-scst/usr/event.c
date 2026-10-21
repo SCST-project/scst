@@ -589,7 +589,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 			res = -EINVAL;
 			goto out_free;
 		}
-		snprintf(res_str, sizeof(res_str), "%d\n", target->per_portal_acl);
+		snprintf(res_str, sizeof(res_str), "%u\n", target->per_portal_acl);
 		if (target->per_portal_acl)
 			add_key_mark(res_str, sizeof(res_str), 0);
 	} else if (strcasecmp(ISCSI_TARGET_REDIRECTION_ATTR_NAME, pp) == 0) {
