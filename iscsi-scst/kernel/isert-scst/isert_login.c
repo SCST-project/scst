@@ -701,7 +701,7 @@ static ssize_t isert_write(struct file *filp, const char __user *buf,
 	return to_write;
 }
 
-static bool is_last_login_rsp(struct iscsi_login_rsp_hdr *rsp)
+static bool is_last_login_rsp(const struct iscsi_login_rsp_hdr *rsp)
 {
 	return (rsp->flags & ISCSI_FLG_TRANSIT) &&
 	       (rsp->flags & ISCSI_FLG_NSG_MASK) == ISCSI_FLG_NSG_FULL_FEATURE;
@@ -745,7 +745,7 @@ static long isert_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 				dev->state = CS_RSP_BHS;
 			}
 		} else {
-			struct iscsi_login_rsp_hdr *rsp;
+			const struct iscsi_login_rsp_hdr *rsp;
 			bool last;
 
 			if (unlikely(!dev->login_rsp)) {

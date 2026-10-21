@@ -484,7 +484,7 @@ struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn)
 
 	if (unlikely(cmnd_opcode(cmnd) == ISCSI_OP_SCSI_TASK_MGT_RSP)) {
 #ifdef CONFIG_SCST_DEBUG
-		struct iscsi_task_mgt_hdr *req_hdr =
+		const struct iscsi_task_mgt_hdr *req_hdr =
 			(struct iscsi_task_mgt_hdr *)&cmnd->parent_req->pdu.bhs;
 		struct iscsi_task_rsp_hdr *rsp_hdr =
 			(struct iscsi_task_rsp_hdr *)&cmnd->pdu.bhs;

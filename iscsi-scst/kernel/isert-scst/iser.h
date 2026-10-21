@@ -274,7 +274,7 @@ void isert_wait_for_portal_release(void);
 
 void isert_dev_list_add(struct isert_device *isert_dev);
 void isert_dev_list_remove(struct isert_device *isert_dev);
-struct isert_device *isert_device_find(struct ib_device *ib_dev);
+struct isert_device *isert_device_find(const struct ib_device *ib_dev);
 
 void isert_conn_queue_work(struct work_struct *w);
 
@@ -282,10 +282,10 @@ extern struct kmem_cache *isert_cmnd_cache;
 extern struct kmem_cache *isert_conn_cache;
 
 /* iser portal */
-struct isert_portal *isert_portal_create(struct sockaddr *sa, size_t addr_len);
+struct isert_portal *isert_portal_create(const struct sockaddr *sa, size_t addr_len);
 void isert_portal_release(struct isert_portal *portal);
 void isert_portal_list_release_all(void);
-struct isert_portal *isert_portal_start(struct sockaddr *sa, size_t addr_len);
+struct isert_portal *isert_portal_start(const struct sockaddr *sa, size_t addr_len);
 
 /* iser connection */
 int isert_post_recv(struct isert_conn *isert_conn,
@@ -321,7 +321,7 @@ int isert_wr_init(struct isert_wr *wr,
 		  enum isert_wr_op wr_op,
 		  struct isert_buf *isert_buf,
 		  struct isert_conn *isert_conn,
-		  struct isert_cmnd *pdu,
+		  const struct isert_cmnd *pdu,
 		  struct ib_sge *sge,
 		  int sg_offset,
 		  int sg_cnt,
@@ -380,6 +380,6 @@ void isert_tx_pdu_init_iscsi(struct isert_cmnd *isert_pdu);
 
 /* global */
 void isert_global_cleanup(void);
-int isert_get_addr_size(struct sockaddr *sa, size_t *addr_len);
+int isert_get_addr_size(const struct sockaddr *sa, size_t *addr_len);
 
 #endif

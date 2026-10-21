@@ -393,7 +393,7 @@ void target_del_all(void)
 
 static ssize_t iscsi_tgt_tid_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	struct scst_tgt *scst_tgt;
+	const struct scst_tgt *scst_tgt;
 	struct iscsi_target *tgt;
 	ssize_t res = -E_TGT_PRIV_NOT_YET_SET;
 
@@ -495,7 +495,7 @@ out:
 
 bool iscsi_is_target_enabled(struct scst_tgt *scst_tgt)
 {
-	struct iscsi_target *tgt =
+	const struct iscsi_target *tgt =
 		(struct iscsi_target *)scst_tgt_get_tgt_priv(scst_tgt);
 
 	if (tgt)
@@ -528,7 +528,7 @@ ssize_t iscsi_sysfs_del_target(const char *target_name)
 
 	/* We don't want to have tgt visible after the mutex unlock */
 	{
-		struct iscsi_target *tgt;
+		const struct iscsi_target *tgt;
 
 		mutex_lock(&target_mgmt_mutex);
 		tgt = target_lookup_by_name(target_name);
@@ -568,7 +568,7 @@ ssize_t iscsi_sysfs_mgmt_cmd(char *cmd)
 static ssize_t iscsi_acg_sess_dedicated_threads_show(struct kobject *kobj,
 						     struct kobj_attribute *attr, char *buf)
 {
-	struct scst_acg *acg;
+	const struct scst_acg *acg;
 	bool dedicated;
 	ssize_t ret;
 

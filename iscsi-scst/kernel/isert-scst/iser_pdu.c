@@ -60,7 +60,7 @@ static inline int isert_pdu_tx_buf_init(struct isert_cmnd *isert_pdu,
 			     isert_pdu->sg_pool, 0, isert_buf->sg_cnt, 0);
 }
 
-static inline void isert_pdu_set_hdr_plain(struct isert_cmnd *isert_pdu)
+static inline void isert_pdu_set_hdr_plain(const struct isert_cmnd *isert_pdu)
 {
 	struct isert_hdr *isert_hdr = isert_pdu->isert_hdr;
 
@@ -121,7 +121,7 @@ void isert_tx_pdu_init(struct isert_cmnd *isert_pdu,
 void isert_tx_pdu_convert_from_iscsi(struct isert_cmnd *isert_cmnd,
 				     struct iscsi_cmnd *iscsi_cmnd)
 {
-	struct iscsi_pdu *iscsi_pdu = &iscsi_cmnd->pdu;
+	const struct iscsi_pdu *iscsi_pdu = &iscsi_cmnd->pdu;
 
 	TRACE_ENTRY();
 

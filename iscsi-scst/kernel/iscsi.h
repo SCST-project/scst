@@ -817,7 +817,7 @@ struct iscsi_cmnd *iscsi_get_send_cmnd(struct iscsi_conn *conn);
 void start_close_conn(struct iscsi_conn *conn);
 __be32 cmnd_set_sn(struct iscsi_cmnd *cmnd, int set_stat_sn);
 void iscsi_set_resid(struct iscsi_cmnd *rsp);
-int iscsi_init_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info,
+int iscsi_init_conn(struct iscsi_session *session, const struct iscsi_kern_conn_info *info,
 		    struct iscsi_conn *conn);
 void req_cmnd_pre_release(struct iscsi_cmnd *req);
 struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req, int status, const u8 *sense_buf,

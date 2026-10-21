@@ -1026,7 +1026,7 @@ void iscsi_dump_pdu(struct iscsi_pdu *pdu)
 	}
 }
 
-unsigned long iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(struct iscsi_cmnd *cmnd)
+unsigned long iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(const struct iscsi_cmnd *cmnd)
 {
 	unsigned long flag;
 

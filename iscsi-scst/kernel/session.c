@@ -43,7 +43,7 @@ static int iscsi_session_alloc(struct iscsi_target *target, struct iscsi_kern_se
 	int err;
 	unsigned int i;
 	struct iscsi_session *session;
-	char *name = NULL;
+	const char *name = NULL;
 
 	lockdep_assert_held(&target_mgmt_mutex);
 
@@ -442,7 +442,7 @@ ISCSI_SESS_DIGEST_PARAM_ATTR(data_digest, DataDigest);
 
 static ssize_t iscsi_sess_sid_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
-	struct scst_session *scst_sess;
+	const struct scst_session *scst_sess;
 	struct iscsi_session *sess;
 	ssize_t ret;
 
@@ -463,7 +463,7 @@ static struct kobj_attribute iscsi_attr_sess_sid =
 static ssize_t iscsi_sess_reinstating_show(struct kobject *kobj, struct kobj_attribute *attr,
 					   char *buf)
 {
-	struct scst_session *scst_sess;
+	const struct scst_session *scst_sess;
 	struct iscsi_session *sess;
 	ssize_t ret;
 
@@ -484,7 +484,7 @@ static struct kobj_attribute iscsi_sess_attr_reinstating =
 static ssize_t iscsi_sess_thread_pid_show(struct kobject *kobj, struct kobj_attribute *attr,
 					  char *buf)
 {
-	struct scst_session *scst_sess = container_of(kobj, struct scst_session, sess_kobj);
+	const struct scst_session *scst_sess = container_of(kobj, struct scst_session, sess_kobj);
 	struct iscsi_session *sess = scst_sess_get_tgt_priv(scst_sess);
 	struct iscsi_thread_pool *thr_pool = sess->sess_thr_pool;
 	struct iscsi_thread *t;

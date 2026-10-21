@@ -827,7 +827,7 @@ void conn_free(struct iscsi_conn *conn)
 }
 
 int iscsi_init_conn(struct iscsi_session *session,
-		    struct iscsi_kern_conn_info *info,
+		    const struct iscsi_kern_conn_info *info,
 		    struct iscsi_conn *conn)
 {
 	int res;
