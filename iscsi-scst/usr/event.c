@@ -305,12 +305,12 @@ static int handle_add_attr(struct target *target, char *p, u32 cookie)
 	pp = config_sep_string(&p);
 
 	dir = params_index_by_name_numwild(pp, user_keys);
-	if (dir >= 0)
+	if (dir >= 0) {
 		res = handle_add_user(target, dir, pp, p, cookie);
-	else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_ATTR_NAME, pp) == 0)
+	} else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_ATTR_NAME, pp) == 0) {
 		res = __handle_add_attr(target, &target->allowed_portals,
 				ISCSI_ALLOWED_PORTAL_ATTR_NAME, p, 1, cookie);
-	else {
+	} else {
 		log_error("Syntax error at %s", pp);
 		res = -EINVAL;
 		goto out;
@@ -373,12 +373,12 @@ static int handle_del_attr(struct target *target, char *p, u32 cookie)
 	pp = config_sep_string(&p);
 
 	dir = params_index_by_name_numwild(pp, user_keys);
-	if (dir >= 0)
+	if (dir >= 0) {
 		res = handle_del_user(target, dir, p, cookie);
-	else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_ATTR_NAME, pp) == 0)
+	} else if (strncasecmp_numwild(ISCSI_ALLOWED_PORTAL_ATTR_NAME, pp) == 0) {
 		res = __handle_del_attr(target, &target->allowed_portals,
 				p, cookie);
-	else {
+	} else {
 		log_error("Syntax error at %s", pp);
 		res = -EINVAL;
 		goto out;
@@ -474,7 +474,6 @@ static void add_key_mark(char *res_str, int res_str_len, int new_line)
 
 	snprintf(&res_str[offs], res_str_len - offs, "%s%s\n",
 		new_line ? "\n" : "", SCST_SYSFS_KEY_MARK);
-	return;
 }
 
 static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
@@ -615,8 +614,9 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 				snprintf(res_str, sizeof(res_str), "%s %s\n",
 					target->redirect.addr, type);
 			add_key_mark(res_str, sizeof(res_str), 0);
-		} else
+		} else {
 			*res_str = '\0';
+		}
 	} else if (strcasecmp(ISCSI_TARGET_ALIAS_ATTR_NAME, pp) == 0) {
 		if (!target) {
 			log_error("Target expected for attr %s", pp);
@@ -626,8 +626,9 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 		if (target->alias) {
 			snprintf(res_str, sizeof(res_str), "%s\n", target->alias);
 			add_key_mark(res_str, sizeof(res_str), 0);
-		} else
+		} else {
 			*res_str = '\0';
+		}
 	} else if (strcasecmp(ISCSI_ISNS_SERVER_ATTR_NAME, pp) == 0) {
 		if (target) {
 			log_error("Not NULL target %s for global attribute %s",
@@ -640,8 +641,9 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 			snprintf(res_str, sizeof(res_str), "%s %s\n", isns_server,
 				isns_access_control ? ISCSI_ISNS_SYSFS_ACCESS_CONTROL_ENABLED : "");
 			add_key_mark(res_str, sizeof(res_str), 0);
-		} else
+		} else {
 			snprintf(res_str, sizeof(res_str), "\n");
+		}
 	} else if (strcasecmp(ISCSI_ISNS_ENTITY_ATTR_NAME, pp) == 0)	{
 		if (target) {
 			log_error("Not NULL target %s for global attribute %s",
@@ -670,8 +672,9 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 		if (internal_portal) {
 			snprintf(res_str, sizeof(res_str), "%s\n", internal_portal);
 			add_key_mark(res_str, sizeof(res_str), 0);
-		} else
+		} else {
 			snprintf(res_str, sizeof(res_str), "\n");
+		}
 	} else	{
 		log_error("Unknown attribute %s", pp);
 		res = -EINVAL;
@@ -973,11 +976,11 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			goto out_free;
 		}
 		pp = config_sep_string(&p);
-		if (strcmp(pp, "1") == 0)
+		if (strcmp(pp, "1") == 0) {
 			iscsi_enabled = 1;
-		else if (strcmp(pp, "0") == 0)
+		} else if (strcmp(pp, "0") == 0) {
 			iscsi_enabled = 0;
-		else {
+		} else {
 			log_error("Unknown value %s", pp);
 			res = -EINVAL;
 			goto out_free;
@@ -989,11 +992,11 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			goto out_free;
 		}
 		pp = config_sep_string(&p);
-		if (strcmp(pp, "1") == 0)
+		if (strcmp(pp, "1") == 0) {
 			target->per_portal_acl = 1;
-		else if (strcmp(pp, "0") == 0)
+		} else if (strcmp(pp, "0") == 0) {
 			target->per_portal_acl = 0;
-		else {
+		} else {
 			log_error("Unknown value %s", pp);
 			res = -EINVAL;
 			goto out_free;
@@ -1061,9 +1064,8 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			isns_exit();
 
 		pp = config_sep_string(&p);
-		if (*pp == '\0') {
+		if (*pp == '\0')
 			goto done;
-		}
 
 		isns_access_control = 0;
 		isns_server = strdup(pp);
@@ -1103,8 +1105,9 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 					goto out_free_isns_exit;
 				}
 			}
-		} else
+		} else {
 			goto out_free_server;
+		}
 	} else if (strcasecmp(ISCSI_ISNS_ENTITY_ATTR_NAME, pp) == 0) {
 		pp = config_sep_string(&p);
 		iscsi_strscpy(isns_entity_target_name, pp, sizeof(isns_entity_target_name));
@@ -1116,11 +1119,11 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			goto out_free;
 		}
 		pp = config_sep_string(&p);
-		if (strcmp(pp, "1") == 0)
+		if (strcmp(pp, "1") == 0) {
 			send_targets_link_local = 1;
-		else if (strcmp(pp, "0") == 0)
+		} else if (strcmp(pp, "0") == 0) {
 			send_targets_link_local = 0;
-		else {
+		} else {
 			log_error("Unknown value %s", pp);
 			res = -EINVAL;
 			goto out_free;
@@ -1266,8 +1269,9 @@ retry:
 		if (!target) {
 			log_error("Target %d not found", event.tid);
 			rc = -ENOENT;
-		} else
+		} else {
 			rc = 0;
+		}
 		rc |= send_mgmt_cmd_res(event.tid, event.cookie, E_ENABLE_TARGET, rc, NULL);
 		if (rc == 0) {
 			target->tgt_enabled = 1;
@@ -1280,8 +1284,9 @@ retry:
 		if (!target) {
 			log_error("Target %d not found", event.tid);
 			rc = -ENOENT;
-		} else
+		} else {
 			rc = 0;
+		}
 		rc |= send_mgmt_cmd_res(event.tid, event.cookie, E_DISABLE_TARGET, rc, NULL);
 		if (rc == 0) {
 			target->tgt_enabled = 0;

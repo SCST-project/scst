@@ -62,9 +62,9 @@ static struct option const long_options[] = {
 
 static void usage(int status)
 {
-	if (status != 0)
+	if (status != 0) {
 		fprintf(stderr, "Try `%s --help' for more information.\n", program_name);
-	else {
+	} else {
 		printf("Usage: %s [OPTION]\n", program_name);
 		printf("\
 iSCSI-SCST Target Administration Utility.\n\
@@ -147,8 +147,9 @@ static int iscsid_request_send(int fd, const struct iscsi_adm_req *req)
 		err = (ret < 0) ? -errno : -EIO;
 		fprintf(stderr, "%s failed: written %d, to write %d, "
 			"error: %s\n", __func__, ret, err, strerror(-err));
-	} else
+	} else {
 		err = 0;
+	}
 
 	return err;
 }
@@ -173,8 +174,9 @@ static int iscsid_response_recv(int fd, struct iscsi_adm_req *req, void *rsp_dat
 		err = (ret < 0) ? -errno : -EIO;
 		fprintf(stderr, "readv failed: read %d instead of %d (%s)\n",
 			ret, (int)(sizeof(rsp) + sizeof(*req)), strerror(-err));
-	} else
+	} else {
 		err = rsp.err;
+	}
 
 	if (!err && rsp_data_sz && rsp_data) {
 		ret = read(fd, rsp_data, rsp_data_sz);

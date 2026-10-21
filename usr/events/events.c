@@ -89,8 +89,6 @@ static void handle_reg_vdev_received(struct scst_event_user *event_user)
 {
 	const struct scst_event_reg_vdev_payload *p = (struct scst_event_reg_vdev_payload *)event_user->out_event.payload;
 	printf("Virtual device %s registration received.\n", p->device_name);
-
-	return;
 }
 
 static void handle_tm_received(struct scst_event_user *event_user)
@@ -98,8 +96,6 @@ static void handle_tm_received(struct scst_event_user *event_user)
 	const struct scst_event_tm_fn_received_payload *p = (struct scst_event_tm_fn_received_payload *)event_user->out_event.payload;
 
 	printf("fn %u, device %s\n", p->fn, p->device_name);
-
-	return;
 }
 
 int main(int argc, char **argv)
@@ -226,8 +222,7 @@ int main(int argc, char **argv)
 					"EAGAIN (%d)", res);
 				if (non_blocking)
 					break;
-				else
-					continue;
+				continue;
 			default:
 				PRINT_ERROR("SCST_EVENT_GET_NEXT_EVENT failed: %s (res %d)",
 					strerror(errno), res);
@@ -235,11 +230,11 @@ int main(int argc, char **argv)
 			}
 again_poll:
 			res = poll(&pl, 1, 2000);
-			if (res > 0)
+			if (res > 0) {
 				continue;
-			else if (res == 0)
+			} else if (res == 0) {
 				goto again_poll;
-			else {
+			} else {
 				res = errno;
 				switch (res) {
 				case ESRCH:
@@ -285,9 +280,9 @@ again_poll:
 					"(res %d)", strerror(errno), res);
 		} else if (event_user->out_event.event_code == SCST_EVENT_REG_VIRT_DEV) {
 			handle_reg_vdev_received(event_user);
-		} else if (event_user->out_event.event_code == SCST_EVENT_TM_FN_RECEIVED)
+		} else if (event_user->out_event.event_code == SCST_EVENT_TM_FN_RECEIVED) {
 			handle_tm_received(event_user);
-		else if (event_user->out_event.event_code == SCST_EVENT_TM_FN_RECEIVED) {
+		} else if (event_user->out_event.event_code == SCST_EVENT_TM_FN_RECEIVED) {
 			struct scst_event_notify_done d;
 
 			memset(&d, 0, sizeof(d));

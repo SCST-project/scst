@@ -103,9 +103,8 @@ uint32_t crc32buf(const char *buf, size_t len)
 
 	oldcrc32 = 0xFFFFFFFF;
 
-	for ( ; len; --len, ++buf) {
+	for ( ; len; --len, ++buf)
 		oldcrc32 = crc32_update(*buf, oldcrc32);
-	}
 
 	return ~oldcrc32;
 }

@@ -71,9 +71,9 @@ int init_report_pipe[2];
 
 static void usage(int status)
 {
-	if (status != 0)
+	if (status != 0) {
 		fprintf(stderr, "Try `%s --help' for more information.\n", program_name);
-	else {
+	} else {
 		printf("Usage: %s [OPTION]\n", program_name);
 		printf("\
 iSCSI target daemon.\n\
@@ -556,8 +556,9 @@ again:
 			if (res == 0 || (errno != EINTR && errno != EAGAIN)) {
 				conn->state = STATE_DROP;
 				goto out;
-			} else if (errno == EINTR)
+			} else if (errno == EINTR) {
 				goto read_again;
+			}
 			break;
 		}
 		conn->rwsize -= res;
@@ -624,8 +625,9 @@ again:
 			if (errno != EINTR && errno != EAGAIN) {
 				conn->state = STATE_DROP;
 				goto out;
-			} else if (errno == EINTR)
+			} else if (errno == EINTR) {
 				goto write_again;
+			}
 			break;
 		}
 
@@ -850,8 +852,6 @@ static void init_max_params(void)
 		min((int)session_keys[key_first_burst_length].local_def,
 		    iscsi_init_params.max_data_seg_len);
 	session_keys[key_first_burst_length].max = iscsi_init_params.max_data_seg_len;
-
-	return;
 }
 
 static void suspend_logins(int sig)

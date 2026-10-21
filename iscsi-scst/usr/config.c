@@ -86,7 +86,6 @@ static void __iscsi_attr_destroy(struct iscsi_attr *attr, int del)
 	free((void *)attr->attr_key);
 	free((void *)attr->attr_value);
 	free(attr);
-	return;
 }
 
 void iscsi_attr_destroy(struct iscsi_attr *attr)
@@ -101,8 +100,6 @@ void iscsi_attrs_free(struct __qelem *attrs_list)
 	list_for_each_entry_safe(attr, t, attrs_list, ulist) {
 		iscsi_attr_destroy(attr);
 	}
-
-	return;
 }
 
 int iscsi_attr_create(int attr_size, struct __qelem *attrs_list,
@@ -217,8 +214,9 @@ int iscsi_attr_replace(const struct __qelem *attrs_list, const char *sysfs_name,
 			free(new_key);
 			goto out;
 		}
-	} else
+	} else {
 		new_val = NULL;
+	}
 
 	free((void *)attr->attr_key);
 	attr->attr_key = new_key;
@@ -237,9 +235,10 @@ static struct __qelem *account_list_get(struct target *target, int dir)
 	if (target) {
 		list = (dir == ISCSI_USER_DIR_INCOMING) ?
 			&target->target_in_accounts : &target->target_out_accounts;
-	} else
+	} else {
 		list = (dir == ISCSI_USER_DIR_INCOMING) ?
 			&discovery_users_in : &discovery_users_out;
+	}
 
 	return list;
 }
@@ -320,8 +319,9 @@ int accounts_empty(u32 tid, int dir)
 		target = target_find_by_id(tid);
 		if (!target)
 			return 0;
-	} else
+	} else {
 		target = NULL;
+	}
 
 	list = account_list_get(target, dir);
 
@@ -346,8 +346,9 @@ static struct iscsi_attr *account_lookup_by_name(u32 tid, int dir, const char *n
 		target = target_find_by_id(tid);
 		if (!target)
 			return NULL;
-	} else
+	} else {
 		target = NULL;
+	}
 
 	return __account_lookup_by_name(target, dir, name);
 }
@@ -362,8 +363,9 @@ struct iscsi_attr *account_get_first(u32 tid, int dir)
 		target = target_find_by_id(tid);
 		if (!target)
 			return NULL;
-	} else
+	} else {
 		target = NULL;
+	}
 
 	list = account_list_get(target, dir);
 
@@ -410,8 +412,9 @@ int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
 		target = target_find_by_id(tid);
 		if (!target)
 			return -ENOENT;
-	} else
+	} else {
 		target = NULL;
+	}
 
 	list = account_list_get(target, dir);
 
@@ -424,8 +427,9 @@ int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
 			buf_sz -= ISCSI_NAME_LEN;
 			buf += ISCSI_NAME_LEN;
 			*cnt += 1;
-		} else
+		} else {
 			*overflow += 1;
+		}
 	}
 
 	return 0;
@@ -434,13 +438,11 @@ int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
 static void account_destroy(struct iscsi_attr *user)
 {
 	iscsi_attr_destroy(user);
-	return;
 }
 
 void accounts_free(struct __qelem *accounts_list)
 {
 	iscsi_attrs_free(accounts_list);
-	return;
 }
 
 int config_account_del(u32 tid, int dir, char *name, u32 cookie)
@@ -462,8 +464,9 @@ int config_account_del(u32 tid, int dir, char *name, u32 cookie)
 			res = -ESRCH;
 			goto out;
 		}
-	} else
+	} else {
 		target = NULL;
+	}
 
 	user = __account_lookup_by_name(target, dir, name);
 	if (!user) {
@@ -585,8 +588,9 @@ int config_account_add(u32 tid, int dir, char *name, const char *pass,
 			err = -ENOENT;
 			goto out;
 		}
-	} else
+	} else {
 		target = NULL;
+	}
 
 	err = __config_account_add(target, dir, name, pass, sysfs_name, 1, cookie);
 
@@ -668,10 +672,10 @@ static int netmask_match(const sockaddress *sa1, const sockaddress *sa2,
 
 static int address_match(const sockaddress *sa1, const sockaddress *sa2)
 {
-	if (sa1->sa.sa_family == AF_INET)
+	if (sa1->sa.sa_family == AF_INET) {
 		return sa1->sa_in.sin_addr.s_addr ==
 		       sa2->sa_in.sin_addr.s_addr;
-	else {
+	} else {
 		const struct in6_addr *a1, *a2;
 
 		a1 = &sa1->sa_in6.sin6_addr;
@@ -712,8 +716,9 @@ static int __initiator_match(int fd, char *str)
 			if (!q)
 				return 0;
 			*(q++) = '\0';
-		} else
+		} else {
 			q = p;
+		}
 
 		q = strchr(q, '/');
 		if (q)
@@ -1046,9 +1051,9 @@ int config_parse_main(const char *data, u32 cookie)
 				continue;
 		} else if (global_section &&
 			   (!strcasecmp(p, ISCSI_ISNS_SERVER_ATTR_NAME) ||
-			    !strcasecmp(p, ISCSI_ISNS_ACCESS_CONTROL_ATTR_NAME)))
+			    !strcasecmp(p, ISCSI_ISNS_ACCESS_CONTROL_ATTR_NAME))) {
 			continue;
-		else {
+		} else {
 			log_error("Unknown or unexpected param: %s\n", p);
 			res = -EINVAL;
 			continue;
@@ -1068,8 +1073,9 @@ out:
 	if (stop_on_errors) {
 		if (res == 0 && !parsed_something)
 			res = -ENOENT;
-	} else
+	} else {
 		res = 0;
+	}
 
 	return res;
 
@@ -1166,8 +1172,9 @@ int config_load(const char *config_name)
 			err = -errno;
 			log_error("read() failed: %s", strerror(errno));
 			goto out_free;
-		} else if (rc == 0)
+		} else if (rc == 0) {
 			break;
+		}
 		i += rc;
 	} while (i < size);
 

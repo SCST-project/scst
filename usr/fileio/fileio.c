@@ -170,7 +170,6 @@ static void usage(void)
 #if defined(DEBUG_TM_IGNORE) || defined(DEBUG_TM_IGNORE_ALL)
 	printf("  -g, --debug_tm_ignore	Turn on DEBUG_TM_IGNORE\n");
 #endif
-	return;
 }
 
 static int scst_calc_block_shift(int sector_size)
@@ -238,7 +237,6 @@ static void sigalrm_handler(int signo)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 static void sigusr1_handler(int signo)
@@ -262,7 +260,6 @@ static void sigusr1_handler(int signo)
 
 out:
 	TRACE_EXIT();
-	return;
 }
 
 static int prealloc_buffers(struct vdisk_dev *dev)
@@ -479,9 +476,10 @@ static int start(int argc, char **argv)
 				res = (long)rc1;
 				PRINT_INFO("Thread %d exited (dev %s), res %lx", j,
 					devs[i].name, (long)rc1);
-			} else
+			} else {
 				PRINT_INFO("Thread %d exited (dev %s)", j,
 					devs[i].name);
+			}
 			j++;
 		}
 		pthread_mutex_destroy(&devs[i].dev_mutex);

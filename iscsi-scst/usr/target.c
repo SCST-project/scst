@@ -248,7 +248,6 @@ static void target_list_build_ifaddrs(struct connection *conn,
 	}
 
 	freeifaddrs(ifaddr);
-	return;
 }
 
 void target_list_build(struct connection *conn, const char *target_name)
@@ -303,7 +302,6 @@ void target_list_build(struct connection *conn, const char *target_name)
 					target_print_addr(conn, portal, family);
 		}
 	}
-	return;
 }
 
 u32 target_find_id_by_name(const char *name)
@@ -403,7 +401,6 @@ void target_free(struct target *target)
 	iscsi_attrs_free(&target->allowed_portals);
 
 	free(target);
-	return;
 }
 
 int target_create(const char *name, struct target **out_target)

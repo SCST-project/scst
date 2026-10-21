@@ -2570,9 +2570,10 @@ void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
 						sizeof(ua->UA_sense_buffer),
 						tgt_dev->dev->d_sense,
 						key, asc, ascq);
-				} else
+				} else {
 					PRINT_ERROR("%s",
 						"The first UA isn't RESET UA");
+				}
 			} else {
 				PRINT_ERROR("%s", "There's no RESET UA to replace");
 			}
@@ -3076,9 +3077,9 @@ retry_add:
 			sess, (unsigned long long)acg_dev->lun);
 
 		rc = scst_alloc_add_tgt_dev(sess, acg_dev, &tgt_dev);
-		if (rc == -EPERM)
+		if (rc == -EPERM) {
 			continue;
-		else if (rc != 0) {
+		} else if (rc != 0) {
 			add_failed = true;
 			break;
 		}
@@ -3222,8 +3223,9 @@ int scst_get_cmd_abnormal_done_state(struct scst_cmd *cmd)
 		if (!cmd->tgt_dev) {
 			trace = true;
 			res = SCST_CMD_STATE_PRE_XMIT_RESP1;
-		} else
+		} else {
 			res = SCST_CMD_STATE_PRE_DEV_DONE;
+		}
 		break;
 
 	case SCST_CMD_STATE_PREPARE_SPACE:
@@ -3935,9 +3937,9 @@ bool __scst_get_resid(struct scst_cmd *cmd, int *resid, int *bidi_out_resid)
 
 		if (cmd->tgt_dif_data_expected)
 			wl += (wl >> cmd->dev->block_shift) << SCST_DIF_TAG_SHIFT;
-		if (wl < cmd->expected_transfer_len_full)
+		if (wl < cmd->expected_transfer_len_full) {
 			*resid = cmd->expected_transfer_len_full - wl;
-		else {
+		} else {
 			*resid = cmd->write_len - cmd->bufflen;
 			if (cmd->tgt_dif_data_expected) {
 				int r = *resid;
@@ -4614,11 +4616,12 @@ int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
 	if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_STORE) {
 		/* Devices are allowed to store only CRCs */
 		acg_dev->acg_dev_dif_guard_format = SCST_DIF_GUARD_FORMAT_CRC;
-	} else
+	} else {
 		acg_dev->acg_dev_dif_guard_format =
 			acg->tgt->tgt_hw_dif_ip_supported && !dev->dev_dif_ip_not_supported ?
 							SCST_DIF_GUARD_FORMAT_IP :
 							SCST_DIF_GUARD_FORMAT_CRC;
+	}
 
 	TRACE_DBG("Adding acg_dev %p to acg_dev_list and dev_acg_dev_list",
 		acg_dev);
@@ -5295,9 +5298,9 @@ enum scst_dev_type_threads_pool_type scst_parse_threads_pool_type(const char *p,
 		res = SCST_THREADS_POOL_PER_INITIATOR;
 	else if (strncasecmp(p, SCST_THREADS_POOL_SHARED_STR,
 			min_t(int, strlen(SCST_THREADS_POOL_SHARED_STR),
-				len)) == 0)
+				len)) == 0) {
 		res = SCST_THREADS_POOL_SHARED;
-	else {
+	} else {
 		PRINT_ERROR("Unknown threads pool type %s", p);
 		res = SCST_THREADS_POOL_TYPE_INVALID;
 	}
@@ -5561,9 +5564,9 @@ int scst_alloc_add_tgt_dev(struct scst_session *sess,
 		clear_bit(SCST_TGT_DEV_AEN_DISABLED, &tgt_dev->tgt_dev_flags);
 	tgt_dev->hw_dif_same_sg_layout_required = sess->tgt->tgt_hw_dif_same_sg_layout_required;
 	tgt_dev->tgt_dev_dif_guard_format = acg_dev->acg_dev_dif_guard_format;
-	if (tgt_dev->tgt_dev_dif_guard_format == SCST_DIF_GUARD_FORMAT_IP)
+	if (tgt_dev->tgt_dev_dif_guard_format == SCST_DIF_GUARD_FORMAT_IP) {
 		tgt_dev->tgt_dev_dif_crc_fn = scst_dif_ip_fn;
-	else {
+	} else {
 		EXTRACHECKS_BUG_ON(tgt_dev->tgt_dev_dif_guard_format != SCST_DIF_GUARD_FORMAT_CRC);
 		tgt_dev->tgt_dev_dif_crc_fn = scst_dif_crc_fn;
 	}
@@ -6653,10 +6656,10 @@ static void scst_ws_write_cmd_finished(struct scst_cmd *cmd)
 		TRACE_DBG("Write cmd %p (ws cmd %p) finished not successfully",
 			cmd, ws_cmd);
 		sBUG_ON(cmd->resp_data_len != 0);
-		if (cmd->status == SAM_STAT_CHECK_CONDITION)
+		if (cmd->status == SAM_STAT_CHECK_CONDITION) {
 			rc = scst_set_cmd_error_sense(ws_cmd, cmd->sense,
 				cmd->sense_valid_len);
-		else {
+		} else {
 			sBUG_ON(cmd->sense);
 			rc = scst_set_cmd_error_status(ws_cmd, cmd->status);
 		}
@@ -6757,9 +6760,9 @@ out:
 	return;
 
 out_err:
-	if (wsp->ws_cur_in_flight != 0)
+	if (wsp->ws_cur_in_flight != 0) {
 		goto out_wake;
-	else {
+	} else {
 		mutex_unlock(&wsp->ws_mutex);
 		scst_ws_finished(wsp);
 		goto out;
@@ -7039,10 +7042,10 @@ static void scst_cwr_write_cmd_finished(struct scst_cmd *cmd)
 		TRACE_DBG("WRITE cmd %p (cwr cmd %p) finished not successfully",
 			cmd, cwr_cmd);
 		sBUG_ON(cmd->resp_data_len != 0);
-		if (cmd->status == SAM_STAT_CHECK_CONDITION)
+		if (cmd->status == SAM_STAT_CHECK_CONDITION) {
 			rc = scst_set_cmd_error_sense(cwr_cmd, cmd->sense,
 				cmd->sense_valid_len);
-		else {
+		} else {
 			sBUG_ON(cmd->sense);
 			rc = scst_set_cmd_error_status(cwr_cmd, cmd->status);
 		}
@@ -7075,10 +7078,10 @@ static void scst_cwr_read_cmd_finished(struct scst_cmd *cmd)
 		TRACE_DBG("Read cmd %p (cwr cmd %p) finished not successfully",
 			cmd, cwr_cmd);
 		sBUG_ON(cmd->resp_data_len != 0);
-		if (cmd->status == SAM_STAT_CHECK_CONDITION)
+		if (cmd->status == SAM_STAT_CHECK_CONDITION) {
 			rc = scst_set_cmd_error_sense(cwr_cmd, cmd->sense,
 				cmd->sense_valid_len);
-		else {
+		} else {
 			sBUG_ON(cmd->sense);
 			rc = scst_set_cmd_error_status(cwr_cmd, cmd->status);
 		}
@@ -8147,8 +8150,9 @@ static void scst_release_space(struct scst_cmd *cmd)
 				cmd, cmd->sg_cnt);
 			scst_free_sg(cmd->sg, cmd->sg_cnt);
 			goto out_zero;
-		} else
+		} else {
 			goto out;
+		}
 	}
 
 	if (cmd->tgt_i_data_buf_alloced || cmd->dh_data_buf_alloced) {
@@ -9169,9 +9173,9 @@ int sg_cmp_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 		if (((src_offs & ~PAGE_MASK) == 0) &&
 		    ((dst_offs & ~PAGE_MASK) == 0) &&
 		    src_len >= PAGE_SIZE && dst_len >= PAGE_SIZE &&
-		    cmp_len >= PAGE_SIZE)
+		    cmp_len >= PAGE_SIZE) {
 			n = PAGE_SIZE;
-		else {
+		} else {
 			n = min_t(size_t, PAGE_SIZE - (dst_offs & ~PAGE_MASK),
 					  PAGE_SIZE - (src_offs & ~PAGE_MASK));
 			n = min(n, src_len);
@@ -9426,8 +9430,9 @@ int scst_get_buf_full(struct scst_cmd *cmd, u8 **buf, bool always_copy)
 			}
 		}
 		res = full_size;
-	} else
+	} else {
 		res = scst_get_buf_first(cmd, buf);
+	}
 
 out:
 	TRACE_EXIT_RES(res);
@@ -9502,8 +9507,9 @@ void scst_put_buf_full(struct scst_cmd *cmd, u8 *buf)
 		cmd->sg_buff_vmallocated = 0;
 
 		vfree(buf);
-	} else
+	} else {
 		scst_put_buf(cmd, buf);
+	}
 
 out:
 	TRACE_EXIT();
@@ -10469,8 +10475,9 @@ static int scst_init_dif_actions(struct scst_device *dev)
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
 					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
-				} else
+				} else {
 					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+				}
 
 				if (dev->dpicz) {
 					scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
@@ -10482,8 +10489,9 @@ static int scst_init_dif_actions(struct scst_device *dev)
 					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 						/* STORE might be set as well */
 						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
-					} else
+					} else {
 						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS);
+					}
 				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
@@ -10491,16 +10499,18 @@ static int scst_init_dif_actions(struct scst_device *dev)
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
 					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
-				} else
+				} else {
 					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_INSERT);
 				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
 					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
-				} else
+				} else {
 					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS);
+				}
 			} else { /* TGT, SCST, no DEV */
 				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
 				scst_set_scst_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_INSERT);
@@ -10544,8 +10554,9 @@ static int scst_init_dif_actions(struct scst_device *dev)
 					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 						/* STORE might be set as well */
 						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
-					} else
+					} else {
 						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS);
+					}
 				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
@@ -10553,16 +10564,18 @@ static int scst_init_dif_actions(struct scst_device *dev)
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
 					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
-				} else
+				} else {
 					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_INSERT);
 				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS);
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
 					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
-				} else
+				} else {
 					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS);
+				}
 			} else {  /* TGT, no SCST, no DEV */
 				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_INSERT);
 				scst_set_scst_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_NONE);
@@ -10602,8 +10615,9 @@ static int scst_init_dif_actions(struct scst_device *dev)
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
 					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
-				} else
+				} else {
 					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
 				if (dev->dpicz) {
@@ -10614,8 +10628,9 @@ static int scst_init_dif_actions(struct scst_device *dev)
 					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 						/* STORE might be set as well */
 						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
-					} else
+					} else {
 						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS);
+					}
 				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
@@ -10623,16 +10638,18 @@ static int scst_init_dif_actions(struct scst_device *dev)
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
 					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
-				} else
+				} else {
 					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
 				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_INSERT);
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
 					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
-				} else
+				} else {
 					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS);
+				}
 			} else { /* No TGT, SCST, no DEV */
 				scst_set_tgt_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
 				scst_set_scst_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_INSERT);
@@ -10657,8 +10674,9 @@ static int scst_init_dif_actions(struct scst_device *dev)
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
 					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS_CHECK);
-				} else
+				} else {
 					scst_set_dev_dif_action(&dev->dev_dif_rd_actions, SCST_DIF_ACTION_PASS);
+				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_NONE);
 				if (dev->dpicz) {
@@ -10669,8 +10687,9 @@ static int scst_init_dif_actions(struct scst_device *dev)
 					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 						/* STORE might be set as well */
 						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
-					} else
+					} else {
 						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions, SCST_DIF_ACTION_PASS);
+					}
 				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
@@ -10678,16 +10697,18 @@ static int scst_init_dif_actions(struct scst_device *dev)
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
 					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS_CHECK);
-				} else
+				} else {
 					scst_set_dev_dif_action(&dev->dev_dif_wr_actions, SCST_DIF_ACTION_PASS);
+				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_NONE);
 				scst_set_scst_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_INSERT);
 				if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
 					/* STORE might be set as well */
 					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS_CHECK);
-				} else
+				} else {
 					scst_set_dev_dif_action(&dev->dev_dif_wr_prot0_actions, SCST_DIF_ACTION_PASS);
+				}
 			} else { /* No TGT, no SCST, no DEV */
 				sBUG_ON(1);
 			}
@@ -10960,8 +10981,9 @@ static int scst_parse_rdprotect(struct scst_cmd *cmd)
 			if (scst_get_dif_action(scst_get_read_dif_tgt_actions(cmd)) == SCST_DIF_ACTION_INSERT)
 				scst_set_tgt_dif_action(&cmd->cmd_dif_actions,
 					SCST_DIF_ACTION_PASS_CHECK);
-		} else
+		} else {
 			TRACE_DBG("parse rdprotect failed: %d", res);
+		}
 	}
 #endif
 
@@ -11487,8 +11509,9 @@ static int get_cdb_info_fmt(struct scst_cmd *cmd,
 		cmd->data_direction = SCST_DATA_WRITE;
 		cmd->op_flags |= SCST_UNKNOWN_LENGTH;
 		cmd->bufflen = 4096; /* guess */
-	} else
+	} else {
 		cmd->bufflen = 0;
+	}
 	cmd->data_len = cmd->bufflen;
 	return 0;
 }
@@ -11652,9 +11675,9 @@ static int get_cdb_info_lba_3_len_1_256_read(struct scst_cmd *cmd,
 {
 	int res = get_cdb_info_lba_3_len_1_256(cmd, sdbops);
 
-	if (res != 0)
+	if (res != 0) {
 		goto out;
-	else {
+	} else {
 		const struct scst_device *dev = cmd->dev;
 
 		if (dev->dev_dif_mode != SCST_DIF_MODE_NONE && !dev->dpicz)
@@ -11671,9 +11694,9 @@ static int get_cdb_info_lba_3_len_1_256_write(struct scst_cmd *cmd,
 {
 	int res = get_cdb_info_lba_3_len_1_256(cmd, sdbops);
 
-	if (res != 0)
+	if (res != 0) {
 		goto out;
-	else {
+	} else {
 		const struct scst_device *dev = cmd->dev;
 
 		if (dev->dev_dif_mode != SCST_DIF_MODE_NONE)
@@ -13221,10 +13244,11 @@ again:
 		TRACE_DBG("SCST_TGT_DEV_UA_PENDING set, but UA_list empty");
 		res = -1;
 		goto out_unlock;
-	} else
+	} else {
 		TRACE_MGMT_DBG("Setting pending UA cmd %p (tgt_dev %p, dev %s, initiator %s)",
 			       cmd, cmd->tgt_dev, cmd->dev->virt_name,
 			cmd->sess->initiator_name);
+	}
 
 	UA_entry = list_first_entry(&cmd->tgt_dev->UA_list, typeof(*UA_entry),
 			      UA_list_entry);
@@ -13748,8 +13772,9 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 			EXTRACHECKS_BUG_ON(dev->strictly_serialized_cmd_waiting);
 			dev->strictly_serialized_cmd_waiting = 1;
 			goto out_block;
-		} else
+		} else {
 			cmd->unblock_dev = 1;
+		}
 	} else if ((dev->dev_double_ua_possible) ||
 		   ((cmd->op_flags & SCST_SERIALIZED) != 0)) {
 		TRACE_BLOCK("cmd %p (tag %llu, op %s): blocking further cmds on dev %s due to %s",
@@ -13759,8 +13784,9 @@ bool __scst_check_blocked_dev(struct scst_cmd *cmd)
 						      "serialized cmd");
 		scst_block_dev(dev);
 		cmd->unblock_dev = 1;
-	} else
+	} else {
 		TRACE_BLOCK("No blocks for device %s", dev->virt_name);
+	}
 
 out:
 	TRACE_EXIT_RES(res);
@@ -14945,21 +14971,21 @@ int scst_restore_global_mode_pages(struct scst_device *dev, char *params,
 		if (res != 0)
 			goto out_strtoul_failed;
 
-		if (strcasecmp(SCST_TAS_LABEL, p) == 0)
+		if (strcasecmp(SCST_TAS_LABEL, p) == 0) {
 			res = scst_restore_tas(dev, val);
-		else if (strcasecmp(SCST_QERR_LABEL, p) == 0)
+		} else if (strcasecmp(SCST_QERR_LABEL, p) == 0) {
 			res = scst_restore_qerr(dev, val);
-		else if (strcasecmp(SCST_TMF_ONLY_LABEL, p) == 0)
+		} else if (strcasecmp(SCST_TMF_ONLY_LABEL, p) == 0) {
 			res = scst_restore_tmf_only(dev, val);
-		else if (strcasecmp(SCST_SWP_LABEL, p) == 0)
+		} else if (strcasecmp(SCST_SWP_LABEL, p) == 0) {
 			res = scst_restore_swp(dev, val);
-		else if (strcasecmp(SCST_DSENSE_LABEL, p) == 0)
+		} else if (strcasecmp(SCST_DSENSE_LABEL, p) == 0) {
 			res = scst_restore_dsense(dev, val);
-		else if (strcasecmp(SCST_DPICZ_LABEL, p) == 0)
+		} else if (strcasecmp(SCST_DPICZ_LABEL, p) == 0) {
 			res = scst_restore_dpicz(dev, val);
-		else if (strcasecmp(SCST_QUEUE_ALG_LABEL, p) == 0)
+		} else if (strcasecmp(SCST_QUEUE_ALG_LABEL, p) == 0) {
 			res = scst_restore_queue_alg(dev, val);
-		else {
+		} else {
 			TRACE_DBG("Unknown parameter %s", p);
 			scst_restore_token_str(p, param);
 			*last_param = p;
@@ -15958,8 +15984,9 @@ int tm_dbg_check_cmd(struct scst_cmd *cmd)
 		    (++tm_dbg_passed_cmds_count % 5000) == 0) {
 			tm_dbg_delay_cmd(cmd);
 			res = 1;
-		} else
+		} else {
 			cmd->tm_dbg_immut = 1;
+		}
 		spin_unlock_irqrestore(&scst_tm_dbg_lock, flags);
 	}
 

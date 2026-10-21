@@ -366,9 +366,9 @@ static int isns_attr_query(const char *name)
 	tlv = (struct isns_tlv *)hdr->pdu;
 	max_buf = sizeof(buf) - offsetof(struct isns_hdr, pdu);
 
-	if (name)
+	if (name) {
 		snprintf(mgmt->name, sizeof(mgmt->name), "%s", name);
-	else {
+	} else {
 		mgmt->name[0] = '\0';
 		target = list_entry(targets_list.q_forw, struct target, tlist);
 		name = target->name;
@@ -693,8 +693,9 @@ static int recv_hdr(int fd, struct isns_io *rx, const struct isns_hdr *hdr)
 			log_error("header read error %d %d %s %d",
 				  fd, err, strerror(errno), rx->offset);
 			return -1;
-		} else if (err == 0)
+		} else if (err == 0) {
 			return -1;
+		}
 
 		log_debug(1, "header %d %d bytes!", fd, err);
 		rx->offset += err;
@@ -747,8 +748,9 @@ static int recv_pdu(int fd, struct isns_io *rx, const struct isns_hdr *hdr)
 			log_error("pdu read error %d %d %s %d",
 				  fd, err, strerror(errno), rx->offset);
 			return -1;
-		} else if (err == 0)
+		} else if (err == 0) {
 			return -1;
+		}
 
 		log_debug(1, "pdu %u %u", fd, err);
 		rx->offset += err;
@@ -918,8 +920,9 @@ found:
 				snprintf(ini->name, sizeof(ini->name), "%s",
 					 name);
 				list_add_tail(&ini->ilist, &target->isns_head);
-			} else
+			} else {
 				name = NULL;
+			}
 			break;
 		default:
 			name = NULL;
@@ -1151,9 +1154,9 @@ static int scn_init(void)
 	log_info("scn listen port %u %d %d\n", scn_listen_port, fd, err);
 
 out_close:
-	if (err)
+	if (err) {
 		close(fd);
-	else {
+	} else {
 		scn_listen_fd = fd;
 		isns_set_fd(isns_fd, scn_listen_fd, scn_fd);
 	}
