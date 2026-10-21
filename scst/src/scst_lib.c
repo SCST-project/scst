@@ -4881,7 +4881,7 @@ int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 	bool del_gen_ua = false;
 	struct scst_tgt_dev *tgt_dev;
 	struct list_head tgt_dev_list;
-	int res = -EINVAL;
+	int res;
 
 	lockdep_assert_held(&scst_mutex);
 

@@ -748,7 +748,7 @@ static int initiator_match(u32 tid, int fd, const char *filename)
 	 * implement the 'reload feature'. It's slow, but that doesn't matter.
 	 */
 	while ((p = fgets(buf, sizeof(buf), fp))) {
-		if (!p || *p == '#')
+		if (*p == '#')
 			continue;
 
 		p = &buf[strlen(buf) - 1];

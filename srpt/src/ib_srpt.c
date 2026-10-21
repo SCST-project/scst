@@ -144,7 +144,7 @@ static struct ib_client srpt_client;
 static struct scst_tgt_template srpt_template;
 static struct workqueue_struct *srpt_wq;
 static struct net *srpt_net_ns;
-static struct rdma_cm_id *rdma_cm_id;
+static struct rdma_cm_id *srpt_listen_id;
 
 static void srpt_unmap_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				    struct srpt_send_ioctx *ioctx);
@@ -4593,15 +4593,15 @@ static int __init srpt_init_module(void)
 		struct sockaddr_in addr;
 
 #if !RDMA_CREATE_ID_TAKES_NET_ARG
-		rdma_cm_id = rdma_create_id(srpt_rdma_cm_handler, NULL,
-					    RDMA_PS_TCP, IB_QPT_RC);
+		srpt_listen_id = rdma_create_id(srpt_rdma_cm_handler, NULL,
+						RDMA_PS_TCP, IB_QPT_RC);
 #else
-		rdma_cm_id = rdma_create_id(srpt_net_ns, srpt_rdma_cm_handler,
-					    NULL, RDMA_PS_TCP, IB_QPT_RC);
+		srpt_listen_id = rdma_create_id(srpt_net_ns, srpt_rdma_cm_handler,
+						NULL, RDMA_PS_TCP, IB_QPT_RC);
 #endif
-		if (IS_ERR(rdma_cm_id)) {
-			ret = PTR_ERR(rdma_cm_id);
-			rdma_cm_id = NULL;
+		if (IS_ERR(srpt_listen_id)) {
+			ret = PTR_ERR(srpt_listen_id);
+			srpt_listen_id = NULL;
 			pr_err("RDMA/CM ID creation failed\n");
 			goto drop_ns;
 		}
@@ -4610,14 +4610,14 @@ static int __init srpt_init_module(void)
 		memset(&addr, 0, sizeof(addr));
 		addr.sin_family = AF_INET;
 		addr.sin_port = cpu_to_be16(rdma_cm_port);
-		ret = rdma_bind_addr(rdma_cm_id, (void *)&addr);
+		ret = rdma_bind_addr(srpt_listen_id, (void *)&addr);
 		if (ret) {
 			pr_err("Binding RDMA/CM ID to port %u failed\n",
 			       rdma_cm_port);
 			goto destroy_id;
 		}
 
-		ret = rdma_listen(rdma_cm_id, 128);
+		ret = rdma_listen(srpt_listen_id, 128);
 		if (ret) {
 			pr_err("rdma_listen() failed\n");
 			goto destroy_id;
@@ -4627,8 +4627,8 @@ static int __init srpt_init_module(void)
 	return 0;
 
 destroy_id:
-	if (rdma_cm_id)
-		rdma_destroy_id(rdma_cm_id);
+	if (srpt_listen_id)
+		rdma_destroy_id(srpt_listen_id);
 
 drop_ns:
 #if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
@@ -4651,8 +4651,8 @@ out:
 
 static void __exit srpt_cleanup_module(void)
 {
-	if (rdma_cm_id)
-		rdma_destroy_id(rdma_cm_id);
+	if (srpt_listen_id)
+		rdma_destroy_id(srpt_listen_id);
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
 	kobj_ns_drop(KOBJ_NS_TYPE_NET, srpt_net_ns);

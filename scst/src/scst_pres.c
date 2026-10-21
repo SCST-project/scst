@@ -992,7 +992,7 @@ int scst_pr_set_file_name(struct scst_device *dev, char **prev,
 {
 	va_list args;
 	char *pr_file_name = NULL, *bkp = NULL;
-	int file_mode, res = -EINVAL;
+	int file_mode, res;
 
 	scst_assert_pr_mutex_held(dev);
 
