@@ -278,6 +278,7 @@ static void scst_sg_copy_and_compare(struct kunit *test)
 		{ 0, PAGE_SIZE, PAGE_SIZE - 1 },
 		{ 7, 32, 0 },
 		{ 7, 32, 31 },
+		{ 0, 15, 14 },
 	};
 	u8 *source, *destination;
 	unsigned int i;

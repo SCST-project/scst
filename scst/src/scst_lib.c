@@ -9098,6 +9098,38 @@ out_free_sioc:
 }
 EXPORT_SYMBOL(scst_scsi_exec_async);
 
+/* Locate the first differing byte after memcmp() reported a mismatch. */
+static int scst_miscompare_offset(const void *source, const void *destination, int len)
+{
+	const u8 *s = source, *d = destination;
+	const int word_size = sizeof(unsigned long long);
+	int i, offset = 0;
+
+	if (IS_ALIGNED((unsigned long)source, word_size) &&
+	    IS_ALIGNED((unsigned long)destination, word_size) &&
+	    IS_ALIGNED(len, word_size)) {
+		const unsigned long long *sw = source, *dw = destination;
+
+		/* Skip equal words before inspecting bytes in the differing word. */
+		for (i = 0; i < len / word_size; i++) {
+			if (sw[i] != dw[i]) {
+				offset = i * word_size;
+				s += offset;
+				d += offset;
+				len = word_size;
+				goto bytes;
+			}
+		}
+		return -1;
+	}
+bytes:
+	for (i = 0; i < len; i++) {
+		if (s[i] != d[i])
+			return offset + i;
+	}
+	return -1;
+}
+
 /*
  * Can switch to the next dst_sg element, so, to cmp to strictly only
  * one dst_sg element, it must be either last in the chain, or
@@ -9112,7 +9144,7 @@ int sg_cmp_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 	struct scatterlist *dst_sg;
 	size_t src_len, dst_len, src_offs, dst_offs;
 	struct page *src_page, *dst_page;
-	u8 *saddr, *daddr;
+	const u8 *saddr, *daddr;
 
 	*cmp_res = true;
 
@@ -9152,50 +9184,8 @@ int sg_cmp_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 		rc = memcmp(daddr, saddr, n);
 		if (rc != 0) {
 			*cmp_res = false;
-			if (miscompare_offs != NULL) {
-				int i, len = n;
-				unsigned long saddr_int = (unsigned long)saddr;
-				unsigned long daddr_int = (unsigned long)daddr;
-				int align_size = sizeof(unsigned long long);
-				int align_mask = align_size-1;
-
-				*miscompare_offs = -1;
-
-				if (((saddr_int & align_mask) == 0) &&
-				    ((daddr_int & align_mask) == 0) &&
-				    ((len & align_mask) == 0)) {
-					/* Fast path: both buffers and len aligned */
-					unsigned long long *s = (unsigned long long *)saddr;
-					unsigned long long *d = (unsigned long long *)daddr;
-
-					EXTRACHECKS_BUG_ON(len % align_size != 0);
-					len /= align_size;
-					for (i = 0; i < len; i++) {
-						if (s[i] != d[i]) {
-							uint8_t *s8 = (uint8_t *)&s[i];
-							uint8_t *d8 = (uint8_t *)&d[i];
-							int j;
-
-							for (j = 0; j < align_size; j++) {
-								if (s8[j] != d8[j]) {
-									*miscompare_offs = i * align_size + j;
-									break;
-								}
-							}
-							break;
-						}
-					}
-				} else {
-					uint8_t *s = saddr;
-					uint8_t *d = daddr;
-
-					for (i = 0; i < len; i++) {
-						if (s[i] != d[i]) {
-							*miscompare_offs = i;
-							break;
-						}
-					}
-				}
+			if (miscompare_offs) {
+				*miscompare_offs = scst_miscompare_offset(saddr, daddr, n);
 				EXTRACHECKS_BUG_ON(*miscompare_offs == -1);
 			}
 			goto out_unmap;
