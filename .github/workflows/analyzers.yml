@@ -44,7 +44,7 @@ jobs:
         run: make scs_lint
 
   native:
-    name: ${{ matrix.analyzer }} (includes KUnit sources)
+    name: ${{ matrix.analyzer }}
     needs: script-tests
     runs-on: ubuntu-24.04
     timeout-minutes: 45
@@ -56,8 +56,7 @@ jobs:
           - smatch
           - checkpatch
           - coccicheck
-          # Supported by the runner; enable after reviewing native coverage.
-          # - cppcheck
+          - cppcheck
     steps:
       - uses: actions/checkout@v7
         with:
