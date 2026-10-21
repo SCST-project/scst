@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  *  Copyright (C) 2007 - 2014 Vladislav Bolkhovitin
  *  Copyright (C) 2007 - 2014 Fusion-io, Inc.

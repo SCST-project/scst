@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 /*
  * Copyright (c) 2013 - 2014 Fusion-io, Inc. All rights reserved.
  * Copyright (C) 2014 - 2018 Western Digital Corporation.

@@ -1,3 +1,4 @@
+/* SPDX-License-Identifier: GPL-2.0-only */
 #ifndef _SCST_BACKPORT_H_
 #define _SCST_BACKPORT_H_
 

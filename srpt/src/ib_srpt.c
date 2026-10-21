@@ -1,3 +1,4 @@
+// SPDX-License-Identifier: GPL-2.0-only OR Linux-OpenIB
 /*
  * Copyright (c) 2006 - 2009 Mellanox Technology Inc.  All rights reserved.
  * Copyright (C) 2008 - 2018 Bart Van Assche <bvanassche@acm.org>.
