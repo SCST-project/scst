@@ -35,10 +35,13 @@ class CleanTests(unittest.TestCase):
                 (target / 'visited.o').touch()
             kernel = root / 'kernel'
             kernel.mkdir()
+            # iSCSI cleans kernel/ and kernel/isert-scst/ concurrently. Like
+            # Kbuild's rm -f, tolerate artifacts already removed by a peer.
             (kernel / 'Makefile').write_text(
                 'clean:\n'
                 '\t@test "$(FAIL_CLEAN)" != y\n'
-                '\t@find "$(M)" -type f \\( -name "*.o" -o -name "*.ko" \\) -delete\n')
+                '\t@find "$(M)" -ignore_readdir_race -type f '
+                '\\( -name "*.o" -o -name "*.ko" \\) -delete\n')
             artifacts = ['scst/src/scst.ko', 'scst/src/kunit/lib/suites/test.o',
                          'scst/src/dev_handlers/scst_vdisk.ko',
                          'scst/src/dev_handlers/kunit/vdisk/suites/test.o',

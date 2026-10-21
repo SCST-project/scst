@@ -53,6 +53,7 @@
 #endif
 #include <linux/percpu-refcount.h>
 #include <linux/preempt.h>
+#include <linux/rcupdate.h>
 #include <linux/scatterlist.h>	/* struct scatterlist */
 #include <linux/shrinker.h>
 #include <linux/slab.h>		/* kmalloc() */
@@ -1325,16 +1326,70 @@ typedef unsigned long percpu_count_t;
 #define READ_REF_COUNT(ref) atomic_long_read(&(ref)->data->count)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0) &&	\
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR -0 < 8)
+#if (LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0) &&	\
+	 (!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8)) ||	\
+	defined(SCST_KUNIT_ENABLED)
 /*
  * See also commit 18c9a6bbe064 ("percpu-refcount: Introduce
  * percpu_ref_resurrect()") # v4.20.
+ *
+ * The caller must serialize kill, resurrection, mode switches and exit, and
+ * keep ref alive even if its release callback runs. This helper may sleep.
+ * SCST holds scst_suspend_mutex and uses persistent command counters. Gets
+ * and puts may run concurrently.
+ *
+ * Keep this implementation available to KUnit on newer kernels so the tests
+ * exercise the backport with real kernel counters and RCU callbacks.
  */
-static inline void percpu_ref_resurrect(struct percpu_ref *ref)
+static inline void scst_percpu_ref_resurrect_backport(struct percpu_ref *ref)
 {
-	percpu_ref_reinit(ref);
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 10, 0)
+	struct percpu_ref_data *data = ref->data;
+#else
+	struct percpu_ref *data = ref;
+#endif
+	unsigned long __percpu *percpu_count;
+	unsigned long ptr;
+	int cpu;
+
+	/*
+	 * The kill confirmation can wake the caller before confirm_switch is
+	 * cleared. The kernel's switch waitqueue is private, and older kernels
+	 * do not export switch_to_percpu(). Drain a pending callback before
+	 * reusing the per-CPU counters. The supported pre-4.20 implementations,
+	 * including EL7 and UEK4/UEK5, use call_rcu_sched().
+	 */
+	if (READ_ONCE(data->confirm_switch)) {
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0)
+		rcu_barrier_sched();
+#else
+		rcu_barrier();
+#endif
+	}
+
+	ptr = READ_ONCE(ref->percpu_count_ptr);
+	percpu_count = (unsigned long __percpu *)(ptr & ~__PERCPU_REF_ATOMIC_DEAD);
+	if (WARN_ON_ONCE((ptr & __PERCPU_REF_ATOMIC_DEAD) != __PERCPU_REF_ATOMIC_DEAD ||
+			 !percpu_count))
+		return;
+
+	/* Restore the initial reference without discarding outstanding refs. */
+	atomic_long_inc(&data->count);
+	if (!data->force_atomic) {
+		atomic_long_add(1UL << (BITS_PER_LONG - 1), &data->count);
+		for_each_possible_cpu(cpu)
+			*per_cpu_ptr(percpu_count, cpu) = 0;
+		ptr &= ~__PERCPU_REF_ATOMIC;
+	}
+
+	/* Publish initialized counters before allowing new live acquisitions. */
+	smp_store_release(&ref->percpu_count_ptr, ptr & ~__PERCPU_REF_DEAD);
 }
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(4, 20, 0) &&	\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8)
+#define percpu_ref_resurrect scst_percpu_ref_resurrect_backport
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 0, 0) && !defined(RHEL_MAJOR)
