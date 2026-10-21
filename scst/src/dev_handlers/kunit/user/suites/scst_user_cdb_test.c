@@ -74,8 +74,9 @@ static void user_cdb_references(struct kunit *test)
 {
 	const struct user_cdb_ref_case *p = test->param_value;
 	struct scst_user_dev *dev;
-	struct scst_user_cmd *ucmd, *result;
-	struct scst_cmd *cmd, *selected;
+	struct scst_user_cmd *ucmd, *selected;
+	struct scst_cmd *cmd, *result;
+	u8 long_cdb[32] = {};
 	unsigned int i;
 
 	dev = kunit_kzalloc(test, sizeof(*dev), GFP_KERNEL);
@@ -97,9 +98,11 @@ static void user_cdb_references(struct kunit *test)
 	if (!p->dead)
 		kref_init(&ucmd->ucmd_ref);
 	kref_init(&cmd->cmd_ref);
+	cmd->cdb = long_cdb;
+	cmd->cdb_len = sizeof(long_cdb);
 	list_add_tail(&ucmd->hash_list_entry, &dev->ucmd_hash[ucmd->h]);
 
-	selected = cmd;
+	selected = ucmd;
 	result = dev_user_ext_cdb_get(dev, p->missing ? 2 : ucmd->h, &selected);
 	KUNIT_EXPECT_EQ(test, kref_read(&ucmd->ucmd_ref), p->dead ? 0 : (p->error ? 1 : 2));
 	KUNIT_EXPECT_EQ(test, kref_read(&cmd->cmd_ref), p->error ? 1 : 2);
@@ -110,9 +113,10 @@ static void user_cdb_references(struct kunit *test)
 			KUNIT_FAIL(test, "invalid CDB lookup unexpectedly succeeded");
 		KUNIT_EXPECT_PTR_EQ(test, selected, NULL);
 	} else {
-		KUNIT_ASSERT_FALSE(test, IS_ERR(result));
-		KUNIT_EXPECT_PTR_EQ(test, result, ucmd);
-		KUNIT_EXPECT_PTR_EQ(test, selected, cmd);
+		KUNIT_ASSERT_FALSE(test, IS_ERR_OR_NULL(result));
+		KUNIT_EXPECT_PTR_EQ(test, result, cmd);
+		KUNIT_EXPECT_PTR_EQ(test, selected, ucmd);
+		KUNIT_EXPECT_PTR_EQ(test, dev_user_ext_cdb(result), long_cdb + SCST_MAX_CDB_SIZE);
 		kref_put(&cmd->cmd_ref, user_cdb_unexpected_release);
 		kref_put(&ucmd->ucmd_ref, user_cdb_unexpected_release);
 		KUNIT_EXPECT_EQ(test, kref_read(&cmd->cmd_ref), 1);
