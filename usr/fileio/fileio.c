@@ -102,7 +102,7 @@ bool use_multi = true;
 
 static void *(*alloc_fn)(size_t size) = align_alloc;
 
-static struct option const long_options[] =
+static const struct option long_options[] =
 {
 	{"block", required_argument, 0, 'b'},
 	{"threads", required_argument, 0, 'e'},

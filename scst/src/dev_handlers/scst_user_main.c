@@ -768,7 +768,7 @@ static void dev_user_flush_dcache(struct scst_user_cmd *ucmd)
 	 */
 
 	for (i = 0; (bufflen > 0) && (i < buf_ucmd->num_data_pages); i++) {
-		struct page *page __attribute__((unused));
+		struct page *page __maybe_unused;
 
 		page = buf_ucmd->data_pages[i];
 #ifdef ARCH_HAS_FLUSH_ANON_PAGE

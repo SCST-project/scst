@@ -56,7 +56,7 @@ unsigned long trace_flag = DEFAULT_LOG_FLAGS;
 bool log_daemon = true;
 int transition_timeout = DEFAULT_TRANSITION_TIME;
 
-static struct option const long_options[] = {
+static const struct option long_options[] = {
 	{"path", required_argument, 0, 'p'},
 	{"timeout", required_argument, 0, 't'},
 	{"foreground", no_argument, 0, 'f'},

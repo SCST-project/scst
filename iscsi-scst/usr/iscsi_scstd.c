@@ -54,7 +54,7 @@ struct iscsi_init_params iscsi_init_params;
 
 static const char program_name[] = "iscsi-scstd";
 
-static struct option const long_options[] = {
+static const struct option long_options[] = {
 	{"config", required_argument, 0, 'c'},
 	{"foreground", no_argument, 0, 'f'},
 	{"debug", required_argument, 0, 'd'},

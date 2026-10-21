@@ -943,7 +943,7 @@ static int srpt_post_recv(struct srpt_device *sdev, struct srpt_rdma_ch *ch,
 {
 	struct ib_sge list;
 	struct ib_recv_wr wr;
-	BAD_WR_MODIFIER struct ib_recv_wr *bad_wr;
+	struct ib_recv_wr BAD_WR_MODIFIER *bad_wr;
 
 	BUG_ON(!sdev);
 	wr.wr_id = encode_wr_id(SRPT_RECV, ioctx->ioctx.index);

@@ -48,7 +48,7 @@ enum iscsi_adm_op {
 
 static const char program_name[] = "iscsi-scst-adm";
 
-static struct option const long_options[] = {
+static const struct option long_options[] = {
 	{"op", required_argument, NULL, 'o'},
 	{"tid", required_argument, NULL, 't'},
 	{"sid", required_argument, NULL, 's'},
