@@ -8,6 +8,7 @@
 #endif
 
 #include "../../../scst_lib_test.h"
+#include "../../../scst_main_test.h"
 #include "../../../scst_dlm.h"
 #include "../../../scst_dlm_test.h"
 
@@ -198,7 +199,45 @@ static void scst_dlm_directory_error_preserves_membership(struct kunit *test)
 }
 #endif
 
+static void scst_cdb_trace_bounds(struct kunit *test)
+{
+	static const struct {
+		unsigned int cdb_len;
+		size_t capacity;
+		const char *expected;
+	} cases[] = {
+		{ 0, 16, "" },
+		{ 3, 16, "00 ab ff" },
+		{ 3, 5, "00 a" },
+		{ 3, 1, "" },
+	};
+	u8 cdb[] = { 0x00, 0xab, 0xff };
+	struct scst_cmd *cmd;
+	char buf[18];
+	unsigned int i;
+
+	cmd = kunit_kzalloc(test, sizeof(*cmd), GFP_KERNEL);
+	KUNIT_ASSERT_NOT_NULL(test, cmd);
+	cmd->cdb = cdb;
+	for (i = 0; i < ARRAY_SIZE(cases); i++) {
+		memset(buf, 'x', sizeof(buf));
+		cmd->cdb_len = cases[i].cdb_len;
+		KUNIT_EXPECT_PTR_EQ(test, scst_dump_cdb(buf + 1, cases[i].capacity, cmd),
+				    buf + 1);
+		KUNIT_EXPECT_EQ(test, buf[0], 'x');
+		KUNIT_EXPECT_EQ(test, buf[cases[i].capacity + 1], 'x');
+		/* memcmp bounds the check even if the formatter misses the NUL. */
+		KUNIT_EXPECT_EQ(test, memcmp(buf + 1, cases[i].expected,
+					     strlen(cases[i].expected) + 1), 0);
+	}
+
+	memset(buf, 'x', sizeof(buf));
+	KUNIT_EXPECT_PTR_EQ(test, scst_dump_cdb(buf + 1, 0, cmd), buf + 1);
+	KUNIT_EXPECT_EQ(test, buf[1], 'x');
+}
+
 static struct kunit_case scst_lib_cases[] = {
+	KUNIT_CASE(scst_cdb_trace_bounds),
 #if (defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE)) && !defined(CONFIG_SCST_NO_DLM)
 	KUNIT_CASE(scst_dlm_directory_error_preserves_membership),
 #endif
