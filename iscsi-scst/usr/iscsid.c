@@ -153,7 +153,7 @@ void text_key_add(struct connection *conn, const char *key, const char *value)
 		switch (stage) {
 		case 0:
 			sz = min_t(int, data_sz - seg->len, keylen - off);
-			strncpy(seg->data + seg->len, key + off, sz);
+			memcpy(seg->data + seg->len, key + off, sz);
 			if (sz == data_sz - seg->len) {
 				off += sz;
 				if (keylen - off == 0) {
@@ -173,7 +173,7 @@ void text_key_add(struct connection *conn, const char *key, const char *value)
 			break;
 		case 2:
 			sz = min_t(int, data_sz - seg->len, valuelen - off);
-			strncpy(seg->data + seg->len, value + off, sz);
+			memcpy(seg->data + seg->len, value + off, sz);
 			off += sz;
 			if (valuelen - off == 0) {
 				off = 0;

@@ -720,6 +720,7 @@ scst_dlm_filldir(struct dir_context *arg, const char *name_arg,
 	char **entries = &ctx->entries;
 #endif
 	int i;
+	size_t len;
 
 	snprintf(name, sizeof(name), "%.*s", name_len, name_arg);
 	if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0 || !*entries)
@@ -728,13 +729,14 @@ scst_dlm_filldir(struct dir_context *arg, const char *name_arg,
 		;
 	i = p - *entries;
 	q = *entries;
-	*entries = krealloc(q, i + strlen(name) + 2, GFP_KERNEL);
+	len = strlen(name);
+	*entries = krealloc(q, i + len + 2, GFP_KERNEL);
 	if (!*entries) {
 		kfree(q);
 		goto out;
 	}
-	strcpy(*entries + i, name);
-	i += strlen(name);
+	memcpy(*entries + i, name, len + 1);
+	i += len;
 	(*entries)[i + 1] = '\0';
 
 out:

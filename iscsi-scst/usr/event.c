@@ -694,6 +694,7 @@ static int handle_target_redirect(struct target *target, char *p)
 {
 	int res = 0;
 	char *addr, *type, *t, *port;
+	size_t addr_len;
 	int port_num = ISCSI_LISTEN_PORT;
 	int type_num;
 	union {
@@ -738,7 +739,8 @@ static int handle_target_redirect(struct target *target, char *p)
 		}
 	}
 
-	if (strlen(addr) >= sizeof(target->redirect.addr)) {
+	addr_len = strlen(addr);
+	if (addr_len >= sizeof(target->redirect.addr)) {
 		log_error("Too long addr %s, max allowed %zd", addr,
 			sizeof(target->redirect.addr)-1);
 		res = -ERANGE;
@@ -776,7 +778,7 @@ static int handle_target_redirect(struct target *target, char *p)
 		(type_num == ISCSI_STATUS_TGT_MOVED_TEMP) ? "temporarily" : "permanently",
 		addr, port_num);
 
-	strcpy(target->redirect.addr, addr);
+	memcpy(target->redirect.addr, addr, addr_len + 1);
 	target->redirect.port = port_num;
 	target->redirect.type = type_num;
 

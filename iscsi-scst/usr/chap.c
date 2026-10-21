@@ -494,7 +494,7 @@ static int chap_initiator_auth_create_challenge(struct connection *conn)
 		return CHAP_TARGET_ERROR;
 
 	p = text;
-	strcpy(p, "0x");
+	memcpy(p, "0x", sizeof("0x"));
 	p += 2;
 	for (i = 0; i < conn->auth.chap.challenge_size; i++) {
 		if (chap_rand(&random) < 0) {

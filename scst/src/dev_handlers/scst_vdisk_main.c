@@ -6596,7 +6596,7 @@ static int vdev_create_node(struct scst_dev_type *devt, const char *name, int no
 		res = -EINVAL;
 		goto out_free;
 	}
-	strcpy(virt_dev->name, name);
+	strscpy(virt_dev->name, name, sizeof(virt_dev->name));
 
 	dev_id_num = vdisk_gen_dev_id_num(virt_dev->name);
 
