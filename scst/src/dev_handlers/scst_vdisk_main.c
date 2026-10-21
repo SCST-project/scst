@@ -6590,7 +6590,7 @@ static int vdev_create_node(struct scst_dev_type *devt, const char *name, int no
 	dev_id_num = vdisk_gen_dev_id_num(virt_dev->name);
 
 	snprintf(virt_dev->t10_dev_id, sizeof(virt_dev->t10_dev_id),
-		 "%llx-%s", dev_id_num, virt_dev->name);
+		 "%llx-%s", (unsigned long long)dev_id_num, virt_dev->name);
 	TRACE_DBG("t10_dev_id %s", virt_dev->t10_dev_id);
 
 	sprintf(virt_dev->t10_vend_id, "%.*s",
@@ -6612,7 +6612,8 @@ static int vdev_create_node(struct scst_dev_type *devt, const char *name, int no
 	virt_dev->eui64_id_len = 0;
 	virt_dev->naa_id_len = 0;
 
-	scnprintf(virt_dev->usn, sizeof(virt_dev->usn), "%llx", dev_id_num);
+	scnprintf(virt_dev->usn, sizeof(virt_dev->usn), "%llx",
+		  (unsigned long long)dev_id_num);
 	TRACE_DBG("usn %s", virt_dev->usn);
 
 	list_for_each_entry(vv, &vdev_list, vdev_list_entry) {
@@ -7652,7 +7653,7 @@ static int vdev_size_process_store(struct scst_sysfs_work_item *work)
 	int size_shift, res = -EINVAL;
 	bool queue_ua;
 
-	if (sscanf(work->buf, "%d %lld", &size_shift, &new_size) != 2 ||
+	if (sscanf(work->buf, "%d %llu", &size_shift, &new_size) != 2 ||
 	    new_size > (ULLONG_MAX >> size_shift))
 		goto put;
 

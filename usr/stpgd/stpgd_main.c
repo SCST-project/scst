@@ -310,7 +310,7 @@ static int stpg_event_loop(void)
 		sizeof(e1.issuer_name));
 	e1.issuer_name[sizeof(e1.issuer_name)-1] = '\0';
 
-	PRINT_INFO("Setting allowed event code %d, issuer_name %s",
+	PRINT_INFO("Setting allowed event code %u, issuer_name %s",
 		   e1.event_code, e1.issuer_name);
 
 	res = ioctl(event_fd, SCST_EVENT_ALLOW_EVENT, &e1);
@@ -326,7 +326,7 @@ static int stpg_event_loop(void)
 		sizeof(e1.issuer_name));
 	e1.issuer_name[sizeof(e1.issuer_name) - 1] = '\0';
 
-	PRINT_INFO("Setting allowed event code %d, issuer_name %s",
+	PRINT_INFO("Setting allowed event code %u, issuer_name %s",
 		   e1.event_code, e1.issuer_name);
 
 	res = ioctl(event_fd, SCST_EVENT_ALLOW_EVENT, &e1);
@@ -390,7 +390,7 @@ again_poll:
 		}
 		first_error = true;
 #ifdef DEBUG
-		PRINT_INFO("event_code %d, issuer_name %s",
+		PRINT_INFO("event_code %u, issuer_name %s",
 			   event_user->out_event.event_code,
 			   event_user->out_event.issuer_name);
 #endif
@@ -425,7 +425,7 @@ again_poll:
 		} else if (event_user->out_event.event_code == SCST_EVENT_TM_FN_RECEIVED) {
 			stpg_handle_tm_received(event_user);
 		} else {
-			PRINT_ERROR("Unknown event %d received", event_user->out_event.event_code);
+			PRINT_ERROR("Unknown event %u received", event_user->out_event.event_code);
 		}
 	}
 out:

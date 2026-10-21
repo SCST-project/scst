@@ -5228,7 +5228,7 @@ int scst_acg_dev_sysfs_create(struct scst_acg_dev *acg_dev, struct kobject *pare
 	kobject_get(&acg_dev->dev->dev_kobj);
 
 	snprintf(acg_dev->acg_dev_link_name, sizeof(acg_dev->acg_dev_link_name),
-		 "export%u", acg_dev->dev->dev_exported_lun_num++);
+		 "export%u", (unsigned int)acg_dev->dev->dev_exported_lun_num++);
 
 	res = sysfs_create_link(acg_dev->dev->dev_exp_kobj, &acg_dev->acg_dev_kobj,
 				acg_dev->acg_dev_link_name);

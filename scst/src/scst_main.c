@@ -622,7 +622,7 @@ char *scst_get_cmd_state_name(char *name, int len, unsigned int state)
 	    scst_cmd_state_name[state])
 		strscpy(name, scst_cmd_state_name[state], len);
 	else
-		snprintf(name, len, "%d", state);
+		snprintf(name, len, "%u", state);
 	return name;
 }
 
@@ -700,7 +700,7 @@ char *scst_get_tm_fn_name(char *name, int len, unsigned int fn)
 	if (fn < ARRAY_SIZE(scst_tm_fn_name) && scst_tm_fn_name[fn])
 		strscpy(name, scst_tm_fn_name[fn], len);
 	else
-		snprintf(name, len, "%d", fn);
+		snprintf(name, len, "%u", fn);
 	return name;
 }
 
@@ -720,7 +720,7 @@ char *scst_get_mcmd_state_name(char *name, int len, unsigned int state)
 	    scst_mcmd_state_name[state])
 		strscpy(name, scst_mcmd_state_name[state], len);
 	else
-		snprintf(name, len, "%d", state);
+		snprintf(name, len, "%u", state);
 	return name;
 }
 

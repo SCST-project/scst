@@ -97,7 +97,7 @@ static void handle_tm_received(struct scst_event_user *event_user)
 {
 	struct scst_event_tm_fn_received_payload *p = (struct scst_event_tm_fn_received_payload *)event_user->out_event.payload;
 
-	printf("fn %d, device %s\n", p->fn, p->device_name);
+	printf("fn %u, device %s\n", p->fn, p->device_name);
 
 	return;
 }
@@ -264,9 +264,9 @@ again_poll:
 
 		}
 
-		PRINT_INFO("\nevent_code %d, issuer_name %s",
-			event_user->out_event.event_code,
-			event_user->out_event.issuer_name);
+		PRINT_INFO("\nevent_code %u, issuer_name %s",
+			   event_user->out_event.event_code,
+			   event_user->out_event.issuer_name);
 		if (event_user->out_event.payload_len != 0)
 			PRINT_BUFFER("payoad", event_user->out_event.payload,
 				event_user->out_event.payload_len);
