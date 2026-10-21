@@ -14008,35 +14008,6 @@ out:
 	TRACE_EXIT();
 }
 
-void scst_store_sense(struct scst_cmd *cmd)
-{
-	TRACE_ENTRY();
-
-	if (scst_sense_valid(cmd->sense) &&
-	    !test_bit(SCST_CMD_NO_RESP, &cmd->cmd_flags) &&
-	    (cmd->tgt_dev != NULL)) {
-		struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
-
-		TRACE_DBG("Storing sense (cmd %p)", cmd);
-
-		spin_lock_bh(&tgt_dev->tgt_dev_lock);
-
-		if (cmd->sense_valid_len <= sizeof(tgt_dev->tgt_dev_sense))
-			tgt_dev->tgt_dev_valid_sense_len = cmd->sense_valid_len;
-		else {
-			tgt_dev->tgt_dev_valid_sense_len = sizeof(tgt_dev->tgt_dev_sense);
-			PRINT_ERROR("Stored sense truncated to size %d (needed %d)",
-				    tgt_dev->tgt_dev_valid_sense_len,
-				cmd->sense_valid_len);
-		}
-		memcpy(tgt_dev->tgt_dev_sense, cmd->sense,
-			tgt_dev->tgt_dev_valid_sense_len);
-
-		spin_unlock_bh(&tgt_dev->tgt_dev_lock);
-	}
-
-	TRACE_EXIT();
-}
 
 /* dev_lock supposed to be locked and BHs off */
 static void scst_abort_cmds_tgt_dev(struct scst_tgt_dev *tgt_dev,

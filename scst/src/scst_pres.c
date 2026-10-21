@@ -68,10 +68,6 @@
 
 #define FILE_BUFFER_SIZE	512
 
-#ifndef isblank
-#define isblank(c)		((c) == ' ' || (c) == '\t')
-#endif
-
 #if defined(CONFIG_LOCKDEP)
 #define scst_assert_pr_mutex_held(dev)						\
 do {										\

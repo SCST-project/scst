@@ -32,7 +32,7 @@ int logins_suspended;
 
 static u32 ttt;
 
-static u32 get_next_ttt(struct connection *conn __attribute__((unused)))
+static u32 get_next_ttt(void)
 {
 	ttt += 1;
 	return (ttt == ISCSI_RESERVED_TAG) ? ++ttt : ttt;
@@ -1295,7 +1295,7 @@ static void cmnd_exec_text(struct connection *conn)
 			goto out;
 		if (!list_empty(&conn->rsp_buf_list) &&
 		    !list_length_is_one(&conn->rsp_buf_list))
-			conn->ttt = get_next_ttt(conn);
+			conn->ttt = get_next_ttt();
 		else
 			conn->ttt = ISCSI_RESERVED_TAG;
 	} else if (list_empty(&conn->rsp_buf_list) || conn->ttt != req->ttt) {
