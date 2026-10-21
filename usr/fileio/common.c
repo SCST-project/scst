@@ -812,11 +812,16 @@ void *main_loop(void *arg)
 
 	while(1) {
 #ifdef DEBUG_TM_IGNORE_ALL
+		int ignore_all;
+
+		pthread_mutex_lock(&dev->dev_mutex);
 		if (dev->debug_tm_ignore && (random() % 50000) == 55) {
 			TRACE_MGMT_DBG("%s", "Ignore ALL");
 			dev->debug_tm_ignore_all = 1;
 		}
-		if (dev->debug_tm_ignore_all) {
+		ignore_all = dev->debug_tm_ignore_all;
+		pthread_mutex_unlock(&dev->dev_mutex);
+		if (ignore_all) {
 			/* Go Astral */
 			while(1) {
 				sleep(60);
