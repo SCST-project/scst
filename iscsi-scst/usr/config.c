@@ -49,8 +49,8 @@ struct iscsi_key user_keys[] = {
 static struct __qelem discovery_users_in = LIST_HEAD_INIT(discovery_users_in);
 static struct __qelem discovery_users_out = LIST_HEAD_INIT(discovery_users_out);
 
-struct iscsi_attr *iscsi_attr_lookup_by_sysfs_name(
-	const struct __qelem *attrs_list, const char *sysfs_name)
+struct iscsi_attr *iscsi_attr_lookup_by_sysfs_name(const struct __qelem *attrs_list,
+						   const char *sysfs_name)
 {
 	struct iscsi_attr *attr;
 
@@ -62,8 +62,7 @@ struct iscsi_attr *iscsi_attr_lookup_by_sysfs_name(
 	return NULL;
 }
 
-struct iscsi_attr *iscsi_attr_lookup_by_key(
-	const struct __qelem *attrs_list, const char *key)
+struct iscsi_attr *iscsi_attr_lookup_by_key(const struct __qelem *attrs_list, const char *key)
 {
 	struct iscsi_attr *attr;
 
@@ -103,7 +102,7 @@ void iscsi_attrs_free(struct __qelem *attrs_list)
 }
 
 int iscsi_attr_create(int attr_size, struct __qelem *attrs_list,
-	const char *sysfs_name_tmpl, const char *key, const char *val,
+		      const char *sysfs_name_tmpl, const char *key, const char *val,
 	u32 mode, struct iscsi_attr **res_attr)
 {
 	int res = 0;
@@ -153,7 +152,7 @@ int iscsi_attr_create(int attr_size, struct __qelem *attrs_list,
 		if (num == 0)
 			num++;
 		snprintf(attr->sysfs_name, sizeof(attr->sysfs_name),
-			"%s%d", sysfs_name_tmpl, num);
+			 "%s%d", sysfs_name_tmpl, num);
 		if (!iscsi_attr_lookup_by_sysfs_name(attrs_list, attr->sysfs_name))
 			break;
 		num++;
@@ -173,7 +172,7 @@ out_free:
 }
 
 int iscsi_attr_replace(const struct __qelem *attrs_list, const char *sysfs_name,
-	char *raw_value)
+		       char *raw_value)
 {
 	int res = 0;
 	struct iscsi_attr *attr, *a;
@@ -194,7 +193,7 @@ int iscsi_attr_replace(const struct __qelem *attrs_list, const char *sysfs_name,
 
 	if (a && a != attr) {
 		log_error("Attr %s (sysfs_name %s) already exists\n", key,
-			a->sysfs_name);
+			  a->sysfs_name);
 		res = -EEXIST;
 		goto out;
 	}
@@ -295,7 +294,8 @@ static char *config_gets(char *buf, int size, const char *data, int *offset)
 {
 	int offs = *offset, i = 0;
 
-	while ((i < size-1) && (data[offs] != '\n') && (data[offs] != ';') && (data[offs] != '\0'))
+	while ((i < size - 1) && (data[offs] != '\n') &&
+	       (data[offs] != ';') && (data[offs] != '\0'))
 		buf[i++] = data[offs++];
 
 	if (i == 0 && (data[offs] == '\0'))
@@ -329,7 +329,7 @@ int accounts_empty(u32 tid, int dir)
 }
 
 static struct iscsi_attr *__account_lookup_by_name(struct target *target,
-	int dir, const char *name)
+						   int dir, const char *name)
 {
 	const struct __qelem *list;
 
@@ -377,7 +377,7 @@ struct iscsi_attr *account_get_first(u32 tid, int dir)
 }
 
 struct iscsi_attr *account_lookup_by_sysfs_name(struct target *target,
-	int dir, const char *sysfs_name)
+						int dir, const char *sysfs_name)
 {
 	const struct __qelem *list;
 
@@ -400,7 +400,7 @@ int config_account_query(u32 tid, int dir, const char *name, char *pass)
 }
 
 int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
-	char *buf, size_t buf_sz)
+			char *buf, size_t buf_sz)
 {
 	struct target *target;
 	const struct __qelem *list;
@@ -476,7 +476,7 @@ int config_account_del(u32 tid, int dir, char *name, u32 cookie)
 	}
 
 	log_debug(1, "Deleting %s user %s (%p, target %s, sysfs name %s)",
-		(dir == ISCSI_USER_DIR_OUTGOING) ? "outgoing" : "incoming",
+		  (dir == ISCSI_USER_DIR_OUTGOING) ? "outgoing" : "incoming",
 		ISCSI_USER_NAME(user), user, target ? target->name : "discovery",
 		user->sysfs_name);
 
@@ -491,14 +491,14 @@ out:
 }
 
 static int account_create(struct __qelem *list, const char *sysfs_name,
-	const char *name, const char *pass, struct iscsi_attr **res_user)
+			  const char *name, const char *pass, struct iscsi_attr **res_user)
 {
 	return iscsi_attr_create(sizeof(struct iscsi_attr), list, sysfs_name,
 			name, pass, 0600, res_user);
 }
 
 int account_replace(struct target *target, int direction,
-	const char *sysfs_name, char *value)
+		    const char *sysfs_name, char *value)
 {
 	const struct __qelem *list;
 
@@ -546,7 +546,7 @@ int __config_account_add(struct target *target, int dir, char *name, const char 
 
 		list_for_each_entry(old, list, ulist) {
 			log_warning("Only one outgoing %s account is supported. Replacing the old one.\n",
-				target ? "target" : "discovery");
+				    target ? "target" : "discovery");
 			account_destroy(old);
 			break;
 		}
@@ -697,7 +697,7 @@ static int __initiator_match(int fd, char *str)
 	int err = 0;
 
 	len = sizeof(from);
-	if (getpeername(fd, (struct sockaddr *) &from, &len) < 0)
+	if (getpeername(fd, (struct sockaddr *)&from, &len) < 0)
 		return 0;
 
 	while ((p = strsep(&str, ","))) {
@@ -864,7 +864,7 @@ out:
 }
 
 int config_params_set(u32 tid, u64 sid, int type, u32 partial,
-	struct iscsi_param *params)
+		      struct iscsi_param *params)
 {
 	int err, i;
 	struct target *target;
@@ -889,11 +889,13 @@ int config_params_set(u32 tid, u64 sid, int type, u32 partial,
 	if (type == key_session) {
 		for (i = 0; i < session_key_last; i++) {
 			uint32_t in_val = params[i].val;
+
 			if (partial & (1 << i)) {
 				err = params_check_val(session_keys, i, &params[i].val);
 				if (err < 0) {
 					log_error("%s: Wrong value %u->%u for session parameter %s\n",
-						__func__, in_val, params[i].val, session_keys[i].name);
+						  __func__, in_val, params[i].val,
+						  session_keys[i].name);
 					goto out;
 				}
 			}
@@ -905,11 +907,13 @@ int config_params_set(u32 tid, u64 sid, int type, u32 partial,
 	} else {
 		for (i = 0; i < target_key_last; i++) {
 			uint32_t in_val = params[i].val;
+
 			if (partial & (1 << i)) {
 				err = params_check_val(target_keys, i, &params[i].val);
 				if (err < 0) {
 					log_error("%s: Wrong value %u->%u for target parameter %s\n",
-						__func__, in_val, params[i].val, target_keys[i].name);
+						  __func__, in_val, params[i].val,
+						  target_keys[i].name);
 					goto out;
 				}
 			}
@@ -992,11 +996,12 @@ int config_parse_main(const char *data, u32 cookie)
 			res = params_str_to_val(target_keys, idx, str, &val);
 			if (res < 0) {
 				log_error("Wrong value %s for parameter %s\n",
-					str, target_keys[idx].name);
+					  str, target_keys[idx].name);
 				continue;
 			}
 
 			uint32_t in_val = val;
+
 			res = params_check_val(target_keys, idx, &val);
 			if (res < 0) {
 				log_error("%s: Wrong value %u->%u for target parameter %s\n",
@@ -1017,11 +1022,12 @@ int config_parse_main(const char *data, u32 cookie)
 			res = params_str_to_val(session_keys, idx, str, &val);
 			if (res < 0) {
 				log_error("Wrong value %s for parameter %s\n",
-					str, session_keys[idx].name);
+					  str, session_keys[idx].name);
 				continue;
 			}
 
 			uint32_t in_val = val;
+
 			res = params_check_val(session_keys, idx, &val);
 			if (res < 0) {
 				log_error("%s: Wrong value %u->%u for session parameter %s\n",
@@ -1045,7 +1051,7 @@ int config_parse_main(const char *data, u32 cookie)
 			}
 
 			res = __config_account_add(target, idx, name, pass, p,
-					!target, 0);
+						   !target, 0);
 			if (res < 0)
 				continue;
 		} else if (global_section &&
@@ -1138,7 +1144,7 @@ int config_load(const char *config_name)
 		} else {
 			err = -errno;
 			log_error("Open config file %s failed: %s", cname,
-				strerror(errno));
+				  strerror(errno));
 			goto out;
 		}
 	}
@@ -1150,7 +1156,7 @@ int config_load(const char *config_name)
 		goto out_close;
 	}
 
-	buf = malloc(size+1);
+	buf = malloc(size + 1);
 	if (!buf) {
 		err = -ENOMEM;
 		log_error("malloc() failed: %s", strerror(-err));

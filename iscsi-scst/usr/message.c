@@ -37,10 +37,10 @@ int iscsi_adm_request_listen(void)
 
 	memset(&addr, 0, sizeof(addr));
 	addr.sun_family = AF_LOCAL;
-	memcpy((char *) &addr.sun_path + 1, ISCSI_ADM_NAMESPACE,
-		strlen(ISCSI_ADM_NAMESPACE));
+	memcpy((char *)&addr.sun_path + 1, ISCSI_ADM_NAMESPACE,
+	       strlen(ISCSI_ADM_NAMESPACE));
 
-	err = bind(fd, (struct sockaddr *) &addr, sizeof(addr));
+	err = bind(fd, (struct sockaddr *)&addr, sizeof(addr));
 	if (err < 0) {
 		close(fd);
 		return err;
@@ -56,12 +56,12 @@ int iscsi_adm_request_listen(void)
 }
 
 static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_rsp *rsp,
-				void **rsp_data, size_t *rsp_data_sz)
+				   void **rsp_data, size_t *rsp_data_sz)
 {
 	int err = 0;
 
 	log_debug(1, "request %u, tid %u, sid 0x%" PRIx64 ", cid %u",
-		req->rcmnd, req->tid, req->sid, req->cid);
+		  req->rcmnd, req->tid, req->sid, req->cid);
 
 	switch (req->rcmnd) {
 	case C_TRGT_NEW:
@@ -73,7 +73,7 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 	case C_TRGT_UPDATE:
 		if (req->u.trgt.type & (1 << key_session))
 			err = config_params_set(req->tid, req->sid,
-					      key_session,
+						key_session,
 					      req->u.trgt.session_partial,
 					      req->u.trgt.session_params);
 
@@ -82,12 +82,12 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 
 		if (req->u.trgt.type & (1 << key_target))
 			err = config_params_set(req->tid, req->sid, key_target,
-					      req->u.trgt.target_partial,
+						req->u.trgt.target_partial,
 					      req->u.trgt.target_params);
 		break;
 	case C_TRGT_SHOW:
 		err = config_params_get(req->tid, req->sid, key_target,
-				    req->u.trgt.target_params);
+					req->u.trgt.target_params);
 		break;
 
 	case C_SESS_NEW:
@@ -96,7 +96,7 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 		break;
 	case C_SESS_SHOW:
 		err = config_params_get(req->tid, req->sid, key_session,
-				    req->u.trgt.session_params);
+					req->u.trgt.session_params);
 		break;
 
 	case C_CONN_NEW:
@@ -112,12 +112,12 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 
 	case C_ACCT_NEW:
 		err = config_account_add(req->tid, req->u.acnt.auth_dir,
-					req->u.acnt.u.user.name,
+					 req->u.acnt.u.user.name,
 					req->u.acnt.u.user.pass, NULL, 0);
 		break;
 	case C_ACCT_DEL:
 		err = config_account_del(req->tid, req->u.acnt.auth_dir,
-					req->u.acnt.u.user.name, 0);
+					 req->u.acnt.u.user.name, 0);
 		break;
 	case C_ACCT_LIST:
 		*rsp_data = malloc(req->u.acnt.u.list.alloc_len);
@@ -130,7 +130,7 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 		memset(*rsp_data, 0x0, *rsp_data_sz);
 
 		err = config_account_list(req->tid, req->u.acnt.auth_dir,
-					 &req->u.acnt.u.list.count,
+					  &req->u.acnt.u.list.count,
 					 &req->u.acnt.u.list.overflow,
 					 *rsp_data, *rsp_data_sz);
 		break;
@@ -138,7 +138,7 @@ static void iscsi_adm_request_exec(struct iscsi_adm_req *req, struct iscsi_adm_r
 		break;
 	case C_ACCT_SHOW:
 		err = config_account_query(req->tid, req->u.acnt.auth_dir,
-					  req->u.acnt.u.user.name,
+					   req->u.acnt.u.user.name,
 					  req->u.acnt.u.user.pass);
 		break;
 	default:
@@ -163,7 +163,7 @@ int iscsi_adm_request_handle(int accept_fd)
 
 	memset(&rsp, 0, sizeof(rsp));
 	len = sizeof(addr);
-	fd = accept(accept_fd, (struct sockaddr *) &addr, &len);
+	fd = accept(accept_fd, (struct sockaddr *)&addr, &len);
 	if (fd < 0) {
 		if (errno == EINTR)
 			err = -EINTR;
@@ -174,7 +174,7 @@ int iscsi_adm_request_handle(int accept_fd)
 	}
 
 	len = sizeof(cred);
-	err = getsockopt(fd, SOL_SOCKET, SO_PEERCRED, (void *) &cred, &len);
+	err = getsockopt(fd, SOL_SOCKET, SO_PEERCRED, (void *)&cred, &len);
 	if (err < 0) {
 		rsp.err = -EPERM;
 		goto send;

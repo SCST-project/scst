@@ -77,6 +77,7 @@ static void set_resp_data_len(struct vdisk_cmd *vcmd, int32_t resp_data_len)
 
 	if (vcmd->may_need_to_free_pbuf && resp_data_len == 0) {
 		struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
+
 		free((void *)(unsigned long)cmd->pbuf);
 		cmd->pbuf = 0;
 		reply->pbuf = 0;
@@ -88,9 +89,10 @@ static void set_resp_data_len(struct vdisk_cmd *vcmd, int32_t resp_data_len)
 }
 
 static inline void set_cmd_error_status(struct vdisk_cmd *vcmd,
-	int status)
+					int status)
 {
 	struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
+
 	reply->status = status;
 	set_resp_data_len(vcmd, 0);
 }
@@ -128,7 +130,7 @@ static void set_cmd_error(struct vdisk_cmd *vcmd, int key, int asc, int ascq)
 
 	set_cmd_error_status(vcmd, SAM_STAT_CHECK_CONDITION);
 	reply->sense_len = set_sense(vcmd->sense, sizeof(vcmd->sense), key,
-		asc, ascq);
+				     asc, ascq);
 	reply->psense_buffer = (unsigned long)vcmd->sense;
 
 	TRACE_EXIT();
@@ -190,7 +192,7 @@ static struct vdisk_tgt_dev *find_tgt_dev(struct vdisk_dev *dev, uint64_t sess_h
 	unsigned int i;
 	struct vdisk_tgt_dev *res = NULL;
 
-	for(i = 0; i < ARRAY_SIZE(dev->tgt_devs); i++) {
+	for (i = 0; i < ARRAY_SIZE(dev->tgt_devs); i++) {
 		if (dev->tgt_devs[i].sess_h == sess_h) {
 			res = &dev->tgt_devs[i];
 			break;
@@ -204,7 +206,7 @@ static struct vdisk_tgt_dev *find_empty_tgt_dev(struct vdisk_dev *dev)
 	unsigned int i;
 	struct vdisk_tgt_dev *res = NULL;
 
-	for(i = 0; i < ARRAY_SIZE(dev->tgt_devs); i++) {
+	for (i = 0; i < ARRAY_SIZE(dev->tgt_devs); i++) {
 		if (dev->tgt_devs[i].sess_h == 0) {
 			res = &dev->tgt_devs[i];
 			break;
@@ -231,7 +233,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 	/* Must be reinitialized each time to avoid crash on stale value */
 	vcmd->may_need_to_free_pbuf = 0;
 
-	switch(cmd->queue_type) {
+	switch (cmd->queue_type) {
 	case SCST_CMD_QUEUE_ORDERED:
 		TRACE(TRACE_ORDER, "ORDERED cmd_h %u", vcmd->cmd->cmd_h);
 		break;
@@ -257,7 +259,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 #ifdef DEBUG_TM_IGNORE
 	if (dev->debug_tm_ignore && (random() % 10000) == 75) {
 		TRACE_MGMT_DBG("Ignore cmd op %x (h=%d)", cdb[0],
-			vcmd->cmd->cmd_h);
+			       vcmd->cmd->cmd_h);
 		res = 150;
 		goto out;
 	}
@@ -272,7 +274,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 			cmd->pbuf = (unsigned long)dev->alloc_fn(cmd->alloc_len);
 		vcmd->may_need_to_free_pbuf = 1;
 		TRACE_MEM("Buf %" PRIx64 " alloced, len %d", cmd->pbuf,
-			cmd->alloc_len);
+			  cmd->alloc_len);
 		reply->pbuf = cmd->pbuf;
 		if (cmd->pbuf == 0) {
 			TRACE(TRACE_OUT_OF_MEM, "Unable to allocate buffer (len %d)",
@@ -292,10 +294,10 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		", data_len %" PRId64, vcmd->cmd->cmd_h, cmd->pbuf, lba_start,
 		(uint64_t)loff, data_len);
 	if (loff < 0 || data_len < 0 || ((loff + data_len) > dev->file_size)) {
-		PRINT_INFO("Access beyond the end of the device (%" PRId64 " of %" PRId64 ", len %" PRId64 ")", (uint64_t)loff,
+		PRINT_INFO("Access beyond the end of the device (%" PRId64 " of %" PRId64 ", len %" PRId64 ")",
+			   (uint64_t)loff,
 			(uint64_t)dev->file_size, data_len);
-		set_cmd_error(vcmd, SCST_LOAD_SENSE(
-				scst_sense_block_out_range_error));
+		set_cmd_error(vcmd, SCST_LOAD_SENSE(scst_sense_block_out_range_error));
 		goto out;
 	}
 
@@ -329,9 +331,9 @@ static int do_exec(struct vdisk_cmd *vcmd)
 			tgt_dev = find_tgt_dev(dev, cmd->sess_h);
 			if (!tgt_dev) {
 				PRINT_ERROR("Session %" PRIx64 " not found",
-					cmd->sess_h);
+					    cmd->sess_h);
 				set_cmd_error(vcmd,
-				    SCST_LOAD_SENSE(scst_sense_hardw_error));
+					      SCST_LOAD_SENSE(scst_sense_hardw_error));
 				goto out;
 			}
 
@@ -342,7 +344,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		} else {
 			PRINT_WARNING("Attempt to write to read-only device %s", dev->name);
 			set_cmd_error(vcmd,
-		    		SCST_LOAD_SENSE(scst_sense_data_protect));
+				      SCST_LOAD_SENSE(scst_sense_data_protect));
 		}
 		break;
 	case WRITE_VERIFY:
@@ -354,9 +356,9 @@ static int do_exec(struct vdisk_cmd *vcmd)
 			tgt_dev = find_tgt_dev(dev, cmd->sess_h);
 			if (!tgt_dev) {
 				PRINT_ERROR("Session %" PRIx64 " not found",
-					cmd->sess_h);
+					    cmd->sess_h);
 				set_cmd_error(vcmd,
-				    SCST_LOAD_SENSE(scst_sense_hardw_error));
+					      SCST_LOAD_SENSE(scst_sense_hardw_error));
 				goto out;
 			}
 
@@ -367,18 +369,19 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		} else {
 			PRINT_WARNING("Attempt to write to read-only device %s", dev->name);
 			set_cmd_error(vcmd,
-				SCST_LOAD_SENSE(scst_sense_data_protect));
+				      SCST_LOAD_SENSE(scst_sense_data_protect));
 		}
 		break;
 	case SYNCHRONIZE_CACHE:
 	case SYNCHRONIZE_CACHE_16:
 	{
 		int immed = cdb[1] & 0x2;
+
 		if (data_len == 0)
 			data_len = dev->file_size -
 				((loff_t)lba_start << dev->block_shift);
 		TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: loff=%" PRId64 ", data_len=%" PRId64 ", immed=%d",
-			(uint64_t)loff, data_len, immed);
+		      (uint64_t)loff, data_len, immed);
 		/* ToDo: execute immediate synchronization in the background. */
 		exec_fsync(vcmd);
 		break;
@@ -424,14 +427,14 @@ static int do_exec(struct vdisk_cmd *vcmd)
 	case WRITE_SAME_16:
 		exec_write_same(vcmd);
 		break;
-        case SERVICE_ACTION_IN_16:
+	case SERVICE_ACTION_IN_16:
 		if ((cmd->cdb[1] & 0x1f) == SAI_READ_CAPACITY_16) {
 			exec_read_capacity16(vcmd);
 		} else {
 			TRACE_DBG("Invalid service action %d for SERVICE ACTION IN",
 				  cmd->cdb[1] & 0x1f);
 			set_cmd_error(vcmd,
-			    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+				      SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		}
 		break;
 	case REPORT_LUNS:
@@ -455,12 +458,12 @@ static int do_alloc_mem(struct vdisk_cmd *vcmd)
 	TRACE_ENTRY();
 
 	TRACE_MEM("Alloc mem (cmd %d, sess_h %" PRIx64 ", cdb_len %d, alloc_len %d, queue_type %d, data_direction %d)",
-		cmd->cmd_h, cmd->alloc_cmd.sess_h,
-		cmd->alloc_cmd.cdb_len, cmd->alloc_cmd.alloc_len,
-		cmd->alloc_cmd.queue_type, cmd->alloc_cmd.data_direction);
+		  cmd->cmd_h, cmd->alloc_cmd.sess_h,
+		  cmd->alloc_cmd.cdb_len, cmd->alloc_cmd.alloc_len,
+		  cmd->alloc_cmd.queue_type, cmd->alloc_cmd.data_direction);
 
 	TRACE_BUFF_FLAG(TRACE_MEMORY, "CDB", cmd->alloc_cmd.cdb,
-		cmd->alloc_cmd.cdb_len);
+			cmd->alloc_cmd.cdb_len);
 
 	memset(reply, 0, sizeof(*reply));
 	reply->cmd_h = cmd->cmd_h;
@@ -470,13 +473,13 @@ static int do_alloc_mem(struct vdisk_cmd *vcmd)
 		reply->alloc_reply.pbuf = 0;
 	else
 #endif
-		reply->alloc_reply.pbuf = (unsigned long)vcmd->dev->alloc_fn(
-						cmd->alloc_cmd.alloc_len);
+		reply->alloc_reply.pbuf =
+			(unsigned long)vcmd->dev->alloc_fn(cmd->alloc_cmd.alloc_len);
 	TRACE_MEM("Buf %" PRIx64 " alloced, len %d", reply->alloc_reply.pbuf,
-		cmd->alloc_cmd.alloc_len);
+		  cmd->alloc_cmd.alloc_len);
 	if (reply->alloc_reply.pbuf == 0) {
 		TRACE(TRACE_OUT_OF_MEM, "Unable to allocate buffer (len %d)",
-			cmd->alloc_cmd.alloc_len);
+		      cmd->alloc_cmd.alloc_len);
 	}
 
 	TRACE_EXIT_RES(res);
@@ -492,7 +495,7 @@ static int do_cached_mem_free(struct vdisk_cmd *vcmd)
 	TRACE_ENTRY();
 
 	TRACE_MEM("Cached mem free (cmd %x, buf %" PRIx64 ")", cmd->cmd_h,
-		cmd->on_cached_mem_free.pbuf);
+		  cmd->on_cached_mem_free.pbuf);
 
 	free((void *)(unsigned long)cmd->on_cached_mem_free.pbuf);
 
@@ -568,7 +571,7 @@ static int do_ext_copy_remap(struct vdisk_cmd *vcmd)
 #else
 	rreply->status = SAM_STAT_CHECK_CONDITION;
 	rreply->sense_len = set_sense(vcmd->sense, sizeof(vcmd->sense),
-		SCST_LOAD_SENSE(scst_sense_data_protect));
+				      SCST_LOAD_SENSE(scst_sense_data_protect));
 	rreply->psense_buffer = (unsigned long)vcmd->sense;
 #endif
 
@@ -637,7 +640,7 @@ static int do_sess(struct vdisk_cmd *vcmd)
 	if (cmd->subcode == SCST_USER_ATTACH_SESS) {
 		if (tgt_dev) {
 			PRINT_ERROR("Session %" PRIx64 " already exists)",
-				cmd->sess.sess_h);
+				    cmd->sess.sess_h);
 			res = EEXIST;
 			goto reply;
 		}
@@ -660,13 +663,13 @@ static int do_sess(struct vdisk_cmd *vcmd)
 	} else {
 		if (!tgt_dev) {
 			PRINT_ERROR("Session %" PRIx64 " not found)",
-				cmd->sess.sess_h);
+				    cmd->sess.sess_h);
 			res = ESRCH;
 			goto reply;
 		}
 		tgt_dev->sess_h = 0;
 		PRINT_INFO("Session detached (sess_h %" PRIx64 ")",
-			cmd->sess.sess_h);
+			   cmd->sess.sess_h);
 	}
 
 reply:
@@ -689,17 +692,17 @@ static int process_cmd(struct vdisk_cmd *vcmd)
 
 	TRACE_BUFFER("Received cmd", cmd, sizeof(*cmd));
 
-	switch(cmd->subcode) {
+	switch (cmd->subcode) {
 	case SCST_USER_EXEC:
 		if (cmd->exec_cmd.data_direction & SCST_DATA_WRITE) {
 			TRACE_BUFFER("Received cmd data",
-				(void *)(unsigned long)cmd->exec_cmd.pbuf,
+				     (void *)(unsigned long)cmd->exec_cmd.pbuf,
 				cmd->exec_cmd.bufflen);
 		}
 		res = do_exec(vcmd);
 		if (reply->exec_reply.resp_data_len != 0 && res != 150) {
 			TRACE_BUFFER("Reply data",
-				(void *)(unsigned long)reply->exec_reply.pbuf,
+				     (void *)(unsigned long)reply->exec_reply.pbuf,
 				reply->exec_reply.resp_data_len);
 		}
 		break;
@@ -721,9 +724,9 @@ static int process_cmd(struct vdisk_cmd *vcmd)
 		break;
 
 #ifdef DEBUG_EXT_COPY_REMAP
-		case SCST_USER_EXT_COPY_REMAP:
-			res = do_ext_copy_remap(vcmd);
-			break;
+	case SCST_USER_EXT_COPY_REMAP:
+		res = do_ext_copy_remap(vcmd);
+		break;
 #endif
 
 	case SCST_USER_TASK_MGMT_RECEIVED:
@@ -745,7 +748,7 @@ static int process_cmd(struct vdisk_cmd *vcmd)
 
 	default:
 		PRINT_ERROR("Unknown or wrong cmd subcode %x",
-			cmd->subcode);
+			    cmd->subcode);
 		res = -EINVAL;
 		goto out;
 	}
@@ -786,7 +789,7 @@ void *main_loop(void *arg)
 	if (vcmd.fd < 0) {
 		res = -errno;
 		PRINT_ERROR("Unable to open file %s (%s)", dev->file_name,
-			strerror(-res));
+			    strerror(-res));
 		goto out;
 	}
 
@@ -828,7 +831,7 @@ void *main_loop(void *arg)
 		}
 		if (res != 0) {
 			res = errno;
-			switch(res) {
+			switch (res) {
 			case ESRCH:
 			case EBUSY:
 				TRACE_MGMT_DBG("SCST_USER returned %d (%s)", res, strerror(res));
@@ -868,7 +871,7 @@ again_poll:
 				goto again_poll;
 			} else {
 				res = errno;
-				switch(res) {
+				switch (res) {
 				case ESRCH:
 				case EBUSY:
 				case EAGAIN:
@@ -890,9 +893,13 @@ again_poll:
 		if (use_multi) {
 			if (multi.multi_cmd.replies_done < multi.multi_cmd.replies_cnt) {
 				TRACE_MGMT_DBG("replies_done %d < replies_cnt %d (dev %s)",
-					multi.multi_cmd.replies_done, multi.multi_cmd.replies_cnt, dev->name);
-				multi.multi_cmd.preplies = (uintptr_t)&multi.replies[multi.multi_cmd.replies_done];
-				multi.multi_cmd.replies_cnt = multi.multi_cmd.replies_cnt - multi.multi_cmd.replies_done;
+					       multi.multi_cmd.replies_done,
+					       multi.multi_cmd.replies_cnt,
+					       dev->name);
+				multi.multi_cmd.preplies =
+					(uintptr_t)&multi.replies[multi.multi_cmd.replies_done];
+				multi.multi_cmd.replies_cnt =
+					multi.multi_cmd.replies_cnt - multi.multi_cmd.replies_done;
 				multi.multi_cmd.cmds_cnt = MULTI_CMDS_CNT;
 				continue;
 			}
@@ -944,7 +951,7 @@ uint64_t gen_dev_id_num(const struct vdisk_dev *dev)
 {
 	uint32_t dev_id_num;
 
-	dev_id_num = crc32buf(dev->name, strlen(dev->name)+1);
+	dev_id_num = crc32buf(dev->name, strlen(dev->name) + 1);
 
 	return ((uint64_t)vdisk_ID << 32) | dev_id_num;
 }
@@ -957,7 +964,7 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 	int resp_len = 0;
 	int length = cmd->bufflen;
 	unsigned int i;
-	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
+	uint8_t *address = (uint8_t *)(unsigned long)cmd->pbuf;
 	uint8_t buf[INQ_BUF_SZ];
 
 	TRACE_ENTRY();
@@ -965,7 +972,7 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 	if (cmd->cdb[1] & CMDDT) {
 		TRACE_DBG("%s", "INQUIRY: CMDDT is unsupported");
 		set_cmd_error(vcmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+			      SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		goto out;
 	}
 
@@ -1004,7 +1011,7 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			buf[num + 1] = 0x1;	/* Vendor ID */
 			memcpy(&buf[num + 4], VENDOR, 8);
 			snprintf(t10_id, sizeof(buf) - num - 12,
-				"%" PRIx64 "-%s", dev_id_num, dev->name);
+				 "%" PRIx64 "-%s", dev_id_num, dev->name);
 			i = strlen(t10_id) + 1;
 			TRACE_DBG("t10_dev_id %s", t10_id);
 			buf[num + 3] = 8 + i;
@@ -1036,18 +1043,19 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 		} else if (cmd->cdb[2] == 0xB0) {
 			/* Block Limits */
 			int max_transfer;
+
 			buf[1] = 0xB0;
 			buf[3] = 0x3C;
 			buf[5] = 0xFF; /* No MAXIMUM COMPARE AND WRITE LENGTH limit */
 			/* Optimal transfer granuality is PAGE_SIZE */
-			max_transfer = max((int)(4096/dev->block_size), 1);
+			max_transfer = max((int)(4096 / dev->block_size), 1);
 			buf[6] = (max_transfer >> 8) & 0xff;
 			buf[7] = max_transfer & 0xff;
 			/*
 			 * Max transfer len is min of sg limit and 8M, but we
 			 * don't have access to them here, so let's use 1M.
 			 */
-			max_transfer = 1*1024*1024;
+			max_transfer = 1 * 1024 * 1024;
 			buf[8] = (max_transfer >> 24) & 0xff;
 			buf[9] = (max_transfer >> 16) & 0xff;
 			buf[10] = (max_transfer >> 8) & 0xff;
@@ -1059,7 +1067,7 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			 * From other side, too big transfers  are not optimal,
 			 * because SGV cache supports only <4M buffers.
 			 */
-			max_transfer = min((int)max_transfer, (int)(512*1024 / dev->block_size));
+			max_transfer = min((int)max_transfer, (int)(512 * 1024 / dev->block_size));
 			buf[12] = (max_transfer >> 24) & 0xff;
 			buf[13] = (max_transfer >> 16) & 0xff;
 			buf[14] = (max_transfer >> 8) & 0xff;
@@ -1084,9 +1092,9 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			resp_len = buf[3] + 4;
 		} else {
 			TRACE_DBG("INQUIRY: Unsupported EVPD page %x",
-				cmd->cdb[2]);
+				  cmd->cdb[2]);
 			set_cmd_error(vcmd,
-			    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+				      SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 			goto out;
 		}
 	} else {
@@ -1095,7 +1103,7 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 		if (cmd->cdb[2] != 0) {
 			TRACE_DBG("INQUIRY: Unsupported page %x", cmd->cdb[2]);
 			set_cmd_error(vcmd,
-			    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+				      SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 			goto out;
 		}
 
@@ -1136,7 +1144,7 @@ static void exec_request_sense(struct vdisk_cmd *vcmd)
 	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
 	const struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	int length = cmd->bufflen, l;
-	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
+	uint8_t *address = (uint8_t *)(unsigned long)cmd->pbuf;
 	uint8_t b[SCST_STANDARD_SENSE_LEN];
 
 	TRACE_ENTRY();
@@ -1171,7 +1179,7 @@ static int err_recov_pg(unsigned char *p, int pcontrol)
 }
 
 static int disconnect_pg(unsigned char *p, int pcontrol)
-{ 	/* Disconnect-Reconnect page for mode_sense */
+{	/* Disconnect-Reconnect page for mode_sense */
 	const unsigned char disconnect_pg[] = {0x2, 0xe, 128, 128, 0, 10, 0, 0,
 					       0, 0, 0, 0, 0, 0, 0, 0};
 
@@ -1182,7 +1190,7 @@ static int disconnect_pg(unsigned char *p, int pcontrol)
 }
 
 static int rigid_geo_pg(unsigned char *p, int pcontrol,
-	const struct vdisk_dev *dev)
+			const struct vdisk_dev *dev)
 {
 	unsigned char geo_m_pg[] = {0x04, 0x16, 0, 0, 0, DEF_HEADS, 0, 0,
 				    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -1202,25 +1210,25 @@ static int rigid_geo_pg(unsigned char *p, int pcontrol,
 }
 
 static int format_pg(unsigned char *p, int pcontrol,
-			     const struct vdisk_dev *dev)
+		     const struct vdisk_dev *dev)
 {       /* Format device page for mode_sense */
 	const unsigned char format_pg[] = {0x3, 0x16, 0, 0, 0, 0, 0, 0,
 					   0, 0, 0, 0, 0, 0, 0, 0,
 					   0, 0, 0, 0, 0x40, 0, 0, 0};
 
-        memcpy(p, format_pg, sizeof(format_pg));
-        p[10] = (DEF_SECTORS >> 8) & 0xff;
-        p[11] = DEF_SECTORS & 0xff;
-        p[12] = (dev->block_size >> 8) & 0xff;
-        p[13] = dev->block_size & 0xff;
+	memcpy(p, format_pg, sizeof(format_pg));
+	p[10] = (DEF_SECTORS >> 8) & 0xff;
+	p[11] = DEF_SECTORS & 0xff;
+	p[12] = (dev->block_size >> 8) & 0xff;
+	p[13] = dev->block_size & 0xff;
 	if (pcontrol == 1)
-                memset(p + 2, 0, sizeof(format_pg) - 2);
-        return sizeof(format_pg);
+		memset(p + 2, 0, sizeof(format_pg) - 2);
+	return sizeof(format_pg);
 }
 
 static int caching_pg(unsigned char *p, int pcontrol,
-			     const struct vdisk_dev *dev)
-{ 	/* Caching page for mode_sense */
+		      const struct vdisk_dev *dev)
+{	/* Caching page for mode_sense */
 	const unsigned char caching_pg[] = {0x8, 18, 0x10, 0, 0xff, 0xff, 0, 0,
 		0xff, 0xff, 0xff, 0xff, 0x80, 0x14, 0, 0, 0, 0, 0, 0};
 
@@ -1232,8 +1240,8 @@ static int caching_pg(unsigned char *p, int pcontrol,
 }
 
 static int ctrl_m_pg(unsigned char *p, int pcontrol,
-			    const struct vdisk_dev *dev)
-{ 	/* Control mode page for mode_sense */
+		     const struct vdisk_dev *dev)
+{	/* Control mode page for mode_sense */
 	const unsigned char ctrl_m_pg[] = {0xa, 0xa, 0x20, 0, 0, 0x40, 0, 0,
 					   0, 0, 0x2, 0x4b};
 
@@ -1248,7 +1256,7 @@ static int ctrl_m_pg(unsigned char *p, int pcontrol,
 static int iec_m_pg(unsigned char *p, int pcontrol)
 {	/* Informational Exceptions control mode page for mode_sense */
 	const unsigned char iec_m_pg[] = {0x1c, 0xa, 0x08, 0, 0, 0, 0, 0,
-				          0, 0, 0x0, 0x0};
+					  0, 0, 0x0, 0x0};
 	memcpy(p, iec_m_pg, sizeof(iec_m_pg));
 	if (pcontrol == 1)
 		memset(p + 2, 0, sizeof(iec_m_pg) - 2);
@@ -1261,7 +1269,7 @@ static void exec_mode_sense(struct vdisk_cmd *vcmd)
 	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
 	const struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	int length = cmd->bufflen;
-	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
+	uint8_t *address = (uint8_t *)(unsigned long)cmd->pbuf;
 	uint8_t buf[MSENSE_BUF_SZ];
 	int blocksize;
 	uint64_t nblocks;
@@ -1289,7 +1297,7 @@ static void exec_mode_sense(struct vdisk_cmd *vcmd)
 	if (pcontrol == 0x3) {
 		TRACE_DBG("%s", "MODE SENSE: Saving values not supported");
 		set_cmd_error(vcmd,
-		    SCST_LOAD_SENSE(scst_sense_saving_params_unsup));
+			      SCST_LOAD_SENSE(scst_sense_saving_params_unsup));
 		goto out;
 	}
 
@@ -1306,7 +1314,7 @@ static void exec_mode_sense(struct vdisk_cmd *vcmd)
 	if (subpcode != 0) { /* TODO: Control Extension page */
 		TRACE_DBG("%s", "MODE SENSE: Only subpage 0 is supported");
 		set_cmd_error(vcmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+			      SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		goto out;
 	}
 
@@ -1341,9 +1349,9 @@ static void exec_mode_sense(struct vdisk_cmd *vcmd)
 	case 0x2:	/* Disconnect-Reconnect page, all devices */
 		len = disconnect_pg(bp, pcontrol);
 		break;
-        case 0x3:       /* Format device page, direct access */
-                len = format_pg(bp, pcontrol, dev);
-                break;
+	case 0x3:       /* Format device page, direct access */
+		len = format_pg(bp, pcontrol, dev);
+		break;
 	case 0x4:	/* Rigid disk geometry */
 		len = rigid_geo_pg(bp, pcontrol, dev);
 		break;
@@ -1368,7 +1376,7 @@ static void exec_mode_sense(struct vdisk_cmd *vcmd)
 	default:
 		TRACE_DBG("MODE SENSE: Unsupported page %x", pcode);
 		set_cmd_error(vcmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+			      SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		goto out;
 	}
 
@@ -1427,7 +1435,7 @@ static void exec_mode_select(struct vdisk_cmd *vcmd)
 	if (!(cmd->cdb[1] & PF) || (cmd->cdb[1] & SP)) {
 		PRINT_ERROR("MODE SELECT: PF and/or SP are wrongly set (cdb[1]=%x)", cmd->cdb[1]);
 		set_cmd_error(vcmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+			      SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		goto out;
 	}
 
@@ -1441,28 +1449,27 @@ static void exec_mode_select(struct vdisk_cmd *vcmd)
 	} else if (address[offset - 1] != 0) {
 		PRINT_ERROR("%s", "MODE SELECT: Wrong parameters list length");
 		set_cmd_error(vcmd,
-		    SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
+			      SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
 		goto out;
 	}
 
 	while (length > offset + 2) {
 		if (address[offset] & PS) {
 			PRINT_ERROR("%s", "MODE SELECT: Illegal PS bit");
-			set_cmd_error(vcmd, SCST_LOAD_SENSE(
-			    	scst_sense_invalid_field_in_parm_list));
+			set_cmd_error(vcmd, SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
 			goto out;
 		}
 		if ((address[offset] & 0x3f) == 0x8) {	/* Caching page */
 			if (address[offset + 1] != 18) {
 				PRINT_ERROR("%s", "MODE SELECT: Invalid caching page request");
-				set_cmd_error(vcmd, SCST_LOAD_SENSE(
-				    	scst_sense_invalid_field_in_parm_list));
+				set_cmd_error(vcmd,
+					      SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
 				goto out;
 			}
 			if (set_wt(dev,
-			      (address[offset + 2] & WCE) ? 0 : 1) != 0) {
+				   (address[offset + 2] & WCE) ? 0 : 1) != 0) {
 				set_cmd_error(vcmd,
-				    SCST_LOAD_SENSE(scst_sense_hardw_error));
+					      SCST_LOAD_SENSE(scst_sense_hardw_error));
 				goto out;
 			}
 			break;
@@ -1480,7 +1487,7 @@ static void exec_read_capacity(struct vdisk_cmd *vcmd)
 	struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
 	const struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	int length = cmd->bufflen;
-	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
+	uint8_t *address = (uint8_t *)(unsigned long)cmd->pbuf;
 	uint32_t blocksize;
 	uint64_t nblocks;
 	uint8_t buffer[8];
@@ -1524,7 +1531,7 @@ static void exec_read_capacity16(struct vdisk_cmd *vcmd)
 	const struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
 	const struct scst_user_scsi_cmd_reply_exec *reply = &vcmd->reply->exec_reply;
 	int length = cmd->bufflen;
-	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
+	uint8_t *address = (uint8_t *)(unsigned long)cmd->pbuf;
 	uint32_t blocksize;
 	uint64_t nblocks;
 	uint8_t buffer[32];
@@ -1585,7 +1592,7 @@ static void exec_read_toc(struct vdisk_cmd *vcmd)
 	int length = cmd->bufflen;
 	uint8_t *address = (uint8_t *)(unsigned long)cmd->pbuf;
 	uint32_t nblocks;
-	uint8_t buffer[4+8+8] = { 0x00, 0x0a, 0x01, 0x01, 0x00, 0x14,
+	uint8_t buffer[4 + 8 + 8] = { 0x00, 0x0a, 0x01, 0x01, 0x00, 0x14,
 				  0x01, 0x00, 0x00, 0x00, 0x00, 0x00 };
 
 	TRACE_ENTRY();
@@ -1593,23 +1600,23 @@ static void exec_read_toc(struct vdisk_cmd *vcmd)
 	if (dev->type != TYPE_ROM) {
 		PRINT_ERROR("%s", "READ TOC for non-CDROM device");
 		set_cmd_error(vcmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_opcode));
+			      SCST_LOAD_SENSE(scst_sense_invalid_opcode));
 		goto out;
 	}
 
 	if (cmd->cdb[2] & 0x0e/*Format*/) {
 		PRINT_ERROR("%s", "READ TOC: invalid requested data format");
 		set_cmd_error(vcmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+			      SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		goto out;
 	}
 
 	if ((cmd->cdb[6] != 0 && (cmd->cdb[2] & 0x01)) ||
 	    (cmd->cdb[6] > 1 && cmd->cdb[6] != 0xAA)) {
 		PRINT_ERROR("READ TOC: invalid requested track number %x",
-			cmd->cdb[6]);
+			    cmd->cdb[6]);
 		set_cmd_error(vcmd,
-			SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
+			      SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 		goto out;
 	}
 
@@ -1621,25 +1628,26 @@ static void exec_read_toc(struct vdisk_cmd *vcmd)
 	buffer[2] = 0x01;    /* First Track/Session */
 	buffer[3] = 0x01;    /* Last Track/Session */
 	off = 4;
-	if (cmd->cdb[6] <= 1)
-        {
-		/* Fistr TOC Track Descriptor */
-		buffer[off+1] = 0x14; /* ADDR    0x10 - Q Sub-channel encodes current position data
-					 CONTROL 0x04 - Data track, recoreded uninterrupted */
-		buffer[off+2] = 0x01; /* Track Number */
+	if (cmd->cdb[6] <= 1) {
+		/* First TOC Track Descriptor */
+		/*
+		 * ADDR 0x10 - Q Sub-channel encodes current position data.
+		 * CONTROL 0x04 - Data track, recorded uninterrupted.
+		 */
+		buffer[off + 1] = 0x14;
+		buffer[off + 2] = 0x01; /* Track Number */
 		off += 8;
-        }
-	if (!(cmd->cdb[2] & 0x01))
-        {
+	}
+	if (!(cmd->cdb[2] & 0x01)) {
 		/* Lead-out area TOC Track Descriptor */
-		buffer[off+1] = 0x14;
-		buffer[off+2] = 0xAA;     /* Track Number */
-		buffer[off+4] = (nblocks >> (BYTE * 3)) & 0xFF; /* Track Start Address */
-		buffer[off+5] = (nblocks >> (BYTE * 2)) & 0xFF;
-		buffer[off+6] = (nblocks >> (BYTE * 1)) & 0xFF;
-		buffer[off+7] = (nblocks >> (BYTE * 0)) & 0xFF;
+		buffer[off + 1] = 0x14;
+		buffer[off + 2] = 0xAA;     /* Track Number */
+		buffer[off + 4] = (nblocks >> (BYTE * 3)) & 0xFF; /* Track Start Address */
+		buffer[off + 5] = (nblocks >> (BYTE * 2)) & 0xFF;
+		buffer[off + 6] = (nblocks >> (BYTE * 1)) & 0xFF;
+		buffer[off + 7] = (nblocks >> (BYTE * 0)) & 0xFF;
 		off += 8;
-        }
+	}
 
 	buffer[1] = off - 2;    /* Data  Length */
 
@@ -1690,7 +1698,7 @@ static void exec_read(struct vdisk_cmd *vcmd, loff_t loff)
 	const struct vdisk_dev *dev = vcmd->dev;
 	const struct scst_user_scsi_cmd_exec *cmd = &vcmd->cmd->exec_cmd;
 	int length = cmd->bufflen;
-	uint8_t *address = (uint8_t*)(unsigned long)cmd->pbuf;
+	uint8_t *address = (uint8_t *)(unsigned long)cmd->pbuf;
 	int fd = vcmd->fd;
 	loff_t err;
 
@@ -1715,12 +1723,12 @@ static void exec_read(struct vdisk_cmd *vcmd, loff_t loff)
 
 	if (err < 0 || err < length) {
 		PRINT_ERROR("read() returned %" PRId64 " from %d (errno %d)",
-			(uint64_t)err, length, errno);
+			    (uint64_t)err, length, errno);
 		if (err == -EAGAIN) {
 			set_busy(vcmd);
 		} else {
 			set_cmd_error(vcmd,
-			    SCST_LOAD_SENSE(scst_sense_read_error));
+				      SCST_LOAD_SENSE(scst_sense_read_error));
 		}
 		goto out;
 	}
@@ -1755,7 +1763,7 @@ restart:
 				" (errno %d)", (uint64_t)err, (uint64_t)loff,
 				errno);
 			set_cmd_error(vcmd,
-			    SCST_LOAD_SENSE(scst_sense_hardw_error));
+				      SCST_LOAD_SENSE(scst_sense_hardw_error));
 			goto out;
 		}
 
@@ -1770,7 +1778,7 @@ restart:
 			set_busy(vcmd);
 		} else {
 			set_cmd_error(vcmd,
-			    SCST_LOAD_SENSE(scst_sense_write_error));
+				      SCST_LOAD_SENSE(scst_sense_write_error));
 		}
 		goto out;
 	} else if (err < length) {
@@ -1798,7 +1806,7 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 	uint8_t *address = (uint8_t *)(unsigned long)cmd->pbuf;
 	int compare;
 	int fd = vcmd->fd;
-	uint8_t mem_verify[128*1024];
+	uint8_t mem_verify[128 * 1024];
 
 	TRACE_ENTRY();
 
@@ -1807,7 +1815,7 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 
 	/*
 	 * Until the cache is cleared prior the verifying, there is not
-         * much point in this code. ToDo.
+	 * much point in this code. ToDo.
 	 *
 	 * Nevertherless, this code is valuable if the data have not read
 	 * from the file/disk yet.
@@ -1836,7 +1844,7 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 		int64_t len_mem = (length > (int)sizeof(mem_verify)) ?
 					(int)sizeof(mem_verify) : length;
 		TRACE_DBG("Verify: length %" PRId64 " - len_mem %" PRId64,
-			length, len_mem);
+			  length, len_mem);
 
 		if (!dev->nullio)
 			err = read(fd, (char *)mem_verify, len_mem);
@@ -1849,14 +1857,14 @@ static void exec_verify(struct vdisk_cmd *vcmd, loff_t loff)
 				set_busy(vcmd);
 			} else {
 				set_cmd_error(vcmd,
-				    SCST_LOAD_SENSE(scst_sense_read_error));
+					      SCST_LOAD_SENSE(scst_sense_read_error));
 			}
 			goto out;
 		}
 		if (compare && memcmp(address, mem_verify, len_mem) != 0) {
 			TRACE_DBG("Verify: error memcmp length %" PRId64, length);
 			set_cmd_error(vcmd,
-			    SCST_LOAD_SENSE(scst_sense_miscompare_error));
+				      SCST_LOAD_SENSE(scst_sense_miscompare_error));
 			goto out;
 		}
 		length -= len_mem;
@@ -1891,8 +1899,8 @@ static void exec_write_same(struct vdisk_cmd *vcmd)
 
 	uwhere[0].usdd_lba = cmd->lba;
 	uwhere[0].usdd_blocks = 1;
-	uwhere[1].usdd_lba = cmd->lba+1;
-	uwhere[1].usdd_blocks = blocks-1;
+	uwhere[1].usdd_lba = cmd->lba + 1;
+	uwhere[1].usdd_blocks = blocks - 1;
 
 	reply->reply_type = SCST_EXEC_REPLY_DO_WRITE_SAME;
 	reply->ws_descriptors_len = sizeof(uwhere);

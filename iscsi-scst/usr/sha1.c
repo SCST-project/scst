@@ -33,7 +33,7 @@ static inline u32 rol32(u32 word, unsigned int shift)
 }
 
 static void __sha1_transform(u32 hash[SHA1_DIGEST_WORDS],
-		       const u32 in[SHA1_BLOCK_WORDS],
+			     const u32 in[SHA1_BLOCK_WORDS],
 			     u32 W[SHA1_WORKSPACE_WORDS])
 {
 	register u32 a, b, c, d, e, t;
@@ -43,7 +43,7 @@ static void __sha1_transform(u32 hash[SHA1_DIGEST_WORDS],
 		W[i] = cpu_to_be32(in[i]);
 
 	for (i = 0; i < 64; i++)
-		W[i+16] = rol32(W[i+13] ^ W[i+8] ^ W[i+2] ^ W[i], 1);
+		W[i + 16] = rol32(W[i + 13] ^ W[i + 8] ^ W[i + 2] ^ W[i], 1);
 
 	a = hash[0];
 	b = hash[1];
@@ -79,7 +79,7 @@ static void __sha1_transform(u32 hash[SHA1_DIGEST_WORDS],
 }
 
 static inline void sha1_transform(u32 digest[SHA1_DIGEST_WORDS],
-			    const u32 block[SHA1_BLOCK_WORDS])
+				  const u32 block[SHA1_BLOCK_WORDS])
 {
 	u32 workspace[SHA1_WORKSPACE_WORDS];
 

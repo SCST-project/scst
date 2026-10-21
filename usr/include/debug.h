@@ -147,7 +147,7 @@ do {								\
 	}							\
 } while (0)
 
-#define TRACE_DBG_SPECIAL(args...)	TRACE(TRACE_DEBUG|TRACE_SPECIAL, args)
+#define TRACE_DBG_SPECIAL(args...)	TRACE(TRACE_DEBUG | TRACE_SPECIAL, args)
 
 #define TRACE_MGMT_DBG(format, args...)				\
 do {								\

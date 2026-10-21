@@ -183,7 +183,7 @@ void session_free(struct session *session)
 
 		target->sessions_count--;
 		log_debug(1, "target %s, sessions_count %d", target->name,
-			target->sessions_count);
+			  target->sessions_count);
 
 		list_del(&session->slist);
 	}

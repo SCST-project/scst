@@ -50,7 +50,7 @@ int kernel_open(void)
 		goto out_close;
 	} else {
 		log_debug(0, "max_data_seg_len %d, max_queued_cmds %d",
-			reg.max_data_seg_len, reg.max_queued_cmds);
+			  reg.max_data_seg_len, reg.max_queued_cmds);
 		iscsi_init_params.max_data_seg_len = reg.max_data_seg_len;
 		iscsi_init_params.max_queued_cmds = reg.max_queued_cmds;
 	}
@@ -163,13 +163,13 @@ int kernel_target_create(struct target *target, u32 *tid, u32 cookie)
 	}
 
 	log_debug(1, "Adding target %s (attrs_num %d)", target->name,
-		info.attrs_num);
+		  info.attrs_num);
 
 	err = ioctl(ctrl_fd, ADD_TARGET, &info);
 	if (err < 0) {
 		err = -errno;
 		log_error("Can't create target %s: %s\n", target->name,
-			strerror(errno));
+			  strerror(errno));
 	} else {
 		target->tid = err;
 		if (tid)
@@ -201,9 +201,8 @@ int kernel_target_destroy(u32 tid, u32 cookie)
 	return res;
 }
 
-
 int kernel_attr_add(const struct target *target, const char *name, u32 mode,
-	u32 cookie)
+		    u32 cookie)
 {
 	struct iscsi_kern_attr_info info;
 	int res;
@@ -251,7 +250,6 @@ int kernel_user_del(const struct target *target, const struct iscsi_attr *user, 
 {
 	return kernel_attr_del(target, user->sysfs_name, cookie);
 }
-
 
 int kernel_initiator_allowed(u32 tid, const char *full_initiator_name)
 {
@@ -327,7 +325,7 @@ out:
 }
 
 int kernel_params_set(u32 tid, u64 sid, int type, u32 partial,
-	const struct iscsi_param *params)
+		      const struct iscsi_param *params)
 {
 	int i, err;
 	struct iscsi_kern_params_info info;
@@ -383,9 +381,8 @@ int kernel_session_create(struct connection *conn)
 	info.exp_cmd_sn = conn->exp_cmd_sn;
 	iscsi_strscpy(info.initiator_name, conn->sess->initiator, sizeof(info.initiator_name));
 
-
 	iscsi_make_full_initiator_name(target->per_portal_acl,
-		conn->sess->initiator, conn->target_portal,
+				       conn->sess->initiator, conn->target_portal,
 		info.full_initiator_name, sizeof(info.full_initiator_name));
 
 	for (i = 0; i < session_key_last; i++)
@@ -397,7 +394,9 @@ int kernel_session_create(struct connection *conn)
 	res = ioctl(ctrl_fd, ADD_SESSION, &info);
 	if (res < 0) {
 		res = -errno;
-		log_error("Can't create sess 0x%" PRIx64 " (tid %d, initiator %s): %s\n", conn->sess->sid.id64, conn->tid,
+		log_error("Can't create sess 0x%" PRIx64 " (tid %d, initiator %s): %s\n",
+			  conn->sess->sid.id64,
+			  conn->tid,
 			conn->sess->initiator, strerror(errno));
 	}
 
@@ -419,14 +418,14 @@ int kernel_session_destroy(u32 tid, u64 sid)
 	if (res < 0) {
 		res = -errno;
 		log_debug(2, "Can't destroy sess 0x%" PRIx64 " (tid %d): %s\n",
-			sid, tid, strerror(errno));
+			  sid, tid, strerror(errno));
 	}
 
 	return res;
 }
 
 int kernel_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
-	int fd)
+		       int fd)
 {
 	struct iscsi_kern_conn_info info;
 	int res;
@@ -444,7 +443,7 @@ int kernel_conn_create(u32 tid, u64 sid, u32 cid, u32 stat_sn, u32 exp_stat_sn,
 	if (res < 0) {
 		res = -errno;
 		log_error("Can't create conn %x (sess 0x%" PRIx64 ", tid %d): %s\n",
-			cid, sid, tid, strerror(errno));
+			  cid, sid, tid, strerror(errno));
 	}
 
 	return res;

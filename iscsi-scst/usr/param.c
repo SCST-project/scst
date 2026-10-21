@@ -192,7 +192,7 @@ static int digest_val_to_str(unsigned int val, char *str, int len)
 	if (val & DIGEST_CRC32C) {
 		len -= pos;
 		pos = snprintf(&str[pos], len, "%s%s",
-			(pos != 0) ? "," : "", "CRC32C");
+			       (pos != 0) ? "," : "", "CRC32C");
 	}
 
 	if (pos >= len)
@@ -301,7 +301,7 @@ int params_check_val(const struct iscsi_key *keys, int idx, unsigned int *val)
 }
 
 int params_set_val(struct iscsi_key *keys, struct iscsi_param *param,
-		  int idx, unsigned int *val)
+		   int idx, unsigned int *val)
 {
 	if (keys[idx].ops->set_val)
 		return keys[idx].ops->set_val(param, idx, val);
