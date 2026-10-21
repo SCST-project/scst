@@ -1162,7 +1162,8 @@ static void cmnd_exec_login(struct connection *conn)
 			switch (conn->state) {
 			case STATE_SECURITY:
 			case STATE_SECURITY_DONE:
-				if ((nsg_disagree = text_check_params(conn))) {
+				nsg_disagree = text_check_params(conn);
+				if (nsg_disagree) {
 					conn->state = STATE_LOGIN;
 					nsg = ISCSI_FLG_NSG_LOGIN;
 					break;

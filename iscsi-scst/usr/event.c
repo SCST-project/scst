@@ -520,7 +520,8 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 
 	p = buf;
 	pp = config_sep_string(&p);
-	if (!((idx = params_index_by_name(pp, target_keys)) < 0)) {
+	idx = params_index_by_name(pp, target_keys);
+	if (idx >= 0) {
 		if (target == NULL) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
@@ -850,7 +851,8 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 
 	p = buf;
 	pp = config_sep_string(&p);
-	if (!((idx = params_index_by_name(pp, target_keys)) < 0)) {
+	idx = params_index_by_name(pp, target_keys);
+	if (idx >= 0) {
 		struct iscsi_param params[target_key_last];
 		struct session *session;
 
@@ -1184,6 +1186,7 @@ out_free_server:
 }
 
 
+/* Return zero after handling an event, or -EAGAIN when no event is available. */
 int handle_iscsi_events(int fd, bool wait)
 {
 	struct session *session;
@@ -1200,9 +1203,10 @@ int handle_iscsi_events(int fd, bool wait)
 	STATIC_ASSERT(sizeof(event) % NLMSG_ALIGNTO == 0);
 
 retry:
-	if ((rc = nl_read(fd, &event, sizeof(event), wait)) < 0) {
+	rc = nl_read(fd, &event, sizeof(event), wait);
+	if (rc < 0) {
 		if (errno == EAGAIN)
-			return EAGAIN;
+			return -EAGAIN;
 		if (errno == EINTR)
 			goto retry;
 		log_error("read netlink fd (%d) failed: %s", fd, strerror(errno));

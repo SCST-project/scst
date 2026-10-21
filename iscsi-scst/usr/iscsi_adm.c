@@ -334,9 +334,9 @@ static int trgt_handle(int op, u32 set, u32 tid, char *params)
 	switch (op) {
 	case OP_NEW:
 	{
-		char *p = params;
+		char *p = params ? strchr(params, '=') : NULL;
 
-		if (!params || !(p = strchr(params, '='))) {
+		if (!p) {
 			fprintf(stderr, "Target name required\n");
 			err = -EINVAL;
 			goto out;
@@ -356,7 +356,8 @@ static int trgt_handle(int op, u32 set, u32 tid, char *params)
 		break;
 	case OP_UPDATE:
 		req.rcmnd = C_TRGT_UPDATE;
-		if ((err = parse_trgt_params(&req.u.trgt, params)) < 0)
+		err = parse_trgt_params(&req.u.trgt, params);
+		if (err < 0)
 			goto out;
 		break;
 	case OP_SHOW:
