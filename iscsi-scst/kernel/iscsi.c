@@ -3243,7 +3243,7 @@ static void iscsi_tcp_preprocessing_done(struct iscsi_cmnd *req)
 		iscsi_make_conn_rd_active(req->conn);
 		if (unlikely(req->conn->closing)) {
 			TRACE_DBG("Waking up closing conn %p", req->conn);
-			wake_up(&req->conn->read_state_waitQ);
+			wake_up(&req->conn->read_state_waitq);
 		}
 		cmnd_put(req);
 	}
@@ -3304,7 +3304,7 @@ static void iscsi_try_local_processing(struct iscsi_cmnd *req)
 		} else if (test_write_ready(conn)) {
 			list_add_tail(&conn->wr_list_entry, &p->wr_list);
 			conn->wr_state = ISCSI_CONN_WR_STATE_IN_LIST;
-			wake_up(&p->wr_waitQ);
+			wake_up(&p->wr_waitq);
 		} else {
 			conn->wr_state = ISCSI_CONN_WR_STATE_IDLE;
 		}
@@ -4090,10 +4090,10 @@ create:
 
 	spin_lock_init(&p->rd_lock);
 	INIT_LIST_HEAD(&p->rd_list);
-	init_waitqueue_head(&p->rd_waitQ);
+	init_waitqueue_head(&p->rd_waitq);
 	spin_lock_init(&p->wr_lock);
 	INIT_LIST_HEAD(&p->wr_list);
-	init_waitqueue_head(&p->wr_waitQ);
+	init_waitqueue_head(&p->wr_waitq);
 	if (!cpu_mask)
 		cpumask_setall(&p->cpu_mask);
 	else

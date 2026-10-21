@@ -269,7 +269,7 @@ static void close_conn(struct iscsi_conn *conn)
 			TRACE_CONN_CLOSE_DBG("Going to wait for cmnd %p to change state from RX_CMD",
 					     cmnd);
 		}
-		wait_event(conn->read_state_waitQ, cmnd->scst_state != ISCSI_CMD_STATE_RX_CMD);
+		wait_event(conn->read_state_waitq, cmnd->scst_state != ISCSI_CMD_STATE_RX_CMD);
 
 		TRACE_CONN_CLOSE_DBG("Releasing conn->read_cmnd %p (conn %p)",
 				     conn->read_cmnd, conn);
@@ -936,7 +936,7 @@ int istrd(void *arg)
 
 	spin_lock_bh(&p->rd_lock);
 	while (!kthread_should_stop()) {
-		scst_wait_event_interruptible_lock_bh(p->rd_waitQ, test_rd_list(p), p->rd_lock);
+		scst_wait_event_interruptible_lock_bh(p->rd_waitq, test_rd_list(p), p->rd_lock);
 		scst_do_job_rd(p);
 	}
 	spin_unlock_bh(&p->rd_lock);
@@ -1595,7 +1595,7 @@ int istwr(void *arg)
 
 	spin_lock_bh(&p->wr_lock);
 	while (!kthread_should_stop()) {
-		scst_wait_event_interruptible_lock_bh(p->wr_waitQ, test_wr_list(p), p->wr_lock);
+		scst_wait_event_interruptible_lock_bh(p->wr_waitq, test_wr_list(p), p->wr_lock);
 		scst_do_job_wr(p);
 	}
 	spin_unlock_bh(&p->wr_lock);

@@ -267,7 +267,7 @@ extern int logins_suspended;
 
 int cmnd_execute(struct connection *conn);
 void cmnd_finish(struct connection *conn);
-char *text_key_find(struct connection *conn, const char *searchKey);
+char *text_key_find(struct connection *conn, const char *search_key);
 void text_key_add(struct connection *conn, const char *key,
 		  const char *value);
 

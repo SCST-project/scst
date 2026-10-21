@@ -50,13 +50,13 @@ static struct iscsi_key login_keys[] = {
 	{ .name = NULL,},
 };
 
-char *text_key_find(struct connection *conn, const char *searchKey)
+char *text_key_find(struct connection *conn, const char *search_key)
 {
 	char *data, *value;
 	const char *key;
 	int keylen, datasize;
 
-	keylen = strlen(searchKey);
+	keylen = strlen(search_key);
 	data = conn->req.data;
 	datasize = conn->req.datasize;
 
@@ -76,7 +76,7 @@ char *text_key_find(struct connection *conn, const char *searchKey)
 		datasize--;
 
 		if (keylen == value - key - 1
-		     && !strncasecmp(key, searchKey, keylen))
+		     && !strncasecmp(key, search_key, keylen))
 			return value;
 	}
 }
@@ -222,7 +222,7 @@ static void login_rsp_tgt_err(struct connection *conn, int status_detail)
 
 static void text_scan_security(struct connection *conn)
 {
-	char *value, *data, *nextValue;
+	char *value, *data, *next_value;
 	const char *key;
 	int datasize;
 
@@ -234,9 +234,9 @@ static void text_scan_security(struct connection *conn)
 			;
 		} else if (!strcmp(key, "AuthMethod")) {
 			do {
-				nextValue = strchr(value, ',');
-				if (nextValue)
-					*nextValue++ = 0;
+				next_value = strchr(value, ',');
+				if (next_value)
+					*next_value++ = 0;
 
 				if (!strcmp(value, "None")) {
 					if (!accounts_empty(conn->tid, ISCSI_USER_DIR_INCOMING))
@@ -251,7 +251,7 @@ static void text_scan_security(struct connection *conn)
 					text_key_add(conn, key, "CHAP");
 					break;
 				}
-			} while ((value = nextValue));
+			} while ((value = next_value));
 
 			if (conn->auth_method == AUTH_UNKNOWN)
 				text_key_add_reject(conn, key);

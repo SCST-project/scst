@@ -13124,7 +13124,7 @@ EXPORT_SYMBOL(scst_to_tgt_dma_dir);
  */
 void scst_process_reset(struct scst_device *dev,
 	const struct scst_session *originator, const struct scst_cmd *exclude_cmd,
-	struct scst_mgmt_cmd *mcmd, bool setUA)
+	struct scst_mgmt_cmd *mcmd, bool set_ua)
 {
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_cmd *cmd;
@@ -13182,7 +13182,7 @@ void scst_process_reset(struct scst_device *dev,
 		scst_clear_aca(tgt_dev, (tgt_dev->sess != originator));
 	}
 
-	if (setUA) {
+	if (set_ua) {
 		u8 sense_buffer[SCST_STANDARD_SENSE_LEN];
 		int sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
 			dev->d_sense, SCST_LOAD_SENSE(scst_sense_reset_UA));
@@ -15763,8 +15763,8 @@ void scst_lib_exit(void)
  */
 unsigned long scst_random(void)
 {
-	static int Inited;
-	static unsigned long RandomValue;
+	static int initialized;
+	static unsigned long random_value;
 	static DEFINE_SPINLOCK(lock);
 	/* cycles pseudo-randomly through all values between 1 and 2^31 - 2 */
 	register long rv;
@@ -15773,17 +15773,17 @@ unsigned long scst_random(void)
 	unsigned long flags;
 
 	spin_lock_irqsave(&lock, flags);
-	if (!Inited) {
-		RandomValue = jiffies;
-		Inited = 1;
+	if (!initialized) {
+		random_value = jiffies;
+		initialized = 1;
 	}
-	rv = RandomValue;
+	rv = random_value;
 	hi = rv / 127773;
 	lo = rv % 127773;
 	rv = 16807 * lo - 2836 * hi;
 	if (rv <= 0)
 		rv += 2147483647;
-	RandomValue = rv;
+	random_value = rv;
 	spin_unlock_irqrestore(&lock, flags);
 	return rv;
 }

@@ -364,7 +364,7 @@ void iscsi_make_conn_rd_active(struct iscsi_conn *conn)
 	if (conn->rd_state == ISCSI_CONN_RD_STATE_IDLE) {
 		list_add_tail(&conn->rd_list_entry, &p->rd_list);
 		conn->rd_state = ISCSI_CONN_RD_STATE_IN_LIST;
-		wake_up(&p->rd_waitQ);
+		wake_up(&p->rd_waitq);
 	}
 
 	spin_unlock_bh(&p->rd_lock);
@@ -393,7 +393,7 @@ void iscsi_make_conn_wr_active(struct iscsi_conn *conn)
 	if (conn->wr_state == ISCSI_CONN_WR_STATE_IDLE) {
 		list_add_tail(&conn->wr_list_entry, &p->wr_list);
 		conn->wr_state = ISCSI_CONN_WR_STATE_IN_LIST;
-		wake_up(&p->wr_waitQ);
+		wake_up(&p->wr_waitq);
 	}
 
 	spin_unlock_bh(&p->wr_lock);
@@ -487,7 +487,7 @@ void __iscsi_write_space_ready(struct iscsi_conn *conn)
 		TRACE_DBG("wr space ready (conn %p)", conn);
 		list_add_tail(&conn->wr_list_entry, &p->wr_list);
 		conn->wr_state = ISCSI_CONN_WR_STATE_IN_LIST;
-		wake_up(&p->wr_waitQ);
+		wake_up(&p->wr_waitq);
 	}
 	spin_unlock_bh(&p->wr_lock);
 
@@ -855,7 +855,7 @@ int iscsi_init_conn(struct iscsi_session *session,
 	INIT_LIST_HEAD(&conn->write_list);
 	INIT_LIST_HEAD(&conn->write_timeout_list);
 	timer_setup(&conn->rsp_timer, conn_rsp_timer_fn, 0);
-	init_waitqueue_head(&conn->read_state_waitQ);
+	init_waitqueue_head(&conn->read_state_waitq);
 	init_completion(&conn->ready_to_free);
 	INIT_LIST_HEAD(&conn->reinst_pending_cmd_list);
 	INIT_LIST_HEAD(&conn->nop_req_list);
