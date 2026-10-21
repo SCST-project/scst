@@ -66,53 +66,52 @@ static void usage(int status)
 		fprintf(stderr, "Try `%s --help' for more information.\n", program_name);
 	} else {
 		printf("Usage: %s [OPTION]\n", program_name);
-		printf("\
-iSCSI-SCST Target Administration Utility.\n\
-\n\
-  --op new --tid=[id] --params Name=[name]\n\
-                        add a new target with [id]. [id] must not be zero.\n\
-  --op delete --tid=[id]\n\
-                        delete specific target with [id]. The target must\n\
-                        have no active sessions.\n\
-  --op show --tid=[id]\n\
-                        show target parameters of target with [id].\n\
-  --op show --tid=[id] --sid=[sid]\n\
-                        show iSCSI parameters in effect for session [sid]. If\n\
-                        [sid] is \"0\" (zero), the configured parameters\n\
-                        will be displayed.\n\
-  --op show --tid=[id] --user\n\
-                        show list of Discovery (--tid omitted / id=0 (zero))\n\
-                        or target CHAP accounts.\n\
-  --op show --tid=[id] --user --params=[user]=[name]\n\
-                        show CHAP account information. [user] can be\n\
-                        \"IncomingUser\" or \"OutgoingUser\". If --tid is\n\
-                        omitted / id=0 (zero), [user] is treated as Discovery\n\
-                        user.\n\
-  --op delete --tid=[id] --sid=[sid] --cid=[cid]\n\
-                        delete specific connection with [cid] in a session\n\
-                        with [sid] that the target with [id] has.\n\
-                        If the session has no connections after\n\
-                        the operation, the session will be deleted\n\
-                        automatically.\n\
-  --op update --tid=[id] --params=key1=value1,key2=value2,...\n\
-                        change iSCSI target parameters of specific\n\
-                        target with [id]. You can use parameters in iscsi-scstd.conf\n\
-                        as a key.\n\
-  --op new --tid=[id] --user --params=[user]=[name],Password=[pass]\n\
-                        add a new account with [pass] for specific target.\n\
-                        [user] could be [IncomingUser] or [OutgoingUser].\n\
-                        If you don't specify a target (omit --tid option),\n\
-                        you add a new account for discovery sessions.\n\
-  --op delete --tid=[id] --user --params=[user]=[name]\n\
-                        delete specific account having [name] of specific\n\
-                        target. [user] could be [IncomingUser] or\n\
-                        [OutgoingUser].\n\
-                        If you don't specify a target (omit --tid option),\n\
-                        you delete the account for discovery sessions.\n\
-  --version             display version and exit\n\
-  --help                display this help and exit\n\
-\n\
-Report bugs to <scst-devel@lists.sourceforge.net>.\n");
+		printf("iSCSI-SCST Target Administration Utility.\n"
+		       "\n"
+		       "  --op new --tid=[id] --params Name=[name]\n"
+		       "                        add a new target with [id]. [id] must not be zero.\n"
+		       "  --op delete --tid=[id]\n"
+		       "                        delete specific target with [id]. The target must\n"
+		       "                        have no active sessions.\n"
+		       "  --op show --tid=[id]\n"
+		       "                        show target parameters of target with [id].\n"
+		       "  --op show --tid=[id] --sid=[sid]\n"
+		       "                        show iSCSI parameters in effect for session [sid]. If\n"
+		       "                        [sid] is \"0\" (zero), the configured parameters\n"
+		       "                        will be displayed.\n"
+		       "  --op show --tid=[id] --user\n"
+		       "                        show list of Discovery (--tid omitted / id=0 (zero))\n"
+		       "                        or target CHAP accounts.\n"
+		       "  --op show --tid=[id] --user --params=[user]=[name]\n"
+		       "                        show CHAP account information. [user] can be\n"
+		       "                        \"IncomingUser\" or \"OutgoingUser\". If --tid is\n"
+		       "                        omitted / id=0 (zero), [user] is treated as Discovery\n"
+		       "                        user.\n"
+		       "  --op delete --tid=[id] --sid=[sid] --cid=[cid]\n"
+		       "                        delete specific connection with [cid] in a session\n"
+		       "                        with [sid] that the target with [id] has.\n"
+		       "                        If the session has no connections after\n"
+		       "                        the operation, the session will be deleted\n"
+		       "                        automatically.\n"
+		       "  --op update --tid=[id] --params=key1=value1,key2=value2,...\n"
+		       "                        change iSCSI target parameters of specific\n"
+		       "                        target with [id]. You can use parameters in iscsi-scstd.conf\n"
+		       "                        as a key.\n"
+		       "  --op new --tid=[id] --user --params=[user]=[name],Password=[pass]\n"
+		       "                        add a new account with [pass] for specific target.\n"
+		       "                        [user] could be [IncomingUser] or [OutgoingUser].\n"
+		       "                        If you don't specify a target (omit --tid option),\n"
+		       "                        you add a new account for discovery sessions.\n"
+		       "  --op delete --tid=[id] --user --params=[user]=[name]\n"
+		       "                        delete specific account having [name] of specific\n"
+		       "                        target. [user] could be [IncomingUser] or\n"
+		       "                        [OutgoingUser].\n"
+		       "                        If you don't specify a target (omit --tid option),\n"
+		       "                        you delete the account for discovery sessions.\n"
+		       "  --version             display version and exit\n"
+		       "  --help                display this help and exit\n"
+		       "\n"
+		       "Report bugs to <scst-devel@lists.sourceforge.net>.\n");
 	}
 	exit(status == 0 ? 0 : -1);
 }
