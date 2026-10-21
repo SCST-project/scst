@@ -383,17 +383,10 @@ int scst_acg_add_acn(struct scst_acg *acg, const char *name);
 void scst_del_free_acn(struct scst_acn *acn, bool reassign);
 struct scst_acn *scst_find_acn(struct scst_acg *acg, const char *name);
 
-/* The activity supposed to be suspended and scst_mutex held */
-static inline bool scst_acg_sess_is_empty(struct scst_acg *acg)
-{
-	return list_empty(&acg->acg_sess_list);
-}
-
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd);
 int scst_finish_internal_cmd(struct scst_cmd *cmd);
 
 int scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense, unsigned int len);
-void scst_store_sense(struct scst_cmd *cmd);
 
 int scst_process_check_condition(struct scst_cmd *cmd);
 
@@ -430,10 +423,6 @@ struct scst_mgmt_cmd *scst_alloc_mgmt_cmd(gfp_t gfp_mask);
 void scst_free_mgmt_cmd(struct scst_mgmt_cmd *mcmd);
 void scst_done_cmd_mgmt(struct scst_cmd *cmd);
 void scst_finish_cmd_mgmt(struct scst_cmd *cmd);
-
-static inline void scst_devt_cleanup(struct scst_dev_type *devt)
-{
-}
 
 void scst_tg_init(void);
 void scst_tg_cleanup(void);
