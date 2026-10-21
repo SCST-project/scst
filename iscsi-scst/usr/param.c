@@ -22,18 +22,22 @@
 
 #include "iscsid.h"
 
-/* Taken from Linux kernel sources */
-size_t strlcpy(char *dest, const char *src, size_t size)
+/* Copy a string without reading beyond size bytes; report truncation. */
+ssize_t iscsi_strscpy(char *dest, const char *src, size_t size)
 {
-	size_t ret = strlen(src);
+	size_t len;
 
-	if (size) {
-		size_t len = (ret >= size) ? size - 1 : ret;
+	if (!size)
+		return -E2BIG;
 
-		memcpy(dest, src, len);
-		dest[len] = '\0';
+	len = strnlen(src, size);
+	if (len == size) {
+		memcpy(dest, src, size - 1);
+		dest[size - 1] = '\0';
+		return -E2BIG;
 	}
-	return ret;
+	memcpy(dest, src, len + 1);
+	return len;
 }
 
 int params_index_by_name(const char *name, const struct iscsi_key *keys)
@@ -102,10 +106,10 @@ static int bool_val_to_str(unsigned int val, char *str, int len)
 
 	switch (val) {
 	case 0:
-		strlcpy(str, "No", len);
+		iscsi_strscpy(str, "No", len);
 		break;
 	case 1:
-		strlcpy(str, "Yes", len);
+		iscsi_strscpy(str, "Yes", len);
 		break;
 	default:
 		err = -EINVAL;
@@ -247,9 +251,9 @@ static int digest_set_val(struct iscsi_param *param, int idx, unsigned int *val)
 static int marker_val_to_str(unsigned int val, char *str, int len)
 {
 	if (val == 0)
-		strlcpy(str, "Irrelevant", len);
+		iscsi_strscpy(str, "Irrelevant", len);
 	else
-		strlcpy(str, "Reject", len);
+		iscsi_strscpy(str, "Reject", len);
 
 	return 0;
 }

@@ -147,7 +147,7 @@ int iscsi_attr_create(int attr_size, struct __qelem *attrs_list,
 		goto add;
 
 	if (sysfs_name_tmpl != NULL) {
-		strlcpy(attr->sysfs_name, sysfs_name_tmpl, sizeof(attr->sysfs_name));
+		iscsi_strscpy(attr->sysfs_name, sysfs_name_tmpl, sizeof(attr->sysfs_name));
 		if (iscsi_attr_lookup_by_sysfs_name(attrs_list, attr->sysfs_name) == NULL)
 			goto add;
 	}
@@ -390,7 +390,7 @@ int config_account_query(u32 tid, int dir, const char *name, char *pass)
 	if (!(user = account_lookup_by_name(tid, dir, name)))
 		return -ENOENT;
 
-	strlcpy(pass, ISCSI_USER_PASS(user), ISCSI_NAME_LEN);
+	iscsi_strscpy(pass, ISCSI_USER_PASS(user), ISCSI_NAME_LEN);
 
 	return 0;
 }
@@ -418,7 +418,7 @@ int config_account_list(u32 tid, int dir, u32 *cnt, u32 *overflow,
 
 	list_for_each_entry(user, list, ulist) {
 		if (buf_sz >= ISCSI_NAME_LEN) {
-			strlcpy(buf, ISCSI_USER_NAME(user), ISCSI_NAME_LEN);
+			iscsi_strscpy(buf, ISCSI_USER_NAME(user), ISCSI_NAME_LEN);
 			buf_sz -= ISCSI_NAME_LEN;
 			buf += ISCSI_NAME_LEN;
 			*cnt += 1;
