@@ -59,7 +59,7 @@ static struct page *dummy_page;
 static struct scatterlist dummy_sg[1];
 
 static void cmnd_remove_data_wait_hash(struct iscsi_cmnd *cmnd);
-static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status, bool dropped);
+static void iscsi_send_task_mgmt_resp(struct iscsi_cmnd *req, int status, bool drop);
 static void iscsi_check_send_delayed_tm_resp(struct iscsi_session *sess);
 static void req_cmnd_release(struct iscsi_cmnd *req);
 static int cmnd_insert_data_wait_hash(struct iscsi_cmnd *cmnd);

@@ -35,10 +35,10 @@
 
 #define CDROM_DEF_BLOCK_SHIFT	11
 
-static int cdrom_attach(struct scst_device *);
-static void cdrom_detach(struct scst_device *);
-static int cdrom_parse(struct scst_cmd *);
-static int cdrom_done(struct scst_cmd *);
+static int cdrom_attach(struct scst_device *dev);
+static void cdrom_detach(struct scst_device *dev);
+static int cdrom_parse(struct scst_cmd *cmd);
+static int cdrom_done(struct scst_cmd *cmd);
 
 static struct scst_dev_type cdrom_devtype = {
 	.name =			CDROM_NAME,

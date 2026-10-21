@@ -34,9 +34,9 @@
 
 #define CHANGER_RETRIES       2
 
-static int changer_attach(struct scst_device *);
+static int changer_attach(struct scst_device *dev);
 /* static void changer_detach(struct scst_device *); */
-static int changer_parse(struct scst_cmd *);
+static int changer_parse(struct scst_cmd *cmd);
 /* static int changer_done(struct scst_cmd *); */
 
 static struct scst_dev_type changer_devtype = {

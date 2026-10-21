@@ -31,8 +31,8 @@ struct qla_tgt;
 
 #define SQA_DEFAULT_TAGS 2048
 
-extern size_t qlt_add_vtarget(u64, u64, u64);
-extern size_t qlt_del_vtarget(u64);
+size_t qlt_add_vtarget(u64 port_name, u64 node_name, u64 parent_host);
+size_t qlt_del_vtarget(u64 port_name);
 
 struct sqa_scst_tgt {
 	struct list_head list;

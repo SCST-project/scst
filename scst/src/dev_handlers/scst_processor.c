@@ -34,9 +34,9 @@
 
 #define PROCESSOR_RETRIES	2
 
-static int processor_attach(struct scst_device *);
+static int processor_attach(struct scst_device *dev);
 /*static void processor_detach(struct scst_device *);*/
-static int processor_parse(struct scst_cmd *);
+static int processor_parse(struct scst_cmd *cmd);
 /*static int processor_done(struct scst_cmd *);*/
 
 static struct scst_dev_type processor_devtype = {

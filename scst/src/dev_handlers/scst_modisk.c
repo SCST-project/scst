@@ -40,11 +40,11 @@
 
 #define MODISK_DEF_BLOCK_SHIFT    10
 
-static int modisk_attach(struct scst_device *);
-static void modisk_detach(struct scst_device *);
-static int modisk_parse(struct scst_cmd *);
-static int modisk_done(struct scst_cmd *);
-static enum scst_exec_res modisk_perf_exec(struct scst_cmd *);
+static int modisk_attach(struct scst_device *dev);
+static void modisk_detach(struct scst_device *dev);
+static int modisk_parse(struct scst_cmd *cmd);
+static int modisk_done(struct scst_cmd *cmd);
+static enum scst_exec_res modisk_perf_exec(struct scst_cmd *cmd);
 
 static struct scst_dev_type modisk_devtype = {
 	.name =			MODISK_NAME,

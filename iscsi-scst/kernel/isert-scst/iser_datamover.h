@@ -42,7 +42,7 @@
 int isert_datamover_init(void);
 int isert_datamover_cleanup(void);
 
-struct isert_portal *isert_portal_add(struct sockaddr *sa, size_t addr_len);
+struct isert_portal *isert_portal_add(struct sockaddr *saddr, size_t addr_len);
 int isert_portal_remove(struct isert_portal *portal);
 
 struct iscsi_cmnd *isert_alloc_login_rsp_pdu(struct iscsi_conn *iscsi_conn);
@@ -63,24 +63,24 @@ int isert_set_session_params(struct iscsi_conn *iscsi_conn,
 struct iscsi_cmnd *isert_alloc_scsi_rsp_pdu(struct iscsi_conn *iscsi_conn);
 struct iscsi_cmnd *isert_alloc_scsi_fake_pdu(struct iscsi_conn *iscsi_conn);
 
-int isert_pdu_tx(struct iscsi_cmnd *pdu);
+int isert_pdu_tx(struct iscsi_cmnd *iscsi_cmnd);
 
-int isert_request_data_out(struct iscsi_cmnd *cmd);
-int isert_send_data_in(struct iscsi_cmnd *cmd, struct iscsi_cmnd *rsp);
+int isert_request_data_out(struct iscsi_cmnd *iscsi_cmnd);
+int isert_send_data_in(struct iscsi_cmnd *iscsi_cmnd, struct iscsi_cmnd *iscsi_rsp);
 int isert_send_status(struct iscsi_cmnd *rsp);
 
 int isert_close_connection(struct iscsi_conn *iscsi_conn);
 void isert_free_connection(struct iscsi_conn *iscsi_conn);
 
 void isert_release_tx_pdu(struct iscsi_cmnd *iscsi_pdu);
-void isert_release_rx_pdu(struct iscsi_cmnd *cmnd);
+void isert_release_rx_pdu(struct iscsi_cmnd *iscsi_pdu);
 
 /* iser calling iscsi layer */
 int isert_conn_established(struct iscsi_conn *iscsi_conn,
 			   struct sockaddr *from_addr, int addr_len);
 int isert_login_req_rx(struct iscsi_cmnd *login_req);
-int isert_pdu_rx(struct iscsi_cmnd *pdu);
-int isert_data_out_ready(struct iscsi_cmnd *cmd);
+int isert_pdu_rx(struct iscsi_cmnd *cmnd);
+int isert_data_out_ready(struct iscsi_cmnd *cmnd);
 int isert_pdu_sent(struct iscsi_cmnd *pdu);
 void isert_pdu_err(struct iscsi_cmnd *pdu);
 

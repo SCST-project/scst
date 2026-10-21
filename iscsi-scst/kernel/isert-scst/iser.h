@@ -380,6 +380,6 @@ void isert_tx_pdu_init_iscsi(struct isert_cmnd *isert_pdu);
 
 /* global */
 void isert_global_cleanup(void);
-int isert_get_addr_size(struct sockaddr *sa, size_t *size);
+int isert_get_addr_size(struct sockaddr *sa, size_t *addr_len);
 
 #endif

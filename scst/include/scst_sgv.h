@@ -72,7 +72,7 @@ enum sgv_clustering_types {
 };
 
 struct sgv_pool *sgv_pool_create_node(const char *name,
-	enum sgv_clustering_types clustered, int single_alloc_pages,
+	enum sgv_clustering_types clustering_type, int single_alloc_pages,
 	bool shared, int purge_interval, int nodeid);
 static inline struct sgv_pool *sgv_pool_create(const char *name,
 	enum sgv_clustering_types clustered, int single_alloc_pages,
@@ -98,9 +98,9 @@ void sgv_pool_set_allocator(struct sgv_pool *pool,
 struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size,
 	gfp_t gfp_mask, int flags, int *count,
 	struct sgv_pool_obj **sgv, struct scst_mem_lim *mem_lim, void *priv);
-void sgv_pool_free(struct sgv_pool_obj *sgv, struct scst_mem_lim *mem_lim);
+void sgv_pool_free(struct sgv_pool_obj *obj, struct scst_mem_lim *mem_lim);
 
-void *sgv_get_priv(struct sgv_pool_obj *sgv);
+void *sgv_get_priv(struct sgv_pool_obj *obj);
 
 void scst_init_mem_lim(struct scst_mem_lim *mem_lim);
 

@@ -3375,7 +3375,7 @@ static struct kobj_attribute dev_pr_state_attr =
 	       scst_dev_sysfs_pr_state_store);
 
 static int scst_process_dev_sysfs_threads_data_store(struct scst_device *dev, int threads_num,
-						     enum scst_dev_type_threads_pool_type threads_pool_type)
+						     enum scst_dev_type_threads_pool_type pool_type)
 {
 	int res = 0;
 	int oldtn = dev->threads_num;
@@ -3384,7 +3384,7 @@ static int scst_process_dev_sysfs_threads_data_store(struct scst_device *dev, in
 	TRACE_ENTRY();
 
 	TRACE_DBG("dev %p, threads_num %d, threads_pool_type %d",
-		  dev, threads_num, threads_pool_type);
+		  dev, threads_num, pool_type);
 
 	res = scst_suspend_activity(SCST_SUSPEND_TIMEOUT_USER);
 	if (res != 0)
@@ -3401,7 +3401,7 @@ static int scst_process_dev_sysfs_threads_data_store(struct scst_device *dev, in
 	scst_stop_dev_threads(dev);
 
 	dev->threads_num = threads_num;
-	dev->threads_pool_type = threads_pool_type;
+	dev->threads_pool_type = pool_type;
 
 	res = scst_create_dev_threads(dev);
 	if (res != 0)
@@ -3431,7 +3431,7 @@ static int scst_dev_sysfs_threads_data_store_work_fn(struct scst_sysfs_work_item
 }
 
 static ssize_t scst_dev_sysfs_check_threads_data(struct scst_device *dev, int threads_num,
-						 enum scst_dev_type_threads_pool_type threads_pool_type,
+						 enum scst_dev_type_threads_pool_type pool_type,
 						 bool *stop)
 {
 	int res = 0;
@@ -3447,7 +3447,7 @@ static ssize_t scst_dev_sysfs_check_threads_data(struct scst_device *dev, int th
 		goto out;
 	}
 
-	if (threads_num == dev->threads_num && threads_pool_type == dev->threads_pool_type) {
+	if (threads_num == dev->threads_num && pool_type == dev->threads_pool_type) {
 		*stop = true;
 		goto out;
 	}
