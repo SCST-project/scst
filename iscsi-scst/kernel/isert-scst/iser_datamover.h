@@ -42,7 +42,7 @@
 int isert_datamover_init(void);
 int isert_datamover_cleanup(void);
 
-struct isert_portal *isert_portal_add(struct sockaddr *saddr, size_t addr_len);
+struct isert_portal *isert_portal_add(const struct sockaddr *saddr, size_t addr_len);
 int isert_portal_remove(struct isert_portal *portal);
 
 struct iscsi_cmnd *isert_alloc_login_rsp_pdu(struct iscsi_conn *iscsi_conn);
@@ -57,8 +57,8 @@ int isert_get_target_addr(struct iscsi_conn *iscsi_conn, struct sockaddr *sa,
 int isert_login_rsp_tx(struct iscsi_cmnd *login_rsp,
 		       int last, int discovery);
 int isert_set_session_params(struct iscsi_conn *iscsi_conn,
-			     struct iscsi_sess_params *sess_params,
-			     struct iscsi_tgt_params *tgt_params);
+			     const struct iscsi_sess_params *sess_params,
+			     const struct iscsi_tgt_params *tgt_params);
 
 struct iscsi_cmnd *isert_alloc_scsi_rsp_pdu(struct iscsi_conn *iscsi_conn);
 struct iscsi_cmnd *isert_alloc_scsi_fake_pdu(struct iscsi_conn *iscsi_conn);

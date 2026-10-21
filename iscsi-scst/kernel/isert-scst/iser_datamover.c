@@ -65,7 +65,7 @@ int isert_get_peer_addr(struct iscsi_conn *iscsi_conn, struct sockaddr *sa,
 	int ret;
 	struct isert_conn *isert_conn = container_of(iscsi_conn,
 						struct isert_conn, iscsi);
-	struct sockaddr *peer_sa = (struct sockaddr *)&isert_conn->peer_addr;
+	const struct sockaddr *peer_sa = (struct sockaddr *)&isert_conn->peer_addr;
 
 	ret = isert_get_addr_size(peer_sa, addr_len);
 	if (unlikely(ret))
@@ -82,7 +82,7 @@ int isert_get_target_addr(struct iscsi_conn *iscsi_conn, struct sockaddr *sa,
 	int ret;
 	struct isert_conn *isert_conn = container_of(iscsi_conn,
 						struct isert_conn, iscsi);
-	struct sockaddr *self_sa = (struct sockaddr *)&isert_conn->self_addr;
+	const struct sockaddr *self_sa = (struct sockaddr *)&isert_conn->self_addr;
 
 	ret = isert_get_addr_size(self_sa, addr_len);
 	if (unlikely(ret))
@@ -93,7 +93,7 @@ out:
 	return ret;
 }
 
-struct isert_portal *isert_portal_add(struct sockaddr *saddr, size_t addr_len)
+struct isert_portal *isert_portal_add(const struct sockaddr *saddr, size_t addr_len)
 {
 	return isert_portal_start(saddr, addr_len);
 }
@@ -205,8 +205,8 @@ int isert_login_rsp_tx(struct iscsi_cmnd *login_rsp, int last, int discovery)
 }
 
 int isert_set_session_params(struct iscsi_conn *iscsi_conn,
-			     struct iscsi_sess_params *sess_params,
-			     struct iscsi_tgt_params *tgt_params)
+			     const struct iscsi_sess_params *sess_params,
+			     const struct iscsi_tgt_params *tgt_params)
 {
 	struct isert_conn *isert_conn = container_of(iscsi_conn,
 						struct isert_conn, iscsi);
@@ -286,7 +286,7 @@ int isert_close_connection(struct iscsi_conn *iscsi_conn)
 
 void *isert_get_priv(struct iscsi_conn *iscsi_conn)
 {
-	struct isert_conn *isert_conn = container_of(iscsi_conn,
+	const struct isert_conn *isert_conn = container_of(iscsi_conn,
 						struct isert_conn, iscsi);
 
 	return isert_conn->priv_data;

@@ -99,7 +99,7 @@ void isert_dev_list_remove(struct isert_device *isert_dev)
 	list_del_init(&isert_dev->devs_node);
 }
 
-struct isert_device *isert_device_find(struct ib_device *ib_dev)
+struct isert_device *isert_device_find(const struct ib_device *ib_dev)
 {
 	struct isert_device *isert_dev;
 	struct isert_device *res = NULL;
@@ -180,7 +180,7 @@ void isert_global_cleanup(void)
 	kmem_cache_destroy(isert_conn_cache);
 }
 
-int isert_get_addr_size(struct sockaddr *sa, size_t *addr_len)
+int isert_get_addr_size(const struct sockaddr *sa, size_t *addr_len)
 {
 	int ret = 0;
 

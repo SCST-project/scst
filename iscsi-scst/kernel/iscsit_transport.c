@@ -38,7 +38,7 @@ struct iscsit_transport *iscsit_get_transport(enum iscsit_transport_type type)
 
 int iscsit_reg_transport(struct iscsit_transport *t)
 {
-	struct iscsit_transport *tmp;
+	const struct iscsit_transport *tmp;
 	int ret = 0;
 
 	INIT_LIST_HEAD(&t->transport_list_entry);

@@ -119,7 +119,7 @@ static void isert_update_len_sn(struct iscsi_cmnd *cmnd)
 		break;
 	case ISCSI_OP_SCSI_DATA_IN:
 	{
-		struct iscsi_data_in_hdr *rsp =
+		const struct iscsi_data_in_hdr *rsp =
 			(struct iscsi_data_in_hdr *)&cmnd->pdu.bhs;
 
 		cmnd_set_sn(cmnd, (rsp->flags & ISCSI_FLG_FINAL) ? 1 : 0);
@@ -196,7 +196,7 @@ static struct iscsi_cmnd *isert_cmnd_alloc(struct iscsi_conn *conn,
 
 static void isert_cmnd_free(struct iscsi_cmnd *cmnd)
 {
-	struct isert_cmnd *isert_cmnd = container_of(cmnd, struct isert_cmnd,
+	const struct isert_cmnd *isert_cmnd = container_of(cmnd, struct isert_cmnd,
 						    iscsi);
 
 	TRACE_ENTRY();

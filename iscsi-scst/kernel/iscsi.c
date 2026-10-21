@@ -877,7 +877,7 @@ void iscsi_set_resid(struct iscsi_cmnd *rsp)
 {
 	struct iscsi_cmnd *req = rsp->parent_req;
 	struct scst_cmd *scst_cmd = req->scst_cmd;
-	struct iscsi_scsi_cmd_hdr *req_hdr;
+	const struct iscsi_scsi_cmd_hdr *req_hdr;
 	struct iscsi_scsi_rsp_hdr *rsp_hdr;
 	int resid, out_resid;
 
@@ -931,7 +931,7 @@ EXPORT_SYMBOL(iscsi_set_resid);
 static void send_data_rsp(struct iscsi_cmnd *req, u8 status, int send_status)
 {
 	struct iscsi_cmnd *rsp;
-	struct iscsi_scsi_cmd_hdr *req_hdr = cmnd_hdr(req);
+	const struct iscsi_scsi_cmd_hdr *req_hdr = cmnd_hdr(req);
 	u32 pdusize, size, offset, sn;
 	LIST_HEAD(send);
 
@@ -1196,7 +1196,7 @@ static int create_reject_rsp(struct iscsi_cmnd *req, int reason, bool get_data)
 	if (cmnd_opcode(req) == ISCSI_OP_SCSI_CMD) {
 		if (!req->scst_cmd) {
 			/* BUSY status must be already set */
-			struct iscsi_scsi_rsp_hdr *rsp_hdr1;
+			const struct iscsi_scsi_rsp_hdr *rsp_hdr1;
 
 			rsp_hdr1 = (struct iscsi_scsi_rsp_hdr *)
 				&req->main_rsp->pdu.bhs;
@@ -1278,7 +1278,7 @@ EXPORT_SYMBOL(cmnd_set_sn);
 /* Called under sn_lock */
 static void update_stat_sn(struct iscsi_cmnd *cmnd)
 {
-	struct iscsi_conn *conn = cmnd->conn;
+	const struct iscsi_conn *conn = cmnd->conn;
 	u32 exp_stat_sn;
 
 	exp_stat_sn = be32_to_cpu((__force __be32)cmnd->pdu.bhs.exp_sn);
@@ -1317,7 +1317,7 @@ static struct iscsi_cmnd *cmnd_find_itt_get(struct iscsi_conn *conn, __be32 itt)
 /* Must be called under cmnd_data_wait_hash_lock */
 static struct iscsi_cmnd *__cmnd_find_data_wait_hash(struct iscsi_conn *conn, __be32 itt)
 {
-	struct list_head *head;
+	const struct list_head *head;
 	struct iscsi_cmnd *cmnd;
 
 	head = &conn->session->cmnd_data_wait_hash[cmnd_hashfn((__force u32)itt)];
@@ -1360,7 +1360,7 @@ static inline u32 get_next_ttt(struct iscsi_conn *conn)
 static int cmnd_insert_data_wait_hash(struct iscsi_cmnd *cmnd)
 {
 	struct iscsi_session *session = cmnd->conn->session;
-	struct iscsi_cmnd *tmp;
+	const struct iscsi_cmnd *tmp;
 	struct list_head *head;
 	int err = 0;
 	__be32 itt = cmnd->pdu.bhs.itt;
@@ -1494,13 +1494,13 @@ int iscsi_preliminary_complete(struct iscsi_cmnd *req, struct iscsi_cmnd *orig_r
 {
 	int res = 0;
 	bool set_r2t_len;
-	struct iscsi_hdr *orig_req_hdr = &orig_req->pdu.bhs;
+	const struct iscsi_hdr *orig_req_hdr = &orig_req->pdu.bhs;
 
 	TRACE_ENTRY();
 
 #ifdef CONFIG_SCST_DEBUG
 	{
-		struct iscsi_hdr *req_hdr = &req->pdu.bhs;
+		const struct iscsi_hdr *req_hdr = &req->pdu.bhs;
 
 		TRACE_DBG_FLAG(iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(orig_req),
 			       "Prelim completed req %p, orig_req %p (FINAL %x, outstanding_r2t %d)",
@@ -1748,7 +1748,7 @@ out:
 static int nop_out_start(struct iscsi_cmnd *cmnd)
 {
 	struct iscsi_conn *conn = cmnd->conn;
-	struct iscsi_hdr *req_hdr = &cmnd->pdu.bhs;
+	const struct iscsi_hdr *req_hdr = &cmnd->pdu.bhs;
 	u32 size, tmp;
 	int i, err = 0;
 
@@ -2069,7 +2069,7 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 			ahdr = (struct iscsi_ahs_hdr *)p;
 
 			if (ahdr->ahstype == ISCSI_AHSTYPE_CDB) {
-				struct iscsi_cdb_ahdr *eca = (struct iscsi_cdb_ahdr *)ahdr;
+				const struct iscsi_cdb_ahdr *eca = (struct iscsi_cdb_ahdr *)ahdr;
 
 				scst_cmd_set_ext_cdb(scst_cmd, eca->cdb,
 						     be16_to_cpu(ahdr->ahslength) - 1, GFP_KERNEL);
@@ -2190,7 +2190,7 @@ out:
 
 static void data_out_end(struct iscsi_cmnd *cmnd)
 {
-	struct iscsi_data_out_hdr *req_hdr =
+	const struct iscsi_data_out_hdr *req_hdr =
 		(struct iscsi_data_out_hdr *)&cmnd->pdu.bhs;
 	struct iscsi_cmnd *req;
 
@@ -2743,7 +2743,7 @@ static void nop_out_exec(struct iscsi_cmnd *req)
 
 static void logout_exec(struct iscsi_cmnd *req)
 {
-	struct iscsi_logout_req_hdr *req_hdr;
+	const struct iscsi_logout_req_hdr *req_hdr;
 	struct iscsi_cmnd *rsp;
 	struct iscsi_logout_rsp_hdr *rsp_hdr;
 
@@ -3318,7 +3318,7 @@ static int iscsi_tcp_send_locally(struct iscsi_cmnd *req,
 				  unsigned int cmd_count)
 {
 	struct iscsi_conn *conn = req->conn;
-	struct iscsi_cmnd *wr_rsp, *our_rsp;
+	const struct iscsi_cmnd *wr_rsp, *our_rsp;
 	int ret = 0;
 
 	/*
@@ -3753,7 +3753,7 @@ out_set_res:
 static int iscsi_cpu_mask_changed_aen(struct scst_aen *aen)
 {
 	int res = SCST_AEN_RES_SUCCESS;
-	struct scst_session *scst_sess = scst_aen_get_sess(aen);
+	const struct scst_session *scst_sess = scst_aen_get_sess(aen);
 	struct iscsi_session *sess = scst_sess_get_tgt_priv(scst_sess);
 
 	TRACE_ENTRY();

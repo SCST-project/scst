@@ -146,9 +146,9 @@ static void sess_params_check(struct iscsi_kern_params_info *info)
 }
 
 /* target_mutex supposed to be locked */
-static void sess_params_set(struct iscsi_sess_params *params, struct iscsi_kern_params_info *info)
+static void sess_params_set(struct iscsi_sess_params *params, const struct iscsi_kern_params_info *info)
 {
-	s32 *iparams = info->session_params;
+	const s32 *iparams = info->session_params;
 
 	SET_PARAM(params, info, iparams, initial_r2t);
 	SET_PARAM(params, info, iparams, immediate_data);
@@ -176,7 +176,7 @@ static void sess_params_set(struct iscsi_sess_params *params, struct iscsi_kern_
 	SET_PARAM(params, info, iparams, initiator_recv_data_length);
 }
 
-static void sess_params_get(struct iscsi_sess_params *params, struct iscsi_kern_params_info *info)
+static void sess_params_get(const struct iscsi_sess_params *params, struct iscsi_kern_params_info *info)
 {
 	s32 *iparams = info->session_params;
 

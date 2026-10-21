@@ -58,10 +58,10 @@ static void isert_portal_free(struct isert_portal *portal);
 static struct rdma_cm_id *
 isert_setup_id(struct isert_portal *portal);
 
-static int isert_num_recv_posted_on_err(struct ib_recv_wr *first_ib_wr,
+static int isert_num_recv_posted_on_err(const struct ib_recv_wr *first_ib_wr,
 					BAD_WR_MODIFIER struct ib_recv_wr *bad_wr)
 {
-	struct ib_recv_wr *wr;
+	const struct ib_recv_wr *wr;
 	int num_posted = 0;
 
 	for (wr = first_ib_wr; wr && wr != bad_wr; wr = wr->next)
@@ -101,10 +101,10 @@ int isert_post_recv(struct isert_conn *isert_conn,
 	return err;
 }
 
-static int isert_num_send_posted_on_err(struct ib_send_wr *first_ib_wr,
+static int isert_num_send_posted_on_err(const struct ib_send_wr *first_ib_wr,
 					BAD_WR_MODIFIER struct ib_send_wr *bad_wr)
 {
-	struct ib_send_wr *wr;
+	const struct ib_send_wr *wr;
 	int num_posted = 0;
 
 	for (wr = first_ib_wr; wr && wr != bad_wr; wr = wr->next)
@@ -726,7 +726,7 @@ int isert_poll_cq(struct isert_cq *cq)
 	TRACE_ENTRY();
 
 	for (;;) {
-		struct ib_wc *last_wc;
+		const struct ib_wc *last_wc;
 
 		err = ib_poll_cq(cq->cq, ARRAY_SIZE(cq->wc), cq->wc);
 		if (err <= 0)
@@ -827,10 +827,10 @@ static const char *ib_event_type_str(enum ib_event_type ev_type)
 
 static void isert_async_evt_handler(struct ib_event *async_ev, void *context)
 {
-	struct isert_cq *cq = context;
-	struct isert_device *isert_dev = cq->dev;
-	struct ib_device *ib_dev = isert_dev->ib_dev;
-	char *dev_name = ib_dev->name;
+	const struct isert_cq *cq = context;
+	const struct isert_device *isert_dev = cq->dev;
+	const struct ib_device *ib_dev = isert_dev->ib_dev;
+	const char *dev_name = ib_dev->name;
 	enum ib_event_type ev_type = async_ev->event;
 	struct isert_conn *isert_conn;
 
@@ -1206,7 +1206,7 @@ static struct isert_conn *isert_conn_create(struct rdma_cm_id *cm_id,
 {
 	struct isert_conn *isert_conn;
 	int err;
-	struct isert_cq *cq;
+	const struct isert_cq *cq;
 
 	TRACE_ENTRY();
 
@@ -1304,7 +1304,7 @@ static void isert_release_kref(struct kref *kref)
 	struct isert_conn *isert_conn =
 		container_of(kref, struct isert_conn, kref);
 	struct isert_device *isert_dev = isert_conn->isert_dev;
-	struct isert_cq *cq = isert_conn->qp->recv_cq->cq_context;
+	const struct isert_cq *cq = isert_conn->qp->recv_cq->cq_context;
 
 	TRACE_ENTRY();
 
@@ -1389,7 +1389,7 @@ static int isert_cm_conn_req_handler(struct rdma_cm_id *cm_id,
 	struct ib_device *ib_dev = cm_id->device;
 	struct isert_device *isert_dev;
 	struct isert_conn *isert_conn;
-	struct rdma_conn_param *ini_conn_param;
+	const struct rdma_conn_param *ini_conn_param;
 	struct rdma_conn_param tgt_conn_param;
 	struct isert_cm_hdr cm_hdr = { 0 };
 	int err;
@@ -1581,7 +1581,7 @@ static void isert_portal_reinit_id_work(struct work_struct *w)
 	}
 }
 
-static int isert_cm_evt_listener_handler(struct rdma_cm_id *cm_id,
+static int isert_cm_evt_listener_handler(const struct rdma_cm_id *cm_id,
 					 enum rdma_cm_event_type event)
 {
 	struct isert_portal *portal;
@@ -1774,7 +1774,7 @@ out:
 /* create a portal, after listening starts all events
  * are received in isert_cm_evt_handler()
  */
-struct isert_portal *isert_portal_create(struct sockaddr *sa, size_t addr_len)
+struct isert_portal *isert_portal_create(const struct sockaddr *sa, size_t addr_len)
 {
 	struct isert_portal *portal;
 	struct rdma_cm_id *cm_id;
@@ -1870,7 +1870,7 @@ void isert_portal_release(struct isert_portal *portal)
 	PRINT_INFO("done releasing portal %p", portal);
 }
 
-struct isert_portal *isert_portal_start(struct sockaddr *sa, size_t addr_len)
+struct isert_portal *isert_portal_start(const struct sockaddr *sa, size_t addr_len)
 {
 	return isert_portal_create(sa, addr_len);
 }
