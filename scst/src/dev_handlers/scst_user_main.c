@@ -1937,15 +1937,19 @@ const u8 *dev_user_ext_cdb(const struct scst_cmd *cmd)
 	return cmd->cdb + SCST_MAX_CDB_SIZE;
 }
 
-/* Return paired user/core command references; rejected requests retain neither. */
+/*
+ * Return a referenced core command or ERR_PTR; user_cmd receives its paired
+ * reference only on success. Rejected requests retain neither reference.
+ */
 SCST_KUNIT_VISIBLE
-struct scst_user_cmd *dev_user_ext_cdb_get(struct scst_user_dev *dev, unsigned int cmd_h,
-					   struct scst_cmd **cmd)
+struct scst_cmd *dev_user_ext_cdb_get(struct scst_user_dev *dev, unsigned int cmd_h,
+				    struct scst_user_cmd **user_cmd)
 {
 	struct scst_user_cmd *ucmd;
+	struct scst_cmd *cmd;
 	int res;
 
-	*cmd = NULL;
+	*user_cmd = NULL;
 	spin_lock_irq(&dev->udev_cmd_threads.cmd_list_lock);
 
 	ucmd = __ucmd_find_hash(dev, cmd_h);
@@ -1961,7 +1965,8 @@ struct scst_user_cmd *dev_user_ext_cdb_get(struct scst_user_dev *dev, unsigned i
 		goto out_unlock;
 	}
 
-	if (!ucmd->cmd || ucmd->state > UCMD_STATE_EXECING ||
+	cmd = ucmd->cmd;
+	if (!cmd || ucmd->state > UCMD_STATE_EXECING ||
 	    !(ucmd->sent_to_user || ucmd->background_exec)) {
 		TRACE_MGMT_DBG("Invalid ucmd state %d for cmd_h %d", ucmd->state, cmd_h);
 		spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
@@ -1970,10 +1975,10 @@ struct scst_user_cmd *dev_user_ext_cdb_get(struct scst_user_dev *dev, unsigned i
 		return ERR_PTR(-EINVAL);
 	}
 
-	*cmd = ucmd->cmd;
-	scst_cmd_get(*cmd);
+	scst_cmd_get(cmd);
+	*user_cmd = ucmd;
 	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
-	return ucmd;
+	return cmd;
 
 out_unlock:
 	spin_unlock_irq(&dev->udev_cmd_threads.cmd_list_lock);
@@ -2007,9 +2012,9 @@ static int dev_user_get_ext_cdb(struct file *file, void __user *arg)
 
 	TRACE_BUFFER("Get ext cdb", &get, sizeof(get));
 
-	ucmd = dev_user_ext_cdb_get(dev, get.cmd_h, &cmd);
-	if (IS_ERR(ucmd)) {
-		res = PTR_ERR(ucmd);
+	cmd = dev_user_ext_cdb_get(dev, get.cmd_h, &ucmd);
+	if (IS_ERR(cmd)) {
+		res = PTR_ERR(cmd);
 		goto out;
 	}
 
