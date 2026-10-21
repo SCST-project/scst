@@ -108,10 +108,7 @@
 
 #define TRACE_MINOR_AND_MGMT_DBG	(TRACE_MINOR | TRACE_MGMT_DEBUG)
 
-/*
- * Note: in the next two printk() statements the KERN_CONT macro is only
- * present to suppress a checkpatch warning (KERN_CONT is defined as "").
- */
+/* The caller supplies the KERN_* level as log_flag. */
 #define PRINT(log_flag, format, args...)  \
 		printk(log_flag format "\n", ## args)
 #define PRINTN(log_flag, format, args...) \
@@ -177,7 +174,7 @@ do {									\
 } while (0)
 
 #define PRINT_LOG_FLAG(log_flag, format, args...)			\
-	debug_print_with_prefix(trace_flag, KERN_INFO, __LOG_PREFIX,	\
+	debug_print_with_prefix(trace_flag, log_flag, __LOG_PREFIX,	\
 		__func__, __LINE__, format, ## args)
 
 #define PRINT_WARNING(format, args...)					\
