@@ -89,17 +89,17 @@ static void sqa_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd);
 static void sqa_on_abort_cmd(struct scst_cmd *scst_cmd);
 static int sqa_get_initiator_port_transport_id(struct scst_tgt *tgt,
 					       struct scst_session *scst_sess,
-					       uint8_t **transport_id);
+					       u8 **transport_id);
 static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd);
-static uint16_t sqa_get_scsi_transport_version(struct scst_tgt *scst_tgt);
-static uint16_t sqa_get_phys_transport_version(struct scst_tgt *scst_tgt);
+static u16 sqa_get_scsi_transport_version(struct scst_tgt *scst_tgt);
+static u16 sqa_get_phys_transport_version(struct scst_tgt *scst_tgt);
 static int sqa_enable_tgt(struct scst_tgt *scst_tgt, bool enable);
 static bool sqa_is_tgt_enabled(struct scst_tgt *scst_tgt);
 static ssize_t sqa_add_vtarget(const char *target_name, char *params);
 static ssize_t sqa_del_vtarget(const char *target_name);
 
 /* Definitions for helper functions. */
-static int sqa_get_target_name(uint8_t *wwn, char **ppwwn_name);
+static int sqa_get_target_name(u8 *wwn, char **ppwwn_name);
 static int sqa_parse_wwn(const char *ns, u64 *nm);
 
 /* Variables and function definitions for sysfs control plane. */
@@ -185,7 +185,7 @@ static enum scst_exec_context scst_work_context = SCST_CONTEXT_TASKLET;
 
 
 static struct cmd_state_name {
-	uint8_t state;
+	u8 state;
 	char *str;
 } cmd_str[] = {
 	{0xff, "unknown"},
@@ -196,7 +196,7 @@ static struct cmd_state_name {
 	{QLA_TGT_STATE_DONE, "Done"},
 };
 
-static char *cmdstate_to_str(uint8_t state)
+static char *cmdstate_to_str(u8 state)
 {
 	int i;
 
@@ -341,7 +341,7 @@ static const int qla_tgt_supported_dif_block_size[] = {
 };
 
 static inline void qla_tgt_set_cmd_prot_op(struct qla_tgt_cmd *cmd,
-					   uint8_t xmit_rsp)
+					   u8 xmit_rsp)
 {
 	struct scst_cmd *scst_cmd = cmd->scst_cmd;
 	int dir = scst_cmd_get_data_direction(scst_cmd);
@@ -537,7 +537,7 @@ static inline int scst_cmd_get_ppl_offset(struct scst_cmd *scst_cmd)
 
 static int sqa_qla2xxx_handle_cmd(scsi_qla_host_t *vha,
 	struct qla_tgt_cmd *cmd, unsigned char *cdb,
-	uint32_t data_length, int task_codes,
+	u32 data_length, int task_codes,
 	int data_dir, int bidi)
 {
 	int res = 0;
@@ -556,7 +556,7 @@ static int sqa_qla2xxx_handle_cmd(scsi_qla_host_t *vha,
 
 
 	cmd->scst_cmd = scst_rx_cmd(scst_sess,
-		(uint8_t *)&atio->u.isp24.fcp_cmnd.lun,
+		(u8 *)&atio->u.isp24.fcp_cmnd.lun,
 		sizeof(atio->u.isp24.fcp_cmnd.lun),
 		cdb,
 		cmd->cdb_len,
@@ -678,7 +678,7 @@ static void sqa_qla2xxx_handle_data(struct qla_tgt_cmd *cmd)
 }
 
 static int sqa_qla2xxx_handle_tmr(struct qla_tgt_mgmt_cmd *mcmd, u64 lun,
-				  uint16_t tmr_func, uint32_t tag)
+				  u16 tmr_func, u32 tag)
 {
 	int res = 0, rc = -1, lun_size = sizeof(lun);
 	struct fc_port *sess = mcmd->sess;
@@ -793,7 +793,7 @@ done:
 }
 
 static struct qla_tgt_cmd *
-sqa_qla2xxx_find_cmd_by_tag(struct fc_port *fcport, uint64_t tag)
+sqa_qla2xxx_find_cmd_by_tag(struct fc_port *fcport, u64 tag)
 {
 	struct scst_session *sess = fcport->se_sess->fabric_sess_ptr;
 	struct qla_tgt_cmd *qla_cmd = NULL;
@@ -884,7 +884,7 @@ static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 }
 
 static void sqa_qla2xxx_update_sess(struct fc_port *sess, port_id_t s_id,
-	uint16_t loop_id, bool conf_compl_supported)
+	u16 loop_id, bool conf_compl_supported)
 {
 	TRACE_ENTRY();
 	TRACE_EXIT();
@@ -967,7 +967,7 @@ static struct fc_port *sqa_qla2xxx_find_sess_by_s_id(scsi_qla_host_t *vha,
 }
 
 static struct fc_port *sqa_qla2xxx_find_sess_by_loop_id(scsi_qla_host_t *vha,
-							const uint16_t loop_id)
+							const u16 loop_id)
 {
 	struct fc_port *sess;
 
@@ -1089,7 +1089,7 @@ static ssize_t sqa_node_name_show(struct kobject *kobj,
 	struct qla_hw_data *ha;
 	ssize_t res = -ENOMEM;
 	char *wwn;
-	uint8_t *node_name;
+	u8 *node_name;
 
 	scst_tgt = container_of(kobj, struct scst_tgt, tgt_kobj);
 	sqa_tgt = scst_tgt_get_tgt_priv(scst_tgt);
@@ -1326,7 +1326,7 @@ static ssize_t sqa_abort_isp_store(struct kobject *kobj,
 #endif
 }
 
-static int sqa_get_target_name(uint8_t *wwn, char **ppwwn_name)
+static int sqa_get_target_name(u8 *wwn, char **ppwwn_name)
 {
 	*ppwwn_name = kasprintf(GFP_KERNEL,
 				"%02x:%02x:%02x:%02x:%02x:%02x:%02x:%02x",
@@ -1840,9 +1840,9 @@ static void sqa_on_free_cmd(struct scst_cmd *scst_cmd)
 	TRACE_EXIT();
 }
 
-static uint32_t sqa_convert_to_fc_tm_status(int scst_mstatus)
+static u32 sqa_convert_to_fc_tm_status(int scst_mstatus)
 {
-	uint32_t res;
+	u32 res;
 
 	switch (scst_mstatus) {
 	case SCST_MGMT_STATUS_SUCCESS:
@@ -1900,12 +1900,12 @@ out:
 
 static int sqa_get_initiator_port_transport_id(struct scst_tgt *tgt,
 					       struct scst_session *scst_sess,
-					       uint8_t **transport_id)
+					       u8 **transport_id)
 {
 	struct fc_port *sess;
 	int res = 0;
 	int tr_id_size;
-	uint8_t *tr_id;
+	u8 *tr_id;
 
 	TRACE_ENTRY();
 
@@ -1947,28 +1947,28 @@ out:
 	return res;
 }
 
-static uint16_t sqa_get_scsi_transport_version(struct scst_tgt *scst_tgt)
+static u16 sqa_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
 	/* FCP-2 */
 	return 0x0900;
 }
 
-static uint16_t sqa_get_phys_transport_version(struct scst_tgt *scst_tgt)
+static u16 sqa_get_phys_transport_version(struct scst_tgt *scst_tgt)
 {
 	/* FC-FS */
 	return 0x0DA0;
 }
 
-static int sqa_qla2xxx_chk_dif_tags(uint32_t tag)
+static int sqa_qla2xxx_chk_dif_tags(u32 tag)
 {
 	return tag & SCST_DIF_CHECK_REF_TAG;
 }
 
 static int sqa_qla2xxx_dif_tags(struct qla_tgt_cmd *cmd,
-				uint16_t *pfw_prot_opts)
+				u16 *pfw_prot_opts)
 {
 	struct scst_cmd *scst_cmd = cmd->scst_cmd;
-	uint32_t t32 = 0;
+	u32 t32 = 0;
 
 	t32 = scst_get_dif_checks(scst_cmd->cmd_dif_actions);
 	if (!(t32 & SCST_DIF_CHECK_GUARD_TAG))
@@ -1998,7 +1998,7 @@ static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 	TRACE_MGMT_DBG(
 	    "sqatgt(%ld/%d): tag %lld: HW pending for too long (state %s) %s; %s",
 	    vha->host_no, vha->vp_idx, scst_cmd_get_tag(scst_cmd),
-	    cmdstate_to_str((uint8_t)cmd->state),
+	    cmdstate_to_str((u8)cmd->state),
 	    cmd->cmd_sent_to_fw ? "sent to fw" : "not sent to fw",
 	    cmd->aborted ? "aborted" : "not aborted");
 
@@ -2009,7 +2009,7 @@ static void sqa_on_hw_pending_cmd_timeout(struct scst_cmd *scst_cmd)
 		PRINT_ERROR(
 		    "sqatgt(%ld/%d): tag %lld: A command in state (%s) should not be HW pending. %s",
 		    vha->host_no, vha->vp_idx, scst_cmd_get_tag(scst_cmd),
-		    cmdstate_to_str((uint8_t)cmd->state),
+		    cmdstate_to_str((u8)cmd->state),
 		    cmd->aborted ? "aborted" : "not aborted");
 		goto out_unlock;
 

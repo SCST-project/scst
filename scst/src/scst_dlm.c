@@ -199,10 +199,10 @@ static void scst_dlm_force_unlock_and_drain(dlm_lockspace_t *ls,
 }
 
 /* Number of persistent reservation registrants. */
-static uint32_t scst_pr_num_regs(struct scst_device *dev)
+static u32 scst_pr_num_regs(struct scst_device *dev)
 {
 	struct scst_dev_registrant *reg;
-	uint32_t num_regs = 0;
+	u32 num_regs = 0;
 
 	lockdep_assert_pr_read_lock_held(dev);
 
@@ -321,7 +321,7 @@ static int scst_copy_from_dlm(struct scst_device *dev, dlm_lockspace_t *ls,
 	struct scst_lksb *reg_lksb = NULL;
 	struct scst_dev_registrant *reg, *tmp_reg;
 	int i, res = -ENOMEM;
-	uint32_t nr_registrants;
+	u32 nr_registrants;
 	u8 *reg_lvb_content = NULL;
 
 	lockdep_assert_held(&pr_dlm->ls_mutex);
@@ -383,7 +383,7 @@ static int scst_copy_from_dlm(struct scst_device *dev, dlm_lockspace_t *ls,
 
 	for (i = 0; i < nr_registrants; i++) {
 		struct pr_reg_lvb *reg_lvb;
-		uint16_t rel_tgt_id;
+		u16 rel_tgt_id;
 
 		reg_lvb = (struct pr_reg_lvb *)reg_lksb[i].lksb.sb_lvbptr;
 		rel_tgt_id = be16_to_cpu(reg_lvb->rel_tgt_id);
@@ -525,7 +525,7 @@ static void scst_copy_to_dlm(struct scst_device *dev, dlm_lockspace_t *ls)
 	struct scst_dev_registrant *reg;
 	struct scst_dlm_rem_ua *ua;
 	char reg_name[32];
-	uint32_t nr_registrants, tid_size;
+	u32 nr_registrants, tid_size;
 
 	lockdep_assert_held(&pr_dlm->ls_mutex);
 
@@ -1013,7 +1013,7 @@ static dlm_lockspace_t *get_lockspace(struct scst_device *dev)
 	char lsp_name[32], lock_name[32];
 	int res;
 	bool modified_lvb = false;
-	uint32_t flags;
+	u32 flags;
 
 	if (pr_dlm->ls || !pr_dlm->cl_dev_id || in_interrupt() ||
 	    time_is_after_jiffies(pr_dlm->latest_lscr_attempt + 1 * HZ))

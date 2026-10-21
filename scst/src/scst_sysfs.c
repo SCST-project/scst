@@ -2331,7 +2331,7 @@ static int scst_process_rel_tgt_id_store(struct scst_sysfs_work_item *work)
 	/* tgt protected by kobject_get() */
 
 	TRACE_DBG("Trying to set relative target port id %d",
-		  (uint16_t)rel_tgt_id);
+		  (u16)rel_tgt_id);
 
 	if (tgt->tgtt->is_target_enabled)
 		enabled = tgt->tgtt->is_target_enabled(tgt);
@@ -2341,7 +2341,7 @@ static int scst_process_rel_tgt_id_store(struct scst_sysfs_work_item *work)
 	if (enabled && rel_tgt_id != tgt->rel_tgt_id) {
 		if (!scst_is_relative_target_port_id_unique(rel_tgt_id, tgt)) {
 			PRINT_ERROR("Relative port id %d is not unique",
-				    (uint16_t)rel_tgt_id);
+				    (u16)rel_tgt_id);
 			res = -EBADSLT;
 			goto out_put;
 		}
@@ -2352,13 +2352,13 @@ static int scst_process_rel_tgt_id_store(struct scst_sysfs_work_item *work)
 			goto set;
 
 		PRINT_ERROR("Invalid relative port id %d",
-			    (uint16_t)rel_tgt_id);
+			    (u16)rel_tgt_id);
 		res = -EINVAL;
 		goto out_put;
 	}
 
 set:
-	tgt->rel_tgt_id = (uint16_t)rel_tgt_id;
+	tgt->rel_tgt_id = (u16)rel_tgt_id;
 
 out_put:
 	kobject_put(&tgt->tgt_kobj);
@@ -2869,7 +2869,7 @@ static int scst_tgt_sysfs_##attr##_show_work_fn(struct scst_sysfs_work_item *wor
 	struct scst_tgt *tgt = work->tgt;						\
 	struct scst_session *sess;							\
 	int res;									\
-	uint64_t c = 0;									\
+	u64 c = 0;									\
 											\
 	BUILD_BUG_ON((unsigned int)(dir) >= ARRAY_SIZE(sess->io_stats));		\
 											\
@@ -3753,7 +3753,7 @@ static ssize_t scst_dev_block_show(struct kobject *kobj, struct kobj_attribute *
 	return ret;
 }
 
-static void scst_sysfs_ext_blocking_done(struct scst_device *dev, uint8_t *data, int len)
+static void scst_sysfs_ext_blocking_done(struct scst_device *dev, u8 *data, int len)
 {
 	scst_event_queue_ext_blocking_done(dev, data, len);
 }
@@ -4458,11 +4458,11 @@ static ssize_t scst_sess_latency_show(struct kobject *kobj, struct kobj_attribut
 	int i, j, k;
 	long sz;
 	struct scst_lat_stat_entry *d;
-	uint64_t avg, stddev;
+	u64 avg, stddev;
 #ifdef SCST_MEASURE_CLOCK_CYCLES
-	uint64_t min, max, sumc = 0, sumsqc = 0;
+	u64 min, max, sumc = 0, sumsqc = 0;
 #else
-	uint64_t sum = 0, sumsq = 0;
+	u64 sum = 0, sumsq = 0;
 #endif
 	unsigned int count = 0, numst = 0;
 	u64 d_min_div_10, d_max_div_10, avg_div_10, stddev_div_10;
@@ -4828,7 +4828,7 @@ static ssize_t scst_sess_sysfs_##exported_name##_show(struct kobject *kobj,			\
 						      struct kobj_attribute *attr, char *buf)	\
 {												\
 	struct scst_session *sess;								\
-	uint64_t v;										\
+	u64 v;										\
 												\
 	BUILD_BUG_ON(SCST_DATA_UNKNOWN != 0);							\
 	BUILD_BUG_ON(SCST_DATA_WRITE != 1);							\
@@ -7735,10 +7735,10 @@ static DEFINE_MUTEX(scst_sysfs_user_info_mutex);
 
 /* All protected by scst_sysfs_user_info_mutex */
 static LIST_HEAD(scst_sysfs_user_info_list);
-static uint32_t scst_sysfs_info_cur_cookie;
+static u32 scst_sysfs_info_cur_cookie;
 
 /* scst_sysfs_user_info_mutex supposed to be held */
-static struct scst_sysfs_user_info *scst_sysfs_user_find_info(uint32_t cookie)
+static struct scst_sysfs_user_info *scst_sysfs_user_find_info(u32 cookie)
 {
 	struct scst_sysfs_user_info *info, *res = NULL;
 
@@ -7763,7 +7763,7 @@ static struct scst_sysfs_user_info *scst_sysfs_user_find_info(uint32_t cookie)
  *
  * Returns found entry or NULL.
  */
-struct scst_sysfs_user_info *scst_sysfs_user_get_info(uint32_t cookie)
+struct scst_sysfs_user_info *scst_sysfs_user_get_info(u32 cookie)
 {
 	struct scst_sysfs_user_info *res = NULL;
 

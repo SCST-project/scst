@@ -294,7 +294,7 @@ struct iscsi_conn {
 	struct iovec *read_iov;
 #endif
 	struct task_struct *rx_task;
-	uint32_t rpadding;
+	u32 rpadding;
 
 	struct iscsi_target *target;
 
@@ -577,7 +577,7 @@ extern const struct attribute *iscsi_tgt_attrs[];
 
 int iscsi_enable_target(struct scst_tgt *scst_tgt, bool enable);
 bool iscsi_is_target_enabled(struct scst_tgt *scst_tgt);
-ssize_t iscsi_sysfs_send_event(uint32_t tid, enum iscsi_kern_event_code code, const char *param1,
+ssize_t iscsi_sysfs_send_event(u32 tid, enum iscsi_kern_event_code code, const char *param1,
 			       const char *param2, void **data);
 struct iscsi_target *target_lookup_by_id(u32 id);
 int __add_target(struct iscsi_kern_target_info *info);

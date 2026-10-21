@@ -59,9 +59,9 @@ static struct scst_dev_type cdrom_devtype = {
 static int cdrom_attach(struct scst_device *dev)
 {
 	int res, rc;
-	uint8_t cmd[10];
+	u8 cmd[10];
 	const int buffer_size = 512;
-	uint8_t *buffer = NULL;
+	u8 *buffer = NULL;
 	int retries;
 	unsigned char sense_buffer[SCSI_SENSE_BUFFERSIZE];
 
@@ -112,7 +112,7 @@ static int cdrom_attach(struct scst_device *dev)
 	}
 
 	if (rc == 0) {
-		uint32_t sector_size = get_unaligned_be32(&buffer[4]);
+		u32 sector_size = get_unaligned_be32(&buffer[4]);
 
 		if (sector_size == 0)
 			dev->block_shift = CDROM_DEF_BLOCK_SHIFT;

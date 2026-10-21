@@ -165,7 +165,7 @@ static struct scst_target_group *__lookup_tg_by_name(struct scst_dev_group *dg,
 
 /* Look up a target group by group ID. */
 static struct scst_target_group *__lookup_tg_by_group_id(struct scst_dev_group *dg,
-							 uint16_t group_id)
+							 u16 group_id)
 {
 	struct scst_target_group *tg;
 
@@ -1452,12 +1452,12 @@ void scst_tg_cleanup(void)
  *
  * Returns a non-zero number if the lookup was successful and zero if not.
  */
-uint16_t scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt)
+u16 scst_lookup_tg_id(struct scst_device *dev, struct scst_tgt *tgt)
 {
 	struct scst_dev_group *dg;
 	struct scst_target_group *tg;
 	struct scst_tg_tgt *tg_tgt;
-	uint16_t tg_id = 0;
+	u16 tg_id = 0;
 
 	TRACE_ENTRY();
 	mutex_lock(&scst_dg_mutex);
@@ -1534,16 +1534,16 @@ EXPORT_SYMBOL_GPL(scst_alua_configured);
  * @dev: Pointer to the SCST device for which to obtain group information.
  * @data_format: Three-bit response data format specification.
  */
-int scst_tg_get_group_info(void **buf, uint32_t *length,
-			   struct scst_device *dev, uint8_t data_format)
+int scst_tg_get_group_info(void **buf, u32 *length,
+			   struct scst_device *dev, u8 data_format)
 {
 	struct scst_dev_group *dg;
 	struct scst_target_group *tg;
 	struct scst_tg_tgt *tgtgt;
 	struct scst_tgt *tgt;
-	uint8_t *p;
-	uint32_t ret_data_len;
-	uint16_t rel_tgt_id;
+	u8 *p;
+	u32 ret_data_len;
+	u16 rel_tgt_id;
 	int res;
 
 	TRACE_ENTRY();
@@ -1631,7 +1631,7 @@ int scst_tg_get_group_info(void **buf, uint32_t *length,
 	}
 
 done:
-	WARN_ON(p - (uint8_t *)*buf != *length);
+	WARN_ON(p - (u8 *)*buf != *length);
 
 	res = 0;
 
@@ -1672,7 +1672,7 @@ static void scst_stpg_check_blocking_done(struct scst_stpg_wait *wait)
 }
 
 /* No locks */
-static void scst_stpg_ext_blocking_done(struct scst_device *dev, uint8_t *data, int len)
+static void scst_stpg_ext_blocking_done(struct scst_device *dev, u8 *data, int len)
 {
 	sBUG_ON(len != sizeof(data));
 	scst_stpg_check_blocking_done(*((struct scst_stpg_wait **)data));
@@ -1690,7 +1690,7 @@ static void scst_stpg_ext_blocking_done(struct scst_device *dev, uint8_t *data, 
  * @new_state: new target port group ALUA state.
  */
 struct osi {
-	uint16_t	       group_id;
+	u16	       group_id;
 	struct scst_target_group *tg;
 	enum scst_tg_state     prev_state;
 	enum scst_tg_state     new_state;
@@ -1852,7 +1852,7 @@ out:
 int scst_tg_set_group_info(struct scst_cmd *cmd)
 {
 	struct scst_device *dev = cmd->dev;
-	uint8_t *buf;
+	u8 *buf;
 	int len;
 	int i, j, res = 1, tpg_desc_count;
 	struct scst_dev_group *dg;

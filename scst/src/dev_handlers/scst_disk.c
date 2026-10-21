@@ -55,9 +55,9 @@ struct disk_dh_priv {
 static int disk_attach(struct scst_device *dev)
 {
 	int res, rc;
-	uint8_t cmd[10];
+	u8 cmd[10];
 	const int buffer_size = 512;
-	uint8_t *buffer = NULL;
+	u8 *buffer = NULL;
 	int retries;
 	unsigned char sense_buffer[SCSI_SENSE_BUFFERSIZE];
 
@@ -105,7 +105,7 @@ static int disk_attach(struct scst_device *dev)
 		}
 	}
 	if (rc == 0) {
-		uint32_t sector_size = get_unaligned_be32(&buffer[4]);
+		u32 sector_size = get_unaligned_be32(&buffer[4]);
 
 		if (sector_size == 0)
 			dev->block_shift = DISK_DEF_BLOCK_SHIFT;
@@ -158,7 +158,7 @@ static int disk_attach(struct scst_device *dev)
 		}
 	}
 	if (rc == 0) {
-		int32_t serial_length = get_unaligned_be16(&buffer[2]);
+		s32 serial_length = get_unaligned_be16(&buffer[2]);
 
 		/*
 		 * Store serial in a disk_dh_priv struct on dh_priv.
@@ -417,7 +417,7 @@ struct disk_work {
 	struct completion disk_work_cmpl;
 	int result;
 	unsigned int left;
-	int64_t save_lba;
+	s64 save_lba;
 	int save_len;
 	struct scatterlist *save_sg;
 	int save_sg_cnt;

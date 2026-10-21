@@ -419,7 +419,7 @@ const struct attribute *iscsi_tgt_attrs[] = {
 	NULL,
 };
 
-ssize_t iscsi_sysfs_send_event(uint32_t tid, enum iscsi_kern_event_code code, const char *param1,
+ssize_t iscsi_sysfs_send_event(u32 tid, enum iscsi_kern_event_code code, const char *param1,
 			       const char *param2, void **data)
 {
 	int res;
@@ -470,7 +470,7 @@ int iscsi_enable_target(struct scst_tgt *scst_tgt, bool enable)
 	struct iscsi_target *tgt =
 		(struct iscsi_target *)scst_tgt_get_tgt_priv(scst_tgt);
 	int res;
-	uint32_t type;
+	u32 type;
 
 	TRACE_ENTRY();
 

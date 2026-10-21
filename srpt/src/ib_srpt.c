@@ -1155,8 +1155,8 @@ static int srpt_get_desc_tbl(struct srpt_recv_ioctx *recv_ioctx,
 	} else if (fmt == SRP_DATA_DESC_IMM) {
 		struct srp_imm_buf *imm_buf = srpt_get_desc_buf(srp_cmd);
 		void *data = (u8 *)srp_cmd + imm_data_offset;
-		uint32_t len = be32_to_cpu(imm_buf->len);
-		uint32_t req_size = imm_data_offset + len;
+		u32 len = be32_to_cpu(imm_buf->len);
+		u32 req_size = imm_data_offset + len;
 
 		if (req_size > srp_max_req_size) {
 			pr_err("Immediate data (length %d + %d) exceeds request size %d\n",
@@ -2039,7 +2039,7 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 					 struct srpt_rdma_ch *ch,
 					 struct ib_wc *wc)
 {
-	uint32_t index;
+	u32 index;
 	enum srpt_opcode opcode;
 
 	index = idx_from_wr_id(wc->wr_id);
@@ -2628,7 +2628,7 @@ static int srpt_cm_req_recv(struct srpt_device *const sdev,
 	ch->state = CH_CONNECTING;
 	INIT_WORK(&ch->completion, srpt_do_compl_work);
 	INIT_LIST_HEAD(&ch->cmd_wait_list);
-	ch->max_rsp_size = max_t(uint32_t, srp_max_rsp_size, MIN_MAX_RSP_SIZE);
+	ch->max_rsp_size = max_t(u32, srp_max_rsp_size, MIN_MAX_RSP_SIZE);
 
 	ch->rsp_buf_cache = kmem_cache_create("srpt-rsp-buf", ch->max_rsp_size,
 					      512, 0, NULL);
@@ -3783,13 +3783,13 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
  * See also SPC-3, section 7.5.4.5, TransportID for initiator ports using SRP.
  */
 static int srpt_get_initiator_port_transport_id(struct scst_tgt *tgt, struct scst_session *sess,
-						uint8_t **transport_id)
+						u8 **transport_id)
 {
 	struct srpt_rdma_ch *ch;
 	struct spc_rdma_transport_id {
-		uint8_t protocol_identifier;
-		uint8_t reserved[7];
-		uint8_t i_port_id[16];
+		u8 protocol_identifier;
+		u8 reserved[7];
+		u8 i_port_id[16];
 	};
 	struct spc_rdma_transport_id *tr_id;
 	int res = SCSI_TRANSPORTID_PROTOCOLID_SRP;
@@ -3812,7 +3812,7 @@ static int srpt_get_initiator_port_transport_id(struct scst_tgt *tgt, struct scs
 	memcpy(tr_id->i_port_id, ch->nexus->i_port_id,
 	       sizeof(tr_id->i_port_id));
 
-	*transport_id = (uint8_t *)tr_id;
+	*transport_id = (u8 *)tr_id;
 
 out:
 	return res;
@@ -3933,7 +3933,7 @@ static int srpt_release(struct scst_tgt *scst_tgt)
  * This function is called from scst_pres.c, the code that implements
  * persistent reservation support.
  */
-static uint16_t srpt_get_scsi_transport_version(struct scst_tgt *scst_tgt)
+static u16 srpt_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
 	return 0x0940; /* SRP */
 }

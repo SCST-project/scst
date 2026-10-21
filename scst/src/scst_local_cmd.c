@@ -32,7 +32,7 @@ enum scst_exec_res scst_report_luns_local(struct scst_cmd *cmd)
 	int buffer_size;
 	int i;
 	struct scst_tgt_dev *tgt_dev = NULL;
-	uint8_t *buffer;
+	u8 *buffer;
 	int offs, overflow = 0;
 
 	TRACE_ENTRY();
@@ -127,7 +127,7 @@ enum scst_exec_res scst_request_sense_local(struct scst_cmd *cmd)
 {
 	enum scst_exec_res res = SCST_EXEC_COMPLETED;
 	struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
-	uint8_t *buffer;
+	u8 *buffer;
 	int buffer_size = 0, sl = 0;
 
 	TRACE_ENTRY();
@@ -148,7 +148,7 @@ enum scst_exec_res scst_request_sense_local(struct scst_cmd *cmd)
 	if (tgt_dev->tgt_dev_valid_sense_len == 0) {
 		if (test_bit(SCST_TGT_DEV_UA_PENDING, &cmd->tgt_dev->tgt_dev_flags)) {
 			int rc, size = sizeof(tgt_dev->tgt_dev_sense);
-			uint8_t *buf;
+			u8 *buf;
 
 			spin_unlock_bh(&tgt_dev->tgt_dev_lock);
 
@@ -250,11 +250,11 @@ out_unlock_put_not_completed:
 static enum scst_exec_res scst_report_tpgs(struct scst_cmd *cmd)
 {
 	struct scst_device *dev;
-	uint8_t *address;
+	u8 *address;
 	void *buf;
-	int32_t buf_len;
-	uint32_t data_length, length;
-	uint8_t data_format;
+	s32 buf_len;
+	u32 data_length, length;
+	u8 data_format;
 	int res;
 
 	TRACE_ENTRY();
@@ -275,7 +275,7 @@ static enum scst_exec_res scst_report_tpgs(struct scst_cmd *cmd)
 		goto out_put;
 	}
 
-	length = min_t(uint32_t, data_length, buf_len);
+	length = min_t(u32, data_length, buf_len);
 	memcpy(address, buf, length);
 	kfree(buf);
 	if (length < cmd->resp_data_len)
@@ -324,8 +324,8 @@ static enum scst_exec_res scst_report_supported_tm_fns(struct scst_cmd *cmd)
 {
 	const enum scst_exec_res res = SCST_EXEC_COMPLETED;
 	int length, resp_len = 0;
-	uint8_t *address;
-	uint8_t buf[16];
+	u8 *address;
+	u8 buf[16];
 
 	TRACE_ENTRY();
 
@@ -373,8 +373,8 @@ static enum scst_exec_res scst_report_supported_opcodes(struct scst_cmd *cmd)
 {
 	const enum scst_exec_res res = SCST_EXEC_COMPLETED;
 	int length, buf_len, i, offs;
-	uint8_t *address;
-	uint8_t *buf;
+	u8 *address;
+	u8 *buf;
 	bool inline_buf;
 	bool rctd = cmd->cdb[2] >> 7;
 	int options = cmd->cdb[2] & 7;
@@ -753,7 +753,7 @@ enum scst_exec_res scst_persistent_reserve_in_local(struct scst_cmd *cmd)
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_session *session;
 	int action;
-	uint8_t *buffer;
+	u8 *buffer;
 	int buffer_size;
 
 	TRACE_ENTRY();
@@ -854,7 +854,7 @@ enum scst_exec_res scst_persistent_reserve_out_local(struct scst_cmd *cmd)
 	struct scst_tgt_dev *tgt_dev;
 	struct scst_session *session;
 	int action;
-	uint8_t *buffer;
+	u8 *buffer;
 	int buffer_size;
 	struct scst_lksb pr_lksb;
 	bool aborted = false;

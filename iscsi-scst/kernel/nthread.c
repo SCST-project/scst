@@ -230,8 +230,8 @@ static void close_conn(struct iscsi_conn *conn)
 	typeof(jiffies) start_waiting = jiffies;
 	typeof(jiffies) shut_start_waiting = start_waiting;
 	bool pending_reported = 0, wait_expired = 0, shut_expired = 0;
-	uint32_t tid, cid;
-	uint64_t sid;
+	u32 tid, cid;
+	u64 sid;
 	int rc;
 	int lun = 0;
 
@@ -1390,10 +1390,10 @@ static int tx_padding(struct iscsi_cmnd *cmnd, int state)
 	int res, rest = cmnd->conn->write_size;
 	struct msghdr msg = {.msg_flags = MSG_NOSIGNAL | MSG_DONTWAIT};
 	struct kvec iov;
-	static const uint32_t padding;
+	static const u32 padding;
 
 	BUG_ON(rest < 1);
-	BUG_ON(rest >= sizeof(uint32_t));
+	BUG_ON(rest >= sizeof(u32));
 	iscsi_extracheck_is_wr_thread(cmnd->conn);
 
 	TRACE_DBG("Sending %d padding bytes (cmd %p)", rest, cmnd);

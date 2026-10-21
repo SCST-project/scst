@@ -38,11 +38,11 @@ struct scst_user_dev {
 	struct sgv_pool *pool;
 	struct sgv_pool *pool_clust;
 
-	uint8_t parse_type;
-	uint8_t on_free_cmd_type;
-	uint8_t memory_reuse_type;
-	uint8_t partial_transfers_type;
-	uint32_t partial_len;
+	u8 parse_type;
+	u8 on_free_cmd_type;
+	u8 memory_reuse_type;
+	u8 partial_transfers_type;
+	u32 partial_len;
 
 	struct scst_dev_type devtype;
 

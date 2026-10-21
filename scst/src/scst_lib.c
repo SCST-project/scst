@@ -464,8 +464,8 @@ static int get_cdb_info_dyn_runtime_attr(struct scst_cmd *cmd,
 #define SCST_CDB_NOTSUPP    ' '	/* don't use */
 
 struct scst_sdbops {
-	uint8_t ops;		/* SCSI-2 op codes */
-	uint8_t devkey[16] __nonstring;	/* Key for every device type M,O,V,R
+	u8 ops;		/* SCSI-2 op codes */
+	u8 devkey[16] __nonstring;	/* Key for every device type M,O,V,R
 					 * type_disk      devkey[0]
 					 * type_tape      devkey[1]
 					 * type_printer   devkey[2]
@@ -483,11 +483,11 @@ struct scst_sdbops {
 					 * type_reserv    devkey[E]
 					 * type_reserv    devkey[F]
 					 */
-	uint8_t info_lba_off;	/* LBA offset in cdb */
-	uint8_t info_lba_len;	/* LBA length in cdb */
-	uint8_t info_len_off;	/* length offset in cdb */
-	uint8_t info_len_len;	/* length of length in cdb */
-	uint8_t info_data_direction;
+	u8 info_lba_off;	/* LBA offset in cdb */
+	u8 info_lba_len;	/* LBA length in cdb */
+	u8 info_len_off;	/* length offset in cdb */
+	u8 info_len_len;	/* length of length in cdb */
+	u8 info_data_direction;
 				/*
 				 * init --> target: SCST_DATA_WRITE
 				 * target --> init: SCST_DATA_READ
@@ -495,8 +495,8 @@ struct scst_sdbops {
 				 *		     SCST_DATA_WRITE
 				 */
 	/* If not zero, logarithm base 2 of the maximum data buffer length. */
-	uint8_t log2_max_buf_len;
-	uint32_t info_op_flags;	/* various flags of this opcode */
+	u8 log2_max_buf_len;
+	u32 info_op_flags;	/* various flags of this opcode */
 	const char *info_op_name;/* op code SCSI full name */
 	int (*get_cdb_info)(struct scst_cmd *cmd, const struct scst_sdbops *sdbops);
 };
@@ -1646,13 +1646,13 @@ static const struct scst_sdbops scst_scsi_op_table[] = {
 
 static void scst_del_tgt_dev(struct scst_tgt_dev *tgt_dev);
 static void scst_check_internal_sense(struct scst_device *dev, int result,
-	uint8_t *sense, int sense_len);
+	u8 *sense, int sense_len);
 static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 	int flags);
 static void __scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
-	const uint8_t *sense, int sense_len, int flags);
+	const u8 *sense, int sense_len, int flags);
 static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
-	const uint8_t *sense, int sense_len, int flags);
+	const u8 *sense, int sense_len, int flags);
 static void scst_free_all_UA(struct scst_tgt_dev *tgt_dev);
 static void scst_release_space(struct scst_cmd *cmd);
 static void scst_clear_reservation(struct scst_tgt_dev *tgt_dev);
@@ -1711,7 +1711,7 @@ EXPORT_SYMBOL(scst_alloc_sense);
  * and error code otherwise.
  */
 int scst_alloc_set_sense(struct scst_cmd *cmd, int atomic,
-	const uint8_t *sense, unsigned int len)
+	const u8 *sense, unsigned int len)
 {
 	int res;
 
@@ -1870,7 +1870,7 @@ out:
 
 static int scst_set_lun_not_supported_inquiry(struct scst_cmd *cmd)
 {
-	uint8_t *buf;
+	u8 *buf;
 	struct scatterlist *sg;
 	int len;
 	int res = 0;
@@ -1949,7 +1949,7 @@ out:
 
 static int scst_set_lun_not_supported_report_luns(struct scst_cmd *cmd)
 {
-	uint8_t *buf;
+	u8 *buf;
 	int dev_cnt = 0;
 	struct scatterlist *sg;
 	struct scst_tgt_dev *tgt_dev = NULL;
@@ -2136,7 +2136,7 @@ out:
 EXPORT_SYMBOL(scst_set_cmd_error);
 
 int scst_set_cmd_error_and_inf(struct scst_cmd *cmd, int key, int asc,
-				int ascq, uint64_t information)
+				int ascq, u64 information)
 {
 	int res;
 
@@ -2148,7 +2148,7 @@ int scst_set_cmd_error_and_inf(struct scst_cmd *cmd, int key, int asc,
 	case 0x70:
 	{
 		/* Fixed format */
-		uint32_t i = information;
+		u32 i = information;
 
 		cmd->sense[0] |= 0x80; /* Information field is valid */
 		put_unaligned_be32(i, &cmd->sense[3]);
@@ -2171,7 +2171,7 @@ out:
 }
 EXPORT_SYMBOL(scst_set_cmd_error_and_inf);
 
-static void scst_fill_field_pointer_sense(uint8_t *fp_sense, int field_offs,
+static void scst_fill_field_pointer_sense(u8 *fp_sense, int field_offs,
 	int bit_offs, bool cdb)
 {
 	/* Sense key specific */
@@ -2259,7 +2259,7 @@ EXPORT_SYMBOL(scst_set_invalid_field_in_parm_list);
  * Sets the corresponding fields in the sense buffer taking sense type
  * into account. Returns resulting sense length.
  */
-int scst_set_sense(uint8_t *buffer, int len, bool d_sense,
+int scst_set_sense(u8 *buffer, int len, bool d_sense,
 	int key, int asc, int ascq)
 {
 	int res;
@@ -2324,7 +2324,7 @@ EXPORT_SYMBOL(scst_set_sense);
  * Valid_mask is one or several SCST_SENSE_*_VALID constants setting valid
  * (key, asc, ascq) values.
  */
-bool scst_analyze_sense(const uint8_t *sense, int len, unsigned int valid_mask,
+bool scst_analyze_sense(const u8 *sense, int len, unsigned int valid_mask,
 	int key, int asc, int ascq)
 {
 	bool res = false;
@@ -2404,7 +2404,7 @@ EXPORT_SYMBOL(scst_analyze_sense);
  * Returns true if the sense is valid and carrying a Unit
  * Attention or false otherwise.
  */
-bool scst_is_ua_sense(const uint8_t *sense, int len)
+bool scst_is_ua_sense(const u8 *sense, int len)
 {
 	if (scst_sense_valid(sense))
 		return scst_analyze_sense(sense, len,
@@ -2414,7 +2414,7 @@ bool scst_is_ua_sense(const uint8_t *sense, int len)
 }
 EXPORT_SYMBOL(scst_is_ua_sense);
 
-bool scst_is_ua_global(const uint8_t *sense, int len)
+bool scst_is_ua_global(const u8 *sense, int len)
 {
 	bool res;
 
@@ -2487,7 +2487,7 @@ out:
 }
 EXPORT_SYMBOL(scst_check_convert_sense);
 
-int scst_set_cmd_error_sense(struct scst_cmd *cmd, uint8_t *sense,
+int scst_set_cmd_error_sense(struct scst_cmd *cmd, u8 *sense,
 	unsigned int len)
 {
 	int res;
@@ -2586,7 +2586,7 @@ void scst_set_initial_UA(struct scst_session *sess, int key, int asc, int ascq)
 EXPORT_SYMBOL(scst_set_initial_UA);
 
 struct scst_aen *scst_alloc_aen(struct scst_session *sess,
-	uint64_t unpacked_lun)
+	u64 unpacked_lun)
 {
 	struct scst_aen *aen;
 
@@ -2642,7 +2642,7 @@ void scst_gen_aen_or_ua(struct scst_tgt_dev *tgt_dev,
 {
 	struct scst_session *sess = tgt_dev->sess;
 	struct scst_tgt_template *tgtt = sess->tgt->tgtt;
-	uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+	u8 sense_buffer[SCST_STANDARD_SENSE_LEN];
 	int sl;
 
 	TRACE_ENTRY();
@@ -2752,7 +2752,7 @@ static inline bool scst_is_report_luns_changed_type(int type)
 static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 					      int flags)
 {
-	uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+	u8 sense_buffer[SCST_STANDARD_SENSE_LEN];
 	struct list_head *head;
 	struct scst_tgt_dev *tgt_dev;
 	int i;
@@ -2821,7 +2821,7 @@ static void scst_report_luns_changed_sess(struct scst_session *sess)
 	int i;
 	struct scst_tgt_template *tgtt = sess->tgt->tgtt;
 	int d_sense = 0;
-	uint64_t lun = 0;
+	u64 lun = 0;
 
 	TRACE_ENTRY();
 
@@ -2933,9 +2933,9 @@ void scst_aen_done(struct scst_aen *aen)
 	} else {
 		struct scst_session *sess = aen->sess;
 		struct scst_tgt_dev *tgt_dev;
-		uint64_t lun;
+		u64 lun;
 
-		lun = scst_unpack_lun((uint8_t *)&aen->lun, sizeof(aen->lun));
+		lun = scst_unpack_lun((u8 *)&aen->lun, sizeof(aen->lun));
 
 		rcu_read_lock();
 		/* tgt_dev might get dead, so we need to reseek it */
@@ -2957,7 +2957,7 @@ out_free:
 }
 EXPORT_SYMBOL(scst_aen_done);
 
-void scst_requeue_ua(struct scst_cmd *cmd, const uint8_t *buf, int size)
+void scst_requeue_ua(struct scst_cmd *cmd, const u8 *buf, int size)
 {
 	TRACE_ENTRY();
 
@@ -3360,7 +3360,7 @@ EXPORT_SYMBOL(scst_get_opcode_name);
 void scst_zero_write_rest(struct scst_cmd *cmd)
 {
 	int len, offs = 0;
-	uint8_t *buf;
+	u8 *buf;
 
 	TRACE_ENTRY();
 
@@ -4147,7 +4147,7 @@ bool __scst_is_relative_target_port_id_unique(u16 id, const struct scst_tgt *t)
 }
 
 /* scst_mutex supposed to be locked */
-bool scst_is_relative_target_port_id_unique(uint16_t id,
+bool scst_is_relative_target_port_id_unique(u16 id,
 	const struct scst_tgt *t)
 {
 	bool res;
@@ -4184,7 +4184,7 @@ int scst_alloc_relative_target_port_id(u16 *id, unsigned int *next)
 	return -EOVERFLOW;
 }
 
-int gen_relative_target_port_id(uint16_t *id)
+int gen_relative_target_port_id(u16 *id)
 {
 	static unsigned int next = SCST_MIN_REL_TGT_ID;
 	int res;
@@ -4410,12 +4410,12 @@ void scst_init_mem_lim(struct scst_mem_lim *mem_lim)
 {
 	atomic_set(&mem_lim->alloced_pages, 0);
 	mem_lim->max_allowed_pages =
-		((uint64_t)scst_max_dev_cmd_mem << 10) >> (PAGE_SHIFT - 10);
+		((u64)scst_max_dev_cmd_mem << 10) >> (PAGE_SHIFT - 10);
 }
 EXPORT_SYMBOL_GPL(scst_init_mem_lim);
 
 static struct scst_acg_dev *scst_alloc_acg_dev(struct scst_acg *acg,
-					struct scst_device *dev, uint64_t lun)
+					struct scst_device *dev, u64 lun)
 {
 	struct scst_acg_dev *res;
 
@@ -4588,7 +4588,7 @@ void scst_tgt_dev_sysfs_remove(struct scst_tgt_dev *tgt_dev)
 
 /* The caller must hold scst_mutex. */
 int scst_acg_add_lun(struct scst_acg *acg, struct kobject *parent,
-	struct scst_device *dev, uint64_t lun, unsigned int flags,
+	struct scst_device *dev, u64 lun, unsigned int flags,
 	struct scst_acg_dev **out_acg_dev)
 {
 	int res;
@@ -4683,7 +4683,7 @@ out_free:
 
 /* Delete a LUN without generating a unit attention. */
 static struct scst_acg_dev *__scst_acg_del_lun(struct scst_acg *acg,
-					       uint64_t lun,
+					       u64 lun,
 					       struct list_head *tgt_dev_list,
 					       bool *report_luns_changed)
 {
@@ -4747,7 +4747,7 @@ static void scst_wait_for_tgt_devs(struct list_head *tgt_dev_list)
 		msleep(100);
 }
 
-int scst_acg_del_lun(struct scst_acg *acg, uint64_t lun,
+int scst_acg_del_lun(struct scst_acg *acg, u64 lun,
 		     bool gen_report_luns_changed)
 {
 	int res = 0;
@@ -4874,7 +4874,7 @@ void scst_async_lun_replace_set(bool val)
 
 /* Either add or replace a LUN according to flags argument */
 int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
-		      struct scst_device *dev, uint64_t lun,
+		      struct scst_device *dev, u64 lun,
 		      unsigned int flags)
 {
 	struct scst_acg_dev *acg_dev;
@@ -5532,7 +5532,7 @@ int scst_alloc_add_tgt_dev(struct scst_session *sess,
 	struct scst_device *dev = acg_dev->dev;
 	struct list_head *head;
 	int sl;
-	uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+	u8 sense_buffer[SCST_STANDARD_SENSE_LEN];
 
 	SCST_KUNIT_REDIRECT(scst_alloc_add_tgt_dev, sess, acg_dev, out_tgt_dev);
 
@@ -5732,7 +5732,7 @@ void scst_nexus_loss(struct scst_tgt_dev *tgt_dev, bool queue_UA)
 	TRACE_ENTRY();
 
 	if (queue_UA) {
-		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+		u8 sense_buffer[SCST_STANDARD_SENSE_LEN];
 		int sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
 				tgt_dev->dev->d_sense,
 				SCST_LOAD_SENSE(scst_sense_nexus_loss_UA));
@@ -5981,7 +5981,7 @@ out:
  *
  * Return: pointer to the newly allocated command or NULL.
  */
-struct scst_cmd *__scst_create_prepare_internal_cmd(const uint8_t *cdb,
+struct scst_cmd *__scst_create_prepare_internal_cmd(const u8 *cdb,
 	unsigned int cdb_len, enum scst_cmd_queue_type queue_type,
 	struct scst_tgt_dev *tgt_dev, gfp_t gfp_mask, bool fantom)
 {
@@ -6041,7 +6041,7 @@ out:
 }
 
 static struct scst_cmd *scst_create_prepare_internal_cmd(
-	struct scst_cmd *orig_cmd, const uint8_t *cdb,
+	struct scst_cmd *orig_cmd, const u8 *cdb,
 	unsigned int cdb_len, enum scst_cmd_queue_type queue_type)
 {
 	struct scst_cmd *res;
@@ -6087,7 +6087,7 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd);
 
 int scst_prepare_request_sense(struct scst_cmd *orig_cmd)
 {
-	static const uint8_t request_sense[6] = {
+	static const u8 request_sense[6] = {
 		REQUEST_SENSE, 0, 0, 0, SCST_SENSE_BUFFERSIZE, 0
 	};
 	struct scst_request_sense_priv *priv;
@@ -6145,7 +6145,7 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 {
 	struct scst_request_sense_priv *priv = req_cmd->tgt_i_priv;
 	struct scst_cmd *orig_cmd = priv->orig_cmd;
-	uint8_t *buf;
+	u8 *buf;
 	int len;
 
 	TRACE_ENTRY();
@@ -6474,7 +6474,7 @@ int scst_ws_push_single_write(struct scst_write_same_priv *wsp, s64 lba, int blo
 	struct scatterlist *ws_sg;
 	int ws_sg_cnt;
 	int res;
-	uint8_t write_cdb[32];
+	u8 write_cdb[32];
 	int write_cdb_len;
 	int len = blocks << ws_cmd->dev->block_shift;
 	struct scst_cmd *cmd;
@@ -6835,7 +6835,7 @@ void scst_write_same(struct scst_cmd *cmd, struct scst_data_descriptor *where)
 	int i, rc;
 	struct page *pg = NULL;
 	unsigned int offset, length, mult, ws_sg_full_blocks, ws_sg_tail_blocks;
-	uint8_t ctrl_offs = (cmd->cdb_len < 32) ? 1 : 10;
+	u8 ctrl_offs = (cmd->cdb_len < 32) ? 1 : 10;
 
 	TRACE_ENTRY();
 
@@ -6859,7 +6859,7 @@ void scst_write_same(struct scst_cmd *cmd, struct scst_data_descriptor *where)
 		goto out_done;
 	}
 
-	if (unlikely((uint64_t)cmd->data_len > cmd->dev->max_write_same_len)) {
+	if (unlikely((u64)cmd->data_len > cmd->dev->max_write_same_len)) {
 		PRINT_WARNING("Invalid WRITE SAME data len %lld (max allowed %lld)",
 			      (long long)cmd->data_len,
 			(long long)cmd->dev->max_write_same_len);
@@ -7063,7 +7063,7 @@ static void scst_cwr_read_cmd_finished(struct scst_cmd *cmd)
 	struct scst_cwr_priv *cwrp = cmd->tgt_i_priv;
 	struct scst_cmd *cwr_cmd = cwrp->cwr_orig_cmd;
 	bool c, dif;
-	uint8_t write16_cdb[16];
+	u8 write16_cdb[16];
 	struct scst_cmd *wcmd;
 	int data_len, miscompare_offs, rc;
 
@@ -7181,10 +7181,10 @@ enum scst_exec_res scst_cmp_wr_local(struct scst_cmd *cmd)
 {
 	enum scst_exec_res res = SCST_EXEC_COMPLETED;
 	struct scst_cwr_priv *cwrp;
-	uint8_t read16_cdb[16];
+	u8 read16_cdb[16];
 	struct scst_cmd *rcmd;
 	const int data_len = cmd->data_len;
-	const uint32_t num_lbas = data_len >> cmd->dev->block_shift;
+	const u32 num_lbas = data_len >> cmd->dev->block_shift;
 
 	TRACE_ENTRY();
 
@@ -7315,7 +7315,7 @@ static void scst_send_release(struct scst_device *dev)
 {
 	struct scsi_device *scsi_dev;
 	unsigned char cdb[6];
-	uint8_t sense[SCSI_SENSE_BUFFERSIZE];
+	u8 sense[SCSI_SENSE_BUFFERSIZE];
 	int rc, i;
 
 	TRACE_ENTRY();
@@ -7574,7 +7574,7 @@ EXPORT_SYMBOL(scst_cmd_put);
  * scst_cmd_set_ext_cdb() - sets cmd's extended CDB and its length
  */
 void scst_cmd_set_ext_cdb(struct scst_cmd *cmd,
-	uint8_t *ext_cdb, unsigned int ext_cdb_len,
+	u8 *ext_cdb, unsigned int ext_cdb_len,
 	gfp_t gfp_mask)
 {
 	unsigned int len = cmd->cdb_len + ext_cdb_len;
@@ -7616,7 +7616,7 @@ out_err:
 }
 EXPORT_SYMBOL(scst_cmd_set_ext_cdb);
 
-int scst_pre_init_cmd(struct scst_cmd *cmd, const uint8_t *cdb,
+int scst_pre_init_cmd(struct scst_cmd *cmd, const u8 *cdb,
 	unsigned int cdb_len, gfp_t gfp_mask)
 {
 	int res;
@@ -7627,7 +7627,7 @@ int scst_pre_init_cmd(struct scst_cmd *cmd, const uint8_t *cdb,
 	/* cmd supposed to be zeroed */
 	{
 		int i;
-		uint8_t *b = (uint8_t *)cmd;
+		u8 *b = (u8 *)cmd;
 
 		for (i = 0; i < sizeof(*cmd); i++)
 			EXTRACHECKS_BUG_ON(b[i] != 0);
@@ -7690,7 +7690,7 @@ out:
 	return res;
 }
 
-struct scst_cmd *scst_alloc_cmd(const uint8_t *cdb,
+struct scst_cmd *scst_alloc_cmd(const u8 *cdb,
 	unsigned int cdb_len, gfp_t gfp_mask)
 {
 	struct scst_cmd *cmd;
@@ -9375,7 +9375,7 @@ EXPORT_SYMBOL_GPL(scst_copy_sg);
  * and copies the buffer there. Returns length of the buffer or negative
  * error code otherwise.
  */
-int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf, bool always_copy)
+int scst_get_buf_full(struct scst_cmd *cmd, u8 **buf, bool always_copy)
 {
 	int res = 0;
 
@@ -9385,7 +9385,7 @@ int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf, bool always_copy)
 
 	if (scst_get_buf_count(cmd) > 1) {
 		int len;
-		uint8_t *tmp_buf;
+		u8 *tmp_buf;
 		int full_size;
 
 		full_size = 0;
@@ -9412,7 +9412,7 @@ int scst_get_buf_full(struct scst_cmd *cmd, uint8_t **buf, bool always_copy)
 
 		if (scst_cmd_get_data_direction(cmd) == SCST_DATA_WRITE ||
 		    always_copy) {
-			uint8_t *buf_ptr;
+			u8 *buf_ptr;
 
 			buf_ptr = *buf;
 
@@ -9443,7 +9443,7 @@ EXPORT_SYMBOL(scst_get_buf_full);
  * Does the same as scst_get_buf_full(), but in case of error
  * additionally sets in cmd status code and sense.
  */
-int scst_get_buf_full_sense(struct scst_cmd *cmd, uint8_t **buf)
+int scst_get_buf_full_sense(struct scst_cmd *cmd, u8 **buf)
 {
 	int res = 0;
 
@@ -9474,7 +9474,7 @@ EXPORT_SYMBOL(scst_get_buf_full_sense);
  * Reverse operation for scst_get_buf_full()/scst_get_buf_full_sense().
  * If the buffer was vmalloced(), it vfree() the buffer.
  */
-void scst_put_buf_full(struct scst_cmd *cmd, uint8_t *buf)
+void scst_put_buf_full(struct scst_cmd *cmd, u8 *buf)
 {
 	TRACE_ENTRY();
 
@@ -9484,7 +9484,7 @@ void scst_put_buf_full(struct scst_cmd *cmd, uint8_t *buf)
 	if (cmd->sg_buff_vmallocated) {
 		if (scst_cmd_get_data_direction(cmd) == SCST_DATA_READ) {
 			int len;
-			uint8_t *tmp_buf, *buf_p;
+			u8 *tmp_buf, *buf_p;
 
 			buf_p = buf;
 
@@ -9527,9 +9527,9 @@ static int scst_verify_dif_type1(struct scst_cmd *cmd)
 	enum scst_dif_actions checks = scst_get_dif_checks(cmd->cmd_dif_actions);
 	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
 	struct scatterlist *tags_sg = NULL;
-	uint8_t *buf, *tags_buf = NULL;
+	u8 *buf, *tags_buf = NULL;
 	const struct t10_pi_tuple *t = NULL; /* to silence compiler warning */
-	uint64_t lba = cmd->lba;
+	u64 lba = cmd->lba;
 	int block_size = dev->block_size, block_shift = dev->block_shift;
 	__be16 (*crc_fn)(const void *buffer, unsigned int len);
 
@@ -9554,7 +9554,7 @@ static int scst_verify_dif_type1(struct scst_cmd *cmd)
 	len = scst_get_buf_first(cmd, &buf);
 	while (len > 0) {
 		int i;
-		uint8_t *cur_buf = buf;
+		u8 *cur_buf = buf;
 
 		for (i = 0; i < (len >> block_shift); i++) {
 			if (tags_buf == NULL) {
@@ -9682,9 +9682,9 @@ static int scst_generate_dif_type1(struct scst_cmd *cmd)
 	struct scst_device *dev = cmd->dev;
 	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
 	struct scatterlist *tags_sg = NULL;
-	uint8_t *buf, *tags_buf = NULL;
+	u8 *buf, *tags_buf = NULL;
 	struct t10_pi_tuple *t = NULL; /* to silence compiler warning */
-	uint64_t lba = cmd->lba;
+	u64 lba = cmd->lba;
 	int block_size = dev->block_size, block_shift = dev->block_shift;
 	__be16 (*crc_fn)(const void *buffer, unsigned int len);
 
@@ -9707,7 +9707,7 @@ static int scst_generate_dif_type1(struct scst_cmd *cmd)
 	len = scst_get_buf_first(cmd, &buf);
 	while (len > 0) {
 		int i;
-		uint8_t *cur_buf = buf;
+		u8 *cur_buf = buf;
 
 		TRACE_DBG("len %d", len);
 
@@ -9959,12 +9959,12 @@ static int scst_verify_dif_type2(struct scst_cmd *cmd)
 	enum scst_dif_actions checks = scst_get_dif_checks(cmd->cmd_dif_actions);
 	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
 	struct scatterlist *tags_sg = NULL;
-	uint8_t *buf, *tags_buf = NULL;
+	u8 *buf, *tags_buf = NULL;
 	const struct t10_pi_tuple *t = NULL; /* to silence compiler warning */
-	uint64_t lba = cmd->lba;
+	u64 lba = cmd->lba;
 	int block_size = dev->block_size, block_shift = dev->block_shift;
 	__be16 (*crc_fn)(const void *buffer, unsigned int len);
-	uint32_t ref_tag = scst_cmd_get_dif_exp_ref_tag(cmd);
+	u32 ref_tag = scst_cmd_get_dif_exp_ref_tag(cmd);
 	/* Let's keep both in BE */
 	__be16 app_tag_mask = cpu_to_be16(scst_cmd_get_dif_app_tag_mask(cmd));
 	__be16 app_tag_masked = cpu_to_be16(scst_cmd_get_dif_exp_app_tag(cmd)) & app_tag_mask;
@@ -9990,7 +9990,7 @@ static int scst_verify_dif_type2(struct scst_cmd *cmd)
 	len = scst_get_buf_first(cmd, &buf);
 	while (len > 0) {
 		int i;
-		uint8_t *cur_buf = buf;
+		u8 *cur_buf = buf;
 
 		for (i = 0; i < (len >> block_shift); i++) {
 			if (tags_buf == NULL) {
@@ -10084,11 +10084,11 @@ static int scst_generate_dif_type2(struct scst_cmd *cmd)
 	struct scst_device *dev = cmd->dev;
 	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
 	struct scatterlist *tags_sg = NULL;
-	uint8_t *buf, *tags_buf = NULL;
+	u8 *buf, *tags_buf = NULL;
 	struct t10_pi_tuple *t = NULL; /* to silence compiler warning */
 	int block_size = dev->block_size, block_shift = dev->block_shift;
 	__be16 (*crc_fn)(const void *buffer, unsigned int len);
-	uint32_t ref_tag = scst_cmd_get_dif_exp_ref_tag(cmd);
+	u32 ref_tag = scst_cmd_get_dif_exp_ref_tag(cmd);
 	/* Let's keep both in BE */
 	__be16 app_tag_mask = cpu_to_be16(scst_cmd_get_dif_app_tag_mask(cmd));
 	__be16 app_tag_masked = cpu_to_be16(scst_cmd_get_dif_exp_app_tag(cmd)) & app_tag_mask;
@@ -10112,7 +10112,7 @@ static int scst_generate_dif_type2(struct scst_cmd *cmd)
 	len = scst_get_buf_first(cmd, &buf);
 	while (len > 0) {
 		int i;
-		uint8_t *cur_buf = buf;
+		u8 *cur_buf = buf;
 
 		TRACE_DBG("len %d", len);
 
@@ -10173,9 +10173,9 @@ static int scst_verify_dif_type3(struct scst_cmd *cmd)
 	enum scst_dif_actions checks = scst_get_dif_checks(cmd->cmd_dif_actions);
 	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
 	struct scatterlist *tags_sg = NULL;
-	uint8_t *buf, *tags_buf = NULL;
+	u8 *buf, *tags_buf = NULL;
 	const struct t10_pi_tuple *t = NULL; /* to silence compiler warning */
-	uint64_t lba = cmd->lba;
+	u64 lba = cmd->lba;
 	int block_size = dev->block_size, block_shift = dev->block_shift;
 	__be16 (*crc_fn)(const void *buffer, unsigned int len);
 
@@ -10200,7 +10200,7 @@ static int scst_verify_dif_type3(struct scst_cmd *cmd)
 	len = scst_get_buf_first(cmd, &buf);
 	while (len > 0) {
 		int i;
-		uint8_t *cur_buf = buf;
+		u8 *cur_buf = buf;
 
 		for (i = 0; i < (len >> block_shift); i++) {
 			if (tags_buf == NULL) {
@@ -10295,7 +10295,7 @@ static int scst_generate_dif_type3(struct scst_cmd *cmd)
 	struct scst_device *dev = cmd->dev;
 	int len, tags_len = 0, tag_size = 1 << SCST_DIF_TAG_SHIFT;
 	struct scatterlist *tags_sg = NULL;
-	uint8_t *buf, *tags_buf = NULL;
+	u8 *buf, *tags_buf = NULL;
 	struct t10_pi_tuple *t = NULL; /* to silence compiler warning */
 	int block_size = dev->block_size, block_shift = dev->block_shift;
 	__be16 (*crc_fn)(const void *buffer, unsigned int len);
@@ -10319,7 +10319,7 @@ static int scst_generate_dif_type3(struct scst_cmd *cmd)
 	len = scst_get_buf_first(cmd, &buf);
 	while (len > 0) {
 		int i;
-		uint8_t *cur_buf = buf;
+		u8 *cur_buf = buf;
 
 		TRACE_DBG("len %d", len);
 
@@ -10414,7 +10414,7 @@ static void scst_init_dif_checks(struct scst_device *dev)
 void scst_dev_set_dif_static_app_tag_combined(
 	struct scst_device *dev, __be64 app_tag)
 {
-	uint64_t a = be64_to_cpu(app_tag);
+	u64 a = be64_to_cpu(app_tag);
 
 	dev->dev_dif_static_app_tag = cpu_to_be16(a & 0xFFFF);
 	if (dev->dev_dif_type == 3)
@@ -11891,7 +11891,7 @@ static int get_cdb_info_write_same(struct scst_cmd *cmd,
 				   const struct scst_sdbops *sdbops,
 				   const bool ndob)
 {
-	const uint8_t ctrl_offs = cmd->cdb_len < 32 ? 1 : 10;
+	const u8 ctrl_offs = cmd->cdb_len < 32 ? 1 : 10;
 	const bool anchor = (cmd->cdb[ctrl_offs] >> 4) & 1;
 	const bool unmap  = (cmd->cdb[ctrl_offs] >> 3) & 1;
 
@@ -12278,7 +12278,7 @@ int scst_get_cdb_info(struct scst_cmd *cmd)
 {
 	int dev_type = cmd->dev->type;
 	int i, res = 0;
-	uint8_t op;
+	u8 op;
 	const struct scst_sdbops *ptr = NULL;
 
 	TRACE_ENTRY();
@@ -12331,9 +12331,9 @@ out:
 EXPORT_SYMBOL_GPL(scst_get_cdb_info);
 
 /* Packs SCST LUN back to SCSI form */
-__be64 scst_pack_lun(const uint64_t lun, enum scst_lun_addr_method addr_method)
+__be64 scst_pack_lun(const u64 lun, enum scst_lun_addr_method addr_method)
 {
-	uint64_t res = 0;
+	u64 res = 0;
 
 	if (lun) {
 		res = (addr_method << 14) | (lun & 0x3fff);
@@ -12350,9 +12350,9 @@ EXPORT_SYMBOL(scst_pack_lun);
  * order (big endian). Supports three LUN addressing methods: peripheral, flat
  * and logical unit. See also SAM-2, section 4.9.4 (page 40).
  */
-uint64_t scst_unpack_lun(const uint8_t *lun, int len)
+u64 scst_unpack_lun(const u8 *lun, int len)
 {
-	uint64_t res = NO_SUCH_LUN;
+	u64 res = NO_SUCH_LUN;
 	int address_method;
 
 	TRACE_ENTRY();
@@ -12594,7 +12594,7 @@ int scst_tape_generic_parse(struct scst_cmd *cmd)
 	 */
 
 	if (cmd->op_flags & SCST_TRANSFER_LEN_TYPE_FIXED && cmd->cdb[1] & 1) {
-		uint32_t block_size = cmd->dev->block_size;
+		u32 block_size = cmd->dev->block_size;
 		u64 max_blocks = LLONG_MAX;
 		bool overflow;
 
@@ -12803,7 +12803,7 @@ int scst_block_generic_dev_done(struct scst_cmd *cmd,
 		if (scst_cmd_completed_good(cmd)) {
 			/* Always keep track of disk capacity */
 			int buffer_size, sector_size, sh;
-			uint8_t *buffer;
+			u8 *buffer;
 
 			/* Inspect the data returned by the backend, including split SGs. */
 			buffer_size = scst_get_buf_full(cmd, &buffer, true);
@@ -12844,7 +12844,7 @@ int scst_tape_generic_dev_done(struct scst_cmd *cmd,
 	int opcode = cmd->cdb[0];
 	int res = SCST_CMD_STATE_DEFAULT;
 	int buffer_size, bs;
-	uint8_t *buffer = NULL;
+	u8 *buffer = NULL;
 
 	TRACE_ENTRY();
 
@@ -12900,9 +12900,9 @@ out:
 }
 EXPORT_SYMBOL_GPL(scst_tape_generic_dev_done);
 
-typedef void (*scst_set_cdb_lba_fn_t)(struct scst_cmd *cmd, int64_t lba);
+typedef void (*scst_set_cdb_lba_fn_t)(struct scst_cmd *cmd, s64 lba);
 
-static void scst_set_cdb_lba1(struct scst_cmd *cmd, int64_t lba)
+static void scst_set_cdb_lba1(struct scst_cmd *cmd, s64 lba)
 {
 	TRACE_ENTRY();
 
@@ -12911,7 +12911,7 @@ static void scst_set_cdb_lba1(struct scst_cmd *cmd, int64_t lba)
 	TRACE_EXIT();
 }
 
-static void scst_set_cdb_lba2(struct scst_cmd *cmd, int64_t lba)
+static void scst_set_cdb_lba2(struct scst_cmd *cmd, s64 lba)
 {
 	TRACE_ENTRY();
 
@@ -12920,7 +12920,7 @@ static void scst_set_cdb_lba2(struct scst_cmd *cmd, int64_t lba)
 	TRACE_EXIT();
 }
 
-static void scst_set_cdb_lba3(struct scst_cmd *cmd, int64_t lba)
+static void scst_set_cdb_lba3(struct scst_cmd *cmd, s64 lba)
 {
 	TRACE_ENTRY();
 
@@ -12929,7 +12929,7 @@ static void scst_set_cdb_lba3(struct scst_cmd *cmd, int64_t lba)
 	TRACE_EXIT();
 }
 
-static void scst_set_cdb_lba4(struct scst_cmd *cmd, int64_t lba)
+static void scst_set_cdb_lba4(struct scst_cmd *cmd, s64 lba)
 {
 	TRACE_ENTRY();
 
@@ -12938,7 +12938,7 @@ static void scst_set_cdb_lba4(struct scst_cmd *cmd, int64_t lba)
 	TRACE_EXIT();
 }
 
-static void scst_set_cdb_lba8(struct scst_cmd *cmd, int64_t lba)
+static void scst_set_cdb_lba8(struct scst_cmd *cmd, s64 lba)
 {
 	TRACE_ENTRY();
 
@@ -12955,7 +12955,7 @@ static const scst_set_cdb_lba_fn_t scst_set_cdb_lba_fns[9] = {
 	[8] = scst_set_cdb_lba8,
 };
 
-int scst_set_cdb_lba(struct scst_cmd *cmd, int64_t lba)
+int scst_set_cdb_lba(struct scst_cmd *cmd, s64 lba)
 {
 	int res;
 
@@ -13045,7 +13045,7 @@ int scst_set_cdb_transf_len(struct scst_cmd *cmd, int len)
 EXPORT_SYMBOL_GPL(scst_set_cdb_transf_len);
 
 static void scst_check_internal_sense(struct scst_device *dev, int result,
-	uint8_t *sense, int sense_len)
+	u8 *sense, int sense_len)
 {
 	TRACE_ENTRY();
 
@@ -13160,7 +13160,7 @@ void scst_process_reset(struct scst_device *dev,
 	}
 
 	if (setUA) {
-		uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+		u8 sense_buffer[SCST_STANDARD_SENSE_LEN];
 		int sl = scst_set_sense(sense_buffer, sizeof(sense_buffer),
 			dev->d_sense, SCST_LOAD_SENSE(scst_sense_reset_UA));
 		/*
@@ -13191,7 +13191,7 @@ void scst_tgt_dev_del_free_UA(struct scst_tgt_dev *tgt_dev,
 }
 
 /* No locks, no IRQ or IRQ-disabled context allowed */
-int scst_set_pending_UA(struct scst_cmd *cmd, uint8_t *buf, int *size)
+int scst_set_pending_UA(struct scst_cmd *cmd, u8 *buf, int *size)
 {
 	int res = 0, i;
 	struct scst_tgt_dev_UA *UA_entry;
@@ -13345,7 +13345,7 @@ out:
  * there's only one user of tgt_dev.
  */
 static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
-	const uint8_t *sense, int sense_len, int flags)
+	const u8 *sense, int sense_len, int flags)
 {
 	struct scst_tgt_dev_UA *UA_entry = NULL;
 
@@ -13388,7 +13388,7 @@ out:
 
 /* tgt_dev_lock supposed to be held and BH off */
 static void __scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
-	const uint8_t *sense, int sense_len, int flags)
+	const u8 *sense, int sense_len, int flags)
 {
 	int skip_UA = 0;
 	struct scst_tgt_dev_UA *UA_entry_tmp;
@@ -13416,7 +13416,7 @@ static void __scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 }
 
 void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
-	const uint8_t *sense, int sense_len, int flags)
+	const u8 *sense, int sense_len, int flags)
 {
 	TRACE_ENTRY();
 
@@ -13429,7 +13429,7 @@ void scst_check_set_UA(struct scst_tgt_dev *tgt_dev,
 
 /* Called under dev_lock and BH off */
 void scst_dev_check_set_local_UA(struct scst_device *dev,
-	struct scst_cmd *exclude, const uint8_t *sense, int sense_len)
+	struct scst_cmd *exclude, const u8 *sense, int sense_len)
 {
 	struct scst_tgt_dev *tgt_dev, *exclude_tgt_dev = NULL;
 
@@ -13452,7 +13452,7 @@ void scst_dev_check_set_local_UA(struct scst_device *dev,
  * should be called outside of the dev_lock.
  */
 static bool __scst_dev_check_set_UA(struct scst_device *dev,
-	struct scst_cmd *exclude, const uint8_t *sense, int sense_len)
+	struct scst_cmd *exclude, const u8 *sense, int sense_len)
 {
 	bool res = false;
 
@@ -13476,7 +13476,7 @@ static bool __scst_dev_check_set_UA(struct scst_device *dev,
 }
 
 void scst_dev_check_set_UA(struct scst_device *dev,
-	struct scst_cmd *exclude, const uint8_t *sense, int sense_len)
+	struct scst_cmd *exclude, const u8 *sense, int sense_len)
 {
 	struct scst_lksb lksb;
 	bool rc;
@@ -13491,7 +13491,7 @@ void scst_dev_check_set_UA(struct scst_device *dev,
 
 void scst_set_tp_soft_threshold_reached_UA(struct scst_tgt_dev *tgt_dev)
 {
-	uint8_t sense[SCST_STANDARD_SENSE_LEN];
+	u8 sense[SCST_STANDARD_SENSE_LEN];
 	int len;
 
 	TRACE_ENTRY();
@@ -13836,12 +13836,12 @@ void scst_unblock_dev(struct scst_device *dev)
  * Returns 0 on success and not 0 otherwise.
  */
 int scst_obtain_device_parameters(struct scst_device *dev,
-	const uint8_t *mode_select_cdb)
+	const u8 *mode_select_cdb)
 {
 	int rc, i;
-	uint8_t cmd[16];
-	uint8_t buffer[4+0x0A];
-	uint8_t sense_buffer[SCSI_SENSE_BUFFERSIZE];
+	u8 cmd[16];
+	u8 buffer[4+0x0A];
+	u8 sense_buffer[SCSI_SENSE_BUFFERSIZE];
 
 	TRACE_ENTRY();
 
@@ -14042,7 +14042,7 @@ static void scst_abort_cmds_dev(struct scst_device *dev,
 	struct scst_cmd *exclude_cmd)
 {
 	struct scst_tgt_dev *tgt_dev;
-	uint8_t sense_buffer[SCST_STANDARD_SENSE_LEN];
+	u8 sense_buffer[SCST_STANDARD_SENSE_LEN];
 	int sl = 0;
 	bool set_ua = (dev->tas == 0);
 
@@ -14270,7 +14270,7 @@ out:
  * If sess is NULL, returns minimum of maximum commands count which can be
  * queued to any SCST device.
  */
-int scst_get_max_lun_commands(struct scst_session *sess, uint64_t lun)
+int scst_get_max_lun_commands(struct scst_session *sess, u64 lun)
 {
 	const int init_res = 0xFFFFFF;
 	int res = init_res, i;
@@ -14527,7 +14527,7 @@ static int scst_parse_unmap_descriptors(struct scst_cmd *cmd)
 {
 	int res = 0;
 	ssize_t length = 0;
-	uint8_t *address;
+	u8 *address;
 	int i, cnt, offset, descriptor_len, total_len;
 	struct scst_data_descriptor *pd;
 
@@ -14664,7 +14664,7 @@ static void scst_free_descriptors(struct scst_cmd *cmd)
 #define SCST_DPICZ_LABEL	"DPICZ"
 
 int scst_save_global_mode_pages(const struct scst_device *dev,
-	uint8_t *buf, int size)
+	u8 *buf, int size)
 {
 	int res = 0;
 
@@ -15113,7 +15113,7 @@ out:
 }
 
 static void scst_sync_ext_blocking_done(struct scst_device *dev,
-	uint8_t *data, int len)
+	u8 *data, int len)
 {
 	wait_queue_head_t *w;
 
@@ -15346,7 +15346,7 @@ int scst_copy_file(const char *src, const char *dest)
 {
 	int res = 0;
 	loff_t file_size, pos;
-	uint8_t *buf = NULL;
+	u8 *buf = NULL;
 	struct file *file_src = NULL, *file_dest = NULL;
 
 	TRACE_ENTRY();
@@ -15441,7 +15441,7 @@ EXPORT_SYMBOL_GPL(scst_remove_file);
 
 /* Returns 0 on success, error code otherwise */
 int scst_write_file_transactional(const char *name, const char *name1,
-	const char *signature, int signature_len, const uint8_t *buf, int size)
+	const char *signature, int signature_len, const u8 *buf, int size)
 {
 	int res;
 	struct file *file;
@@ -15517,7 +15517,7 @@ write_error_close:
 EXPORT_SYMBOL_GPL(scst_write_file_transactional);
 
 static int __scst_read_file_transactional(const char *file_name,
-	const char *signature, int signature_len, uint8_t *buf, int size)
+	const char *signature, int signature_len, u8 *buf, int size)
 {
 	int res;
 	struct file *file = NULL;
@@ -15576,7 +15576,7 @@ out:
  * skipped.
  */
 int scst_read_file_transactional(const char *name, const char *name1,
-	const char *signature, int signature_len, uint8_t *buf, int size)
+	const char *signature, int signature_len, u8 *buf, int size)
 {
 	int res;
 
@@ -15648,7 +15648,7 @@ EXPORT_SYMBOL(scst_parent_dir_exists);
 static void __init scst_scsi_op_list_init(void)
 {
 	int i;
-	uint8_t op = 0xff;
+	u8 op = 0xff;
 
 	TRACE_ENTRY();
 
@@ -16073,11 +16073,11 @@ void scst_check_debug_sn(struct scst_cmd *cmd)
 
 static void __scst_update_latency_stats(struct scst_cmd *cmd,
 					struct scst_lat_stat_entry *stat,
-					const ktime_t now, uint64_t nowc)
+					const ktime_t now, u64 nowc)
 {
-	uint64_t delta;
+	u64 delta;
 #ifdef SCST_MEASURE_CLOCK_CYCLES
-	int64_t deltac;
+	s64 deltac;
 #endif
 
 	if (stat && ktime_to_ns(cmd->last_state_update) != 0) {
@@ -16137,7 +16137,7 @@ static void __scst_update_latency_stats(struct scst_cmd *cmd,
 void scst_update_latency_stats(struct scst_cmd *cmd, int new_state)
 {
 	ktime_t now;
-	uint64_t nowc;
+	u64 nowc;
 	int sz, dir;
 	struct scst_lat_stat_entry *stat;
 	unsigned long flags;
