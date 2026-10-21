@@ -4038,9 +4038,9 @@ enum compl_status_e vdisk_exec_request_sense(struct vdisk_cmd_params *p)
 
 		BUILD_BUG_ON(SCST_STANDARD_SENSE_LEN < 18);
 		if (dev->d_sense) {
-			uint8_t *p = &b[7];
 			int o = 8;
-			*p += 8;
+
+			b[7] += 8;
 			sl += 8;
 			b[o] = 2;
 			b[o + 1] = 6;

@@ -1212,7 +1212,7 @@ static int scst_parse_add_repl_param(struct scst_acg *acg,
 	while (1) {
 		unsigned long val;
 		char *param = scst_get_next_token_str(&pp);
-		char *p, *pp;
+		char *p, *value;
 
 		if (!param)
 			break;
@@ -1225,8 +1225,8 @@ static int scst_parse_add_repl_param(struct scst_acg *acg,
 			goto out;
 		}
 
-		pp = scst_get_next_lexem(&param);
-		if (*pp == '\0') {
+		value = scst_get_next_lexem(&param);
+		if (*value == '\0') {
 			PRINT_ERROR("Parameter %s value missed for device %s",
 				    p, dev->virt_name);
 			res = -EINVAL;
@@ -1240,10 +1240,10 @@ static int scst_parse_add_repl_param(struct scst_acg *acg,
 			goto out;
 		}
 
-		res = kstrtoul(pp, 0, &val);
+		res = kstrtoul(value, 0, &val);
 		if (res != 0) {
 			PRINT_ERROR("kstrtoul() for %s failed: %d (device %s)",
-				    pp, res, dev->virt_name);
+				    value, res, dev->virt_name);
 			goto out;
 		}
 

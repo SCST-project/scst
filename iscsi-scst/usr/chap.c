@@ -205,7 +205,6 @@ static void encode_base64_string(u8 *intnum, long length, char *string)
 		return;
 
 	count = 0;
-	octets = 0;
 	strptr = 0;
 
 	while ((delta = (length - count)) > 2) {

@@ -219,7 +219,7 @@ out:
 static int iscsid_request(struct iscsi_adm_req *req, void *rsp_data,
 			int rsp_data_sz)
 {
-	int fd = -1, err = -EIO;
+	int fd, err;
 
 	if ((fd = iscsid_connect()) < 0) {
 		err = fd;

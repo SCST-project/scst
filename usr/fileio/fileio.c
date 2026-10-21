@@ -175,27 +175,26 @@ static void usage(void)
 
 static int scst_calc_block_shift(int sector_size)
 {
-	int block_shift = 0;
+	int shift = 0;
 	int t = sector_size;
 
 	if (sector_size == 0)
 		goto out;
 
-	t = sector_size;
 	while(1) {
 		if ((t & 1) != 0)
 			break;
 		t >>= 1;
-		block_shift++;
+		shift++;
 	}
-	if (block_shift < 9) {
+	if (shift < 9) {
 		PRINT_ERROR("Wrong sector size %d", sector_size);
-		block_shift = -1;
+		shift = -1;
 	}
 
 out:
-	TRACE_EXIT_RES(block_shift);
-	return block_shift;
+	TRACE_EXIT_RES(shift);
+	return shift;
 }
 
 static void *align_alloc(size_t size)

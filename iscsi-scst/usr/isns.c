@@ -62,7 +62,7 @@ static uint16_t scn_listen_port;
 static int isns_fd, scn_listen_fd, scn_fd;
 static struct isns_io isns_rx, scn_rx;
 static char *rxbuf;
-static uint16_t transaction;
+static uint16_t next_transaction;
 static uint32_t current_timeout = 30; /* seconds */
 static char eid[ISCSI_NAME_LEN];
 static uint8_t ip[16]; /* SCST iSCSI supports only one portal */
@@ -249,7 +249,7 @@ static int isns_scn_deregister(char *name)
 
 	flags = ISNS_FLAG_CLIENT | ISNS_FLAG_LAST_PDU | ISNS_FLAG_FIRST_PDU;
 	isns_hdr_init(hdr, ISNS_FUNC_SCN_DEREG, length, flags,
-		      ++transaction, 0);
+		      ++next_transaction, 0);
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
@@ -325,7 +325,7 @@ static int isns_scn_register(void)
 	length += err;
 
 	flags = ISNS_FLAG_CLIENT | ISNS_FLAG_LAST_PDU | ISNS_FLAG_FIRST_PDU;
-	isns_hdr_init(hdr, ISNS_FUNC_SCN_REG, length, flags, ++transaction, 0);
+	isns_hdr_init(hdr, ISNS_FUNC_SCN_REG, length, flags, ++next_transaction, 0);
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
@@ -407,8 +407,8 @@ static int isns_attr_query(char *name)
 
 	flags = ISNS_FLAG_CLIENT | ISNS_FLAG_LAST_PDU | ISNS_FLAG_FIRST_PDU;
 	isns_hdr_init(hdr, ISNS_FUNC_DEV_ATTR_QRY, length, flags,
-		      ++transaction, 0);
-	mgmt->transaction = transaction;
+		      ++next_transaction, 0);
+	mgmt->transaction = next_transaction;
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
@@ -462,7 +462,7 @@ static int isns_deregister(void)
 
 	flags = ISNS_FLAG_CLIENT | ISNS_FLAG_LAST_PDU | ISNS_FLAG_FIRST_PDU;
 	isns_hdr_init(hdr, ISNS_FUNC_DEV_DEREG, length, flags,
-		      ++transaction, 0);
+		      ++next_transaction, 0);
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
@@ -581,7 +581,7 @@ int isns_target_register(char *name)
 
 	flags |= ISNS_FLAG_CLIENT | ISNS_FLAG_LAST_PDU | ISNS_FLAG_FIRST_PDU;
 	isns_hdr_init(hdr, ISNS_FUNC_DEV_ATTR_REG, length, flags,
-		      ++transaction, 0);
+		      ++next_transaction, 0);
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)
@@ -665,7 +665,7 @@ int isns_target_deregister(char *name)
 
 	flags = ISNS_FLAG_CLIENT | ISNS_FLAG_LAST_PDU | ISNS_FLAG_FIRST_PDU;
 	isns_hdr_init(hdr, ISNS_FUNC_DEV_DEREG, length, flags,
-		      ++transaction, 0);
+		      ++next_transaction, 0);
 
 	err = write(isns_fd, buf, length + sizeof(struct isns_hdr));
 	if (err < 0)

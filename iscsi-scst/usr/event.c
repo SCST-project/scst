@@ -1082,13 +1082,13 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		res = isns_init();
 		if (res == 0) {
 			struct target *t;
-			int rc;
+			int register_status;
 
 			list_for_each_entry(t, &targets_list, tlist) {
 				if (!t->tgt_enabled)
 					continue;
-				rc = isns_target_register(t->name);
-				if (rc < 0) {
+				register_status = isns_target_register(t->name);
+				if (register_status < 0) {
 					/*
 					 * iSNS server can be temporary not
 					 * available.
@@ -1326,10 +1326,10 @@ retry:
 
 int nl_open(void)
 {
-	int nl_fd, res;
+	int fd, res;
 
-	nl_fd = socket(PF_NETLINK, SOCK_RAW, NETLINK_ISCSI_SCST);
-	if (nl_fd == -1) {
+	fd = socket(PF_NETLINK, SOCK_RAW, NETLINK_ISCSI_SCST);
+	if (fd == -1) {
 		log_error("%s %s\n", __func__, strerror(errno));
 		return -1;
 	}
@@ -1344,12 +1344,12 @@ int nl_open(void)
 	dest_addr.nl_pid = 0; /* kernel */
 	dest_addr.nl_groups = 0; /* unicast */
 
-	res = nl_write(nl_fd, NULL, 0);
+	res = nl_write(fd, NULL, 0);
 	if (res < 0) {
 		log_error("%s %d\n", __func__, res);
-		close(nl_fd);
+		close(fd);
 		return res;
 	}
 
-	return nl_fd;
+	return fd;
 }

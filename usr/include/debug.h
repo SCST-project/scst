@@ -96,7 +96,7 @@ extern void debug_done(void);
  * on the logging system in case of a lot of logging.
  */
 
-extern int debug_print_prefix(unsigned long trace_flag, const char *prefix,
+extern int debug_print_prefix(unsigned long flags, const char *prefix,
 			      const char *func, int line);
 extern void debug_print_buffer(const void *data, int len);
 
