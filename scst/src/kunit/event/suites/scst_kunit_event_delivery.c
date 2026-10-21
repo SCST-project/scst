@@ -177,7 +177,6 @@ static void event_ack_test(struct kunit *test)
 {
 	const struct event_ack_case *p = test->param_value;
 	struct event_test_fixture *f = test->priv;
-	struct scst_event_entry *e;
 	unsigned int processing = p->queued ? 0 : p->result ? 2 : 1;
 
 	KUNIT_ASSERT_NOT_NULL(test, event_test_queue(f, 3, 42, true));
@@ -204,6 +203,8 @@ static void event_ack_test(struct kunit *test)
 			p->queued ? 2U : 0U);
 	KUNIT_EXPECT_EQ(test, event_test_list_count(&f->priv.processing_events_list), processing);
 	if (processing) {
+		const struct scst_event_entry *e;
+
 		KUNIT_ASSERT_FALSE(test, list_empty(&f->priv.processing_events_list));
 		e = list_first_entry(&f->priv.processing_events_list, struct scst_event_entry,
 				     events_list_entry);

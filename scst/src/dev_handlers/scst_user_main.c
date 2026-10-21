@@ -3887,7 +3887,7 @@ static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj, struct kobj_at
 	struct scst_device *dev;
 	struct scst_user_dev *udev;
 	unsigned long flags;
-	int i, ret = 0, pos;
+	int i, ret = 0;
 
 	TRACE_ENTRY();
 
@@ -3900,7 +3900,8 @@ static ssize_t dev_user_sysfs_commands_show(struct kobject *kobj, struct kobj_at
 		struct scst_user_cmd *ucmd;
 
 		list_for_each_entry(ucmd, head, hash_list_entry) {
-			pos = ret;
+			int pos = ret;
+
 			ret += sysfs_emit_at(buf, ret,
 					     "ucmd %p (state %x, ref %u), sent_to_user %d, seen_by_user %d, aborted %d, jammed %d, scst_cmd %p\n",
 					     ucmd, ucmd->state,

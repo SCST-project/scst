@@ -649,7 +649,6 @@ void scst_trace_cmds(scst_show_fn show, void *arg)
 	struct scst_tgt *tgt;
 	struct scst_session *sess;
 	struct scst_cmd *cmd;
-	struct scst_tgt_dev *tgt_dev;
 	char state_name[32];
 	char cdb[64];
 
@@ -661,7 +660,8 @@ void scst_trace_cmds(scst_show_fn show, void *arg)
 				spin_lock_irq(&sess->sess_list_lock);
 				list_for_each_entry(cmd, &sess->sess_cmd_list,
 						    sess_cmd_list_entry) {
-					tgt_dev = cmd->tgt_dev;
+					const struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+
 					scst_dump_cdb(cdb, sizeof(cdb), cmd);
 					scst_get_cmd_state_name(state_name, sizeof(state_name),
 								cmd->state);

@@ -38,13 +38,14 @@ static int iscsi_tx_send_stub(struct socket *sock, struct msghdr *msg,
 {
 	struct kunit *test = kunit_get_current_test();
 	struct iscsi_tx_fixture *f = test->priv;
-	unsigned int i;
 
 	KUNIT_EXPECT_PTR_EQ(test, sock, &f->socket);
 	KUNIT_EXPECT_EQ(test, msg->msg_flags, MSG_NOSIGNAL | MSG_DONTWAIT);
 	KUNIT_EXPECT_EQ(test, size, (size_t)f->conn.write_size);
 	KUNIT_EXPECT_EQ(test, iov->iov_len, size);
 	if (f->conn.write_state == TX_PADDING) {
+		unsigned int i;
+
 		for (i = 0; i < size; i++)
 			KUNIT_EXPECT_EQ(test, ((u8 *)iov->iov_base)[i], (u8)0);
 	} else {

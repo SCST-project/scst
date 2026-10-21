@@ -2829,11 +2829,11 @@ out:
 static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			      size_t len, loff_t *loff)
 {
-	ssize_t read, res;
-
 	if (virt_dev->nullio) {
 		return len;
 	} else if (virt_dev->blockio) {
+		ssize_t read, res;
+
 		for (read = 0; read < len; read += res) {
 			res = blockio_read_sync(virt_dev, (u8 *)buf + read,
 						len - read, loff);
@@ -3559,13 +3559,13 @@ static int vdisk_sup_vpd(uint8_t *buf, struct scst_cmd *cmd,
 static int vdisk_usn_vpd(uint8_t *buf, struct scst_cmd *cmd,
 			 struct scst_vdisk_dev *virt_dev)
 {
-	uint16_t usn_len, max_len = INQ_BUF_SZ - 4;
+	uint16_t usn_len;
 
 	BUILD_BUG_ON(sizeof(virt_dev->usn) > INQ_BUF_SZ - 4);
 
 	buf[1] = 0x80;
 	if (cmd->tgtt->get_serial) {
-		usn_len = cmd->tgtt->get_serial(cmd->tgt_dev, &buf[4], max_len);
+		usn_len = cmd->tgtt->get_serial(cmd->tgt_dev, &buf[4], INQ_BUF_SZ - 4);
 	} else {
 		read_lock(&vdisk_serial_rwlock);
 		usn_len = strlen(virt_dev->usn);

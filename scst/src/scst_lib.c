@@ -6596,7 +6596,6 @@ out_busy:
 static void scst_ws_finished(struct scst_write_same_priv *wsp)
 {
 	struct scst_cmd *ws_cmd = wsp->ws_orig_cmd;
-	int i;
 
 	TRACE_ENTRY();
 
@@ -6612,6 +6611,8 @@ static void scst_ws_finished(struct scst_write_same_priv *wsp)
 		__free_page(sg_page(&wsp->ws_sg_tails[0].sg[0]));
 	kfree(wsp->ws_sg_full);
 	if (wsp->ws_sg_tails) {
+		int i;
+
 		for (i = 0; wsp->ws_descriptors[i].sdd_blocks != 0; i++)
 			if (wsp->ws_sg_tails[i].sg_cnt != 0)
 				kfree(wsp->ws_sg_tails[i].sg);
@@ -6792,7 +6793,6 @@ static int scst_ws_sg_init(struct scatterlist **ws_sg, int ws_sg_cnt,
 static int scst_ws_sg_tails_get(struct scst_data_descriptor *where, struct scst_write_same_priv *wsp)
 {
 	int i;
-	uint64_t n;
 
 	TRACE_ENTRY();
 
@@ -6812,7 +6812,8 @@ static int scst_ws_sg_tails_get(struct scst_data_descriptor *where, struct scst_
 		return -ENOMEM;
 	}
 	for (i = 0; where[i].sdd_blocks != 0; i++) {
-		n = where[i].sdd_blocks;
+		u64 n = where[i].sdd_blocks;
+
 		wsp->ws_sg_tails[i].sg_cnt = do_div(n, wsp->ws_max_each);
 	}
 
@@ -7871,13 +7872,12 @@ void scst_free_cmd(struct kref *ref)
 /* No locks supposed to be held. */
 void scst_check_retries(struct scst_tgt *tgt)
 {
-	int need_wake_up = 0;
-
 	TRACE_ENTRY();
 
 	if (unlikely(tgt->retry_cmds > 0)) {
 		struct scst_cmd *c, *tc;
 		unsigned long flags;
+		int need_wake_up = 0;
 
 		TRACE_RETRY("Checking retry cmd list (retry_cmds %d)",
 		      tgt->retry_cmds);
@@ -8195,11 +8195,11 @@ static void blk_free_kern_sg_work(struct blk_kern_sg_work *bw)
 {
 	struct sg_table *sgt = &bw->sg_table;
 	struct scatterlist *sg;
-	struct page *pg;
 	int i;
 
 	for_each_sg(sgt->sgl, sg, sgt->orig_nents, i) {
-		pg = sg_page(sg);
+		struct page *pg = sg_page(sg);
+
 		if (pg == NULL)
 			break;
 		__free_page(pg);
@@ -15624,15 +15624,16 @@ EXPORT_SYMBOL(scst_get_file_mode);
 bool scst_parent_dir_exists(const char *path)
 {
 	const char *last_slash = strrchr(path, '/');
-	const char *dir;
-	int dir_mode;
 	bool res = true;
 
 	if (last_slash && last_slash > path) {
+		const char *dir;
+
 		dir = kasprintf(GFP_KERNEL, "%.*s", (int)(last_slash - path),
 				path);
 		if (dir) {
-			dir_mode = scst_get_file_mode(dir);
+			int dir_mode = scst_get_file_mode(dir);
+
 			kfree(dir);
 			res = dir_mode >= 0 && S_ISDIR(dir_mode);
 		} else {

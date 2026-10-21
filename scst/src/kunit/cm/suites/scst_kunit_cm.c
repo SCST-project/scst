@@ -114,7 +114,6 @@ static void cm_update_test(struct kunit *test)
 {
 	const struct cm_update_case *p = test->param_value;
 	struct cm_fixture *f = test->priv;
-	unsigned int i;
 
 	f->dev.block_count = p->initial_blocks;
 	if (!p->pending) {
@@ -126,6 +125,8 @@ static void cm_update_test(struct kunit *test)
 	}
 	scst_cm_update_dev_start(&f->dev);
 	if (p->pending) {
+		unsigned int i;
+
 		KUNIT_ASSERT_EQ(test, f->inquiries, 1U);
 		for (i = 0; i < p->pending; i++)
 			scst_cm_update_dev_start(&f->dev);

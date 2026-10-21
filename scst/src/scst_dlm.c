@@ -428,10 +428,11 @@ static int scst_copy_from_dlm(struct scst_device *dev, dlm_lockspace_t *ls,
 		/* Does the registrant have UAs that need to be delivered here? */
 		if (unlikely((reg->registered_by_nodeid == pr_dlm->local_nodeid) &&
 			     (reg->next_rem_ua_idx))) {
-			struct scst_dlm_rem_ua *ua;
 			int j;
 
 			for (j = 0; j < reg->next_rem_ua_idx; j++) {
+				struct scst_dlm_rem_ua *ua;
+
 				ua = scst_dlm_pr_reg_recv_rem_ua(dev, ls, reg, j);
 				if (ua) {
 					if (reg->tgt_dev)
@@ -523,7 +524,6 @@ static void scst_copy_to_dlm(struct scst_device *dev, dlm_lockspace_t *ls)
 	struct pr_reg_lvb *reg_lvb;
 	struct scst_dev_registrant *reg;
 	struct scst_dlm_rem_ua *ua;
-	int i;
 	char reg_name[32];
 	uint32_t nr_registrants, tid_size;
 
@@ -547,7 +547,8 @@ static void scst_copy_to_dlm(struct scst_device *dev, dlm_lockspace_t *ls)
 		if (reg->dlm_idx >= nr_registrants)
 			scst_dlm_pr_rm_reg_ls(ls, reg, false);
 		if (reg->dlm_idx < 0) {
-			i = scst_get_available_dlm_idx(dev);
+			int i = scst_get_available_dlm_idx(dev);
+
 			snprintf(reg_name, sizeof(reg_name), PR_REG_LOCK, i);
 			if (scst_dlm_lock_wait(ls, DLM_LOCK_NL,
 					       &reg->lksb, 0, reg_name, NULL)
