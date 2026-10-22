@@ -46,6 +46,7 @@
 #include <linux/debugfs.h>
 #include <linux/dmapool.h>
 #include <linux/eventpoll.h>
+#include <linux/fs.h>
 #include <linux/highmem.h>
 #include <linux/iocontext.h>
 #include <linux/jiffies.h>
@@ -887,12 +888,37 @@ static inline long pin_user_pages_backport(unsigned long start,
 #define time_is_before_jiffies64(a) time_after64(get_jiffies_64(), a)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 13, 0) &&	\
-	(!defined(UEK_KABI_RENAME) ||			\
-	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 0))
 /*
  * See also commit b35108a51cf7 ("jiffies: Define secs_to_jiffies()") # v6.13.
+ * See also commit 5dc96cd93818 # v6.12.97.
+ * See also commit a48236b8889e # v6.6.145.
+ * See also commit 9e107c549965 # v6.1.178.
+ * See also commit 10d4df898c9c # v5.15.217.
+ * See also commit 841654961528 # RHEL 10.1.
+ * See also commit 929d63667813 # RHEL 9.7.
+ * See also commit 8ab7dbdc77d7 # UEK-5.15.0-325.217.3.
+ * UEK 7 gained this helper together with FMODE_FSNOTIFY_HSM. Use that
+ * marker to retain the fallback on older UEK updates.
  */
+#if !(LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 97) ||		\
+	(LINUX_VERSION_CODE >= KERNEL_VERSION(6, 6, 145) &&		\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 7, 0)) ||		\
+	(LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 178) &&		\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 2, 0)) ||		\
+	(LINUX_VERSION_CODE >= KERNEL_VERSION(5, 15, 217) &&		\
+	 LINUX_VERSION_CODE < KERNEL_VERSION(5, 16, 0)) ||		\
+	(defined(RHEL_MAJOR) &&					\
+	 ((RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 >= 10) ||		\
+	  (RHEL_MAJOR - 0 == 9 && RHEL_MINOR - 0 >= 7) ||		\
+	  (RHEL_MAJOR - 0 == 10 && RHEL_MINOR - 0 >= 1))) ||		\
+	(defined(UEK_KABI_RENAME) &&				\
+	 (LINUX_VERSION_CODE >= KERNEL_VERSION(6, 12, 0) ||		\
+	  (LINUX_VERSION_CODE == KERNEL_VERSION(5, 15, 0) &&	\
+	   defined(FMODE_FSNOTIFY_HSM)))) ||				\
+	(defined(UTS_UBUNTU_RELEASE_ABI) &&			\
+	 LINUX_VERSION_CODE >> 8 == KERNEL_VERSION(6, 8, 0) >> 8 &&	\
+	 UTS_UBUNTU_RELEASE_ABI - 0 >= 147 &&			\
+	 UTS_UBUNTU_RELEASE_ABI - 0 < 999))
 #define secs_to_jiffies(_secs) ((unsigned long)((_secs) * HZ))
 #endif
 
