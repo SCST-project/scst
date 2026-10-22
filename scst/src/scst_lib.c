@@ -9156,7 +9156,7 @@ int sg_cmp_elem(struct scatterlist **pdst_sg, size_t *pdst_len,
 	struct scatterlist *dst_sg;
 	size_t src_len, dst_len, src_offs, dst_offs;
 	struct page *src_page, *dst_page;
-	const u8 *saddr, *daddr;
+	u8 *saddr, *daddr;
 
 	*cmp_res = true;
 
