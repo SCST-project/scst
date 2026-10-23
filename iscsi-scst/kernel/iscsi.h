@@ -806,11 +806,11 @@ static inline void conn_put(struct iscsi_conn *conn)
 }
 
 #ifdef CONFIG_SCST_EXTRACHECKS
-void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn);
-void iscsi_extracheck_is_wr_thread(struct iscsi_conn *conn);
+void iscsi_extracheck_is_rd_thread(const struct iscsi_conn *conn);
+void iscsi_extracheck_is_wr_thread(const struct iscsi_conn *conn);
 #else
-static inline void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn) {}
-static inline void iscsi_extracheck_is_wr_thread(struct iscsi_conn *conn) {}
+static inline void iscsi_extracheck_is_rd_thread(const struct iscsi_conn *conn) {}
+static inline void iscsi_extracheck_is_wr_thread(const struct iscsi_conn *conn) {}
 #endif
 
 int iscsi_conn_alloc(struct iscsi_session *session, struct iscsi_kern_conn_info *info,

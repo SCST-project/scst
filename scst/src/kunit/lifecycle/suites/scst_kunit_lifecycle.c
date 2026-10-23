@@ -128,7 +128,7 @@ static int lifecycle_cm_add(struct scst_acg_dev *ad, u64 lun, unsigned int *flag
 	return f->cm_result;
 }
 
-static void lifecycle_cm_del(struct scst_acg_dev *ad)
+static void lifecycle_cm_del(const struct scst_acg_dev *ad)
 {
 	struct kunit *test = kunit_get_current_test();
 	struct lifecycle_fixture *f = test->priv;

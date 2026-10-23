@@ -10,7 +10,7 @@
 
 #ifdef SCST_KUNIT_ENABLED
 void *sqa_alloc_cmd_map(unsigned int tag_num, size_t tag_size);
-void sqa_free_cmd_map(void *map);
+void sqa_free_cmd_map(const void *map);
 int sqa_init_tag_pool(struct sqa_scst_tgt *sqa_tgt, unsigned int tag_num);
 void sqa_destroy_tag_pool(struct sqa_scst_tgt *sqa_tgt);
 struct scst_tgt *sqa_register_target(struct scst_tgt_template *tmplate,

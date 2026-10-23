@@ -54,7 +54,7 @@ enum rx_state {
 static void free_pending_commands(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
-	struct list_head *pending_list = &session->pending_list;
+	const struct list_head *pending_list = &session->pending_list;
 	int req_freed;
 	struct iscsi_cmnd *cmnd;
 
@@ -91,7 +91,7 @@ static void free_pending_commands(struct iscsi_conn *conn)
 static void free_orphaned_pending_commands(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
-	struct list_head *pending_list = &session->pending_list;
+	const struct list_head *pending_list = &session->pending_list;
 	int req_freed;
 	struct iscsi_cmnd *cmnd;
 

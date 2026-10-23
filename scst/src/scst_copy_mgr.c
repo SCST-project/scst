@@ -2577,7 +2577,7 @@ out_err:
 }
 
 SCST_KUNIT_VISIBLE
-void scst_cm_dev_free_designators(struct scst_device *dev)
+void scst_cm_dev_free_designators(const struct scst_device *dev)
 {
 	struct scst_cm_desig *des, *t;
 
@@ -2829,7 +2829,7 @@ out:
 }
 
 /* scst_mutex supposed to be held */
-bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev, bool gen_report_luns_changed)
+bool scst_cm_on_del_lun(const struct scst_acg_dev *acg_dev, bool gen_report_luns_changed)
 {
 	bool res = gen_report_luns_changed;
 

@@ -601,7 +601,7 @@ static int iscsi_del_attr(struct iscsi_target *target, const char *attr_name)
 {
 	int res = 0;
 	struct iscsi_attr *tgt_attr, *a;
-	struct list_head *attrs_list;
+	const struct list_head *attrs_list;
 
 	TRACE_ENTRY();
 

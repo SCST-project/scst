@@ -22,7 +22,7 @@ int scst_ws_push_single_write(struct scst_write_same_priv *wsp, s64 lba, int blo
 void scst_del_free_acg_dev(struct scst_acg_dev *acg_dev, bool del_sysfs);
 void scst_tgt_dev_grace_period(void);
 int scst_lun_cm_add(struct scst_acg_dev *acg_dev, u64 lun, unsigned int *flags);
-void scst_lun_cm_del(struct scst_acg_dev *acg_dev);
+void scst_lun_cm_del(const struct scst_acg_dev *acg_dev);
 int scst_lun_sysfs_create(struct scst_acg_dev *acg_dev, struct kobject *parent);
 void scst_tgt_dev_sysfs_remove(struct scst_tgt_dev *tgt_dev);
 void scst_free_acg(struct scst_acg *acg);

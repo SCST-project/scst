@@ -36,7 +36,7 @@ static unsigned int cm_lookup_stub(const struct scst_device *dev)
 	return f->lun;
 }
 
-static void cm_clear_stub(struct scst_device *dev)
+static void cm_clear_stub(const struct scst_device *dev)
 {
 	struct kunit *test = kunit_get_current_test();
 	struct cm_fixture *f = test->priv;
