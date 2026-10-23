@@ -727,9 +727,15 @@ static int srpt_refresh_port(struct srpt_port *sport)
 #endif
 							 );
 		if (IS_ERR(sport->mad_agent)) {
+			/*
+			 * Keep numeric error output on supported kernels without the %pe
+			 * formatter.
+			 */
+			/* coccinelle-suppress-begin ptr_err_to_pe ; See the contract above. */
 			pr_err("%s-%d: MAD agent registration failed (%ld). Note: this is expected if SR-IOV is enabled.\n",
 			       dev_name(&sport->sdev->device->dev), sport->port,
 			       PTR_ERR(sport->mad_agent));
+			/* coccinelle-suppress-end ptr_err_to_pe */
 			sport->mad_agent = NULL;
 		}
 	}
@@ -4320,6 +4326,10 @@ static int srpt_add_one(struct ib_device *device)
 	sdev->mr = ib_get_dma_mr(sdev->pd, IB_ACCESS_LOCAL_WRITE);
 	if (IS_ERR(sdev->mr)) {
 		ret = PTR_ERR(sdev->mr);
+		/*
+		 * Keep numeric error output on supported kernels without the %pe formatter.
+		 */
+		/* coccinelle-suppress ptr_err_to_pe ; See the contract above. */
 		pr_err("ib_get_dma_mr() failed: %ld\n", PTR_ERR(sdev->mr));
 		goto err_pd;
 	}
@@ -4343,8 +4353,14 @@ static int srpt_add_one(struct ib_device *device)
 		ERR_PTR(-EOPNOTSUPP);
 	if (IS_ERR(sdev->srq)) {
 		if (use_srq)
+			/*
+			 * Keep numeric error output on supported kernels without the %pe
+			 * formatter.
+			 */
+			/* coccinelle-suppress-begin ptr_err_to_pe ; See the contract above. */
 			pr_debug("ib_create_srq() failed: %ld\n",
 				 PTR_ERR(sdev->srq));
+			/* coccinelle-suppress-end ptr_err_to_pe */
 
 		/* SRQ disabled or not supported. */
 		sdev->use_srq = false;

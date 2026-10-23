@@ -138,6 +138,10 @@ size_t qlt_del_vtarget(u64 port_name)
 	if (!match)
 		return -ENODEV;
 
+	/*
+	 * match exits both loops at the selected vport; !match returns before this use.
+	 */
+	/* coccinelle-suppress use_after_iter ; See the contract above. */
 	return fc_vport_terminate(vport);
 }
 EXPORT_SYMBOL(qlt_del_vtarget);

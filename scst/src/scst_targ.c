@@ -971,6 +971,10 @@ int scst_pre_parse(struct scst_cmd *cmd)
 		  cmd->queue_type == SCST_CMD_QUEUE_ORDERED));
 #endif
 
+	/*
+	 * Keep the two trace-only yes/no expressions without adding an old-kernel API shim.
+	 */
+	/* coccinelle-suppress-begin string_choices ; See the contract above. */
 	TRACE_DBG("op_name <%s> (cmd %p), direction=%d (expected %d, set %s), lba %lld, bufflen=%d, data_len %lld, out_bufflen=%d (expected len data %d, expected len DIF %d, out expected len %d), flags=0x%x, , naca %d",
 		  cmd->op_name, cmd, cmd->data_direction,
 		  cmd->expected_data_direction,
@@ -979,6 +983,7 @@ int scst_pre_parse(struct scst_cmd *cmd)
 		  cmd->out_bufflen, scst_cmd_get_expected_transfer_len_data(cmd),
 		  scst_cmd_get_expected_transfer_len_dif(cmd),
 		  cmd->expected_out_transfer_len, cmd->op_flags, cmd->cmd_naca);
+	/* coccinelle-suppress-end string_choices */
 
 	res = 0;
 
@@ -1259,6 +1264,10 @@ set_res:
 		cmd->data_direction = SCST_DATA_NONE;
 	}
 
+	/*
+	 * Keep the two trace-only yes/no expressions without adding an old-kernel API shim.
+	 */
+	/* coccinelle-suppress-begin string_choices ; See the contract above. */
 	TRACE(TRACE_SCSI,
 	      "op_name <%s> (cmd %p), direction=%d (expected %d, set %s), lba=%lld, bufflen=%d, data len %lld, out_bufflen=%d, (expected len data %d, expected len DIF %d, out expected len %d), flags=0x%x, internal %d, naca %d",
 	      cmd->op_name, cmd, cmd->data_direction, cmd->expected_data_direction,
@@ -1269,6 +1278,7 @@ set_res:
 	      scst_cmd_get_expected_transfer_len_dif(cmd),
 	      cmd->expected_out_transfer_len, cmd->op_flags, cmd->internal,
 	      cmd->cmd_naca);
+	/* coccinelle-suppress-end string_choices */
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	switch (state) {
@@ -4359,6 +4369,10 @@ restart:
 	}
 
 	TRACE_EXIT();
+/*
+ * The annotated helper returns scst_init_lock held to the init thread.
+ */
+/* coccinelle-suppress mini_lock ; See the contract above. */
 }
 
 /* Whether or not scst_init_thread() should stop waiting. */
@@ -4703,6 +4717,10 @@ scst_wait_for_cmd(struct scst_cmd_threads *p_cmd_threads, struct scst_cmd_thread
 	finish_wait(&p_cmd_threads->cmd_list_waitQ, &wq_entry);
 
 out:
+	/*
+	 * Both command-list locks belong to scst_cmd_thread and must be held on return.
+	 */
+	/* coccinelle-suppress mini_lock ; See the contract above. */
 	return ret;
 }
 
@@ -4727,6 +4745,10 @@ int scst_cmd_thread(void *arg)
 	wake_up_all(&p_cmd_threads->ioctx_wq);
 
 	spin_lock_irq(&p_cmd_threads->cmd_list_lock);
+	/*
+	 * thr_locked tracks releases; the thread lock is dropped before the bottom acquire.
+	 */
+	/* coccinelle-suppress double_lock ; See the contract above. */
 	spin_lock(&thr->thr_cmd_list_lock);
 	while (!kthread_should_stop()) {
 		scst_wait_for_cmd(p_cmd_threads, thr);
@@ -4793,6 +4815,11 @@ again:
 				/* We need to maintain order of locks and unlocks */
 				spin_unlock(&thr->thr_cmd_list_lock);
 				spin_unlock(&p_cmd_threads->cmd_list_lock);
+				/*
+				 * thr_locked tracks releases; the thread lock is dropped before
+				 * the bottom acquire.
+				 */
+				/* coccinelle-suppress double_lock ; See the contract above. */
 				spin_lock(&thr->thr_cmd_list_lock);
 				p_locked = false;
 			} else if (!thr_locked) {
@@ -4853,6 +4880,11 @@ again:
 			} while (ktime_before(kt, end));
 		}
 		spin_lock_irq(&p_cmd_threads->cmd_list_lock);
+		/*
+		 * thr_locked tracks releases; the thread lock is dropped before the bottom
+		 * acquire.
+		 */
+		/* coccinelle-suppress double_lock ; See the contract above. */
 		spin_lock(&thr->thr_cmd_list_lock);
 	}
 	spin_unlock(&thr->thr_cmd_list_lock);

@@ -5599,6 +5599,10 @@ static inline void blockio_check_finish(struct scst_blockio_work *blockio_work)
 	struct scst_cmd *cmd;
 
 	/* Decrement the bios in processing, and if zero signal completion */
+	/*
+	 * bios+1 counts BIO completions and the submitter; the last completion releases work.
+	 */
+	/* coccinelle-suppress atomic_as_refcounter ; See the contract above. */
 	if (!atomic_dec_and_test(&blockio_work->bios_inflight))
 		return;
 

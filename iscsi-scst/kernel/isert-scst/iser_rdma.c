@@ -1580,8 +1580,13 @@ static void isert_portal_reinit_id_work(struct work_struct *w)
 
 	portal->cm_id = isert_setup_id(portal);
 	if (IS_ERR(portal->cm_id)) {
+		/*
+		 * Keep numeric error output on supported kernels without the %pe formatter.
+		 */
+		/* coccinelle-suppress-begin ptr_err_to_pe ; See the contract above. */
 		PRINT_ERROR("Failed to create rdma id, err:%ld\n",
 			    PTR_ERR(portal->cm_id));
+		/* coccinelle-suppress-end ptr_err_to_pe */
 		portal->cm_id = NULL;
 	}
 }

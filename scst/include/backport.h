@@ -1089,6 +1089,10 @@ static inline void mempool_destroy_backport(mempool_t *pool)
 		 * incompatible implementation.
 		 */
 		/* checkpatch-suppress NEEDLESS_IF ; See the contract above. */
+		/*
+		 * The compatibility wrapper adds NULL safety absent in the old native API.
+		 */
+		/* coccinelle-suppress ifnullfree ; See the contract above. */
 		mempool_destroy(pool);
 }
 
@@ -1653,6 +1657,10 @@ static inline void kmem_cache_destroy_backport(struct kmem_cache *s)
 		 * incompatible implementation.
 		 */
 		/* checkpatch-suppress NEEDLESS_IF ; See the contract above. */
+		/*
+		 * The compatibility wrapper adds NULL safety absent in the old native API.
+		 */
+		/* coccinelle-suppress ifnullfree ; See the contract above. */
 		kmem_cache_destroy(s);
 }
 
