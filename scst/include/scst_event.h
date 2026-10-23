@@ -1,4 +1,15 @@
 /*
+ * The file has no complete file-specific license grant; do not infer one solely
+ * from adjacent sources. Defer SPDX conversion pending provenance/maintainer
+ * resolution; this exception covers only the missing tag in this exact existing
+ * source.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
+ * Userspace and shared ABI headers require portable fixed-width integer types.
+ */
+/* checkpatch-suppress-file PREFER_KERNEL_TYPES ; See the contract above. */
+/*
  *  include/scst_event.h
  *
  *  Copyright (C) 2014 - 2018 Western Digital Corporation
@@ -21,10 +32,20 @@
 
 #define SCST_EVENT_NAME			"scst_event"
 #define SCST_EVENT_PATH			"/dev/"
+/*
+ * Adjacent string fragments form the event device path literal.
+ */
+/* checkpatch-suppress-macro COMPLEX_MACRO ; See the contract above. */
 #define SCST_EVENT_DEV			SCST_EVENT_PATH SCST_EVENT_NAME
 #define SCST_EVENT_VERSION_NAME		SCST_VERSION_NAME
 
 #ifndef aligned_u64
+/*
+ * This shared ABI fallback must preserve explicit 8-byte alignment when kernel
+ * type aliases or attribute macros are unavailable, including userspace
+ * consumers.
+ */
+/* checkpatch-suppress PREFER_DEFINED_ATTRIBUTE_MACRO ; See the contract above. */
 #define aligned_u64 uint64_t __attribute__((aligned(8)))
 #endif
 

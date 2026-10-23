@@ -2323,6 +2323,11 @@ static int __init init_scst(void)
 	}
 
 /* Used for rarely used or read-mostly on fast path structures */
+/*
+ * This argument is a structure or member name used in generated accesses, type expressions and
+ * diagnostic stringification, not an evaluated expression.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define INIT_CACHEP(p, s) ({							\
 		struct kmem_cache *__scst_cache =				\
 			KMEM_CACHE(s, SCST_SLAB_FLAGS);				\
@@ -2333,6 +2338,11 @@ static int __init init_scst(void)
 		__scst_cache;							\
 	})
 
+/*
+ * This argument is a structure or member name used in generated accesses, type expressions and
+ * diagnostic stringification, not an evaluated expression.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define INIT_CACHEP_USERCOPY(p, s, f) ({					\
 		struct kmem_cache *__scst_cache =				\
 			KMEM_CACHE_USERCOPY(s, SCST_SLAB_FLAGS, f);		\
@@ -2344,6 +2354,11 @@ static int __init init_scst(void)
 	})
 
 /* Used for structures with fast path write access */
+/*
+ * This argument is a structure or member name used in generated accesses, type expressions and
+ * diagnostic stringification, not an evaluated expression.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define INIT_CACHEP_ALIGN(p, s) ({						\
 		struct kmem_cache *__scst_cache =				\
 			KMEM_CACHE(s, SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN);	\
@@ -2353,6 +2368,11 @@ static int __init init_scst(void)
 			  sizeof(struct s));					\
 		__scst_cache;							\
 	})
+/*
+ * This argument is a structure or member name used in generated accesses, type expressions and
+ * diagnostic stringification, not an evaluated expression.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define INIT_CACHEP_ALIGN_USERCOPY(p, s, f) ({					\
 		struct kmem_cache *__scst_cache =				\
 			KMEM_CACHE_USERCOPY(s, SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN, f);	\

@@ -326,6 +326,7 @@ static int login_check_reinstatement(struct connection *conn)
 		}
 	} else {
 		if (req->sid.id.tsih != 0) {
+			/* checkpatch-suppress LONG_LINE ; Keep the diagnostic string searchable. */
 			log_error("Requested TSIH not 0 (TSIH %d, tid %d, initiator %s, sid requisted %#" PRIx64 ")",
 				  req->sid.id.tsih, conn->tid, conn->initiator,
 				  req->sid.id64);
@@ -1087,6 +1088,12 @@ static void cmnd_exec_login(struct connection *conn)
 			login_start(conn);
 			if (rsp->status_class)
 				return;
+			/*
+			 * This userspace switch uses the compiler-recognized
+			 * fallthrough comment without requiring the kernel-only
+			 * fallthrough macro or a newer compiler attribute.
+			 */
+			/* checkpatch-suppress PREFER_FALLTHROUGH ; See the contract above. */
 			/* else fall through */
 		case STATE_SECURITY:
 			text_scan_security(conn);

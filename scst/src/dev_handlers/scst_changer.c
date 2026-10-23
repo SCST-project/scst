@@ -104,6 +104,7 @@ out:
 	return res;
 }
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 void changer_detach(struct scst_device *dev)
 {
@@ -128,6 +129,7 @@ out:
 	return res;
 }
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 int changer_done(struct scst_cmd *cmd)
 {
@@ -141,6 +143,7 @@ int changer_done(struct scst_cmd *cmd)
 	 * therefore change them only if necessary
 	 */
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	switch (cmd->cdb[0]) {
 	default:

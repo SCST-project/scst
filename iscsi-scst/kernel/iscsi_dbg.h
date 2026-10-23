@@ -52,6 +52,11 @@ struct iscsi_cmnd;
 void iscsi_dump_pdu(struct iscsi_pdu *pdu);
 unsigned long iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(const struct iscsi_cmnd *cmnd);
 #else
+/*
+ * This disabled diagnostic or extra-check branch deliberately does not evaluate
+ * its arguments.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define iscsi_dump_pdu(x) do {} while (0)
 #define iscsi_get_flow_ctrl_or_mgmt_dbg_log_flag(x) 0
 #endif

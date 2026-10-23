@@ -79,8 +79,23 @@
 #define EXTRACHECKS_WARN_ON_ONCE(a)	WARN_ON_ONCE(a)
 #else
 #define EXTRACHECKS_BUG()		do { } while (0)
+/*
+ * This disabled diagnostic or extra-check branch deliberately does not evaluate
+ * its arguments.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define EXTRACHECKS_BUG_ON(a)		do { } while (0)
+/*
+ * This disabled diagnostic or extra-check branch deliberately does not evaluate
+ * its arguments.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define EXTRACHECKS_WARN_ON(a)		do { } while (0)
+/*
+ * This disabled diagnostic or extra-check branch deliberately does not evaluate
+ * its arguments.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define EXTRACHECKS_WARN_ON_ONCE(a)	do { } while (0)
 #endif
 
@@ -110,8 +125,18 @@
 #define TRACE_MINOR_AND_MGMT_DBG	(TRACE_MINOR | TRACE_MGMT_DEBUG)
 
 /* The caller supplies the KERN_* level as log_flag. */
+/*
+ * PRINT and PRINTN forward the caller-provided KERN_* log_flag immediately
+ * before the format string; no severity is missing.
+ */
+/* checkpatch-suppress-macro PRINTK_WITHOUT_KERN_LEVEL ; See the contract above. */
 #define PRINT(log_flag, format, args...)  \
 		printk(log_flag format "\n", ## args)
+/*
+ * PRINT and PRINTN forward the caller-provided KERN_* log_flag immediately
+ * before the format string; no severity is missing.
+ */
+/* checkpatch-suppress-macro PRINTK_WITHOUT_KERN_LEVEL ; See the contract above. */
 #define PRINTN(log_flag, format, args...) \
 		printk(log_flag format, ## args)
 
@@ -210,6 +235,11 @@ do {									\
  * for TRACE_PR or debug_transport_id_to_initiator_name() is not going to
  * be found.
  */
+/*
+ * This disabled diagnostic or extra-check branch deliberately does not evaluate
+ * its arguments.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define TRACE_PR(format, args...) do { } while (0)
 
 #ifdef LOG_PREFIX
@@ -371,7 +401,17 @@ do {									\
 #ifndef GENERATING_UPSTREAM_PATCH
 #define TRACE_ENTRY() do {} while (0)
 #define TRACE_EXIT() do {} while (0)
+/*
+ * This disabled diagnostic or extra-check branch deliberately does not evaluate
+ * its arguments.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define TRACE_EXIT_RES(res) do {} while (0)
+/*
+ * This disabled diagnostic or extra-check branch deliberately does not evaluate
+ * its arguments.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define TRACE_EXIT_HRES(res) do {} while (0)
 #endif
 

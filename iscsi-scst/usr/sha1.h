@@ -1,4 +1,11 @@
 /*
+ * The file has no complete file-specific license grant; do not infer one solely
+ * from adjacent sources. Defer SPDX conversion pending provenance/maintainer
+ * resolution; this exception covers only the missing tag in this exact existing
+ * source.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
  * Common values for SHA algorithms
  */
 

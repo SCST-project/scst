@@ -1,4 +1,11 @@
 /*
+ * The existing GPL notice does not name a version; do not invent an only/or-
+ * later version grant. Defer SPDX conversion pending provenance/maintainer
+ * resolution; this exception covers only the missing tag in this exact existing
+ * source.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
  *  iscsi_adm - manage iSCSI-SCST Target software.
  *
  *  Copyright (C) 2004 - 2005 FUJITA Tomonori <tomof@acm.org>
@@ -32,10 +39,16 @@
 #include "iscsid.h"
 #include "iscsi_adm.h"
 
+/*
+ * Userspace/shared protocol constants cannot depend on the kernel BIT macro;
+ * preserve the original int or unsigned-int width.
+ */
+/* checkpatch-suppress-begin BIT_MACRO ; See the contract above. */
 #define	SET_TARGET	(1 << 0)
 #define	SET_SESSION	(1 << 1)
 #define	SET_CONNECTION	(1 << 2)
 #define	SET_USER	(1 << 4)
+/* checkpatch-suppress-end BIT_MACRO */
 
 typedef int (user_handle_fn_t)(struct iscsi_adm_req *req, const char *user, const char *pass);
 

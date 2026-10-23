@@ -1,5 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
+ * Userspace and shared ABI headers require portable fixed-width integer types.
+ */
+/* checkpatch-suppress-file PREFER_KERNEL_TYPES ; See the contract above. */
+/*
  *  Copyright (C) 2002 - 2003 Ardis Technologies <roman@ardistech.com>
  *  Copyright (C) 2007 - 2018 Vladislav Bolkhovitin
  *  Copyright (C) 2007 - 2018 Western Digital Corporation

@@ -60,6 +60,11 @@
 
 /* Name of this kernel module. */
 #define DRV_NAME		"ib_srpt"
+/*
+ * The release updater and SRPT build recipes extract the first quoted version
+ * fragment; the separate literal suffix is part of that tooling contract.
+ */
+/* checkpatch-suppress STRING_FRAGMENTS ; See the contract above. */
 #define DRV_VERSION		"3.11.0-pre" "#" __stringify(OFED_FLAVOR)
 #define DRV_RELDATE		"29 December 2025"
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -576,12 +581,14 @@ static void srpt_mad_send_handler(struct ib_mad_agent *mad_agent,
  * @send_buf: Not used.
  * @mad_wc: Work completion reporting that a MAD has been received.
  */
+/* checkpatch-suppress-begin PARENTHESIS_ALIGNMENT ; Conditional MAD callback parameters. */
 static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
 #ifdef MAD_HANDLER_TAKES_SEND_BUF
 				  struct ib_mad_send_buf *send_buf,
 #endif
 				  struct ib_mad_recv_wc *mad_wc)
 {
+/* checkpatch-suppress-end PARENTHESIS_ALIGNMENT */
 	struct srpt_port *sport = (struct srpt_port *)mad_agent->context;
 	struct ib_ah *ah;
 	struct ib_mad_send_buf *rsp;
@@ -944,6 +951,11 @@ static int srpt_post_recv(struct srpt_device *sdev, struct srpt_rdma_ch *ch,
 {
 	struct ib_sge list;
 	struct ib_recv_wr wr;
+	/*
+	 * BAD_WR_MODIFIER is const or empty, selected by the RDMA conftest. This
+	 * is a pointer declaration, not multiplication.
+	 */
+	/* checkpatch-suppress SPACING ; See the contract above. */
 	struct ib_recv_wr BAD_WR_MODIFIER *bad_wr;
 
 	BUG_ON(!sdev);
@@ -981,6 +993,12 @@ static int srpt_post_send(struct srpt_rdma_ch *ch,
 {
 	struct ib_sge list;
 	struct ib_send_wr wr;
+	/*
+	 * BAD_WR_MODIFIER is const or empty, selected by the RDMA conftest. This
+	 * line is part of the consecutive local declarations, not the first
+	 * statement.
+	 */
+	/* checkpatch-suppress LINE_SPACING ; See the contract above. */
 	BAD_WR_MODIFIER struct ib_send_wr *bad_wr;
 	struct srpt_device *sdev = ch->sport->sdev;
 	int ret;

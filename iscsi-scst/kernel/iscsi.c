@@ -1218,6 +1218,10 @@ static int create_reject_rsp(struct iscsi_cmnd *req, int reason, bool get_data)
 			 * RFC 3720.
 			 */
 			set_scst_preliminary_status_rsp(req, get_data,
+							/*
+							 * checkpatch-suppress LONG_LINE ; Keep the
+							 * complete symbolic sense name.
+							 */
 							SCST_LOAD_SENSE(scst_sense_invalid_message));
 		}
 	}
@@ -1956,6 +1960,10 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 			PRINT_ERROR("Unexpected unsolicited data (ITT %x CDB %x)",
 				    req->pdu.bhs.itt, req_hdr->scb[0]);
 			set_scst_preliminary_status_rsp(req, true,
+							/*
+							 * checkpatch-suppress LONG_LINE ; Keep the
+							 * complete symbolic sense name.
+							 */
 							SCST_LOAD_SENSE(iscsi_sense_unexpected_unsolicited_data));
 		}
 	}
@@ -2014,6 +2022,10 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 		if (unlikely(sz < 0)) {
 			PRINT_ERROR("BIDI data transfer, but initiator not supplied Bidirectional Read Expected Data Transfer Length AHS");
 			set_scst_preliminary_status_rsp(req, true,
+							/*
+							 * checkpatch-suppress LONG_LINE ; Keep the
+							 * complete symbolic sense name.
+							 */
 							SCST_LOAD_SENSE(scst_sense_parameter_value_invalid));
 		} else {
 			dir = SCST_DATA_BIDI;
@@ -2113,6 +2125,7 @@ static int data_out_start(struct iscsi_cmnd *cmnd)
 	struct iscsi_data_out_hdr *req_hdr =
 		(struct iscsi_data_out_hdr *)&cmnd->pdu.bhs;
 	struct iscsi_cmnd *orig_req;
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	struct iscsi_hdr *orig_req_hdr;
 #endif
@@ -2154,11 +2167,16 @@ static int data_out_start(struct iscsi_cmnd *cmnd)
 		PRINT_ERROR("Data size (%d) > R2T length to receive (%d)",
 			    cmnd->pdu.datasize, orig_req->r2t_len_to_receive);
 		set_scst_preliminary_status_rsp(orig_req, false,
+						/*
+						 * checkpatch-suppress LONG_LINE ; Keep the complete
+						 * sense or DIF action name.
+						 */
 						SCST_LOAD_SENSE(iscsi_sense_incorrect_amount_of_data));
 		goto go;
 	}
 
 	/* Crazy iSCSI spec requires us to make this unneeded check */
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* ...but some initiators (Windows) don't care to correctly set it */
 	orig_req_hdr = &orig_req->pdu.bhs;
 	if (unlikely(orig_req_hdr->lun != req_hdr->lun)) {
@@ -3035,6 +3053,7 @@ static void iscsi_push_cmnd(struct iscsi_cmnd *cmnd)
 			drop = 1;
 		}
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 		if (unlikely(after(cmd_sn, session->exp_cmd_sn +
 					iscsi_get_allowed_cmds(session)))) {
@@ -3486,6 +3505,7 @@ static bool iscsi_is_delay_tm_resp(struct iscsi_cmnd *rsp)
 
 	/* This should be checked for immediate TM commands as well */
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	if (((scst_random() % 10) == 2))
 		res = 1;

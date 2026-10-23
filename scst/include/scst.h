@@ -51,6 +51,7 @@
 #include <linux/cpumask.h>
 #include <linux/dlm.h>
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* Let's disable it for now to see if users will complain about it */
 #define CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 #endif
@@ -75,6 +76,11 @@
 #include "scst_sgv.h"
 #endif
 
+/*
+ * Adjacent string fragments form the interface version literal; parentheses
+ * would prevent concatenation.
+ */
+/* checkpatch-suppress-macro COMPLEX_MACRO ; See the contract above. */
 #define SCST_INTERFACE_VERSION	    \
 		SCST_VERSION_STRING SCST_INTF_VER SCST_CONST_VERSION
 
@@ -3501,6 +3507,11 @@ extern const struct scst_opcode_descriptor scst_op_descr_request_sense;
 extern const struct scst_opcode_descriptor scst_op_descr_report_supp_tm_fns;
 extern const struct scst_opcode_descriptor scst_op_descr_report_supp_opcodes;
 
+/*
+ * This macro supplies separate opcode-descriptor array elements, not a comma
+ * expression.
+ */
+/* checkpatch-suppress-macro COMPLEX_MACRO ; See the contract above. */
 #define SCST_OPCODE_DESCRIPTORS			\
 	&scst_op_descr_inquiry,			\
 	&scst_op_descr_tur,			\
@@ -3963,6 +3974,12 @@ static inline bool scst_cmd_atomic(struct scst_cmd *cmd)
 	 * can safely ignore this warning since in_atomic() is used here
 	 * only for debugging purposes.
 	 */
+	/*
+	 * This CONFIG_SCST_EXTRACHECKS consistency check can only upgrade the
+	 * explicit command-context flag to atomic handling. It never treats a
+	 * false in_atomic result as proof that sleeping is safe.
+	 */
+	/* checkpatch-suppress IN_ATOMIC ; See the contract above. */
 	if (unlikely((in_atomic() || in_interrupt() || irqs_disabled()) &&
 		     !res)) {
 		pr_err("ERROR: atomic context and non-atomic cmd!\n");
@@ -3999,9 +4016,15 @@ static inline enum scst_exec_context __scst_estimate_context(bool atomic)
  * (in_atomic() isn't reliable), so let's be safe and disable this section
  * for now to unconditionally return thread context.
  */
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	else if (irqs_disabled())
 		return SCST_CONTEXT_THREAD;
+	/*
+	 * This optional consistency check only upgrades the explicit command-context flag; false
+	 * does not prove sleeping is safe.
+	 */
+	/* checkpatch-suppress IN_ATOMIC ; See the contract above. */
 	else if (in_atomic())
 		return SCST_CONTEXT_DIRECT_ATOMIC;
 	else
@@ -5214,7 +5237,17 @@ void scst_kobject_put_and_wait(struct kobject *kobj, const char *category,
 			       struct completion *c,
 			       struct lockdep_map *dep_map);
 #else
+/*
+ * Without CONFIG_LOCKDEP, dependency-map fields and parameters do not exist; the
+ * public wrapper keeps the same call syntax.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define SCST_SET_DEP_MAP(work, dm) do { } while (0)
+/*
+ * Without CONFIG_LOCKDEP, dependency-map fields and parameters do not exist; the
+ * public wrapper keeps the same call syntax.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define SCST_KOBJECT_PUT_AND_WAIT(kobj, category, c, dep_map) \
 	scst_kobject_put_and_wait(kobj, category, c)
 void scst_kobject_put_and_wait(struct kobject *kobj, const char *category, struct completion *c);
@@ -5408,6 +5441,16 @@ prepare_to_wait_exclusive_head(struct wait_queue_head *wq_head,
 	(!__builtin_constant_p(state) ||					\
 	 ((state) & (TASK_INTERRUPTIBLE | TASK_WAKEKILL)))
 
+/*
+ * The wait loop intentionally revisits its queue and state; its local __out
+ * label exits only this statement expression.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
+/*
+ * The wait loop intentionally revisits its queue and state; its local __out
+ * label exits only this statement expression.
+ */
+/* checkpatch-suppress-macro MACRO_WITH_FLOW_CONTROL ; See the contract above. */
 #define ___scst_wait_event(wq_head, condition, state, ret, cmd)			\
 ({										\
 	__label__ __out;							\
@@ -5432,12 +5475,22 @@ prepare_to_wait_exclusive_head(struct wait_queue_head *wq_head,
 __out:	__ret;									\
 })
 
+/*
+ * The same lock lvalue must be unlocked before sleeping and locked again after
+ * waking.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define __scst_wait_event_interruptible_lock(wq_head, condition, lock)		\
 	___scst_wait_event(wq_head, condition, TASK_INTERRUPTIBLE, 0,		\
 			   spin_unlock(&(lock));				\
 			   schedule();						\
 			   spin_lock(&(lock)))
 
+/*
+ * The wait condition must be checked before enqueueing and again after wakeup;
+ * evaluating it only once would break waiting.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define scst_wait_event_interruptible_lock(wq_head, condition, lock)		\
 ({										\
 	int __ret = 0;								\
@@ -5447,12 +5500,22 @@ __out:	__ret;									\
 	__ret;									\
 })
 
+/*
+ * The same BH lock lvalue must be unlocked before sleeping and locked again
+ * after waking.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define __scst_wait_event_interruptible_lock_bh(wq_head, condition, lock)	\
 	___scst_wait_event(wq_head, condition, TASK_INTERRUPTIBLE, 0,		\
 			   spin_unlock_bh(&(lock));				\
 			   schedule();						\
 			   spin_lock_bh(&(lock)))
 
+/*
+ * The wait condition must be checked before enqueueing and again after wakeup;
+ * evaluating it only once would break waiting.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define scst_wait_event_interruptible_lock_bh(wq_head, condition, lock)		\
 ({										\
 	int __ret = 0;								\
@@ -5462,12 +5525,22 @@ __out:	__ret;									\
 	__ret;									\
 })
 
+/*
+ * The same IRQ lock lvalue must be unlocked before sleeping and locked again
+ * after waking.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define __scst_wait_event_interruptible_lock_irq(wq_head, condition, lock)	\
 	___scst_wait_event(wq_head, condition, TASK_INTERRUPTIBLE, 0,		\
 			   spin_unlock_irq(&(lock));				\
 			   schedule();						\
 			   spin_lock_irq(&(lock)))
 
+/*
+ * The wait condition must be checked before enqueueing and again after wakeup;
+ * evaluating it only once would break waiting.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define scst_wait_event_interruptible_lock_irq(wq_head, condition, lock)	\
 ({										\
 	int __ret = 0;								\
@@ -5723,6 +5796,7 @@ struct scst_ext_copy_data_descr {
 
 struct scst_ext_copy_seg_descr {
 #define SCST_EXT_COPY_SEG_DATA		0
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* not implemented yet */
 #define SCST_EXT_COPY_SEG_PR_REG	1
 #define SCST_EXT_COPY_SEG_PR_MOVE	2

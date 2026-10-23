@@ -222,12 +222,14 @@ static int sgv_shrink_pool(struct sgv_pool *pool, int nr, int min_interval, unsi
 
 	spin_lock_bh(&pool->sgv_pool_lock);
 
+/* checkpatch-suppress-begin PARENTHESIS_ALIGNMENT ; Configuration-dependent loop condition. */
 	while (!list_empty(&pool->sorted_recycling_list) &&
 #ifdef CONFIG_SCST_NO_TOTAL_MEM_CHECKS
 			true) {
 #else
 			(atomic_read(&sgv_pages_total) > sgv_lo_wmk)) {
 #endif
+/* checkpatch-suppress-end PARENTHESIS_ALIGNMENT */
 		struct sgv_pool_obj *obj = list_first_entry(&pool->sorted_recycling_list,
 							    struct sgv_pool_obj,
 							    sorted_recycling_list_entry);
@@ -411,6 +413,7 @@ static int sgv_check_full_clustering(struct scatterlist *sg, int cur, int hint)
 	unsigned long pfn, pfn_next;
 	bool full_page;
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	TRACE_MEM("pfn_cur %ld, pfn_cur_next %ld, len_cur %d, full_page_cur %d",
 		  pfn_cur, pfn_cur_next, len_cur, full_page_cur);
@@ -477,6 +480,7 @@ static int sgv_check_tail_clustering(struct scatterlist *sg, int cur, int hint)
 	}
 #endif
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	TRACE_MEM("pfn_cur %ld, pfn_cur_next %ld, len_cur %d, full_page_cur %d",
 		  pfn_cur, pfn_cur_next, len_cur, full_page_cur);
@@ -552,6 +556,7 @@ static int sgv_alloc_sg_entries(struct scatterlist *sg, int pages, gfp_t gfp_mas
 
 	TRACE_MEM("pages=%d, clustering_type=%d", pages, clustering_type);
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	gfp_mask |= __GFP_COLD;
 #endif
@@ -1147,6 +1152,7 @@ void sgv_pool_free(struct sgv_pool_obj *obj, struct scst_mem_lim *mem_lim)
  * net_put_page() for the last page in the SG. Also, user space dev handlers
  * usually have their memory mapped in their address space.
  */
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	{
 		struct scatterlist *sg = obj->sg_entries;
@@ -2027,6 +2033,7 @@ static void sgv_kobj_release(struct kobject *kobj)
 	TRACE_EXIT();
 }
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 static struct kobj_type sgv_pool_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = sgv_kobj_release,
@@ -2089,6 +2096,7 @@ static void scst_sysfs_release(struct kobject *kobj)
 	kfree(kobj);
 }
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 static struct kobj_type sgv_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_sysfs_release,

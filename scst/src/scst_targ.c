@@ -2033,6 +2033,7 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 			}
 			if (remainder) {
 				if (scst_write_len_block_aligned(cmd)) {
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* dangerous, because can override valid data by zeros */
 					scst_check_restore_sg_buff(cmd);
 					scst_zero_write_rest(cmd);
@@ -2050,6 +2051,10 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 					 * blocks, from corrupting data.
 					 */
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete sense or DIF action name.
+							    */
 							   SCST_LOAD_SENSE(scst_sense_invalid_field_in_command_information_unit));
 					scst_set_cmd_abnormal_done_state(cmd);
 					goto out;
@@ -3974,6 +3979,10 @@ ordered:
 					order_data->pending_simple_inc_expected_sn--;
 					TRACE_SN("New dec pending_simple_inc_expected_sn: %d",
 						 order_data->pending_simple_inc_expected_sn);
+					/*
+					 * checkpatch-suppress LONG_LINE ; Keep the counter
+					 * invariant readable.
+					 */
 					EXTRACHECKS_BUG_ON(order_data->pending_simple_inc_expected_sn < 0);
 					scst_inc_expected_sn_idle(order_data);
 				}
@@ -4477,6 +4486,12 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 	 * for debugging purposes.
 	 */
 	EXTRACHECKS_BUG_ON(in_hardirq() || irqs_disabled());
+	/*
+	 * This EXTRACHECKS_WARN_ON is a diagnostic comparison with the explicit
+	 * caller-supplied atomic argument, not an allocation or sleeping-context
+	 * decision.
+	 */
+	/* checkpatch-suppress IN_ATOMIC ; See the contract above. */
 	EXTRACHECKS_WARN_ON((in_atomic() || in_interrupt()) && !atomic);
 
 	cmd->atomic = atomic;
@@ -4701,6 +4716,7 @@ int scst_cmd_thread(void *arg)
 
 	TRACE(TRACE_MINOR, "Processing thread %s started", current->comm);
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	set_user_nice(current, 10);
 #endif
@@ -5151,6 +5167,7 @@ static inline int scst_is_strict_mgmt_fn(int mgmt_fn)
 	case SCST_ABORT_TASK:
 		return 1;
 #endif
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	case SCST_ABORT_TASK_SET:
 	case SCST_CLEAR_TASK_SET:
@@ -5589,6 +5606,7 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 	TRACE(TRACE_MGMT, "Clearing task set (lun=%lld, mcmd=%p)",
 	      (unsigned long long)mcmd->lun, mcmd);
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* we are SAM-3 */
 	/*
 	 * When a logical unit is aborting one or more tasks from a SCSI
@@ -5878,6 +5896,7 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 		TRACE(TRACE_MGMT, "Result of host %d target reset: %s",
 		      dev->scsi_dev->host->host_no,
 		      (rc == SUCCESS) ? "SUCCESS" : "FAILED");
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 		if (rc != SUCCESS && mcmd->status == SCST_MGMT_STATUS_SUCCESS) {
 			/*
@@ -5938,6 +5957,7 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 		rc = scst_reset_scsi_device(dev->scsi_dev);
 		TRACE(TRACE_MGMT, "scsi_reset_provider(%s) returned %d",
 		      dev->virt_name, rc);
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 		if (rc != SUCCESS && mcmd->status == SCST_MGMT_STATUS_SUCCESS)
 			scst_mgmt_cmd_set_status(mcmd, SCST_MGMT_STATUS_FAILED);

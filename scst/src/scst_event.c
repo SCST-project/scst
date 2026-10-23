@@ -1,4 +1,8 @@
 /*
+ * Retain the original licensing text; SPDX conversion requires a separate license audit.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
  *  scst_event.c
  *
  *  Copyright (C) 2014 - 2018 Western Digital Corporation
@@ -1044,6 +1048,7 @@ out_unlock:
 	return res;
 }
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 #define CONFIG_EVENTS_WAIT_TEST
 #endif

@@ -36,9 +36,14 @@
 #include "iscsi_hdr.h"
 #include "iscsi_dbg.h"
 
+/*
+ * A sense tuple supplies separate key, ASC and ASCQ arguments.
+ */
+/* checkpatch-suppress-begin COMPLEX_MACRO ; See the contract above. */
 #define iscsi_sense_crc_error			ABORTED_COMMAND, 0x47, 0x05
 #define iscsi_sense_unexpected_unsolicited_data	ABORTED_COMMAND, 0x0C, 0x0C
 #define iscsi_sense_incorrect_amount_of_data	ABORTED_COMMAND, 0x0C, 0x0D
+/* checkpatch-suppress-end COMPLEX_MACRO */
 
 struct net;
 
@@ -556,6 +561,7 @@ int iscsi_threads_pool_get(bool dedicated, const cpumask_t *cpu_mask,
 void iscsi_threads_pool_put(struct iscsi_thread_pool *p);
 
 /* conn.c */
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 extern struct kobj_type iscsi_conn_ktype;
 
 struct iscsi_conn *conn_lookup(struct iscsi_session *session, u16 cid);

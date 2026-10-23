@@ -75,6 +75,10 @@
 #endif
 #endif
 
+/*
+ * A sense tuple supplies separate key, ASC and ASCQ arguments.
+ */
+/* checkpatch-suppress-macro COMPLEX_MACRO ; See the contract above. */
 #define sense_initiator_detected_error HARDWARE_ERROR, 0x48, 0x00
 
 static LIST_HEAD(sqa_tgt_glist);
@@ -640,11 +644,19 @@ static void sqa_qla2xxx_handle_data(struct qla_tgt_cmd *cmd)
 		case DIF_ERR_REF:
 			scst_dif_acc_ref_check_failed_tgt(scst_cmd);
 			scst_set_cmd_error(scst_cmd,
+					   /*
+					    * checkpatch-suppress LONG_LINE ; Keep the complete
+					    * symbolic sense name.
+					    */
 					   SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
 			break;
 		case DIF_ERR_APP:
 			scst_dif_acc_app_check_failed_tgt(scst_cmd);
 			scst_set_cmd_error(scst_cmd,
+					   /*
+					    * checkpatch-suppress LONG_LINE ; Keep the complete
+					    * symbolic sense name.
+					    */
 					   SCST_LOAD_SENSE(scst_logical_block_app_tag_check_failed));
 			break;
 		case DIF_ERR_NONE:
@@ -940,6 +952,7 @@ static struct fc_port *sqa_qla2xxx_find_sess_by_s_id(scsi_qla_host_t *vha,
 	struct fc_port *sess;
 
 	TRACE_ENTRY();
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	TRACE_DBG("sqatgt(%ld/%d): Looking up session for fcid: 0x%02x%02x%02x\n",
 		  vha->host_no, vha->vp_idx, s_id[0], s_id[1], s_id[2]);
@@ -1291,6 +1304,11 @@ static ssize_t sqa_abort_isp_store(struct kobject *kobj,
 		   tgt->vha->host_no, tgt->vha->vp_idx);
 
 	TRACE_EXIT();
+	/*
+	 * Preserve the existing sysfs errno for an unimplemented ISP abort; changing this
+	 * interface needs a separate change.
+	 */
+	/* checkpatch-suppress ENOSYS ; See the contract above. */
 	return -ENOSYS;
 
 #if EXCLUDED
@@ -1585,6 +1603,12 @@ static int sqa_target_release(struct scst_tgt *scst_tgt)
 		 * lport callbacks alive until SCST has drained every session.
 		 * No new sessions can register after target stop.
 		 */
+		/*
+		 * This member belongs to the installed scst.h interface. Keep
+		 * its source-compatible spelling; only private wait queue fields
+		 * were renamed.
+		 */
+		/* checkpatch-suppress-symbol CAMELCASE symbolName=unreg_waitQ ; Public ABI. */
 		wait_event(scst_tgt->unreg_waitQ,
 			   list_empty(&scst_tgt->sysfs_sess_list));
 

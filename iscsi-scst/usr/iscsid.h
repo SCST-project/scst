@@ -1,5 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
+ * Userspace and shared ABI headers require portable fixed-width integer types.
+ */
+/* checkpatch-suppress-file PREFER_KERNEL_TYPES ; See the contract above. */
+/*
  *  Copyright (C) 2002 - 2003 Ardis Technologies <roman@ardistech.com>
  *  Copyright (C) 2007 - 2018 Vladislav Bolkhovitin
  *  Copyright (C) 2007 - 2018 Western Digital Corporation
@@ -278,6 +282,11 @@ extern int log_level;
 
 void log_init(void);
 void __log(const char *func, int line, int prio, int level, const char *fmt, ...)
+	   /*
+	    * This userspace declaration uses the compiler attribute directly and
+	    * has no kernel __packed/__printf macro dependency.
+	    */
+	   /* checkpatch-suppress PREFER_DEFINED_ATTRIBUTE_MACRO ; See the contract above. */
 	   __attribute__ ((format (printf, 5, 6)));
 void __log_pdu(const char *func, int line, int level, struct PDU *pdu);
 

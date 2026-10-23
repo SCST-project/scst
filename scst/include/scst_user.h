@@ -1,5 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
+ * Userspace and shared ABI headers require portable fixed-width integer types.
+ */
+/* checkpatch-suppress-file PREFER_KERNEL_TYPES ; See the contract above. */
+/*
  *  include/scst_user.h
  *
  *  Copyright (C) 2007 - 2018 Vladislav Bolkhovitin <vst@vlnb.net>
@@ -32,6 +36,11 @@
 #define DEV_USER_NAME			"scst_user"
 #define DEV_USER_PATH			"/dev/"
 #define DEV_USER_VERSION_NAME		SCST_VERSION_NAME
+/*
+ * Adjacent string fragments form the userspace-handler interface version
+ * literal.
+ */
+/* checkpatch-suppress-macro COMPLEX_MACRO ; See the contract above. */
 #define DEV_USER_VERSION		\
 	DEV_USER_VERSION_NAME DEV_USER_INTF_VER SCST_CONST_VERSION
 
@@ -57,10 +66,22 @@
 		SCST_USER_PARTIAL_TRANSFERS_SUPPORTED
 
 #ifndef __KERNEL__
+/*
+ * This shared ABI fallback must preserve explicit 8-byte alignment when kernel
+ * type aliases or attribute macros are unavailable, including userspace
+ * consumers.
+ */
+/* checkpatch-suppress PREFER_DEFINED_ATTRIBUTE_MACRO ; See the contract above. */
 #define aligned_u64 uint64_t __attribute__((aligned(8)))
 #endif
 
 #ifndef aligned_i64
+/*
+ * This shared ABI fallback must preserve explicit 8-byte alignment when kernel
+ * type aliases or attribute macros are unavailable, including userspace
+ * consumers.
+ */
+/* checkpatch-suppress PREFER_DEFINED_ATTRIBUTE_MACRO ; See the contract above. */
 #define aligned_i64 int64_t __attribute__((aligned(8)))
 #endif
 

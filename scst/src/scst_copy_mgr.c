@@ -1,4 +1,8 @@
 /*
+ * Retain the original licensing text; SPDX conversion requires a separate license audit.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
  *  Copyright (C) 2013 - 2018 Western Digital Corporation
  *
  */
@@ -3533,6 +3537,10 @@ int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd)
 		if (seg_cnt == SCST_CM_MAX_SEG_DESCR_CNT) {
 			PRINT_WARNING("Too many segment descriptors");
 			scst_set_cmd_error(ec_cmd,
+					   /*
+					    * checkpatch-suppress LONG_LINE ; Keep the complete
+					    * symbolic sense name.
+					    */
 					   SCST_LOAD_SENSE(scst_sense_too_many_segment_descriptors));
 			goto out_free_tgt_descr;
 		}

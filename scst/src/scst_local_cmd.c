@@ -88,6 +88,10 @@ inc_dev_cnt:
 			list_for_each_entry(ua, &tgt_dev->UA_list, UA_list_entry) {
 				if (scst_analyze_sense(ua->UA_sense_buffer, ua->UA_valid_sense_len,
 						       SCST_SENSE_ALL_VALID,
+						       /*
+							* checkpatch-suppress LONG_LINE ; Keep the
+							* complete symbolic sense name.
+							*/
 						       SCST_LOAD_SENSE(scst_sense_reported_luns_data_changed))) {
 					TRACE_DBG("Freeing not needed REPORTED LUNS DATA CHANGED UA %p",
 						  ua);
@@ -343,6 +347,8 @@ static enum scst_exec_res scst_report_supported_tm_fns(struct scst_cmd *cmd)
 		resp_len = 4;
 	} else {
 		buf[3] = 0x0C;
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
+/* checkpatch-suppress IF_1 ; Retain the existing debug or alternative implementation. */
 #if 1
 		buf[4] = 1; /* TMFTMOV */
 		buf[6] = 0xA0; /* ATTS, CACATS */
@@ -416,6 +422,12 @@ static enum scst_exec_res scst_report_supported_opcodes(struct scst_cmd *cmd)
 					      req_opcode, cmd->dev->virt_name,
 					      cmd->sess->initiator_name);
 					scst_set_invalid_field_in_cdb(cmd, 2,
+								      /*
+								       * checkpatch-suppress
+								       * LONG_LINE ; Keep the sense-
+								       * field flag and bit
+								       * together.
+								       */
 								      SCST_INVAL_FIELD_BIT_OFFS_VALID);
 					goto out_compl;
 				}
@@ -443,6 +455,12 @@ static enum scst_exec_res scst_report_supported_opcodes(struct scst_cmd *cmd)
 					      req_opcode, cmd->dev->virt_name,
 					      cmd->sess->initiator_name);
 					scst_set_invalid_field_in_cdb(cmd, 2,
+								      /*
+								       * checkpatch-suppress
+								       * LONG_LINE ; Keep the sense-
+								       * field flag and bit
+								       * together.
+								       */
 								      SCST_INVAL_FIELD_BIT_OFFS_VALID);
 					goto out_compl;
 				}

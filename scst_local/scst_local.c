@@ -1,4 +1,11 @@
 /*
+ * The file has no complete file-specific license grant; do not infer one solely
+ * from adjacent sources. Defer SPDX conversion pending provenance/maintainer
+ * resolution; this exception covers only the missing tag in this exact existing
+ * source.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
  * Copyright (C) 2008 - 2010 Richard Sharpe
  * Copyright (C) 1992 Eric Youngdale
  * Copyright (C) 2008 - 2018 Vladislav Bolkhovitin <vst@vlnb.net>
@@ -1515,6 +1522,7 @@ static int scst_local_bus_match(struct device *dev, const struct device_driver *
 	return 1;
 }
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 static struct bus_type scst_local_lld_bus = {
 	.name   = "scst_local_bus",
 	.match  = scst_local_bus_match,
