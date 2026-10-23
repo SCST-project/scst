@@ -295,7 +295,8 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		", data_len %" PRId64, vcmd->cmd->cmd_h, cmd->pbuf, lba_start,
 		(uint64_t)loff, data_len);
 	if (loff < 0 || data_len < 0 || ((loff + data_len) > dev->file_size)) {
-		PRINT_INFO("Access beyond the end of the device (%" PRId64 " of %" PRId64 ", len %" PRId64 ")",
+		PRINT_INFO("Access beyond the end of the device (%" PRId64 " of %" PRId64
+			   ", len %" PRId64 ")",
 			   (uint64_t)loff,
 			(uint64_t)dev->file_size, data_len);
 		set_cmd_error(vcmd, SCST_LOAD_SENSE(scst_sense_block_out_range_error));
@@ -381,7 +382,8 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		if (data_len == 0)
 			data_len = dev->file_size -
 				((loff_t)lba_start << dev->block_shift);
-		TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: loff=%" PRId64 ", data_len=%" PRId64 ", immed=%d",
+		TRACE(TRACE_ORDER,
+		      "SYNCHRONIZE_CACHE: loff=%" PRId64 ", data_len=%" PRId64 ", immed=%d",
 		      (uint64_t)loff, data_len, immed);
 		/* ToDo: execute immediate synchronization in the background. */
 		exec_fsync(vcmd);
@@ -458,7 +460,8 @@ static int do_alloc_mem(struct vdisk_cmd *vcmd)
 
 	TRACE_ENTRY();
 
-	TRACE_MEM("Alloc mem (cmd %d, sess_h %" PRIx64 ", cdb_len %d, alloc_len %d, queue_type %d, data_direction %d)",
+	TRACE_MEM("Alloc mem (cmd %d, sess_h %" PRIx64
+		  ", cdb_len %d, alloc_len %d, queue_type %d, data_direction %d)",
 		  cmd->cmd_h, cmd->alloc_cmd.sess_h,
 		  cmd->alloc_cmd.cdb_len, cmd->alloc_cmd.alloc_len,
 		  cmd->alloc_cmd.queue_type, cmd->alloc_cmd.data_direction);
@@ -656,7 +659,8 @@ static int do_sess(struct vdisk_cmd *vcmd)
 
 		tgt_dev->sess_h = cmd->sess.sess_h;
 
-		PRINT_INFO("Session from initiator %s (target %s) attached (LUN %" PRIx64 ", threads_num %d, rd_only %d, sess_h %" PRIx64 ")",
+		PRINT_INFO("Session from initiator %s (target %s) attached (LUN %" PRIx64
+			   ", threads_num %d, rd_only %d, sess_h %" PRIx64 ")",
 			   cmd->sess.initiator_name,
 			cmd->sess.target_name, cmd->sess.lun,
 			cmd->sess.threads_num, cmd->sess.rd_only,

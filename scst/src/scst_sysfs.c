@@ -860,7 +860,8 @@ static ssize_t scst_tgtt_mgmt_show(struct kobject *kobj, struct kobj_attribute *
 			  "       echo \"del_attribute <attribute> <value>\" >mgmt\n" : "",
 			  tgtt->tgt_optional_attributes ?
 			  "       echo \"add_target_attribute target_name <attribute> <value>\" >mgmt\n"
-			  "       echo \"del_target_attribute target_name <attribute> <value>\" >mgmt\n" : "",
+			  "       echo \"del_target_attribute target_name <attribute> <value>\" >mgmt\n"
+			  : "",
 			  tgtt->mgmt_cmd_help ? tgtt->mgmt_cmd_help : "",
 			  tgtt->mgmt_cmd_help ? "\n" : "",
 			  tgtt->add_target_parameters ?
@@ -5923,7 +5924,8 @@ static ssize_t scst_devt_mgmt_show(struct kobject *kobj, struct kobj_attribute *
 			 "       echo \"del_attribute <attribute> <value>\" >mgmt\n" : "",
 			 devt->dev_optional_attributes ?
 			 "       echo \"add_device_attribute device_name <attribute> <value>\" >mgmt\n"
-			 "       echo \"del_device_attribute device_name <attribute> <value>\" >mgmt\n" : "",
+			 "       echo \"del_device_attribute device_name <attribute> <value>\" >mgmt\n"
+			 : "",
 			 devt->mgmt_cmd_help ? devt->mgmt_cmd_help : "",
 			 devt->mgmt_cmd_help ? "\n" : "",
 			 p ?: "",

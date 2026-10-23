@@ -1763,7 +1763,8 @@ int scst_set_cmd_error_status(struct scst_cmd *cmd, int status)
 	TRACE_ENTRY();
 
 	if (status == SAM_STAT_RESERVATION_CONFLICT) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "Reservation conflict (dev %s, initiator %s, tgt_id %d)",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "Reservation conflict (dev %s, initiator %s, tgt_id %d)",
 		      cmd->dev ? cmd->dev->virt_name : NULL,
 			cmd->sess->initiator_name, cmd->tgt->rel_tgt_id);
 	}
@@ -2520,12 +2521,14 @@ void scst_set_busy(struct scst_cmd *cmd)
 
 	if (c <= 1 || cmd->sess->init_phase != SCST_SESS_IPH_READY)	{
 		scst_set_cmd_error_status(cmd, SAM_STAT_BUSY);
-		TRACE(TRACE_FLOW_CONTROL, "Sending BUSY status to initiator %s (cmds count %d, queue_type %x, sess->init_phase %d)",
+		TRACE(TRACE_FLOW_CONTROL,
+		      "Sending BUSY status to initiator %s (cmds count %d, queue_type %x, sess->init_phase %d)",
 		      cmd->sess->initiator_name, c,
 			cmd->queue_type, cmd->sess->init_phase);
 	} else {
 		scst_set_cmd_error_status(cmd, SAM_STAT_TASK_SET_FULL);
-		TRACE(TRACE_FLOW_CONTROL, "Sending QUEUE_FULL status to initiator %s (cmds count %d, queue_type %x, sess->init_phase %d)",
+		TRACE(TRACE_FLOW_CONTROL,
+		      "Sending QUEUE_FULL status to initiator %s (cmds count %d, queue_type %x, sess->init_phase %d)",
 		      cmd->sess->initiator_name, c,
 			cmd->queue_type, cmd->sess->init_phase);
 	}
@@ -3255,7 +3258,8 @@ int scst_get_cmd_abnormal_done_state(struct scst_cmd *cmd)
 		 * Little hack to trace completion of commands, which are
 		 * going to bypass normal tracing on SCST_CMD_STATE_PRE_DEV_DONE
 		 */
-		TRACE(TRACE_SCSI, "cmd %p, status %x, msg_status %x, host_status %x, driver_status %x, resp_data_len %d",
+		TRACE(TRACE_SCSI,
+		      "cmd %p, status %x, msg_status %x, host_status %x, driver_status %x, resp_data_len %d",
 		      cmd, cmd->status,
 			cmd->msg_status, cmd->host_status, cmd->driver_status,
 			cmd->resp_data_len);
@@ -3643,7 +3647,8 @@ out:
  */
 void scst_restore_sg_buff(struct scst_cmd *cmd)
 {
-	TRACE_DBG_FLAG(TRACE_DEBUG | TRACE_MEMORY, "cmd %p, sg %p, DATA: orig_sg_entry %p, orig_entry_offs %d, orig_entry_len %d, orig_sg_cnt %d, DIF: orig_sg_entry %p, orig_entry_offs %d, orig_entry_len %d, orig_sg_cnt %d",
+	TRACE_DBG_FLAG(TRACE_DEBUG | TRACE_MEMORY,
+		       "cmd %p, sg %p, DATA: orig_sg_entry %p, orig_entry_offs %d, orig_entry_len %d, orig_sg_cnt %d, DIF: orig_sg_entry %p, orig_entry_offs %d, orig_entry_len %d, orig_sg_cnt %d",
 		       cmd,
 		cmd->sg, cmd->orig_sg.orig_sg_entry, cmd->orig_sg.orig_entry_offs,
 		cmd->orig_sg.orig_entry_len, cmd->orig_sg.orig_sg_cnt,
@@ -3757,7 +3762,8 @@ int scst_cmd_get_expected_transfer_len_data(struct scst_cmd *cmd)
 	res = (u64)cmd->expected_transfer_len_full << cmd->dev->block_shift;
 	rem = do_div(res, cmd->dev->block_size + (1 << SCST_DIF_TAG_SHIFT));
 	if (unlikely(rem != 0))
-		TRACE(TRACE_MINOR, "Reminder %d for expected transfer len data! (cmd %p, op %s, expected len full %d)",
+		TRACE(TRACE_MINOR,
+		      "Reminder %d for expected transfer len data! (cmd %p, op %s, expected len full %d)",
 		      rem,
 			cmd, scst_get_opcode_name(cmd),
 			cmd->expected_transfer_len_full);
@@ -3783,7 +3789,8 @@ int scst_cmd_get_expected_transfer_len_dif(struct scst_cmd *cmd)
 	res = (u64)cmd->expected_transfer_len_full << SCST_DIF_TAG_SHIFT;
 	rem = do_div(res, cmd->dev->block_size + (1 << SCST_DIF_TAG_SHIFT));
 	if (unlikely(rem != 0))
-		TRACE(TRACE_MINOR, "Reminder %d for expected transfer len dif! (cmd %p, op %s, expected len full %d)",
+		TRACE(TRACE_MINOR,
+		      "Reminder %d for expected transfer len dif! (cmd %p, op %s, expected len full %d)",
 		      rem, cmd,
 			scst_get_opcode_name(cmd), cmd->expected_transfer_len_full);
 
@@ -6162,7 +6169,8 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 
 	if (scsi_status_is_good(req_cmd->status) && len > 0 &&
 	    scst_sense_valid(buf)) {
-		TRACE(TRACE_SCSI | TRACE_MGMT_DEBUG, "REQUEST SENSE %p returned valid sense (orig cmd %s)",
+		TRACE(TRACE_SCSI | TRACE_MGMT_DEBUG,
+		      "REQUEST SENSE %p returned valid sense (orig cmd %s)",
 		      req_cmd, orig_cmd->op_name);
 		PRINT_BUFF_FLAG(TRACE_SCSI | TRACE_MGMT_DEBUG, "Sense", buf, len);
 		if (scst_no_sense(buf))
@@ -9666,7 +9674,8 @@ static void scst_check_fail_ref_tag(struct scst_cmd *cmd)
 
 	if (((cmd->dev->dev_dif_mode & SCST_DIF_MODE_TGT) == 0) &&
 	    (checks & SCST_DIF_CHECK_REF_TAG)) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "No tgt dif_mode, failing cmd %p with ref tag check failed",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "No tgt dif_mode, failing cmd %p with ref tag check failed",
 		      cmd);
 		scst_dif_acc_ref_check_failed_scst(cmd);
 		scst_set_cmd_error(cmd,
@@ -9680,7 +9689,8 @@ static void scst_check_fail_guard_tag(struct scst_cmd *cmd)
 
 	if (((cmd->dev->dev_dif_mode & SCST_DIF_MODE_TGT) == 0) &&
 	    (checks & SCST_DIF_CHECK_GUARD_TAG)) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "No tgt dif_mode, failing cmd %p with guard tag check failed",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "No tgt dif_mode, failing cmd %p with guard tag check failed",
 		      cmd);
 		scst_dif_acc_guard_check_failed_scst(cmd);
 		scst_set_cmd_error(cmd,
@@ -10502,14 +10512,12 @@ static int scst_init_dif_actions(struct scst_device *dev)
 								SCST_DIF_ACTION_STRIP);
 					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
 								 SCST_DIF_ACTION_PASS_CHECK);
-					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
-						/* STORE might be set as well */
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
-									SCST_DIF_ACTION_PASS_CHECK);
-					} else {
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
-									SCST_DIF_ACTION_PASS);
-					}
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+								(dev->dev_dif_mode &
+								 SCST_DIF_MODE_DEV_CHECK) ?
+								SCST_DIF_ACTION_PASS_CHECK :
+								SCST_DIF_ACTION_PASS);
 				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions,
@@ -10600,14 +10608,12 @@ static int scst_init_dif_actions(struct scst_device *dev)
 								SCST_DIF_ACTION_STRIP);
 					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
 								 SCST_DIF_ACTION_PASS);
-					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
-						/* STORE might be set as well */
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
-									SCST_DIF_ACTION_PASS_CHECK);
-					} else {
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
-									SCST_DIF_ACTION_PASS);
-					}
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+								(dev->dev_dif_mode &
+								 SCST_DIF_MODE_DEV_CHECK) ?
+								SCST_DIF_ACTION_PASS_CHECK :
+								SCST_DIF_ACTION_PASS);
 				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions,
@@ -10706,14 +10712,12 @@ static int scst_init_dif_actions(struct scst_device *dev)
 				} else {
 					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
 								 SCST_DIF_ACTION_STRIP);
-					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
-						/* STORE might be set as well */
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
-									SCST_DIF_ACTION_PASS_CHECK);
-					} else {
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
-									SCST_DIF_ACTION_PASS);
-					}
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+								(dev->dev_dif_mode &
+								 SCST_DIF_MODE_DEV_CHECK) ?
+								SCST_DIF_ACTION_PASS_CHECK :
+								SCST_DIF_ACTION_PASS);
 				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions,
@@ -10795,14 +10799,12 @@ static int scst_init_dif_actions(struct scst_device *dev)
 				} else {
 					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
 								 SCST_DIF_ACTION_PASS);
-					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
-						/* STORE might be set as well */
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
-									SCST_DIF_ACTION_PASS_CHECK);
-					} else {
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
-									SCST_DIF_ACTION_PASS);
-					}
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+								(dev->dev_dif_mode &
+								 SCST_DIF_MODE_DEV_CHECK) ?
+								SCST_DIF_ACTION_PASS_CHECK :
+								SCST_DIF_ACTION_PASS);
 				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions,
@@ -11061,7 +11063,8 @@ static int scst_parse_rdprotect(struct scst_cmd *cmd)
 	}
 
 	if (unlikely(dev->dev_dif_type == 2 && rdprotect != 0)) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "Non-32-byte CDBs with non-zero rdprotect (%d) are not allowed in DIF type 2 (dev %s, cmd %p, op %s)",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "Non-32-byte CDBs with non-zero rdprotect (%d) are not allowed in DIF type 2 (dev %s, cmd %p, op %s)",
 		      rdprotect, dev->virt_name,
 			cmd, scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
@@ -11127,7 +11130,8 @@ static int scst_parse_rdprotect32(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (unlikely(dev->dev_dif_type != 2)) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "32-byte CDBs are not allowed in DIF type %d (dev %s, cmd %p, op %s)",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "32-byte CDBs are not allowed in DIF type %d (dev %s, cmd %p, op %s)",
 		      dev->dev_dif_type, dev->virt_name, cmd,
 			scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
@@ -11234,7 +11238,8 @@ static int scst_parse_wrprotect(struct scst_cmd *cmd)
 	}
 
 	if (unlikely(dev->dev_dif_type == 2 && wrprotect != 0)) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "Non-32-byte CDBs with non-zero wrprotect (%d) are not allowed in DIF type 2 (dev %s, cmd %p, op %s)",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "Non-32-byte CDBs with non-zero wrprotect (%d) are not allowed in DIF type 2 (dev %s, cmd %p, op %s)",
 		      wrprotect, dev->virt_name,
 			cmd, scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
@@ -11263,7 +11268,8 @@ static int scst_parse_wrprotect32(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (unlikely(dev->dev_dif_type != 2)) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "32-byte CDBs are not allowed in DIF type %d (dev %s, cmd %p, op %s)",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "32-byte CDBs are not allowed in DIF type %d (dev %s, cmd %p, op %s)",
 		      dev->dev_dif_type, dev->virt_name, cmd,
 			scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
@@ -11320,7 +11326,8 @@ static int __scst_parse_vrprotect(struct scst_cmd *cmd, int vrprotect_offs)
 			cmd->cmd_dif_actions = SCST_DIF_CHECK_GUARD_TAG;
 			break;
 		default:
-			TRACE(TRACE_SCSI | TRACE_MINOR, "Invalid VRPROTECT value %x (dev %s, cmd %p)",
+			TRACE(TRACE_SCSI | TRACE_MINOR,
+			      "Invalid VRPROTECT value %x (dev %s, cmd %p)",
 			      vrprotect, dev->virt_name, cmd);
 			scst_set_invalid_field_in_cdb(cmd, vrprotect_offs,
 						      5 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
@@ -11347,7 +11354,8 @@ static int __scst_parse_vrprotect(struct scst_cmd *cmd, int vrprotect_offs)
 			cmd->cmd_dif_actions = 0;
 			break;
 		default:
-			TRACE(TRACE_SCSI | TRACE_MINOR, "Invalid VRPROTECT value %x (dev %s, cmd %p)",
+			TRACE(TRACE_SCSI | TRACE_MINOR,
+			      "Invalid VRPROTECT value %x (dev %s, cmd %p)",
 			      vrprotect, dev->virt_name, cmd);
 			scst_set_invalid_field_in_cdb(cmd, vrprotect_offs,
 						      5 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
@@ -11395,7 +11403,8 @@ static int scst_parse_vrprotect(struct scst_cmd *cmd)
 	}
 
 	if (unlikely(dev->dev_dif_type == 2 && vrprotect != 0)) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "Non-32-byte CDBs with non-zero vrprotect (%d) are not allowed in DIF type 2 (dev %s, cmd %p, op %s)",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "Non-32-byte CDBs with non-zero vrprotect (%d) are not allowed in DIF type 2 (dev %s, cmd %p, op %s)",
 		      vrprotect,
 			dev->virt_name, cmd, scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
@@ -11423,7 +11432,8 @@ static int scst_parse_vrprotect32(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (unlikely(dev->dev_dif_type != 2)) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "32-byte CDBs are not allowed in DIF type %d (dev %s, cmd %p, op %s)",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "32-byte CDBs are not allowed in DIF type %d (dev %s, cmd %p, op %s)",
 		      dev->dev_dif_type, dev->virt_name, cmd,
 			scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
@@ -13504,7 +13514,8 @@ static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 
 	UA_entry->global_UA = (flags & SCST_SET_UA_FLAG_GLOBAL) != 0;
 
-	TRACE(TRACE_MGMT_DEBUG | TRACE_SCSI, "Queuing new %sUA %p (%x:%x:%x, d_sense %d) to tgt_dev %p (dev %s, initiator %s)",
+	TRACE(TRACE_MGMT_DEBUG | TRACE_SCSI,
+	      "Queuing new %sUA %p (%x:%x:%x, d_sense %d) to tgt_dev %p (dev %s, initiator %s)",
 	      UA_entry->global_UA ? "global " : "", UA_entry, sense[2],
 		sense[12], sense[13], tgt_dev->dev->d_sense, tgt_dev,
 		tgt_dev->dev->virt_name, tgt_dev->sess->initiator_name);
@@ -14155,7 +14166,6 @@ void scst_on_hq_cmd_response(struct scst_cmd *cmd)
 out:
 	TRACE_EXIT();
 }
-
 
 /* dev_lock supposed to be locked and BHs off */
 static void scst_abort_cmds_tgt_dev(struct scst_tgt_dev *tgt_dev,
