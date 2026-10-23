@@ -40,10 +40,11 @@ CFLAGS='-O2 -g -std=gnu99' make -C /opt/sparse -j"$(nproc)" sparse
 install /opt/sparse/sparse /usr/local/bin/sparse
 
 fetch_source smatch https://github.com/error27/smatch.git "$SMATCH_REVISION"
-patch="$HERE/typeof-address-space.patch"
-git -C /opt/smatch apply --check "$patch"
-git -C /opt/smatch apply "$patch"
-sha256sum "$patch" >> /usr/local/share/scst-ci/smatch-source.txt
+for patch in "$HERE/typeof-address-space.patch" "$HERE/install-assets.patch"; do
+    git -C /opt/smatch apply --check "$patch"
+    git -C /opt/smatch apply "$patch"
+    sha256sum "$patch" >> /usr/local/share/scst-ci/smatch-source.txt
+done
 CFLAGS='-O2 -g -std=gnu99' make -C /opt/smatch -j"$(nproc)" PREFIX=/usr/local smatch
 # Do not replace standalone Sparse with Smatch's bundled frontend.
 make -C /opt/smatch PREFIX=/usr/local INST_PROGRAMS=smatch install-bin install-assets
