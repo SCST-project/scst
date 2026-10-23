@@ -541,7 +541,7 @@ static void scst_pr_send_ua_all(struct scst_device *dev,
 	scst_assert_pr_mutex_held(dev);
 
 	list_for_each_entry(reg, &dev->dev_registrants_list, dev_registrants_list_entry) {
-		if (reg != exclude_reg)
+		if (!exclude_reg || reg != exclude_reg)
 			scst_pr_send_ua_reg(dev, reg, key, asc, ascq);
 	}
 
