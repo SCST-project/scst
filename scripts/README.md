@@ -66,6 +66,11 @@ committing; sourced libraries, POSIX shell scripts, and callers outside
 
 ## Shared analyzer source scope
 
+Kernel-based analysis targets the current kernel selected in
+[`ci/kernel.env`](ci/kernel.env). Older kernels remain supported for SCST builds,
+but are outside analyzer compatibility support. Compilation database export
+requires the current per-module Kbuild layout.
+
 `lint_scope.py` reads [policy/common.json](policy/common.json) for full and
 explicit-file selection. The loader rejects invalid or missing policy;
 there are no environment-based extra exclusions. Existing checkpatch wrappers

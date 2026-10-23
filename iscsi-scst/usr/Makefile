@@ -56,8 +56,10 @@ ifeq (.depend_adm,$(wildcard .depend_adm))
 -include .depend_adm
 endif
 
+compile_c = $(CC) -c -o $(2) $(CFLAGS) $(1)
+
 %.o: %.c Makefile
-	$(CC) -c -o $(@) $(CFLAGS) $(<)
+	$(call compile_c,$<,$@)
 
 .depend_d:
 	$(CC) -M $(CFLAGS) $(SRCS_D) >$(@)
@@ -70,3 +72,8 @@ clean:
 
 extraclean: clean
 	rm -f *.orig *.rej
+
+COMMAND_SOURCES := $(sort $(SRCS_D) $(SRCS_ADM))
+ifneq ($(filter compile-commands,$(MAKECMDGOALS)),)
+include ../../scripts/compile_commands.mk
+endif

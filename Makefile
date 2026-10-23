@@ -171,6 +171,8 @@ help:
 		'  sparse, smatch                analyze configured modules through Kbuild' \
 		'  coccicheck                    run kernel Coccinelle report rules' \
 		'  cppcheck                      analyze fresh kernel and userspace build contexts' \
+		'  compile-commands              export configured compiler commands for tools/editors' \
+		'  COMPILE_COMMANDS=path         database output (default: compile_commands.json)' \
 		'  checkpatch                    check C source/header style, including KUnit' \
 		'  scs_lint                      check SCST code style rules (doc/scs.md)' \
 		'  lint-test                     test shared analyzer tooling (no modules)' \
@@ -293,7 +295,19 @@ scs_lint:
 scs-lint-test:
 	@uv run --no-project scripts/scs_lint/test_scs_lint.py
 
-.PHONY: cppcheck lint-userspace
+.PHONY: compile-commands compile-commands-cli cppcheck lint-userspace
+COMPILE_COMMANDS ?= $(CURDIR)/compile_commands.json
+compile-commands: export SCST_LINT_KDIR := $(KDIR)
+compile-commands:
+	+@$(PYTHON) -B scripts/compile_commands.py --output "$(COMPILE_COMMANDS)"
+
+compile-commands-cli:
+	+$(MAKE) -C scst/src ../include/scst_itf_ver.h
+	+$(MAKE) -C iscsi-scst/usr compile-commands
+	+$(MAKE) -C usr/fileio compile-commands
+	+$(MAKE) -C usr/stpgd compile-commands
+	+$(MAKE) -C usr/events compile-commands
+
 cppcheck: export SCST_LINT_KDIR := $(KDIR)
 cppcheck: export SCST_LINT_CC := $(CC)
 cppcheck:
