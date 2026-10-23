@@ -90,7 +90,6 @@ def coverage(output, selected, native_status):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base", default=os.environ.get("DIFFBR") or None)
     parser.add_argument("files", nargs="*", type=Path)
     args = parser.parse_args()
     # Also serialize log replacement by concurrent invocations in this worktree.
@@ -103,7 +102,7 @@ def main():
         report.write_text(json.dumps(summary, indent=2) + "\n")
         show_log(log)
         try:
-            selected = select_sources(ROOT, args.files, args.base, "coccicheck")
+            selected = select_sources(ROOT, args.files, "coccicheck")
             summary["selected_files"] = [p.relative_to(ROOT).as_posix() for p in selected]
             if not selected:
                 print("No eligible Coccinelle inputs; analysis skipped.")

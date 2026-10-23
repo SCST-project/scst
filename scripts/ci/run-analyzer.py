@@ -132,7 +132,7 @@ def main():
     print(policy, flush=True)
     identity = str(uuid.uuid4())
     env = dict(os.environ, KDIR=str(kernel.resolve()), SCST_LINT_KDIR=str(kernel.resolve()),
-               KUNIT_TEST="y", KUNIT_LABEL="ALL", DIFFBR="", LINT_DEFER_REPORTS="1",
+               KUNIT_TEST="y", KUNIT_LABEL="ALL", LINT_DEFER_REPORTS="1",
                SCST_LINT_RUN_ID=identity)
     report = {}
     try:
@@ -140,7 +140,7 @@ def main():
         # report distinguishes them; neither a failed make nor a report alone
         # is sufficient to classify the run as completed source findings.
         result = run(["make", "-j2", args.tool, f"KDIR={kernel.resolve()}",
-                      "KUNIT_TEST=y", "KUNIT_LABEL=ALL", "DIFFBR=", "WERROR=n"], cwd=ROOT, env=env)
+                      "KUNIT_TEST=y", "KUNIT_LABEL=ALL", "WERROR=n"], cwd=ROOT, env=env)
     finally:
         path = directory / f"{args.tool}.json"
         if path.exists():

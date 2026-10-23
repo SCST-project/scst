@@ -66,8 +66,8 @@ committing; sourced libraries, POSIX shell scripts, and callers outside
 
 ## Shared analyzer source scope
 
-`lint_scope.py` reads [policy/common.json](policy/common.json) for full, diff
-and explicit-file selection. The loader rejects invalid or missing policy;
+`lint_scope.py` reads [policy/common.json](policy/common.json) for full and
+explicit-file selection. The loader rejects invalid or missing policy;
 there are no environment-based extra exclusions. Existing checkpatch wrappers
 and the kernel regression runner still use their own selection and filtering.
 
@@ -104,14 +104,9 @@ sources does not enable them in a build; that needs the build configuration.
 Full selection reads existing working-tree files listed in the Git index,
 including staged new files. Missing and untracked files are omitted.
 
-Diff selection compares a base with the working tree, including staged and
-unstaged changes. It selects whole current files, checks rename destinations,
-and skips deleted and untracked files. The base must resolve to one commit;
-options, ranges, tree objects and unknown revisions are rejected.
-
 Explicit files may be untracked, but must exist and be within the same scope.
-They cannot be combined with a diff base. Both a path and its resolved symlink
-destination must be in scope. Results are sorted and deduplicated.
+Both a path and its resolved symlink destination must be in scope.
+Results are sorted and deduplicated.
 An empty selection means there are no eligible inputs, not a completed scan.
 
 ## Shared process and log helpers
@@ -139,7 +134,6 @@ descriptor releases the lock, including on exceptions.
 ```sh
 make -j8 sparse KDIR=/path/to/kernel/build KUNIT_TEST=y
 make -j8 smatch KDIR=/path/to/kernel/build KUNIT_TEST=y
-make smatch DIFFBR=master KUNIT_TEST=y
 python3 -B scripts/sparse_smatch/smp.py sparse scst/src/scst_lib.c
 ```
 
@@ -148,9 +142,8 @@ installing or loading them. The scope above applies, excluding userspace;
 the upstream QLogic base is built only as a dependency. `KUNIT_TEST=y`
 includes KUnit suites and requires a kernel with KUnit support.
 
-Diff mode compares one commit with the working tree. A changed module source
-or header triggers full configured analysis; an unrelated diff skips it.
-An explicitly selected or changed C file absent from the build is an error.
+Both targets analyze the full configured build. An explicitly selected C file
+absent from the build is an error.
 
 Source findings and incomplete analysis fail the targets. The Python driver
 returns 0 for clean runs or empty selections, 1 for findings and 2 for
@@ -196,13 +189,12 @@ needed for current kernel RCU headers. Tool provenance is recorded under
 
 ```sh
 make coccicheck KDIR=/path/to/kernel/build
-make coccicheck KDIR=/path/to/kernel/build DIFFBR=master
 ```
 
 Install `spatch` with Python support and kernel sources containing
 `scripts/coccinelle/`. Rules declaring `report` mode run on the shared source
 scope, including userspace and KUnit files; other rules are listed as skipped.
-Diff mode checks whole changed C files and headers. No build is needed.
+The selected C files and headers are checked in full. No build is needed.
 
 The wrapper adds only report counters and completion markers to temporary
 rule copies. It uses no SCST macro models or diagnostic exceptions. Parser
@@ -215,7 +207,6 @@ Full output and per-rule coverage are in `.cache/lint/coccicheck.{log,json}`.
 
 ```sh
 make -j8 cppcheck KDIR=/path/to/kernel/build KUNIT_TEST=y
-make -j8 cppcheck KDIR=/path/to/kernel/build KUNIT_TEST=y DIFFBR=master
 ```
 
 The target requires Cppcheck with `--check-level` and `--checkers-report`
@@ -225,8 +216,8 @@ example) to collect their compiler commands. It then runs kernel and userspace
 analysis separately with all native checks enabled. Nothing is installed or
 loaded. KUnit coverage follows `KUNIT_TEST` and the kernel configuration.
 
-A relevant diff triggers the full configured analysis, including header
-consumers. Explicit or changed C files absent from the build cause a failure.
+The target runs the full configured analysis, including header consumers.
+Explicit C files absent from the build cause a failure.
 Real includes and definitions are preserved; no project models, header
 substitutions, inline suppressions or diagnostic exceptions are enabled.
 Native parser failures and missing includes remain visible as incomplete
@@ -238,7 +229,6 @@ the summary links to captured commands, native XML and checker coverage.
 
 ```sh
 make checkpatch KDIR=/path/to/kernel/build
-make checkpatch DIFFBR=master CHECKPATCH_PATH=/path/to/kernel/scripts
 ```
 
 The target checks whole C files and headers selected by the common policy,
@@ -260,8 +250,7 @@ KUnit visibility annotations belong on their own line. It uses the common
 source policy and checks every preprocessor branch, including KUnit sources.
 There are no additional exclusions or diagnostic exceptions.
 
-Use `make scs_lint DIFFBR=<commit>` for changed files or
-`scripts/scs_lint/run_scs_lint.sh path/to/file.c` for explicit inputs.
+Use `scripts/scs_lint/run_scs_lint.sh path/to/file.c` for explicit inputs.
 The wrapper needs `uv` and Python 3.11+; uv supplies the pinned Tree-sitter
 dependencies. No kernel build is needed. Reports are saved in
 `.cache/lint/scs_lint.{log,json}`. Findings return 1; incomplete analysis

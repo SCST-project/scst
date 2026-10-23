@@ -139,7 +139,6 @@ def analyze(profile, records, directory, log):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base", default=os.environ.get("DIFFBR") or None)
     parser.add_argument("files", nargs="*", type=Path)
     args = parser.parse_args()
     with build_lock(ROOT):
@@ -151,7 +150,7 @@ def main():
         report.write_text(json.dumps(summary, indent=2) + "\n")
         show_log(log)
         try:
-            selected = select_sources(ROOT, args.files, args.base, "cppcheck")
+            selected = select_sources(ROOT, args.files, "cppcheck")
             summary["selected_files"] = [p.relative_to(ROOT).as_posix() for p in selected]
             if not selected:
                 print("No eligible Cppcheck inputs; analysis skipped.")
@@ -178,7 +177,7 @@ def main():
             records = kernel + userspace
             captured = {Path(row["file"]) for row in records}
             missing = ([str(path) for path in selected if path.suffix == ".c" and path not in captured]
-                       if args.files or args.base else [])
+                       if args.files else [])
             summary.update(kernel_make_status=kernel_status, userspace_make_status=user_status,
                            unchecked_files=missing, unrecorded_checks=missing_checks)
             if (kernel_status or user_status or not kernel or not userspace or missing or

@@ -84,7 +84,6 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("files", nargs="*", type=Path, metavar="FILE",
                     help="C source/header files; default: tracked project C sources and headers")
-    ap.add_argument("--base", default=os.environ.get("DIFFBR") or None)
     args = ap.parse_args(argv)
 
     with log_path(REPOSITORY, "scs_lint.lock", truncate=False).open("a") as lock:
@@ -94,7 +93,7 @@ def main(argv: list[str] | None = None) -> int:
                   "remaining": 0, "selected_files": [], "checked_files": []}
         show_log(log)
         try:
-            paths = select_sources(REPOSITORY, args.files, args.base, "scs_lint")
+            paths = select_sources(REPOSITORY, args.files, "scs_lint")
             report["selected_files"] = [path.relative_to(REPOSITORY).as_posix() for path in paths]
             parser = ts.Parser(ts.Language(tree_sitter_c.language()))
             with log.open("a") as output:

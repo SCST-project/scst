@@ -50,7 +50,7 @@ if not os.environ.get('TEST_NO_CHECK'):
                     str(root / 'scst/source.c')], cwd=root)
 sys.exit(int(os.environ.get('TEST_BUILD_EXIT', '0')))
 """)
-        self.env = dict(os.environ, PATH=str(self.bin), DIFFBR="", MAKEFLAGS="",
+        self.env = dict(os.environ, PATH=str(self.bin), MAKEFLAGS="",
                         PYTHONDONTWRITEBYTECODE="1", SCST_LINT_KDIR=str(self.kernel),
                         SMATCH_DATA_DIR=str(data))
         self.env.pop("LINT_DEFER_REPORTS", None)
@@ -120,8 +120,7 @@ subprocess.run([*shlex.split(checker), str(root / 'scst/second.c')], cwd=root)
         self.assertIn(b"SCST checker failed", result.stderr)
         self.assertIn(b"checker invocations=2", result.stderr)
 
-    def test_missing_tool_and_invalid_base_fail(self):
-        self.assertNotEqual(self.analyze("--base", "missing").returncode, 0)
+    def test_missing_tool_fails(self):
         (self.bin / "sparse").unlink()
         self.assertNotEqual(self.analyze().returncode, 0)
 

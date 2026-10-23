@@ -173,7 +173,6 @@ help:
 		'  cppcheck                      analyze fresh kernel and userspace build contexts' \
 		'  checkpatch                    check C source/header style, including KUnit' \
 		'  scs_lint                      check SCST code style rules (doc/scs.md)' \
-		'  DIFFBR=commit                 compare with one commit; select relevant inputs' \
 		'  lint-test                     test shared analyzer tooling (no modules)' \
 		'  all                           make all' \
 		'  clean                         clean files' \
