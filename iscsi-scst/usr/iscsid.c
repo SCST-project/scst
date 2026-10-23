@@ -353,11 +353,13 @@ static void text_scan_login(struct connection *conn)
 	datasize = conn->req.datasize;
 
 	while ((key = next_key(&data, &datasize, &value))) {
-		if (!(params_index_by_name(key, login_keys) < 0)) {
-			;
-		} else if (!strcmp(key, "AuthMethod")) {
-			;
-		} else if ((idx = params_index_by_name(key, session_keys)) >= 0) {
+		if (params_index_by_name(key, login_keys) >= 0)
+			continue;
+		if (!strcmp(key, "AuthMethod"))
+			continue;
+
+		idx = params_index_by_name(key, session_keys);
+		if (idx >= 0) {
 			unsigned int val;
 			char buf[32];
 
