@@ -82,8 +82,9 @@ python3 -B scripts/analyzer_policy.py validate
 The Python commands also accept `--format=json` and a policy name: `common`,
 `sparse`, `smatch`, `coccicheck`, `cppcheck`, `checkpatch` or `scs_lint`.
 Use `make analyzer-policy ANALYZER=smatch` to see the
-effective input scope and all diagnostic exceptions. A file inventory does
-not establish analysis or build coverage.
+effective input scope, source exception declarations and model hashes. A file
+inventory does not establish analysis or build coverage. Declaration counts
+are not suppression hit counts; native Cppcheck does not report hit counts.
 
 | Input | Shared policy |
 | --- | --- |
@@ -97,7 +98,9 @@ not establish analysis or build coverage.
 | Other directories and extensions | Outside the shared source scope. |
 
 These are input exclusions. The helper does not filter diagnostic text or
-discard findings from headers included by selected files. Selecting KUnit
+discard findings from headers included by selected files. Cppcheck separately
+classifies legacy/upstream QLogic header findings outside scope; the nested
+SCST target and all frontend failures remain blocking. Selecting KUnit
 sources does not enable them in a build; that needs the build configuration.
 
 Full selection reads existing working-tree files listed in the Git index,
@@ -215,18 +218,37 @@ make -j8 cppcheck KDIR=/path/to/kernel/build KUNIT_TEST=y
 ```
 
 The target requires Cppcheck with `--check-level` and `--checkers-report`
-support, a prepared kernel and SCST build dependencies. It captures fresh
-Kbuild `CHECK` commands and rebuilds userspace programs (including the event
-example) to collect their compiler commands. It then runs kernel and userspace
-analysis separately with all native checks enabled. Nothing is installed or
-loaded. KUnit coverage follows `KUNIT_TEST` and the kernel configuration.
+support, a prepared kernel with `scripts/clang-tools/gen_compile_commands.py`
+and SCST build dependencies. Cppcheck shares its command collector
+with `make compile-commands`: Kbuild supplies actual compiler commands from
+`.cmd` files, checked against fresh `CHECK` records; userspace Makefiles export
+their compile recipes without building executables. Kernel and userspace are
+analyzed separately. Nothing is installed or loaded. KUnit coverage follows
+`KUNIT_TEST` and the kernel configuration.
+The database defines the build configuration;
+the wrapper does not add `--force` to explore unrelated configurations.
+
+`make compile-commands KUNIT_TEST=y` writes `compile_commands.json`; override
+`COMPILE_COMMANDS` to choose another path. The export includes configured
+sources even outside analyzer policy. Cppcheck applies its scope afterwards.
+Set `CPPCHECK_PROJECT` and `CPPCHECK_USERSPACE_PROJECT` to reuse that database;
+external database freshness is the caller's responsibility. CI always collects
+fresh commands.
 
 The target runs the full configured analysis, including header consumers.
 Explicit C files absent from the build cause a failure.
-Real includes and definitions are preserved; no project models, header
-substitutions, inline suppressions or diagnostic exceptions are enabled.
-Native parser failures and missing includes remain visible as incomplete
-analysis. Source findings return 1 and incomplete analysis returns 2; Make
+Raw compiler commands are retained. Adapted inputs preserve project headers
+and selected configuration macros; compiler probes supply the target ABI and
+feature queries. Userspace preprocessing retains the real byte-order and Linux
+UAPI version macros, as in the historical SCST integration. Kernel header bodies
+are replaced by the partial contracts
+in `cppcheck/kernel.h` and `kernel.cfg`. This does not check kernel ABI, RCU
+or locking semantics.
+
+Native inline exceptions are validated against `cppcheck --errorlist`.
+Reviewed system-header omissions and exact unmatched-declaration notices
+remain visible as advice. Unknown includes, unknown suppression IDs, parser
+failures and missing checker coverage still fail the run. Source findings return 1 and incomplete analysis returns 2; Make
 maps both to 2. Full logs and the summary are in `.cache/lint/cppcheck.{log,json}`;
 the summary links to captured commands, native XML and checker coverage.
 

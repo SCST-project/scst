@@ -1,6 +1,12 @@
 """Integration models are separate from source scope and diagnostic exceptions."""
 
 MODELS = {
+    "cppcheck": [
+        {"path": "scripts/cppcheck/kernel.h",
+         "reason": "Kernel syntax and API models preserve project bodies; kernel header bodies, ABI and concurrency are outside coverage."},
+        {"path": "scripts/cppcheck/kernel.cfg",
+         "reason": "Partial allocator ownership and argument contracts in native Cppcheck format."},
+    ],
     "coccicheck": [
         {"path": "scripts/coccinelle/macros.h",
          "reason": "Parser hints supplement installed builtins and retain SCST/KUnit bodies."},
