@@ -364,7 +364,16 @@ Python standard library. Run its fixtures from the repository root:
 
 ```sh
 make lint-test                  # PYTHON defaults to python3
+make analyzer-tests KDIR=/path/to/current/kernel/build
 ```
 
 The fixtures use temporary repositories, files and child processes. They do
 not build SCST, load modules or access live devices.
+
+`analyzer-tests` additionally requires the CI analyzer tools and kernel scripts.
+Real Checkpatch, Cppcheck and Coccinelle check small C inputs: valid examples
+must pass, and deliberate bugs must retain their expected diagnostics through
+the production models. Each suite runs in a separate process; missing tools,
+undeclared skips, empty suites and incomplete runs fail. Only the named
+Coccinelle variadic probes may skip, with their exact upstream-defect reason.
+Per-suite logs and results are retained under `.cache/lint/analyzer-tests-*/`.
