@@ -55,7 +55,6 @@ from pathlib import Path
 root = Path(__file__).resolve().parents[2]
 assert os.environ['KUNIT_TEST'] == 'y'
 assert os.environ['KUNIT_LABEL'] == 'ALL'
-assert os.environ['DIFFBR'] == ''
 assert os.environ['LINT_DEFER_REPORTS'] == '1'
 status = int(os.environ['FIXTURE_STATUS'])
 directory = root / '.cache/lint'

@@ -19,7 +19,6 @@ from lint_scope import select_sources  # noqa: E402
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("tool", choices=("sparse", "smatch"))
-    parser.add_argument("--base", default=os.environ.get("DIFFBR") or None)
     parser.add_argument("files", nargs="*", type=Path)
     args = parser.parse_args()
     with build_lock(ROOT):
@@ -33,7 +32,7 @@ def main():
         report.write_text(json.dumps(summary, indent=2) + "\n")
         show_log(log)
         try:
-            selected = select_sources(ROOT, args.files, args.base, args.tool)
+            selected = select_sources(ROOT, args.files, args.tool)
             summary["selected_files"] = [p.relative_to(ROOT).as_posix() for p in selected]
             if not selected:
                 print("No module C files selected; no analysis requested.")
@@ -47,7 +46,7 @@ def main():
             checked = {Path(row["file"]) for row in records}
             summary["checked_files"] = sorted(path.relative_to(ROOT).as_posix() for path in checked)
             missing = ([str(path) for path in selected if path.suffix == ".c" and path not in checked]
-                       if args.files or args.base else [])
+                       if args.files else [])
             unrecorded = unchecked_invocations(ROOT, args.tool, log, records)
             errors = sum(row["errors"] for row in records)
             findings = sum(row["findings"] for row in records)

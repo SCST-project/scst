@@ -14,7 +14,7 @@ from unittest.mock import patch
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import analyzer_policy
-from lint_scope import changed_sources, git_names, git_pathspecs, in_scope
+from lint_scope import in_scope
 from lint_scope import select_sources, tracked_sources
 
 
@@ -92,7 +92,7 @@ class PolicyTests(unittest.TestCase):
     def test_policy_errors_do_not_become_empty_selections(self):
         self.activate({**self.policy, "version": 2})
         for select in (lambda: in_scope(self.root / "outside.c", self.root),
-                       lambda: tracked_sources(self.root), git_pathspecs):
+                       lambda: tracked_sources(self.root), lambda: select_sources(self.root, [])):
             with self.assertRaisesRegex(ValueError, "unsupported policy version"):
                 select()
 
@@ -115,18 +115,11 @@ class PolicyTests(unittest.TestCase):
         with patch.dict(os.environ, {"IGNORE_DIRS": policy["source_roots"][0],
                                      "IGNORE_PATTERNS": ".*"}):
             self.assertEqual(tracked_sources(self.root), expected)
-            self.assertEqual(select_sources(self.root, expected, None), expected)
-        names = git_names(self.root, "ls-files", "--cached", "-z", "--", *git_pathspecs())
-        self.assertEqual(sorted(self.root / name for name in names), expected)
+            self.assertEqual(select_sources(self.root, expected), expected)
         for path in excluded:
             self.assertFalse(in_scope(path, self.root))
             with self.assertRaises(ValueError):
-                select_sources(self.root, [path], None)
-        self.git("-c", "user.name=Test", "-c", "user.email=test@example.org",
-                 "-c", "commit.gpgsign=false", "commit", "-qm", "base")
-        for path in [*expected, *excluded]:
-            path.write_text("int changed(void);\n", encoding="utf-8")
-        self.assertEqual(changed_sources(self.root, "HEAD"), expected)
+                select_sources(self.root, [path])
 
     def test_native_exceptions_require_exact_fields_and_unique_keys(self):
         path = analyzer_policy.POLICY_PATH.with_name("smatch.json")

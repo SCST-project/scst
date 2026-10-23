@@ -103,9 +103,6 @@ class CommandTest(unittest.TestCase):
         self.temporary = tempfile.TemporaryDirectory(prefix="scs-lint-test-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name)
-        environment = mock.patch.dict("os.environ", {"DIFFBR": ""})
-        environment.start()
-        self.addCleanup(environment.stop)
 
     def source(self, name, text):
         path = self.root / name
@@ -113,12 +110,12 @@ class CommandTest(unittest.TestCase):
         path.write_text(text)
         return path
 
-    def run_lint(self, files, base=None):
+    def run_lint(self, files):
         out = io.StringIO()
         err = io.StringIO()
         with (contextlib.redirect_stdout(out), contextlib.redirect_stderr(err),
               mock.patch("scs_lint.REPOSITORY", self.root)):
-            status = main([str(path) for path in files] + (["--base", base] if base else []))
+            status = main([str(path) for path in files])
         return status, out.getvalue(), err.getvalue()
 
     def report(self):
@@ -158,7 +155,7 @@ class CommandTest(unittest.TestCase):
         self.assertIn("0 file(s) checked", err)
         self.assertEqual(self.report()["outcome"], "skipped")
 
-    def test_changed_files_only_and_no_source_changes_skip(self):
+    def test_default_checks_all_sources_despite_legacy_diff_environment(self):
         subprocess.run(["git", "init", "-q", str(self.root)], check=True)
         changed = self.source("scst/changed.c", "SCST_KUNIT_VISIBLE\nvoid good(void);\n")
         unchanged = self.source("scst/unchanged.h", "SCST_KUNIT_VISIBLE void bad(void);\n")
@@ -166,13 +163,20 @@ class CommandTest(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.root), "-c", "user.name=Fixture",
                         "-c", "user.email=fixture@example.com", "commit", "-qm", "Fixture"],
                        check=True)
-        self.assertEqual(self.run_lint([], base="HEAD")[0], 0)
-        self.assertEqual(self.report()["outcome"], "skipped")
         changed.write_text("SCST_KUNIT_VISIBLE void changed(void);\n")
-        status, out, _ = self.run_lint([], base="HEAD")
+        with mock.patch.dict("os.environ", {"DIFFBR": "HEAD"}):
+            status, out, _ = self.run_lint([])
         self.assertEqual(status, 1)
-        self.assertNotIn(str(unchanged), out)
-        self.assertEqual(self.report()["checked_files"], ["scst/changed.c"])
+        self.assertIn(str(unchanged), out)
+        self.assertIn(str(changed), out)
+        self.assertEqual(self.report()["checked_files"], ["scst/changed.c", "scst/unchanged.h"])
+
+    def test_rejects_removed_base_option(self):
+        error = io.StringIO()
+        with contextlib.redirect_stderr(error), self.assertRaises(SystemExit) as exited:
+            main(["--base", "HEAD"])
+        self.assertEqual(exited.exception.code, 2)
+        self.assertIn("unrecognized arguments: --base", error.getvalue())
 
     def test_unreadable_file_preserves_earlier_findings_but_fails_analysis(self):
         first = self.source("scst/a.c", "SCST_KUNIT_VISIBLE void bad(void);\n")
@@ -209,7 +213,8 @@ class CommandTest(unittest.TestCase):
         self.root = self.root / "missing"
         status, out, err = self.run_lint([])
         self.assertEqual((status, out), (2, ""))
-        self.assertIn("scs_lint:", err)
+        self.assertIn("scs_lint: Git source selection failed:", err)
+        self.assertIn("not a git repository", err)
 
 
 if __name__ == "__main__":

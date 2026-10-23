@@ -93,7 +93,6 @@ def check(tool, selected, log):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--base", default=os.environ.get("DIFFBR") or None)
     parser.add_argument("files", nargs="*", type=Path)
     args = parser.parse_args()
     with log_path(ROOT, "checkpatch.lock", truncate=False).open("a") as lock:
@@ -107,7 +106,7 @@ def main():
         report.write_text(json.dumps(summary, indent=2) + "\n")
         show_log(log)
         try:
-            selected = select_sources(ROOT, args.files, args.base, "checkpatch")
+            selected = select_sources(ROOT, args.files, "checkpatch")
             summary["selected_files"] = [path.relative_to(ROOT).as_posix() for path in selected]
             if not selected:
                 print("No eligible Checkpatch inputs; analysis skipped.")
