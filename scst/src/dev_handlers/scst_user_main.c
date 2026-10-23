@@ -45,10 +45,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy, unsigned lo
 
 #ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
-#warning HIGHMEM kernel configurations are not supported by this module, \
-because nowadays it is not worth the effort. Consider changing \
-VMSPLIT option or use a 64 - bit configuration instead. See README file \
-for details.
+#warning "HIGHMEM is unsupported; change VMSPLIT or use a 64-bit kernel. See README."
 #endif
 #endif
 
@@ -1944,7 +1941,7 @@ const u8 *dev_user_ext_cdb(const struct scst_cmd *cmd)
  */
 SCST_KUNIT_VISIBLE
 struct scst_cmd *dev_user_ext_cdb_get(struct scst_user_dev *dev, unsigned int cmd_h,
-				    struct scst_user_cmd **user_cmd)
+				      struct scst_user_cmd **user_cmd)
 {
 	struct scst_user_cmd *ucmd;
 	struct scst_cmd *cmd;

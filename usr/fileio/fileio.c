@@ -354,7 +354,8 @@ static int start(int argc, char **argv)
 		close(fd);
 
 		PRINT_INFO("%s", " ");
-		PRINT_INFO("Virtual device \"%s\", path \"%s\", size %" PRId64 "MB, block size %d, nblocks %" PRId64 ", options:",
+		PRINT_INFO("Virtual device \"%s\", path \"%s\", size %" PRId64
+			   "MB, block size %d, nblocks %" PRId64 ", options:",
 			   devs[i].name,
 			devs[i].file_name, (uint64_t)devs[i].file_size / 1024 / 1024,
 			devs[i].block_size, (uint64_t)devs[i].nblocks);

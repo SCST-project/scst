@@ -46,10 +46,7 @@
 #define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
 
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
-#warning HIGHMEM kernel configurations are fully supported, but not \
-recommended for performance reasons. Consider changing VMSPLIT \
-option or use a 64 - bit configuration instead. See README file for \
-details.
+#warning "HIGHMEM is supported; for better performance, change VMSPLIT or use 64-bit. See README."
 #endif
 
 /*

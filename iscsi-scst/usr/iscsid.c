@@ -288,7 +288,9 @@ static int login_check_reinstatement(struct connection *conn)
 	if (session) {
 		if (req->sid.id.tsih == 0) {
 			/* Kernel will do session reinstatement */
-			log_debug(1, "Session sid %#" PRIx64 " reinstatement detected (tid %d, initiator %s)",
+			log_debug(1,
+				  "Session sid %#" PRIx64
+				  " reinstatement detected (tid %d, initiator %s)",
 				  req->sid.id64,
 				conn->tid, conn->initiator);
 			res = ISCSI_SESS_REINSTATEMENT;

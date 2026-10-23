@@ -48,10 +48,7 @@ static inline u32 blk_mq_unique_tag(struct request *rq)
 
 #ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
-#warning HIGHMEM kernel configurations are not supported by this module, \
-because nowadays it is not worth the effort. Consider changing \
-VMSPLIT option or use a 64 - bit configuration instead. See SCST core \
-README file for details.
+#warning "HIGHMEM is unsupported; change VMSPLIT or use a 64-bit kernel. See SCST core README."
 #endif
 #endif
 

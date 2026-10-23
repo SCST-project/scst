@@ -2071,10 +2071,10 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 			pr_info("RDMA t %d for idx %u failed with status %d.%s\n",
 				opcode, index, wc->status,
 				wc->status == IB_WC_RETRY_EXC_ERR ?
-				" If this has not been triggered by a cable pull, please consider to increase the subnet timeout parameter on the IB switch." :
-				wc->status == IB_WC_WR_FLUSH_ERR ?
-				" If this has not been triggered by a cable pull, please check the involved IB HCA's and cables." :
-				"");
+				" If this has not been triggered by a cable pull, please consider to increase the subnet timeout parameter on the IB switch."
+				: wc->status == IB_WC_WR_FLUSH_ERR ?
+				" If this has not been triggered by a cable pull, please check the involved IB HCA's and cables."
+				: "");
 			srpt_handle_rdma_err_comp(ch, ch->ioctx_ring[index],
 						  opcode, srpt_xmt_rsp_context);
 		} else if (opcode == SRPT_RDMA_ZEROLENGTH_WRITE) {
