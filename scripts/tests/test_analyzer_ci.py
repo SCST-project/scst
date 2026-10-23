@@ -27,7 +27,7 @@ class AnalyzerCiTests(unittest.TestCase):
         (self.root / "Makefile").write_text(
             "SHELL := /bin/sh\n.PHONY: sparse smatch coccicheck cppcheck checkpatch\n"
             "sparse smatch coccicheck cppcheck checkpatch:\n"
-            f"\t@{shlex.quote(sys.executable)} -B scripts/sparse_smatch/smp.py $@\n"
+            f"\t@FIXTURE_TOOL=$@ {shlex.quote(sys.executable)} -B scripts/analyzer_run.py $@\n"
             "\t@exit $(FIXTURE_MAKE_TAIL_EXIT)\n")
         for name in ("git", "sparse", "smatch", "spatch", "cppcheck"):
             path = self.bin / name
@@ -46,6 +46,7 @@ class AnalyzerCiTests(unittest.TestCase):
         self.env = dict(os.environ, KDIR=str(kernel), SCST_LINT_KDIR=str(kernel),
                         PATH=str(self.bin), MAKEFLAGS="", MFLAGS="", MAKEOVERRIDES="",
                         GNUMAKEFLAGS="", FIXTURE_STATUS="0", FIXTURE_MAKE_TAIL_EXIT="0",
+                        CPPCHECK_PROJECT="stale-kernel.json", CPPCHECK_USERSPACE_PROJECT="stale-cli.json",
                         FIXTURE_OUTCOME="clean", FIXTURE_COVERAGE="full")
         self.env.pop("GITHUB_STEP_SUMMARY", None)
         self.env.pop("CHECKPATCH_PATH", None)
@@ -53,13 +54,19 @@ class AnalyzerCiTests(unittest.TestCase):
         driver.write_text('''import json, os, sys
 from pathlib import Path
 root = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(root / 'scripts'))
+from lint_common import report_lock
 assert os.environ['KUNIT_TEST'] == 'y'
 assert os.environ['KUNIT_LABEL'] == 'ALL'
 assert os.environ['LINT_DEFER_REPORTS'] == '1'
+assert os.environ['CPPCHECK_PROJECT'] == ''
+assert os.environ['CPPCHECK_USERSPACE_PROJECT'] == ''
 status = int(os.environ['FIXTURE_STATUS'])
 directory = root / '.cache/lint'
 directory.mkdir(parents=True, exist_ok=True)
-tool = sys.argv[1]
+tool = os.environ['FIXTURE_TOOL']
+with report_lock(root, tool) as lock_fd:
+    assert lock_fd == int(os.environ['LINT_REPORT_LOCK_FD'])
 if os.environ.get('FIXTURE_NO_REPORT'):
     sys.exit(2)
 checked = [p + '/fixture.c' for p in ('scst', 'iscsi-scst',
@@ -74,7 +81,9 @@ report = dict(tool=os.environ.get('FIXTURE_REPORT_TOOL', tool), run_id=os.enviro
     errors=0, unchecked_files=[], unrecorded_checks=[],
     translation_units=len(checked), checked_files=checked,
     remaining=1 if status == 1 else 0)
-report['rules'] = [dict(complete=True, native_status=0, failures=[], handled=checked)]
+report['rules'] = [dict(rule='fixture.cocci', complete=True, native_status=0, failures=[], handled=checked)]
+if tool == 'coccicheck' and status == 1:
+    report['rules'][0]['diagnostics'] = [dict(native='scst/source.c:8:1: ERROR: finding')]
 report['kernel_make_status'] = report['userspace_make_status'] = 0
 report['profiles'] = [dict(profile=profile, complete=True, native_status=0, failures=[],
     translation_units=1, checked_files=checked) for profile in ('kernel', 'userspace')]
@@ -90,11 +99,19 @@ if os.environ.get('FIXTURE_MISSING_COMPLETION'):
     report['completed_files'].pop()
 if os.environ.get('FIXTURE_STALE'):
     report['run_id'] = 'previous run'
+if os.environ.get('FIXTURE_BAD_RENDER'):
+    report['profiles'][0]['diagnostics'] = [dict(unexpected='shape')]
 (directory / (tool + '.json')).write_text(json.dumps(report))
 (directory / (tool + '.log')).write_text('raw diagnostic fixture\\n')
 print('summary fixture')
 sys.exit(status)
 ''')
+        for name in ('style/checkpatch.py', 'cppcheck/cppcheck.py', 'coccinelle/coccicheck.py'):
+            target = self.root / 'scripts' / name
+            # Keep importable helpers for common metadata and policy discovery.
+            source = target.read_text().split('if __name__ == "__main__":')[0]
+            target.write_text(source + '\nif __name__ == "__main__":\n    exec(' +
+                              repr(driver.read_text()) + ')\n')
 
     def run_ci(self, tool="sparse"):
         return subprocess.run([sys.executable, "-B", str(self.root / "scripts/ci/run-analyzer.py"),
@@ -110,10 +127,13 @@ sys.exit(status)
                     self.env.update(FIXTURE_STATUS=str(status), FIXTURE_OUTCOME=outcome)
                     result = self.run_ci(tool)
                     self.assertEqual(result.returncode, expected, result.stdout + result.stderr)
-                    self.assertEqual(result.stdout.count("raw diagnostic fixture"), 1)
+                    self.assertEqual(result.stdout.count("Start | " + tool), 1)
+                    self.assertEqual(result.stdout.count("Result | " + tool), 1)
+                    self.assertEqual(result.stdout.count("Reports | " + tool), 1)
                     self.assertEqual("::error::" in result.stdout, expected == 1)
                     self.assertNotIn("::warning::", result.stdout)
-                    self.assertIn(f"make exit={2 if status else 0}", result.stdout)
+                    make_status = 0 if status == 0 and outcome in {"clean", "skipped"} else 2
+                    self.assertIn(f"make exit={make_status}", result.stdout)
                     self.assertIn(f"job exit={expected}", result.stdout)
 
     def test_make_failure_after_clean_analysis_cannot_pass(self):
@@ -121,6 +141,34 @@ sys.exit(status)
         result = self.run_ci()
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn("make exit=2, job exit=2", result.stdout)
+
+    def test_job_summary_contains_findings_and_coverage_after_validation(self):
+        summary = self.root / 'github-summary'
+        self.env.update(FIXTURE_STATUS='1', FIXTURE_OUTCOME='findings',
+                        GITHUB_STEP_SUMMARY=str(summary), GITHUB_ACTIONS='true')
+        result = self.run_ci('coccicheck')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        text = summary.read_text()
+        self.assertEqual(text.count('Coccinelle: FAIL'), 1)
+        self.assertIn('scst/source.c:8:1: ERROR: finding', text)
+        self.assertIn('Coverage and completion', text)
+        self.assertIn('CI validation: FAIL', text)
+        self.assertNotIn('::group::', text)
+
+    def test_job_summary_cannot_publish_pass_after_a_late_make_failure(self):
+        summary = self.root / 'github-summary'
+        self.env.update(FIXTURE_MAKE_TAIL_EXIT='7', GITHUB_STEP_SUMMARY=str(summary))
+        result = self.run_ci()
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn('CI validation: FAIL', summary.read_text())
+        self.assertNotIn('PASS', summary.read_text())
+
+    def test_failed_frontend_is_not_completed_source_findings(self):
+        self.env.update(FIXTURE_STATUS="1", FIXTURE_OUTCOME="findings", FIXTURE_BAD_RENDER="1")
+        result = self.run_ci("cppcheck")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("analysis incomplete", result.stdout)
+        self.assertNotIn("::error::", result.stdout)
 
     def test_basic_analyzers_cannot_report_incomplete_scans_as_findings(self):
         self.env.update(FIXTURE_STATUS="1", FIXTURE_OUTCOME="findings", FIXTURE_NATIVE_INCOMPLETE="1")

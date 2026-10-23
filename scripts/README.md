@@ -126,7 +126,8 @@ Quiet commands report progress every 30 seconds, or animate a terminal spinner.
 Coccinelle progress names the current rule; its report records rule durations.
 The `.summary.log` is the readable result, `.execution.log` retains the complete
 driver output, and `.run.json` identifies the current invocation and its status.
-Nonzero native exits carry
+CI publishes `.summary.md` with findings and coverage in the job summary and
+saves reports for every analyzer, including SCS. Nonzero native exits carry
 their explanation separately from the final policy result.
 
 Drivers save complete stdout/stderr under `.cache/lint/`. The helpers preserve
@@ -195,7 +196,10 @@ docker build -f scripts/ci/analyzers.Dockerfile -t scst-analyzers:local .
 Tool revisions are in [ci/analyzers.env](ci/analyzers.env); kernel headers
 and checksums are in `ci/kernel.env` and `ci/kernel.SHA256SUMS`. The image
 includes the [Smatch frontend fix](sparse_smatch/patches/typeof-address-space.patch)
-needed for current kernel RCU headers. Tool provenance is recorded under
+needed for current kernel RCU headers and an
+[installation fix](sparse_smatch/patches/install-assets.patch) separating data
+and manual-page targets. Distribution tool packages follow Fedora updates;
+the whole environment is not version-locked. Tool provenance is recorded under
 `/usr/local/share/scst-ci/` inside the image.
 
 ## Coccinelle
@@ -345,17 +349,24 @@ returns 2 (Make maps both to 2). Empty input is a skip.
 
 ## Analyzer CI
 
-The [workflow](../.github/workflows/analyzers.yml) runs on pushes to `master`
-and manual dispatch. Separate jobs run `make sparse`, `make smatch`,
+The [workflow](../.github/workflows/analyzers.yml) runs on PRs targeting `master`,
+pushes to `master` and manual dispatch. Updating a PR cancels its older run.
+Separate jobs run `make sparse`, `make smatch`,
 `make checkpatch`, `make coccicheck` and `make cppcheck`, including KUnit sources.
-`Analyzer script tests` runs `make lint-test`; it does not execute SCST
-tests. A parallel `SCST code style` job runs `make scs_lint` without a kernel
-build. The container jobs retain reports from `.cache/lint/` for seven days.
+`Analyzer tests` runs `make analyzer-tests` in the same container, alongside
+the analyzer jobs. It checks script fixtures and native model probes without
+building or executing SCST. A parallel `SCST code style` job runs `make scs_lint`
+without a kernel build. CI prints active findings, coverage and visible advice; complete inventories
+and native streams remain in `.cache/lint/`. The container jobs retain these
+reports for seven days.
 
-CI fails on findings remaining after policy exceptions, just like local Make
-targets. The native-analyzer runner returns 1 for completed analysis with
-findings and 2 for build/tool failures, incomplete analysis or missing KUnit
-coverage.
+PR and manual runs fail on findings remaining after policy exceptions or
+tooling failures. Push jobs allow failure at workflow level; their failed steps
+and reports remain visible. Local Make targets and the native-analyzer runner
+keep their strict exit statuses: the
+runner returns 1 for completed analysis with findings and 2 for build/tool
+failures, incomplete analysis or missing KUnit coverage. All native jobs use
+full analysis; Conform checks commit-message conventions separately.
 
 ## Dependencies and tooling tests
 
