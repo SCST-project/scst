@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 from lint_scope import in_scope  # noqa: E402
 from analyzer_policy import load_policy  # noqa: E402
+from sparse_smatch.records import write_record
 from sparse_smatch.native import checker_command  # noqa: E402
 
 DIAGNOSTIC = re.compile(
@@ -87,7 +88,7 @@ def main():
     source = source.resolve()
     record = {"directory": str(Path.cwd()), "file": str(source),
               "arguments": ["cc", *arguments], "returncode": 2,
-              "findings": 0, "ignored": [], "errors": 0}
+              "findings": 0, "ignored": [], "errors": 0, "state": "started"}
     # Kbuild can discard CHECK's exit status. Leave a failed record even if
     # spawning the tool fails or this adapter is interrupted before completion.
     with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False,
@@ -96,25 +97,26 @@ def main():
         record_path = Path(output.name)
     command = [*checker_command(tool), *arguments[:-1], "-fmax-warnings=unlimited", arguments[-1]]
     record["checker_arguments"] = command
-    record_path.write_text(json.dumps(record))
-    result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
-    # Parallel Kbuild output may interleave; preserve each native stream too.
     native_log = record_path.with_suffix(".log")
-    native_log.write_bytes(result.stdout)
-    sys.stdout.buffer.write(result.stdout)
-    diagnostics = [match for line in result.stdout.splitlines()
+    record["log"] = str(native_log)
+    write_record(record_path, record)
+    # Stream before waiting: a killed checker must leave its partial evidence.
+    with native_log.open("wb") as output:
+        result = subprocess.run(command, stdout=output, stderr=subprocess.STDOUT)
+    output = native_log.read_bytes()
+    sys.stdout.buffer.write(output)
+    diagnostics = [match for line in output.splitlines()
                    if (match := DIAGNOSTIC.match(line))]
     headers = {rule["header"]: kernel_header(arguments, rule["header"])
                for rule in policy["kernel_exceptions"]}
-    record.update(returncode=result.returncode, log=str(native_log), findings=len(diagnostics),
+    record.update(returncode=result.returncode, state="complete", findings=len(diagnostics),
                   ignored=[entry for item in diagnostics
                            if (entry := ignored_warning(tool, item.string, headers))],
                   errors=sum(b"error" in item["severity"].lower() and not item["function"]
-                             for item in diagnostics) + bool(TRUNCATED.search(result.stdout)))
+                             for item in diagnostics) + bool(TRUNCATED.search(output)))
     # Smatch's "file:line function() error:" is a source finding; frontend
     # "file:line:column: error:" means parsing failed, even with a zero exit.
-    with record_path.open("w") as output:
-        json.dump(record, output)
+    write_record(record_path, record)
     return result.returncode if result.returncode >= 0 else 128 - result.returncode
 
 
