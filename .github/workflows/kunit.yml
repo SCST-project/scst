@@ -27,38 +27,24 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-          # Compare the whole PR against its merge base, including fork PRs.
-          fetch-depth: 0
-      - name: Check VM supervisor and CI selection
+      - name: Check VM supervisor
         run: python3 -m unittest discover -s scripts/ci -p 'test_*.py'
-      - name: Select KUnit checks
-        id: changes
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          python3 scripts/ci/select_checks.py --check kunit --event "$GITHUB_EVENT_NAME" \
-            --base "$BASE_SHA" --head "$HEAD_SHA"
       - name: Install VM tools
-        if: steps.changes.outputs.run == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y qemu-system-x86 qemu-utils e2fsprogs fakeroot
       - name: Build kernel-matched image and KUnit modules
-        if: steps.changes.outputs.run == 'true'
         run: bash scripts/ci/build-image kunit "$RUNNER_TEMP/kunit-image"
       - name: Exercise VM success, panic and timeout handling
-        if: steps.changes.outputs.run == 'true'
         run: |
           python3 scripts/ci/vm.py self-test "$RUNNER_TEMP/kunit-image" \
             "$RUNNER_TEMP/kunit-supervisor" --timeout 180 --accel tcg
       - name: Run KUnit
-        if: steps.changes.outputs.run == 'true'
         run: |
           python3 scripts/ci/vm.py kunit "$RUNNER_TEMP/kunit-image" \
             "$RUNNER_TEMP/kunit-results" --timeout 1200
       - name: Save build and runtime evidence
-        if: always() && steps.changes.outputs.run == 'true'
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: kunit-results

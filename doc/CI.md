@@ -15,16 +15,9 @@ Workflows live in [`.github/workflows`](../.github/workflows). PR checks target
 | [Coverity](../.github/workflows/coverity.yml) | Static analysis | Push, upstream repository only |
 | [Mailing list](../.github/workflows/mail_notification.yml) | Commit notifications | Push, upstream repository only |
 
-On PRs, [select_checks.py](../scripts/ci/select_checks.py) selects Clang, kernel
-regression, KUnit and Ginkgo using [ci-checks.toml](../.github/ci-checks.toml).
-Edit that config to change path rules; it is validated before selection.
-Unknown paths and changes to the config or selector run every check.
-Known unrelated changes skip expensive work; regression selection happens
-before creating its matrix jobs. Some documentation is a package or kernel-patch
-input and still needs validation. PR Checkpatch always runs. Packages runs only
-after a push to master; the separate Clang build still checks DEB packaging on
-PRs. Push and manual runs retain their full checks. Selection errors fail the
-workflow; skip reasons appear in the job summary.
+Clang, kernel regression, KUnit and Ginkgo run on every PR regardless of which
+files changed. Packages runs only after a push to master; the separate Clang
+build checks DEB packaging on PRs.
 
 Ginkgo uses `ci-pr` for PRs, `ci-push` for master, and all tests for manual runs.
 The PR job targets 15–20 minutes including image preparation and has a hard
@@ -105,6 +98,5 @@ crashes a guest.
 CI tooling checks without builds or VM access:
 
 ```sh
-python3 scripts/ci/select_checks.py --validate-config
 python3 -m unittest discover -s scripts/ci -p 'test_*.py'
 ```
