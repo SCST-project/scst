@@ -153,7 +153,7 @@ in `.github/workflows/ci.yml` and `.github/workflows/coverity.yml`.
 in the [scripts guide](scripts/README.md#sparse-and-smatch).
 
 `scripts/kernel/run-regression-tests` checks kernel compatibility through
-compilation and checkpatch. It downloads or prepares kernel trees and is
+compilation. It downloads or prepares kernel trees and is
 separate from the analyzer targets above. The nightly support matrix is
 `ABT_KERNELS` in `nightly/conf/nightly.conf`; CI exercises a subset in
 `.github/workflows/run_regression_tests.yaml`.

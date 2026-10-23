@@ -31,10 +31,10 @@ generation and source inventory use the requested or current source directory.
 Module Makefiles invoke `sign-modules` from the directory containing modules.
 Consult each script's argument handling before invoking it.
 
-`kernel/run-regression-tests` prepares kernel trees and runs compilation and
-checkpatch according to its options. The maintained kernel
-matrix is `ABT_KERNELS` in `nightly/conf/nightly.conf`; the CI subset is selected
-through `kernel/kernel-matrix` and `.github/kernel-matrix.conf`.
+`kernel/run-regression-tests` prepares kernel trees and runs compatibility
+builds. Static analyzers have separate Make targets and CI jobs. The maintained
+kernel matrix is `ABT_KERNELS` in `nightly/conf/nightly.conf`; the CI subset is
+selected through `kernel/kernel-matrix` and `.github/kernel-matrix.conf`.
 
 `kernel/qla2xxx.py` tracks upstream QLogic commits, compares committed Linux
 and SCST driver trees, audits residual differences with an optional kernel
