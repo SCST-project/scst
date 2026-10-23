@@ -21,6 +21,11 @@ struct user_cleanup_fixture {
 	bool guard_fired;
 };
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=pool */
 static void user_cleanup_flush(struct sgv_pool *pool)
 {
 	struct kunit *test = kunit_get_current_test();
@@ -217,6 +222,11 @@ static void user_reply_test(struct kunit *test)
 	KUNIT_EXPECT_FALSE(test, !!u->sent_to_user);
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=ref */
 static void user_defer_release(struct kref *ref)
 {
 	/* Model the destructor waiting for cmd_list_lock before hash removal. */

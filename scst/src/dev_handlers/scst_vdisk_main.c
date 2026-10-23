@@ -1583,11 +1583,21 @@ static enum compl_status_e vdisk_exec_start_stop(struct vdisk_cmd_params *p)
 	return CMD_SUCCEEDED;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=p */
 static enum compl_status_e vdisk_nop(struct vdisk_cmd_params *p)
 {
 	return CMD_SUCCEEDED;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=p */
 static enum compl_status_e vdisk_exec_send_diagnostic(struct vdisk_cmd_params *p)
 {
 	return CMD_SUCCEEDED;
@@ -2479,6 +2489,11 @@ static const struct scst_opcode_descriptor *vcdrom_opcode_descriptors[] = {
 	SCST_OPCODE_DESCRIPTORS
 };
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static int vdisk_get_supported_opcodes(struct scst_cmd *cmd,
 				       const struct scst_opcode_descriptor ***out_supp_opcodes,
 				       int *out_supp_opcodes_cnt)
@@ -3127,6 +3142,11 @@ static void fileio_async_complete(struct kiocb *iocb, long ret
 			INIT_WORK(&w->work, scst_do_verify_work);
 			w->cmd = cmd;
 			schedule_work(&w->work);
+			/*
+			 * Verification work takes completion ownership;
+			 * scst_do_verify_work frees it.
+			 */
+			/* cppcheck-suppress memleak symbolName=w */
 			return;
 		}
 
@@ -4963,6 +4983,11 @@ enum compl_status_e vdisk_exec_sai_16(struct vdisk_cmd_params *p)
 	return CMD_SUCCEEDED;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=p */
 static enum compl_status_e vdisk_exec_maintenance_in(struct vdisk_cmd_params *p)
 {
 	/* For the code that handles RTPG, see also scst_local_cmd.c. */
@@ -4970,6 +4995,11 @@ static enum compl_status_e vdisk_exec_maintenance_in(struct vdisk_cmd_params *p)
 }
 
 static enum compl_status_e
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=p */
 vdisk_exec_maintenance_out(struct vdisk_cmd_params *p)
 {
 	/* For the code that handles RTPG, see also scst_local_cmd.c. */
@@ -6254,6 +6284,11 @@ static enum compl_status_e nullio_exec_write_verify(struct vdisk_cmd_params *p)
 	return CMD_SUCCEEDED;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=p */
 static enum compl_status_e nullio_exec_verify(struct vdisk_cmd_params *p)
 {
 	return CMD_SUCCEEDED;
@@ -6323,6 +6358,11 @@ static void vdev_on_alua_state_change_finish(struct scst_device *dev,
 	TRACE_EXIT();
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=mcmd */
 static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd, struct scst_tgt_dev *tgt_dev)
 {
 	TRACE_ENTRY();

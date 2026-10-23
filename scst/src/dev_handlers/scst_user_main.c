@@ -3724,6 +3724,11 @@ out:
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static int dev_usr_parse(struct scst_cmd *cmd)
 {
 	sBUG();
@@ -3834,6 +3839,8 @@ static void dev_user_check_lost_ucmds(struct scst_user_dev *dev)
 	}
 }
 #else
+/* The enabled cleanup releases commands and removes nodes from dev->ucmd_hash. */
+/* cppcheck-suppress constParameterPointer symbolName=dev */
 static void dev_user_check_lost_ucmds(struct scst_user_dev *dev)
 {
 }
@@ -4022,6 +4029,8 @@ static int __init init_scst_user(void)
 #endif
 #endif
 
+	/* HIGHMEM configurations deliberately exit above; other configurations continue here. */
+	/* cppcheck-suppress unreachableCode */
 	user_dev_cachep = KMEM_CACHE(scst_user_dev, SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN);
 	if (!user_dev_cachep) {
 		res = -ENOMEM;

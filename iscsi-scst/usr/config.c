@@ -100,6 +100,10 @@ void iscsi_attr_destroy(struct iscsi_attr *attr)
 	__iscsi_attr_destroy(attr, 1);
 }
 
+/*
+ * Removing boundary attributes through remque also modifies the list head.
+ */
+/* cppcheck-suppress constParameterPointer symbolName=attrs_list */
 void iscsi_attrs_free(struct __qelem *attrs_list)
 {
 	struct iscsi_attr *attr, *t;

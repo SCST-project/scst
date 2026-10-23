@@ -340,6 +340,10 @@ static int handle_del_user(const struct target *target, int dir, char *p, u32 co
 	return res;
 }
 
+/*
+ * Removing boundary attributes through remque also modifies the list head.
+ */
+/* cppcheck-suppress constParameterPointer symbolName=attrs_list */
 static int __handle_del_attr(const struct target *target, struct __qelem *attrs_list,
 			     char *p, u32 cookie)
 {

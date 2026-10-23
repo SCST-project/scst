@@ -153,6 +153,8 @@ static void trace_conn_close(struct iscsi_conn *conn)
 	spin_unlock_bh(&conn->cmd_list_lock);
 }
 #else /* CONFIG_SCST_DEBUG */
+/* The debug implementation acquires and releases conn->cmd_list_lock. */
+/* cppcheck-suppress constParameterPointer symbolName=conn */
 static void trace_conn_close(struct iscsi_conn *conn) {}
 #endif /* CONFIG_SCST_DEBUG */
 

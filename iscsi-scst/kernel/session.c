@@ -270,6 +270,11 @@ static void __session_free(struct iscsi_session *session)
 	kmem_cache_free(iscsi_sess_cache, session);
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_sess */
 static void iscsi_unreg_sess_done(struct scst_session *scst_sess)
 {
 	struct iscsi_session *session;

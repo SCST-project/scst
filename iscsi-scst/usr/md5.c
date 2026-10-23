@@ -134,6 +134,11 @@ static inline void md5_transform(u32 digest[MD5_DIGEST_WORDS],
 	int i;
 
 	for (i = 0; i < MD5_BLOCK_WORDS; i++)
+		/*
+		 * Byte-order conversion is an identity only on little-endian
+		 * hosts.
+		 */
+		/* cppcheck-suppress selfAssignment */
 		block[i] = cpu_to_le32(block[i]);
 
 	__md5_transform(digest, block);
@@ -203,6 +208,11 @@ void md5_final(struct md5_ctx *ctx, u8 *out)
 	md5_transform(ctx->digest, ctx->block);
 
 	for (i = 0; i < MD5_DIGEST_WORDS; i++)
+		/*
+		 * Byte-order conversion is an identity only on little-endian
+		 * hosts.
+		 */
+		/* cppcheck-suppress selfAssignment */
 		ctx->digest[i] = le32_to_cpu(ctx->digest[i]);
 
 	memcpy(out, ctx->digest, MD5_DIGEST_BYTES);

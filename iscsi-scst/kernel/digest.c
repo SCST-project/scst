@@ -31,6 +31,11 @@
 #include "digest.h"
 #include <linux/crc32c.h>
 
+/*
+ * The no-CRC kernel configuration clears unsupported algorithms through this
+ * parameter.
+ */
+/* cppcheck-suppress constParameterPointer */
 void digest_alg_available(int *val)
 {
 #if !defined(CONFIG_LIBCRC32C_MODULE) && !defined(CONFIG_LIBCRC32C) && \

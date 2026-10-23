@@ -284,6 +284,8 @@ static void write_same_flags(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, cdb[p->needs_dif ? 10 : 1], p->expected);
 }
 
+/* The device DIF callback requires a mutable command parameter. */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static int write_same_no_dif(struct scst_cmd *cmd)
 {
 	return 0;

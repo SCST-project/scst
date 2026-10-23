@@ -2216,6 +2216,11 @@ static void srpt_unreg_ch(struct srpt_rdma_ch *ch)
  * Called by scst_unregister_session() after the last command associated with
  * a session has finished.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=sess */
 static void srpt_unreg_sess(struct scst_session *sess)
 {
 	srpt_unreg_ch(scst_sess_get_tgt_priv(sess));
@@ -2515,6 +2520,11 @@ out:
 /*
  * srpt_is_target_enabled - Report whether a target is enabled.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_tgt */
 static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 {
 	const struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
@@ -3177,6 +3187,11 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				 struct scst_cmd *cmd)
 {
 	struct srpt_device *sdev = ch->sport->sdev;
+	/*
+	 * Older ib_sg_dma_len/address implementations require a mutable RDMA device;
+	 * their current macro forms ignore this argument.
+	 */
+	/* cppcheck-suppress constVariablePointer symbolName=dev */
 	struct ib_device *dev __maybe_unused = sdev->device;
 	struct scatterlist *sg, *cur_sg;
 	int sg_cnt;
@@ -3642,6 +3657,11 @@ static void srpt_pending_cmd_timeout(struct scst_cmd *cmd)
  * Called by the SCST core to transfer data from the initiator to the target
  * (SCST_DATA_WRITE). Must not block.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static int srpt_rdy_to_xfer(struct scst_cmd *cmd)
 {
 	struct srpt_send_ioctx *ioctx = scst_cmd_get_tgt_priv(cmd);
@@ -3763,6 +3783,11 @@ out:
  *
  * Must not block.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=mcmnd */
 static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 {
 	struct srpt_rdma_ch *ch;
@@ -3806,6 +3831,11 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
  *
  * See also SPC-3, section 7.5.4.5, TransportID for initiator ports using SRP.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=sess */
 static int srpt_get_initiator_port_transport_id(struct scst_tgt *tgt, struct scst_session *sess,
 						u8 **transport_id)
 {
@@ -3847,6 +3877,11 @@ out:
  *
  * Called by the SCST core. May be called in IRQ context.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static void srpt_on_free_cmd(struct scst_cmd *cmd)
 {
 	struct srpt_send_ioctx *ioctx;
@@ -3862,6 +3897,11 @@ static void srpt_refresh_port_work(struct work_struct *work)
 	srpt_refresh_port(sport);
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=sess */
 static int srpt_close_session(struct scst_session *sess)
 {
 	struct srpt_rdma_ch *ch = scst_sess_get_tgt_priv(sess);
@@ -3957,6 +3997,11 @@ static int srpt_release(struct scst_tgt *scst_tgt)
  * This function is called from scst_pres.c, the code that implements
  * persistent reservation support.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_tgt */
 static u16 srpt_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
 	return 0x0940; /* SRP */
