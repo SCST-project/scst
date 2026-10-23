@@ -2,7 +2,18 @@
   "version": 1,
   "notes": [
     "Run the selected kernel's Coccinelle rules that declare report mode.",
-    "KUnit sources are selected without requiring a KUnit build.",
-    "No project macro models, source rewrites or diagnostic suppressions."
+    "KUnit sources are selected without requiring a KUnit build."
+  ],
+  "skip_non_report_rules": true,
+  "macro_definition_errors": {
+    "enabled": true,
+    "reason": "Complete standalone macro definitions in source scope may not parse as C. Retain these errors as coverage limitations, not checked code. Invocation errors, partial definitions and surrounding function errors still fail."
+  },
+  "tool_warnings": [
+    {
+      "id": "do_div",
+      "pattern": "<string>:[0-9]+: SyntaxWarning: 'return' in a 'finally' block",
+      "reason": "Upstream do_div helper compatibility notice; preserve the warning and require complete rule execution."
+    }
   ]
 }

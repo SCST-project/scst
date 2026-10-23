@@ -39,6 +39,9 @@ ANALYZER_SCHEMAS = {
                                            "first_entry_pattern": str, "reason": str}],
                    "line_layouts": [{"rule": str, "file_glob": str,
                                      "source_pattern": str, "reason": str}]},
+    "coccicheck": {**BASIC_SCHEMA, "skip_non_report_rules": bool,
+                   "macro_definition_errors": {"enabled": bool, "reason": str},
+                   "tool_warnings": [{"id": str, "pattern": str, "reason": str}]},
 }
 
 
@@ -113,6 +116,11 @@ def read_policy(path: Path, name="common") -> dict:
             if any(entry["rule"] not in {"LONG_LINE", "LONG_LINE_COMMENT", "LONG_LINE_STRING"}
                    for entry in policy["line_layouts"]):
                 raise ValueError(f"{path}: unsupported layout rule")
+        if name == "coccicheck":
+            for entry in policy["tool_warnings"]:
+                if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", entry["id"]):
+                    raise ValueError(f"{path}: rule IDs must be exact")
+                re.compile(entry["pattern"])
         return policy
     if name != "common":
         for key, fields in (("exclude_directories", ("path",)),
@@ -178,6 +186,8 @@ def load(name):
 def inline_inventory(root, name):
     if name == "checkpatch":
         from style.exceptions import inventory
+    elif name == "coccicheck":
+        from coccinelle.exceptions import inventory
     else:
         return []
     return inventory(root, load(name))
@@ -241,6 +251,11 @@ def text_report(result: dict, action: str) -> str:
                 label = item.get("rule", "PARENTHESIS_ALIGNMENT")
                 expression = item.get("source_pattern", item.get("first_entry_pattern"))
                 lines.append(f"  Layout [{label}] {item['file_glob']} / {expression}: {item['reason']}")
+        elif result["policy"] == "coccicheck":
+            setting = configured["macro_definition_errors"]
+            lines.append(f"Non-blocking macro definition errors: {setting['enabled']}; {setting['reason']}")
+            for item in configured["tool_warnings"]:
+                lines.append(f"  Tool notice [{item['id']}] / {item['pattern']}: {item['reason']}")
         lines.extend(configured["notes"])
     elif result["policy"] != "common":
         native = result["configured_policy"]
