@@ -193,12 +193,18 @@ make coccicheck KDIR=/path/to/kernel/build
 Install `spatch` with Python support and kernel sources containing
 `scripts/coccinelle/`. Rules declaring `report` mode run on the shared source
 scope, including userspace and KUnit files; other rules are listed as skipped.
-The selected C files and headers are checked in full. No build is needed.
-
-The wrapper adds only report counters and completion markers to temporary
-rule copies. It uses no SCST macro models or diagnostic exceptions. Parser
-errors, missing per-input handling records and unfinished rules fail as
-incomplete analysis, even when native `spatch` returns zero. Findings return
+No build is needed. The wrapper extends installed parser hints with SCST
+contracts and current source definitions, without pinned macro hashes.
+CI installs Fedora's `coccinelle` package without a version pin. Native model
+tests for variadic macro arguments are temporarily skipped pending an upstream
+Coccinelle fix; their names and reasons remain visible in analyzer-test reports.
+Macro bodies and `_Generic` associations are not exhaustively analyzed;
+there are no synthetic macro context checks. Errors matching a complete
+standalone macro definition are retained as explicit coverage limitations.
+Call-site errors, partial definitions, surrounding-code errors, missing
+handling records and unfinished rules remain blocking.
+Private rule copies retain report counters and record the narrow
+`stream_open.cocci` compatibility adaptation. Native rules remain unchanged. Findings return
 1; incomplete analysis returns 2 (Make maps either failure to 2).
 Full output and per-rule coverage are in `.cache/lint/coccicheck.{log,json}`.
 
