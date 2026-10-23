@@ -80,6 +80,8 @@ report['profiles'] = [dict(profile=profile, complete=True, native_status=0, fail
     translation_units=1, checked_files=checked) for profile in ('kernel', 'userspace')]
 report.update(complete=True, native_status=status, failures=[], selected_files=checked,
     completed_files=[str((root / path).resolve()) for path in checked])
+if os.environ.get('FIXTURE_EXEMPT'):
+    report.update(native_status=1, findings=1, ignored=1, remaining=0)
 if os.environ.get('FIXTURE_NATIVE_INCOMPLETE'):
     report['rules'][0]['complete'] = False
     report['profiles'][0]['complete'] = False
@@ -134,6 +136,14 @@ sys.exit(status)
         result = self.run_ci("checkpatch")
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertNotIn("::error::", result.stdout)
+
+    def test_checkpatch_clean_after_exceptions_requires_native_completion(self):
+        self.env["FIXTURE_EXEMPT"] = "1"
+        result = self.run_ci("checkpatch")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.env["FIXTURE_MISSING_COMPLETION"] = "1"
+        result = self.run_ci("checkpatch")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
 
     def test_checkpatch_needs_tool_data_but_not_a_prepared_kunit_kernel(self):
         (self.root / "kernel/.config").unlink()

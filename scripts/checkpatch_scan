@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-
-set -euo pipefail
-
-scriptsdir="$(cd "$(dirname "$0")" && pwd)"
-exec "${PYTHON:-python3}" -B "$scriptsdir/style/checkpatch.py" "$@"

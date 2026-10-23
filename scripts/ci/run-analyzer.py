@@ -28,8 +28,12 @@ def complete_native_report(report):
     if tool == "checkpatch":
         checked = report.get("checked_files")
         completed = report.get("completed_files")
-        return (report.get("complete") is True and not report.get("failures") and
-                report.get("native_status") == report.get("exit_code") and
+        remaining, ignored = report.get("remaining"), report.get("ignored", 0)
+        findings = report.get("findings", remaining)
+        return (all(type(value) is int and value >= 0 for value in (remaining, ignored, findings)) and
+                findings == remaining + ignored and
+                report.get("complete") is True and not report.get("failures") and
+                report.get("native_status") == int(bool(findings)) and
                 isinstance(checked, list) and bool(checked) and
                 checked == report.get("selected_files") and
                 isinstance(completed, list) and

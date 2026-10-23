@@ -100,7 +100,7 @@ python3 scripts/kernel/qla2xxx.py export --linux <linux-repo> \
   substantial defaults, capability and control-flow differences separately
   from mechanical backports; token equality is not semantic proof.
 - Run the tool tests if its behavior changed, plus the repository's required
-  diff, per-commit checkpatch and message checks. Inspect imported diagnostics
+  diff, `make checkpatch` and commit-message checks. Inspect imported diagnostics
   individually; do not rewrite upstream patches merely to hide existing
   warnings or extend ignore lists.
 - Compile core and both newer QLogic modules against the target kernel, using

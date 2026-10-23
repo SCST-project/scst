@@ -5,7 +5,6 @@ Workflows live in [`.github/workflows`](../.github/workflows). PR checks target
 
 | Workflow | Purpose | Events |
 | --- | --- | --- |
-| [PR Checkpatch](../.github/workflows/checkpatch_pull.yml) | Individual patch and commit style | PR |
 | [CI](../.github/workflows/ci.yml) | Clang build and DEB packaging | PR, push, manual |
 | [Packages](../.github/workflows/rpm.yml) | Ubuntu DEBs, RPMs and a published package snapshot | Push to master only |
 | [Regression](../.github/workflows/run_regression_tests.yaml) | Module and patched-kernel builds across the kernel matrix | PR, push |
