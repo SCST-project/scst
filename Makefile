@@ -295,7 +295,7 @@ scs_lint:
 scs-lint-test:
 	@uv run --no-project scripts/scs_lint/test_scs_lint.py
 
-.PHONY: compile-commands compile-commands-cli cppcheck lint-userspace
+.PHONY: compile-commands compile-commands-cli cppcheck
 COMPILE_COMMANDS ?= $(CURDIR)/compile_commands.json
 compile-commands: export SCST_LINT_KDIR := $(KDIR)
 compile-commands:
@@ -312,13 +312,6 @@ cppcheck: export SCST_LINT_KDIR := $(KDIR)
 cppcheck: export SCST_LINT_CC := $(CC)
 cppcheck:
 	+@$(PYTHON) -B scripts/cppcheck/cppcheck.py
-
-lint-userspace:
-	+$(MAKE) -C scst/src ../include/scst_itf_ver.h
-	+$(MAKE) -C $(ISCSI_DIR) progs
-	+$(MAKE) -C usr/fileio
-	+$(MAKE) -C usr/stpgd
-	+$(MAKE) -C usr/events
 
 # Preserve dependency order. The newer QLogic base is compiled for its target
 # module, but only sources selected by analyzer policy reach the checker.
