@@ -86,6 +86,8 @@ static void isert_close_conn(struct iscsi_conn *conn, int flags)
 		dev->state = CS_DISCONNECTED;
 }
 
+/* The shared transport callback must also accept the mutable TCP receive path. */
+/* cppcheck-suppress constParameterCallback symbolName=cmnd */
 static int isert_receive_cmnd_data(struct iscsi_cmnd *cmnd)
 {
 #ifdef CONFIG_SCST_EXTRACHECKS
@@ -278,6 +280,11 @@ static void isert_make_conn_wr_active(struct iscsi_conn *conn)
 	isert_process_all_writes(conn);
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=conn */
 static int isert_conn_activate(struct iscsi_conn *conn)
 {
 	return 0;

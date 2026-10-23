@@ -830,6 +830,11 @@ static const char *ib_event_type_str(enum ib_event_type ev_type)
 	}
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=context */
 static void isert_async_evt_handler(struct ib_event *async_ev, void *context)
 {
 	const struct isert_cq *cq = context;

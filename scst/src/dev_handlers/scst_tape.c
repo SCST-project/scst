@@ -216,6 +216,11 @@ out:
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=dev */
 static void tape_detach(struct scst_device *dev)
 {
 	/* Nothing to do */

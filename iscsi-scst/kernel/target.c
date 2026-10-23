@@ -467,6 +467,12 @@ out:
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_tgt */
+/* cppcheck-suppress constParameterPointer symbolName=scst_tgt */
 int iscsi_enable_target(struct scst_tgt *scst_tgt, bool enable)
 {
 	struct iscsi_target *tgt =
@@ -495,6 +501,12 @@ out:
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_tgt */
+/* cppcheck-suppress constParameterPointer symbolName=scst_tgt */
 bool iscsi_is_target_enabled(struct scst_tgt *scst_tgt)
 {
 	const struct iscsi_target *tgt =
@@ -506,6 +518,12 @@ bool iscsi_is_target_enabled(struct scst_tgt *scst_tgt)
 		return false;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=params */
+/* cppcheck-suppress constParameterPointer symbolName=params */
 ssize_t iscsi_sysfs_add_target(const char *target_name, char *params)
 {
 	int res;

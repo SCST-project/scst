@@ -305,16 +305,28 @@ typedef enum scst_data_direction {
  *************************************************************/
 #define SCST_LOAD_SENSE(key_asc_ascq) key_asc_ascq
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_sense_valid */
 static inline int scst_sense_valid(const uint8_t *sense)
 {
 	return sense && ((sense[0] & 0x70) == 0x70);
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_no_sense */
 static inline int scst_no_sense(const uint8_t *sense)
 {
 	return sense && (sense[2] == 0);
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_sense_response_code */
 static inline int scst_sense_response_code(const uint8_t *sense)
 {
 	return sense[0] & 0x7F;

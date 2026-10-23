@@ -356,6 +356,8 @@ out:
 	return res;
 }
 
+/* scst_block_generic_dev_done requires this mutable command callback type. */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static void disk_set_block_shift(struct scst_cmd *cmd, int block_shift)
 {
 	struct scst_device *dev = cmd->dev;

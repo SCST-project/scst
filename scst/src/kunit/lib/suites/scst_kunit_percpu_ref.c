@@ -81,6 +81,8 @@ static void percpu_test_resurrect(struct percpu_ref_fixture *f)
 	f->dead = percpu_ref_is_dying(&f->ref);
 }
 
+/* The KUnit suite exit callback requires a mutable test parameter. */
+/* cppcheck-suppress constParameterCallback symbolName=test */
 static void percpu_test_exit(struct kunit *test)
 {
 	struct percpu_ref_fixture *f = test->priv;

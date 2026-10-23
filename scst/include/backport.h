@@ -217,6 +217,10 @@ typedef unsigned int blk_opf_t;
 
 /* <linux/blk-mq.h> */
 
+/*
+ * The legacy QLogic initiator uses this helper outside Cppcheck source scope.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_blk_rq_cpu */
 static inline unsigned int scst_blk_rq_cpu(struct request *rq)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0) &&	\
@@ -833,16 +837,31 @@ static inline void kunmap_local(const void *addr)
 	(defined(RHEL_MAJOR) && RHEL_MAJOR - 0 >= 8)
 
 static inline struct io_context *
+/*
+ * This compatibility stub retains the mutable-pointer interface of the removed
+ * kernel API.
+ */
+/* cppcheck-suppress constParameterPointer */
 scst_get_task_io_context(struct task_struct *task,
 			 gfp_t gfp_flags, int node)
 {
 	return NULL;
 }
 
+/*
+ * This compatibility stub retains the mutable-pointer interface of the removed
+ * kernel API.
+ */
+/* cppcheck-suppress constParameterPointer */
 static inline void scst_put_io_context(struct io_context *ioc)
 {
 }
 
+/*
+ * This compatibility stub retains the mutable-pointer interface of the removed
+ * kernel API.
+ */
+/* cppcheck-suppress constParameterPointer */
 static inline void scst_ioc_task_link(struct io_context *ioc)
 {
 }
@@ -1025,6 +1044,10 @@ static inline void kobj_ns_drop_backport(enum kobj_ns_type type, void *ns)
  * Returns true if entry is in its list. Entry must be deleted from the
  * list by using list_del_init()!
  */
+/*
+ * The legacy QLogic target uses this helper outside Cppcheck source scope.
+ */
+/* cppcheck-suppress unusedFunction symbolName=list_entry_in_list */
 static inline bool list_entry_in_list(const struct list_head *entry)
 {
 	return !list_empty(entry);
@@ -2285,6 +2308,11 @@ static inline u8 driver_byte(u32 result)
  * 6f9a35e2dafa). See also commit ae3d56d81507 ("scsi: remove bidirectional
  * command support") # v5.1.
  */
+/*
+ * This compatibility stub retains the mutable-pointer interface of the removed
+ * kernel API.
+ */
+/* cppcheck-suppress constParameterPointer */
 static inline int scsi_bidi_cmnd(struct scsi_cmnd *cmd)
 {
 	return false;
@@ -2474,6 +2502,10 @@ static inline void *bsg_job_sense(struct fc_bsg_job *job)
 	return job->req->sense;
 }
 #else
+/*
+ * QLogic initiator sources use this helper outside Cppcheck source scope.
+ */
+/* cppcheck-suppress unusedFunction symbolName=bsg_job_sense */
 static inline void *bsg_job_sense(struct bsg_job *job)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)

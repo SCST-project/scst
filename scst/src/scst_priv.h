@@ -774,11 +774,18 @@ static inline void tm_dbg_check_released_cmds(void)
 {
 }
 
+/*
+ * The disabled debug stub retains the signature of the configuration that
+ * mutates this object.
+ */
+/* cppcheck-suppress constParameterPointer */
 static inline int tm_dbg_check_cmd(struct scst_cmd *cmd)
 {
 	return 0;
 }
 
+/* The disabled stub keeps the signature of the debug implementation. */
+/* cppcheck-suppress constParameterPointer symbolName=cmd */
 static inline void tm_dbg_release_cmd(struct scst_cmd *cmd)
 {
 }
@@ -796,6 +803,11 @@ static inline int tm_dbg_is_release(void)
 #ifdef CONFIG_SCST_DEBUG_SN
 void scst_check_debug_sn(struct scst_cmd *cmd);
 #else
+/*
+ * The disabled debug stub retains the signature of the configuration that
+ * mutates this object.
+ */
+/* cppcheck-suppress constParameterPointer */
 static inline void scst_check_debug_sn(struct scst_cmd *cmd)
 {
 }

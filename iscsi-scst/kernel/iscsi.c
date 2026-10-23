@@ -3276,6 +3276,11 @@ static void iscsi_tcp_preprocessing_done(struct iscsi_cmnd *req)
 	}
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_cmd */
 static void iscsi_preprocessing_done(struct scst_cmd *scst_cmd)
 {
 	struct iscsi_cmnd *req = scst_cmd_get_tgt_priv(scst_cmd);
@@ -3827,10 +3832,16 @@ static int iscsi_report_aen(struct scst_aen *aen)
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by
+ * its interface.
+ */
+/* cppcheck-suppress-begin constParameterCallback symbolName=scst_sess */
 static int iscsi_get_initiator_port_transport_id(struct scst_tgt *tgt,
 						 struct scst_session *scst_sess,
 						 u8 **transport_id)
 {
+	/* cppcheck-suppress-end constParameterCallback symbolName=scst_sess */
 	struct iscsi_session *sess;
 	int res = 0;
 	union iscsi_sid sid;
@@ -3927,6 +3938,11 @@ out_err:
 	TRACE_EXIT();
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_sess */
 static int iscsi_close_sess(struct scst_session *scst_sess)
 {
 	struct iscsi_session *sess = scst_sess_get_tgt_priv(scst_sess);
@@ -3945,6 +3961,11 @@ out:
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_tgt */
 static int iscsi_target_release(struct scst_tgt *scst_tgt)
 {
 	/* Nothing to do */
@@ -3965,6 +3986,11 @@ static struct scst_trace_log iscsi_local_trace_tbl[] = {
 #define ISCSI_TRACE_TBL_HELP	", d_write, conn, conn_dbg, iov, pdu, net_page"
 #endif
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_tgt */
 static u16 iscsi_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
 	return 0x0960; /* iSCSI */

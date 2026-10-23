@@ -37,6 +37,11 @@ static void sgv_shared_gets_same_mm(struct kunit *test)
 	KUNIT_EXPECT_EQ(test, kref_read(&pool->sgv_pool_ref), 2);
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=ref */
 static void sgv_defer_release(struct kref *ref)
 {
 	/* Keep the fixture alive to model a destructor waiting to unlink it. */

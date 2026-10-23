@@ -302,6 +302,12 @@ static void ft_sess_close(struct ft_sess *sess)
 /*
  * Allocate and fill in the SPC Transport ID for persistent reservations.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_sess */
+/* cppcheck-suppress constParameterPointer symbolName=scst_sess */
 int ft_get_transport_id(struct scst_tgt *tgt, struct scst_session *scst_sess, uint8_t **result)
 {
 	struct ft_sess *sess;
@@ -496,6 +502,12 @@ static void ft_recv(struct fc_lport *lport, struct fc_frame *fp)
  * Called through scst_unregister_target() as well as directly.
  * Caller holds ft_lport_lock.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=tgt */
+/* cppcheck-suppress constParameterPointer symbolName=tgt */
 int ft_tgt_release(struct scst_tgt *tgt)
 {
 	struct ft_tport *tport;
@@ -538,6 +550,12 @@ out:
 	return ret;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=tgt */
+/* cppcheck-suppress constParameterPointer symbolName=tgt */
 bool ft_tgt_enabled(struct scst_tgt *tgt)
 {
 	const struct ft_tport *tport;

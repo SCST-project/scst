@@ -1385,6 +1385,8 @@ out_done:
  * scst_ext_copy_get_cur_seg_data_len() - return current segment data len
  * @ec_cmd:	EXTENDED COPY command
  */
+/* Retain the exported command accessor signature declared in scst.h. */
+/* cppcheck-suppress constParameterCallback symbolName=ec_cmd */
 int scst_ext_copy_get_cur_seg_data_len(struct scst_cmd *ec_cmd)
 {
 	int res;
@@ -1434,6 +1436,8 @@ EXPORT_SYMBOL_GPL(scst_ext_copy_remap_done);
 
 static int scst_cm_try_to_remap(struct scst_cmd *ec_cmd);
 
+/* scst_cm_err_check_retry requires a mutable command callback. */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static void scst_cm_remap_retry_fn(struct scst_cmd *cmd)
 {
 	struct scst_cmd *ec_cmd = cmd->tgt_i_priv;
@@ -2270,6 +2274,8 @@ struct scst_cm_init_inq_priv {
 	struct scst_device *dev;
 };
 
+/* scst_cm_err_check_retry requires a mutable command callback. */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static void scst_cm_inq_retry_fn(struct scst_cmd *cmd)
 {
 	struct scst_cm_init_inq_priv *priv = cmd->tgt_i_priv;
@@ -3228,6 +3234,8 @@ skip_fcmd_create:
 							 t->cm_fcmd->dev);
 					}
 					sBUG();
+					/* Keep the loop exit if the fatal assertion is removed. */
+					/* cppcheck-suppress duplicateBreak */
 					break;
 				}
 			}
@@ -3736,10 +3744,16 @@ static const struct attribute *scst_cm_tgtt_attrs[] = {
 	NULL,
 };
 
+/*
+ * The registered callback retains the mutable parameter type required by
+ * its interface.
+ */
+/* cppcheck-suppress-begin constParameterCallback symbolName=scst_sess */
 static int scst_cm_get_initiator_port_transport_id(struct scst_tgt *tgt,
 						   struct scst_session *scst_sess,
 						   u8 **transport_id)
 {
+	/* cppcheck-suppress-end constParameterCallback symbolName=scst_sess */
 	int res = 0;
 	u8 *tid = NULL;
 
@@ -3771,6 +3785,8 @@ out:
 	return res;
 }
 
+/* scst_tgt_template.release requires a mutable target callback. */
+/* cppcheck-suppress constParameterCallback symbolName=tgt */
 static int scst_cm_release(struct scst_tgt *tgt)
 {
 	TRACE_ENTRY();
@@ -3798,6 +3814,11 @@ static int scst_cm_xmit_response(struct scst_cmd *cmd)
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_mcmd */
 static void scst_cm_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 {
 	/* Nothing to do */
