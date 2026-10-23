@@ -3,7 +3,13 @@ name: Static analyzers
 on:
   push:
     branches: [master]
+  pull_request:
+    branches: [master]
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
@@ -13,22 +19,11 @@ defaults:
     shell: bash
 
 jobs:
-  script-tests:
-    name: Analyzer script tests
-    runs-on: ubuntu-24.04
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - name: Run analyzer script tests
-        run: make lint-test
-
   scs-lint:
     name: SCST code style
-    needs: script-tests
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    continue-on-error: ${{ github.event_name == 'push' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -42,16 +37,24 @@ jobs:
         run: make scs-lint-test
       - name: Run make scs_lint
         run: make scs_lint
+      - name: Save complete analyzer evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: scs-lint-evidence
+          retention-days: 7
+          path: .cache/lint/
 
   native:
-    name: ${{ matrix.analyzer }}
-    needs: script-tests
+    name: ${{ matrix.analyzer == 'analyzer-tests' && 'Analyzer tests' || matrix.analyzer }}
     runs-on: ubuntu-24.04
     timeout-minutes: 45
+    continue-on-error: ${{ github.event_name == 'push' }}
     strategy:
       fail-fast: false
       matrix:
         analyzer:
+          - analyzer-tests
           - sparse
           - smatch
           - checkpatch
@@ -61,7 +64,7 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-      - name: Build pinned analyzer environment
+      - name: Prepare analyzer environment
         run: |
           docker build -f scripts/ci/analyzers.Dockerfile -t scst-analyzers:local . \
             2>&1 | tee "$RUNNER_TEMP/analyzer-image.log"
@@ -72,10 +75,15 @@ jobs:
           source scripts/ci/kernel.env
           docker run --rm --init --network=none --cap-drop=ALL \
             --security-opt=no-new-privileges --user "$(id -u):$(id -g)" \
-            --env HOME=/tmp --env GITHUB_STEP_SUMMARY=/scst/.cache/analyzer-summary \
+            --env HOME=/tmp --env GITHUB_ACTIONS=true \
+            --env GITHUB_STEP_SUMMARY=/scst/.cache/analyzer-summary \
             --env "KDIR=/usr/src/kernels/$KERNEL_BUILD.x86_64" \
             --mount "type=bind,src=$PWD,dst=/scst" scst-analyzers:local \
-            python3 -B scripts/ci/run-analyzer.py "$ANALYZER"
+            sh -c 'if [ "$1" = analyzer-tests ]; then
+              exec make analyzer-tests
+            else
+              exec python3 -B scripts/ci/run-analyzer.py "$1"
+            fi' -- "$ANALYZER"
       - name: Publish summary
         if: always()
         run: |

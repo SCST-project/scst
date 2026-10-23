@@ -7,7 +7,8 @@ RUN dnf install -y --setopt=install_weak_deps=False \
 
 COPY scripts/ci/kernel.env scripts/ci/kernel.SHA256SUMS /opt/scst-ci/
 COPY scripts/ci/analyzers.env scripts/ci/install-analyzers /opt/scst-ci/
-COPY scripts/sparse_smatch/patches/typeof-address-space.patch /opt/scst-ci/
+COPY scripts/sparse_smatch/patches/typeof-address-space.patch \
+     scripts/sparse_smatch/patches/install-assets.patch /opt/scst-ci/
 RUN bash /opt/scst-ci/install-analyzers
 WORKDIR /scst
 ENV PYTHONDONTWRITEBYTECODE=1
