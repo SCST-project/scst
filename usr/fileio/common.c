@@ -259,7 +259,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 
 #ifdef DEBUG_TM_IGNORE
 	if (dev->debug_tm_ignore && (random() % 10000) == 75) {
-		TRACE_MGMT_DBG("Ignore cmd op %x (h=%d)", cdb[0],
+		TRACE_MGMT_DBG("Ignore cmd op %x (h=%u)", cdb[0],
 			       vcmd->cmd->cmd_h);
 		res = 150;
 		goto out;
