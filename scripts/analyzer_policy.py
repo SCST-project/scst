@@ -39,6 +39,12 @@ ANALYZER_SCHEMAS = {
                                            "first_entry_pattern": str, "reason": str}],
                    "line_layouts": [{"rule": str, "file_glob": str,
                                      "source_pattern": str, "reason": str}]},
+    "cppcheck": {**BASIC_SCHEMA,
+                 "excluded_diagnostic_sources": [{"directory": str, "keep": [str], "reason": str}],
+                 "omitted_system_headers": [{"profiles": [str], "source_roots": [str],
+                                             "dependency_headers": [str],
+                                             "headers": [str], "reason": str}],
+                 "unmatched_inline_advice": {"enabled": bool, "reason": str}},
     "coccicheck": {**BASIC_SCHEMA, "skip_non_report_rules": bool,
                    "macro_definition_errors": {"enabled": bool, "reason": str},
                    "tool_warnings": [{"id": str, "pattern": str, "reason": str}]},
@@ -121,6 +127,19 @@ def read_policy(path: Path, name="common") -> dict:
                 if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", entry["id"]):
                     raise ValueError(f"{path}: rule IDs must be exact")
                 re.compile(entry["pattern"])
+        if name == "cppcheck":
+            for entry in policy["excluded_diagnostic_sources"]:
+                relative_path(entry["directory"], str(path))
+                for keep in entry["keep"]:
+                    relative_path(keep, str(path))
+                    if not keep.startswith(entry["directory"] + "/"):
+                        raise ValueError(f"{path}: retained directory must be below excluded root")
+            for entry in policy["omitted_system_headers"]:
+                if (not entry["source_roots"] or not entry["headers"] or
+                        not entry["profiles"] or set(entry["profiles"]) - {"kernel", "userspace"}):
+                    raise ValueError(f"{path}: empty header coverage declaration")
+                for item in entry["source_roots"] + entry["headers"] + entry["dependency_headers"]:
+                    relative_path(item, str(path))
         return policy
     if name != "common":
         for key, fields in (("exclude_directories", ("path",)),
@@ -186,6 +205,8 @@ def load(name):
 def inline_inventory(root, name):
     if name == "checkpatch":
         from style.exceptions import inventory
+    elif name == "cppcheck":
+        from cppcheck.exceptions import inventory
     elif name == "coccicheck":
         from coccinelle.exceptions import inventory
     else:
@@ -251,6 +272,16 @@ def text_report(result: dict, action: str) -> str:
                 label = item.get("rule", "PARENTHESIS_ALIGNMENT")
                 expression = item.get("source_pattern", item.get("first_entry_pattern"))
                 lines.append(f"  Layout [{label}] {item['file_glob']} / {expression}: {item['reason']}")
+        elif result["policy"] == "cppcheck":
+            for item in configured["excluded_diagnostic_sources"]:
+                lines.append(f"  Outside diagnostic scope: {item['directory']}; "
+                             f"keep: {', '.join(item['keep']) or 'none'}; {item['reason']}")
+            for item in configured["omitted_system_headers"]:
+                lines.append(f"  Omitted header bodies ({', '.join(item['profiles'])}) "
+                             f"under {', '.join(item['source_roots'])}: {', '.join(item['headers'])}")
+                lines.append("    " + item["reason"])
+            setting = configured["unmatched_inline_advice"]
+            lines.append(f"Unmatched declaration advice: {setting['enabled']}; {setting['reason']}")
         elif result["policy"] == "coccicheck":
             setting = configured["macro_definition_errors"]
             lines.append(f"Non-blocking macro definition errors: {setting['enabled']}; {setting['reason']}")
