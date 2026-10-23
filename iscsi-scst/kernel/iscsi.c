@@ -2752,6 +2752,11 @@ static void nop_out_exec(struct iscsi_cmnd *req)
 		spin_unlock_bh(&conn->nop_req_list_lock);
 
 		if (found)
+			/*
+			 * found selects the removed matching request; cmnd_put drops its list-
+			 * owned reference.
+			 */
+			/* coccinelle-suppress use_after_iter ; See the contract above. */
 			cmnd_put(r);
 		else
 			TRACE_MGMT_DBG("Got Nop-out response without corresponding Nop-In request");
@@ -3723,6 +3728,10 @@ static int iscsi_scsi_aen(struct scst_aen *aen)
 	}
 
 	/* Create a fake request */
+	/*
+	 * !found exits before use; found is set only before break, with target_mutex held.
+	 */
+	/* coccinelle-suppress use_after_iter ; See the contract above. */
 	fake_req = conn->transport->iscsit_alloc_cmd(conn, NULL);
 	if (!fake_req) {
 		PRINT_ERROR("Unable to alloc fake AEN request");

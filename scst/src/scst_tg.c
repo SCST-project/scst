@@ -1666,6 +1666,10 @@ static void scst_stpg_check_blocking_done(struct scst_stpg_wait *wait)
 
 	TRACE_DBG("wait %p, left %d", wait, atomic_read(&wait->stpg_wait_left));
 
+	/*
+	 * One setup token pins the wait while callbacks are added; zero completes the operation.
+	 */
+	/* coccinelle-suppress atomic_as_refcounter ; See the contract above. */
 	if (atomic_dec_and_test(&wait->stpg_wait_left)) {
 		if (wait->status == 0)
 			scst_event_queue(SCST_EVENT_STPG_USER_INVOKE,

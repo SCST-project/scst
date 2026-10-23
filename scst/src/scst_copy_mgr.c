@@ -1757,6 +1757,10 @@ bool scst_cm_check_block_all_devs(struct scst_cmd *cmd)
 
 #if !defined(__CHECKER__)
 	list_for_each_entry(e, &d->cm_sorted_devs_list, cm_sorted_devs_list_entry) {
+		/*
+		 * The sorted device list is unique; each iteration locks a different device.
+		 */
+		/* coccinelle-suppress double_lock ; See the contract above. */
 		spin_lock(&e->cm_fcmd->dev->dev_lock);
 	}
 #endif
@@ -1772,6 +1776,10 @@ bool scst_cm_check_block_all_devs(struct scst_cmd *cmd)
 	}
 
 	if (unlikely(res)) {
+		/*
+		 * res starts false and this branch requires the true result followed by break.
+		 */
+		/* coccinelle-suppress use_after_iter ; See the contract above. */
 		const struct scst_cmd *blocked_cmd = e->cm_fcmd;
 
 		list_for_each_entry(e, &d->cm_sorted_devs_list, cm_sorted_devs_list_entry) {
@@ -2010,6 +2018,11 @@ static void scst_cm_copy_status(struct scst_cmd *cmd)
 		}
 	}
 	if (found) {
+		/*
+		 * found is set only before a matching break; scst_cm_lock remains held through
+		 * use.
+		 */
+		/* coccinelle-suppress use_after_iter ; See the contract above. */
 		l->cm_can_be_immed_free = 1;
 
 		memset(tbuf, 0, sizeof(tbuf));
@@ -2087,6 +2100,11 @@ static void scst_cm_failed_seg_details(struct scst_cmd *cmd)
 		}
 	}
 	if (found) {
+		/*
+		 * found is set only before a matching break; scst_cm_lock remains held through
+		 * use.
+		 */
+		/* coccinelle-suppress use_after_iter ; See the contract above. */
 		if (l->cm_list_id_state == SCST_CM_LIST_ID_STATE_ACTIVE) {
 			found = false;
 			goto skip;

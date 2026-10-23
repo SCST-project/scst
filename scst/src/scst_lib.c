@@ -2778,6 +2778,11 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 		list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 			/* Lockdep reports a false positive here before v5.1. */
+			/*
+			 * The RCU hash traversal locks each target device once and unlocks the
+			 * same set.
+			 */
+			/* coccinelle-suppress double_lock ; See the contract above. */
 			spin_lock(&tgt_dev->tgt_dev_lock);
 		}
 	}
@@ -3048,6 +3053,11 @@ retry_add:
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			head = &sess->sess_tgt_dev_list[i];
 
+			/*
+			 * The RCU loop reinitializes tgt_dev; the native rule omits this reset
+			 * alternative.
+			 */
+			/* coccinelle-suppress use_after_iter ; See the contract above. */
 			list_for_each_entry_rcu(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 				if (tgt_dev->dev == acg_dev->dev &&
@@ -3078,6 +3088,11 @@ retry_add:
 		TRACE_MGMT_DBG("sess %p: Allocing new tgt_dev for LUN %lld",
 			       sess, (unsigned long long)acg_dev->lun);
 
+		/*
+		 * tgt_dev is an output argument; only success reaches use of the newly stored
+		 * object.
+		 */
+		/* coccinelle-suppress use_after_iter ; See the contract above. */
 		rc = scst_alloc_add_tgt_dev(sess, acg_dev, &tgt_dev);
 		if (rc == -EPERM) {
 			continue;
@@ -3139,6 +3154,11 @@ next:
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			head = &sess->sess_tgt_dev_list[i];
 
+			/*
+			 * The RCU loop reinitializes tgt_dev; the native rule omits this reset
+			 * alternative.
+			 */
+			/* coccinelle-suppress use_after_iter ; See the contract above. */
 			list_for_each_entry_rcu(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 				if (tgt_dev->inq_changed_ua_needed) {
@@ -8264,6 +8284,11 @@ static void blk_bio_map_kern_endio(struct bio *bio)
 	if (bw) {
 		/* Decrement the bios in processing and, if zero, free */
 		BUG_ON(atomic_read(&bw->bios_inflight) <= 0);
+		/*
+		 * The prepared BIO count is set before submission and each completion decrements
+		 * once.
+		 */
+		/* coccinelle-suppress atomic_as_refcounter ; See the contract above. */
 		if (atomic_dec_and_test(&bw->bios_inflight)) {
 			if (bio_data_dir(bio) == READ && err == 0) {
 				unsigned long flags;
@@ -13414,6 +13439,11 @@ again:
 				 * Lockdep reports a false positive here before
 				 * kernel version v5.1.
 				 */
+				/*
+				 * The initial lock is dropped before locking the device set;
+				 * first prevents reentry.
+				 */
+				/* coccinelle-suppress double_lock ; See the contract above. */
 				spin_lock(&tgt_dev->tgt_dev_lock);
 			}
 		}
@@ -13798,6 +13828,10 @@ restart:
 
 out:
 	TRACE_EXIT_HRES(res);
+	/*
+	 * The annotated helper returns the caller-owned sn_lock held.
+	 */
+	/* coccinelle-suppress mini_lock ; See the contract above. */
 	return res;
 }
 

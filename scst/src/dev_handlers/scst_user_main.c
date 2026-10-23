@@ -3178,6 +3178,10 @@ static void dev_user_setup_functions(struct scst_user_dev *dev)
 
 static int dev_user_check_version(const struct scst_user_dev_desc *dev_desc)
 {
+	/*
+	 * The array bound must remain an integer constant expression on old kernels.
+	 */
+	/* coccinelle-suppress minmax ; See the contract above. */
 	char str[sizeof(DEV_USER_VERSION) > 20 ? sizeof(DEV_USER_VERSION) : 20];
 	int res = 0, rc;
 
@@ -3798,8 +3802,13 @@ static int dev_user_release(struct inode *inode, struct file *file)
 
 	t = kthread_run(__dev_user_release, dev, "scst_usr_released");
 	if (IS_ERR(t)) {
+		/*
+		 * Keep numeric error output on supported kernels without the %pe formatter.
+		 */
+		/* coccinelle-suppress-begin ptr_err_to_pe ; See the contract above. */
 		PRINT_CRIT_ERROR("kthread_run() failed (%ld), releasing device %p directly. If you have several devices under load it might deadlock!",
 				 PTR_ERR(t), dev);
+		/* coccinelle-suppress-end ptr_err_to_pe */
 		__dev_user_release(dev);
 	}
 

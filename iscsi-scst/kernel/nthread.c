@@ -435,8 +435,13 @@ void start_close_conn(struct iscsi_conn *conn)
 
 	t = kthread_run(close_conn_thr, conn, "iscsi_conn_cleanup");
 	if (IS_ERR(t)) {
+		/*
+		 * Keep numeric error output on supported kernels without the %pe formatter.
+		 */
+		/* coccinelle-suppress-begin ptr_err_to_pe ; See the contract above. */
 		PRINT_ERROR("kthread_run() failed (%ld), closing conn %p directly",
 			    PTR_ERR(t), conn);
+		/* coccinelle-suppress-end ptr_err_to_pe */
 		close_conn(conn);
 	}
 
