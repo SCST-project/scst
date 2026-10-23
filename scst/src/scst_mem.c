@@ -471,8 +471,8 @@ static int sgv_check_tail_clustering(struct scatterlist *sg, int cur, int hint)
 	bool full_page;
 
 #ifdef SCST_HIGHMEM
-	if (page >= highmem_start_page) {
-		TRACE_MEM("HIGHMEM page allocated, no clustering")
+	if (PageHighMem(sg_page(&sg[cur]))) {
+		TRACE_MEM("HIGHMEM page allocated, no clustering");
 		goto out;
 	}
 #endif
