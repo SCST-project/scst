@@ -776,10 +776,10 @@ static void dev_user_flush_dcache(struct scst_user_cmd *ucmd)
 			vma = find_vma(current->mm, start);
 			if (vma)
 				flush_anon_page(vma, page, start);
+			start += PAGE_SIZE;
 		}
 #endif
 		flush_dcache_page(page);
-		start += PAGE_SIZE;
 		bufflen -= PAGE_SIZE;
 	}
 
