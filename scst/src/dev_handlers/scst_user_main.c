@@ -2666,7 +2666,7 @@ static int dev_user_unjam_dev(struct scst_user_dev *dev)
 
 repeat:
 	for (i = 0; i < ARRAY_SIZE(dev->ucmd_hash); i++) {
-		struct list_head *head = &dev->ucmd_hash[i];
+		const struct list_head *head = &dev->ucmd_hash[i];
 
 		list_for_each_entry(ucmd, head, hash_list_entry) {
 			res++;

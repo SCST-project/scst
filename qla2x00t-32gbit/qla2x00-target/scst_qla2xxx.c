@@ -216,7 +216,7 @@ void *sqa_alloc_cmd_map(unsigned int tag_num, size_t tag_size)
 }
 
 SCST_KUNIT_VISIBLE
-void sqa_free_cmd_map(void *map)
+void sqa_free_cmd_map(const void *map)
 {
 	SCST_KUNIT_REDIRECT(sqa_free_cmd_map, map);
 	kvfree(map);

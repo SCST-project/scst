@@ -96,7 +96,7 @@ static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 	preempt_enable();
 }
 
-static bool scst_unmap_overlap(struct scst_cmd *cmd, s64 lba2, s64 lba2_blocks)
+static bool scst_unmap_overlap(const struct scst_cmd *cmd, s64 lba2, s64 lba2_blocks)
 {
 	bool res = false;
 	struct scst_data_descriptor *pd = cmd->cmd_data_descriptors;
@@ -1809,14 +1809,12 @@ out_dev_done:
 static void scst_process_redirect_cmd(struct scst_cmd *cmd, enum scst_exec_context context,
 				      int check_retries)
 {
-	struct scst_tgt *tgt = cmd->tgt;
-
 	TRACE_ENTRY();
 
 	TRACE_DBG("Context: %x", context);
 
 	if (check_retries)
-		scst_check_retries(tgt);
+		scst_check_retries(cmd->tgt);
 
 	if (context == SCST_CONTEXT_SAME)
 		context = scst_cmd_atomic(cmd) ? SCST_CONTEXT_DIRECT_ATOMIC :
@@ -5475,7 +5473,7 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt, const struct scst_ses
 	mutex_unlock(&scst_mutex);
 }
 
-static void __scst_abort_task_set(struct scst_mgmt_cmd *mcmd, struct scst_tgt_dev *tgt_dev)
+static void __scst_abort_task_set(struct scst_mgmt_cmd *mcmd, const struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_cmd *cmd;
 	struct scst_session *sess = tgt_dev->sess;
@@ -5962,7 +5960,7 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 	return res;
 }
 
-static void scst_do_nexus_loss_sess(struct scst_mgmt_cmd *mcmd)
+static void scst_do_nexus_loss_sess(const struct scst_mgmt_cmd *mcmd)
 {
 	int i;
 	struct scst_session *sess = mcmd->sess;

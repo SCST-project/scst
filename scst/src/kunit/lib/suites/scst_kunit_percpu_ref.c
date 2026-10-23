@@ -44,7 +44,7 @@ static int percpu_test_init(struct kunit *test)
 	return 0;
 }
 
-static int percpu_test_start(struct kunit *test, unsigned int flags)
+static int percpu_test_start(const struct kunit *test, unsigned int flags)
 {
 	struct percpu_ref_fixture *f = test->priv;
 	int ret;

@@ -1012,7 +1012,7 @@ int __del_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 
-void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn)
+void iscsi_extracheck_is_rd_thread(const struct iscsi_conn *conn)
 {
 	if (unlikely(current != conn->rd_task)) {
 		pr_emerg("conn %p rd_task != current %p (pid %d)\n",
@@ -1027,7 +1027,7 @@ void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn)
 	}
 }
 
-void iscsi_extracheck_is_wr_thread(struct iscsi_conn *conn)
+void iscsi_extracheck_is_wr_thread(const struct iscsi_conn *conn)
 {
 	if (unlikely(current != conn->wr_task)) {
 		pr_emerg("conn %p wr_task != current %p (pid %d)\n",

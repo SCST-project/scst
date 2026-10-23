@@ -251,7 +251,7 @@ static void isert_set_req_data(struct iscsi_cmnd *req, struct iscsi_cmnd *rsp)
 	rsp->bufflen = req->bufflen;
 }
 
-static void isert_send_data_rsp(struct iscsi_cmnd *req, u8 *sense,
+static void isert_send_data_rsp(struct iscsi_cmnd *req, const u8 *sense,
 				int sense_len, u8 status, int is_send_status)
 {
 	struct iscsi_cmnd *rsp;

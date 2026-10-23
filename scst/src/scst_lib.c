@@ -1662,10 +1662,10 @@ static void scst_tgt_retry_timer_fn(struct timer_list *timer);
 
 #ifdef CONFIG_SCST_DEBUG_TM
 static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev);
-static void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev);
+static void tm_dbg_deinit_tgt_dev(const struct scst_tgt_dev *tgt_dev);
 #else
 static inline void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev) {}
-static inline void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev) {}
+static inline void tm_dbg_deinit_tgt_dev(const struct scst_tgt_dev *tgt_dev) {}
 #endif /* CONFIG_SCST_DEBUG_TM */
 
 /*
@@ -4567,7 +4567,7 @@ int scst_lun_cm_add(struct scst_acg_dev *acg_dev, u64 lun, unsigned int *flags)
 }
 
 SCST_KUNIT_VISIBLE
-void scst_lun_cm_del(struct scst_acg_dev *acg_dev)
+void scst_lun_cm_del(const struct scst_acg_dev *acg_dev)
 {
 	SCST_KUNIT_REDIRECT(scst_lun_cm_del, acg_dev);
 	scst_cm_on_del_lun(acg_dev, false);
@@ -15958,7 +15958,7 @@ static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	}
 }
 
-static void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev)
+static void tm_dbg_deinit_tgt_dev(const struct scst_tgt_dev *tgt_dev)
 {
 	if (tm_dbg_tgt_dev == tgt_dev) {
 		unsigned long flags;
@@ -16154,7 +16154,7 @@ void tm_dbg_release_cmd(struct scst_cmd *cmd)
 }
 
 /* Might be called under scst_mutex */
-void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn, int force)
+void tm_dbg_task_mgmt(const struct scst_device *dev, const char *fn, int force)
 {
 	unsigned long flags;
 

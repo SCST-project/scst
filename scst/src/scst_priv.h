@@ -228,7 +228,7 @@ struct scst_cmd_thread_t {
 	bool being_stopped;
 };
 
-static inline bool scst_set_io_context(struct scst_cmd *cmd,
+static inline bool scst_set_io_context(const struct scst_cmd *cmd,
 				       struct io_context **old)
 {
 #ifdef CONFIG_SCST_TEST_IO_IN_SIRQ
@@ -744,7 +744,7 @@ void scst_cm_on_dev_unregister(struct scst_device *dev);
 int scst_cm_on_add_acg(const struct scst_acg *acg);
 void scst_cm_on_del_acg(struct scst_acg *acg);
 int scst_cm_on_add_lun(struct scst_acg_dev *acg_dev, u64 lun, unsigned int *flags);
-bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev, bool gen_report_luns_changed);
+bool scst_cm_on_del_lun(const struct scst_acg_dev *acg_dev, bool gen_report_luns_changed);
 
 int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd);
 void scst_cm_free_descriptors(struct scst_cmd *ec_cmd);
@@ -767,7 +767,7 @@ void scst_cm_exit(void);
 void tm_dbg_check_released_cmds(void);
 int tm_dbg_check_cmd(struct scst_cmd *cmd);
 void tm_dbg_release_cmd(struct scst_cmd *cmd);
-void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn, int force);
+void tm_dbg_task_mgmt(const struct scst_device *dev, const char *fn, int force);
 int tm_dbg_is_release(void);
 #else
 static inline void tm_dbg_check_released_cmds(void)
@@ -783,7 +783,7 @@ static inline void tm_dbg_release_cmd(struct scst_cmd *cmd)
 {
 }
 
-static inline void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn, int force)
+static inline void tm_dbg_task_mgmt(const struct scst_device *dev, const char *fn, int force)
 {
 }
 

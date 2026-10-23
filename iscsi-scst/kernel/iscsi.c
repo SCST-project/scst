@@ -1055,8 +1055,8 @@ struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req, int status, const u
 }
 EXPORT_SYMBOL(create_status_rsp);
 
-static void iscsi_tcp_send_data_rsp(struct iscsi_cmnd *req, u8 *sense, int sense_len, u8 status,
-				    int is_send_status)
+static void iscsi_tcp_send_data_rsp(struct iscsi_cmnd *req, const u8 *sense, int sense_len,
+				    u8 status, int is_send_status)
 {
 	if (status != SAM_STAT_CHECK_CONDITION &&
 	    (cmnd_hdr(req)->flags & (ISCSI_CMD_WRITE | ISCSI_CMD_READ)) !=

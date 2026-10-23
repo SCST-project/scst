@@ -15,7 +15,7 @@ struct qla_pool_fixture {
 	bool fail_registration;
 };
 
-static void qla_pool_free_map(void *map)
+static void qla_pool_free_map(const void *map)
 {
 	struct kunit *test = kunit_get_current_test();
 	struct qla_pool_fixture *f = test->priv;
