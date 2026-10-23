@@ -11781,8 +11781,8 @@ static int get_cdb_info_len_1(struct scst_cmd *cmd,
 	return 0;
 }
 
-static inline int get_cdb_info_lba_3_len_1_256(struct scst_cmd *cmd,
-					       const struct scst_sdbops *sdbops)
+static inline void get_cdb_info_lba_3_len_1_256(struct scst_cmd *cmd,
+						const struct scst_sdbops *sdbops)
 {
 	cmd->lba = (cmd->cdb[sdbops->info_lba_off] & 0x1F) << 16;
 	cmd->lba |= get_unaligned_be16(cmd->cdb + sdbops->info_lba_off + 1);
@@ -11799,45 +11799,34 @@ static inline int get_cdb_info_lba_3_len_1_256(struct scst_cmd *cmd,
 	 */
 	cmd->bufflen = (u8)(cmd->cdb[sdbops->info_len_off] - 1) + 1;
 	cmd->data_len = cmd->bufflen;
-	return 0;
 }
 
 static int get_cdb_info_lba_3_len_1_256_read(struct scst_cmd *cmd,
 					     const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_3_len_1_256(cmd, sdbops);
+	const struct scst_device *dev = cmd->dev;
 
-	if (res != 0) {
-		goto out;
-	} else {
-		const struct scst_device *dev = cmd->dev;
+	get_cdb_info_lba_3_len_1_256(cmd, sdbops);
 
-		if (dev->dev_dif_mode != SCST_DIF_MODE_NONE && !dev->dpicz)
-			cmd->cmd_dif_actions = dev->dev_dif_rd_prot0_actions |
-				SCST_DIF_CHECK_GUARD_TAG | dev->dif_app_chk |
-				SCST_DIF_CHECK_REF_TAG;
-	}
-out:
-	return res;
+	if (dev->dev_dif_mode != SCST_DIF_MODE_NONE && !dev->dpicz)
+		cmd->cmd_dif_actions = dev->dev_dif_rd_prot0_actions |
+			SCST_DIF_CHECK_GUARD_TAG | dev->dif_app_chk |
+			SCST_DIF_CHECK_REF_TAG;
+	return 0;
 }
 
 static int get_cdb_info_lba_3_len_1_256_write(struct scst_cmd *cmd,
 					      const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_3_len_1_256(cmd, sdbops);
+	const struct scst_device *dev = cmd->dev;
 
-	if (res != 0) {
-		goto out;
-	} else {
-		const struct scst_device *dev = cmd->dev;
+	get_cdb_info_lba_3_len_1_256(cmd, sdbops);
 
-		if (dev->dev_dif_mode != SCST_DIF_MODE_NONE)
-			cmd->cmd_dif_actions = dev->dev_dif_wr_prot0_actions |
-				SCST_DIF_CHECK_GUARD_TAG | dev->dif_app_chk |
-				SCST_DIF_CHECK_REF_TAG;
-	}
-out:
-	return res;
+	if (dev->dev_dif_mode != SCST_DIF_MODE_NONE)
+		cmd->cmd_dif_actions = dev->dev_dif_wr_prot0_actions |
+			SCST_DIF_CHECK_GUARD_TAG | dev->dif_app_chk |
+			SCST_DIF_CHECK_REF_TAG;
+	return 0;
 }
 
 static int get_cdb_info_len_2(struct scst_cmd *cmd,
@@ -11931,10 +11920,7 @@ static int get_cdb_info_lba_4_len_2(struct scst_cmd *cmd,
 static int get_cdb_info_read_10(struct scst_cmd *cmd,
 				const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_4_len_2(cmd, sdbops);
-
-	if (res != 0)
-		return res;
+	get_cdb_info_lba_4_len_2(cmd, sdbops);
 
 #ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
 	EXTRACHECKS_BUG_ON(cmd->cdb[0] != READ_10);
@@ -11946,61 +11932,44 @@ static int get_cdb_info_read_10(struct scst_cmd *cmd,
 static int get_cdb_info_lba_4_len_2_wrprotect(struct scst_cmd *cmd,
 					      const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_4_len_2(cmd, sdbops);
-
-	if (res != 0)
-		return res;
-	else
-		return scst_parse_wrprotect(cmd);
+	get_cdb_info_lba_4_len_2(cmd, sdbops);
+	return scst_parse_wrprotect(cmd);
 }
 
-static inline int get_cdb_info_lba_4_len_4(struct scst_cmd *cmd,
-					   const struct scst_sdbops *sdbops)
+static inline void get_cdb_info_lba_4_len_4(struct scst_cmd *cmd,
+					    const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 	cmd->data_len = cmd->bufflen;
-	return 0;
 }
 
 static int get_cdb_info_lba_4_len_4_rdprotect(struct scst_cmd *cmd,
 					      const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_4_len_4(cmd, sdbops);
-
-	if (res != 0)
-		return res;
-	else
-		return scst_parse_rdprotect(cmd);
+	get_cdb_info_lba_4_len_4(cmd, sdbops);
+	return scst_parse_rdprotect(cmd);
 }
 
 static int get_cdb_info_lba_4_len_4_wrprotect(struct scst_cmd *cmd,
 					      const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_4_len_4(cmd, sdbops);
-
-	if (res != 0)
-		return res;
-	else
-		return scst_parse_wrprotect(cmd);
+	get_cdb_info_lba_4_len_4(cmd, sdbops);
+	return scst_parse_wrprotect(cmd);
 }
 
-static inline int get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
-					   const struct scst_sdbops *sdbops)
+static inline void get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
+					    const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 	cmd->data_len = cmd->bufflen;
-	return 0;
 }
 
 static int get_cdb_info_read_16(struct scst_cmd *cmd,
 				const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_8_len_4(cmd, sdbops);
-
-	if (res != 0)
-		return res;
+	get_cdb_info_lba_8_len_4(cmd, sdbops);
 
 #ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
 	EXTRACHECKS_BUG_ON(cmd->cdb[0] != READ_16);
@@ -12012,34 +11981,22 @@ static int get_cdb_info_read_16(struct scst_cmd *cmd,
 static int get_cdb_info_lba_8_len_4_wrprotect(struct scst_cmd *cmd,
 					      const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_8_len_4(cmd, sdbops);
-
-	if (res != 0)
-		return res;
-	else
-		return scst_parse_wrprotect(cmd);
+	get_cdb_info_lba_8_len_4(cmd, sdbops);
+	return scst_parse_wrprotect(cmd);
 }
 
 static int get_cdb_info_lba_8_len_4_wrprotect32(struct scst_cmd *cmd,
 						const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_8_len_4(cmd, sdbops);
-
-	if (res != 0)
-		return res;
-	else
-		return scst_parse_wrprotect32(cmd);
+	get_cdb_info_lba_8_len_4(cmd, sdbops);
+	return scst_parse_wrprotect32(cmd);
 }
 
 static int get_cdb_info_lba_8_len_4_rdprotect32(struct scst_cmd *cmd,
 						const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_8_len_4(cmd, sdbops);
-
-	if (res != 0)
-		return res;
-	else
-		return scst_parse_rdprotect32(cmd);
+	get_cdb_info_lba_8_len_4(cmd, sdbops);
+	return scst_parse_rdprotect32(cmd);
 }
 
 static int get_cdb_info_write_same(struct scst_cmd *cmd,
