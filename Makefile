@@ -177,6 +177,7 @@ help:
 		'  checkpatch                    check C source/header style, including KUnit' \
 		'  scs_lint                      check SCST code style rules (doc/scs.md)' \
 		'  lint-test                     test shared analyzer tooling (no modules)' \
+		'  analyzer-tests                test tooling and models with native analyzers' \
 		'  all                           make all' \
 		'  clean                         clean files' \
 		'  extraclean                    clean + clean dependencies' \
@@ -327,6 +328,11 @@ lint-kbuild:
 .PHONY: lint-test
 lint-test:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest discover -s scripts/tests -v
+
+.PHONY: analyzer-tests
+analyzer-tests: export SCST_LINT_KDIR := $(KDIR)
+analyzer-tests:
+	+@$(PYTHON) -B scripts/analyzer_tests.py
 
 .PHONY: all-lint
 all-lint: sparse smatch coccicheck cppcheck checkpatch scs_lint
