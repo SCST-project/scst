@@ -173,6 +173,7 @@ help:
 		'  cppcheck                      analyze fresh kernel and userspace build contexts' \
 		'  compile-commands              export configured compiler commands for tools/editors' \
 		'  COMPILE_COMMANDS=path         database output (default: compile_commands.json)' \
+		'  all-lint                      run every analyzer (use make -k to continue on findings)' \
 		'  checkpatch                    check C source/header style, including KUnit' \
 		'  scs_lint                      check SCST code style rules (doc/scs.md)' \
 		'  lint-test                     test shared analyzer tooling (no modules)' \
@@ -276,21 +277,21 @@ analyzer-policy:
 .PHONY: sparse smatch lint-kbuild
 sparse smatch: export SCST_LINT_KDIR := $(KDIR)
 sparse smatch:
-	+@$(PYTHON) -B scripts/sparse_smatch/smp.py $@
+	+@$(PYTHON) -B scripts/analyzer_run.py $@
 
 .PHONY: coccicheck
 coccicheck: export SCST_LINT_KDIR := $(KDIR)
 coccicheck:
-	+@$(PYTHON) -B scripts/coccinelle/coccicheck.py
+	+@$(PYTHON) -B scripts/analyzer_run.py $@
 
 .PHONY: checkpatch
 checkpatch: export SCST_LINT_KDIR := $(KDIR)
 checkpatch:
-	@$(PYTHON) -B scripts/style/checkpatch.py
+	@$(PYTHON) -B scripts/analyzer_run.py $@
 
 .PHONY: scs_lint scs-lint-test
 scs_lint:
-	@scripts/scs_lint/run_scs_lint.sh
+	@$(PYTHON) -B scripts/analyzer_run.py $@
 
 scs-lint-test:
 	@uv run --no-project scripts/scs_lint/test_scs_lint.py
@@ -311,7 +312,7 @@ compile-commands-cli:
 cppcheck: export SCST_LINT_KDIR := $(KDIR)
 cppcheck: export SCST_LINT_CC := $(CC)
 cppcheck:
-	+@$(PYTHON) -B scripts/cppcheck/cppcheck.py
+	+@$(PYTHON) -B scripts/analyzer_run.py $@
 
 # Preserve dependency order. The newer QLogic base is compiled for its target
 # module, but only sources selected by analyzer policy reach the checker.
@@ -326,6 +327,9 @@ lint-kbuild:
 .PHONY: lint-test
 lint-test:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest discover -s scripts/tests -v
+
+.PHONY: all-lint
+all-lint: sparse smatch coccicheck cppcheck checkpatch scs_lint
 
 all clean extraclean install uninstall:
 	if [ $@ = extraclean ]; then rm -f TAGS tags cscope.out; fi
