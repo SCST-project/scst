@@ -76,6 +76,11 @@ int isert_post_recv(struct isert_conn *isert_conn,
 		    int num_wr)
 {
 	struct ib_recv_wr *first_ib_wr = &first_wr->recv_wr;
+	/*
+	 * BAD_WR_MODIFIER is const or empty, selected by the RDMA conftest. This
+	 * is a pointer declaration, not multiplication.
+	 */
+	/* checkpatch-suppress SPACING ; See the contract above. */
 	struct ib_recv_wr BAD_WR_MODIFIER *bad_wr;
 	int num_posted;
 	int err;
@@ -825,6 +830,11 @@ static const char *ib_event_type_str(enum ib_event_type ev_type)
 	}
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=context */
 static void isert_async_evt_handler(struct ib_event *async_ev, void *context)
 {
 	const struct isert_cq *cq = context;
@@ -1575,8 +1585,13 @@ static void isert_portal_reinit_id_work(struct work_struct *w)
 
 	portal->cm_id = isert_setup_id(portal);
 	if (IS_ERR(portal->cm_id)) {
+		/*
+		 * Keep numeric error output on supported kernels without the %pe formatter.
+		 */
+		/* coccinelle-suppress-begin ptr_err_to_pe ; See the contract above. */
 		PRINT_ERROR("Failed to create rdma id, err:%ld\n",
 			    PTR_ERR(portal->cm_id));
+		/* coccinelle-suppress-end ptr_err_to_pe */
 		portal->cm_id = NULL;
 	}
 }

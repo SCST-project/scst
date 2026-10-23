@@ -44,7 +44,7 @@ static int percpu_test_init(struct kunit *test)
 	return 0;
 }
 
-static int percpu_test_start(struct kunit *test, unsigned int flags)
+static int percpu_test_start(const struct kunit *test, unsigned int flags)
 {
 	struct percpu_ref_fixture *f = test->priv;
 	int ret;
@@ -81,6 +81,8 @@ static void percpu_test_resurrect(struct percpu_ref_fixture *f)
 	f->dead = percpu_ref_is_dying(&f->ref);
 }
 
+/* The KUnit suite exit callback requires a mutable test parameter. */
+/* cppcheck-suppress constParameterCallback symbolName=test */
 static void percpu_test_exit(struct kunit *test)
 {
 	struct percpu_ref_fixture *f = test->priv;

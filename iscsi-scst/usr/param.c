@@ -1,4 +1,11 @@
 /*
+ * The existing GPL notice does not name a version; do not invent an only/or-
+ * later version grant. Defer SPDX conversion pending provenance/maintainer
+ * resolution; this exception covers only the missing tag in this exact existing
+ * source.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
  *  Copyright (C) 2005 FUJITA Tomonori <tomof@acm.org>
  *  Copyright (C) 2007 - 2018 Vladislav Bolkhovitin
  *  Copyright (C) 2007 - 2018 Western Digital Corporation
@@ -346,6 +353,11 @@ static struct iscsi_key_ops marker_ops = {
 	.set_val = marker_set_val,
 };
 
+/*
+ * This macro supplies four separate structure initializer fields from constant-
+ * name tokens.
+ */
+/* checkpatch-suppress-macro COMPLEX_MACRO ; See the contract above. */
 #define	SET_KEY_VALUES(x)	DEFAULT_##x, DEFAULT_##x, MIN_##x, MAX_##x
 
 /*

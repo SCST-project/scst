@@ -51,6 +51,11 @@
 size_t qlt_add_vtarget(u64 port_name, u64 node_name, u64 parent_host)
 {
 	struct fc_vport *vport;
+	/*
+	 * This is the kernel SCSI host type name; SCST cannot rename the
+	 * external type.
+	 */
+	/* checkpatch-suppress-symbol CAMELCASE symbolName=Scsi_Host ; See the contract above. */
 	struct Scsi_Host *shost = NULL;
 	scsi_qla_host_t *vha = NULL, *npiv_vha;
 	struct qla_tgt *tgt;
@@ -133,6 +138,10 @@ size_t qlt_del_vtarget(u64 port_name)
 	if (!match)
 		return -ENODEV;
 
+	/*
+	 * match exits both loops at the selected vport; !match returns before this use.
+	 */
+	/* coccinelle-suppress use_after_iter ; See the contract above. */
 	return fc_vport_terminate(vport);
 }
 EXPORT_SYMBOL(qlt_del_vtarget);

@@ -86,6 +86,8 @@ static void isert_close_conn(struct iscsi_conn *conn, int flags)
 		dev->state = CS_DISCONNECTED;
 }
 
+/* The shared transport callback must also accept the mutable TCP receive path. */
+/* cppcheck-suppress constParameterCallback symbolName=cmnd */
 static int isert_receive_cmnd_data(struct iscsi_cmnd *cmnd)
 {
 #ifdef CONFIG_SCST_EXTRACHECKS
@@ -251,7 +253,7 @@ static void isert_set_req_data(struct iscsi_cmnd *req, struct iscsi_cmnd *rsp)
 	rsp->bufflen = req->bufflen;
 }
 
-static void isert_send_data_rsp(struct iscsi_cmnd *req, u8 *sense,
+static void isert_send_data_rsp(struct iscsi_cmnd *req, const u8 *sense,
 				int sense_len, u8 status, int is_send_status)
 {
 	struct iscsi_cmnd *rsp;
@@ -278,6 +280,11 @@ static void isert_make_conn_wr_active(struct iscsi_conn *conn)
 	isert_process_all_writes(conn);
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=conn */
 static int isert_conn_activate(struct iscsi_conn *conn)
 {
 	return 0;
@@ -495,6 +502,11 @@ out:
 MODULE_AUTHOR("Yan Burman");
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_IMPORT_NS(SCST_NAMESPACE);
+/*
+ * The release updater and SRPT build recipes extract the first quoted version
+ * fragment; the separate literal suffix is part of that tooling contract.
+ */
+/* checkpatch-suppress STRING_FRAGMENTS ; See the contract above. */
 #define DRV_VERSION		"3.11.0-pre" "#" __stringify(OFED_FLAVOR)
 #define DRV_RELDATE		"29 December 2025"
 MODULE_DESCRIPTION("iSER target transport driver v" DRV_VERSION " (" DRV_RELDATE ")");

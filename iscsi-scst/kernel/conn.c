@@ -88,6 +88,7 @@ static void iscsi_conn_release(struct kobject *kobj)
 	TRACE_EXIT();
 }
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 struct kobj_type iscsi_conn_ktype = {
 	.release = iscsi_conn_release,
 };
@@ -629,6 +630,12 @@ again:
 		 * This should not happen, because DATA OUT commands can't get
 		 * into write_timeout_list.
 		 */
+		/*
+		 * Use the established SCST assertion macro spelling from
+		 * scst_debug.h; this naming exception does not waive AVOID_BUG
+		 * or assess whether the assertion should recover.
+		 */
+		/* checkpatch-suppress-symbol CAMELCASE symbolName=sBUG_ON ; Public ABI. */
 		sBUG_ON(cmnd->cmd_req);
 
 		if (test_bit(ISCSI_CMD_ABORTED, &cmnd->prelim_compl_flags)) {
@@ -755,6 +762,7 @@ static int conn_setup_sock(struct iscsi_conn *conn)
 	}
 #endif
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	conn->sock->sk->sk_allocation = GFP_NOIO;
 #endif
@@ -917,6 +925,8 @@ int iscsi_conn_alloc(struct iscsi_session *session, struct iscsi_kern_conn_info 
 	conn->file = fget(info->fd);
 
 	res = conn_setup_sock(conn);
+	/* Socket setup can fail with -EINVAL on supported kernels before 6.5. */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	if (res != 0)
 		goto out_fput;
 
@@ -1012,7 +1022,7 @@ int __del_conn(struct iscsi_session *session, struct iscsi_kern_conn_info *info)
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 
-void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn)
+void iscsi_extracheck_is_rd_thread(const struct iscsi_conn *conn)
 {
 	if (unlikely(current != conn->rd_task)) {
 		pr_emerg("conn %p rd_task != current %p (pid %d)\n",
@@ -1027,7 +1037,7 @@ void iscsi_extracheck_is_rd_thread(struct iscsi_conn *conn)
 	}
 }
 
-void iscsi_extracheck_is_wr_thread(struct iscsi_conn *conn)
+void iscsi_extracheck_is_wr_thread(const struct iscsi_conn *conn)
 {
 	if (unlikely(current != conn->wr_task)) {
 		pr_emerg("conn %p wr_task != current %p (pid %d)\n",

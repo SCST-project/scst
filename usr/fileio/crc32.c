@@ -1,4 +1,14 @@
 /*
+ * The existing custom permissive notice is retained; do not invent an SPDX
+ * equivalent. Defer SPDX conversion pending provenance/maintainer resolution;
+ * this exception covers only the missing tag in this exact existing source.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
+ * Userspace and shared ABI headers require portable fixed-width integer types.
+ */
+/* checkpatch-suppress-file PREFER_KERNEL_TYPES ; See the contract above. */
+/*
  * Copyright (C) 1986 Gary S. Brown.  You may use this program, or
  * code or tables extracted from it, as desired without restriction.
  */

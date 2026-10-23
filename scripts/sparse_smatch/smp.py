@@ -11,7 +11,8 @@ import tempfile
 sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
-from lint_common import copy_output, entrypoint, log_path, show_log  # noqa: E402
+from analyzer_report import show_result  # noqa: E402
+from lint_common import copy_output, entrypoint, log_path, report_lock, show_log  # noqa: E402
 from lint_kbuild import build_lock, collect, unchecked_invocations, validate_checker  # noqa: E402
 from lint_scope import select_sources  # noqa: E402
 
@@ -19,10 +20,9 @@ from lint_scope import select_sources  # noqa: E402
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("tool", choices=("sparse", "smatch"))
-    parser.add_argument("--base", default=os.environ.get("DIFFBR") or None)
     parser.add_argument("files", nargs="*", type=Path)
     args = parser.parse_args()
-    with build_lock(ROOT):
+    with report_lock(ROOT, args.tool), build_lock(ROOT):
         log = log_path(ROOT, args.tool + ".log")
         report = log.with_suffix(".json")
         summary = {"tool": args.tool, "outcome": "incomplete", "exit_code": 2,
@@ -33,7 +33,7 @@ def main():
         report.write_text(json.dumps(summary, indent=2) + "\n")
         show_log(log)
         try:
-            selected = select_sources(ROOT, args.files, args.base, args.tool)
+            selected = select_sources(ROOT, args.files, args.tool)
             summary["selected_files"] = [p.relative_to(ROOT).as_posix() for p in selected]
             if not selected:
                 print("No module C files selected; no analysis requested.")
@@ -47,7 +47,7 @@ def main():
             checked = {Path(row["file"]) for row in records}
             summary["checked_files"] = sorted(path.relative_to(ROOT).as_posix() for path in checked)
             missing = ([str(path) for path in selected if path.suffix == ".c" and path not in checked]
-                       if args.files or args.base else [])
+                       if args.files else [])
             unrecorded = unchecked_invocations(ROOT, args.tool, log, records)
             errors = sum(row["errors"] for row in records)
             findings = sum(row["findings"] for row in records)
@@ -59,12 +59,14 @@ def main():
             if missing:
                 print("Selected sources absent from this build configuration:\n" +
                       "\n".join(missing), file=sys.stderr)
-            adapter_failed = any(line.startswith(b"SCST checker failed:")
-                                 for line in log.read_bytes().splitlines())
+            adapter_failures = [line for line in log.read_text(errors="replace").splitlines()
+                                if line.startswith("SCST checker failed:")]
+            if adapter_failures:
+                summary.setdefault("failures", []).extend(adapter_failures)
             if unrecorded:
                 print("Kbuild CHECK steps without records:\n" + "\n".join(unrecorded), file=sys.stderr)
-            if (status or not records or errors or missing or unrecorded or adapter_failed or
-                    any(row["returncode"] for row in records)):
+            if (status or not records or errors or missing or unrecorded or adapter_failures or
+                    any(row["returncode"] or row.get("state") != "complete" for row in records)):
                 print(f"{args.tool}: incomplete analysis (make={status}, "
                       f"checker invocations={len(records)}, errors={errors}).", file=sys.stderr)
                 return 2
@@ -73,10 +75,13 @@ def main():
             print(f"{args.tool}: {len(records)} translation units, {findings} diagnostic(s), "
                   f"{ignored} ignored, {remaining} remaining.")
             return result
+        except BaseException as error:
+            summary.setdefault("failures", []).append(str(error) or type(error).__name__)
+            raise
         finally:
             report.write_text(json.dumps(summary, indent=2) + "\n")
             if os.environ.get("LINT_DEFER_REPORTS") != "1":
-                copy_output(log)
+                show_result(summary, log)
             show_log(log)
 
 

@@ -9,14 +9,14 @@ rules below describe SCST-specific additions and exceptions.
 - Preserve the naming and diagnostic conventions of the component being
   changed, including its existing `TRACE_*` and `PRINT_*` macros. The shared
   definitions are in `scst/include/scst_debug.h`.
-- Use the repository's `scripts/checkpatch` wrapper. Its ignore list records
-  the diagnostics disabled for SCST; do not copy that list into another
-  configuration. A disabled diagnostic is not a general style exemption.
+- Use `make checkpatch`. Its global exceptions are recorded with reasons in
+  `scripts/policy/checkpatch.json`; local exceptions belong beside the source.
+  A disabled diagnostic is not a general style exemption.
 
 ## Commit messages
 
-`Signed-off-by:` is optional in SCST. This matches the `MISSING_SIGN_OFF` and
-`NO_AUTHOR_SIGN_OFF` exclusions in `scripts/checkpatch`.
+`Signed-off-by:` is optional in SCST. Commit messages are checked separately
+from source style, using Conform and review.
 
 Use a prefix from the registry below in the kernel-style subject:
 
@@ -80,8 +80,8 @@ for the patch. No Git hooks are installed.
 | Change | Required local checks |
 | --- | --- |
 | Any change | `git diff --check <base>`. |
-| Prepared commits | `scripts/checkpatch_commits <base>` and Conform as described below; review prefixes against the registry above. |
-| Uncommitted C changes | `scripts/checkpatch_diff <base>`; rerun per-commit checks after preparing the series. |
+| Prepared commits | Conform as described below; review prefixes against the registry above. |
+| C sources or headers | `make checkpatch`; this checks the complete maintained source scope. |
 | Shell scripts or sourced shell files | Syntax checks and ShellCheck as described below. |
 | Python files | `python3 -m py_compile <changed-files>`. |
 | Go files | `gofmt -l <changed-files>` must produce no output; follow component guidance. |
@@ -123,13 +123,14 @@ conform enforce --commit-msg-file <message-file>
 ```
 
 Checkpatch requires a kernel `scripts/` directory containing `checkpatch.pl`
-and its companion data files. The wrapper defaults to the running kernel's
-build tree; set `CHECKPATCH_PATH` to use another prepared directory. Record
+and its companion data files. Set `KDIR` to select a kernel build tree or
+`CHECKPATCH_PATH` to use another prepared scripts directory. Record
 the kernel/tool version with the result when it affects diagnostics.
 
 ### Analyzer tooling
 
-Run `make lint-test` for isolated analyzer-tooling fixtures. See the
+Run `make lint-test` for isolated analyzer-tooling fixtures and
+`make analyzer-tests` for native model probes in the analyzer environment. See the
 [scripts guide](scripts/README.md#shared-analyzer-source-scope) for source
 selection, exact exclusions and tooling requirements.
 
@@ -153,7 +154,7 @@ in `.github/workflows/ci.yml` and `.github/workflows/coverity.yml`.
 in the [scripts guide](scripts/README.md#sparse-and-smatch).
 
 `scripts/kernel/run-regression-tests` checks kernel compatibility through
-compilation and checkpatch. It downloads or prepares kernel trees and is
+compilation. It downloads or prepares kernel trees and is
 separate from the analyzer targets above. The nightly support matrix is
 `ABT_KERNELS` in `nightly/conf/nightly.conf`; CI exercises a subset in
 `.github/workflows/run_regression_tests.yaml`.

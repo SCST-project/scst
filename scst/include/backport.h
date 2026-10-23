@@ -206,11 +206,21 @@ enum {
 /*
  * See also commit 342a72a33407 ("block: Introduce the type blk_opf_t") # v6.0
  */
+/*
+ * This guarded alias preserves the kernel API type and its version-specific
+ * representation; replacing it with a private structure or enum would break
+ * compatible call sites.
+ */
+/* checkpatch-suppress NEW_TYPEDEFS ; See the contract above. */
 typedef unsigned int blk_opf_t;
 #endif
 
 /* <linux/blk-mq.h> */
 
+/*
+ * The legacy QLogic initiator uses this helper outside Cppcheck source scope.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_blk_rq_cpu */
 static inline unsigned int scst_blk_rq_cpu(struct request *rq)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 21, 0) &&	\
@@ -283,6 +293,12 @@ static inline unsigned int blk_mq_num_online_queues(unsigned int max_queues)
  * See also commit 05bdb9965305 ("block: replace fmode_t with a block-specific
  * type for block open flags") # v6.5.
  */
+/*
+ * This guarded alias preserves the kernel API type and its version-specific
+ * representation; replacing it with a private structure or enum would break
+ * compatible call sites.
+ */
+/* checkpatch-suppress NEW_TYPEDEFS ; See the contract above. */
 typedef fmode_t blk_mode_t;
 
 #define BLK_OPEN_READ ((__force blk_mode_t)FMODE_READ)
@@ -498,6 +514,11 @@ static inline void be32_to_cpu_array(u32 *dst, const __be32 *src, size_t len)
  * See also patch "kernel: Provide READ_ONCE and ASSIGN_ONCE" (commit ID
  * 230fa253df6352af12ad0a16128760b5cb3f92df).
  */
+/*
+ * These old-kernel READ_ONCE/WRITE_ONCE primitives intentionally use volatile
+ * accesses to implement their compiler-access contract.
+ */
+/* checkpatch-suppress VOLATILE ; See the contract above. */
 #define READ_ONCE(x) (*(volatile typeof(x) *)&(x))
 #endif
 
@@ -506,11 +527,21 @@ static inline void be32_to_cpu_array(u32 *dst, const __be32 *src, size_t len)
  * See also patch "Change ASSIGN_ONCE(val, x) to WRITE_ONCE(x, val)" (commit ID
  * 43239cbe79fc369f5d2160bd7f69e28b5c50a58c).
  */
+/*
+ * These old-kernel READ_ONCE/WRITE_ONCE primitives intentionally use volatile
+ * accesses to implement their compiler-access contract.
+ */
+/* checkpatch-suppress VOLATILE ; See the contract above. */
 #define WRITE_ONCE(x, val) (*(volatile typeof(x) *)&(x) = (val))
 #endif
 
 /* <linux/compiler_attributes.h> */
 
+/*
+ * This block implements fallthrough itself, including the old-compiler fallback
+ * and the verbatim upstream commit title; it cannot annotate itself recursively.
+ */
+/* checkpatch-suppress PREFER_FALLTHROUGH ; See the contract above. */
 /* See also commit 294f69e662d1 ("compiler_attributes.h: Add 'fallthrough'
  * pseudo keyword for switch/case use") # v5.4
  */
@@ -519,10 +550,20 @@ static inline void be32_to_cpu_array(u32 *dst, const __be32 *src, size_t len)
 #if __has_attribute(__fallthrough__)
 #define fallthrough __attribute__((__fallthrough__))
 #else
+/*
+ * This block implements fallthrough itself, including the old-compiler fallback
+ * and the verbatim upstream commit title; it cannot annotate itself recursively.
+ */
+/* checkpatch-suppress PREFER_FALLTHROUGH ; See the contract above. */
 #define fallthrough do {} while (0)  /* fallthrough */
 #endif
 #else
 /* gcc 4.x doesn't support __has_attribute() */
+/*
+ * This block implements fallthrough itself, including the old-compiler fallback
+ * and the verbatim upstream commit title; it cannot annotate itself recursively.
+ */
+/* checkpatch-suppress PREFER_FALLTHROUGH ; See the contract above. */
 #define fallthrough do {} while (0)  /* fallthrough */
 #endif
 #endif
@@ -542,6 +583,11 @@ static inline void be32_to_cpu_array(u32 *dst, const __be32 *src, size_t len)
  * attribute file fops") # v4.7.
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 7, 0)
+/*
+ * The format is a string literal used for the compile-time format check and
+ * attribute registration.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define DEFINE_DEBUGFS_ATTRIBUTE(__fops, __get, __set, __fmt)		\
 static int __fops ## _open(struct inode *inode, struct file *file)	\
 {									\
@@ -634,6 +680,12 @@ static inline void *dma_pool_zalloc(struct dma_pool *pool, gfp_t mem_flags,
  * See also commit 65aaf87b3aa2 ("add EPOLLNVAL, annotate EPOLL... and
  * event_poll->event").
  */
+/*
+ * This guarded alias preserves the kernel API type and its version-specific
+ * representation; replacing it with a private structure or enum would break
+ * compatible call sites.
+ */
+/* checkpatch-suppress NEW_TYPEDEFS ; See the contract above. */
 typedef unsigned int __poll_t;
 #define EPOLLNVAL	POLLNVAL
 #endif
@@ -760,11 +812,21 @@ kernel_write_backport(struct file *file, const void *buf, size_t count,
  */
 static inline void *kmap_local_page(struct page *page)
 {
+	/*
+	 * Implement the local-mapping compatibility API on kernels that only provide atomic
+	 * mappings.
+	 */
+	/* checkpatch-suppress DEPRECATED_API ; See the contract above. */
 	return kmap_atomic(page);
 }
 
 static inline void kunmap_local(const void *addr)
 {
+	/*
+	 * Implement the local-mapping compatibility API on kernels that only provide atomic
+	 * mappings.
+	 */
+	/* checkpatch-suppress DEPRECATED_API ; See the contract above. */
 	kunmap_atomic((void *)addr);
 }
 #endif
@@ -775,16 +837,31 @@ static inline void kunmap_local(const void *addr)
 	(defined(RHEL_MAJOR) && RHEL_MAJOR - 0 >= 8)
 
 static inline struct io_context *
+/*
+ * This compatibility stub retains the mutable-pointer interface of the removed
+ * kernel API.
+ */
+/* cppcheck-suppress constParameterPointer */
 scst_get_task_io_context(struct task_struct *task,
 			 gfp_t gfp_flags, int node)
 {
 	return NULL;
 }
 
+/*
+ * This compatibility stub retains the mutable-pointer interface of the removed
+ * kernel API.
+ */
+/* cppcheck-suppress constParameterPointer */
 static inline void scst_put_io_context(struct io_context *ioc)
 {
 }
 
+/*
+ * This compatibility stub retains the mutable-pointer interface of the removed
+ * kernel API.
+ */
+/* cppcheck-suppress constParameterPointer */
 static inline void scst_ioc_task_link(struct io_context *ioc)
 {
 }
@@ -927,6 +1004,7 @@ static inline long pin_user_pages_backport(unsigned long start,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
 	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(7, 6))
+/* checkpatch-suppress TYPO_SPELLING ; Preserve the verbatim upstream commit title. */
 /*
  * See also commit 5f256becd868 ("[NET]: Basic network namespace
  * infrastructure."; v2.6.24). a685e08987d1 ("Delay struct net freeing while
@@ -966,6 +1044,10 @@ static inline void kobj_ns_drop_backport(enum kobj_ns_type type, void *ns)
  * Returns true if entry is in its list. Entry must be deleted from the
  * list by using list_del_init()!
  */
+/*
+ * The legacy QLogic target uses this helper outside Cppcheck source scope.
+ */
+/* cppcheck-suppress unusedFunction symbolName=list_entry_in_list */
 static inline bool list_entry_in_list(const struct list_head *entry)
 {
 	return !list_empty(entry);
@@ -1024,6 +1106,16 @@ static inline void lockdep_unregister_key(struct lock_class_key *key)
 static inline void mempool_destroy_backport(mempool_t *pool)
 {
 	if (pool)
+		/*
+		 * This version-guarded wrapper adds NULL support missing before
+		 * Linux 4.3; removing the guard would pass NULL to the older
+		 * incompatible implementation.
+		 */
+		/* checkpatch-suppress NEEDLESS_IF ; See the contract above. */
+		/*
+		 * The compatibility wrapper adds NULL safety absent in the old native API.
+		 */
+		/* coccinelle-suppress ifnullfree ; See the contract above. */
 		mempool_destroy(pool);
 }
 
@@ -1274,11 +1366,26 @@ static __always_inline bool __must_check __must_check_overflow(bool overflow)
  * See also commit 610b15c50e86 ("overflow.h: Add allocation size calculation
  * helpers") # v4.18.
  */
+/*
+ * The member parameter is a structure member or a name token, not an expression;
+ * parentheses would make its member access invalid.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_PRECEDENCE ; See the contract above. */
+/*
+ * The pointer/member occurrences are unevaluated size/type operands; the count
+ * is evaluated only in the branch selected by __builtin_choose_expr.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define flex_array_size(p, member, count)				\
 	__builtin_choose_expr(__is_constexpr(count),			\
 		(count) * sizeof(*(p)->member) + __must_be_array((p)->member),	\
 		size_mul(count, sizeof(*(p)->member) + __must_be_array((p)->member)))
 
+/*
+ * Size/type operands are unevaluated, and __builtin_choose_expr evaluates only
+ * the selected allocation-size expression.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define struct_size(p, member, count)					\
 	__builtin_choose_expr(__is_constexpr(count),			\
 		sizeof(*(p)) + flex_array_size(p, member, count),	\
@@ -1349,9 +1456,24 @@ static __always_inline size_t __must_check size_add(size_t addend1, size_t adden
 #endif
 
 #ifndef __flex_counter
+/*
+ * Compilers without the counted-by counter interface provide no counter; the
+ * fallback must not evaluate the flexible-array argument.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define __flex_counter(FAM)	((void *)NULL)
 #endif
 
+/*
+ * The _Generic default association is an expression selecting a pointer, not a
+ * statement label; the assignment belongs to that same statement.
+ */
+/* checkpatch-suppress-macro TRAILING_STATEMENTS ; See the contract above. */
+/*
+ * The first FAM occurrence determines the unevaluated _Generic selector type;
+ * only the selected counter expression is evaluated.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define __set_flex_counter(FAM, COUNT)				\
 ({								\
 	*_Generic(__flex_counter(FAM),				\
@@ -1372,6 +1494,10 @@ static __always_inline size_t __must_check size_add(size_t addend1, size_t adden
 #define PERCPU_REF_ALLOW_REINIT 0
 #endif
 
+/*
+ * Preserve the upstream percpu counter type used by this compatibility implementation.
+ */
+/* checkpatch-suppress NEW_TYPEDEFS ; See the contract above. */
 typedef unsigned long percpu_count_t;
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 10, 0)
 #define READ_REF_COUNT(ref) atomic_long_read(&(ref)->count)
@@ -1431,6 +1557,10 @@ static inline void scst_percpu_ref_resurrect_backport(struct percpu_ref *ref)
 	if (!data->force_atomic) {
 		atomic_long_add(1UL << (BITS_PER_LONG - 1), &data->count);
 		for_each_possible_cpu(cpu)
+			/*
+			 * This is a pointer dereference in the CPU iterator body.
+			 */
+			/* checkpatch-suppress SPACING ; See the contract above. */
 			*per_cpu_ptr(percpu_count, cpu) = 0;
 		ptr &= ~__PERCPU_REF_ATOMIC;
 	}
@@ -1544,6 +1674,16 @@ static const struct file_operations __name ## _fops = {			\
 static inline void kmem_cache_destroy_backport(struct kmem_cache *s)
 {
 	if (s)
+		/*
+		 * This version-guarded wrapper adds NULL support missing before
+		 * Linux 4.3; removing the guard would pass NULL to the older
+		 * incompatible implementation.
+		 */
+		/* checkpatch-suppress NEEDLESS_IF ; See the contract above. */
+		/*
+		 * The compatibility wrapper adds NULL safety absent in the old native API.
+		 */
+		/* coccinelle-suppress ifnullfree ; See the contract above. */
 		kmem_cache_destroy(s);
 }
 
@@ -1571,6 +1711,11 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 #endif
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 16, 0)
+/*
+ * The structure and field parameters are name tokens in sizeof, alignof and
+ * offsetof, not evaluated expressions.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define KMEM_CACHE_USERCOPY(__struct, __flags, __field)			\
 		kmem_cache_create_usercopy(#__struct,			\
 			sizeof(struct __struct),			\
@@ -1601,6 +1746,7 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
  * retain the existing fallback for these independent ABI sequences.
  */
 #define __default_gfp(a, ...) a
+/* checkpatch-suppress SPACING ; __VA_OPT__(,) supplies a comma token, not a comma expression. */
 #define default_gfp(...) __default_gfp(__VA_ARGS__ __VA_OPT__(,) GFP_KERNEL)
 #endif
 
@@ -1698,6 +1844,10 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
  * See also commit ed76eddf8838 # Ubuntu-6.8.0-147.147.
  * See also commit 4e28d0cfa522 # UEK-6.12.0-206.100.2.
  */
+/*
+ * FAM is a member-name token used for allocation sizing and counted-array metadata.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define __alloc_flex(KMALLOC, GFP, TYPE, FAM, COUNT)			\
 ({									\
 	const size_t __count = (COUNT);					\
@@ -1742,6 +1892,11 @@ static inline void __user *KERNEL_SOCKPTR(void *p)
 /* <linux/stddef.h> */
 
 #ifndef sizeof_field
+/*
+ * The MEMBER parameter is a structure member or a name token, not an expression;
+ * parentheses would make its member access invalid.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_PRECEDENCE ; See the contract above. */
 #define sizeof_field(TYPE, MEMBER) sizeof((((TYPE *)0)->MEMBER))
 #endif
 
@@ -1792,6 +1947,7 @@ static inline ssize_t strscpy(char *dest, const char *src, size_t count)
 	if (count == 0)
 		return -E2BIG;
 
+	/* checkpatch-suppress STRLCPY ; This strscpy fallback cannot call itself. */
 	ret = strlcpy(dest, src, count);
 
 	return ret >= count ? -E2BIG : ret;
@@ -1802,6 +1958,12 @@ static inline ssize_t strscpy(char *dest, const char *src, size_t count)
 /*
  * See also commit 0efc5990bca5 ("string.h: Introduce memtostr() and memtostr_pad()") # v6.10.
  */
+/*
+ * Each runtime pointer expression is captured once. Other occurrences are
+ * unevaluated __builtin_object_size or typeof operands for fixed-size byte
+ * elements; unknown object sizes are rejected at compile time.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define memtostr(dest, src)	do {					\
 	const size_t _dest_len = __builtin_object_size(dest, 1);	\
 	const size_t _src_len = __builtin_object_size(src, 1);		\
@@ -2034,6 +2196,11 @@ static inline int timer_shutdown(struct timer_list *timer)
  */
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 15, 0)
 #undef DEFINE_TIMER
+/*
+ * The name parameter declares the timer object and supplies its own address to
+ * its initializer.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define DEFINE_TIMER(_name, _function)					\
 	struct timer_list _name = TIMER_INITIALIZER(			\
 		(void (*)(unsigned long))(unsigned long)(_function), 0,	\
@@ -2141,6 +2308,11 @@ static inline u8 driver_byte(u32 result)
  * 6f9a35e2dafa). See also commit ae3d56d81507 ("scsi: remove bidirectional
  * command support") # v5.1.
  */
+/*
+ * This compatibility stub retains the mutable-pointer interface of the removed
+ * kernel API.
+ */
+/* cppcheck-suppress constParameterPointer */
 static inline int scsi_bidi_cmnd(struct scsi_cmnd *cmd)
 {
 	return false;
@@ -2330,6 +2502,10 @@ static inline void *bsg_job_sense(struct fc_bsg_job *job)
 	return job->req->sense;
 }
 #else
+/*
+ * QLogic initiator sources use this helper outside Cppcheck source scope.
+ */
+/* cppcheck-suppress unusedFunction symbolName=bsg_job_sense */
 static inline void *bsg_job_sense(struct bsg_job *job)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 11, 0)

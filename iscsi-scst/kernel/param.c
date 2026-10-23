@@ -1,4 +1,8 @@
 /*
+ * Retain the original licensing text; SPDX conversion requires a separate license audit.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
  *  Copyright (C) 2005 FUJITA Tomonori <tomof@acm.org>
  *  Copyright (C) 2007 - 2018 Vladislav Bolkhovitin
  *  Copyright (C) 2007 - 2018 Western Digital Corporation
@@ -46,6 +50,11 @@ static void iscsi_param_check(const struct iscsi_kern_params_info *info, s32 *ip
 #define CHECK_PARAM(info, iparams, word, min, max)			\
 	iscsi_param_check(info, iparams, key_##word, #word, min, max)
 
+/*
+ * The word parameter is a structure member or a name token, not an expression; parentheses would
+ * make its member access invalid.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_PRECEDENCE ; See the contract above. */
 #define SET_PARAM(params, info, iparams, word)				\
 do {									\
 	if (iscsi_param_selected(info, key_##word)) {			\
@@ -56,6 +65,11 @@ do {									\
 	}								\
 } while (0)
 
+/*
+ * The word parameter is a structure member or a name token, not an expression;
+ * parentheses would make its member access invalid.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_PRECEDENCE ; See the contract above. */
 #define	GET_PARAM(params, iparams, word)	\
 	((iparams)[key_##word] = (params)->word)
 

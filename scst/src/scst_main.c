@@ -46,10 +46,7 @@
 #define DEFAULT_SYMBOL_NAMESPACE	SCST_NAMESPACE
 
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
-#warning HIGHMEM kernel configurations are fully supported, but not \
-recommended for performance reasons. Consider changing VMSPLIT \
-option or use a 64 - bit configuration instead. See README file for \
-details.
+#warning "HIGHMEM is supported; for better performance, change VMSPLIT or use 64-bit. See README."
 #endif
 
 /*
@@ -2257,6 +2254,11 @@ static inline void __init scst_print_config(void)
 		PRINT_INFO("%s", config);
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=ref */
 static void scst_suspended(struct percpu_ref *ref)
 {
 	WARN_ON_ONCE(ref != &scst_cmd_count && ref != &scst_mcmd_count);
@@ -2326,6 +2328,11 @@ static int __init init_scst(void)
 	}
 
 /* Used for rarely used or read-mostly on fast path structures */
+/*
+ * This argument is a structure or member name used in generated accesses, type expressions and
+ * diagnostic stringification, not an evaluated expression.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define INIT_CACHEP(p, s) ({							\
 		struct kmem_cache *__scst_cache =				\
 			KMEM_CACHE(s, SCST_SLAB_FLAGS);				\
@@ -2336,6 +2343,11 @@ static int __init init_scst(void)
 		__scst_cache;							\
 	})
 
+/*
+ * This argument is a structure or member name used in generated accesses, type expressions and
+ * diagnostic stringification, not an evaluated expression.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define INIT_CACHEP_USERCOPY(p, s, f) ({					\
 		struct kmem_cache *__scst_cache =				\
 			KMEM_CACHE_USERCOPY(s, SCST_SLAB_FLAGS, f);		\
@@ -2347,6 +2359,11 @@ static int __init init_scst(void)
 	})
 
 /* Used for structures with fast path write access */
+/*
+ * This argument is a structure or member name used in generated accesses, type expressions and
+ * diagnostic stringification, not an evaluated expression.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define INIT_CACHEP_ALIGN(p, s) ({						\
 		struct kmem_cache *__scst_cache =				\
 			KMEM_CACHE(s, SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN);	\
@@ -2356,6 +2373,11 @@ static int __init init_scst(void)
 			  sizeof(struct s));					\
 		__scst_cache;							\
 	})
+/*
+ * This argument is a structure or member name used in generated accesses, type expressions and
+ * diagnostic stringification, not an evaluated expression.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define INIT_CACHEP_ALIGN_USERCOPY(p, s, f) ({					\
 		struct kmem_cache *__scst_cache =				\
 			KMEM_CACHE_USERCOPY(s, SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN, f);	\

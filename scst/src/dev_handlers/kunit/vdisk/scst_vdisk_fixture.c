@@ -111,6 +111,11 @@ static int vdisk_test_block_flush(struct block_device *bdev, gfp_t gfp_mask, boo
 	return f->block_flush_result;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static int vdisk_test_no_dif(struct scst_cmd *cmd)
 {
 	return 0;

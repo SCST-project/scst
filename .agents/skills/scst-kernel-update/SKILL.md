@@ -79,9 +79,8 @@ requests suffice; do not download large packages just to check availability.
 ## Apply and validate
 
 - Update each existing series to its newest confirmed published version.
-  Keep options (`-nc`, `-ns`, etc.) and ordering. When advancing the upstream
-  head, preserve the repository's convention: the new head has full nightly
-  checks and the previous head becomes a normal `-nc` entry.
+  Keep the supported options (`-4`, `-f`, `-u`, `-p`) and ordering. Static
+  analyzers run separately from kernel compatibility builds.
 - Add a new upstream series when the request covers that release. Newly
   discovered distribution minors, OL majors, and UEK generations are reported
   separately; adding them requires a separate support change.

@@ -96,7 +96,7 @@ static inline void scst_schedule_tasklet(struct scst_cmd *cmd)
 	preempt_enable();
 }
 
-static bool scst_unmap_overlap(struct scst_cmd *cmd, s64 lba2, s64 lba2_blocks)
+static bool scst_unmap_overlap(const struct scst_cmd *cmd, s64 lba2, s64 lba2_blocks)
 {
 	bool res = false;
 	struct scst_data_descriptor *pd = cmd->cmd_data_descriptors;
@@ -741,6 +741,10 @@ static int scst_init_cmd(struct scst_cmd *cmd, enum scst_exec_context *context)
 		 * If any data_direction not set, it's SCST_DATA_UNKNOWN,
 		 * which is 0, so we can safely | them
 		 */
+		/*
+		 * Verify the numeric protocol constant at compile time.
+		 */
+		/* cppcheck-suppress knownConditionTrueFalse */
 		BUILD_BUG_ON(SCST_DATA_UNKNOWN != 0);
 		if ((cmd->data_direction | cmd->expected_data_direction) & SCST_DATA_WRITE) {
 			if (!cmd->tgt_dev->tgt_dev_after_init_wr_atomic)
@@ -971,6 +975,10 @@ int scst_pre_parse(struct scst_cmd *cmd)
 		  cmd->queue_type == SCST_CMD_QUEUE_ORDERED));
 #endif
 
+	/*
+	 * Keep the two trace-only yes/no expressions without adding an old-kernel API shim.
+	 */
+	/* coccinelle-suppress-begin string_choices ; See the contract above. */
 	TRACE_DBG("op_name <%s> (cmd %p), direction=%d (expected %d, set %s), lba %lld, bufflen=%d, data_len %lld, out_bufflen=%d (expected len data %d, expected len DIF %d, out expected len %d), flags=0x%x, , naca %d",
 		  cmd->op_name, cmd, cmd->data_direction,
 		  cmd->expected_data_direction,
@@ -979,6 +987,7 @@ int scst_pre_parse(struct scst_cmd *cmd)
 		  cmd->out_bufflen, scst_cmd_get_expected_transfer_len_data(cmd),
 		  scst_cmd_get_expected_transfer_len_dif(cmd),
 		  cmd->expected_out_transfer_len, cmd->op_flags, cmd->cmd_naca);
+	/* coccinelle-suppress-end string_choices */
 
 	res = 0;
 
@@ -1259,6 +1268,10 @@ set_res:
 		cmd->data_direction = SCST_DATA_NONE;
 	}
 
+	/*
+	 * Keep the two trace-only yes/no expressions without adding an old-kernel API shim.
+	 */
+	/* coccinelle-suppress-begin string_choices ; See the contract above. */
 	TRACE(TRACE_SCSI,
 	      "op_name <%s> (cmd %p), direction=%d (expected %d, set %s), lba=%lld, bufflen=%d, data len %lld, out_bufflen=%d, (expected len data %d, expected len DIF %d, out expected len %d), flags=0x%x, internal %d, naca %d",
 	      cmd->op_name, cmd, cmd->data_direction, cmd->expected_data_direction,
@@ -1269,6 +1282,7 @@ set_res:
 	      scst_cmd_get_expected_transfer_len_dif(cmd),
 	      cmd->expected_out_transfer_len, cmd->op_flags, cmd->internal,
 	      cmd->cmd_naca);
+	/* coccinelle-suppress-end string_choices */
 
 #ifdef CONFIG_SCST_EXTRACHECKS
 	switch (state) {
@@ -1809,14 +1823,12 @@ out_dev_done:
 static void scst_process_redirect_cmd(struct scst_cmd *cmd, enum scst_exec_context context,
 				      int check_retries)
 {
-	struct scst_tgt *tgt = cmd->tgt;
-
 	TRACE_ENTRY();
 
 	TRACE_DBG("Context: %x", context);
 
 	if (check_retries)
-		scst_check_retries(tgt);
+		scst_check_retries(cmd->tgt);
 
 	if (context == SCST_CONTEXT_SAME)
 		context = scst_cmd_atomic(cmd) ? SCST_CONTEXT_DIRECT_ATOMIC :
@@ -2035,6 +2047,7 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 			}
 			if (remainder) {
 				if (scst_write_len_block_aligned(cmd)) {
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* dangerous, because can override valid data by zeros */
 					scst_check_restore_sg_buff(cmd);
 					scst_zero_write_rest(cmd);
@@ -2052,6 +2065,10 @@ static int scst_tgt_pre_exec(struct scst_cmd *cmd)
 					 * blocks, from corrupting data.
 					 */
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete sense or DIF action name.
+							    */
 							   SCST_LOAD_SENSE(scst_sense_invalid_field_in_command_information_unit));
 					scst_set_cmd_abnormal_done_state(cmd);
 					goto out;
@@ -2221,6 +2238,11 @@ out_put:
  * @result:	command's execution result
  * @resid:	residual, if any
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=sense */
 void scst_pass_through_cmd_done(void *data, char *sense, int result, int resid)
 {
 	struct scst_cmd *cmd = data;
@@ -2605,6 +2627,11 @@ static inline int scst_real_exec(struct scst_cmd *cmd)
 	__scst_cmd_get(cmd);
 
 	res = scst_do_real_exec(cmd);
+	/*
+	 * The expected completion result is an execution invariant, with an
+	 * explicit BUG path for an invalid result.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	if (likely(res == SCST_EXEC_COMPLETED))
 		scst_post_exec_sn(cmd, true);
 	else
@@ -3976,6 +4003,10 @@ ordered:
 					order_data->pending_simple_inc_expected_sn--;
 					TRACE_SN("New dec pending_simple_inc_expected_sn: %d",
 						 order_data->pending_simple_inc_expected_sn);
+					/*
+					 * checkpatch-suppress LONG_LINE ; Keep the counter
+					 * invariant readable.
+					 */
 					EXTRACHECKS_BUG_ON(order_data->pending_simple_inc_expected_sn < 0);
 					scst_inc_expected_sn_idle(order_data);
 				}
@@ -4211,6 +4242,11 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 	res = scst_translate_lun(cmd);
 	if (likely(res == 0)) {
 		struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+		/*
+		 * CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT increments
+		 * dev_cmd_count through this device pointer.
+		 */
+		/* cppcheck-suppress constVariablePointer */
 		struct scst_device *dev = cmd->dev;
 		bool failure = false;
 		int cnt;
@@ -4352,6 +4388,10 @@ restart:
 	}
 
 	TRACE_EXIT();
+/*
+ * The annotated helper returns scst_init_lock held to the init thread.
+ */
+/* coccinelle-suppress mini_lock ; See the contract above. */
 }
 
 /* Whether or not scst_init_thread() should stop waiting. */
@@ -4479,6 +4519,12 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 	 * for debugging purposes.
 	 */
 	EXTRACHECKS_BUG_ON(in_hardirq() || irqs_disabled());
+	/*
+	 * This EXTRACHECKS_WARN_ON is a diagnostic comparison with the explicit
+	 * caller-supplied atomic argument, not an allocation or sleeping-context
+	 * decision.
+	 */
+	/* checkpatch-suppress IN_ATOMIC ; See the contract above. */
 	EXTRACHECKS_WARN_ON((in_atomic() || in_interrupt()) && !atomic);
 
 	cmd->atomic = atomic;
@@ -4509,6 +4555,11 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 			break;
 
 		case SCST_CMD_STATE_EXEC_CHECK_SN:
+			/*
+			 * The task-management debug configuration supplies a
+			 * nonconstant result; retain its conditional path.
+			 */
+			/* cppcheck-suppress knownConditionTrueFalse */
 			if (tm_dbg_check_cmd(cmd) != 0) {
 				res = SCST_CMD_STATE_RES_CONT_NEXT;
 				TRACE_MGMT_DBG("Skipping cmd %p (tag %llu), because of TM DBG delay",
@@ -4690,6 +4741,10 @@ scst_wait_for_cmd(struct scst_cmd_threads *p_cmd_threads, struct scst_cmd_thread
 	finish_wait(&p_cmd_threads->cmd_list_waitQ, &wq_entry);
 
 out:
+	/*
+	 * Both command-list locks belong to scst_cmd_thread and must be held on return.
+	 */
+	/* coccinelle-suppress mini_lock ; See the contract above. */
 	return ret;
 }
 
@@ -4703,6 +4758,7 @@ int scst_cmd_thread(void *arg)
 
 	TRACE(TRACE_MINOR, "Processing thread %s started", current->comm);
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	set_user_nice(current, 10);
 #endif
@@ -4713,10 +4769,16 @@ int scst_cmd_thread(void *arg)
 	wake_up_all(&p_cmd_threads->ioctx_wq);
 
 	spin_lock_irq(&p_cmd_threads->cmd_list_lock);
+	/*
+	 * thr_locked tracks releases; the thread lock is dropped before the bottom acquire.
+	 */
+	/* coccinelle-suppress double_lock ; See the contract above. */
 	spin_lock(&thr->thr_cmd_list_lock);
 	while (!kthread_should_stop()) {
 		scst_wait_for_cmd(p_cmd_threads, thr);
 
+		/* CONFIG_SCST_DEBUG_TM supplies a nonconstant release predicate. */
+		/* cppcheck-suppress knownConditionTrueFalse */
 		if (tm_dbg_is_release()) {
 			spin_unlock_irq(&p_cmd_threads->cmd_list_lock);
 			tm_dbg_check_released_cmds();
@@ -4779,6 +4841,11 @@ again:
 				/* We need to maintain order of locks and unlocks */
 				spin_unlock(&thr->thr_cmd_list_lock);
 				spin_unlock(&p_cmd_threads->cmd_list_lock);
+				/*
+				 * thr_locked tracks releases; the thread lock is dropped before
+				 * the bottom acquire.
+				 */
+				/* coccinelle-suppress double_lock ; See the contract above. */
 				spin_lock(&thr->thr_cmd_list_lock);
 				p_locked = false;
 			} else if (!thr_locked) {
@@ -4839,6 +4906,11 @@ again:
 			} while (ktime_before(kt, end));
 		}
 		spin_lock_irq(&p_cmd_threads->cmd_list_lock);
+		/*
+		 * thr_locked tracks releases; the thread lock is dropped before the bottom
+		 * acquire.
+		 */
+		/* coccinelle-suppress double_lock ; See the contract above. */
 		spin_lock(&thr->thr_cmd_list_lock);
 	}
 	spin_unlock(&thr->thr_cmd_list_lock);
@@ -5153,6 +5225,7 @@ static inline int scst_is_strict_mgmt_fn(int mgmt_fn)
 	case SCST_ABORT_TASK:
 		return 1;
 #endif
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	case SCST_ABORT_TASK_SET:
 	case SCST_CLEAR_TASK_SET:
@@ -5475,7 +5548,7 @@ void scst_unblock_aborted_cmds(const struct scst_tgt *tgt, const struct scst_ses
 	mutex_unlock(&scst_mutex);
 }
 
-static void __scst_abort_task_set(struct scst_mgmt_cmd *mcmd, struct scst_tgt_dev *tgt_dev)
+static void __scst_abort_task_set(struct scst_mgmt_cmd *mcmd, const struct scst_tgt_dev *tgt_dev)
 {
 	struct scst_cmd *cmd;
 	struct scst_session *sess = tgt_dev->sess;
@@ -5591,6 +5664,7 @@ static int scst_clear_task_set(struct scst_mgmt_cmd *mcmd)
 	TRACE(TRACE_MGMT, "Clearing task set (lun=%lld, mcmd=%p)",
 	      (unsigned long long)mcmd->lun, mcmd);
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* we are SAM-3 */
 	/*
 	 * When a logical unit is aborting one or more tasks from a SCSI
@@ -5779,6 +5853,11 @@ ret:
 	return res;
 }
 
+/*
+ * The SCSI reset APIs receive a mutable device; omitted kernel bodies do not
+ * imply a read-only operation.
+ */
+/* cppcheck-suppress constParameterPointer */
 static int scst_reset_scsi_target(struct scsi_device *sdev)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
@@ -5794,6 +5873,11 @@ static int scst_reset_scsi_target(struct scsi_device *sdev)
 #endif
 }
 
+/*
+ * The SCSI reset APIs receive a mutable device; omitted kernel bodies do not
+ * imply a read-only operation.
+ */
+/* cppcheck-suppress constParameterPointer */
 static int scst_reset_scsi_device(struct scsi_device *sdev)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
@@ -5880,6 +5964,7 @@ static int scst_target_reset(struct scst_mgmt_cmd *mcmd)
 		TRACE(TRACE_MGMT, "Result of host %d target reset: %s",
 		      dev->scsi_dev->host->host_no,
 		      (rc == SUCCESS) ? "SUCCESS" : "FAILED");
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 		if (rc != SUCCESS && mcmd->status == SCST_MGMT_STATUS_SUCCESS) {
 			/*
@@ -5940,6 +6025,7 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 		rc = scst_reset_scsi_device(dev->scsi_dev);
 		TRACE(TRACE_MGMT, "scsi_reset_provider(%s) returned %d",
 		      dev->virt_name, rc);
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 		if (rc != SUCCESS && mcmd->status == SCST_MGMT_STATUS_SUCCESS)
 			scst_mgmt_cmd_set_status(mcmd, SCST_MGMT_STATUS_FAILED);
@@ -5962,7 +6048,7 @@ static int scst_lun_reset(struct scst_mgmt_cmd *mcmd)
 	return res;
 }
 
-static void scst_do_nexus_loss_sess(struct scst_mgmt_cmd *mcmd)
+static void scst_do_nexus_loss_sess(const struct scst_mgmt_cmd *mcmd)
 {
 	int i;
 	struct scst_session *sess = mcmd->sess;
@@ -6473,6 +6559,8 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 	TRACE_ENTRY();
 
 	mcmd->state = SCST_MCMD_STATE_FINISHED;
+	/* The strict-abort configuration makes this predicate true for ABORT TASK. */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	if (scst_is_strict_mgmt_fn(mcmd->fn) && mcmd->completed_cmd_count > 0)
 		scst_mgmt_cmd_set_status(mcmd, SCST_MGMT_STATUS_TASK_NOT_EXIST);
 

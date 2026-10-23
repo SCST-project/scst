@@ -51,6 +51,7 @@
 #include <linux/cpumask.h>
 #include <linux/dlm.h>
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* Let's disable it for now to see if users will complain about it */
 #define CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT
 #endif
@@ -75,6 +76,11 @@
 #include "scst_sgv.h"
 #endif
 
+/*
+ * Adjacent string fragments form the interface version literal; parentheses
+ * would prevent concatenation.
+ */
+/* checkpatch-suppress-macro COMPLEX_MACRO ; See the contract above. */
 #define SCST_INTERFACE_VERSION	    \
 		SCST_VERSION_STRING SCST_INTF_VER SCST_CONST_VERSION
 
@@ -595,6 +601,10 @@ static inline enum scst_dif_actions scst_get_dif_checks(enum scst_dif_actions a)
 }
 
 /* Sets the DIF checks part in a */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_set_dif_checks */
 static inline void scst_set_dif_checks(enum scst_dif_actions *a, enum scst_dif_actions checks)
 {
 	checks &= ~SCST_DIF_CHECKS_MASK;
@@ -608,6 +618,10 @@ static inline enum scst_dif_actions scst_get_dif_action(enum scst_dif_actions a)
 }
 
 /* Sets the DIF action part in a */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_set_dif_action */
 static inline void scst_set_dif_action(enum scst_dif_actions *a, enum scst_dif_actions action)
 {
 	action &= ~SCST_DIF_ACTION_MASK;
@@ -3501,6 +3515,11 @@ extern const struct scst_opcode_descriptor scst_op_descr_request_sense;
 extern const struct scst_opcode_descriptor scst_op_descr_report_supp_tm_fns;
 extern const struct scst_opcode_descriptor scst_op_descr_report_supp_opcodes;
 
+/*
+ * This macro supplies separate opcode-descriptor array elements, not a comma
+ * expression.
+ */
+/* checkpatch-suppress-macro COMPLEX_MACRO ; See the contract above. */
 #define SCST_OPCODE_DESCRIPTORS			\
 	&scst_op_descr_inquiry,			\
 	&scst_op_descr_tur,			\
@@ -3537,6 +3556,10 @@ static inline int scst_register_target_template(struct scst_tgt_template *vtt)
  * Note: *vtt must be static!
  */
 int __scst_register_target_template_non_gpl(struct scst_tgt_template *vtt, const char *version);
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_register_target_template_non_gpl */
 static inline int scst_register_target_template_non_gpl(struct scst_tgt_template *vtt)
 {
 	return __scst_register_target_template_non_gpl(vtt, SCST_INTERFACE_VERSION);
@@ -3702,6 +3725,10 @@ void scst_unregister_virtual_device(int id, void (*on_free)(struct scst_device *
 /*
  * Get/Set functions for tgt's sg_tablesize
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_tgt_get_sg_tablesize */
 static inline int scst_tgt_get_sg_tablesize(const struct scst_tgt *tgt)
 {
 	return tgt->sg_tablesize;
@@ -3728,11 +3755,19 @@ static inline void scst_tgt_set_tgt_priv(struct scst_tgt *tgt, void *val)
 /*
  * Get/Set functions for tgt's tgt_dif_supported
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_tgt_get_dif_supported */
 static inline bool scst_tgt_get_dif_supported(const struct scst_tgt *tgt)
 {
 	return tgt->tgt_dif_supported;
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_tgt_set_dif_supported */
 static inline void scst_tgt_set_dif_supported(struct scst_tgt *tgt, bool val)
 {
 	tgt->tgt_dif_supported = !!val;
@@ -3741,11 +3776,19 @@ static inline void scst_tgt_set_dif_supported(struct scst_tgt *tgt, bool val)
 /*
  * Get/Set functions for tgt's tgt_hw_dif_type1_supported
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_tgt_get_hw_dif_type1_supported */
 static inline bool scst_tgt_get_hw_dif_type1_supported(const struct scst_tgt *tgt)
 {
 	return tgt->tgt_hw_dif_type1_supported;
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_tgt_set_hw_dif_type1_supported */
 static inline void scst_tgt_set_hw_dif_type1_supported(struct scst_tgt *tgt, bool val)
 {
 	tgt->tgt_hw_dif_type1_supported = !!val;
@@ -3754,11 +3797,19 @@ static inline void scst_tgt_set_hw_dif_type1_supported(struct scst_tgt *tgt, boo
 /*
  * Get/Set functions for tgt's tgt_hw_dif_type2_supported
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_tgt_get_hw_dif_type2_supported */
 static inline bool scst_tgt_get_hw_dif_type2_supported(const struct scst_tgt *tgt)
 {
 	return tgt->tgt_hw_dif_type2_supported;
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_tgt_set_hw_dif_type2_supported */
 static inline void scst_tgt_set_hw_dif_type2_supported(struct scst_tgt *tgt, bool val)
 {
 	tgt->tgt_hw_dif_type2_supported = !!val;
@@ -3767,11 +3818,19 @@ static inline void scst_tgt_set_hw_dif_type2_supported(struct scst_tgt *tgt, boo
 /*
  * Get/Set functions for tgt's tgt_hw_dif_type3_supported
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_tgt_get_hw_dif_type3_supported */
 static inline bool scst_tgt_get_hw_dif_type3_supported(const struct scst_tgt *tgt)
 {
 	return tgt->tgt_hw_dif_type3_supported;
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_tgt_set_hw_dif_type3_supported */
 static inline void scst_tgt_set_hw_dif_type3_supported(struct scst_tgt *tgt, bool val)
 {
 	tgt->tgt_hw_dif_type3_supported = !!val;
@@ -3780,11 +3839,19 @@ static inline void scst_tgt_set_hw_dif_type3_supported(struct scst_tgt *tgt, boo
 /*
  * Get/Set functions for tgt's tgt_hw_dif_ip_supported
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_tgt_get_hw_dif_ip_supported */
 static inline bool scst_tgt_get_hw_dif_ip_supported(const struct scst_tgt *tgt)
 {
 	return tgt->tgt_hw_dif_ip_supported;
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_tgt_set_hw_dif_ip_supported */
 static inline void scst_tgt_set_hw_dif_ip_supported(struct scst_tgt *tgt, bool val)
 {
 	tgt->tgt_hw_dif_ip_supported = !!val;
@@ -3793,11 +3860,19 @@ static inline void scst_tgt_set_hw_dif_ip_supported(struct scst_tgt *tgt, bool v
 /*
  * Get/Set functions for tgt's tgt_hw_dif_same_sg_layout_required
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_tgt_get_hw_dif_same_sg_layout_required */
 static inline bool scst_tgt_get_hw_dif_same_sg_layout_required(const struct scst_tgt *tgt)
 {
 	return tgt->tgt_hw_dif_same_sg_layout_required;
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_tgt_set_hw_dif_same_sg_layout_required */
 static inline void scst_tgt_set_hw_dif_same_sg_layout_required(struct scst_tgt *tgt, bool val)
 {
 	tgt->tgt_hw_dif_same_sg_layout_required = !!val;
@@ -3806,11 +3881,19 @@ static inline void scst_tgt_set_hw_dif_same_sg_layout_required(struct scst_tgt *
 /*
  * Get/Set functions for tgt's tgt_supported_dif_block_sizes
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_tgt_get_supported_dif_block_sizes */
 static inline const int *scst_tgt_get_supported_dif_block_sizes(const struct scst_tgt *tgt)
 {
 	return tgt->tgt_supported_dif_block_sizes;
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_tgt_set_supported_dif_block_sizes */
 static inline void scst_tgt_set_supported_dif_block_sizes(struct scst_tgt *tgt,
 							  const int *const val)
 {
@@ -3849,6 +3932,10 @@ static inline __be16 scst_dev_get_dif_static_app_tag(const struct scst_device *d
 	return dev->dev_dif_static_app_tag;
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_dev_get_dif_static_app_ref_tag */
 static inline __be32 scst_dev_get_dif_static_app_ref_tag(const struct scst_device *dev)
 {
 	return dev->dev_dif_static_app_ref_tag;
@@ -3866,6 +3953,10 @@ void scst_dev_set_dif_static_app_tag_combined(struct scst_device *dev, __be64 ap
 /*
  * Get/set functions for dev's DIF APP TAG checking
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_dev_get_dif_app_tag_check */
 static inline bool scst_dev_get_dif_app_tag_check(const struct scst_device *dev)
 {
 	return dev->dif_app_chk == SCST_DIF_CHECK_APP_TAG;
@@ -3912,18 +4003,30 @@ static inline void scst_dif_acc_guard_check_failed_scst(struct scst_cmd *cmd)
 	atomic_inc(&cmd->tgt_dev->tgt_dev_dif_guard_failed_scst);
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_dif_acc_app_check_failed_dev */
 static inline void scst_dif_acc_app_check_failed_dev(struct scst_cmd *cmd)
 {
 	atomic_inc(&cmd->tgt->tgt_dif_app_failed_dev);
 	atomic_inc(&cmd->tgt_dev->tgt_dev_dif_app_failed_dev);
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_dif_acc_ref_check_failed_dev */
 static inline void scst_dif_acc_ref_check_failed_dev(struct scst_cmd *cmd)
 {
 	atomic_inc(&cmd->tgt->tgt_dif_ref_failed_dev);
 	atomic_inc(&cmd->tgt_dev->tgt_dev_dif_ref_failed_dev);
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_dif_acc_guard_check_failed_ */
 static inline void scst_dif_acc_guard_check_failed_(struct scst_cmd *cmd)
 {
 	atomic_inc(&cmd->tgt->tgt_dif_guard_failed_dev);
@@ -3954,6 +4057,8 @@ static inline int scst_dif_process_write(struct scst_cmd *cmd)
  * This function must be used outside of spinlocks and preempt/BH/IRQ
  * disabled sections, because of the EXTRACHECK in it.
  */
+/* CONFIG_SCST_EXTRACHECKS may set cmd->atomic after detecting atomic context. */
+/* cppcheck-suppress constParameterPointer symbolName=cmd */
 static inline bool scst_cmd_atomic(struct scst_cmd *cmd)
 {
 	int res = cmd->atomic;
@@ -3963,6 +4068,12 @@ static inline bool scst_cmd_atomic(struct scst_cmd *cmd)
 	 * can safely ignore this warning since in_atomic() is used here
 	 * only for debugging purposes.
 	 */
+	/*
+	 * This CONFIG_SCST_EXTRACHECKS consistency check can only upgrade the
+	 * explicit command-context flag to atomic handling. It never treats a
+	 * false in_atomic result as proof that sleeping is safe.
+	 */
+	/* checkpatch-suppress IN_ATOMIC ; See the contract above. */
 	if (unlikely((in_atomic() || in_interrupt() || irqs_disabled()) &&
 		     !res)) {
 		pr_err("ERROR: atomic context and non-atomic cmd!\n");
@@ -3999,9 +4110,15 @@ static inline enum scst_exec_context __scst_estimate_context(bool atomic)
  * (in_atomic() isn't reliable), so let's be safe and disable this section
  * for now to unconditionally return thread context.
  */
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	else if (irqs_disabled())
 		return SCST_CONTEXT_THREAD;
+	/*
+	 * This optional consistency check only upgrades the explicit command-context flag; false
+	 * does not prove sleeping is safe.
+	 */
+	/* checkpatch-suppress IN_ATOMIC ; See the contract above. */
 	else if (in_atomic())
 		return SCST_CONTEXT_DIRECT_ATOMIC;
 	else
@@ -4017,6 +4134,10 @@ static inline enum scst_exec_context scst_estimate_context(void)
 	return __scst_estimate_context(false);
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_estimate_context_atomic */
 static inline enum scst_exec_context scst_estimate_context_atomic(void)
 {
 	return __scst_estimate_context(true);
@@ -4029,6 +4150,10 @@ static inline const u8 *scst_cmd_get_cdb(const struct scst_cmd *cmd)
 }
 
 /* Returns cmd's CDB length */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_cdb_len */
 static inline unsigned int scst_cmd_get_cdb_len(const struct scst_cmd *cmd)
 {
 	return cmd->cdb_len;
@@ -4089,6 +4214,10 @@ static inline int scst_cmd_get_sg_cnt(const struct scst_cmd *cmd)
  * Usage of this function is not recommended, use scst_get_dif_buf()
  * function instead.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_dif_sg */
 static inline struct scatterlist *scst_cmd_get_dif_sg(const struct scst_cmd *cmd)
 {
 	return cmd->dif_sg;
@@ -4100,6 +4229,10 @@ static inline struct scatterlist *scst_cmd_get_dif_sg(const struct scst_cmd *cmd
  * Usage of this function is not recommended, use scst_get_dif_buf()
  * function instead.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_dif_sg_cnt */
 static inline int scst_cmd_get_dif_sg_cnt(const struct scst_cmd *cmd)
 {
 	return cmd->dif_sg_cnt;
@@ -4161,6 +4294,10 @@ static inline int scst_cmd_get_bufflen_dif(struct scst_cmd *cmd)
  * Usage of this function is not recommended, use scst_get_out_buf_*()
  * family of functions instead.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_out_sg */
 static inline struct scatterlist *scst_cmd_get_out_sg(const struct scst_cmd *cmd)
 {
 	return cmd->out_sg;
@@ -4172,6 +4309,10 @@ static inline struct scatterlist *scst_cmd_get_out_sg(const struct scst_cmd *cmd
  * Usage of this function is not recommended, use scst_get_out_buf_*()
  * family of functions instead.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_out_sg_cnt */
 static inline int scst_cmd_get_out_sg_cnt(const struct scst_cmd *cmd)
 {
 	return cmd->out_sg_cnt;
@@ -4211,6 +4352,10 @@ static inline struct scatterlist *scst_cmd_get_tgt_sg(const struct scst_cmd *cmd
  * Returns cmd's target's sg_cnt. Since it's for target
  * drivers, the "_i_" part is omitted.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_tgt_sg_cnt */
 static inline int scst_cmd_get_tgt_sg_cnt(const struct scst_cmd *cmd)
 {
 	return cmd->tgt_i_sg_cnt;
@@ -4231,6 +4376,10 @@ static inline void scst_cmd_set_tgt_sg(struct scst_cmd *cmd, struct scatterlist 
  * Returns pointer to cmd's target's DIF tags SG data buffer. Since it's
  * for target drivers, the "_i_" part is omitted.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_tgt_dif_sg */
 static inline struct scatterlist *scst_cmd_get_tgt_dif_sg(const struct scst_cmd *cmd)
 {
 	return cmd->tgt_i_dif_sg;
@@ -4240,6 +4389,10 @@ static inline struct scatterlist *scst_cmd_get_tgt_dif_sg(const struct scst_cmd 
  * Returns cmd's target's DIF tags SG data buffer elements count. Since it's
  * for target drivers, the "_i_" part is omitted.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_tgt_dif_sg_cnt */
 static inline int scst_cmd_get_tgt_dif_sg_cnt(const struct scst_cmd *cmd)
 {
 	return cmd->tgt_i_dif_sg_cnt;
@@ -4249,6 +4402,10 @@ static inline int scst_cmd_get_tgt_dif_sg_cnt(const struct scst_cmd *cmd)
  * Sets cmd's target's DIF tags SG data buffer. Since it's for target
  * drivers, the "_i_" part is omitted.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_set_tgt_dif_sg */
 static inline void scst_cmd_set_tgt_dif_sg(struct scst_cmd *cmd, struct scatterlist *dif_sg,
 					   int cnt)
 {
@@ -4257,18 +4414,30 @@ static inline void scst_cmd_set_tgt_dif_sg(struct scst_cmd *cmd, struct scatterl
 }
 
 /* Returns pointer to cmd's target's OUT SG data buffer */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_out_tgt_sg */
 static inline struct scatterlist *scst_cmd_get_out_tgt_sg(const struct scst_cmd *cmd)
 {
 	return cmd->tgt_out_sg;
 }
 
 /* Returns cmd's target's OUT sg_cnt */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_tgt_out_sg_cnt */
 static inline int scst_cmd_get_tgt_out_sg_cnt(const struct scst_cmd *cmd)
 {
 	return cmd->tgt_out_sg_cnt;
 }
 
 /* Sets cmd's target's OUT SG data buffer */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_set_tgt_out_sg */
 static inline void scst_cmd_set_tgt_out_sg(struct scst_cmd *cmd, struct scatterlist *sg,
 					   int sg_cnt)
 {
@@ -4315,18 +4484,30 @@ static inline u8 scst_cmd_get_status(const struct scst_cmd *cmd)
 }
 
 /* Returns cmd's status from host adapter itself */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_msg_status */
 static inline u8 scst_cmd_get_msg_status(const struct scst_cmd *cmd)
 {
 	return cmd->msg_status;
 }
 
 /* Returns cmd's status set by low-level driver to indicate its status */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_host_status */
 static inline u8 scst_cmd_get_host_status(const struct scst_cmd *cmd)
 {
 	return cmd->host_status;
 }
 
 /* Returns cmd's status set by SCSI mid-level */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_driver_status */
 static inline u8 scst_cmd_get_driver_status(const struct scst_cmd *cmd)
 {
 	return cmd->driver_status;
@@ -4390,6 +4571,10 @@ static inline void scst_cmd_set_tgt_priv(struct scst_cmd *cmd, void *val)
 /*
  * Get/Set functions for tgt_need_alloc_data_buf flag
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_tgt_need_alloc_data_buf */
 static inline int scst_cmd_get_tgt_need_alloc_data_buf(const struct scst_cmd *cmd)
 {
 	return cmd->tgt_need_alloc_data_buf;
@@ -4409,6 +4594,10 @@ static inline int scst_cmd_get_tgt_data_buff_alloced(const struct scst_cmd *cmd)
 	return cmd->tgt_i_data_buf_alloced;
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_set_tgt_data_buff_alloced */
 static inline void scst_cmd_set_tgt_data_buff_alloced(struct scst_cmd *cmd)
 {
 	cmd->tgt_i_data_buf_alloced = 1;
@@ -4430,6 +4619,10 @@ static inline void scst_cmd_set_dh_data_buff_alloced(struct scst_cmd *cmd)
 /*
  * Get/Set functions for no_sgv flag
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_no_sgv */
 static inline int scst_cmd_get_no_sgv(const struct scst_cmd *cmd)
 {
 	return cmd->no_sgv;
@@ -4443,6 +4636,10 @@ static inline void scst_cmd_set_no_sgv(struct scst_cmd *cmd)
 /*
  * Get/Set functions for tgt_sn
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_tgt_sn */
 static inline int scst_cmd_get_tgt_sn(const struct scst_cmd *cmd)
 {
 	BUG_ON(!cmd->tgt_sn_set);
@@ -4515,6 +4712,10 @@ static inline int scst_cmd_is_expected_set(const struct scst_cmd *cmd)
 	return cmd->expected_values_set;
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_expected_data_direction */
 static inline scst_data_direction scst_cmd_get_expected_data_direction(const struct scst_cmd *cmd)
 {
 	return cmd->expected_data_direction;
@@ -4524,6 +4725,10 @@ static inline scst_data_direction scst_cmd_get_expected_data_direction(const str
  * Returns full expected transfer length, i.e. including both data and
  * DIF tags, if any.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_expected_transfer_len_full */
 static inline int scst_cmd_get_expected_transfer_len_full(const struct scst_cmd *cmd)
 {
 	return cmd->expected_transfer_len_full;
@@ -4532,6 +4737,10 @@ static inline int scst_cmd_get_expected_transfer_len_full(const struct scst_cmd 
 int scst_cmd_get_expected_transfer_len_data(struct scst_cmd *cmd);
 int scst_cmd_get_expected_transfer_len_dif(struct scst_cmd *cmd);
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_expected_out_transfer_len */
 static inline int scst_cmd_get_expected_out_transfer_len(const struct scst_cmd *cmd)
 {
 	return cmd->expected_out_transfer_len;
@@ -4556,11 +4765,19 @@ static inline void scst_cmd_set_expected_out_transfer_len(struct scst_cmd *cmd,
 /*
  * Get/clear functions for cmd's may_need_dma_sync
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_get_may_need_dma_sync */
 static inline int scst_get_may_need_dma_sync(const struct scst_cmd *cmd)
 {
 	return cmd->may_need_dma_sync;
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_clear_may_need_dma_sync */
 static inline void scst_clear_may_need_dma_sync(struct scst_cmd *cmd)
 {
 	cmd->may_need_dma_sync = 0;
@@ -4571,6 +4788,10 @@ static inline void scst_clear_may_need_dma_sync(struct scst_cmd *cmd)
  * SCST_CMD_DELIVERY_* constants. It specifies the status of the
  * command's delivery to initiator.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_get_delivery_status */
 static inline int scst_get_delivery_status(const struct scst_cmd *cmd)
 {
 	return cmd->delivery_status;
@@ -4596,6 +4817,10 @@ static inline enum scst_dif_actions scst_get_read_dif_tgt_actions(const struct s
  * with this command on WRITE direction transfers (rdy_to_xfer()). Might
  * be different from READ direction for BIDI commands.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_get_write_dif_tgt_actions */
 static inline enum scst_dif_actions scst_get_write_dif_tgt_actions(const struct scst_cmd *cmd)
 {
 	return scst_get_tgt_dif_actions(cmd->cmd_dif_actions);
@@ -4606,6 +4831,10 @@ static inline enum scst_dif_actions scst_get_write_dif_tgt_actions(const struct 
  * with this command on READ direction transfers. Might be different
  * from WRITE direction for BIDI commands.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_get_read_dif_dev_actions */
 static inline enum scst_dif_actions scst_get_read_dif_dev_actions(const struct scst_cmd *cmd)
 {
 	return scst_get_dev_dif_actions(cmd->cmd_dif_actions);
@@ -4616,6 +4845,10 @@ static inline enum scst_dif_actions scst_get_read_dif_dev_actions(const struct s
  * with this command on WRITE direction transfers. Might be different
  * from READ direction for BIDI commands.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_get_write_dif_dev_actions */
 static inline enum scst_dif_actions scst_get_write_dif_dev_actions(const struct scst_cmd *cmd)
 {
 	return scst_get_dev_dif_actions(cmd->cmd_dif_actions);
@@ -4625,6 +4858,10 @@ static inline enum scst_dif_actions scst_get_write_dif_dev_actions(const struct 
  * Returns T10-PI protection type for this cmd's device. Supposed to be used
  * by target drivers.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_dif_prot_type */
 static inline int scst_cmd_get_dif_prot_type(struct scst_cmd *cmd)
 {
 	return cmd->dev->dev_dif_type;
@@ -4641,6 +4878,10 @@ static inline int scst_cmd_get_dif_prot_type(struct scst_cmd *cmd)
  * this function again for the next app tag area. This is intended to
  * support Application Tag mode page. ToDo, not implemented yet.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_dif_app_tag */
 static inline __be16 scst_cmd_get_dif_app_tag(struct scst_cmd *cmd,
 					      u64 lba_start/*, uint64_t *out_lba_end*/)
 {
@@ -4710,6 +4951,10 @@ static inline u16 scst_cmd_get_dif_app_tag_mask(struct scst_cmd *cmd)
  * If SCST_DIF_NO_CHECK_ALL_REF_TAG returned, the target driver should not
  * check the tag for this lba (SCSI requirement).
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_dif_app_ref_tag */
 static inline __be32 scst_cmd_get_dif_app_ref_tag(struct scst_cmd *cmd)
 {
 #ifdef CONFIG_SCST_EXTRACHECKS
@@ -4723,6 +4968,10 @@ static inline __be32 scst_cmd_get_dif_app_ref_tag(struct scst_cmd *cmd)
  * Returns format of T10-PI GUARD TAGs as one of SCST_DIF_GUARD_FORMAT_*
  * constants
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_dif_guard_format */
 static inline int scst_cmd_get_dif_guard_format(struct scst_cmd *cmd)
 {
 	return cmd->tgt_dev->tgt_dev_dif_guard_format;
@@ -4732,6 +4981,10 @@ static inline int scst_cmd_get_dif_guard_format(struct scst_cmd *cmd)
  * Returns block size of this cmd's device. Supposed to be used
  * by target drivers during T10-PI processing.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_block_size */
 static inline int scst_cmd_get_block_size(struct scst_cmd *cmd)
 {
 	return cmd->dev->block_size;
@@ -4834,6 +5087,10 @@ static inline int scst_aen_get_sense_len(const struct scst_aen *aen)
  * SCST_AEN_RES_* constants. It specifies the status of the
  * command's delivery to initiator.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_get_aen_delivery_status */
 static inline int scst_get_aen_delivery_status(const struct scst_aen *aen)
 {
 	return aen->delivery_status;
@@ -4948,6 +5205,11 @@ static inline int scst_get_buf_next(struct scst_cmd *cmd, u8 **buf)
 	return __scst_get_buf(cmd, cmd->sg_cnt, buf);
 }
 
+/*
+ * Retain the mutable buffer/command signature paired with acquisition; this
+ * implementation currently needs no unmapping or uses the saved SG cursor.
+ */
+/* cppcheck-suppress constParameterPointer */
 static inline void scst_put_buf(struct scst_cmd *cmd, void *buf)
 {
 	/* Nothing to do */
@@ -4987,6 +5249,11 @@ static inline u8 *scst_get_dif_buf(struct scst_cmd *cmd, struct scatterlist **ps
 	return buf;
 }
 
+/*
+ * Retain the mutable buffer/command signature paired with acquisition; this
+ * implementation currently needs no unmapping or uses the saved SG cursor.
+ */
+/* cppcheck-suppress constParameterPointer */
 static inline void scst_put_dif_buf(struct scst_cmd *cmd, void *buf)
 {
 	/* Nothing to do */
@@ -5009,11 +5276,20 @@ static inline int scst_get_out_buf_next(struct scst_cmd *cmd, u8 **buf)
 	return __scst_get_buf(cmd, cmd->out_sg_cnt, buf);
 }
 
+/*
+ * Retain the mutable buffer/command signature paired with acquisition; this
+ * implementation currently needs no unmapping or uses the saved SG cursor.
+ */
+/* cppcheck-suppress constParameterPointer */
 static inline void scst_put_out_buf(struct scst_cmd *cmd, void *buf)
 {
 	/* Nothing to do */
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_get_sg_buf_first */
 static inline int scst_get_sg_buf_first(struct scst_cmd *cmd, u8 **buf,
 					struct scatterlist *sg, int sg_cnt)
 {
@@ -5027,12 +5303,25 @@ static inline int scst_get_sg_buf_first(struct scst_cmd *cmd, u8 **buf,
 	return __scst_get_buf(cmd, sg_cnt, buf);
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_get_sg_buf_next */
 static inline int scst_get_sg_buf_next(struct scst_cmd *cmd, u8 **buf,
 				       struct scatterlist *sg, int sg_cnt)
 {
 	return __scst_get_buf(cmd, sg_cnt, buf);
 }
 
+/*
+ * Retain the mutable buffer/command signature paired with acquisition; this
+ * implementation currently needs no unmapping or uses the saved SG cursor.
+ */
+/* cppcheck-suppress constParameterPointer */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_put_sg_buf */
 static inline void scst_put_sg_buf(struct scst_cmd *cmd, void *buf, struct scatterlist *sg,
 				   int sg_cnt)
 {
@@ -5086,6 +5375,10 @@ static inline int scst_get_sg_page_next(struct scst_cmd *cmd, struct page **page
 	return __scst_get_sg_page(cmd, cmd->sg_cnt, page, offset);
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_get_out_sg_page_first */
 static inline int scst_get_out_sg_page_first(struct scst_cmd *cmd, struct page **page, int *offset)
 {
 	if (unlikely(!cmd->out_sg)) {
@@ -5098,11 +5391,24 @@ static inline int scst_get_out_sg_page_first(struct scst_cmd *cmd, struct page *
 	return __scst_get_sg_page(cmd, cmd->out_sg_cnt, page, offset);
 }
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_get_out_sg_page_next */
 static inline int scst_get_out_sg_page_next(struct scst_cmd *cmd, struct page **page, int *offset)
 {
 	return __scst_get_sg_page(cmd, cmd->out_sg_cnt, page, offset);
 }
 
+/*
+ * Retain the mutable buffer/command signature paired with acquisition; this
+ * implementation currently needs no unmapping or uses the saved SG cursor.
+ */
+/* cppcheck-suppress constParameterPointer */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_put_out_sg_page */
 static inline void scst_put_out_sg_page(struct scst_cmd *cmd, struct page *page, int offset)
 {
 	/* Nothing to do */
@@ -5120,6 +5426,10 @@ static inline int scst_get_buf_count(const struct scst_cmd *cmd)
 /*
  * Returns approximate higher rounded buffers count in pages
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_get_buf_page_count */
 static inline int scst_get_buf_page_count(const struct scst_cmd *cmd)
 {
 	struct scatterlist *sg;
@@ -5138,6 +5448,10 @@ static inline int scst_get_buf_page_count(const struct scst_cmd *cmd)
  * Returns approximate higher rounded buffers count that
  * scst_get_out_buf_[first|next]() return.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_get_out_buf_count */
 static inline int scst_get_out_buf_count(const struct scst_cmd *cmd)
 {
 	return (cmd->out_sg_cnt == 0) ? 1 : cmd->out_sg_cnt;
@@ -5147,6 +5461,10 @@ int scst_get_buf_full(struct scst_cmd *cmd, u8 **buf, bool always_copy);
 int scst_get_buf_full_sense(struct scst_cmd *cmd, u8 **buf);
 void scst_put_buf_full(struct scst_cmd *cmd, u8 *buf);
 
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_cmd_get_gfp_mask */
 static inline gfp_t scst_cmd_get_gfp_mask(const struct scst_cmd *cmd)
 {
 	return cmd->cmd_gfp_mask;
@@ -5214,7 +5532,17 @@ void scst_kobject_put_and_wait(struct kobject *kobj, const char *category,
 			       struct completion *c,
 			       struct lockdep_map *dep_map);
 #else
+/*
+ * Without CONFIG_LOCKDEP, dependency-map fields and parameters do not exist; the
+ * public wrapper keeps the same call syntax.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define SCST_SET_DEP_MAP(work, dm) do { } while (0)
+/*
+ * Without CONFIG_LOCKDEP, dependency-map fields and parameters do not exist; the
+ * public wrapper keeps the same call syntax.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define SCST_KOBJECT_PUT_AND_WAIT(kobj, category, c, dep_map) \
 	scst_kobject_put_and_wait(kobj, category, c)
 void scst_kobject_put_and_wait(struct kobject *kobj, const char *category, struct completion *c);
@@ -5246,6 +5574,10 @@ int scst_create_tgt_attr(struct scst_tgt *tgt, struct kobj_attribute *attribute)
  * Returns device handler's root sysfs kobject.
  * The driver can create own files/directories/links here.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_sysfs_get_devt_kobj */
 static inline struct kobject *scst_sysfs_get_devt_kobj(struct scst_dev_type *devt)
 {
 	return &devt->devt_kobj;
@@ -5257,6 +5589,10 @@ int scst_create_devt_attr(struct scst_dev_type *devt, struct kobj_attribute *att
  * Returns device's root sysfs kobject.
  * The driver can create own files/directories/links here.
  */
+/*
+ * Retain this public inline helper for the installed external module interface.
+ */
+/* cppcheck-suppress unusedFunction symbolName=scst_sysfs_get_dev_kobj */
 static inline struct kobject *scst_sysfs_get_dev_kobj(struct scst_device *dev)
 {
 	return &dev->dev_kobj;
@@ -5408,6 +5744,20 @@ prepare_to_wait_exclusive_head(struct wait_queue_head *wq_head,
 	(!__builtin_constant_p(state) ||					\
 	 ((state) & (TASK_INTERRUPTIBLE | TASK_WAKEKILL)))
 
+/*
+ * The wait loop intentionally revisits its queue and state; its local __out
+ * label exits only this statement expression.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
+/*
+ * The wait loop intentionally revisits its queue and state; its local __out
+ * label exits only this statement expression.
+ */
+/* checkpatch-suppress-macro MACRO_WITH_FLOW_CONTROL ; See the contract above. */
+/*
+ * __out is a GNU local goto label, not a variable.
+ */
+/* cppcheck-suppress-macro unassignedVariable symbolName=__out */
 #define ___scst_wait_event(wq_head, condition, state, ret, cmd)			\
 ({										\
 	__label__ __out;							\
@@ -5432,12 +5782,22 @@ prepare_to_wait_exclusive_head(struct wait_queue_head *wq_head,
 __out:	__ret;									\
 })
 
+/*
+ * The same lock lvalue must be unlocked before sleeping and locked again after
+ * waking.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define __scst_wait_event_interruptible_lock(wq_head, condition, lock)		\
 	___scst_wait_event(wq_head, condition, TASK_INTERRUPTIBLE, 0,		\
 			   spin_unlock(&(lock));				\
 			   schedule();						\
 			   spin_lock(&(lock)))
 
+/*
+ * The wait condition must be checked before enqueueing and again after wakeup;
+ * evaluating it only once would break waiting.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define scst_wait_event_interruptible_lock(wq_head, condition, lock)		\
 ({										\
 	int __ret = 0;								\
@@ -5447,12 +5807,22 @@ __out:	__ret;									\
 	__ret;									\
 })
 
+/*
+ * The same BH lock lvalue must be unlocked before sleeping and locked again
+ * after waking.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define __scst_wait_event_interruptible_lock_bh(wq_head, condition, lock)	\
 	___scst_wait_event(wq_head, condition, TASK_INTERRUPTIBLE, 0,		\
 			   spin_unlock_bh(&(lock));				\
 			   schedule();						\
 			   spin_lock_bh(&(lock)))
 
+/*
+ * The wait condition must be checked before enqueueing and again after wakeup;
+ * evaluating it only once would break waiting.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define scst_wait_event_interruptible_lock_bh(wq_head, condition, lock)		\
 ({										\
 	int __ret = 0;								\
@@ -5462,12 +5832,22 @@ __out:	__ret;									\
 	__ret;									\
 })
 
+/*
+ * The same IRQ lock lvalue must be unlocked before sleeping and locked again
+ * after waking.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define __scst_wait_event_interruptible_lock_irq(wq_head, condition, lock)	\
 	___scst_wait_event(wq_head, condition, TASK_INTERRUPTIBLE, 0,		\
 			   spin_unlock_irq(&(lock));				\
 			   schedule();						\
 			   spin_lock_irq(&(lock)))
 
+/*
+ * The wait condition must be checked before enqueueing and again after wakeup;
+ * evaluating it only once would break waiting.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define scst_wait_event_interruptible_lock_irq(wq_head, condition, lock)	\
 ({										\
 	int __ret = 0;								\
@@ -5723,6 +6103,7 @@ struct scst_ext_copy_data_descr {
 
 struct scst_ext_copy_seg_descr {
 #define SCST_EXT_COPY_SEG_DATA		0
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* not implemented yet */
 #define SCST_EXT_COPY_SEG_PR_REG	1
 #define SCST_EXT_COPY_SEG_PR_MOVE	2

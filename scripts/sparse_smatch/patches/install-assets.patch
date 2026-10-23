@@ -1,0 +1,14 @@
+--- a/Makefile
++++ b/Makefile
+@@ -488,7 +488,10 @@
+ $(bindir)/%: %
+ 	@echo "  INSTALL $@"
+ 	$(Q)install -D        $< $@ || exit 1;
+-$(man1dir)/% $(smatch_datadir)/%: %
++$(man1dir)/%: %
++	@echo "  INSTALL $@"
++	$(Q)install -D -m 644 $< $@ || exit 1;
++$(smatch_datadir)/%: %
+ 	@echo "  INSTALL $@"
+ 	$(Q)install -D -m 644 $< $@ || exit 1;
+ 

@@ -171,10 +171,13 @@ help:
 		'  sparse, smatch                analyze configured modules through Kbuild' \
 		'  coccicheck                    run kernel Coccinelle report rules' \
 		'  cppcheck                      analyze fresh kernel and userspace build contexts' \
+		'  compile-commands              export configured compiler commands for tools/editors' \
+		'  COMPILE_COMMANDS=path         database output (default: compile_commands.json)' \
+		'  all-lint                      run every analyzer (use make -k to continue on findings)' \
 		'  checkpatch                    check C source/header style, including KUnit' \
 		'  scs_lint                      check SCST code style rules (doc/scs.md)' \
-		'  DIFFBR=commit                 compare with one commit; select relevant inputs' \
 		'  lint-test                     test shared analyzer tooling (no modules)' \
+		'  analyzer-tests                test tooling and models with native analyzers' \
 		'  all                           make all' \
 		'  clean                         clean files' \
 		'  extraclean                    clean + clean dependencies' \
@@ -275,37 +278,42 @@ analyzer-policy:
 .PHONY: sparse smatch lint-kbuild
 sparse smatch: export SCST_LINT_KDIR := $(KDIR)
 sparse smatch:
-	+@$(PYTHON) -B scripts/sparse_smatch/smp.py $@
+	+@$(PYTHON) -B scripts/analyzer_run.py $@
 
 .PHONY: coccicheck
 coccicheck: export SCST_LINT_KDIR := $(KDIR)
 coccicheck:
-	+@$(PYTHON) -B scripts/coccinelle/coccicheck.py
+	+@$(PYTHON) -B scripts/analyzer_run.py $@
 
 .PHONY: checkpatch
 checkpatch: export SCST_LINT_KDIR := $(KDIR)
 checkpatch:
-	@$(PYTHON) -B scripts/style/checkpatch.py
+	@$(PYTHON) -B scripts/analyzer_run.py $@
 
 .PHONY: scs_lint scs-lint-test
 scs_lint:
-	@scripts/scs_lint/run_scs_lint.sh
+	@$(PYTHON) -B scripts/analyzer_run.py $@
 
 scs-lint-test:
 	@uv run --no-project scripts/scs_lint/test_scs_lint.py
 
-.PHONY: cppcheck lint-userspace
+.PHONY: compile-commands compile-commands-cli cppcheck
+COMPILE_COMMANDS ?= $(CURDIR)/compile_commands.json
+compile-commands: export SCST_LINT_KDIR := $(KDIR)
+compile-commands:
+	+@$(PYTHON) -B scripts/compile_commands.py --output "$(COMPILE_COMMANDS)"
+
+compile-commands-cli:
+	+$(MAKE) -C scst/src ../include/scst_itf_ver.h
+	+$(MAKE) -C iscsi-scst/usr compile-commands
+	+$(MAKE) -C usr/fileio compile-commands
+	+$(MAKE) -C usr/stpgd compile-commands
+	+$(MAKE) -C usr/events compile-commands
+
 cppcheck: export SCST_LINT_KDIR := $(KDIR)
 cppcheck: export SCST_LINT_CC := $(CC)
 cppcheck:
-	+@$(PYTHON) -B scripts/cppcheck/cppcheck.py
-
-lint-userspace:
-	+$(MAKE) -C scst/src ../include/scst_itf_ver.h
-	+$(MAKE) -C $(ISCSI_DIR) progs
-	+$(MAKE) -C usr/fileio
-	+$(MAKE) -C usr/stpgd
-	+$(MAKE) -C usr/events
+	+@$(PYTHON) -B scripts/analyzer_run.py $@
 
 # Preserve dependency order. The newer QLogic base is compiled for its target
 # module, but only sources selected by analyzer policy reach the checker.
@@ -320,6 +328,14 @@ lint-kbuild:
 .PHONY: lint-test
 lint-test:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest discover -s scripts/tests -v
+
+.PHONY: analyzer-tests
+analyzer-tests: export SCST_LINT_KDIR := $(KDIR)
+analyzer-tests:
+	+@$(PYTHON) -B scripts/analyzer_tests.py
+
+.PHONY: all-lint
+all-lint: sparse smatch coccicheck cppcheck checkpatch scs_lint
 
 all clean extraclean install uninstall:
 	if [ $@ = extraclean ]; then rm -f TAGS tags cscope.out; fi

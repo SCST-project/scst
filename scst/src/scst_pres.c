@@ -69,6 +69,8 @@
 
 #define FILE_BUFFER_SIZE	512
 
+/* Lockdep configurations pass the device's mutex to the kernel lock checker. */
+/* cppcheck-suppress constParameterPointer symbolName=dev */
 static inline void scst_assert_pr_mutex_held(struct scst_device *dev)
 {
 #if defined(CONFIG_LOCKDEP)
@@ -541,7 +543,7 @@ static void scst_pr_send_ua_all(struct scst_device *dev,
 	scst_assert_pr_mutex_held(dev);
 
 	list_for_each_entry(reg, &dev->dev_registrants_list, dev_registrants_list_entry) {
-		if (reg != exclude_reg)
+		if (!exclude_reg || reg != exclude_reg)
 			scst_pr_send_ua_reg(dev, reg, key, asc, ascq);
 	}
 
@@ -1073,9 +1075,12 @@ void scst_pr_cleanup(struct scst_device *dev)
 }
 
 /* Caller must hold scst_mutex and activity must be suspended. */
+/* DLM configurations update the device's cluster operations and registrations. */
+/* cppcheck-suppress-begin constParameterCallback symbolName=dev */
 int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode,
 			     const char *cl_dev_id)
 {
+	/* cppcheck-suppress-end constParameterCallback symbolName=dev */
 	int res = 0;
 
 #if defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE) && \
@@ -2111,6 +2116,10 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, u8 *buffer, int buffer_size
 				scst_pr_abort_reg(dev, cmd, r);
 			if (r != reg) {
 				scst_pr_send_ua_reg(dev, r,
+						    /*
+						     * checkpatch-suppress LONG_LINE ; Keep the
+						     * complete symbolic sense name.
+						     */
 						    SCST_LOAD_SENSE(scst_sense_registrations_preempted));
 				scst_pr_remove_registrant(dev, r);
 			}
@@ -2127,6 +2136,10 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, u8 *buffer, int buffer_size
 				if (abort)
 					scst_pr_abort_reg(dev, cmd, r);
 				scst_pr_send_ua_reg(dev, r,
+						    /*
+						     * checkpatch-suppress LONG_LINE ; Keep the
+						     * complete symbolic sense name.
+						     */
 						    SCST_LOAD_SENSE(scst_sense_registrations_preempted));
 				scst_pr_remove_registrant(dev, r);
 			}
@@ -2140,6 +2153,10 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, u8 *buffer, int buffer_size
 					scst_pr_abort_reg(dev, cmd, r);
 				if (r != reg) {
 					scst_pr_send_ua_reg(dev, r,
+							    /*
+							     * checkpatch-suppress LONG_LINE ; Keep
+							     * the complete symbolic sense name.
+							     */
 							    SCST_LOAD_SENSE(scst_sense_registrations_preempted));
 					scst_pr_remove_registrant(dev, r);
 				}
@@ -2161,6 +2178,10 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, u8 *buffer, int buffer_size
 					scst_pr_abort_reg(dev, cmd, r);
 				if (r != reg)
 					scst_pr_send_ua_reg(dev, r,
+							    /*
+							     * checkpatch-suppress LONG_LINE ; Keep
+							     * the complete symbolic sense name.
+							     */
 							    SCST_LOAD_SENSE(scst_sense_registrations_preempted));
 				scst_pr_remove_registrant(dev, r);
 			}
@@ -2186,6 +2207,10 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, u8 *buffer, int buffer_size
 		list_for_each_entry(r, &dev->dev_registrants_list, dev_registrants_list_entry) {
 			if (r != reg)
 				scst_pr_send_ua_reg(dev, r,
+						    /*
+						     * checkpatch-suppress LONG_LINE ; Keep the
+						     * complete symbolic sense name.
+						     */
 						    SCST_LOAD_SENSE(scst_sense_reservation_released));
 		}
 	}

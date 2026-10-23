@@ -66,6 +66,11 @@ void conn_pass_to_kern(struct connection *conn, int fd)
 {
 	int err;
 
+	/*
+	 * This is the standard inttypes.h integer-format macro, whose portable
+	 * spelling is defined by the C library.
+	 */
+	/* checkpatch-suppress-symbol CAMELCASE symbolName=PRIx64 ; See the contract above. */
 	log_debug(1, "fd %d, cid %u, stat_sn %u, exp_stat_sn %u sid %" PRIx64,
 		  fd, conn->cid, conn->stat_sn, conn->exp_stat_sn, conn->sid.id64);
 

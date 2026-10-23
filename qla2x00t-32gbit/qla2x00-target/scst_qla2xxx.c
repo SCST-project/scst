@@ -75,6 +75,10 @@
 #endif
 #endif
 
+/*
+ * A sense tuple supplies separate key, ASC and ASCQ arguments.
+ */
+/* checkpatch-suppress-macro COMPLEX_MACRO ; See the contract above. */
 #define sense_initiator_detected_error HARDWARE_ERROR, 0x48, 0x00
 
 static LIST_HEAD(sqa_tgt_glist);
@@ -216,7 +220,7 @@ void *sqa_alloc_cmd_map(unsigned int tag_num, size_t tag_size)
 }
 
 SCST_KUNIT_VISIBLE
-void sqa_free_cmd_map(void *map)
+void sqa_free_cmd_map(const void *map)
 {
 	SCST_KUNIT_REDIRECT(sqa_free_cmd_map, map);
 	kvfree(map);
@@ -640,11 +644,19 @@ static void sqa_qla2xxx_handle_data(struct qla_tgt_cmd *cmd)
 		case DIF_ERR_REF:
 			scst_dif_acc_ref_check_failed_tgt(scst_cmd);
 			scst_set_cmd_error(scst_cmd,
+					   /*
+					    * checkpatch-suppress LONG_LINE ; Keep the complete
+					    * symbolic sense name.
+					    */
 					   SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
 			break;
 		case DIF_ERR_APP:
 			scst_dif_acc_app_check_failed_tgt(scst_cmd);
 			scst_set_cmd_error(scst_cmd,
+					   /*
+					    * checkpatch-suppress LONG_LINE ; Keep the complete
+					    * symbolic sense name.
+					    */
 					   SCST_LOAD_SENSE(scst_logical_block_app_tag_check_failed));
 			break;
 		case DIF_ERR_NONE:
@@ -825,6 +837,11 @@ static void sqa_qla2xxx_free_mcmd(struct qla_tgt_mgmt_cmd *mcmd)
 	TRACE_EXIT();
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_sess */
 static void sqa_free_session_done(struct scst_session *scst_sess)
 {
 	struct fc_port *fcport = scst_sess_get_tgt_priv(scst_sess);
@@ -873,6 +890,8 @@ static void sqa_qla2xxx_free_session(struct fc_port *fcport)
 	TRACE_EXIT();
 }
 
+/* Retain the mutable session signature required by the QLogic target interface. */
+/* cppcheck-suppress constParameterCallback symbolName=sess */
 static void sqa_qla2xxx_update_sess(struct fc_port *sess, port_id_t s_id,
 				    u16 loop_id, bool conf_compl_supported)
 {
@@ -940,6 +959,7 @@ static struct fc_port *sqa_qla2xxx_find_sess_by_s_id(scsi_qla_host_t *vha,
 	struct fc_port *sess;
 
 	TRACE_ENTRY();
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	TRACE_DBG("sqatgt(%ld/%d): Looking up session for fcid: 0x%02x%02x%02x\n",
 		  vha->host_no, vha->vp_idx, s_id[0], s_id[1], s_id[2]);
@@ -974,6 +994,8 @@ static struct fc_port *sqa_qla2xxx_find_sess_by_loop_id(scsi_qla_host_t *vha,
 	return NULL;
 }
 
+/* Retain the mutable session signature required by the QLogic target interface. */
+/* cppcheck-suppress constParameterCallback symbolName=sess */
 static void sqa_qla2xxx_clear_nacl_from_fcport_map(struct fc_port *sess)
 {
 	TRACE_ENTRY();
@@ -997,6 +1019,11 @@ static void sqa_qla2xxx_put_sess(struct fc_port *sess)
 	TRACE_EXIT();
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_sess */
 static int sqa_close_session(struct scst_session *scst_sess)
 {
 	struct fc_port *fcport = scst_sess_get_tgt_priv(scst_sess);
@@ -1011,6 +1038,8 @@ static int sqa_close_session(struct scst_session *scst_sess)
 	return 0;
 }
 
+/* Retain the mutable session signature required by the QLogic target interface. */
+/* cppcheck-suppress constParameterCallback symbolName=sess */
 static void sqa_qla2xxx_shutdown_sess(struct fc_port *sess)
 {
 	TRACE_ENTRY();
@@ -1291,6 +1320,11 @@ static ssize_t sqa_abort_isp_store(struct kobject *kobj,
 		   tgt->vha->host_no, tgt->vha->vp_idx);
 
 	TRACE_EXIT();
+	/*
+	 * Preserve the existing sysfs errno for an unimplemented ISP abort; changing this
+	 * interface needs a separate change.
+	 */
+	/* checkpatch-suppress ENOSYS ; See the contract above. */
 	return -ENOSYS;
 
 #if EXCLUDED
@@ -1585,6 +1619,12 @@ static int sqa_target_release(struct scst_tgt *scst_tgt)
 		 * lport callbacks alive until SCST has drained every session.
 		 * No new sessions can register after target stop.
 		 */
+		/*
+		 * This member belongs to the installed scst.h interface. Keep
+		 * its source-compatible spelling; only private wait queue fields
+		 * were renamed.
+		 */
+		/* checkpatch-suppress-symbol CAMELCASE symbolName=unreg_waitQ ; Public ABI. */
 		wait_event(scst_tgt->unreg_waitQ,
 			   list_empty(&scst_tgt->sysfs_sess_list));
 
@@ -1880,10 +1920,16 @@ out:
 	TRACE_EXIT();
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by
+ * its interface.
+ */
+/* cppcheck-suppress-begin constParameterCallback symbolName=scst_sess */
 static int sqa_get_initiator_port_transport_id(struct scst_tgt *tgt,
 					       struct scst_session *scst_sess,
 					       u8 **transport_id)
 {
+	/* cppcheck-suppress-end constParameterCallback symbolName=scst_sess */
 	struct fc_port *sess;
 	int res = 0;
 	int tr_id_size;
@@ -1929,12 +1975,22 @@ out:
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_tgt */
 static u16 sqa_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
 	/* FCP-2 */
 	return 0x0900;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_tgt */
 static u16 sqa_get_phys_transport_version(struct scst_tgt *scst_tgt)
 {
 	/* FC-FS */
@@ -1946,6 +2002,11 @@ static int sqa_qla2xxx_chk_dif_tags(u32 tag)
 	return tag & SCST_DIF_CHECK_REF_TAG;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static int sqa_qla2xxx_dif_tags(struct qla_tgt_cmd *cmd,
 				u16 *pfw_prot_opts)
 {
@@ -2195,6 +2256,11 @@ static int sqa_lport_callback(struct scsi_qla_host *vha,
 	return 0;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_tgt */
 static int sqa_enable_tgt(struct scst_tgt *scst_tgt, bool enable)
 {
 	struct sqa_scst_tgt *sqa_tgt;
@@ -2241,6 +2307,11 @@ static int sqa_enable_tgt(struct scst_tgt *scst_tgt, bool enable)
 	return 0;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_tgt */
 static bool sqa_is_tgt_enabled(struct scst_tgt *scst_tgt)
 {
 	int res;

@@ -1,4 +1,11 @@
 /*
+ * The existing GPL notice does not name a version; do not invent an only/or-
+ * later version grant. Defer SPDX conversion pending provenance/maintainer
+ * resolution; this exception covers only the missing tag in this exact existing
+ * source.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
  *  iSCSI digest handling.
  *
  *  Copyright (C) 2004 - 2006 Xiranet Communications GmbH
@@ -24,6 +31,11 @@
 #include "digest.h"
 #include <linux/crc32c.h>
 
+/*
+ * The no-CRC kernel configuration clears unsupported algorithms through this
+ * parameter.
+ */
+/* cppcheck-suppress constParameterPointer */
 void digest_alg_available(int *val)
 {
 #if !defined(CONFIG_LIBCRC32C_MODULE) && !defined(CONFIG_LIBCRC32C) && \

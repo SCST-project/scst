@@ -309,6 +309,11 @@ static void isert_delete_conn_dev(struct isert_conn_dev *conn_dev)
 	}
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=filp */
 static int isert_listen_release(struct inode *inode, struct file *filp)
 {
 	struct isert_listener_dev *dev = filp->private_data;
@@ -326,6 +331,11 @@ static int isert_listen_release(struct inode *inode, struct file *filp)
 	return 0;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=filp */
 static ssize_t isert_listen_read(struct file *filp, char __user *buf,
 				 size_t count, loff_t *f_pos)
 {
@@ -370,6 +380,11 @@ out:
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=filp */
 static long isert_listen_ioctl(struct file *filp, unsigned int cmd,
 			       unsigned long arg)
 {
@@ -542,6 +557,11 @@ out:
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=filp */
 static int isert_release(struct inode *inode, struct file *filp)
 {
 	struct isert_conn_dev *dev = filp->private_data;
@@ -575,6 +595,11 @@ static char *isert_vmap_sg(struct page **pages, struct scatterlist *sgl,
 	return vaddr;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=filp */
 static ssize_t isert_read(struct file *filp, char __user *buf, size_t count,
 			  loff_t *f_pos)
 {
@@ -649,6 +674,11 @@ static ssize_t isert_read(struct file *filp, char __user *buf, size_t count,
 	return to_read;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=filp */
 static ssize_t isert_write(struct file *filp, const char __user *buf,
 			   size_t count, loff_t *f_pos)
 {
@@ -708,6 +738,11 @@ static bool is_last_login_rsp(const struct iscsi_login_rsp_hdr *rsp)
 	       (rsp->flags & ISCSI_FLG_NSG_MASK) == ISCSI_FLG_NSG_FULL_FEATURE;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=filp */
 static long isert_ioctl(struct file *filp, unsigned int cmd, unsigned long arg)
 {
 	struct isert_conn_dev *dev = filp->private_data;

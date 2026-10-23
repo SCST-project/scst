@@ -15,7 +15,7 @@ struct qla_pool_fixture {
 	bool fail_registration;
 };
 
-static void qla_pool_free_map(void *map)
+static void qla_pool_free_map(const void *map)
 {
 	struct kunit *test = kunit_get_current_test();
 	struct qla_pool_fixture *f = test->priv;
@@ -53,6 +53,11 @@ static void *qla_pool_no_map(unsigned int tag_num, size_t tag_size)
 	return NULL;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=sqa_tgt */
 static int qla_pool_no_tags(struct sqa_scst_tgt *sqa_tgt, unsigned int tag_num)
 {
 	return -ENOMEM;
@@ -72,6 +77,11 @@ static int qla_pool_init(struct kunit *test)
 	return 0;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=test */
 static void qla_pool_exit(struct kunit *test)
 {
 	struct qla_pool_fixture *f = test->priv;

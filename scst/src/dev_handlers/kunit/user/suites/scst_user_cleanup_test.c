@@ -21,6 +21,11 @@ struct user_cleanup_fixture {
 	bool guard_fired;
 };
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=pool */
 static void user_cleanup_flush(struct sgv_pool *pool)
 {
 	struct kunit *test = kunit_get_current_test();
@@ -61,6 +66,12 @@ static int user_cleanup_init(struct kunit *test)
 		struct scst_user_cmd *u = &f->pending[i];
 
 		spin_lock_init(&dev->udev_cmd_threads.cmd_list_lock);
+		/*
+		 * This member belongs to the installed scst.h interface. Keep
+		 * its source-compatible spelling; only private wait queue fields
+		 * were renamed.
+		 */
+		/* checkpatch-suppress-symbol CAMELCASE symbolName=cmd_list_waitQ ; Public ABI. */
 		init_waitqueue_head(&dev->udev_cmd_threads.cmd_list_waitQ);
 		INIT_LIST_HEAD(&dev->udev_cmd_threads.active_cmd_list);
 		INIT_LIST_HEAD(&dev->ready_cmd_list);
@@ -211,6 +222,11 @@ static void user_reply_test(struct kunit *test)
 	KUNIT_EXPECT_FALSE(test, !!u->sent_to_user);
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=ref */
 static void user_defer_release(struct kref *ref)
 {
 	/* Model the destructor waiting for cmd_list_lock before hash removal. */

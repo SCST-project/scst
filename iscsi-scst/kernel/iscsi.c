@@ -1055,8 +1055,8 @@ struct iscsi_cmnd *create_status_rsp(struct iscsi_cmnd *req, int status, const u
 }
 EXPORT_SYMBOL(create_status_rsp);
 
-static void iscsi_tcp_send_data_rsp(struct iscsi_cmnd *req, u8 *sense, int sense_len, u8 status,
-				    int is_send_status)
+static void iscsi_tcp_send_data_rsp(struct iscsi_cmnd *req, const u8 *sense, int sense_len,
+				    u8 status, int is_send_status)
 {
 	if (status != SAM_STAT_CHECK_CONDITION &&
 	    (cmnd_hdr(req)->flags & (ISCSI_CMD_WRITE | ISCSI_CMD_READ)) !=
@@ -1218,6 +1218,10 @@ static int create_reject_rsp(struct iscsi_cmnd *req, int reason, bool get_data)
 			 * RFC 3720.
 			 */
 			set_scst_preliminary_status_rsp(req, get_data,
+							/*
+							 * checkpatch-suppress LONG_LINE ; Keep the
+							 * complete symbolic sense name.
+							 */
 							SCST_LOAD_SENSE(scst_sense_invalid_message));
 		}
 	}
@@ -1779,7 +1783,8 @@ static int nop_out_start(struct iscsi_cmnd *cmnd)
 
 			sg = scst_alloc_sg(size, GFP_KERNEL, &cmnd->sg_cnt);
 			if (!sg) {
-				TRACE(TRACE_OUT_OF_MEM, "Allocation of buffer for %d Nop-Out payload failed",
+				TRACE(TRACE_OUT_OF_MEM,
+				      "Allocation of buffer for %d Nop-Out payload failed",
 				      size);
 				err = -ISCSI_REASON_OUT_OF_RESOURCES;
 				goto out;
@@ -1955,6 +1960,10 @@ int cmnd_rx_continue(struct iscsi_cmnd *req)
 			PRINT_ERROR("Unexpected unsolicited data (ITT %x CDB %x)",
 				    req->pdu.bhs.itt, req_hdr->scb[0]);
 			set_scst_preliminary_status_rsp(req, true,
+							/*
+							 * checkpatch-suppress LONG_LINE ; Keep the
+							 * complete symbolic sense name.
+							 */
 							SCST_LOAD_SENSE(iscsi_sense_unexpected_unsolicited_data));
 		}
 	}
@@ -2013,6 +2022,10 @@ static int scsi_cmnd_start(struct iscsi_cmnd *req)
 		if (unlikely(sz < 0)) {
 			PRINT_ERROR("BIDI data transfer, but initiator not supplied Bidirectional Read Expected Data Transfer Length AHS");
 			set_scst_preliminary_status_rsp(req, true,
+							/*
+							 * checkpatch-suppress LONG_LINE ; Keep the
+							 * complete symbolic sense name.
+							 */
 							SCST_LOAD_SENSE(scst_sense_parameter_value_invalid));
 		} else {
 			dir = SCST_DATA_BIDI;
@@ -2112,6 +2125,7 @@ static int data_out_start(struct iscsi_cmnd *cmnd)
 	struct iscsi_data_out_hdr *req_hdr =
 		(struct iscsi_data_out_hdr *)&cmnd->pdu.bhs;
 	struct iscsi_cmnd *orig_req;
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	struct iscsi_hdr *orig_req_hdr;
 #endif
@@ -2153,11 +2167,16 @@ static int data_out_start(struct iscsi_cmnd *cmnd)
 		PRINT_ERROR("Data size (%d) > R2T length to receive (%d)",
 			    cmnd->pdu.datasize, orig_req->r2t_len_to_receive);
 		set_scst_preliminary_status_rsp(orig_req, false,
+						/*
+						 * checkpatch-suppress LONG_LINE ; Keep the complete
+						 * sense or DIF action name.
+						 */
 						SCST_LOAD_SENSE(iscsi_sense_incorrect_amount_of_data));
 		goto go;
 	}
 
 	/* Crazy iSCSI spec requires us to make this unneeded check */
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* ...but some initiators (Windows) don't care to correctly set it */
 	orig_req_hdr = &orig_req->pdu.bhs;
 	if (unlikely(orig_req_hdr->lun != req_hdr->lun)) {
@@ -2733,6 +2752,11 @@ static void nop_out_exec(struct iscsi_cmnd *req)
 		spin_unlock_bh(&conn->nop_req_list_lock);
 
 		if (found)
+			/*
+			 * found selects the removed matching request; cmnd_put drops its list-
+			 * owned reference.
+			 */
+			/* coccinelle-suppress use_after_iter ; See the contract above. */
 			cmnd_put(r);
 		else
 			TRACE_MGMT_DBG("Got Nop-out response without corresponding Nop-In request");
@@ -3034,6 +3058,7 @@ static void iscsi_push_cmnd(struct iscsi_cmnd *cmnd)
 			drop = 1;
 		}
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 		if (unlikely(after(cmd_sn, session->exp_cmd_sn +
 					iscsi_get_allowed_cmds(session)))) {
@@ -3251,6 +3276,11 @@ static void iscsi_tcp_preprocessing_done(struct iscsi_cmnd *req)
 	}
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_cmd */
 static void iscsi_preprocessing_done(struct scst_cmd *scst_cmd)
 {
 	struct iscsi_cmnd *req = scst_cmd_get_tgt_priv(scst_cmd);
@@ -3485,6 +3515,7 @@ static bool iscsi_is_delay_tm_resp(struct iscsi_cmnd *rsp)
 
 	/* This should be checked for immediate TM commands as well */
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	if (((scst_random() % 10) == 2))
 		res = 1;
@@ -3702,6 +3733,10 @@ static int iscsi_scsi_aen(struct scst_aen *aen)
 	}
 
 	/* Create a fake request */
+	/*
+	 * !found exits before use; found is set only before break, with target_mutex held.
+	 */
+	/* coccinelle-suppress use_after_iter ; See the contract above. */
 	fake_req = conn->transport->iscsit_alloc_cmd(conn, NULL);
 	if (!fake_req) {
 		PRINT_ERROR("Unable to alloc fake AEN request");
@@ -3797,10 +3832,16 @@ static int iscsi_report_aen(struct scst_aen *aen)
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by
+ * its interface.
+ */
+/* cppcheck-suppress-begin constParameterCallback symbolName=scst_sess */
 static int iscsi_get_initiator_port_transport_id(struct scst_tgt *tgt,
 						 struct scst_session *scst_sess,
 						 u8 **transport_id)
 {
+	/* cppcheck-suppress-end constParameterCallback symbolName=scst_sess */
 	struct iscsi_session *sess;
 	int res = 0;
 	union iscsi_sid sid;
@@ -3897,6 +3938,11 @@ out_err:
 	TRACE_EXIT();
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_sess */
 static int iscsi_close_sess(struct scst_session *scst_sess)
 {
 	struct iscsi_session *sess = scst_sess_get_tgt_priv(scst_sess);
@@ -3915,6 +3961,11 @@ out:
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_tgt */
 static int iscsi_target_release(struct scst_tgt *scst_tgt)
 {
 	/* Nothing to do */
@@ -3935,6 +3986,11 @@ static struct scst_trace_log iscsi_local_trace_tbl[] = {
 #define ISCSI_TRACE_TBL_HELP	", d_write, conn, conn_dbg, iov, pdu, net_page"
 #endif
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_tgt */
 static u16 iscsi_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
 	return 0x0960; /* iSCSI */

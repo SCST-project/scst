@@ -1,4 +1,11 @@
 /*
+ * The file has no complete file-specific license grant; do not infer one solely
+ * from adjacent sources. Defer SPDX conversion pending provenance/maintainer
+ * resolution; this exception covers only the missing tag in this exact existing
+ * source.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
  * Copyright (C) 2008 - 2010 Richard Sharpe
  * Copyright (C) 1992 Eric Youngdale
  * Copyright (C) 2008 - 2018 Vladislav Bolkhovitin <vst@vlnb.net>
@@ -48,10 +55,7 @@ static inline u32 blk_mq_unique_tag(struct request *rq)
 
 #ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
-#warning HIGHMEM kernel configurations are not supported by this module, \
-because nowadays it is not worth the effort. Consider changing \
-VMSPLIT option or use a 64 - bit configuration instead. See SCST core \
-README file for details.
+#warning "HIGHMEM is unsupported; change VMSPLIT or use a 64-bit kernel. See SCST core README."
 #endif
 #endif
 
@@ -201,10 +205,16 @@ out:
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by
+ * its interface.
+ */
+/* cppcheck-suppress-begin constParameterCallback symbolName=scst_sess */
 static int scst_local_get_initiator_port_transport_id(struct scst_tgt *tgt,
 						      struct scst_session *scst_sess,
 						      u8 **transport_id)
 {
+	/* cppcheck-suppress-end constParameterCallback symbolName=scst_sess */
 	int res = 0;
 	struct scst_local_sess *sess;
 
@@ -1204,6 +1214,8 @@ out:
 	return res;
 }
 
+/* scst_tgt_template.release requires a mutable target callback. */
+/* cppcheck-suppress constParameterCallback symbolName=tgt */
 static int scst_local_targ_release(struct scst_tgt *tgt)
 {
 	TRACE_ENTRY();
@@ -1246,6 +1258,11 @@ static void scst_local_close_session_impl(struct scst_local_sess *sess,
  * invoking scst_add() from class_interface_register() and since scst_add()
  * also may lock an SCST mutex.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_sess */
 static int scst_local_close_session(struct scst_session *scst_sess)
 {
 	struct scst_local_sess *sess = scst_sess_get_tgt_priv(scst_sess);
@@ -1310,6 +1327,11 @@ static int scst_local_targ_xmit_response(struct scst_cmd *scst_cmd)
 	return SCST_TGT_RES_SUCCESS;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=mgmt_cmd */
 static void scst_local_targ_task_mgmt_done(struct scst_mgmt_cmd *mgmt_cmd)
 {
 	struct completion *completion;
@@ -1323,6 +1345,11 @@ static void scst_local_targ_task_mgmt_done(struct scst_mgmt_cmd *mgmt_cmd)
 	TRACE_EXIT();
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_tgt */
 static u16 scst_local_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
 	const struct scst_local_tgt *tgt = scst_tgt_get_tgt_priv(scst_tgt);
@@ -1338,6 +1365,11 @@ static u16 scst_local_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 		return tgt->scsi_transport_version;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_tgt */
 static u16 scst_local_get_phys_transport_version(struct scst_tgt *scst_tgt)
 {
 	const struct scst_local_tgt *tgt = scst_tgt_get_tgt_priv(scst_tgt);
@@ -1509,6 +1541,8 @@ static DRIVER_REMOVE_RET scst_local_driver_remove(struct device *dev)
 	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(9, 8))
 static int scst_local_bus_match(struct device *dev, struct device_driver *drv)
 #else
+/* bus_type.match requires a mutable device argument. */
+/* cppcheck-suppress constParameterCallback symbolName=dev */
 static int scst_local_bus_match(struct device *dev, const struct device_driver *drv)
 #endif
 {
@@ -1518,6 +1552,7 @@ static int scst_local_bus_match(struct device *dev, const struct device_driver *
 	return 1;
 }
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 static struct bus_type scst_local_lld_bus = {
 	.name   = "scst_local_bus",
 	.match  = scst_local_bus_match,
@@ -1532,6 +1567,11 @@ static struct device_driver scst_local_driver = {
 
 static struct device *scst_local_root;
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_sess */
 static void scst_local_free_sess(struct scst_session *scst_sess)
 {
 	const struct scst_local_sess *sess = scst_sess_get_tgt_priv(scst_sess);
@@ -1754,6 +1794,8 @@ static int __init scst_local_init(void)
 #endif
 #endif
 
+	/* HIGHMEM configurations deliberately exit above; other configurations continue here. */
+	/* cppcheck-suppress unreachableCode */
 	scst_local_root = root_device_register(SCST_LOCAL_NAME);
 	if (IS_ERR(scst_local_root)) {
 		ret = PTR_ERR(scst_local_root);

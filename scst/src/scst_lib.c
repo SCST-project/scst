@@ -1662,10 +1662,15 @@ static void scst_tgt_retry_timer_fn(struct timer_list *timer);
 
 #ifdef CONFIG_SCST_DEBUG_TM
 static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev);
-static void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev);
+static void tm_dbg_deinit_tgt_dev(const struct scst_tgt_dev *tgt_dev);
 #else
+/*
+ * The disabled debug stub retains the signature of the configuration that
+ * mutates this object.
+ */
+/* cppcheck-suppress constParameterPointer */
 static inline void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev) {}
-static inline void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev) {}
+static inline void tm_dbg_deinit_tgt_dev(const struct scst_tgt_dev *tgt_dev) {}
 #endif /* CONFIG_SCST_DEBUG_TM */
 
 /*
@@ -1763,7 +1768,8 @@ int scst_set_cmd_error_status(struct scst_cmd *cmd, int status)
 	TRACE_ENTRY();
 
 	if (status == SAM_STAT_RESERVATION_CONFLICT) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "Reservation conflict (dev %s, initiator %s, tgt_id %d)",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "Reservation conflict (dev %s, initiator %s, tgt_id %d)",
 		      cmd->dev ? cmd->dev->virt_name : NULL,
 			cmd->sess->initiator_name, cmd->tgt->rel_tgt_id);
 	}
@@ -2520,12 +2526,14 @@ void scst_set_busy(struct scst_cmd *cmd)
 
 	if (c <= 1 || cmd->sess->init_phase != SCST_SESS_IPH_READY)	{
 		scst_set_cmd_error_status(cmd, SAM_STAT_BUSY);
-		TRACE(TRACE_FLOW_CONTROL, "Sending BUSY status to initiator %s (cmds count %d, queue_type %x, sess->init_phase %d)",
+		TRACE(TRACE_FLOW_CONTROL,
+		      "Sending BUSY status to initiator %s (cmds count %d, queue_type %x, sess->init_phase %d)",
 		      cmd->sess->initiator_name, c,
 			cmd->queue_type, cmd->sess->init_phase);
 	} else {
 		scst_set_cmd_error_status(cmd, SAM_STAT_TASK_SET_FULL);
-		TRACE(TRACE_FLOW_CONTROL, "Sending QUEUE_FULL status to initiator %s (cmds count %d, queue_type %x, sess->init_phase %d)",
+		TRACE(TRACE_FLOW_CONTROL,
+		      "Sending QUEUE_FULL status to initiator %s (cmds count %d, queue_type %x, sess->init_phase %d)",
 		      cmd->sess->initiator_name, c,
 			cmd->queue_type, cmd->sess->init_phase);
 	}
@@ -2775,6 +2783,11 @@ static void scst_queue_report_luns_changed_UA(struct scst_session *sess,
 		list_for_each_entry_rcu(tgt_dev, head,
 					sess_tgt_dev_list_entry) {
 			/* Lockdep reports a false positive here before v5.1. */
+			/*
+			 * The RCU hash traversal locks each target device once and unlocks the
+			 * same set.
+			 */
+			/* coccinelle-suppress double_lock ; See the contract above. */
 			spin_lock(&tgt_dev->tgt_dev_lock);
 		}
 	}
@@ -3045,6 +3058,11 @@ retry_add:
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			head = &sess->sess_tgt_dev_list[i];
 
+			/*
+			 * The RCU loop reinitializes tgt_dev; the native rule omits this reset
+			 * alternative.
+			 */
+			/* coccinelle-suppress use_after_iter ; See the contract above. */
 			list_for_each_entry_rcu(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 				if (tgt_dev->dev == acg_dev->dev &&
@@ -3075,6 +3093,11 @@ retry_add:
 		TRACE_MGMT_DBG("sess %p: Allocing new tgt_dev for LUN %lld",
 			       sess, (unsigned long long)acg_dev->lun);
 
+		/*
+		 * tgt_dev is an output argument; only success reaches use of the newly stored
+		 * object.
+		 */
+		/* coccinelle-suppress use_after_iter ; See the contract above. */
 		rc = scst_alloc_add_tgt_dev(sess, acg_dev, &tgt_dev);
 		if (rc == -EPERM) {
 			continue;
@@ -3085,6 +3108,11 @@ retry_add:
 
 		tgt_dev->inq_changed_ua_needed = inq_changed_ua_needed;
 next:
+		/*
+		 * Keep the explicit continuation at the next label used by
+		 * several LUN reassignment paths.
+		 */
+		/* cppcheck-suppress redundantContinue */
 		continue;
 	}
 
@@ -3136,6 +3164,11 @@ next:
 		for (i = 0; i < SESS_TGT_DEV_LIST_HASH_SIZE; i++) {
 			head = &sess->sess_tgt_dev_list[i];
 
+			/*
+			 * The RCU loop reinitializes tgt_dev; the native rule omits this reset
+			 * alternative.
+			 */
+			/* coccinelle-suppress use_after_iter ; See the contract above. */
 			list_for_each_entry_rcu(tgt_dev, head,
 						sess_tgt_dev_list_entry) {
 				if (tgt_dev->inq_changed_ua_needed) {
@@ -3145,6 +3178,10 @@ next:
 					tgt_dev->inq_changed_ua_needed = 0;
 
 					scst_gen_aen_or_ua(tgt_dev,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_sense_inquiry_data_changed));
 				}
 			}
@@ -3255,7 +3292,8 @@ int scst_get_cmd_abnormal_done_state(struct scst_cmd *cmd)
 		 * Little hack to trace completion of commands, which are
 		 * going to bypass normal tracing on SCST_CMD_STATE_PRE_DEV_DONE
 		 */
-		TRACE(TRACE_SCSI, "cmd %p, status %x, msg_status %x, host_status %x, driver_status %x, resp_data_len %d",
+		TRACE(TRACE_SCSI,
+		      "cmd %p, status %x, msg_status %x, host_status %x, driver_status %x, resp_data_len %d",
 		      cmd, cmd->status,
 			cmd->msg_status, cmd->host_status, cmd->driver_status,
 			cmd->resp_data_len);
@@ -3358,6 +3396,8 @@ const char *scst_get_opcode_name(struct scst_cmd *cmd)
 EXPORT_SYMBOL(scst_get_opcode_name);
 #endif
 
+/* The caller in scst_targ.c is in a deliberately retained #if 0 debug path. */
+/* cppcheck-suppress unusedFunction */
 void scst_zero_write_rest(struct scst_cmd *cmd)
 {
 	int len, offs = 0;
@@ -3643,7 +3683,8 @@ out:
  */
 void scst_restore_sg_buff(struct scst_cmd *cmd)
 {
-	TRACE_DBG_FLAG(TRACE_DEBUG | TRACE_MEMORY, "cmd %p, sg %p, DATA: orig_sg_entry %p, orig_entry_offs %d, orig_entry_len %d, orig_sg_cnt %d, DIF: orig_sg_entry %p, orig_entry_offs %d, orig_entry_len %d, orig_sg_cnt %d",
+	TRACE_DBG_FLAG(TRACE_DEBUG | TRACE_MEMORY,
+		       "cmd %p, sg %p, DATA: orig_sg_entry %p, orig_entry_offs %d, orig_entry_len %d, orig_sg_cnt %d, DIF: orig_sg_entry %p, orig_entry_offs %d, orig_entry_len %d, orig_sg_cnt %d",
 		       cmd,
 		cmd->sg, cmd->orig_sg.orig_sg_entry, cmd->orig_sg.orig_entry_offs,
 		cmd->orig_sg.orig_entry_len, cmd->orig_sg.orig_sg_cnt,
@@ -3757,7 +3798,8 @@ int scst_cmd_get_expected_transfer_len_data(struct scst_cmd *cmd)
 	res = (u64)cmd->expected_transfer_len_full << cmd->dev->block_shift;
 	rem = do_div(res, cmd->dev->block_size + (1 << SCST_DIF_TAG_SHIFT));
 	if (unlikely(rem != 0))
-		TRACE(TRACE_MINOR, "Reminder %d for expected transfer len data! (cmd %p, op %s, expected len full %d)",
+		TRACE(TRACE_MINOR,
+		      "Reminder %d for expected transfer len data! (cmd %p, op %s, expected len full %d)",
 		      rem,
 			cmd, scst_get_opcode_name(cmd),
 			cmd->expected_transfer_len_full);
@@ -3783,7 +3825,8 @@ int scst_cmd_get_expected_transfer_len_dif(struct scst_cmd *cmd)
 	res = (u64)cmd->expected_transfer_len_full << SCST_DIF_TAG_SHIFT;
 	rem = do_div(res, cmd->dev->block_size + (1 << SCST_DIF_TAG_SHIFT));
 	if (unlikely(rem != 0))
-		TRACE(TRACE_MINOR, "Reminder %d for expected transfer len dif! (cmd %p, op %s, expected len full %d)",
+		TRACE(TRACE_MINOR,
+		      "Reminder %d for expected transfer len dif! (cmd %p, op %s, expected len full %d)",
 		      rem, cmd,
 			scst_get_opcode_name(cmd), cmd->expected_transfer_len_full);
 
@@ -4567,7 +4610,7 @@ int scst_lun_cm_add(struct scst_acg_dev *acg_dev, u64 lun, unsigned int *flags)
 }
 
 SCST_KUNIT_VISIBLE
-void scst_lun_cm_del(struct scst_acg_dev *acg_dev)
+void scst_lun_cm_del(const struct scst_acg_dev *acg_dev)
 {
 	SCST_KUNIT_REDIRECT(scst_lun_cm_del, acg_dev);
 	scst_cm_on_del_lun(acg_dev, false);
@@ -4902,6 +4945,10 @@ int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 				TRACE_MGMT_DBG("INQUIRY DATA HAS CHANGED on tgt_dev %p",
 					       tgt_dev);
 				scst_gen_aen_or_ua(tgt_dev,
+						   /*
+						    * checkpatch-suppress LONG_LINE ; Keep the
+						    * complete symbolic sense name.
+						    */
 						   SCST_LOAD_SENSE(scst_sense_inquiry_data_changed));
 			}
 		}
@@ -5123,6 +5170,10 @@ static void scst_release_acg(struct kref *kref)
 	 */
 	rc = queue_work(scst_release_acg_wq, &release_work->work);
 	WARN_ON_ONCE(!rc);
+/*
+ * release_work is transferred to scst_release_acg_work, which frees it.
+ */
+/* cppcheck-suppress memleak symbolName=release_work */
 }
 
 void scst_put_acg(struct scst_acg *acg)
@@ -5330,6 +5381,12 @@ static int scst_ioc_keeper_thread(void *arg)
 
 	/* We are ready */
 	aic_keeper->aic_ready = true;
+	/*
+	 * This member belongs to the installed scst.h interface. Keep its
+	 * source-compatible spelling; only private wait queue fields were
+	 * renamed.
+	 */
+	/* checkpatch-suppress-symbol CAMELCASE symbolName=aic_keeper_waitQ ; Public ABI. */
 	wake_up_all(&aic_keeper->aic_keeper_waitQ);
 
 	wait_event_interruptible(aic_keeper->aic_keeper_waitQ,
@@ -6162,7 +6219,8 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 
 	if (scsi_status_is_good(req_cmd->status) && len > 0 &&
 	    scst_sense_valid(buf)) {
-		TRACE(TRACE_SCSI | TRACE_MGMT_DEBUG, "REQUEST SENSE %p returned valid sense (orig cmd %s)",
+		TRACE(TRACE_SCSI | TRACE_MGMT_DEBUG,
+		      "REQUEST SENSE %p returned valid sense (orig cmd %s)",
 		      req_cmd, orig_cmd->op_name);
 		PRINT_BUFF_FLAG(TRACE_SCSI | TRACE_MGMT_DEBUG, "Sense", buf, len);
 		if (scst_no_sense(buf))
@@ -8242,6 +8300,11 @@ static void blk_bio_map_kern_endio(struct bio *bio)
 	if (bw) {
 		/* Decrement the bios in processing and, if zero, free */
 		BUG_ON(atomic_read(&bw->bios_inflight) <= 0);
+		/*
+		 * The prepared BIO count is set before submission and each completion decrements
+		 * once.
+		 */
+		/* coccinelle-suppress atomic_as_refcounter ; See the contract above. */
 		if (atomic_dec_and_test(&bw->bios_inflight)) {
 			if (bio_data_dir(bio) == READ && err == 0) {
 				unsigned long flags;
@@ -8383,6 +8446,11 @@ scst_alloc_passthrough_request(struct request_queue *q, int rw, gfp_t gfp_mask)
  * @rq: Request pointer.
  */
 static void
+/*
+ * The old-kernel branch initializes the request through scsi_req_init; keep its
+ * mutable pointer.
+ */
+/* cppcheck-suppress constParameterPointer */
 scst_init_passthrough_request(struct request *rq)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0) &&		\
@@ -9593,6 +9661,10 @@ static int scst_verify_dif_type1(struct scst_cmd *cmd)
 						(long long)lba, dev->virt_name);
 					scst_dif_acc_app_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_app_tag_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -9607,6 +9679,10 @@ static int scst_verify_dif_type1(struct scst_cmd *cmd)
 						(long long)lba, dev->virt_name);
 					scst_dif_acc_ref_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -9625,6 +9701,10 @@ static int scst_verify_dif_type1(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_guard_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -9666,7 +9746,8 @@ static void scst_check_fail_ref_tag(struct scst_cmd *cmd)
 
 	if (((cmd->dev->dev_dif_mode & SCST_DIF_MODE_TGT) == 0) &&
 	    (checks & SCST_DIF_CHECK_REF_TAG)) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "No tgt dif_mode, failing cmd %p with ref tag check failed",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "No tgt dif_mode, failing cmd %p with ref tag check failed",
 		      cmd);
 		scst_dif_acc_ref_check_failed_scst(cmd);
 		scst_set_cmd_error(cmd,
@@ -9680,7 +9761,8 @@ static void scst_check_fail_guard_tag(struct scst_cmd *cmd)
 
 	if (((cmd->dev->dev_dif_mode & SCST_DIF_MODE_TGT) == 0) &&
 	    (checks & SCST_DIF_CHECK_GUARD_TAG)) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "No tgt dif_mode, failing cmd %p with guard tag check failed",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "No tgt dif_mode, failing cmd %p with guard tag check failed",
 		      cmd);
 		scst_dif_acc_guard_check_failed_scst(cmd);
 		scst_set_cmd_error(cmd,
@@ -10025,6 +10107,10 @@ static int scst_verify_dif_type2(struct scst_cmd *cmd)
 						cmd, scst_get_opcode_name(cmd), dev->virt_name);
 					scst_dif_acc_app_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_app_tag_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -10039,6 +10125,10 @@ static int scst_verify_dif_type2(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_ref_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -10057,6 +10147,10 @@ static int scst_verify_dif_type2(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_guard_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -10237,6 +10331,10 @@ static int scst_verify_dif_type3(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_app_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_app_tag_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -10251,6 +10349,10 @@ static int scst_verify_dif_type3(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_ref_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -10269,6 +10371,10 @@ static int scst_verify_dif_type3(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_guard_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -10442,6 +10548,10 @@ static int scst_init_dif_actions(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
+	/*
+	 * Verify the numeric protocol constant at compile time.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	BUILD_BUG_ON(SCST_DIF_ACTION_NONE != 0);
 
 	if (dev->dev_dif_type == 0 || dev->dev_dif_mode == 0) {
@@ -10502,14 +10612,12 @@ static int scst_init_dif_actions(struct scst_device *dev)
 								SCST_DIF_ACTION_STRIP);
 					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
 								 SCST_DIF_ACTION_PASS_CHECK);
-					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
-						/* STORE might be set as well */
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
-									SCST_DIF_ACTION_PASS_CHECK);
-					} else {
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
-									SCST_DIF_ACTION_PASS);
-					}
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+								(dev->dev_dif_mode &
+								 SCST_DIF_MODE_DEV_CHECK) ?
+								SCST_DIF_ACTION_PASS_CHECK :
+								SCST_DIF_ACTION_PASS);
 				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions,
@@ -10600,14 +10708,12 @@ static int scst_init_dif_actions(struct scst_device *dev)
 								SCST_DIF_ACTION_STRIP);
 					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
 								 SCST_DIF_ACTION_PASS);
-					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
-						/* STORE might be set as well */
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
-									SCST_DIF_ACTION_PASS_CHECK);
-					} else {
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
-									SCST_DIF_ACTION_PASS);
-					}
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+								(dev->dev_dif_mode &
+								 SCST_DIF_MODE_DEV_CHECK) ?
+								SCST_DIF_ACTION_PASS_CHECK :
+								SCST_DIF_ACTION_PASS);
 				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions,
@@ -10650,6 +10756,7 @@ static int scst_init_dif_actions(struct scst_device *dev)
 				scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
 							SCST_DIF_ACTION_NONE);
 
+/* checkpatch-suppress IF_1 ; Retain the existing debug or alternative implementation. */
 #if 1	/*
 	 * Workaround for Emulex ASIC errata to pass Oracle certification.
 	 *
@@ -10706,14 +10813,12 @@ static int scst_init_dif_actions(struct scst_device *dev)
 				} else {
 					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
 								 SCST_DIF_ACTION_STRIP);
-					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
-						/* STORE might be set as well */
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
-									SCST_DIF_ACTION_PASS_CHECK);
-					} else {
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
-									SCST_DIF_ACTION_PASS);
-					}
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+								(dev->dev_dif_mode &
+								 SCST_DIF_MODE_DEV_CHECK) ?
+								SCST_DIF_ACTION_PASS_CHECK :
+								SCST_DIF_ACTION_PASS);
 				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions,
@@ -10795,14 +10900,12 @@ static int scst_init_dif_actions(struct scst_device *dev)
 				} else {
 					scst_set_scst_dif_action(&dev->dev_dif_rd_prot0_actions,
 								 SCST_DIF_ACTION_PASS);
-					if (dev->dev_dif_mode & SCST_DIF_MODE_DEV_CHECK) {
-						/* STORE might be set as well */
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
-									SCST_DIF_ACTION_PASS_CHECK);
-					} else {
-						scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
-									SCST_DIF_ACTION_PASS);
-					}
+					/* STORE might be set as well */
+					scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
+								(dev->dev_dif_mode &
+								 SCST_DIF_MODE_DEV_CHECK) ?
+								SCST_DIF_ACTION_PASS_CHECK :
+								SCST_DIF_ACTION_PASS);
 				}
 
 				scst_set_tgt_dif_action(&dev->dev_dif_wr_actions,
@@ -10861,6 +10964,10 @@ int scst_set_dif_params(struct scst_device *dev, enum scst_dif_mode dif_mode,
 
 	TRACE_ENTRY();
 
+	/*
+	 * Verify the numeric protocol constant at compile time.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	BUILD_BUG_ON(SCST_DIF_ACTION_NONE != 0);
 
 	if (((dif_mode & ~(SCST_DIF_MODE_TGT | SCST_DIF_MODE_SCST | SCST_DIF_MODE_DEV)) != 0)) {
@@ -10946,6 +11053,8 @@ out_none:
 }
 EXPORT_SYMBOL_GPL(scst_set_dif_params);
 
+/* dev_dif_fn shares the mutable command interface of DIF-processing callbacks. */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static int scst_dif_none(struct scst_cmd *cmd)
 {
 	int res = 0;
@@ -11061,7 +11170,8 @@ static int scst_parse_rdprotect(struct scst_cmd *cmd)
 	}
 
 	if (unlikely(dev->dev_dif_type == 2 && rdprotect != 0)) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "Non-32-byte CDBs with non-zero rdprotect (%d) are not allowed in DIF type 2 (dev %s, cmd %p, op %s)",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "Non-32-byte CDBs with non-zero rdprotect (%d) are not allowed in DIF type 2 (dev %s, cmd %p, op %s)",
 		      rdprotect, dev->virt_name,
 			cmd, scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
@@ -11127,7 +11237,8 @@ static int scst_parse_rdprotect32(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (unlikely(dev->dev_dif_type != 2)) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "32-byte CDBs are not allowed in DIF type %d (dev %s, cmd %p, op %s)",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "32-byte CDBs are not allowed in DIF type %d (dev %s, cmd %p, op %s)",
 		      dev->dev_dif_type, dev->virt_name, cmd,
 			scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
@@ -11234,7 +11345,8 @@ static int scst_parse_wrprotect(struct scst_cmd *cmd)
 	}
 
 	if (unlikely(dev->dev_dif_type == 2 && wrprotect != 0)) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "Non-32-byte CDBs with non-zero wrprotect (%d) are not allowed in DIF type 2 (dev %s, cmd %p, op %s)",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "Non-32-byte CDBs with non-zero wrprotect (%d) are not allowed in DIF type 2 (dev %s, cmd %p, op %s)",
 		      wrprotect, dev->virt_name,
 			cmd, scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
@@ -11263,7 +11375,8 @@ static int scst_parse_wrprotect32(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (unlikely(dev->dev_dif_type != 2)) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "32-byte CDBs are not allowed in DIF type %d (dev %s, cmd %p, op %s)",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "32-byte CDBs are not allowed in DIF type %d (dev %s, cmd %p, op %s)",
 		      dev->dev_dif_type, dev->virt_name, cmd,
 			scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
@@ -11320,7 +11433,8 @@ static int __scst_parse_vrprotect(struct scst_cmd *cmd, int vrprotect_offs)
 			cmd->cmd_dif_actions = SCST_DIF_CHECK_GUARD_TAG;
 			break;
 		default:
-			TRACE(TRACE_SCSI | TRACE_MINOR, "Invalid VRPROTECT value %x (dev %s, cmd %p)",
+			TRACE(TRACE_SCSI | TRACE_MINOR,
+			      "Invalid VRPROTECT value %x (dev %s, cmd %p)",
 			      vrprotect, dev->virt_name, cmd);
 			scst_set_invalid_field_in_cdb(cmd, vrprotect_offs,
 						      5 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
@@ -11347,7 +11461,8 @@ static int __scst_parse_vrprotect(struct scst_cmd *cmd, int vrprotect_offs)
 			cmd->cmd_dif_actions = 0;
 			break;
 		default:
-			TRACE(TRACE_SCSI | TRACE_MINOR, "Invalid VRPROTECT value %x (dev %s, cmd %p)",
+			TRACE(TRACE_SCSI | TRACE_MINOR,
+			      "Invalid VRPROTECT value %x (dev %s, cmd %p)",
 			      vrprotect, dev->virt_name, cmd);
 			scst_set_invalid_field_in_cdb(cmd, vrprotect_offs,
 						      5 | SCST_INVAL_FIELD_BIT_OFFS_VALID);
@@ -11395,7 +11510,8 @@ static int scst_parse_vrprotect(struct scst_cmd *cmd)
 	}
 
 	if (unlikely(dev->dev_dif_type == 2 && vrprotect != 0)) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "Non-32-byte CDBs with non-zero vrprotect (%d) are not allowed in DIF type 2 (dev %s, cmd %p, op %s)",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "Non-32-byte CDBs with non-zero vrprotect (%d) are not allowed in DIF type 2 (dev %s, cmd %p, op %s)",
 		      vrprotect,
 			dev->virt_name, cmd, scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
@@ -11423,7 +11539,8 @@ static int scst_parse_vrprotect32(struct scst_cmd *cmd)
 	TRACE_ENTRY();
 
 	if (unlikely(dev->dev_dif_type != 2)) {
-		TRACE(TRACE_SCSI | TRACE_MINOR, "32-byte CDBs are not allowed in DIF type %d (dev %s, cmd %p, op %s)",
+		TRACE(TRACE_SCSI | TRACE_MINOR,
+		      "32-byte CDBs are not allowed in DIF type %d (dev %s, cmd %p, op %s)",
 		      dev->dev_dif_type, dev->virt_name, cmd,
 			scst_get_opcode_name(cmd));
 		scst_set_cmd_error(cmd,
@@ -11771,8 +11888,8 @@ static int get_cdb_info_len_1(struct scst_cmd *cmd,
 	return 0;
 }
 
-static inline int get_cdb_info_lba_3_len_1_256(struct scst_cmd *cmd,
-					       const struct scst_sdbops *sdbops)
+static inline void get_cdb_info_lba_3_len_1_256(struct scst_cmd *cmd,
+						const struct scst_sdbops *sdbops)
 {
 	cmd->lba = (cmd->cdb[sdbops->info_lba_off] & 0x1F) << 16;
 	cmd->lba |= get_unaligned_be16(cmd->cdb + sdbops->info_lba_off + 1);
@@ -11789,45 +11906,34 @@ static inline int get_cdb_info_lba_3_len_1_256(struct scst_cmd *cmd,
 	 */
 	cmd->bufflen = (u8)(cmd->cdb[sdbops->info_len_off] - 1) + 1;
 	cmd->data_len = cmd->bufflen;
-	return 0;
 }
 
 static int get_cdb_info_lba_3_len_1_256_read(struct scst_cmd *cmd,
 					     const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_3_len_1_256(cmd, sdbops);
+	const struct scst_device *dev = cmd->dev;
 
-	if (res != 0) {
-		goto out;
-	} else {
-		const struct scst_device *dev = cmd->dev;
+	get_cdb_info_lba_3_len_1_256(cmd, sdbops);
 
-		if (dev->dev_dif_mode != SCST_DIF_MODE_NONE && !dev->dpicz)
-			cmd->cmd_dif_actions = dev->dev_dif_rd_prot0_actions |
-				SCST_DIF_CHECK_GUARD_TAG | dev->dif_app_chk |
-				SCST_DIF_CHECK_REF_TAG;
-	}
-out:
-	return res;
+	if (dev->dev_dif_mode != SCST_DIF_MODE_NONE && !dev->dpicz)
+		cmd->cmd_dif_actions = dev->dev_dif_rd_prot0_actions |
+			SCST_DIF_CHECK_GUARD_TAG | dev->dif_app_chk |
+			SCST_DIF_CHECK_REF_TAG;
+	return 0;
 }
 
 static int get_cdb_info_lba_3_len_1_256_write(struct scst_cmd *cmd,
 					      const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_3_len_1_256(cmd, sdbops);
+	const struct scst_device *dev = cmd->dev;
 
-	if (res != 0) {
-		goto out;
-	} else {
-		const struct scst_device *dev = cmd->dev;
+	get_cdb_info_lba_3_len_1_256(cmd, sdbops);
 
-		if (dev->dev_dif_mode != SCST_DIF_MODE_NONE)
-			cmd->cmd_dif_actions = dev->dev_dif_wr_prot0_actions |
-				SCST_DIF_CHECK_GUARD_TAG | dev->dif_app_chk |
-				SCST_DIF_CHECK_REF_TAG;
-	}
-out:
-	return res;
+	if (dev->dev_dif_mode != SCST_DIF_MODE_NONE)
+		cmd->cmd_dif_actions = dev->dev_dif_wr_prot0_actions |
+			SCST_DIF_CHECK_GUARD_TAG | dev->dif_app_chk |
+			SCST_DIF_CHECK_REF_TAG;
+	return 0;
 }
 
 static int get_cdb_info_len_2(struct scst_cmd *cmd,
@@ -11921,10 +12027,7 @@ static int get_cdb_info_lba_4_len_2(struct scst_cmd *cmd,
 static int get_cdb_info_read_10(struct scst_cmd *cmd,
 				const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_4_len_2(cmd, sdbops);
-
-	if (res != 0)
-		return res;
+	get_cdb_info_lba_4_len_2(cmd, sdbops);
 
 #ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
 	EXTRACHECKS_BUG_ON(cmd->cdb[0] != READ_10);
@@ -11936,61 +12039,44 @@ static int get_cdb_info_read_10(struct scst_cmd *cmd,
 static int get_cdb_info_lba_4_len_2_wrprotect(struct scst_cmd *cmd,
 					      const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_4_len_2(cmd, sdbops);
-
-	if (res != 0)
-		return res;
-	else
-		return scst_parse_wrprotect(cmd);
+	get_cdb_info_lba_4_len_2(cmd, sdbops);
+	return scst_parse_wrprotect(cmd);
 }
 
-static inline int get_cdb_info_lba_4_len_4(struct scst_cmd *cmd,
-					   const struct scst_sdbops *sdbops)
+static inline void get_cdb_info_lba_4_len_4(struct scst_cmd *cmd,
+					    const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be32(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 	cmd->data_len = cmd->bufflen;
-	return 0;
 }
 
 static int get_cdb_info_lba_4_len_4_rdprotect(struct scst_cmd *cmd,
 					      const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_4_len_4(cmd, sdbops);
-
-	if (res != 0)
-		return res;
-	else
-		return scst_parse_rdprotect(cmd);
+	get_cdb_info_lba_4_len_4(cmd, sdbops);
+	return scst_parse_rdprotect(cmd);
 }
 
 static int get_cdb_info_lba_4_len_4_wrprotect(struct scst_cmd *cmd,
 					      const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_4_len_4(cmd, sdbops);
-
-	if (res != 0)
-		return res;
-	else
-		return scst_parse_wrprotect(cmd);
+	get_cdb_info_lba_4_len_4(cmd, sdbops);
+	return scst_parse_wrprotect(cmd);
 }
 
-static inline int get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
-					   const struct scst_sdbops *sdbops)
+static inline void get_cdb_info_lba_8_len_4(struct scst_cmd *cmd,
+					    const struct scst_sdbops *sdbops)
 {
 	cmd->lba = get_unaligned_be64(cmd->cdb + sdbops->info_lba_off);
 	cmd->bufflen = get_unaligned_be32(cmd->cdb + sdbops->info_len_off);
 	cmd->data_len = cmd->bufflen;
-	return 0;
 }
 
 static int get_cdb_info_read_16(struct scst_cmd *cmd,
 				const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_8_len_4(cmd, sdbops);
-
-	if (res != 0)
-		return res;
+	get_cdb_info_lba_8_len_4(cmd, sdbops);
 
 #ifdef CONFIG_SCST_DIF_INJECT_CORRUPTED_TAGS
 	EXTRACHECKS_BUG_ON(cmd->cdb[0] != READ_16);
@@ -12002,34 +12088,22 @@ static int get_cdb_info_read_16(struct scst_cmd *cmd,
 static int get_cdb_info_lba_8_len_4_wrprotect(struct scst_cmd *cmd,
 					      const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_8_len_4(cmd, sdbops);
-
-	if (res != 0)
-		return res;
-	else
-		return scst_parse_wrprotect(cmd);
+	get_cdb_info_lba_8_len_4(cmd, sdbops);
+	return scst_parse_wrprotect(cmd);
 }
 
 static int get_cdb_info_lba_8_len_4_wrprotect32(struct scst_cmd *cmd,
 						const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_8_len_4(cmd, sdbops);
-
-	if (res != 0)
-		return res;
-	else
-		return scst_parse_wrprotect32(cmd);
+	get_cdb_info_lba_8_len_4(cmd, sdbops);
+	return scst_parse_wrprotect32(cmd);
 }
 
 static int get_cdb_info_lba_8_len_4_rdprotect32(struct scst_cmd *cmd,
 						const struct scst_sdbops *sdbops)
 {
-	int res = get_cdb_info_lba_8_len_4(cmd, sdbops);
-
-	if (res != 0)
-		return res;
-	else
-		return scst_parse_rdprotect32(cmd);
+	get_cdb_info_lba_8_len_4(cmd, sdbops);
+	return scst_parse_rdprotect32(cmd);
 }
 
 static int get_cdb_info_write_same(struct scst_cmd *cmd,
@@ -12205,6 +12279,7 @@ static int get_cdb_info_var_len(struct scst_cmd *cmd,
 	}
 
 	ptr = &scst_scsi_op32_table[i];
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* not possible */
 	if (unlikely(!ptr))
 		goto out_unknown;
@@ -12668,7 +12743,15 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd)
 		[SCST_LONG_TIMEOUT] = SCST_GENERIC_DISK_LONG_TIMEOUT,
 		[SCST_BOTH_TIMEOUTS] = SCST_GENERIC_DISK_LONG_TIMEOUT,
 	};
+	/*
+	 * Verify the numeric protocol constant at compile time.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	BUILD_BUG_ON(SCST_SMALL_TIMEOUT != 1);
+	/*
+	 * Verify the numeric protocol constant at compile time.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	BUILD_BUG_ON(SCST_LONG_TIMEOUT != 2);
 	BUILD_BUG_ON(SCST_BOTH_TIMEOUTS != 3);
 
@@ -12689,7 +12772,15 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd)
 		[SCST_LONG_TIMEOUT] = SCST_GENERIC_CDROM_LONG_TIMEOUT,
 		[SCST_BOTH_TIMEOUTS] = SCST_GENERIC_CDROM_LONG_TIMEOUT,
 	};
+	/*
+	 * Verify the numeric protocol constant at compile time.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	BUILD_BUG_ON(SCST_SMALL_TIMEOUT != 1);
+	/*
+	 * Verify the numeric protocol constant at compile time.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	BUILD_BUG_ON(SCST_LONG_TIMEOUT != 2);
 	BUILD_BUG_ON(SCST_BOTH_TIMEOUTS != 3);
 
@@ -12711,7 +12802,15 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd)
 		[SCST_LONG_TIMEOUT] = SCST_GENERIC_MODISK_LONG_TIMEOUT,
 		[SCST_BOTH_TIMEOUTS] = SCST_GENERIC_MODISK_LONG_TIMEOUT,
 	};
+	/*
+	 * Verify the numeric protocol constant at compile time.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	BUILD_BUG_ON(SCST_SMALL_TIMEOUT != 1);
+	/*
+	 * Verify the numeric protocol constant at compile time.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	BUILD_BUG_ON(SCST_LONG_TIMEOUT != 2);
 	BUILD_BUG_ON(SCST_BOTH_TIMEOUTS != 3);
 
@@ -12792,6 +12891,7 @@ static int scst_null_parse(struct scst_cmd *cmd)
 	 * therefore change them only if necessary
 	 */
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	switch (cmd->cdb[0]) {
 	default:
@@ -13264,6 +13364,7 @@ void scst_process_reset(struct scst_device *dev,
 			    dev_tgt_dev_list_entry) {
 		struct scst_session *sess = tgt_dev->sess;
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* Clearing UAs and last sense isn't required by SAM and it
        * looks to be better to not clear them to not loose important
        * events, so let's disable it.
@@ -13393,6 +13494,11 @@ again:
 				 * Lockdep reports a false positive here before
 				 * kernel version v5.1.
 				 */
+				/*
+				 * The initial lock is dropped before locking the device set;
+				 * first prevents reentry.
+				 */
+				/* coccinelle-suppress double_lock ; See the contract above. */
 				spin_lock(&tgt_dev->tgt_dev_lock);
 			}
 		}
@@ -13504,7 +13610,8 @@ static void scst_alloc_set_UA(struct scst_tgt_dev *tgt_dev,
 
 	UA_entry->global_UA = (flags & SCST_SET_UA_FLAG_GLOBAL) != 0;
 
-	TRACE(TRACE_MGMT_DEBUG | TRACE_SCSI, "Queuing new %sUA %p (%x:%x:%x, d_sense %d) to tgt_dev %p (dev %s, initiator %s)",
+	TRACE(TRACE_MGMT_DEBUG | TRACE_SCSI,
+	      "Queuing new %sUA %p (%x:%x:%x, d_sense %d) to tgt_dev %p (dev %s, initiator %s)",
 	      UA_entry->global_UA ? "global " : "", UA_entry, sense[2],
 		sense[12], sense[13], tgt_dev->dev->d_sense, tgt_dev,
 		tgt_dev->dev->virt_name, tgt_dev->sess->initiator_name);
@@ -13776,6 +13883,10 @@ restart:
 
 out:
 	TRACE_EXIT_HRES(res);
+	/*
+	 * The annotated helper returns the caller-owned sn_lock held.
+	 */
+	/* coccinelle-suppress mini_lock ; See the contract above. */
 	return res;
 }
 
@@ -14006,6 +14117,7 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 	for (i = 0; i < 5; i++) {
 		/* Get control mode page */
 		memset(cmd, 0, sizeof(cmd));
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 		cmd[0] = MODE_SENSE_10;
 		cmd[1] = 0;
@@ -14067,6 +14179,7 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 		} else {
 			scst_check_internal_sense(dev, rc, sense_buffer,
 						  sizeof(sense_buffer));
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 			if ((rc & 0xff) == SAM_STAT_CHECK_CONDITION &&
 			    scst_sense_valid(sense_buffer)) {
@@ -14155,7 +14268,6 @@ void scst_on_hq_cmd_response(struct scst_cmd *cmd)
 out:
 	TRACE_EXIT();
 }
-
 
 /* dev_lock supposed to be locked and BHs off */
 static void scst_abort_cmds_tgt_dev(struct scst_tgt_dev *tgt_dev,
@@ -15448,6 +15560,15 @@ void scst_ext_unblock_dev(struct scst_device *dev, bool stpg)
 			spin_lock_bh(&dev->dev_lock);
 			while (dev->ext_blocking_pending) {
 				spin_unlock_bh(&dev->dev_lock);
+				/*
+				 * This management error-recovery loop waits for
+				 * ext_blocking_pending to clear and has no 10 ms
+				 * completion deadline. The sleep may round up to
+				 * a timer tick; dev_lock is dropped before
+				 * sleeping and reacquired before reading the
+				 * condition.
+				 */
+				/* checkpatch-suppress MSLEEP ; See the contract above. */
 				msleep(10);
 				spin_lock_bh(&dev->dev_lock);
 			}
@@ -15958,7 +16079,7 @@ static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev)
 	}
 }
 
-static void tm_dbg_deinit_tgt_dev(struct scst_tgt_dev *tgt_dev)
+static void tm_dbg_deinit_tgt_dev(const struct scst_tgt_dev *tgt_dev)
 {
 	if (tm_dbg_tgt_dev == tgt_dev) {
 		unsigned long flags;
@@ -15990,6 +16111,7 @@ static void tm_dbg_delay_cmd(struct scst_cmd *cmd)
 				       cmd, cmd->tag,
 				d / HZ, (d % HZ) * 100 / HZ, d,	tm_dbg_on_state_passes);
 			mod_timer(&tm_dbg_timer, jiffies + d);
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 			tm_dbg_flags.tm_dbg_blocked = 1;
 #endif
@@ -16129,6 +16251,11 @@ void tm_dbg_release_cmd(struct scst_cmd *cmd)
 			TRACE_MGMT_DBG("Abort request for delayed cmd %p (tag=%llu), moving it to active cmd list (delayed_cmds_count=%d)",
 				       c, c->tag, tm_dbg_delayed_cmds_count);
 
+			/*
+			 * This retained debug path holds scst_tm_dbg_lock with IRQs disabled, so
+			 * it cannot take the sleeping branch.
+			 */
+			/* checkpatch-suppress IN_ATOMIC ; See the contract above. */
 			if (!(in_atomic() || in_interrupt() || irqs_disabled()))
 				msleep(2000);
 
@@ -16137,6 +16264,10 @@ void tm_dbg_release_cmd(struct scst_cmd *cmd)
 				/* Test how completed commands handled */
 				if (((scst_random() % 10) == 5)) {
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete sense or DIF action name.
+							    */
 							   SCST_LOAD_SENSE(scst_sense_internal_failure));
 					/* It's completed now */
 				}
@@ -16154,7 +16285,7 @@ void tm_dbg_release_cmd(struct scst_cmd *cmd)
 }
 
 /* Might be called under scst_mutex */
-void tm_dbg_task_mgmt(struct scst_device *dev, const char *fn, int force)
+void tm_dbg_task_mgmt(const struct scst_device *dev, const char *fn, int force)
 {
 	unsigned long flags;
 

@@ -272,8 +272,13 @@ static void disk_write_pr_dump(struct scst_device *dev)
 
 	f = filp_open(priv->pr_dump_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
 	if (IS_ERR(f)) {
+		/*
+		 * Keep numeric error output on supported kernels without the %pe formatter.
+		 */
+		/* coccinelle-suppress-begin ptr_err_to_pe ; See the contract above. */
 		PRINT_ERROR("%s: failed to open PR dump file %s: %ld",
 			    dev->virt_name, priv->pr_dump_path, PTR_ERR(f));
+		/* coccinelle-suppress-end ptr_err_to_pe */
 		return;
 	}
 
@@ -351,6 +356,8 @@ out:
 	return res;
 }
 
+/* scst_block_generic_dev_done requires this mutable command callback type. */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static void disk_set_block_shift(struct scst_cmd *cmd, int block_shift)
 {
 	struct scst_device *dev = cmd->dev;

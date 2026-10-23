@@ -20,6 +20,15 @@
 
 #define ISCSI_VERSION			0
 
+/*
+ * This userspace declaration uses the compiler attribute directly and has no
+ * kernel __packed/__printf macro dependency.
+ */
+/* checkpatch-suppress PREFER_DEFINED_ATTRIBUTE_MACRO ; See the contract above. */
+/*
+ * This macro is a declaration attribute, not an expression.
+ */
+/* checkpatch-suppress-macro COMPLEX_MACRO ; See the contract above. */
 #define __packed __attribute__ ((packed))
 
 struct iscsi_hdr {

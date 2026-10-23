@@ -45,10 +45,7 @@ static void dev_user_unjam_cmd(struct scst_user_cmd *ucmd, int busy, unsigned lo
 
 #ifndef INSIDE_KERNEL_TREE
 #if defined(CONFIG_HIGHMEM4G) || defined(CONFIG_HIGHMEM64G)
-#warning HIGHMEM kernel configurations are not supported by this module, \
-because nowadays it is not worth the effort. Consider changing \
-VMSPLIT option or use a 64 - bit configuration instead. See README file \
-for details.
+#warning "HIGHMEM is unsupported; change VMSPLIT or use a 64-bit kernel. See README."
 #endif
 #endif
 
@@ -779,10 +776,10 @@ static void dev_user_flush_dcache(struct scst_user_cmd *ucmd)
 			vma = find_vma(current->mm, start);
 			if (vma)
 				flush_anon_page(vma, page, start);
+			start += PAGE_SIZE;
 		}
 #endif
 		flush_dcache_page(page);
-		start += PAGE_SIZE;
 		bufflen -= PAGE_SIZE;
 	}
 
@@ -1944,7 +1941,7 @@ const u8 *dev_user_ext_cdb(const struct scst_cmd *cmd)
  */
 SCST_KUNIT_VISIBLE
 struct scst_cmd *dev_user_ext_cdb_get(struct scst_user_dev *dev, unsigned int cmd_h,
-				    struct scst_user_cmd **user_cmd)
+				      struct scst_user_cmd **user_cmd)
 {
 	struct scst_user_cmd *ucmd;
 	struct scst_cmd *cmd;
@@ -2666,7 +2663,7 @@ static int dev_user_unjam_dev(struct scst_user_dev *dev)
 
 repeat:
 	for (i = 0; i < ARRAY_SIZE(dev->ucmd_hash); i++) {
-		struct list_head *head = &dev->ucmd_hash[i];
+		const struct list_head *head = &dev->ucmd_hash[i];
 
 		list_for_each_entry(ucmd, head, hash_list_entry) {
 			res++;
@@ -3181,6 +3178,10 @@ static void dev_user_setup_functions(struct scst_user_dev *dev)
 
 static int dev_user_check_version(const struct scst_user_dev_desc *dev_desc)
 {
+	/*
+	 * The array bound must remain an integer constant expression on old kernels.
+	 */
+	/* coccinelle-suppress minmax ; See the contract above. */
 	char str[sizeof(DEV_USER_VERSION) > 20 ? sizeof(DEV_USER_VERSION) : 20];
 	int res = 0, rc;
 
@@ -3608,6 +3609,8 @@ static int __dev_user_set_opt(struct scst_user_dev *dev, const struct scst_user_
 		goto out;
 	}
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
+/* checkpatch-suppress IF_1 ; Retain the existing debug or alternative implementation. */
 #if 1
 	if (dev->tst != opt->tst && dev->sdev && !list_empty(&dev->sdev->dev_tgt_dev_list)) {
 		PRINT_ERROR("On the fly setting of TST not supported. See comment in struct scst_device.");
@@ -3721,6 +3724,11 @@ out:
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static int dev_usr_parse(struct scst_cmd *cmd)
 {
 	sBUG();
@@ -3799,8 +3807,13 @@ static int dev_user_release(struct inode *inode, struct file *file)
 
 	t = kthread_run(__dev_user_release, dev, "scst_usr_released");
 	if (IS_ERR(t)) {
+		/*
+		 * Keep numeric error output on supported kernels without the %pe formatter.
+		 */
+		/* coccinelle-suppress-begin ptr_err_to_pe ; See the contract above. */
 		PRINT_CRIT_ERROR("kthread_run() failed (%ld), releasing device %p directly. If you have several devices under load it might deadlock!",
 				 PTR_ERR(t), dev);
+		/* coccinelle-suppress-end ptr_err_to_pe */
 		__dev_user_release(dev);
 	}
 
@@ -3826,6 +3839,8 @@ static void dev_user_check_lost_ucmds(struct scst_user_dev *dev)
 	}
 }
 #else
+/* The enabled cleanup releases commands and removes nodes from dev->ucmd_hash. */
+/* cppcheck-suppress constParameterPointer symbolName=dev */
 static void dev_user_check_lost_ucmds(struct scst_user_dev *dev)
 {
 }
@@ -4014,6 +4029,8 @@ static int __init init_scst_user(void)
 #endif
 #endif
 
+	/* HIGHMEM configurations deliberately exit above; other configurations continue here. */
+	/* cppcheck-suppress unreachableCode */
 	user_dev_cachep = KMEM_CACHE(scst_user_dev, SCST_SLAB_FLAGS | SLAB_HWCACHE_ALIGN);
 	if (!user_dev_cachep) {
 		res = -ENOMEM;

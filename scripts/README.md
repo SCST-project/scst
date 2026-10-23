@@ -15,14 +15,9 @@ direct callers of a relocated script must use its new directory below.
 | `sparse_smatch/` | Native Kbuild analyzers (`make sparse`, `make smatch`) and CHECK records. |
 | `coccinelle/` | Kernel semantic-patch report rules (`make coccicheck`). |
 | `cppcheck/` | Native analysis using captured compiler commands (`make cppcheck`). |
-| `style/` | Whole-file Checkpatch analysis (`make checkpatch`, `scripts/checkpatch_scan`). |
+| `style/` | Whole-file Checkpatch analysis (`make checkpatch`). |
 | `scs_lint/` | SCST code style rules (`make scs_lint`); see [SCS](../doc/scs.md). |
 | `tests/` | Isolated regression fixtures for the shared analyzer helpers (`make lint-test`). |
-
-The `checkpatch`, `checkpatch_commits` and `checkpatch_diff` helpers retain
-their existing patch/commit policy, including the ignored types in `checkpatch`.
-The kernel regression runner also retains its separate checkpatch filtering.
-`checkpatch_scan` now delegates to the unfiltered whole-file analyzer below.
 
 Use Make targets from the repository root unless a component workflow says
 otherwise. Direct scripts retain their working-directory conventions:
@@ -31,10 +26,10 @@ generation and source inventory use the requested or current source directory.
 Module Makefiles invoke `sign-modules` from the directory containing modules.
 Consult each script's argument handling before invoking it.
 
-`kernel/run-regression-tests` prepares kernel trees and runs compilation and
-checkpatch according to its options. The maintained kernel
-matrix is `ABT_KERNELS` in `nightly/conf/nightly.conf`; the CI subset is selected
-through `kernel/kernel-matrix` and `.github/kernel-matrix.conf`.
+`kernel/run-regression-tests` prepares kernel trees and runs compatibility
+builds. Static analyzers have separate Make targets and CI jobs. The maintained
+kernel matrix is `ABT_KERNELS` in `nightly/conf/nightly.conf`; the CI subset is
+selected through `kernel/kernel-matrix` and `.github/kernel-matrix.conf`.
 
 `kernel/qla2xxx.py` tracks upstream QLogic commits, compares committed Linux
 and SCST driver trees, audits residual differences with an optional kernel
@@ -66,10 +61,14 @@ committing; sourced libraries, POSIX shell scripts, and callers outside
 
 ## Shared analyzer source scope
 
-`lint_scope.py` reads [policy/common.json](policy/common.json) for full, diff
-and explicit-file selection. The loader rejects invalid or missing policy;
-there are no environment-based extra exclusions. Existing checkpatch wrappers
-and the kernel regression runner still use their own selection and filtering.
+Kernel-based analysis targets the current kernel selected in
+[`ci/kernel.env`](ci/kernel.env). Older kernels remain supported for SCST builds,
+but are outside analyzer compatibility support. Compilation database export
+requires the current per-module Kbuild layout.
+
+`lint_scope.py` reads [policy/common.json](policy/common.json) for full and
+explicit-file selection. The loader rejects invalid or missing policy;
+there are no environment-based extra exclusions.
 
 Inspect the shared policy and eligible tracked files without running analyzers:
 
@@ -83,8 +82,9 @@ python3 -B scripts/analyzer_policy.py validate
 The Python commands also accept `--format=json` and a policy name: `common`,
 `sparse`, `smatch`, `coccicheck`, `cppcheck`, `checkpatch` or `scs_lint`.
 Use `make analyzer-policy ANALYZER=smatch` to see the
-effective input scope and all diagnostic exceptions. A file inventory does
-not establish analysis or build coverage.
+effective input scope, source exception declarations and model hashes. A file
+inventory does not establish analysis or build coverage. Declaration counts
+are not suppression hit counts; native Cppcheck does not report hit counts.
 
 | Input | Shared policy |
 | --- | --- |
@@ -98,20 +98,17 @@ not establish analysis or build coverage.
 | Other directories and extensions | Outside the shared source scope. |
 
 These are input exclusions. The helper does not filter diagnostic text or
-discard findings from headers included by selected files. Selecting KUnit
+discard findings from headers included by selected files. Cppcheck separately
+classifies legacy/upstream QLogic header findings outside scope; the nested
+SCST target and all frontend failures remain blocking. Selecting KUnit
 sources does not enable them in a build; that needs the build configuration.
 
 Full selection reads existing working-tree files listed in the Git index,
 including staged new files. Missing and untracked files are omitted.
 
-Diff selection compares a base with the working tree, including staged and
-unstaged changes. It selects whole current files, checks rename destinations,
-and skips deleted and untracked files. The base must resolve to one commit;
-options, ranges, tree objects and unknown revisions are rejected.
-
 Explicit files may be untracked, but must exist and be within the same scope.
-They cannot be combined with a diff base. Both a path and its resolved symlink
-destination must be in scope. Results are sorted and deduplicated.
+Both a path and its resolved symlink destination must be in scope.
+Results are sorted and deduplicated.
 An empty selection means there are no eligible inputs, not a completed scan.
 
 ## Shared process and log helpers
@@ -120,6 +117,18 @@ An empty selection means there are no eligible inputs, not a completed scan.
 parallel jobserver. Drivers must check command results or use `check=True`.
 The entry-point helper supports command tracing with `V=1` or `--verbose`.
 Progress is separate from captured analyzer output.
+
+Make targets use `analyzer_run.py` for the same `Start`, `Run`, `Result` and
+`Reports` sections locally and in CI. Results show `PASS`, `FAIL` or `SKIP`,
+grouped findings, coverage and separate build messages. GitHub Actions folds
+policy, exception and model details; `V=1` expands them and traces commands.
+Quiet commands report progress every 30 seconds, or animate a terminal spinner.
+Coccinelle progress names the current rule; its report records rule durations.
+The `.summary.log` is the readable result, `.execution.log` retains the complete
+driver output, and `.run.json` identifies the current invocation and its status.
+CI publishes `.summary.md` with findings and coverage in the job summary and
+saves reports for every analyzer, including SCS. Nonzero native exits carry
+their explanation separately from the final policy result.
 
 Drivers save complete stdout/stderr under `.cache/lint/`. The helpers preserve
 raw bytes without filtering. Reusing a log name replaces the previous report
@@ -139,7 +148,6 @@ descriptor releases the lock, including on exceptions.
 ```sh
 make -j8 sparse KDIR=/path/to/kernel/build KUNIT_TEST=y
 make -j8 smatch KDIR=/path/to/kernel/build KUNIT_TEST=y
-make smatch DIFFBR=master KUNIT_TEST=y
 python3 -B scripts/sparse_smatch/smp.py sparse scst/src/scst_lib.c
 ```
 
@@ -148,9 +156,8 @@ installing or loading them. The scope above applies, excluding userspace;
 the upstream QLogic base is built only as a dependency. `KUNIT_TEST=y`
 includes KUnit suites and requires a kernel with KUnit support.
 
-Diff mode compares one commit with the working tree. A changed module source
-or header triggers full configured analysis; an unrelated diff skips it.
-An explicitly selected or changed C file absent from the build is an error.
+Both targets analyze the full configured build. An explicitly selected C file
+absent from the build is an error.
 
 Source findings and incomplete analysis fail the targets. The Python driver
 returns 0 for clean runs or empty selections, 1 for findings and 2 for
@@ -189,25 +196,33 @@ docker build -f scripts/ci/analyzers.Dockerfile -t scst-analyzers:local .
 Tool revisions are in [ci/analyzers.env](ci/analyzers.env); kernel headers
 and checksums are in `ci/kernel.env` and `ci/kernel.SHA256SUMS`. The image
 includes the [Smatch frontend fix](sparse_smatch/patches/typeof-address-space.patch)
-needed for current kernel RCU headers. Tool provenance is recorded under
+needed for current kernel RCU headers and an
+[installation fix](sparse_smatch/patches/install-assets.patch) separating data
+and manual-page targets. Distribution tool packages follow Fedora updates;
+the whole environment is not version-locked. Tool provenance is recorded under
 `/usr/local/share/scst-ci/` inside the image.
 
 ## Coccinelle
 
 ```sh
 make coccicheck KDIR=/path/to/kernel/build
-make coccicheck KDIR=/path/to/kernel/build DIFFBR=master
 ```
 
 Install `spatch` with Python support and kernel sources containing
 `scripts/coccinelle/`. Rules declaring `report` mode run on the shared source
 scope, including userspace and KUnit files; other rules are listed as skipped.
-Diff mode checks whole changed C files and headers. No build is needed.
-
-The wrapper adds only report counters and completion markers to temporary
-rule copies. It uses no SCST macro models or diagnostic exceptions. Parser
-errors, missing per-input handling records and unfinished rules fail as
-incomplete analysis, even when native `spatch` returns zero. Findings return
+No build is needed. The wrapper extends installed parser hints with SCST
+contracts and current source definitions, without pinned macro hashes.
+CI installs Fedora's `coccinelle` package without a version pin. Native model
+tests for variadic macro arguments are temporarily skipped pending an upstream
+Coccinelle fix; their names and reasons remain visible in analyzer-test reports.
+Macro bodies and `_Generic` associations are not exhaustively analyzed;
+there are no synthetic macro context checks. Errors matching a complete
+standalone macro definition are retained as explicit coverage limitations.
+Call-site errors, partial definitions, surrounding-code errors, missing
+handling records and unfinished rules remain blocking.
+Private rule copies retain report counters and record the narrow
+`stream_open.cocci` compatibility adaptation. Native rules remain unchanged. Findings return
 1; incomplete analysis returns 2 (Make maps either failure to 2).
 Full output and per-rule coverage are in `.cache/lint/coccicheck.{log,json}`.
 
@@ -215,22 +230,40 @@ Full output and per-rule coverage are in `.cache/lint/coccicheck.{log,json}`.
 
 ```sh
 make -j8 cppcheck KDIR=/path/to/kernel/build KUNIT_TEST=y
-make -j8 cppcheck KDIR=/path/to/kernel/build KUNIT_TEST=y DIFFBR=master
 ```
 
 The target requires Cppcheck with `--check-level` and `--checkers-report`
-support, a prepared kernel and SCST build dependencies. It captures fresh
-Kbuild `CHECK` commands and rebuilds userspace programs (including the event
-example) to collect their compiler commands. It then runs kernel and userspace
-analysis separately with all native checks enabled. Nothing is installed or
-loaded. KUnit coverage follows `KUNIT_TEST` and the kernel configuration.
+support, a prepared kernel with `scripts/clang-tools/gen_compile_commands.py`
+and SCST build dependencies. Cppcheck shares its command collector
+with `make compile-commands`: Kbuild supplies actual compiler commands from
+`.cmd` files, checked against fresh `CHECK` records; userspace Makefiles export
+their compile recipes without building executables. Kernel and userspace are
+analyzed separately. Nothing is installed or loaded. KUnit coverage follows
+`KUNIT_TEST` and the kernel configuration.
+The database defines the build configuration;
+the wrapper does not add `--force` to explore unrelated configurations.
 
-A relevant diff triggers the full configured analysis, including header
-consumers. Explicit or changed C files absent from the build cause a failure.
-Real includes and definitions are preserved; no project models, header
-substitutions, inline suppressions or diagnostic exceptions are enabled.
-Native parser failures and missing includes remain visible as incomplete
-analysis. Source findings return 1 and incomplete analysis returns 2; Make
+`make compile-commands KUNIT_TEST=y` writes `compile_commands.json`; override
+`COMPILE_COMMANDS` to choose another path. The export includes configured
+sources even outside analyzer policy. Cppcheck applies its scope afterwards.
+Set `CPPCHECK_PROJECT` and `CPPCHECK_USERSPACE_PROJECT` to reuse that database;
+external database freshness is the caller's responsibility. CI always collects
+fresh commands. `make -k all-lint KUNIT_TEST=y` runs all analyzer targets.
+
+The target runs the full configured analysis, including header consumers.
+Explicit C files absent from the build cause a failure.
+Raw compiler commands are retained. Adapted inputs preserve project headers
+and selected configuration macros; compiler probes supply the target ABI and
+feature queries. Userspace preprocessing retains the real byte-order and Linux
+UAPI version macros, as in the historical SCST integration. Kernel header bodies
+are replaced by the partial contracts
+in `cppcheck/kernel.h` and `kernel.cfg`. This does not check kernel ABI, RCU
+or locking semantics.
+
+Native inline exceptions are validated against `cppcheck --errorlist`.
+Reviewed system-header omissions and exact unmatched-declaration notices
+remain visible as advice. Unknown includes, unknown suppression IDs, parser
+failures and missing checker coverage still fail the run. Source findings return 1 and incomplete analysis returns 2; Make
 maps both to 2. Full logs and the summary are in `.cache/lint/cppcheck.{log,json}`;
 the summary links to captured commands, native XML and checker coverage.
 
@@ -238,20 +271,67 @@ the summary links to captured commands, native XML and checker coverage.
 
 ```sh
 make checkpatch KDIR=/path/to/kernel/build
-make checkpatch DIFFBR=master CHECKPATCH_PATH=/path/to/kernel/scripts
+make checkpatch CHECKPATCH_PATH=/path/to/kernel/scripts
 ```
 
 The target checks whole C files and headers selected by the common policy,
-including userspace and KUnit. Diff mode selects whole changed files. It needs
-the kernel's `checkpatch.pl`, `spelling.txt` and `const_structs.checkpatch`,
+including userspace and KUnit. It needs the kernel's `checkpatch.pl`,
+`spelling.txt` and `const_structs.checkpatch`,
 but no compilation or KUnit-enabled kernel. `CHECKPATCH_PATH` overrides `KDIR`.
 
-Native `--strict` checks run without ignored types or project exceptions;
-local `.checkpatch.conf` files are not loaded. Source files are never rewritten.
+Native `--strict` checks use the global exceptions in
+[policy/checkpatch.json](policy/checkpatch.json): invariant assertions,
+kernel-version checks and commit-submission metadata. Commit messages have
+separate Conform checks. Local `.checkpatch.conf` files are not loaded.
+Policy also recognizes complete `#if`/`#elif` expressions comparing the listed
+version macros, and format-only long lines in the listed logging calls.
+Version predicates allow `defined` guards, Boolean grouping, vendor `- 0`
+forms and matching `>> 8` series comparisons. Unknown expressions remain checked.
+Logging exceptions require a literal format argument ending the line; other
+arguments, unrelated calls and ordinary long strings remain checked.
+Other exceptions use source comments. All exceptions apply only after native
+coverage and totals are checked; raw diagnostics and policy reasons remain visible.
+Source files are never rewritten.
 Findings return 1; missing per-file completion, inconsistent totals, stderr
 or tool failures return 2. Make maps both failures to 2. Complete output and
-coverage are in `.cache/lint/checkpatch.{log,json}`. `scripts/checkpatch_scan`
-uses the same policy and exit codes; legacy patch/commit helpers remain separate.
+coverage are in `.cache/lint/checkpatch.{log,json}`.
+
+A reviewed interface spelling can use
+`checkpatch-suppress-symbol CAMELCASE symbolName=Name ; reason` in a standalone
+C comment before a use or declaration of that exact identifier. This exception
+applies to that name across selected files, avoiding Checkpatch's first-use
+ordering dependency. Other names and diagnostic categories remain checked;
+removing or renaming the annotated identifier invalidates the declaration.
+
+`COMPLEX_MACRO` begin/end blocks accept only object-like sense-key, ASC, ASCQ
+definitions, one per line, with byte-valued ASC/ASCQ. Comments are allowed;
+unrelated code or expressions invalidate the block. Other macro exceptions
+must remain attached to individual definitions.
+
+## Source exceptions and provenance
+
+Use a standalone comment immediately before the relevant construct:
+
+```c
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require a mutable registration object. */
+/* cppcheck-suppress constParameterCallback symbolName=cmd ; Keep the callback ABI. */
+/* coccinelle-suppress rule_name ; Explain the reviewed exception. */
+```
+
+The parsers also support bounded `-begin`/`-end` blocks, `-macro` and `-file`
+where the tool supports them; every declaration requires a reason. File
+exceptions affect one named diagnostic, not all findings. The current
+Checkpatch file exceptions cover portable ABI integer types and unchanged
+legacy license headers. Cppcheck and Coccinelle have no file-wide exceptions.
+Checkpatch comment diagnostics attach to the next comment; other line
+exceptions attach to the next code line. A longer rationale can precede
+the marker, which then refers to it with `See the contract above.`. Checkpatch
+markers and reasons may also wrap across a standalone `/* ... */` comment.
+
+SCST contracts and reviewed exceptions come from the frozen historical branch
+at `ee5e4173fff7`. Changed historical contexts require a fresh review before
+reattaching an exception.
+Use the policy inventory above for the complete current list and reasons.
 
 ## SCST code style
 
@@ -260,8 +340,7 @@ KUnit visibility annotations belong on their own line. It uses the common
 source policy and checks every preprocessor branch, including KUnit sources.
 There are no additional exclusions or diagnostic exceptions.
 
-Use `make scs_lint DIFFBR=<commit>` for changed files or
-`scripts/scs_lint/run_scs_lint.sh path/to/file.c` for explicit inputs.
+Use `scripts/scs_lint/run_scs_lint.sh path/to/file.c` for explicit inputs.
 The wrapper needs `uv` and Python 3.11+; uv supplies the pinned Tree-sitter
 dependencies. No kernel build is needed. Reports are saved in
 `.cache/lint/scs_lint.{log,json}`. Findings return 1; incomplete analysis
@@ -270,17 +349,24 @@ returns 2 (Make maps both to 2). Empty input is a skip.
 
 ## Analyzer CI
 
-The [workflow](../.github/workflows/analyzers.yml) runs on pushes to `master`
-and manual dispatch. Separate jobs run `make sparse`, `make smatch`,
+The [workflow](../.github/workflows/analyzers.yml) runs on PRs targeting `master`,
+pushes to `master` and manual dispatch. Updating a PR cancels its older run.
+Separate jobs run `make sparse`, `make smatch`,
 `make checkpatch`, `make coccicheck` and `make cppcheck`, including KUnit sources.
-`Analyzer script tests` runs `make lint-test`; it does not execute SCST
-tests. A parallel `SCST code style` job runs `make scs_lint` without a kernel
-build. The container jobs retain reports from `.cache/lint/` for seven days.
+`Analyzer tests` runs `make analyzer-tests` in the same container, alongside
+the analyzer jobs. It checks script fixtures and native model probes without
+building or executing SCST. A parallel `SCST code style` job runs `make scs_lint`
+without a kernel build. CI prints active findings, coverage and visible advice; complete inventories
+and native streams remain in `.cache/lint/`. The container jobs retain these
+reports for seven days.
 
-CI fails on findings remaining after policy exceptions, just like local Make
-targets. The native-analyzer runner returns 1 for completed analysis with
-findings and 2 for build/tool failures, incomplete analysis or missing KUnit
-coverage. PRs retain the separate patch/commit Checkpatch workflow.
+PR and manual runs fail on findings remaining after policy exceptions or
+tooling failures. Push jobs allow failure at workflow level; their failed steps
+and reports remain visible. Local Make targets and the native-analyzer runner
+keep their strict exit statuses: the
+runner returns 1 for completed analysis with findings and 2 for build/tool
+failures, incomplete analysis or missing KUnit coverage. All native jobs use
+full analysis; Conform checks commit-message conventions separately.
 
 ## Dependencies and tooling tests
 
@@ -289,7 +375,16 @@ Python standard library. Run its fixtures from the repository root:
 
 ```sh
 make lint-test                  # PYTHON defaults to python3
+make analyzer-tests KDIR=/path/to/current/kernel/build
 ```
 
 The fixtures use temporary repositories, files and child processes. They do
 not build SCST, load modules or access live devices.
+
+`analyzer-tests` additionally requires the CI analyzer tools and kernel scripts.
+Real Checkpatch, Cppcheck and Coccinelle check small C inputs: valid examples
+must pass, and deliberate bugs must retain their expected diagnostics through
+the production models. Each suite runs in a separate process; missing tools,
+undeclared skips, empty suites and incomplete runs fail. Only the named
+Coccinelle variadic probes may skip, with their exact upstream-defect reason.
+Per-suite logs and results are retained under `.cache/lint/analyzer-tests-*/`.

@@ -50,7 +50,7 @@ if not os.environ.get('TEST_NO_CHECK'):
                     str(root / 'scst/source.c')], cwd=root)
 sys.exit(int(os.environ.get('TEST_BUILD_EXIT', '0')))
 """)
-        self.env = dict(os.environ, PATH=str(self.bin), DIFFBR="", MAKEFLAGS="",
+        self.env = dict(os.environ, PATH=str(self.bin), MAKEFLAGS="",
                         PYTHONDONTWRITEBYTECODE="1", SCST_LINT_KDIR=str(self.kernel),
                         SMATCH_DATA_DIR=str(data))
         self.env.pop("LINT_DEFER_REPORTS", None)
@@ -117,13 +117,37 @@ subprocess.run([*shlex.split(checker), str(root / 'scst/second.c')], cwd=root)
 """)
         result = self.analyze()
         self.assertEqual(result.returncode, 2, result.stderr)
-        self.assertIn(b"SCST checker failed", result.stderr)
+        self.assertIn(b"SCST checker failed", result.stdout + result.stderr)
         self.assertIn(b"checker invocations=2", result.stderr)
 
-    def test_missing_tool_and_invalid_base_fail(self):
-        self.assertNotEqual(self.analyze("--base", "missing").returncode, 0)
+    def test_interrupted_adapter_retains_partial_native_output(self):
+        import json
+
+        self.program("sparse", """
+import os, signal, sys
+print('scst/source.c:1:2: warning: partial native finding', flush=True)
+os.kill(os.getppid(), signal.SIGTERM)
+""")
+        result = self.analyze()
+        self.assertEqual(result.returncode, 2, result.stderr)
+        summary = json.loads((self.root / ".cache/lint/sparse.json").read_text())
+        records = list(Path(summary["records_directory"]).glob("*.json"))
+        self.assertEqual(len(records), 1)
+        record = json.loads(records[0].read_text())
+        self.assertEqual(record["state"], "started")
+        self.assertNotEqual(record["returncode"], 0)
+        self.assertIn("partial native finding", Path(record["log"]).read_text())
+
+    def test_missing_tool_fails(self):
         (self.bin / "sparse").unlink()
         self.assertNotEqual(self.analyze().returncode, 0)
+
+    def test_legacy_diff_environment_does_not_skip_analysis(self):
+        self.env["DIFFBR"] = "missing-reference"
+        self.env["TEST_DIAGNOSTIC"] = "scst/source.c:1:2: warning: retained finding"
+        result = self.analyze()
+        self.assertEqual(result.returncode, 1, result.stderr)
+        self.assertIn(b"retained finding", result.stdout)
 
     def test_explicit_input_missing_from_build_is_not_a_clean_result(self):
         source = self.source.with_name("disabled.c")
@@ -142,8 +166,8 @@ print('scst/source.c:2 example() error: source defect')
         result = subprocess.run([sys.executable, str(self.root / "scripts/sparse_smatch/smp.py"),
                                  "smatch"], env=self.env, cwd=self.root, capture_output=True)
         self.assertEqual(result.returncode, 1, result.stderr)
-        self.assertIn(b"retained smatch finding", result.stderr)
-        self.assertIn(b"source defect", result.stderr)
+        self.assertIn(b"retained smatch finding", result.stdout + result.stderr)
+        self.assertIn(b"source defect", result.stdout + result.stderr)
         self.assertIn(b"2 diagnostic(s)", result.stdout)
 
     def test_generated_metadata_is_not_counted_as_checked(self):

@@ -1,4 +1,8 @@
 /*
+ * Retain the original licensing text; SPDX conversion requires a separate license audit.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
  *  Network threads.
  *
  *  Copyright (C) 2004 - 2005 FUJITA Tomonori <tomof@acm.org>
@@ -54,7 +58,7 @@ enum rx_state {
 static void free_pending_commands(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
-	struct list_head *pending_list = &session->pending_list;
+	const struct list_head *pending_list = &session->pending_list;
 	int req_freed;
 	struct iscsi_cmnd *cmnd;
 
@@ -91,7 +95,7 @@ static void free_pending_commands(struct iscsi_conn *conn)
 static void free_orphaned_pending_commands(struct iscsi_conn *conn)
 {
 	struct iscsi_session *session = conn->session;
-	struct list_head *pending_list = &session->pending_list;
+	const struct list_head *pending_list = &session->pending_list;
 	int req_freed;
 	struct iscsi_cmnd *cmnd;
 
@@ -131,6 +135,7 @@ static void trace_conn_close(struct iscsi_conn *conn)
 {
 	struct iscsi_cmnd *cmnd;
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	if (time_after(jiffies, start_waiting + 10 * HZ))
 		trace_flag |= TRACE_CONN_OC_DBG;
@@ -148,6 +153,8 @@ static void trace_conn_close(struct iscsi_conn *conn)
 	spin_unlock_bh(&conn->cmd_list_lock);
 }
 #else /* CONFIG_SCST_DEBUG */
+/* The debug implementation acquires and releases conn->cmd_list_lock. */
+/* cppcheck-suppress constParameterPointer symbolName=conn */
 static void trace_conn_close(struct iscsi_conn *conn) {}
 #endif /* CONFIG_SCST_DEBUG */
 
@@ -430,8 +437,13 @@ void start_close_conn(struct iscsi_conn *conn)
 
 	t = kthread_run(close_conn_thr, conn, "iscsi_conn_cleanup");
 	if (IS_ERR(t)) {
+		/*
+		 * Keep numeric error output on supported kernels without the %pe formatter.
+		 */
+		/* coccinelle-suppress-begin ptr_err_to_pe ; See the contract above. */
 		PRINT_ERROR("kthread_run() failed (%ld), closing conn %p directly",
 			    PTR_ERR(t), conn);
+		/* coccinelle-suppress-end ptr_err_to_pe */
 		close_conn(conn);
 	}
 
@@ -538,11 +550,13 @@ restart:
 
 	oldfs = get_fs();
 	set_fs(KERNEL_DS);
+/* checkpatch-suppress-begin PARENTHESIS_ALIGNMENT ; Conditional socket API arguments. */
 	res = sock_recvmsg(conn->sock, msg,
 #if SOCK_RECVMSG_HAS_FOUR_ARGS
 			   read_size,
 #endif
 			   MSG_DONTWAIT | MSG_NOSIGNAL);
+/* checkpatch-suppress-end PARENTHESIS_ALIGNMENT */
 	set_fs(oldfs);
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 19, 0)
@@ -626,6 +640,12 @@ static int iscsi_rx_check_ddigest(struct iscsi_conn *conn)
 								   false);
 				} else {
 					set_scst_preliminary_status_rsp(orig_req, false,
+									/*
+									 * checkpatch-suppress
+									 * LONG_LINE ; Keep the
+									 * complete symbolic sense
+									 * name.
+									 */
 									SCST_LOAD_SENSE(iscsi_sense_crc_error));
 					/*
 					 * Let's prelim complete cmnd too to

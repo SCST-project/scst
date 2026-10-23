@@ -14,7 +14,7 @@ from unittest.mock import patch
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import analyzer_policy
-from lint_scope import changed_sources, git_names, git_pathspecs, in_scope
+from lint_scope import in_scope
 from lint_scope import select_sources, tracked_sources
 
 
@@ -92,9 +92,35 @@ class PolicyTests(unittest.TestCase):
     def test_policy_errors_do_not_become_empty_selections(self):
         self.activate({**self.policy, "version": 2})
         for select in (lambda: in_scope(self.root / "outside.c", self.root),
-                       lambda: tracked_sources(self.root), git_pathspecs):
+                       lambda: tracked_sources(self.root), lambda: select_sources(self.root, [])):
             with self.assertRaisesRegex(ValueError, "unsupported policy version"):
                 select()
+
+    def test_checkpatch_context_policy_rejects_ambiguous_contracts(self):
+        original = analyzer_policy.load_policy("checkpatch")
+        changes = [
+            ("code_macros", [{"name": "LINUX_.*", "constructor": "KERNEL_VERSION", "arguments": 3}]),
+            ("code_macros", [{"name": "LINUX_VERSION_CODE", "constructor": "KERNEL_.*", "arguments": 3}]),
+            ("code_macros", [{"name": "LINUX_VERSION_CODE", "constructor": "KERNEL_VERSION", "arguments": 0}]),
+            ("code_macros", [{"name": "LINUX_VERSION_CODE", "constructor": "KERNEL_VERSION", "arguments": True}]),
+            ("integer_macros", ["RHEL_MAJOR", "RHEL_MAJOR"]),
+            ("integer_macros", ["LINUX_VERSION_CODE"]),
+            ("reason", " "),
+        ]
+        for key, value in changes:
+            with self.subTest(key=key, value=value):
+                policy = copy.deepcopy(original)
+                policy["version_comparisons"][key] = value
+                self.save(policy)
+                with self.assertRaises(ValueError):
+                    analyzer_policy.read_policy(self.path, "checkpatch")
+        for names in ([], ["TRACE_.*"], ["TRACE_DBG", "TRACE_DBG"]):
+            with self.subTest(names=names):
+                policy = copy.deepcopy(original)
+                policy["logging_calls"][0]["names"] = names
+                self.save(policy)
+                with self.assertRaises(ValueError):
+                    analyzer_policy.read_policy(self.path, "checkpatch")
 
     def test_policy_drives_all_selectors_with_literal_paths(self):
         policy = copy.deepcopy(self.policy)
@@ -115,18 +141,11 @@ class PolicyTests(unittest.TestCase):
         with patch.dict(os.environ, {"IGNORE_DIRS": policy["source_roots"][0],
                                      "IGNORE_PATTERNS": ".*"}):
             self.assertEqual(tracked_sources(self.root), expected)
-            self.assertEqual(select_sources(self.root, expected, None), expected)
-        names = git_names(self.root, "ls-files", "--cached", "-z", "--", *git_pathspecs())
-        self.assertEqual(sorted(self.root / name for name in names), expected)
+            self.assertEqual(select_sources(self.root, expected), expected)
         for path in excluded:
             self.assertFalse(in_scope(path, self.root))
             with self.assertRaises(ValueError):
-                select_sources(self.root, [path], None)
-        self.git("-c", "user.name=Test", "-c", "user.email=test@example.org",
-                 "-c", "commit.gpgsign=false", "commit", "-qm", "base")
-        for path in [*expected, *excluded]:
-            path.write_text("int changed(void);\n", encoding="utf-8")
-        self.assertEqual(changed_sources(self.root, "HEAD"), expected)
+                select_sources(self.root, [path])
 
     def test_native_exceptions_require_exact_fields_and_unique_keys(self):
         path = analyzer_policy.POLICY_PATH.with_name("smatch.json")
@@ -155,10 +174,12 @@ class PolicyCliTests(unittest.TestCase):
         self.scripts = self.root / "scripts"
         (self.scripts / "policy").mkdir(parents=True)
         source = analyzer_policy.POLICY_PATH.parent.parent
-        for name in ("analyzer_policy.py", "lint_scope.py", "policy/common.json",
+        for name in ("analyzer_policy.py", "analyzer_setup.py", "lint_scope.py", "policy/common.json",
                      "policy/sparse.json", "policy/smatch.json", "policy/coccicheck.json",
                      "policy/cppcheck.json", "policy/checkpatch.json", "policy/scs_lint.json"):
             shutil.copyfile(source / name, self.scripts / name)
+        for name in ("style", "cppcheck", "coccinelle"):
+            shutil.copytree(source / name, self.scripts / name)
 
     def run_cli(self, *args):
         # Deliberately run away from the repository root: policy paths belong
@@ -231,7 +252,7 @@ class PolicyCliTests(unittest.TestCase):
         self.assertEqual(broken.stdout, "")
         self.assertIn("analyzer policy:", broken.stderr)
 
-    def test_basic_analyzers_inherit_common_scope_without_exceptions(self):
+    def test_analyzers_inherit_common_scope_with_separate_exception_policy(self):
         common = json.loads((self.scripts / "policy/common.json").read_text())
         for tool in ("coccicheck", "cppcheck", "checkpatch", "scs_lint"):
             with self.subTest(tool=tool):
@@ -239,7 +260,8 @@ class PolicyCliTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 report = json.loads(result.stdout)
                 self.assertEqual(report["effective_source_policy"], common)
-                self.assertEqual(set(report["configured_policy"]), {"version", "notes"})
+                self.assertIn("notes", report["configured_policy"])
+                self.assertEqual(report["inline_exceptions"], [])
 
 
 if __name__ == "__main__":

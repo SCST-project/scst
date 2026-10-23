@@ -520,6 +520,7 @@ check:
 			virt_dev->unmap_align = 0;
 			/* 256 MB */
 			virt_dev->unmap_max_lba_cnt = (256 * 1024 * 1024) >> block_shift;
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /*
        * Might be a big performance and functionality win, but might be
        * dangerous as well. But let's be on the safe side and disable it
@@ -1582,11 +1583,21 @@ static enum compl_status_e vdisk_exec_start_stop(struct vdisk_cmd_params *p)
 	return CMD_SUCCEEDED;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=p */
 static enum compl_status_e vdisk_nop(struct vdisk_cmd_params *p)
 {
 	return CMD_SUCCEEDED;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=p */
 static enum compl_status_e vdisk_exec_send_diagnostic(struct vdisk_cmd_params *p)
 {
 	return CMD_SUCCEEDED;
@@ -1821,6 +1832,10 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 			PRINT_ERROR("FORMAT UNIT: too small parameters list header %d (dev %s)",
 				    length, dev->virt_name);
 			scst_set_cmd_error(cmd,
+					   /*
+					    * checkpatch-suppress LONG_LINE ; Keep the complete
+					    * symbolic sense name.
+					    */
 					   SCST_LOAD_SENSE(scst_sense_parameter_list_length_invalid));
 			goto out_put;
 		}
@@ -1847,6 +1862,11 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 				PRINT_ERROR("FORMAT UNIT: P_I_INFORMATION must be 0 (dev %s)",
 					    dev->virt_name);
 				scst_set_invalid_field_in_parm_list(cmd, 3,
+								    /*
+								     * checkpatch-suppress LONG_LINE
+								     * ; Keep the sense-field flag
+								     * and bit together.
+								     */
 								    SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
 				goto out_put;
 			}
@@ -1854,6 +1874,11 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 				PRINT_ERROR("FORMAT UNIT: PROTECTION INTERVAL EXPONENT %d not supported (dev %s)",
 					    buf[3] & 0xF, dev->virt_name);
 				scst_set_invalid_field_in_parm_list(cmd, 3,
+								    /*
+								     * checkpatch-suppress LONG_LINE
+								     * ; Keep the sense-field flag
+								     * and bit together.
+								     */
 								    SCST_INVAL_FIELD_BIT_OFFS_VALID | 4);
 				goto out_put;
 			}
@@ -1871,6 +1896,11 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 				break;
 			default:
 				scst_set_invalid_field_in_parm_list(cmd, 0,
+								    /*
+								     * checkpatch-suppress LONG_LINE
+								     * ; Keep the sense-field flag
+								     * and bit together.
+								     */
 								    SCST_INVAL_FIELD_BIT_OFFS_VALID);
 				goto out;
 			}
@@ -1879,6 +1909,11 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 			switch (prot_usage) {
 			default:
 				scst_set_invalid_field_in_parm_list(cmd, 0,
+								    /*
+								     * checkpatch-suppress LONG_LINE
+								     * ; Keep the sense-field flag
+								     * and bit together.
+								     */
 								    SCST_INVAL_FIELD_BIT_OFFS_VALID);
 				goto out;
 			}
@@ -1890,6 +1925,11 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 				break;
 			default:
 				scst_set_invalid_field_in_parm_list(cmd, 0,
+								    /*
+								     * checkpatch-suppress LONG_LINE
+								     * ; Keep the sense-field flag
+								     * and bit together.
+								     */
 								    SCST_INVAL_FIELD_BIT_OFFS_VALID);
 				goto out;
 			}
@@ -1904,6 +1944,11 @@ static enum compl_status_e vdisk_exec_format_unit(struct vdisk_cmd_params *p)
 				break;
 			default:
 				scst_set_invalid_field_in_parm_list(cmd, 0,
+								    /*
+								     * checkpatch-suppress LONG_LINE
+								     * ; Keep the sense-field flag
+								     * and bit together.
+								     */
 								    SCST_INVAL_FIELD_BIT_OFFS_VALID);
 				goto out;
 			}
@@ -1998,6 +2043,7 @@ static const struct scst_opcode_descriptor scst_op_descr_format_unit = {
 	.od_cdb_usage_bits = { FORMAT_UNIT, 0xF0, 0, 0, 0, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 static const struct scst_opcode_descriptor scst_op_descr_get_lba_status = {
 	.od_opcode = SERVICE_ACTION_IN_16,
@@ -2358,6 +2404,11 @@ static const struct scst_opcode_descriptor scst_op_descr_read_toc = {
 			       0xFF, 0xFF, SCST_OD_DEFAULT_CONTROL_BYTE },
 };
 
+/*
+ * This macro supplies separate opcode-descriptor array elements, not a comma
+ * expression.
+ */
+/* checkpatch-suppress-macro COMPLEX_MACRO ; See the contract above. */
 #define SHARED_OPCODE_DESCRIPTORS					\
 	&scst_op_descr_sync_cache10,					\
 	&scst_op_descr_sync_cache16,					\
@@ -2386,6 +2437,10 @@ static const struct scst_opcode_descriptor scst_op_descr_read_toc = {
 	&scst_op_descr_verify12,					\
 	&scst_op_descr_verify16
 
+/*
+ * This macro supplies separate opcode-descriptor array elements, not a comma expression.
+ */
+/* checkpatch-suppress-macro COMPLEX_MACRO ; See the contract above. */
 #define VDISK_OPCODE_DESCRIPTORS					\
 	/* &scst_op_descr_get_lba_status, */				\
 	&scst_op_descr_read_capacity16,					\
@@ -2400,6 +2455,12 @@ static const struct scst_opcode_descriptor *vdisk_opcode_descriptors[] = {
 	SHARED_OPCODE_DESCRIPTORS,
 	VDISK_OPCODE_DESCRIPTORS,
 	SCST_OPCODE_DESCRIPTORS
+	/*
+	 * The installed SCST_OPCODE_DESCRIPTORS initializer-list macro supplies
+	 * its trailing comma. This ampersand is the next pointer initializer,
+	 * not a binary operator.
+	 */
+	/* checkpatch-suppress SPACING ; See the contract above. */
 	&scst_op_descr_stpg, /* must be last, see vdisk_get_supported_opcodes()! */
 };
 
@@ -2412,6 +2473,12 @@ static const struct scst_opcode_descriptor *vdisk_opcode_descriptors_type2[] = {
 	&scst_op_descr_write_verify32,
 	&scst_op_descr_write_same32,
 	SCST_OPCODE_DESCRIPTORS
+	/*
+	 * The installed SCST_OPCODE_DESCRIPTORS initializer-list macro supplies
+	 * its trailing comma. This ampersand is the next pointer initializer,
+	 * not a binary operator.
+	 */
+	/* checkpatch-suppress SPACING ; See the contract above. */
 	&scst_op_descr_stpg, /* must be last, see vdisk_get_supported_opcodes()! */
 };
 
@@ -2422,6 +2489,11 @@ static const struct scst_opcode_descriptor *vcdrom_opcode_descriptors[] = {
 	SCST_OPCODE_DESCRIPTORS
 };
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static int vdisk_get_supported_opcodes(struct scst_cmd *cmd,
 				       const struct scst_opcode_descriptor ***out_supp_opcodes,
 				       int *out_supp_opcodes_cnt)
@@ -3070,6 +3142,11 @@ static void fileio_async_complete(struct kiocb *iocb, long ret
 			INIT_WORK(&w->work, scst_do_verify_work);
 			w->cmd = cmd;
 			schedule_work(&w->work);
+			/*
+			 * Verification work takes completion ownership;
+			 * scst_do_verify_work frees it.
+			 */
+			/* cppcheck-suppress memleak symbolName=w */
 			return;
 		}
 
@@ -4197,6 +4274,7 @@ static int vdisk_ctrl_m_pg(unsigned char *p, int pcontrol, struct scst_vdisk_dev
 		break;
 	case 1: /* changeable */
 		memset(p + 2, 0, sizeof(ctrl_m_pg) - 2);
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0	/*
 	 * See comment in struct scst_device definition.
 	 *
@@ -4466,6 +4544,7 @@ static void vdisk_ctrl_m_pg_select(const unsigned char *p, struct scst_vdisk_dev
 	 * perform direct assignment here.
 	 */
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* Not implemented yet, see comment in struct scst_device */
 	dev->tst = (p[2] >> 5) & 7;
 	/* ToDo: check validity of the new value */
@@ -4769,6 +4848,7 @@ static enum compl_status_e vdisk_exec_read_capacity(struct vdisk_cmd_params *p)
 	memset(buffer, 0, sizeof(buffer));
 
 	/* Last block on the virt_dev is (nblocks - 1) */
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* we don't need this workaround anymore */
 	/*
 	 * If we are thinly provisioned, we must ensure that the initiator
@@ -4903,6 +4983,11 @@ enum compl_status_e vdisk_exec_sai_16(struct vdisk_cmd_params *p)
 	return CMD_SUCCEEDED;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=p */
 static enum compl_status_e vdisk_exec_maintenance_in(struct vdisk_cmd_params *p)
 {
 	/* For the code that handles RTPG, see also scst_local_cmd.c. */
@@ -4910,6 +4995,11 @@ static enum compl_status_e vdisk_exec_maintenance_in(struct vdisk_cmd_params *p)
 }
 
 static enum compl_status_e
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=p */
 vdisk_exec_maintenance_out(struct vdisk_cmd_params *p)
 {
 	/* For the code that handles RTPG, see also scst_local_cmd.c. */
@@ -5456,6 +5546,10 @@ restart:
 			} else if (err == -ENOSPC) {
 				WARN_ON(!virt_dev->thin_provisioned);
 				scst_set_cmd_error(cmd,
+						   /*
+						    * checkpatch-suppress LONG_LINE ; Keep the
+						    * complete symbolic sense name.
+						    */
 						   SCST_LOAD_SENSE(scst_space_allocation_failed_write_protect));
 			} else {
 				scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
@@ -5535,6 +5629,10 @@ static inline void blockio_check_finish(struct scst_blockio_work *blockio_work)
 	struct scst_cmd *cmd;
 
 	/* Decrement the bios in processing, and if zero signal completion */
+	/*
+	 * bios+1 counts BIO completions and the submitter; the last completion releases work.
+	 */
+	/* coccinelle-suppress atomic_as_refcounter ; See the contract above. */
 	if (!atomic_dec_and_test(&blockio_work->bios_inflight))
 		return;
 
@@ -5622,6 +5720,10 @@ static void blockio_endio(struct bio *bio)
 
 				WARN_ON(!virt_dev->thin_provisioned);
 				scst_set_cmd_error(blockio_work->cmd,
+						   /*
+						    * checkpatch-suppress LONG_LINE ; Keep the
+						    * complete symbolic sense name.
+						    */
 						   SCST_LOAD_SENSE(scst_space_allocation_failed_write_protect));
 			} else {
 				scst_set_cmd_error(blockio_work->cmd,
@@ -5818,6 +5920,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 		goto finish_cmd;
 	}
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	{
 		static int err_inj_cntr;
@@ -5905,6 +6008,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 				 */
 				vdisk_bio_set_failfast(bio);
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* It could be win, but could be not, so a performance study is needed */
 				bio->bi_rw |= REQ_SYNC;
 #endif
@@ -6180,6 +6284,11 @@ static enum compl_status_e nullio_exec_write_verify(struct vdisk_cmd_params *p)
 	return CMD_SUCCEEDED;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=p */
 static enum compl_status_e nullio_exec_verify(struct vdisk_cmd_params *p)
 {
 	return CMD_SUCCEEDED;
@@ -6249,6 +6358,11 @@ static void vdev_on_alua_state_change_finish(struct scst_device *dev,
 	TRACE_EXIT();
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=mcmd */
 static void vdisk_task_mgmt_fn_done(struct scst_mgmt_cmd *mcmd, struct scst_tgt_dev *tgt_dev)
 {
 	TRACE_ENTRY();
@@ -6348,6 +6462,8 @@ out_free_done:
 	kfree(d);
 
 out_done:
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
+/* checkpatch-suppress IF_1 ; Retain the existing debug or alternative implementation. */
 #if 1
 	scst_ext_copy_remap_done(cmd, &seg->data_descr, 1);
 #else
@@ -7317,6 +7433,7 @@ static ssize_t __vcdrom_add_device(const char *device_name, char *params)
 	if (res != 0)
 		goto out;
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0  /*
 	* Our implementation is pretty minimalistic and doesn't support all
 	* mandatory commands, so it's better to not claim any standard

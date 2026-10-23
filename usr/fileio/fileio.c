@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Userspace and shared ABI headers require portable fixed-width integer types.
+ */
+/* checkpatch-suppress-file PREFER_KERNEL_TYPES ; See the contract above. */
+/*
  *  fileio.c
  *
  *  Copyright (C) 2007 - 2018 Vladislav Bolkhovitin <vst@vlnb.net>
@@ -354,7 +358,8 @@ static int start(int argc, char **argv)
 		close(fd);
 
 		PRINT_INFO("%s", " ");
-		PRINT_INFO("Virtual device \"%s\", path \"%s\", size %" PRId64 "MB, block size %d, nblocks %" PRId64 ", options:",
+		PRINT_INFO("Virtual device \"%s\", path \"%s\", size %" PRId64
+			   "MB, block size %d, nblocks %" PRId64 ", options:",
 			   devs[i].name,
 			devs[i].file_name, (uint64_t)devs[i].file_size / 1024 / 1024,
 			devs[i].block_size, (uint64_t)devs[i].nblocks);
@@ -412,6 +417,8 @@ static int start(int argc, char **argv)
 				goto out_unreg;
 		}
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
+/* checkpatch-suppress IF_1 ; Retain the existing debug or alternative implementation. */
 #if 1
 		{
 			/* Not needed, added here only as a test */

@@ -144,6 +144,16 @@ static void ft_cmd_done(struct ft_cmd *fcmd)
 /*
  * Free command - callback from SCST.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterPointer symbolName=cmd */
 void ft_cmd_free(struct scst_cmd *cmd)
 {
 	struct ft_cmd *fcmd = scst_cmd_get_tgt_priv(cmd);
@@ -342,6 +352,16 @@ void ft_cmd_timeout(struct scst_cmd *cmd)
 /*
  * Send TX_RDY (transfer ready).
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterPointer symbolName=cmd */
 int ft_send_xfer_rdy(struct scst_cmd *cmd)
 {
 	struct ft_cmd *fcmd;

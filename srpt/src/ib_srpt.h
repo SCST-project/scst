@@ -62,7 +62,17 @@
 struct srpt_nexus;
 
 #if !HAVE_IB_SG_DMA_LEN
+/*
+ * This compatibility fallback reads the scatterlist DMA field directly; unlike
+ * the older interface it needs no device argument.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define ib_sg_dma_len(dev, sg) sg_dma_len(sg)
+/*
+ * This compatibility fallback reads the scatterlist DMA field directly; unlike
+ * the older interface it needs no device argument.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define ib_sg_dma_address(dev, sg) sg_dma_address(sg)
 #endif
 
@@ -187,6 +197,12 @@ enum {
 				 128 * sizeof(struct srp_direct_buf)/*16*/,
 	DEFAULT_MAX_REQ_SIZE_2 = SRP_MAX_IMM_DATA_OFFSET +
 				 sizeof(struct srp_imm_buf) + SRP_MAX_IMM_DATA,
+	/*
+	 * Both operands are enumeration constants; this constant-expression
+	 * maximum is required for the containing enum and neither operand is a
+	 * runtime value.
+	 */
+	/* checkpatch-suppress CONSTANT_COMPARISON ; See the contract above. */
 	DEFAULT_MAX_REQ_SIZE = DEFAULT_MAX_REQ_SIZE_1 > DEFAULT_MAX_REQ_SIZE_2 ?
 			       DEFAULT_MAX_REQ_SIZE_1 : DEFAULT_MAX_REQ_SIZE_2,
 

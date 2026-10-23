@@ -288,7 +288,9 @@ static int login_check_reinstatement(struct connection *conn)
 	if (session) {
 		if (req->sid.id.tsih == 0) {
 			/* Kernel will do session reinstatement */
-			log_debug(1, "Session sid %#" PRIx64 " reinstatement detected (tid %d, initiator %s)",
+			log_debug(1,
+				  "Session sid %#" PRIx64
+				  " reinstatement detected (tid %d, initiator %s)",
 				  req->sid.id64,
 				conn->tid, conn->initiator);
 			res = ISCSI_SESS_REINSTATEMENT;
@@ -324,6 +326,7 @@ static int login_check_reinstatement(struct connection *conn)
 		}
 	} else {
 		if (req->sid.id.tsih != 0) {
+			/* checkpatch-suppress LONG_LINE ; Keep the diagnostic string searchable. */
 			log_error("Requested TSIH not 0 (TSIH %d, tid %d, initiator %s, sid requisted %#" PRIx64 ")",
 				  req->sid.id.tsih, conn->tid, conn->initiator,
 				  req->sid.id64);
@@ -351,11 +354,13 @@ static void text_scan_login(struct connection *conn)
 	datasize = conn->req.datasize;
 
 	while ((key = next_key(&data, &datasize, &value))) {
-		if (!(params_index_by_name(key, login_keys) < 0)) {
-			;
-		} else if (!strcmp(key, "AuthMethod")) {
-			;
-		} else if ((idx = params_index_by_name(key, session_keys)) >= 0) {
+		if (params_index_by_name(key, login_keys) >= 0)
+			continue;
+		if (!strcmp(key, "AuthMethod"))
+			continue;
+
+		idx = params_index_by_name(key, session_keys);
+		if (idx >= 0) {
 			unsigned int val;
 			char buf[32];
 
@@ -1083,6 +1088,12 @@ static void cmnd_exec_login(struct connection *conn)
 			login_start(conn);
 			if (rsp->status_class)
 				return;
+			/*
+			 * This userspace switch uses the compiler-recognized
+			 * fallthrough comment without requiring the kernel-only
+			 * fallthrough macro or a newer compiler attribute.
+			 */
+			/* checkpatch-suppress PREFER_FALLTHROUGH ; See the contract above. */
 			/* else fall through */
 		case STATE_SECURITY:
 			text_scan_security(conn);

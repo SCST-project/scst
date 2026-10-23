@@ -3,7 +3,6 @@
 """Run one analyzer Make target with CI coverage and failure checks."""
 
 import argparse
-import hashlib
 import json
 import os
 from pathlib import Path
@@ -16,7 +15,8 @@ sys.dont_write_bytecode = True
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 from analyzer_policy import source_policy  # noqa: E402
-from lint_common import copy_output, entrypoint, run  # noqa: E402
+from analyzer_report import markdown_block  # noqa: E402
+from lint_common import entrypoint, report_lock, run  # noqa: E402
 from style.checkpatch import checker_path  # noqa: E402
 
 TOOLS = {"sparse": "sparse", "smatch": "smatch", "coccicheck": "spatch", "cppcheck": "cppcheck",
@@ -28,8 +28,12 @@ def complete_native_report(report):
     if tool == "checkpatch":
         checked = report.get("checked_files")
         completed = report.get("completed_files")
-        return (report.get("complete") is True and not report.get("failures") and
-                report.get("native_status") == report.get("exit_code") and
+        remaining, ignored = report.get("remaining"), report.get("ignored", 0)
+        findings = report.get("findings", remaining)
+        return (all(type(value) is int and value >= 0 for value in (remaining, ignored, findings)) and
+                findings == remaining + ignored and
+                report.get("complete") is True and not report.get("failures") and
+                report.get("native_status") == int(bool(findings)) and
                 isinstance(checked, list) and bool(checked) and
                 checked == report.get("selected_files") and
                 isinstance(completed, list) and
@@ -54,10 +58,6 @@ def complete_native_report(report):
                     not row.get("failures") and row.get("translation_units") and
                     row.get("checked_files") for row in profiles))
     return False
-
-
-def digest(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def job_status(make_status, report):
@@ -91,78 +91,88 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("tool", choices=tuple(TOOLS))
     args = parser.parse_args()
+    # Keep the same report protected through the final CI coverage gate.
+    with report_lock(ROOT, args.tool) as lock_fd:
+        return analyze(args.tool, lock_fd)
+
+
+def analyze(tool, lock_fd):
     kernel = Path(os.environ.get("SCST_LINT_KDIR") or os.environ.get("KDIR", ""))
     config_path = kernel / ".config"
     config = config_path.read_text() if config_path.is_file() else ""
-    if args.tool != "checkpatch":
+    if tool != "checkpatch":
         if not (kernel / "Module.symvers").is_file():
             raise ValueError("Set KDIR to a prepared kernel build tree with Module.symvers")
         if not any(line in {"CONFIG_KUNIT=y", "CONFIG_KUNIT=m"} for line in config.splitlines()):
             raise ValueError("The CI analysis kernel must enable CONFIG_KUNIT")
-    executable = str(checker_path()) if args.tool == "checkpatch" else shutil.which(TOOLS[args.tool])
+    executable = str(checker_path()) if tool == "checkpatch" else shutil.which(TOOLS[tool])
     if not executable:
-        raise ValueError(f"{args.tool} is not installed")
+        raise ValueError(f"{tool} is not installed")
     directory = ROOT / ".cache/lint"
     directory.mkdir(parents=True, exist_ok=True)
-    provenance = Path("/usr/local/share/scst-ci") / (args.tool + "-source.txt")
-    environment = {
-        "commit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip(),
-        "kernel": str(kernel.resolve()),
-        "kernel_config_sha256": digest(config_path) if config else None,
-        "tool": executable, "tool_sha256": digest(Path(executable)),
-        "version": subprocess.check_output([executable, "--version"], text=True).strip(),
-        "source_provenance": provenance.read_text() if provenance.exists() else "unavailable",
-        "kunit_test": "y",
-    }
-    if args.tool == "checkpatch":
-        environment["version"] = next((line for line in environment["version"].splitlines()
-                                       if line.startswith("Version:")), environment["version"])
-        environment["data_sha256"] = {name: digest(Path(executable).with_name(name))
-                                      for name in ("spelling.txt", "const_structs.checkpatch")}
-    environment_text = json.dumps(environment, indent=2) + "\n"
-    (directory / f"{args.tool}.environment.json").write_text(environment_text)
-    print(environment_text, flush=True)
+    provenance = Path("/usr/local/share/scst-ci") / (tool + "-source.txt")
+    # Keep the existing preparation gate; the common Make frontend owns
+    # metadata and the human-readable report for both local and CI runs.
+    subprocess.check_output([executable, "--version"], text=True)
     (directory / "kernel.config").write_text(config)
     models = provenance.with_name("smatch-data.sha256")
-    if args.tool == "smatch" and models.exists():
+    if tool == "smatch" and models.exists():
         shutil.copyfile(models, directory / "smatch-data.sha256")
-    policy = subprocess.check_output([sys.executable, "-B", str(ROOT / "scripts/analyzer_policy.py"),
-                                      "show", args.tool, "--format=json"], text=True)
-    (directory / f"{args.tool}.policy.json").write_text(policy)
-    print(policy, flush=True)
     identity = str(uuid.uuid4())
     env = dict(os.environ, KDIR=str(kernel.resolve()), SCST_LINT_KDIR=str(kernel.resolve()),
-               KUNIT_TEST="y", KUNIT_LABEL="ALL", DIFFBR="", LINT_DEFER_REPORTS="1",
-               SCST_LINT_RUN_ID=identity)
+               KUNIT_TEST="y", KUNIT_LABEL="ALL", LINT_DEFER_REPORTS="1",
+               CPPCHECK_PROJECT="", CPPCHECK_USERSPACE_PROJECT="",
+               SCST_LINT_RUN_ID=identity, SCST_LINT_CI_WRAPPER="1",
+               LINT_REPORT_LOCK_TOOL=tool, LINT_REPORT_LOCK_FD=str(lock_fd))
     report = {}
+    frontend = {}
     try:
         # Make maps both findings and driver failures to 2. The current run's
         # report distinguishes them; neither a failed make nor a report alone
         # is sufficient to classify the run as completed source findings.
-        result = run(["make", "-j2", args.tool, f"KDIR={kernel.resolve()}",
-                      "KUNIT_TEST=y", "KUNIT_LABEL=ALL", "DIFFBR=", "WERROR=n"], cwd=ROOT, env=env)
+        # The frontend in turn gives the driver time to stop native children.
+        result = run(["make", "-j2", tool, f"KDIR={kernel.resolve()}",
+                      "KUNIT_TEST=y", "KUNIT_LABEL=ALL", "WERROR=n"], cwd=ROOT, env=env,
+                     pass_fds=(lock_fd,), cancel_timeout=20)
     finally:
-        path = directory / f"{args.tool}.json"
+        path = directory / f"{tool}.json"
         if path.exists():
-            candidate = json.loads(path.read_text())
+            try:
+                candidate = json.loads(path.read_text())
+            except ValueError:
+                candidate = None
             if (isinstance(candidate, dict) and candidate.get("run_id") == identity and
-                    candidate.get("tool") == args.tool):
+                    candidate.get("tool") == tool):
                 report = candidate
-                log = directory / f"{args.tool}.log"
-                if log.exists():
-                    print(f"\nFull report: {log}", flush=True)
-                    copy_output(log, sys.stdout.buffer)
+        path = directory / f"{tool}.run.json"
+        if path.exists():
+            try:
+                frontend = json.loads(path.read_text())
+            except ValueError:
+                frontend = {}
     status = job_status(result.returncode, report)
+    # Make also maps a failed report frontend to 2; do not mistake that failure
+    # for completed source findings just because a native report exists.
+    if (not isinstance(frontend, dict) or frontend.get("run_id") != identity or
+            frontend.get("tool") != tool or frontend.get("status") != status or
+            frontend.get("state") != report.get("outcome")):
+        status = 2
     if status == 1:
-        print(f"::error::{args.tool}: {report['remaining']} source finding(s); "
+        print(f"::error::{tool}: {report['remaining']} source finding(s); "
               "analysis completed.")
-    summary = (f"{args.tool}: outcome={report.get('outcome', 'missing')}, "
+    summary = (f"CI validation: {'PASS' if status == 0 else 'FAIL'}; {tool}: "
+               f"outcome={report.get('outcome', 'missing')}, "
                f"remaining={report.get('remaining', 'unknown')}, "
                f"make exit={result.returncode}, job exit={status}\n")
     print(summary, end="")
     if os.environ.get("GITHUB_STEP_SUMMARY"):
         with Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a") as stream:
-            stream.write(summary)
+            detail = directory / f"{tool}.summary.md"
+            if (isinstance(frontend, dict) and detail.is_file() and
+                    frontend.get("run_id") == identity and frontend.get("status") == status and
+                    (status in (0, 1) or frontend.get("state") == "incomplete")):
+                stream.write(detail.read_text())
+            stream.write(markdown_block(summary))
     return status
 
 

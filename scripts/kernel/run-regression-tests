@@ -34,7 +34,6 @@
 #   download it.
 # - Convert the SCST source code into a kernel patch.
 # - Extract the kernel sources.
-# - Run checkpatch on the SCST kernel patch.
 # - Apply the SCST kernel patch to the kernel tree.
 # - Run 'make allmodconfig'.
 # - Run 'make headers_check'.
@@ -244,50 +243,6 @@ function generate_kernel_patch {
     > "${patchfile_m}" || return $?
 
   "${scriptsdir}"/generate-kernel-patch "${driver_options[@]}" -p "${outputdir}/${patchdir}" "$2" "$1"
-}
-
-# Run checkpatch on the generated kernel patch. Assumes that there is a
-# vanilla kernel tree present in directory "${outputdir}/linux-$1", and leaves
-# this kernel tree clean.
-function run_checkpatch  {
-  local kver plevel errors warnings
-  local outputfile="${outputdir}/checkpatch-$1-output.txt"
-  local patchfile="${outputdir}/scst-$1-kernel.patch"
-
-  kver="$(kernel_version "$1")"
-  plevel="$(patchlevel "$1")"
-  if [ -e "${outputdir}/linux-$1/scripts/checkpatch.pl" ]; then
-    if [ "${multiple_patches}" = "false" ]; then
-      echo "Running checkpatch on the SCST kernel patch ..."
-      ( cd "${outputdir}/linux-$1" \
-        && scripts/checkpatch.pl --no-tree --no-signoff --strict - < "${patchfile}" &> "${outputfile}")
-    else
-      echo "Running checkpatch on the SCST kernel patches ..."
-      rm -f "${outputfile}"
-      ( cd "${outputdir}/linux-$1" \
-        && for p in "${outputdir}/${patchdir}"/*
-           do
-             echo "==== $p" >>"${outputfile}"
-             scripts/checkpatch.pl --no-tree --no-signoff --strict - < "$p" >> "${outputfile}" 2>&1
-           done
-      )
-    fi
-
-    errors=$(grep -c '^ERROR' "${outputfile}")
-    warnings=$(grep -c '^WARNING' "${outputfile}")
-    checks=$(grep -c '^CHECK' "${outputfile}")
-
-    echo "${errors} errors / ${warnings} warnings / ${checks} checks."
-
-    grep -E '^WARNING|^ERROR|^CHECK' "${outputfile}" |
-      sort |
-      grep -v 'WARNING: missing space after return type' |
-      sed 's/^CHECK: Avoid CamelCase:.*/CHECK: Avoid CamelCase/' |
-      uniq -c
-  else
-    echo "Skipping checkpatch step for kernel $1."
-  fi
-  return 0
 }
 
 function patch_and_configure_kernel {
@@ -595,7 +550,6 @@ do
 
   full_check="false"
   generate_kernel_patch_options=""
-  run_checkpatch="true"
   ipv6="true"
   while true; do
     kv_without_opt="${kv%-?}"
@@ -606,7 +560,6 @@ do
     case "${kopt}" in
       '-4')  ipv6="false";;
       '-f')  full_check="true";;
-      '-nc') run_checkpatch="false";;
       '-u')  generate_kernel_patch_options="-u";;
       '-p')  multiple_patches="true";;
       *)     break;;
@@ -625,9 +578,6 @@ do
       continue
   fi
   k="${k/^*}"
-  if [ "${run_checkpatch}" = "true" ]; then
-    run_checkpatch "$k"
-  fi
   patch_and_configure_kernel "$k" || continue
   case "$k" in
       3.10.0-*)

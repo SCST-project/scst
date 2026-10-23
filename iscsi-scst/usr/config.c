@@ -1,4 +1,12 @@
 /*
+ * Retain the original licensing text; SPDX conversion requires a separate license audit.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
+ * Userspace and shared ABI headers require portable fixed-width integer types.
+ */
+/* checkpatch-suppress-file PREFER_KERNEL_TYPES ; See the contract above. */
+/*
  *  Copyright (C) 2005 FUJITA Tomonori <tomof@acm.org>
  *  Copyright (C) 2007 - 2018 Vladislav Bolkhovitin
  *  Copyright (C) 2007 - 2018 Western Digital Corporation
@@ -92,6 +100,10 @@ void iscsi_attr_destroy(struct iscsi_attr *attr)
 	__iscsi_attr_destroy(attr, 1);
 }
 
+/*
+ * Removing boundary attributes through remque also modifies the list head.
+ */
+/* cppcheck-suppress constParameterPointer symbolName=attrs_list */
 void iscsi_attrs_free(struct __qelem *attrs_list)
 {
 	struct iscsi_attr *attr, *t;
@@ -981,9 +993,13 @@ int config_parse_main(const char *data, u32 cookie)
 			res = target_create(p, &target);
 			if (res != 0)
 				goto out;
-		} else if (!strcasecmp(p, "Alias") && target) {
-			;
-		} else if ((idx = params_index_by_name(p, target_keys)) >= 0 && (target)) {
+			continue;
+		}
+		if (!strcasecmp(p, "Alias") && target)
+			continue;
+
+		idx = params_index_by_name(p, target_keys);
+		if (idx >= 0 && target) {
 			char *str = config_sep_string(&q);
 
 			n = config_sep_string(&q);
@@ -1009,7 +1025,11 @@ int config_parse_main(const char *data, u32 cookie)
 				continue;
 			}
 			target->target_params[idx] = val;
-		} else if ((idx = params_index_by_name(p, session_keys)) >= 0 && (target)) {
+			continue;
+		}
+
+		idx = params_index_by_name(p, session_keys);
+		if (idx >= 0 && target) {
 			char *str = config_sep_string(&q);
 
 			n = config_sep_string(&q);
@@ -1035,8 +1055,11 @@ int config_parse_main(const char *data, u32 cookie)
 				continue;
 			}
 			target->session_params[idx] = val;
-		} else if ((idx = params_index_by_name_numwild(p, user_keys)) >= 0 &&
-			   ((target) || global_section)) {
+			continue;
+		}
+
+		idx = params_index_by_name_numwild(p, user_keys);
+		if (idx >= 0 && (target || global_section)) {
 			char *name;
 			const char *pass;
 
@@ -1052,11 +1075,12 @@ int config_parse_main(const char *data, u32 cookie)
 
 			res = __config_account_add(target, idx, name, pass, p,
 						   !target, 0);
-			if (res < 0)
-				continue;
-		} else if (global_section &&
-			   (!strcasecmp(p, ISCSI_ISNS_SERVER_ATTR_NAME) ||
-			    !strcasecmp(p, ISCSI_ISNS_ACCESS_CONTROL_ATTR_NAME))) {
+			continue;
+		}
+
+		if (global_section &&
+		    (!strcasecmp(p, ISCSI_ISNS_SERVER_ATTR_NAME) ||
+		     !strcasecmp(p, ISCSI_ISNS_ACCESS_CONTROL_ATTR_NAME))) {
 			continue;
 		} else {
 			log_error("Unknown or unexpected param: %s\n", p);

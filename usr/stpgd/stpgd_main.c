@@ -1,4 +1,15 @@
 /*
+ * The file has no complete file-specific license grant; do not infer one solely
+ * from adjacent sources. Defer SPDX conversion pending provenance/maintainer
+ * resolution; this exception covers only the missing tag in this exact existing
+ * source.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
+ * Userspace and shared ABI headers require portable fixed-width integer types.
+ */
+/* checkpatch-suppress-file PREFER_KERNEL_TYPES ; See the contract above. */
+/*
  *  stpgd_main.c
  */
 
@@ -349,6 +360,12 @@ static int stpg_event_loop(void)
 			case EBUSY:
 				TRACE_MGMT_DBG("SCST_EVENT_GET_NEXT_EVENT returned %d (%s)",
 					       res, strerror(res));
+	/*
+	 * This userspace switch uses the compiler-recognized fallthrough comment
+	 * without requiring the kernel-only fallthrough macro or a newer
+	 * compiler attribute.
+	 */
+	/* checkpatch-suppress PREFER_FALLTHROUGH ; See the contract above. */
 				/* fall through */
 			case EINTR:
 				continue;
@@ -379,6 +396,12 @@ again_poll:
 			case EAGAIN:
 				TRACE_MGMT_DBG("poll() returned %d (%s)",
 					       res, strerror(-res));
+	/*
+	 * This userspace switch uses the compiler-recognized fallthrough comment
+	 * without requiring the kernel-only fallthrough macro or a newer
+	 * compiler attribute.
+	 */
+	/* checkpatch-suppress PREFER_FALLTHROUGH ; See the contract above. */
 				/* fall through */
 			case EINTR:
 				goto again_poll;

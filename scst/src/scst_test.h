@@ -11,6 +11,10 @@
 #define SCST_KUNIT_REDIRECT(fn, ...) KUNIT_STATIC_STUB_REDIRECT(fn, ##__VA_ARGS__)
 #else
 #define SCST_KUNIT_VISIBLE static
+/*
+ * This macro supplies function declaration specifiers when KUnit is disabled.
+ */
+/* checkpatch-suppress-macro COMPLEX_MACRO ; See the contract above. */
 #define SCST_KUNIT_VISIBLE_INLINE static inline
 #define SCST_KUNIT_REDIRECT(...) do { } while (0)
 #endif

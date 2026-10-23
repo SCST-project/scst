@@ -1,4 +1,4 @@
-"""Exercise source selection against Git, including paths and renames."""
+"""Exercise tracked and explicit source selection against Git."""
 
 import os
 from pathlib import Path
@@ -6,10 +6,11 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from lint_scope import changed_sources, git_pathspecs, in_scope, select_sources, tracked_sources
+from lint_scope import in_scope, select_sources, tracked_sources
 
 
 class ScopeTests(unittest.TestCase):
@@ -29,7 +30,7 @@ class ScopeTests(unittest.TestCase):
         self.git("add", "-f", "--", name)
         return path
 
-    def test_full_and_patch_scope_agree(self):
+    def test_tracked_and_explicit_scope_agree(self):
         kept = ("scst/src/core.c", "scst/src/kunit/test.c", "iscsi-scst/usr/user.c",
                 "qla2x00t-32gbit/qla2x00-target/scst_qla2xxx.c",
                 "qla2x00t-32gbit/qla2x00-target/scst_qla2xxx.h", "srpt/src/driver.c",
@@ -43,16 +44,11 @@ class ScopeTests(unittest.TestCase):
         for name in (*kept, *excluded):
             self.assertEqual(in_scope(self.source(name), self.root), name in kept)
         self.assertEqual(set(tracked_sources(self.root)), {self.root / n for n in kept})
-        names = self.git("diff", "--cached", "--name-only", "-z", "--", *git_pathspecs())
-        self.assertEqual({os.fsdecode(n) for n in names.split(b"\0") if n}, set(kept))
+        self.assertEqual(set(select_sources(self.root, [self.root / n for n in kept])),
+                         {self.root / n for n in kept})
         for name in excluded:
             with self.subTest(name=name), self.assertRaises(ValueError):
-                select_sources(self.root, [self.root / name], None)
-        self.git("-c", "user.name=Test", "-c", "user.email=test@example.org",
-                 "-c", "commit.gpgsign=false", "commit", "-qm", "base")
-        for name in (*kept, *excluded):
-            (self.root / name).write_text("int changed(void);\n")
-        self.assertEqual(set(changed_sources(self.root, "HEAD")), {self.root / n for n in kept})
+                select_sources(self.root, [self.root / name])
 
     def test_alias_cannot_reinclude_qlogic_sources(self):
         kept = self.source("scst/kept.c")
@@ -63,7 +59,7 @@ class ScopeTests(unittest.TestCase):
             alias.symlink_to(target)
             self.assertFalse(in_scope(alias, self.root))
             with self.assertRaises(ValueError):
-                select_sources(self.root, [alias], None)
+                select_sources(self.root, [alias])
 
     def test_deleted_untracked_and_escaping_links(self):
         kept = self.source("scst/kept.c")
@@ -76,30 +72,34 @@ class ScopeTests(unittest.TestCase):
         new = self.root / "scst/new.c"
         new.write_text("int fresh;\n")
         self.assertEqual(tracked_sources(self.root), [kept])
-        self.assertEqual(select_sources(self.root, [new], None), [new])
+        self.assertEqual(select_sources(self.root, [new]), [new])
         with self.assertRaises(ValueError):
-            select_sources(self.root, [alias], None)
+            select_sources(self.root, [alias])
 
-    def test_diff_checks_new_name_and_rejects_bad_base(self):
-        self.source("scst/before.c")
-        self.git("-c", "user.name=Test", "-c", "user.email=test@example.org",
-                 "-c", "commit.gpgsign=false", "commit", "-qm", "base")
-        self.git("mv", "scst/before.c", "scst/after.c")
-        self.assertEqual(changed_sources(self.root, "HEAD"), [self.root / "scst/after.c"])
-        with self.assertRaises(subprocess.CalledProcessError):
-            changed_sources(self.root, "missing-reference")
-
-    def test_diff_requires_one_commit_even_when_the_worktree_is_clean(self):
+    def test_default_selection_ignores_legacy_diff_environment(self):
         source = self.source("scst/core.c")
-        self.git("-c", "user.name=Test", "-c", "user.email=test@example.org",
-                 "-c", "commit.gpgsign=false", "commit", "-qm", "base")
-        for base in ("--quiet", "--exit-code", "--cached", "HEAD..HEAD", "HEAD^{tree}"):
-            with self.subTest(base=base), self.assertRaises(subprocess.CalledProcessError):
-                changed_sources(self.root, base)
-        self.git("tag", "baseline")
-        self.assertEqual(changed_sources(self.root, "baseline"), [])
-        source.write_text("int changed(void);\n")
-        self.assertEqual(changed_sources(self.root, "baseline"), [source])
+        with patch.dict(os.environ, {"DIFFBR": "missing-reference"}):
+            self.assertEqual(select_sources(self.root, []), [source])
+
+    def test_git_failure_preserves_diagnostics_in_the_callers_error(self):
+        empty = self.root / "not-a-repository"
+        empty.mkdir()
+        with patch.dict(os.environ, {"GIT_CEILING_DIRECTORIES": str(self.root)}):
+            with self.assertRaisesRegex(ValueError, "Git source selection failed:.*not a git repository"):
+                tracked_sources(empty)
+
+    def test_analyzer_commands_reject_removed_base_option(self):
+        scripts = Path(__file__).resolve().parents[1]
+        for command in (("sparse_smatch/smp.py", "sparse"),
+                        ("sparse_smatch/smp.py", "smatch"),
+                        ("style/checkpatch.py",), ("cppcheck/cppcheck.py",),
+                        ("coccinelle/coccicheck.py",)):
+            with self.subTest(command=command):
+                result = subprocess.run(
+                    [sys.executable, "-B", str(scripts / command[0]), *command[1:],
+                     "--base", "HEAD"], cwd=self.root, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn("unrecognized arguments: --base", result.stderr)
 
 
 if __name__ == "__main__":

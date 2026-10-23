@@ -87,3 +87,5 @@ srpt/conftest/*/result-*.txt
 TAGS
 usr/fileio/fileio_tgt
 usr/stpgd/stpgd
+
+/compile_commands.json

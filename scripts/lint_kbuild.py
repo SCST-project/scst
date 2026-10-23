@@ -54,13 +54,15 @@ def validate_checker(root, tool, log):
         raise ValueError(f"{tool} is incompatible with {probe}; module build was not started")
 
 
-def collect(root, tool, directory, log, *, checker=None):
+def collect(root, tool, directory, log, *, checker=None, checkflags=None):
     """Retain CHECK exits even when the enclosing Kbuild discards them."""
     env = dict(os.environ, SCST_LINT_RECORDS=str(directory))
     checker = shlex.join(checker or
                          [sys.executable, str(root / "scripts/sparse_smatch/check.py"), tool])
     command = ["make", "--no-silent", "-k", "-C", str(root), "lint-kbuild",
                "C=2", "V=0", "CHECK=" + checker]
+    if checkflags is not None:
+        command.append("CHECKFLAGS=" + checkflags)
     with log.open("ab") as output:
         result = run(command, env=env, stdout=output, stderr=subprocess.STDOUT,
                      progress=f"{tool.capitalize()} Kbuild")
@@ -68,21 +70,40 @@ def collect(root, tool, directory, log, *, checker=None):
     return result.returncode, records
 
 
-def unchecked_invocations(root, tool, log, records):
+def unchecked_invocations(root, tool, log, records, *, source_inputs=None):
     """Detect a CHECK whose adapter never managed to leave a record."""
     checked = Counter(Path(row["file"]) for row in records)
-    sources = set(tracked_sources(root, tool)) | set(checked)
+    sources = set(tracked_sources(root, tool) if source_inputs is None else source_inputs) | set(checked)
     announced = Counter()
+    directories = Counter()
     for line in log.read_text(errors="replace").splitlines():
+        directory = re.fullmatch(r"make(?:\[\d+\])?: (Entering|Leaving) directory ['`](.+)'", line)
+        if directory:
+            action, name = directory.groups()
+            key = Path(name).resolve()
+            if action == "Entering":
+                directories[key] += 1
+            elif directories[key]:
+                directories[key] -= 1
+            continue
         match = re.fullmatch(r"\s+CHECK\s+(?:\[M\]\s+)?(.+\.c)\s*", line)
         if not match:
             continue
         path = Path(match[1])
         if path.is_absolute():
-            candidates = {path.resolve()} if in_scope(path, root, tool) else set()
+            eligible = (in_scope(path, root, tool) if source_inputs is None
+                        else path.resolve() in sources)
+            candidates = {path.resolve()} if eligible else set()
         else:
-            candidates = {source for source in sources
-                          if source.as_posix().endswith("/" + path.as_posix())}
+            # Newer Kbuild prints paths relative to the module directory.
+            # Do not confuse them with equally named userspace files, or use
+            # successful records alone: that would hide a missing invocation.
+            candidates = {(directory / path).resolve()
+                          for directory, active in directories.items() if active
+                          and (directory / path).resolve() in sources}
+            if not candidates:
+                candidates = {source for source in sources
+                              if source.as_posix().endswith("/" + path.as_posix())}
         if len(candidates) > 1:
             raise ValueError(f"ambiguous Kbuild CHECK path: {path}")
         announced.update(candidates)

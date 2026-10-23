@@ -1,4 +1,8 @@
 /*
+ * Retain the original licensing text; SPDX conversion requires a separate license audit.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
  *  scst_event.c
  *
  *  Copyright (C) 2014 - 2018 Western Digital Corporation
@@ -832,6 +836,10 @@ static int scst_event_user_next_event(struct scst_event_priv *priv, void __user 
 
 out:
 	TRACE_EXIT_RES(res);
+	/*
+	 * The caller owns scst_event_mutex; the helper must return with it held.
+	 */
+	/* coccinelle-suppress mini_lock ; See the contract above. */
 	return res;
 }
 
@@ -1044,6 +1052,7 @@ out_unlock:
 	return res;
 }
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 #define CONFIG_EVENTS_WAIT_TEST
 #endif

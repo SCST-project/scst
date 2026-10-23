@@ -54,8 +54,10 @@ endif
 #-include .depend_c
 #endif
 
+compile_c = $(CC) -c -o $(2) $(CFLAGS) $(1)
+
 %.o: %.c Makefile
-	$(CC) -c -o $(@) $(CFLAGS) $(<)
+	$(call compile_c,$<,$@)
 
 .depend_f:
 	$(CC) -M $(CFLAGS) $(SRCS_F) >$(@)
@@ -91,3 +93,8 @@ release-archive:
 	../../scripts/release/generate-release-archive stpgd "$$(sed -n 's/^#define[[:blank:]]VERSION_STR[[:blank:]]*\"\([^\"]*\)\".*/\1/p' ../include/version.h)"
 
 .PHONY: all install uninstall clean extraclean 2release 2debug 2perf
+
+COMMAND_SOURCES := $(SRCS_F)
+ifneq ($(filter compile-commands,$(MAKECMDGOALS)),)
+include ../../scripts/compile_commands.mk
+endif

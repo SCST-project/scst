@@ -2,6 +2,7 @@
 
 import contextlib
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeout
+import fcntl
 import os
 import re
 import shlex
@@ -13,10 +14,35 @@ import sys
 import time
 from pathlib import Path
 
-PROGRESS_INTERVAL = 5
+PROGRESS_INTERVAL = 30
 SPINNER_INTERVAL = 0.1
 SPINNER_FRAMES = "|/-\\"
 VERBOSE = os.environ.get("V", "0") not in {"", "0"}
+
+
+def report_section(title, lines, *, collapsed=False):
+    """Format report sections with optional folding in GitHub Actions."""
+    body = lines if isinstance(lines, str) else "\n".join(lines)
+    if collapsed and os.environ.get("GITHUB_ACTIONS") == "true" and not VERBOSE:
+        return f"\n::group::{title}\n{body.rstrip()}\n::endgroup::\n"
+    return f"\n--- {title} ---\n{body.rstrip()}\n"
+
+
+def print_phase(tool, phase):
+    print(f"\n{'=' * 72}\n{phase} | {tool}\n{'=' * 72}\n", flush=True)
+
+
+def parser_runtime():
+    from importlib.metadata import PackageNotFoundError, version
+
+    packages = []
+    for name in ("tree-sitter", "tree-sitter-c"):
+        try:
+            release = version(name)
+        except PackageNotFoundError:
+            release = "unknown"
+        packages.append(f"{name} {release}")
+    return f"Parser runtime: Python {sys.version.split()[0]}; " + "; ".join(packages)
 
 
 def show_log(path, label="Full log"):
@@ -26,10 +52,11 @@ def show_log(path, label="Full log"):
 class Progress:
     """Animate only a quiet child; redirected output gets periodic plain lines."""
 
-    def __init__(self, label, *, quiet=True):
+    def __init__(self, label, *, quiet=True, stream=None):
         self.label = label
+        self.stream = sys.stderr if stream is None else stream
         self.started = time.monotonic()
-        self.animated = (bool(label) and quiet and sys.stderr.isatty()
+        self.animated = (bool(label) and quiet and self.stream.isatty()
                          and os.environ.get("TERM") != "dumb")
         self.interval = SPINNER_INTERVAL if self.animated else PROGRESS_INTERVAL
         self.frame = 0
@@ -37,27 +64,28 @@ class Progress:
 
     def update(self):
         elapsed = int(time.monotonic() - self.started)
+        label = self.label() if callable(self.label) else self.label
         if self.animated:
-            elapsed -= elapsed % PROGRESS_INTERVAL
             frame = SPINNER_FRAMES[self.frame % len(SPINNER_FRAMES)]
-            text = f"  {frame} {self.label}  {elapsed // 60:02}:{elapsed % 60:02}"
+            text = f"  {frame} {label}  {elapsed // 60:02}:{elapsed % 60:02} total"
             width = shutil.get_terminal_size().columns
-            print("\r\033[2K" + text[:max(1, width - 1)], end="", file=sys.stderr, flush=True)
+            print("\r\033[2K" + text[:max(1, width - 1)], end="", file=self.stream, flush=True)
             self.frame += 1
         else:
-            print(f"  {self.label}: running ({elapsed}s elapsed)", file=sys.stderr, flush=True)
+            print(f"  {label}: running ({elapsed}s total elapsed)", file=self.stream, flush=True)
         self.visible = True
 
     def clear(self):
         if self.animated and self.visible:
-            print("\r\033[2K", end="", file=sys.stderr, flush=True)
+            print("\r\033[2K", end="", file=self.stream, flush=True)
 
     def finish(self, status):
         self.clear()
         if self.visible:
             elapsed = int(time.monotonic() - self.started)
-            print(f"  {self.label}: finished ({elapsed}s, exit {status})",
-                  file=sys.stderr, flush=True)
+            label = self.label() if callable(self.label) else self.label
+            print(f"  {label}: finished ({elapsed}s total elapsed, exit {status})",
+                  file=self.stream, flush=True)
 
 
 def jobserver_fds(env):
@@ -80,16 +108,39 @@ def start(command, *, env=None, **kwargs):
     environment = os.environ if env is None else env
     if VERBOSE:
         print("  $ " + shlex.join(map(str, command)), file=sys.stderr, flush=True)
+    descriptors = set(kwargs.pop("pass_fds", ())) | set(jobserver_fds(environment))
     return subprocess.Popen(command, env=environment, start_new_session=True,
-                            pass_fds=jobserver_fds(environment), **kwargs)
+                            pass_fds=tuple(sorted(descriptors)), **kwargs)
 
 
-def stop(process):
+@contextlib.contextmanager
+def report_lock(root, tool):
+    """Serialize direct and Make runs until the parent finishes its report."""
+    path = root / ".cache/lint" / f"{tool}.report.lock"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if os.environ.get("LINT_REPORT_LOCK_TOOL") == tool:
+        # Reuse the parent's open file description. Opening the same lock
+        # again would deadlock; an environment flag alone is not ownership.
+        try:
+            descriptor = int(os.environ.get("LINT_REPORT_LOCK_FD", ""))
+            if descriptor < 3 or not os.path.samestat(os.fstat(descriptor), path.stat()):
+                raise ValueError("Wrong report lock descriptor")
+            fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except (OSError, ValueError) as error:
+            raise ValueError("Invalid inherited analyzer report lock") from error
+        yield descriptor
+    else:
+        with path.open("a") as stream:
+            fcntl.flock(stream, fcntl.LOCK_EX)
+            yield stream.fileno()
+
+
+def stop(process, *, timeout=2):
     """Stop the owned process group, including children of an exited driver."""
     with contextlib.suppress(ProcessLookupError):
         os.killpg(process.pid, signal.SIGTERM)
     try:
-        process.wait(timeout=2)
+        process.wait(timeout=timeout)
     except subprocess.TimeoutExpired:
         pass
     with contextlib.suppress(ProcessLookupError):
@@ -101,12 +152,14 @@ def exit_status(returncode):
     return returncode if returncode >= 0 else 128 - returncode
 
 
-def run(command, *, input=None, check=False, progress=None, **kwargs):
+def run(command, *, input=None, check=False, progress=None, progress_stream=None,
+        timeout=None, cancel_timeout=2, **kwargs):
     if input is not None:
         kwargs["stdin"] = subprocess.PIPE
     process = start(command, **kwargs)
+    deadline = time.monotonic() + timeout if timeout is not None else None
     indicator = Progress(progress, quiet=kwargs.get("stdout") is not None
-                         and kwargs.get("stderr") is not None)
+                         and kwargs.get("stderr") is not None, stream=progress_stream)
     # Python 3.12 can stop writing pending stdin after a communicate timeout.
     # Keep one I/O operation running while the main thread updates progress.
     with ThreadPoolExecutor(max_workers=1) as executor:
@@ -115,16 +168,22 @@ def run(command, *, input=None, check=False, progress=None, **kwargs):
                 indicator.update()
             communication = executor.submit(process.communicate, input)
             while True:
+                remaining = deadline - time.monotonic() if deadline is not None else None
+                if remaining is not None and remaining <= 0:
+                    raise subprocess.TimeoutExpired(command, timeout)
+                wait = indicator.interval if progress else remaining
+                if remaining is not None and wait is not None:
+                    wait = min(wait, remaining)
                 try:
-                    stdout, stderr = communication.result(
-                        timeout=indicator.interval if progress else None)
+                    stdout, stderr = communication.result(timeout=wait)
                     break
                 except FutureTimeout:
-                    indicator.update()
+                    if progress:
+                        indicator.update()
         except BaseException:
             indicator.clear()
             # Close the process group's pipes before joining the I/O worker.
-            stop(process)
+            stop(process, timeout=cancel_timeout)
             raise
     result = subprocess.CompletedProcess(command, exit_status(process.returncode), stdout, stderr)
     indicator.finish(result.returncode)
@@ -168,6 +227,9 @@ def entrypoint(main):
         return 128 + error.signum
     except KeyboardInterrupt:
         return 130
+    except subprocess.TimeoutExpired as error:
+        print(f"Command timed out after {error.timeout}s: {error.cmd}", file=sys.stderr)
+        return 2
     except subprocess.CalledProcessError as error:
         print(f"Command failed ({error.returncode}): {error.cmd}", file=sys.stderr)
         return error.returncode

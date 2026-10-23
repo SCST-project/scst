@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Userspace and shared ABI headers require portable fixed-width integer types.
+ */
+/* checkpatch-suppress-file PREFER_KERNEL_TYPES ; See the contract above. */
+/*
  *  common.c
  *
  *  Copyright (C) 2007 - 2018 Vladislav Bolkhovitin <vst@vlnb.net>
@@ -259,7 +263,7 @@ static int do_exec(struct vdisk_cmd *vcmd)
 
 #ifdef DEBUG_TM_IGNORE
 	if (dev->debug_tm_ignore && (random() % 10000) == 75) {
-		TRACE_MGMT_DBG("Ignore cmd op %x (h=%d)", cdb[0],
+		TRACE_MGMT_DBG("Ignore cmd op %x (h=%u)", cdb[0],
 			       vcmd->cmd->cmd_h);
 		res = 150;
 		goto out;
@@ -291,11 +295,17 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		reply->resp_data_len = cmd->bufflen;
 
 	loff = (loff_t)lba_start << dev->block_shift;
+	/*
+	 * This is the standard inttypes.h integer-format macro, whose portable
+	 * spelling is defined by the C library.
+	 */
+	/* checkpatch-suppress-symbol CAMELCASE symbolName=PRId64 ; See the contract above. */
 	TRACE_DBG("cmd %d, buf %" PRIx64 ", lba_start %" PRId64 ", loff %" PRId64
 		", data_len %" PRId64, vcmd->cmd->cmd_h, cmd->pbuf, lba_start,
 		(uint64_t)loff, data_len);
 	if (loff < 0 || data_len < 0 || ((loff + data_len) > dev->file_size)) {
-		PRINT_INFO("Access beyond the end of the device (%" PRId64 " of %" PRId64 ", len %" PRId64 ")",
+		PRINT_INFO("Access beyond the end of the device (%" PRId64 " of %" PRId64
+			   ", len %" PRId64 ")",
 			   (uint64_t)loff,
 			(uint64_t)dev->file_size, data_len);
 		set_cmd_error(vcmd, SCST_LOAD_SENSE(scst_sense_block_out_range_error));
@@ -381,7 +391,8 @@ static int do_exec(struct vdisk_cmd *vcmd)
 		if (data_len == 0)
 			data_len = dev->file_size -
 				((loff_t)lba_start << dev->block_shift);
-		TRACE(TRACE_ORDER, "SYNCHRONIZE_CACHE: loff=%" PRId64 ", data_len=%" PRId64 ", immed=%d",
+		TRACE(TRACE_ORDER,
+		      "SYNCHRONIZE_CACHE: loff=%" PRId64 ", data_len=%" PRId64 ", immed=%d",
 		      (uint64_t)loff, data_len, immed);
 		/* ToDo: execute immediate synchronization in the background. */
 		exec_fsync(vcmd);
@@ -458,7 +469,8 @@ static int do_alloc_mem(struct vdisk_cmd *vcmd)
 
 	TRACE_ENTRY();
 
-	TRACE_MEM("Alloc mem (cmd %d, sess_h %" PRIx64 ", cdb_len %d, alloc_len %d, queue_type %d, data_direction %d)",
+	TRACE_MEM("Alloc mem (cmd %d, sess_h %" PRIx64
+		  ", cdb_len %d, alloc_len %d, queue_type %d, data_direction %d)",
 		  cmd->cmd_h, cmd->alloc_cmd.sess_h,
 		  cmd->alloc_cmd.cdb_len, cmd->alloc_cmd.alloc_len,
 		  cmd->alloc_cmd.queue_type, cmd->alloc_cmd.data_direction);
@@ -566,6 +578,8 @@ static int do_ext_copy_remap(struct vdisk_cmd *vcmd)
 	d[0].src_lba = rcmd->data_descr.src_lba;
 	d[0].dst_lba = rcmd->data_descr.dst_lba;
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
+/* checkpatch-suppress IF_1 ; Retain the existing debug or alternative implementation. */
 #if 1
 	rreply->remap_descriptors = (unsigned long)d;
 	rreply->remap_descriptors_len = sizeof(d);
@@ -656,7 +670,8 @@ static int do_sess(struct vdisk_cmd *vcmd)
 
 		tgt_dev->sess_h = cmd->sess.sess_h;
 
-		PRINT_INFO("Session from initiator %s (target %s) attached (LUN %" PRIx64 ", threads_num %d, rd_only %d, sess_h %" PRIx64 ")",
+		PRINT_INFO("Session from initiator %s (target %s) attached (LUN %" PRIx64
+			   ", threads_num %d, rd_only %d, sess_h %" PRIx64 ")",
 			   cmd->sess.initiator_name,
 			cmd->sess.target_name, cmd->sess.lun,
 			cmd->sess.threads_num, cmd->sess.rd_only,
@@ -840,6 +855,10 @@ void *main_loop(void *arg)
 				multi.multi_cmd.preplies = (uintptr_t)&multi.replies[0];
 				multi.multi_cmd.replies_cnt = 0;
 				multi.multi_cmd.cmds_cnt = MULTI_CMDS_CNT;
+	/*
+	 * Keep the portable compiler-recognized switch continuation comment.
+	 */
+	/* checkpatch-suppress PREFER_FALLTHROUGH ; See the contract above. */
 				/* fall through */
 			case EINTR:
 				continue;
@@ -854,6 +873,8 @@ void *main_loop(void *arg)
 				continue;
 			default:
 				PRINT_ERROR("SCST_USER failed: %s (%d)", strerror(res), res);
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
+/* checkpatch-suppress IF_1 ; Retain the existing debug or alternative implementation. */
 #if 1
 				cmd.preply = 0;
 				multi.multi_cmd.preplies = (uintptr_t)&multi.replies[0];
@@ -882,6 +903,8 @@ again_poll:
 					goto again_poll;
 				default:
 					PRINT_ERROR("poll() failed: %s", strerror(res));
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
+/* checkpatch-suppress IF_1 ; Retain the existing debug or alternative implementation. */
 #if 1
 					goto again_poll;
 #else
@@ -985,6 +1008,10 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 	if (cmd->cdb[1] & EVPD) {
 		uint64_t dev_id_num = gen_dev_id_num(dev);
 
+		/*
+		 * The retained conditional debug branch has balanced braces after preprocessing.
+		 */
+		/* checkpatch-suppress-begin BRACES ; See the contract above. */
 		if (cmd->cdb[2] == 0) { /* supported vital product data pages */
 			buf[3] = 5;
 			buf[4] = 0x0; /* this page */
@@ -1018,6 +1045,7 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			buf[num + 3] = 8 + i;
 			num += buf[num + 3];
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* This isn't required and can be misleading, so let's disable it */
 			num += 4;
 
@@ -1079,11 +1107,13 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 			/* Block Device Characteristics */
 			buf[1] = 0xB1;
 			buf[3] = 0x3C;
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 			if (virt_dev->rotational) {
 #endif
 				/* 15K RPM */
 				r = 0x3A98;
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 			} else
 				r = 1;
@@ -1098,6 +1128,7 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 				      SCST_LOAD_SENSE(scst_sense_invalid_field_in_cdb));
 			goto out;
 		}
+		/* checkpatch-suppress-end BRACES */
 	} else {
 		int len;
 
@@ -1119,6 +1150,11 @@ static void exec_inquiry(struct vdisk_cmd *vcmd)
 
 		/* 16 byte ASCII Product Identification of the target - left aligned */
 		memset(&buf[16], ' ', 16);
+		/*
+		 * The userspace min helper checks types and has no min_t; the cast supplies the
+		 * matching scalar type.
+		 */
+		/* checkpatch-suppress MINMAX ; See the contract above. */
 		len = min(strlen(dev->name), (size_t)16);
 		memcpy(&buf[16], dev->name, len);
 
@@ -1464,6 +1500,10 @@ static void exec_mode_select(struct vdisk_cmd *vcmd)
 			if (address[offset + 1] != 18) {
 				PRINT_ERROR("%s", "MODE SELECT: Invalid caching page request");
 				set_cmd_error(vcmd,
+					      /*
+					       * checkpatch-suppress LONG_LINE ; Keep the complete
+					       * symbolic sense name.
+					       */
 					      SCST_LOAD_SENSE(scst_sense_invalid_field_in_parm_list));
 				goto out;
 			}
@@ -1516,6 +1556,12 @@ static void exec_read_capacity(struct vdisk_cmd *vcmd)
 	buffer[6] = (blocksize >> (BYTE * 1)) & 0xFF;
 	buffer[7] = (blocksize >> (BYTE * 0)) & 0xFF;
 
+	/*
+	 * The userspace min helper checks operand types and has no min_t
+	 * dependency; the explicit scalar cast supplies the required matching
+	 * type.
+	 */
+	/* checkpatch-suppress MINMAX ; See the contract above. */
 	length = min(length, (int)sizeof(buffer));
 
 	memcpy(address, buffer, length);

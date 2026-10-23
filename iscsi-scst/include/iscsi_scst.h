@@ -1,5 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-only */
 /*
+ * Userspace and shared ABI headers require portable fixed-width integer types.
+ */
+/* checkpatch-suppress-file PREFER_KERNEL_TYPES ; See the contract above. */
+/*
  *  Copyright (C) 2007 - 2018 Vladislav Bolkhovitin
  *  Copyright (C) 2007 - 2018 Western Digital Corporation
  *
@@ -49,6 +53,11 @@
  * mm_segment_t was dropped in commit
  * 967747bbc084 ("uaccess: remove CONFIG_SET_FS") # v5.18
  */
+/*
+ * This guarded mm_segment_t compatibility type keeps the same call-site API
+ * after set_fs removal; it is not a new private type alias.
+ */
+/* checkpatch-suppress NEW_TYPEDEFS ; See the contract above. */
 typedef struct {
 	/* empty dummy */
 } mm_segment_t;
@@ -64,6 +73,12 @@ static inline void set_fs(mm_segment_t seg) { }
 #include <linux/types.h>
 #else
 #include <sys/uio.h>
+/*
+ * This shared ABI fallback must preserve explicit 8-byte alignment when kernel
+ * type aliases or attribute macros are unavailable, including userspace
+ * consumers.
+ */
+/* checkpatch-suppress PREFER_DEFINED_ATTRIBUTE_MACRO ; See the contract above. */
 #define aligned_u64 uint64_t __attribute__((aligned(8)))
 #endif
 
@@ -149,8 +164,14 @@ struct iscsi_kern_session_info {
 };
 
 #define DIGEST_ALL		(DIGEST_NONE | DIGEST_CRC32C)
+/*
+ * Userspace/shared protocol constants cannot depend on the kernel BIT macro;
+ * preserve the original int or unsigned-int width.
+ */
+/* checkpatch-suppress-begin BIT_MACRO ; See the contract above. */
 #define DIGEST_NONE		(1 << 0)
 #define DIGEST_CRC32C           (1 << 1)
+/* checkpatch-suppress-end BIT_MACRO */
 
 struct iscsi_kern_conn_info {
 	u32 tid;
@@ -262,6 +283,10 @@ struct iscsi_kern_initiator_info {
 
 #define ISCSI_INITIATOR_ALLOWED	_IOW('s', 12, struct iscsi_kern_initiator_info)
 
+/*
+ * Used by the daemon; the separate kernel analysis has no caller.
+ */
+/* cppcheck-suppress unusedFunction symbolName=iscsi_is_key_internal */
 static inline int iscsi_is_key_internal(int key)
 {
 	switch (key) {

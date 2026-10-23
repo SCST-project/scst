@@ -1,4 +1,8 @@
 /*
+ * Retain the original licensing text; SPDX conversion requires a separate license audit.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
  *  Copyright (C) 2013 - 2018 Western Digital Corporation
  *
  */
@@ -1381,6 +1385,8 @@ out_done:
  * scst_ext_copy_get_cur_seg_data_len() - return current segment data len
  * @ec_cmd:	EXTENDED COPY command
  */
+/* Retain the exported command accessor signature declared in scst.h. */
+/* cppcheck-suppress constParameterCallback symbolName=ec_cmd */
 int scst_ext_copy_get_cur_seg_data_len(struct scst_cmd *ec_cmd)
 {
 	int res;
@@ -1430,6 +1436,8 @@ EXPORT_SYMBOL_GPL(scst_ext_copy_remap_done);
 
 static int scst_cm_try_to_remap(struct scst_cmd *ec_cmd);
 
+/* scst_cm_err_check_retry requires a mutable command callback. */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static void scst_cm_remap_retry_fn(struct scst_cmd *cmd)
 {
 	struct scst_cmd *ec_cmd = cmd->tgt_i_priv;
@@ -1753,6 +1761,10 @@ bool scst_cm_check_block_all_devs(struct scst_cmd *cmd)
 
 #if !defined(__CHECKER__)
 	list_for_each_entry(e, &d->cm_sorted_devs_list, cm_sorted_devs_list_entry) {
+		/*
+		 * The sorted device list is unique; each iteration locks a different device.
+		 */
+		/* coccinelle-suppress double_lock ; See the contract above. */
 		spin_lock(&e->cm_fcmd->dev->dev_lock);
 	}
 #endif
@@ -1768,6 +1780,10 @@ bool scst_cm_check_block_all_devs(struct scst_cmd *cmd)
 	}
 
 	if (unlikely(res)) {
+		/*
+		 * res starts false and this branch requires the true result followed by break.
+		 */
+		/* coccinelle-suppress use_after_iter ; See the contract above. */
 		const struct scst_cmd *blocked_cmd = e->cm_fcmd;
 
 		list_for_each_entry(e, &d->cm_sorted_devs_list, cm_sorted_devs_list_entry) {
@@ -2006,6 +2022,11 @@ static void scst_cm_copy_status(struct scst_cmd *cmd)
 		}
 	}
 	if (found) {
+		/*
+		 * found is set only before a matching break; scst_cm_lock remains held through
+		 * use.
+		 */
+		/* coccinelle-suppress use_after_iter ; See the contract above. */
 		l->cm_can_be_immed_free = 1;
 
 		memset(tbuf, 0, sizeof(tbuf));
@@ -2083,6 +2104,11 @@ static void scst_cm_failed_seg_details(struct scst_cmd *cmd)
 		}
 	}
 	if (found) {
+		/*
+		 * found is set only before a matching break; scst_cm_lock remains held through
+		 * use.
+		 */
+		/* coccinelle-suppress use_after_iter ; See the contract above. */
 		if (l->cm_list_id_state == SCST_CM_LIST_ID_STATE_ACTIVE) {
 			found = false;
 			goto skip;
@@ -2248,6 +2274,8 @@ struct scst_cm_init_inq_priv {
 	struct scst_device *dev;
 };
 
+/* scst_cm_err_check_retry requires a mutable command callback. */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static void scst_cm_inq_retry_fn(struct scst_cmd *cmd)
 {
 	struct scst_cm_init_inq_priv *priv = cmd->tgt_i_priv;
@@ -2577,7 +2605,7 @@ out_err:
 }
 
 SCST_KUNIT_VISIBLE
-void scst_cm_dev_free_designators(struct scst_device *dev)
+void scst_cm_dev_free_designators(const struct scst_device *dev)
 {
 	struct scst_cm_desig *des, *t;
 
@@ -2829,7 +2857,7 @@ out:
 }
 
 /* scst_mutex supposed to be held */
-bool scst_cm_on_del_lun(struct scst_acg_dev *acg_dev, bool gen_report_luns_changed)
+bool scst_cm_on_del_lun(const struct scst_acg_dev *acg_dev, bool gen_report_luns_changed)
 {
 	bool res = gen_report_luns_changed;
 
@@ -3206,6 +3234,8 @@ skip_fcmd_create:
 							 t->cm_fcmd->dev);
 					}
 					sBUG();
+					/* Keep the loop exit if the fatal assertion is removed. */
+					/* cppcheck-suppress duplicateBreak */
 					break;
 				}
 			}
@@ -3533,6 +3563,10 @@ int scst_cm_parse_descriptors(struct scst_cmd *ec_cmd)
 		if (seg_cnt == SCST_CM_MAX_SEG_DESCR_CNT) {
 			PRINT_WARNING("Too many segment descriptors");
 			scst_set_cmd_error(ec_cmd,
+					   /*
+					    * checkpatch-suppress LONG_LINE ; Keep the complete
+					    * symbolic sense name.
+					    */
 					   SCST_LOAD_SENSE(scst_sense_too_many_segment_descriptors));
 			goto out_free_tgt_descr;
 		}
@@ -3710,10 +3744,16 @@ static const struct attribute *scst_cm_tgtt_attrs[] = {
 	NULL,
 };
 
+/*
+ * The registered callback retains the mutable parameter type required by
+ * its interface.
+ */
+/* cppcheck-suppress-begin constParameterCallback symbolName=scst_sess */
 static int scst_cm_get_initiator_port_transport_id(struct scst_tgt *tgt,
 						   struct scst_session *scst_sess,
 						   u8 **transport_id)
 {
+	/* cppcheck-suppress-end constParameterCallback symbolName=scst_sess */
 	int res = 0;
 	u8 *tid = NULL;
 
@@ -3745,6 +3785,8 @@ out:
 	return res;
 }
 
+/* scst_tgt_template.release requires a mutable target callback. */
+/* cppcheck-suppress constParameterCallback symbolName=tgt */
 static int scst_cm_release(struct scst_tgt *tgt)
 {
 	TRACE_ENTRY();
@@ -3772,6 +3814,11 @@ static int scst_cm_xmit_response(struct scst_cmd *cmd)
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_mcmd */
 static void scst_cm_task_mgmt_fn_done(struct scst_mgmt_cmd *scst_mcmd)
 {
 	/* Nothing to do */

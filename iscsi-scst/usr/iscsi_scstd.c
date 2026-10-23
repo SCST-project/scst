@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Userspace and shared ABI headers require portable fixed-width integer types.
+ */
+/* checkpatch-suppress-file PREFER_KERNEL_TYPES ; See the contract above. */
+/*
  *  Copyright (C) 2002 - 2003 Ardis Technologies <roman@ardistech.com>
  *  Copyright (C) 2007 - 2018 Vladislav Bolkhovitin
  *  Copyright (C) 2007 - 2018 Western Digital Corporation
@@ -595,6 +599,12 @@ read_again:
 				conn->req.data = conn->buffer + conn->req.ahssize;
 				goto read_again;
 			}
+			/*
+			 * This userspace switch uses the compiler-recognized
+			 * fallthrough comment without requiring the kernel-only
+			 * fallthrough macro or a newer compiler attribute.
+			 */
+			/* checkpatch-suppress PREFER_FALLTHROUGH ; See the contract above. */
 			/* fall-through */
 
 		case IOSTATE_READ_AHS_DATA:
@@ -644,6 +654,12 @@ write_again:
 				conn->rwsize = conn->rsp.ahssize;
 				goto write_again;
 			}
+			/*
+			 * This userspace switch uses the compiler-recognized
+			 * fallthrough comment without requiring the kernel-only
+			 * fallthrough macro or a newer compiler attribute.
+			 */
+			/* checkpatch-suppress PREFER_FALLTHROUGH ; See the contract above. */
 			/* fall-through */
 		case IOSTATE_WRITE_AHS:
 			if (conn->rsp.datasize) {
@@ -660,6 +676,12 @@ write_again:
 				}
 				goto write_again;
 			}
+			/*
+			 * This userspace switch uses the compiler-recognized
+			 * fallthrough comment without requiring the kernel-only
+			 * fallthrough macro or a newer compiler attribute.
+			 */
+			/* checkpatch-suppress PREFER_FALLTHROUGH ; See the contract above. */
 			/* fall-through */
 		case IOSTATE_WRITE_DATA:
 			conn->uncork_transmit(pollfd->fd);

@@ -293,6 +293,7 @@ static void scst_release_tg_tgt(struct kobject *kobj)
 	kfree(tg_tgt);
 }
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 static struct kobj_type scst_tg_tgt_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_release_tg_tgt,
@@ -524,6 +525,7 @@ static void scst_check_alua_invariant(void)
 	struct scst_dev_group *dg;
 	struct scst_target_group *tg;
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	lockdep_assert_held(&scst_mutex); /* scst_dev_list, dev_tgt_dev_list */
 #endif
@@ -772,6 +774,7 @@ static void scst_release_tg(struct kobject *kobj)
 	kfree(tg);
 }
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 static struct kobj_type scst_tg_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_release_tg,
@@ -1093,6 +1096,10 @@ static void __scst_gen_alua_state_changed_ua(struct scst_target_group *tg)
 			tgt = tgt_dev->sess->tgt;
 			if (__scst_tg_have_tgt(tg, tgt))
 				scst_gen_aen_or_ua(tgt_dev,
+						   /*
+						    * checkpatch-suppress LONG_LINE ; Keep the
+						    * complete symbolic sense name.
+						    */
 						   SCST_LOAD_SENSE(scst_sense_asym_access_state_changed));
 		}
 	}
@@ -1297,6 +1304,7 @@ static void scst_release_dg(struct kobject *kobj)
 	kfree(dg);
 }
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 static struct kobj_type scst_dg_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_release_dg,
@@ -1658,6 +1666,10 @@ static void scst_stpg_check_blocking_done(struct scst_stpg_wait *wait)
 
 	TRACE_DBG("wait %p, left %d", wait, atomic_read(&wait->stpg_wait_left));
 
+	/*
+	 * One setup token pins the wait while callbacks are added; zero completes the operation.
+	 */
+	/* coccinelle-suppress atomic_as_refcounter ; See the contract above. */
 	if (atomic_dec_and_test(&wait->stpg_wait_left)) {
 		if (wait->status == 0)
 			scst_event_queue(SCST_EVENT_STPG_USER_INVOKE,

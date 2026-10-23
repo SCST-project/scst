@@ -60,6 +60,11 @@
 
 /* Name of this kernel module. */
 #define DRV_NAME		"ib_srpt"
+/*
+ * The release updater and SRPT build recipes extract the first quoted version
+ * fragment; the separate literal suffix is part of that tooling contract.
+ */
+/* checkpatch-suppress STRING_FRAGMENTS ; See the contract above. */
 #define DRV_VERSION		"3.11.0-pre" "#" __stringify(OFED_FLAVOR)
 #define DRV_RELDATE		"29 December 2025"
 #if defined(CONFIG_SCST_DEBUG) || defined(CONFIG_SCST_TRACING)
@@ -576,12 +581,14 @@ static void srpt_mad_send_handler(struct ib_mad_agent *mad_agent,
  * @send_buf: Not used.
  * @mad_wc: Work completion reporting that a MAD has been received.
  */
+/* checkpatch-suppress-begin PARENTHESIS_ALIGNMENT ; Conditional MAD callback parameters. */
 static void srpt_mad_recv_handler(struct ib_mad_agent *mad_agent,
 #ifdef MAD_HANDLER_TAKES_SEND_BUF
 				  struct ib_mad_send_buf *send_buf,
 #endif
 				  struct ib_mad_recv_wc *mad_wc)
 {
+/* checkpatch-suppress-end PARENTHESIS_ALIGNMENT */
 	struct srpt_port *sport = (struct srpt_port *)mad_agent->context;
 	struct ib_ah *ah;
 	struct ib_mad_send_buf *rsp;
@@ -720,9 +727,15 @@ static int srpt_refresh_port(struct srpt_port *sport)
 #endif
 							 );
 		if (IS_ERR(sport->mad_agent)) {
+			/*
+			 * Keep numeric error output on supported kernels without the %pe
+			 * formatter.
+			 */
+			/* coccinelle-suppress-begin ptr_err_to_pe ; See the contract above. */
 			pr_err("%s-%d: MAD agent registration failed (%ld). Note: this is expected if SR-IOV is enabled.\n",
 			       dev_name(&sport->sdev->device->dev), sport->port,
 			       PTR_ERR(sport->mad_agent));
+			/* coccinelle-suppress-end ptr_err_to_pe */
 			sport->mad_agent = NULL;
 		}
 	}
@@ -944,6 +957,11 @@ static int srpt_post_recv(struct srpt_device *sdev, struct srpt_rdma_ch *ch,
 {
 	struct ib_sge list;
 	struct ib_recv_wr wr;
+	/*
+	 * BAD_WR_MODIFIER is const or empty, selected by the RDMA conftest. This
+	 * is a pointer declaration, not multiplication.
+	 */
+	/* checkpatch-suppress SPACING ; See the contract above. */
 	struct ib_recv_wr BAD_WR_MODIFIER *bad_wr;
 
 	BUG_ON(!sdev);
@@ -981,6 +999,12 @@ static int srpt_post_send(struct srpt_rdma_ch *ch,
 {
 	struct ib_sge list;
 	struct ib_send_wr wr;
+	/*
+	 * BAD_WR_MODIFIER is const or empty, selected by the RDMA conftest. This
+	 * line is part of the consecutive local declarations, not the first
+	 * statement.
+	 */
+	/* checkpatch-suppress LINE_SPACING ; See the contract above. */
 	BAD_WR_MODIFIER struct ib_send_wr *bad_wr;
 	struct srpt_device *sdev = ch->sport->sdev;
 	int ret;
@@ -2071,10 +2095,10 @@ static void srpt_process_send_completion(struct ib_cq *cq,
 			pr_info("RDMA t %d for idx %u failed with status %d.%s\n",
 				opcode, index, wc->status,
 				wc->status == IB_WC_RETRY_EXC_ERR ?
-				" If this has not been triggered by a cable pull, please consider to increase the subnet timeout parameter on the IB switch." :
-				wc->status == IB_WC_WR_FLUSH_ERR ?
-				" If this has not been triggered by a cable pull, please check the involved IB HCA's and cables." :
-				"");
+				" If this has not been triggered by a cable pull, please consider to increase the subnet timeout parameter on the IB switch."
+				: wc->status == IB_WC_WR_FLUSH_ERR ?
+				" If this has not been triggered by a cable pull, please check the involved IB HCA's and cables."
+				: "");
 			srpt_handle_rdma_err_comp(ch, ch->ioctx_ring[index],
 						  opcode, srpt_xmt_rsp_context);
 		} else if (opcode == SRPT_RDMA_ZEROLENGTH_WRITE) {
@@ -2192,6 +2216,11 @@ static void srpt_unreg_ch(struct srpt_rdma_ch *ch)
  * Called by scst_unregister_session() after the last command associated with
  * a session has finished.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=sess */
 static void srpt_unreg_sess(struct scst_session *sess)
 {
 	srpt_unreg_ch(scst_sess_get_tgt_priv(sess));
@@ -2491,6 +2520,11 @@ out:
 /*
  * srpt_is_target_enabled - Report whether a target is enabled.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_tgt */
 static bool srpt_is_target_enabled(struct scst_tgt *scst_tgt)
 {
 	const struct srpt_port *sport = scst_tgt_get_tgt_priv(scst_tgt);
@@ -3153,6 +3187,11 @@ static int srpt_map_sg_to_ib_sge(struct srpt_rdma_ch *ch,
 				 struct scst_cmd *cmd)
 {
 	struct srpt_device *sdev = ch->sport->sdev;
+	/*
+	 * Older ib_sg_dma_len/address implementations require a mutable RDMA device;
+	 * their current macro forms ignore this argument.
+	 */
+	/* cppcheck-suppress constVariablePointer symbolName=dev */
 	struct ib_device *dev __maybe_unused = sdev->device;
 	struct scatterlist *sg, *cur_sg;
 	int sg_cnt;
@@ -3618,6 +3657,11 @@ static void srpt_pending_cmd_timeout(struct scst_cmd *cmd)
  * Called by the SCST core to transfer data from the initiator to the target
  * (SCST_DATA_WRITE). Must not block.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static int srpt_rdy_to_xfer(struct scst_cmd *cmd)
 {
 	struct srpt_send_ioctx *ioctx = scst_cmd_get_tgt_priv(cmd);
@@ -3739,6 +3783,11 @@ out:
  *
  * Must not block.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=mcmnd */
 static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
 {
 	struct srpt_rdma_ch *ch;
@@ -3782,6 +3831,11 @@ static void srpt_tsk_mgmt_done(struct scst_mgmt_cmd *mcmnd)
  *
  * See also SPC-3, section 7.5.4.5, TransportID for initiator ports using SRP.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=sess */
 static int srpt_get_initiator_port_transport_id(struct scst_tgt *tgt, struct scst_session *sess,
 						u8 **transport_id)
 {
@@ -3823,6 +3877,11 @@ out:
  *
  * Called by the SCST core. May be called in IRQ context.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static void srpt_on_free_cmd(struct scst_cmd *cmd)
 {
 	struct srpt_send_ioctx *ioctx;
@@ -3838,6 +3897,11 @@ static void srpt_refresh_port_work(struct work_struct *work)
 	srpt_refresh_port(sport);
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=sess */
 static int srpt_close_session(struct scst_session *sess)
 {
 	struct srpt_rdma_ch *ch = scst_sess_get_tgt_priv(sess);
@@ -3933,6 +3997,11 @@ static int srpt_release(struct scst_tgt *scst_tgt)
  * This function is called from scst_pres.c, the code that implements
  * persistent reservation support.
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=scst_tgt */
 static u16 srpt_get_scsi_transport_version(struct scst_tgt *scst_tgt)
 {
 	return 0x0940; /* SRP */
@@ -4302,6 +4371,10 @@ static int srpt_add_one(struct ib_device *device)
 	sdev->mr = ib_get_dma_mr(sdev->pd, IB_ACCESS_LOCAL_WRITE);
 	if (IS_ERR(sdev->mr)) {
 		ret = PTR_ERR(sdev->mr);
+		/*
+		 * Keep numeric error output on supported kernels without the %pe formatter.
+		 */
+		/* coccinelle-suppress ptr_err_to_pe ; See the contract above. */
 		pr_err("ib_get_dma_mr() failed: %ld\n", PTR_ERR(sdev->mr));
 		goto err_pd;
 	}
@@ -4325,8 +4398,14 @@ static int srpt_add_one(struct ib_device *device)
 		ERR_PTR(-EOPNOTSUPP);
 	if (IS_ERR(sdev->srq)) {
 		if (use_srq)
+			/*
+			 * Keep numeric error output on supported kernels without the %pe
+			 * formatter.
+			 */
+			/* coccinelle-suppress-begin ptr_err_to_pe ; See the contract above. */
 			pr_debug("ib_create_srq() failed: %ld\n",
 				 PTR_ERR(sdev->srq));
+			/* coccinelle-suppress-end ptr_err_to_pe */
 
 		/* SRQ disabled or not supported. */
 		sdev->use_srq = false;

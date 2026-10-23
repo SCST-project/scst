@@ -1,4 +1,8 @@
 /*
+ * Retain the original licensing text; SPDX conversion requires a separate license audit.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
  *  Copyright (C) 2004 - 2005 FUJITA Tomonori <tomof@acm.org>
  *  Copyright (C) 2007 - 2018 Vladislav Bolkhovitin
  *  Copyright (C) 2007 - 2018 Western Digital Corporation
@@ -601,7 +605,7 @@ static int iscsi_del_attr(struct iscsi_target *target, const char *attr_name)
 {
 	int res = 0;
 	struct iscsi_attr *tgt_attr, *a;
-	struct list_head *attrs_list;
+	const struct list_head *attrs_list;
 
 	TRACE_ENTRY();
 
@@ -674,6 +678,12 @@ static int iscsi_attr_cmd(void __user *ptr, unsigned int cmd)
 		err = iscsi_del_attr(target, info.attr.name);
 		break;
 	default:
+		/*
+		 * Use the established SCST assertion macro spelling from
+		 * scst_debug.h; this naming exception does not waive AVOID_BUG
+		 * or assess whether the assertion should recover.
+		 */
+		/* checkpatch-suppress-symbol CAMELCASE symbolName=sBUG ; See the contract above. */
 		sBUG();
 	}
 
@@ -834,6 +844,7 @@ static int iscsi_register(void __user *arg)
 	 * limit it too much for thousands of LUs VMware and other similar
 	 * systems cases.
 	 */
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	reg.max_queued_cmds = scst_get_max_lun_commands(NULL, NO_SUCH_LUN);
 #else

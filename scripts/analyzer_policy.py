@@ -1,7 +1,9 @@
 """Inspect the shared analyzer input policy without invoking an analyzer."""
 
 import argparse
+import hashlib
 import json
+import re
 import subprocess
 import sys
 from functools import lru_cache
@@ -26,6 +28,27 @@ KBUILD_SCHEMA = {
 BASIC_SCHEMA = {"version": int, "notes": [str]}
 POLICIES = ("common", "sparse", "smatch", "coccicheck", "cppcheck", "checkpatch", "scs_lint")
 BASIC_POLICIES = ("coccicheck", "cppcheck", "checkpatch", "scs_lint")
+ANALYZER_SCHEMAS = {
+    "checkpatch": {**BASIC_SCHEMA, "strict": bool, "max_line_length": int,
+                   "disabled_checks": [{"id": str, "reason": str}],
+                   "version_comparisons": {
+                       "code_macros": [{"name": str, "constructor": str, "arguments": int}],
+                       "integer_macros": [str], "reason": str},
+                   "logging_calls": [{"file_glob": str, "names": [str], "reason": str}],
+                   "macro_body_layouts": [{"file_glob": str, "macro": str,
+                                           "first_entry_pattern": str, "reason": str}],
+                   "line_layouts": [{"rule": str, "file_glob": str,
+                                     "source_pattern": str, "reason": str}]},
+    "cppcheck": {**BASIC_SCHEMA,
+                 "excluded_diagnostic_sources": [{"directory": str, "keep": [str], "reason": str}],
+                 "omitted_system_headers": [{"profiles": [str], "source_roots": [str],
+                                             "dependency_headers": [str],
+                                             "headers": [str], "reason": str}],
+                 "unmatched_inline_advice": {"enabled": bool, "reason": str}},
+    "coccicheck": {**BASIC_SCHEMA, "skip_non_report_rules": bool,
+                   "macro_definition_errors": {"enabled": bool, "reason": str},
+                   "tool_warnings": [{"id": str, "pattern": str, "reason": str}]},
+}
 
 
 def relative_path(value: str, location: str):
@@ -66,12 +89,57 @@ def read_policy(path: Path, name="common") -> dict:
     if name not in POLICIES:
         raise ValueError(f"unknown policy: {name}")
     policy = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_object)
-    schema = BASIC_SCHEMA if name in BASIC_POLICIES else (
+    schema = ANALYZER_SCHEMAS.get(name, BASIC_SCHEMA) if name in BASIC_POLICIES else (
         SCHEMA if name == "common" else KBUILD_SCHEMA)
     validate(policy, schema, str(path))
     if policy["version"] != 1:
         raise ValueError(f"{path}: unsupported policy version")
     if name in BASIC_POLICIES:
+        if name == "checkpatch":
+            ids = [entry["id"] for entry in policy["disabled_checks"]]
+            if len(ids) != len(set(ids)) or any(not re.fullmatch(r"[A-Z][A-Z0-9_]*", x) for x in ids):
+                raise ValueError(f"{path}: diagnostic IDs must be exact and unique")
+            if policy["max_line_length"] <= 0:
+                raise ValueError(f"{path}: invalid line length")
+            versions = policy["version_comparisons"]
+            macros = [item["name"] for item in versions["code_macros"]] + versions["integer_macros"]
+            if (len(macros) != len(set(macros)) or
+                    any(not re.fullmatch(r"[A-Z_][A-Z0-9_]*", macro) for macro in macros)):
+                raise ValueError(f"{path}: version macro names must be exact and unique")
+            for item in versions["code_macros"]:
+                if (not re.fullmatch(r"[A-Z_][A-Z0-9_]*", item["constructor"]) or
+                        not 1 <= item["arguments"] <= 3):
+                    raise ValueError(f"{path}: invalid version constructor")
+            for item in policy["logging_calls"]:
+                relative_path(item["file_glob"], str(path))
+                names = item["names"]
+                if (not names or len(names) != len(set(names)) or
+                        any(not re.fullmatch(r"[A-Za-z_]\w*", name) for name in names)):
+                    raise ValueError(f"{path}: logging call names must be exact and unique")
+            for entry in policy["macro_body_layouts"] + policy["line_layouts"]:
+                relative_path(entry["file_glob"], str(path))
+                re.compile(entry.get("source_pattern", entry.get("first_entry_pattern")))
+            if any(entry["rule"] not in {"LONG_LINE", "LONG_LINE_COMMENT", "LONG_LINE_STRING"}
+                   for entry in policy["line_layouts"]):
+                raise ValueError(f"{path}: unsupported layout rule")
+        if name == "coccicheck":
+            for entry in policy["tool_warnings"]:
+                if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]*", entry["id"]):
+                    raise ValueError(f"{path}: rule IDs must be exact")
+                re.compile(entry["pattern"])
+        if name == "cppcheck":
+            for entry in policy["excluded_diagnostic_sources"]:
+                relative_path(entry["directory"], str(path))
+                for keep in entry["keep"]:
+                    relative_path(keep, str(path))
+                    if not keep.startswith(entry["directory"] + "/"):
+                        raise ValueError(f"{path}: retained directory must be below excluded root")
+            for entry in policy["omitted_system_headers"]:
+                if (not entry["source_roots"] or not entry["headers"] or
+                        not entry["profiles"] or set(entry["profiles"]) - {"kernel", "userspace"}):
+                    raise ValueError(f"{path}: empty header coverage declaration")
+                for item in entry["source_roots"] + entry["headers"] + entry["dependency_headers"]:
+                    relative_path(item, str(path))
         return policy
     if name != "common":
         for key, fields in (("exclude_directories", ("path",)),
@@ -129,6 +197,32 @@ def source_policy(name="common") -> dict:
             load_policy(name)["exclude_directories"]}
 
 
+def load(name):
+    """Combine diagnostic policy with the separately maintained source scope."""
+    return {**load_policy(name), **source_policy(name)}
+
+
+def inline_inventory(root, name):
+    if name == "checkpatch":
+        from style.exceptions import inventory
+    elif name == "cppcheck":
+        from cppcheck.exceptions import inventory
+    elif name == "coccicheck":
+        from coccinelle.exceptions import inventory
+    else:
+        return []
+    return inventory(root, load(name))
+
+
+def integration(root, name):
+    if name not in {"coccicheck", "cppcheck"}:
+        return []
+    from analyzer_setup import MODELS
+
+    return [dict(item, sha256=hashlib.sha256((root / item["path"]).read_bytes()).hexdigest())
+            for item in MODELS.get(name, ())]
+
+
 def text_report(result: dict, action: str) -> str:
     lines = [f"Policy: {result['policy']} ({result['policy_file']})"]
     if action == "validate":
@@ -154,8 +248,46 @@ def text_report(result: dict, action: str) -> str:
     lines.append("Environment overrides for input exclusions: none.")
     lines.extend(policy["notes"])
     if result["policy"] in BASIC_POLICIES:
-        lines.append("Additional input exclusions and diagnostic exceptions: none.")
-        lines.extend(result["configured_policy"]["notes"])
+        lines.append("Additional input exclusions: none.")
+        entries = result.get("inline_exceptions", [])
+        lines.append(f"Inline exception declarations: {len(entries)} (not hit counts).")
+        lines.extend(f"  {e['file']}:{e['line']}-{e['end_line']} [{e['rule']}] "
+                     f"{e['scope']}: {e['reason']}" for e in entries)
+        for model in result.get("models", []):
+            lines.append(f"Model {model['path']} ({model['sha256']}): {model['reason']}")
+        configured = result["configured_policy"]
+        if result["policy"] == "checkpatch":
+            lines.append("Globally disabled Checkpatch IDs: " +
+                         (", ".join(x["id"] for x in configured["disabled_checks"]) or "none"))
+            versions = configured["version_comparisons"]
+            for item in versions["code_macros"]:
+                lines.append(f"  Version comparison: {item['name']} / {item['constructor']}"
+                             f" ({item['arguments']} literal arguments)")
+            lines.append("  Integer version macros: " + ", ".join(versions["integer_macros"]))
+            lines.append("  In #if/#elif expressions only: " + versions["reason"])
+            for item in configured["logging_calls"]:
+                lines.append(f"  Logging strings: {item['file_glob']} / " +
+                             ", ".join(item["names"]) + ": " + item["reason"])
+            for item in configured["macro_body_layouts"] + configured["line_layouts"]:
+                label = item.get("rule", "PARENTHESIS_ALIGNMENT")
+                expression = item.get("source_pattern", item.get("first_entry_pattern"))
+                lines.append(f"  Layout [{label}] {item['file_glob']} / {expression}: {item['reason']}")
+        elif result["policy"] == "cppcheck":
+            for item in configured["excluded_diagnostic_sources"]:
+                lines.append(f"  Outside diagnostic scope: {item['directory']}; "
+                             f"keep: {', '.join(item['keep']) or 'none'}; {item['reason']}")
+            for item in configured["omitted_system_headers"]:
+                lines.append(f"  Omitted header bodies ({', '.join(item['profiles'])}) "
+                             f"under {', '.join(item['source_roots'])}: {', '.join(item['headers'])}")
+                lines.append("    " + item["reason"])
+            setting = configured["unmatched_inline_advice"]
+            lines.append(f"Unmatched declaration advice: {setting['enabled']}; {setting['reason']}")
+        elif result["policy"] == "coccicheck":
+            setting = configured["macro_definition_errors"]
+            lines.append(f"Non-blocking macro definition errors: {setting['enabled']}; {setting['reason']}")
+            for item in configured["tool_warnings"]:
+                lines.append(f"  Tool notice [{item['id']}] / {item['pattern']}: {item['reason']}")
+        lines.extend(configured["notes"])
     elif result["policy"] != "common":
         native = result["configured_policy"]
         lines.append("Source warning exceptions (exact file, function and message):")
@@ -181,14 +313,19 @@ def main() -> int:
     try:
         policy = load_policy(args.policy)
         scope = source_policy(args.policy)
+        root = Path(__file__).resolve().parent.parent
+        entries = inline_inventory(root, args.policy)
         result = {"policy": args.policy, "policy_file": f"scripts/policy/{args.policy}.json"}
         if args.action == "validate":
+            integration(root, args.policy)
             result["valid"] = True
         else:
             result["coverage"] = "Shared input selection only; no analyzer has run."
             if args.action == "show":
                 result["configured_policy"] = policy
                 result["effective_source_policy"] = scope
+                result["inline_exceptions"] = entries
+                result["models"] = integration(root, args.policy)
             else:
                 from lint_scope import tracked_sources
 

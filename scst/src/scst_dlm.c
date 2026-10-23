@@ -388,6 +388,7 @@ static int scst_copy_from_dlm(struct scst_device *dev, dlm_lockspace_t *ls,
 
 		reg_lvb = (struct pr_reg_lvb *)reg_lksb[i].lksb.sb_lvbptr;
 		rel_tgt_id = be16_to_cpu(reg_lvb->rel_tgt_id);
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 		PRINT_INFO("Transport ID in %s." PR_REG_LOCK " (len %d):",
 			   dev->virt_name, i, scst_tid_size(reg_lvb->tid));
@@ -578,6 +579,7 @@ static void scst_copy_to_dlm(struct scst_device *dev, dlm_lockspace_t *ls)
 			reg_lvb->registered_by_nodeid = cpu_to_be32(reg->registered_by_nodeid);
 			reg_lvb->next_rem_ua_idx = cpu_to_be16(reg->next_rem_ua_idx);
 			tid_size = scst_tid_size(reg->transport_id);
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 			PRINT_INFO("Copying transport ID into %s." PR_REG_LOCK
 				   " (len %d)", dev->virt_name, reg->dlm_idx,
@@ -956,7 +958,19 @@ static void dump_lockspace(const char *cl_dev_id)
 				" grep -aH '' /sys/kernel/debug/dlm/%s%s*;"
 				" echo lockspace-dump-end; } 2>&1 | while read line; do logger \"$line\"; done",
 				SCST_DLM_LOCKSPACE_PFX, cl_dev_id);
+	/*
+	 * The usermode-helper arrays contain per-invocation allocated strings,
+	 * are passed as char **, and are freed after UMH_WAIT_PROC; static
+	 * storage would share mutable lifetime across calls.
+	 */
+	/* checkpatch-suppress STATIC_CONST_CHAR_ARRAY ; See the contract above. */
 	char *argv[] = { argv0, argv1, argv2, NULL };
+	/*
+	 * The usermode-helper arrays contain per-invocation allocated strings,
+	 * are passed as char **, and are freed after UMH_WAIT_PROC; static
+	 * storage would share mutable lifetime across calls.
+	 */
+	/* checkpatch-suppress STATIC_CONST_CHAR_ARRAY ; See the contract above. */
 	char *envp[] = {
 		kstrdup("PATH=/usr/bin:/bin:/usr/sbin:/sbin", GFP_KERNEL),
 		NULL
@@ -1283,15 +1297,32 @@ static void scst_dlm_res_unlock(struct scst_device *dev,
 	scst_dlm_remove_lock(ls, pr_lksb, PR_LOCK);
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=dev */
+/*
+ * The registered callback retains the mutable
+ * parameter type required by its interface.
+ */
+/* cppcheck-suppress-begin constParameterCallback symbolName=sess */
 static bool scst_dlm_is_rsv_holder(struct scst_device *dev,
 				   struct scst_session *sess)
 {
+	/* cppcheck-suppress-end constParameterCallback symbolName=sess */
 	return dev->reserved_by == sess;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by
+ * its interface.
+ */
+/* cppcheck-suppress-begin constParameterCallback symbolName=sess */
 static bool scst_dlm_is_not_rsv_holder(struct scst_device *dev,
 				       struct scst_session *sess)
 {
+	/* cppcheck-suppress-end constParameterCallback symbolName=sess */
 	return dev->pr_dlm->reserved_by_nodeid && dev->reserved_by != sess;
 }
 
@@ -1482,6 +1513,11 @@ unlock_ls:
 		queue_work(pr_dlm->upd_wq, &pr_dlm->reread_lvb_work);
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=astarg */
 static void scst_dlm_post_ast(void *astarg)
 {
 }

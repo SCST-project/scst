@@ -26,28 +26,66 @@
 #include "scst_priv.h"
 #include "scst_pres.h"
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=dev */
 static int scst_no_dlm_pr_init(struct scst_device *dev, const char *cl_dev_id)
 {
 	return 0;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=dev */
 static void scst_no_dlm_pr_cleanup(struct scst_device *dev)
 {
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=dev */
 static bool scst_no_dlm_pr_is_set(struct scst_device *dev)
 {
 	return dev->pr_is_set;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=dev */
+/*
+ * The registered callback retains the
+ * mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress-begin constParameterCallback symbolName=reg */
 static void scst_no_dlm_pr_init_reg(struct scst_device *dev,
 				    struct scst_dev_registrant *reg)
 {
+	/* cppcheck-suppress-end constParameterCallback symbolName=reg */
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=dev */
+/*
+ * The registered callback retains the mutable
+ * parameter type required by its interface.
+ */
+/* cppcheck-suppress-begin constParameterCallback symbolName=reg */
 static void scst_no_dlm_pr_rm_reg(struct scst_device *dev,
 				  struct scst_dev_registrant *reg)
 {
+	/* cppcheck-suppress-end constParameterCallback symbolName=reg */
 }
 
 static void scst_no_dlm_pr_write_lock(struct scst_device *dev,
@@ -62,6 +100,11 @@ static void scst_no_dlm_pr_write_unlock(struct scst_device *dev,
 	scst_pr_write_unlock(dev);
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=dev */
 static bool scst_no_dlm_reserved(struct scst_device *dev)
 {
 	return dev->reserved_by;
@@ -82,16 +125,39 @@ static void scst_no_dlm_res_unlock(struct scst_device *dev,
 	spin_unlock_bh(&dev->dev_lock);
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=dev */
+/*
+ * The registered callback retains the
+ * mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress-begin constParameterCallback symbolName=sess */
 static bool scst_no_dlm_is_rsv_holder(struct scst_device *dev,
 				      struct scst_session *sess)
 {
+	/* cppcheck-suppress-end constParameterCallback symbolName=sess */
 	EXTRACHECKS_BUG_ON(!sess);
 	return dev->reserved_by == sess;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=dev */
+/*
+ * The registered callback retains the mutable parameter type required by
+ * its interface.
+ */
+/* cppcheck-suppress-begin constParameterCallback symbolName=sess */
 static bool scst_no_dlm_is_not_rsv_holder(struct scst_device *dev,
 					  struct scst_session *sess)
 {
+	/* cppcheck-suppress-end constParameterCallback symbolName=sess */
 	EXTRACHECKS_BUG_ON(!sess);
 	return dev->reserved_by && dev->reserved_by != sess;
 }
@@ -102,10 +168,21 @@ static void scst_no_dlm_reserve(struct scst_device *dev,
 	dev->reserved_by = sess;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=dev */
+/*
+ * The registered callback retains the mutable parameter type required by
+ * its interface.
+ */
+/* cppcheck-suppress-begin constParameterCallback symbolName=reg */
 static void scst_no_dlm_pr_reg_queue_rem_ua(struct scst_device *dev,
 					    struct scst_dev_registrant *reg,
 					    int key, int asc, int ascq)
 {
+	/* cppcheck-suppress-end constParameterCallback symbolName=reg */
 }
 
 const struct scst_cl_ops scst_no_dlm_cl_ops = {
