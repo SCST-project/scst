@@ -52,6 +52,11 @@
 
 #define SCST_VERSION_NAME		"3.11.0-pre"
 #define SCST_VERSION_STRING_SUFFIX
+/*
+ * Adjacent string fragments form the version literal; parentheses would prevent
+ * concatenation.
+ */
+/* checkpatch-suppress-macro COMPLEX_MACRO ; See the contract above. */
 #define SCST_VERSION_STRING		SCST_VERSION_NAME SCST_VERSION_STRING_SUFFIX
 
 #ifdef SCST_BUILD_DATE
@@ -274,6 +279,12 @@ enum scst_cdb_flags {
  ** Data direction aliases. Changing it don't forget to change
  ** scst_to_tgt_dma_dir and SCST_DATA_DIR_MAX as well!!
  *************************************************************/
+/*
+ * scst_data_direction is an existing installed target-driver API type used by
+ * scst.h fields and accessors; deleting its alias would break external
+ * consumers.
+ */
+/* checkpatch-suppress NEW_TYPEDEFS ; See the contract above. */
 typedef enum scst_data_direction {
 	SCST_DATA_UNKNOWN	= 0,
 	SCST_DATA_WRITE		= 1,
@@ -316,6 +327,10 @@ static inline int scst_sense_response_code(const uint8_t *sense)
  *************************************************************/
 
 /* NO_SENSE is 0 */
+/*
+ * A sense tuple supplies separate key, ASC and ASCQ arguments.
+ */
+/* checkpatch-suppress-begin COMPLEX_MACRO ; See the contract above. */
 #define scst_sense_no_sense			NO_SENSE,        0x00, 0
 
 /* NOT_READY is 2 */
@@ -382,6 +397,7 @@ static inline int scst_sense_response_code(const uint8_t *sense)
 
 /* MISCOMPARE is 0xe */
 #define scst_sense_miscompare_error		MISCOMPARE,      0x1D, 0
+/* checkpatch-suppress-end COMPLEX_MACRO */
 
 /*************************************************************
  * SCSI opcodes not listed anywhere else
@@ -552,7 +568,19 @@ enum {
 /*************************************************************
  ** Values for the control mode page DPICZ field
  *************************************************************/
+/*
+ * These installed SCST interface constants use xPROT to denote the family of
+ * SCSI protection fields. Renaming them would change the external source
+ * interface.
+ */
+/* checkpatch-suppress-symbol CAMELCASE symbolName=SCST_DPICZ_CHECK_ON_xPROT_0 ; Public ABI. */
 #define SCST_DPICZ_CHECK_ON_xPROT_0	0
+/*
+ * These installed SCST interface constants use xPROT to denote the family of
+ * SCSI protection fields. Renaming them would change the external source
+ * interface.
+ */
+/* checkpatch-suppress-symbol CAMELCASE symbolName=SCST_DPICZ_NO_CHECK_ON_xPROT_0 ; Public ABI. */
 #define SCST_DPICZ_NO_CHECK_ON_xPROT_0	1
 
 /*************************************************************

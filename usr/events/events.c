@@ -1,4 +1,12 @@
 /*
+ * Retain the original licensing text; SPDX conversion requires a separate license audit.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
+ * Userspace and shared ABI headers require portable fixed-width integer types.
+ */
+/* checkpatch-suppress-file PREFER_KERNEL_TYPES ; See the contract above. */
+/*
  *  events.c
  */
 
@@ -219,6 +227,10 @@ int main(int argc, char **argv)
 			case EBUSY:
 				TRACE_MGMT_DBG("SCST_EVENT_GET_NEXT_EVENT returned %d (%s)",
 					       res, strerror(res));
+	/*
+	 * Keep the portable compiler-recognized switch continuation comment.
+	 */
+	/* checkpatch-suppress PREFER_FALLTHROUGH ; See the contract above. */
 				/* fall through */
 			case EINTR:
 				continue;
@@ -250,6 +262,8 @@ again_poll:
 					goto again_poll;
 				default:
 					PRINT_ERROR("poll() failed: %s", strerror(res));
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
+/* checkpatch-suppress IF_1 ; Retain the existing debug or alternative implementation. */
 #if 1
 					goto again_poll;
 #else
@@ -296,6 +310,7 @@ again_poll:
 					    strerror(errno), res);
 		}
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 		{
 			struct scst_event e;

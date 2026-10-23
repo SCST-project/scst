@@ -88,6 +88,7 @@ static void iscsi_conn_release(struct kobject *kobj)
 	TRACE_EXIT();
 }
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 struct kobj_type iscsi_conn_ktype = {
 	.release = iscsi_conn_release,
 };
@@ -629,6 +630,12 @@ again:
 		 * This should not happen, because DATA OUT commands can't get
 		 * into write_timeout_list.
 		 */
+		/*
+		 * Use the established SCST assertion macro spelling from
+		 * scst_debug.h; this naming exception does not waive AVOID_BUG
+		 * or assess whether the assertion should recover.
+		 */
+		/* checkpatch-suppress-symbol CAMELCASE symbolName=sBUG_ON ; Public ABI. */
 		sBUG_ON(cmnd->cmd_req);
 
 		if (test_bit(ISCSI_CMD_ABORTED, &cmnd->prelim_compl_flags)) {
@@ -755,6 +762,7 @@ static int conn_setup_sock(struct iscsi_conn *conn)
 	}
 #endif
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	conn->sock->sk->sk_allocation = GFP_NOIO;
 #endif

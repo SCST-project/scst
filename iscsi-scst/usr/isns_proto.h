@@ -1,5 +1,9 @@
 /* SPDX-License-Identifier: GPL-2.0-or-later */
 /*
+ * Userspace and shared ABI headers require portable fixed-width integer types.
+ */
+/* checkpatch-suppress-file PREFER_KERNEL_TYPES ; See the contract above. */
+/*
  * iSNS protocol data types
  *
  * Copyright (C) 2006 FUJITA Tomonori <tomof@acm.org>
@@ -34,12 +38,22 @@ struct isns_hdr {
 	uint16_t transaction;
 	uint16_t sequence;
 	uint32_t pdu[];
+/*
+ * This userspace declaration uses the compiler attribute directly and has no
+ * kernel __packed/__printf macro dependency.
+ */
+/* checkpatch-suppress PREFER_DEFINED_ATTRIBUTE_MACRO ; See the contract above. */
 } __attribute__ ((packed));
 
 struct isns_tlv {
 	uint32_t tag;
 	uint32_t length;
 	uint32_t value[];
+/*
+ * This userspace declaration uses the compiler attribute directly and has no
+ * kernel __packed/__printf macro dependency.
+ */
+/* checkpatch-suppress PREFER_DEFINED_ATTRIBUTE_MACRO ; See the contract above. */
 } __attribute__ ((packed));
 
 /* Commands and responses (4.1.3) */
@@ -73,12 +87,18 @@ struct isns_tlv {
 #define ISNS_FUNC_ESI_RSP			0x800d
 
 /* iSNSP flags (5.1.4) */
+/*
+ * Userspace/shared protocol constants cannot depend on the kernel BIT macro;
+ * preserve the original int or unsigned-int width.
+ */
+/* checkpatch-suppress-begin BIT_MACRO ; See the contract above. */
 #define ISNS_FLAG_CLIENT			(1U << 15)
 #define ISNS_FLAG_SERVER			(1U << 14)
 #define ISNS_FLAG_AUTH				(1U << 13)
 #define ISNS_FLAG_REPLACE			(1U << 12)
 #define ISNS_FLAG_LAST_PDU			(1U << 11)
 #define ISNS_FLAG_FIRST_PDU			(1U << 10)
+/* checkpatch-suppress-end BIT_MACRO */
 
 /* Response Status Codes (5.4) */
 #define ISNS_STATUS_SUCCESS			0
@@ -107,9 +127,15 @@ struct isns_tlv {
 #define ISNS_STATUS_REGISTRATION_NOT_SUPPORTED	23
 
 /* Node type (5.4.2) */
+/*
+ * Userspace/shared protocol constants cannot depend on the kernel BIT macro;
+ * preserve the original int or unsigned-int width.
+ */
+/* checkpatch-suppress-begin BIT_MACRO ; See the contract above. */
 #define ISNS_NODE_CONTROL			(1U << 2)
 #define ISNS_NODE_INITIATOR			(1U << 1)
 #define ISNS_NODE_TARGET			(1U << 0)
+/* checkpatch-suppress-end BIT_MACRO */
 
 /* Attributes (6.1) */
 #define ISNS_ATTR_DELIMITER			0
@@ -190,6 +216,11 @@ struct isns_tlv {
 #define ISNS_ATTR_DD_ID_NEXT_ID			2079
 
 /* SCN flags (6.4.4) */
+/*
+ * Userspace/shared protocol constants cannot depend on the kernel BIT macro;
+ * preserve the original int or unsigned-int width.
+ */
+/* checkpatch-suppress-begin BIT_MACRO ; See the contract above. */
 #define ISNS_SCN_FLAG_INITIATOR			(1U << 24)
 #define ISNS_SCN_FLAG_TARGET			(1U << 25)
 #define ISNS_SCN_FLAG_MANAGEMENT		(1U << 26)
@@ -198,4 +229,5 @@ struct isns_tlv {
 #define ISNS_SCN_FLAG_OBJECT_UPDATED		(1U << 29)
 #define ISNS_SCN_FLAG_DD_REMOVED		(1U << 30)
 #define ISNS_SCN_FLAG_DD_ADDED			(1U << 31)
+/* checkpatch-suppress-end BIT_MACRO */
 #endif

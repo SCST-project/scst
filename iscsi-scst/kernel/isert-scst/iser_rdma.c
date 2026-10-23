@@ -76,6 +76,11 @@ int isert_post_recv(struct isert_conn *isert_conn,
 		    int num_wr)
 {
 	struct ib_recv_wr *first_ib_wr = &first_wr->recv_wr;
+	/*
+	 * BAD_WR_MODIFIER is const or empty, selected by the RDMA conftest. This
+	 * is a pointer declaration, not multiplication.
+	 */
+	/* checkpatch-suppress SPACING ; See the contract above. */
 	struct ib_recv_wr BAD_WR_MODIFIER *bad_wr;
 	int num_posted;
 	int err;

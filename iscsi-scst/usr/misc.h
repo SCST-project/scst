@@ -30,10 +30,25 @@ struct __qelem {
 #ifdef __compiler_offsetof
 #define offsetof(TYPE, MEMBER) __compiler_offsetof(TYPE, MEMBER)
 #else
+/*
+ * The MEMBER parameter is a structure member or a name token, not an expression;
+ * parentheses would make its member access invalid.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_PRECEDENCE ; See the contract above. */
 #define offsetof(TYPE, MEMBER) ((size_t)&((TYPE *)0)->MEMBER)
 #endif
 
+/*
+ * The parameter names the list head itself; repeating its address initializes
+ * both links without evaluating a value expression.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define LIST_HEAD_INIT(name) { &(name), &(name) }
+/*
+ * The parameter is a declared object name and its self-referencing initializer,
+ * not an evaluated expression.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define LIST_HEAD(name) \
 	struct __qelem name = LIST_HEAD_INIT(name)
 
@@ -53,6 +68,16 @@ static inline int list_length_is_one(const struct __qelem *head)
 	return (!list_empty(head) && head->q_forw == head->q_back);
 }
 
+/*
+ * The member parameter is a structure member or a name token, not an expression;
+ * parentheses would make its member access invalid.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_PRECEDENCE ; See the contract above. */
+/*
+ * The member parameter is a member-name token used in typeof and offsetof, not
+ * an evaluated expression.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define container_of(ptr, type, member) ({			\
 	const typeof(((type *)0)->member) * __mptr = (ptr); \
 	(type *)((char *)__mptr - offsetof(type, member)); })
@@ -60,11 +85,21 @@ static inline int list_length_is_one(const struct __qelem *head)
 #define list_entry(ptr, type, member) \
 	container_of(ptr, type, member)
 
+/*
+ * This iterator deliberately updates and rechecks its cursor against a stable
+ * list-head lvalue; member is a field-name token.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define list_for_each_entry(pos, head, member)				\
 	for (pos = list_entry((head)->q_forw, typeof(*pos), member);	\
 	     &pos->member != (head);					\
 	     pos = list_entry(pos->member.q_forw, typeof(*pos), member))
 
+/*
+ * This iterator deliberately advances its cursor and saved successor against a
+ * stable list-head lvalue; member is a field-name token.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define list_for_each_entry_safe(pos, n, head, member)			\
 	for (pos = list_entry((head)->q_forw, typeof(*pos), member),	\
 		n = list_entry(pos->member.q_forw, typeof(*pos), member);	\

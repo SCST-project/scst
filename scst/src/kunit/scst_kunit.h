@@ -6,6 +6,11 @@
 #include <kunit/static_stub.h>
 
 /* One declaration supplies the native suite name and the runner's label metadata. */
+/*
+ * The arguments are a suite object name and string-literal metadata, reused in
+ * separate compile-time declarations.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define scst_kunit_suite(suite, label, suffix, ...) \
 	static struct kunit_suite suite = { \
 		.name = "scst-" label suffix, \

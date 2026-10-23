@@ -61,6 +61,12 @@ static int user_cleanup_init(struct kunit *test)
 		struct scst_user_cmd *u = &f->pending[i];
 
 		spin_lock_init(&dev->udev_cmd_threads.cmd_list_lock);
+		/*
+		 * This member belongs to the installed scst.h interface. Keep
+		 * its source-compatible spelling; only private wait queue fields
+		 * were renamed.
+		 */
+		/* checkpatch-suppress-symbol CAMELCASE symbolName=cmd_list_waitQ ; Public ABI. */
 		init_waitqueue_head(&dev->udev_cmd_threads.cmd_list_waitQ);
 		INIT_LIST_HEAD(&dev->udev_cmd_threads.active_cmd_list);
 		INIT_LIST_HEAD(&dev->ready_cmd_list);

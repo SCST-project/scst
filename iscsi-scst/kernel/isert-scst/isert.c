@@ -495,6 +495,11 @@ out:
 MODULE_AUTHOR("Yan Burman");
 MODULE_LICENSE("Dual BSD/GPL");
 MODULE_IMPORT_NS(SCST_NAMESPACE);
+/*
+ * The release updater and SRPT build recipes extract the first quoted version
+ * fragment; the separate literal suffix is part of that tooling contract.
+ */
+/* checkpatch-suppress STRING_FRAGMENTS ; See the contract above. */
 #define DRV_VERSION		"3.11.0-pre" "#" __stringify(OFED_FLAVOR)
 #define DRV_RELDATE		"29 December 2025"
 MODULE_DESCRIPTION("iSER target transport driver v" DRV_VERSION " (" DRV_RELDATE ")");

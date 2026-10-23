@@ -795,6 +795,7 @@ static void scst_tgtt_release(struct kobject *kobj)
 	TRACE_EXIT();
 }
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 static struct kobj_type tgtt_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_tgtt_release,
@@ -2864,6 +2865,16 @@ static struct kobj_attribute scst_tgt_dif_checks_failed_attr =
 	__ATTR(dif_checks_failed, 0644, scst_tgt_dif_checks_failed_show,
 	       scst_tgt_dif_checks_failed_store);
 
+/*
+ * The attr parameter is a structure member or a name token, not an expression;
+ * parentheses would make its member access invalid.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_PRECEDENCE ; See the contract above. */
+/*
+ * attr is a generated identifier token; dir is a constant statistics index
+ * checked at compile time and read in generated callbacks.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define SCST_TGT_SYSFS_STAT_ATTR(member_name, attr, dir, result_op)			\
 static int scst_tgt_sysfs_##attr##_show_work_fn(struct scst_sysfs_work_item *work)	\
 {											\
@@ -2961,6 +2972,7 @@ static struct attribute *scst_tgt_attrs[] = {
 ATTRIBUTE_GROUPS(scst_tgt);
 #endif
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 static struct kobj_type tgt_ktype = {
 	.sysfs_ops	= &scst_sysfs_ops,
 	.release	= scst_tgt_release,
@@ -3988,6 +4000,7 @@ out:
 	TRACE_EXIT();
 }
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 static struct kobj_type scst_dev_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_sysfs_dev_release,
@@ -4368,6 +4381,7 @@ static void scst_sysfs_tgt_dev_release(struct kobject *kobj)
 	TRACE_EXIT();
 }
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 static struct kobj_type scst_tgt_dev_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_sysfs_tgt_dev_release,
@@ -4824,6 +4838,11 @@ static ssize_t scst_sess_sysfs_initiator_name_show(struct kobject *kobj,
 static struct kobj_attribute session_initiator_name_attr =
 	__ATTR(initiator_name, 0444, scst_sess_sysfs_initiator_name_show, NULL);
 
+/*
+ * dir is a constant statistics index shared by generated show/store callbacks
+ * and compile-time bounds checks.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define SCST_SESS_SYSFS_STAT_ATTR(name, exported_name, dir, kb)					\
 static ssize_t scst_sess_sysfs_##exported_name##_show(struct kobject *kobj,			\
 						      struct kobj_attribute *attr, char *buf)	\
@@ -4932,6 +4951,7 @@ static void scst_sysfs_session_release(struct kobject *kobj)
 	TRACE_EXIT();
 }
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 static struct kobj_type scst_session_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_sysfs_session_release,
@@ -4942,6 +4962,11 @@ static struct kobj_type scst_session_ktype = {
 #endif
 };
 
+/*
+ * This macro supplies four separate latency-attribute array elements, not a
+ * comma expression.
+ */
+/* checkpatch-suppress-macro COMPLEX_MACRO ; See the contract above. */
 #define SCST_LAT_ATTRS(size)		\
 	&sess_lat_attr_n##size.attr,	\
 	&sess_lat_attr_r##size.attr,	\
@@ -5176,6 +5201,7 @@ static struct attribute *acg_dev_attrs[] = {
 ATTRIBUTE_GROUPS(acg_dev);
 #endif
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 static struct kobj_type acg_dev_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_acg_dev_release,
@@ -5272,6 +5298,7 @@ static void scst_acg_release(struct kobject *kobj)
 	TRACE_EXIT();
 }
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 static struct kobj_type acg_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_acg_release,
@@ -5872,6 +5899,7 @@ static struct attribute *scst_devt_def_attrs[] = {
 ATTRIBUTE_GROUPS(scst_devt_def);
 #endif
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 static struct kobj_type scst_devt_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_devt_release,
@@ -7722,6 +7750,7 @@ static void scst_sysfs_root_release(struct kobject *kobj)
 	complete_all(&scst_sysfs_root_release_completion);
 }
 
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require mutable registration objects. */
 static struct kobj_type scst_sysfs_root_ktype = {
 	.sysfs_ops = &scst_sysfs_ops,
 	.release = scst_sysfs_root_release,

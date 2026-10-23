@@ -3148,6 +3148,10 @@ next:
 					tgt_dev->inq_changed_ua_needed = 0;
 
 					scst_gen_aen_or_ua(tgt_dev,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_sense_inquiry_data_changed));
 				}
 			}
@@ -4909,6 +4913,10 @@ int scst_acg_repl_lun(struct scst_acg *acg, struct kobject *parent,
 				TRACE_MGMT_DBG("INQUIRY DATA HAS CHANGED on tgt_dev %p",
 					       tgt_dev);
 				scst_gen_aen_or_ua(tgt_dev,
+						   /*
+						    * checkpatch-suppress LONG_LINE ; Keep the
+						    * complete symbolic sense name.
+						    */
 						   SCST_LOAD_SENSE(scst_sense_inquiry_data_changed));
 			}
 		}
@@ -5337,6 +5345,12 @@ static int scst_ioc_keeper_thread(void *arg)
 
 	/* We are ready */
 	aic_keeper->aic_ready = true;
+	/*
+	 * This member belongs to the installed scst.h interface. Keep its
+	 * source-compatible spelling; only private wait queue fields were
+	 * renamed.
+	 */
+	/* checkpatch-suppress-symbol CAMELCASE symbolName=aic_keeper_waitQ ; Public ABI. */
 	wake_up_all(&aic_keeper->aic_keeper_waitQ);
 
 	wait_event_interruptible(aic_keeper->aic_keeper_waitQ,
@@ -9601,6 +9615,10 @@ static int scst_verify_dif_type1(struct scst_cmd *cmd)
 						(long long)lba, dev->virt_name);
 					scst_dif_acc_app_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_app_tag_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -9615,6 +9633,10 @@ static int scst_verify_dif_type1(struct scst_cmd *cmd)
 						(long long)lba, dev->virt_name);
 					scst_dif_acc_ref_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -9633,6 +9655,10 @@ static int scst_verify_dif_type1(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_guard_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -10035,6 +10061,10 @@ static int scst_verify_dif_type2(struct scst_cmd *cmd)
 						cmd, scst_get_opcode_name(cmd), dev->virt_name);
 					scst_dif_acc_app_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_app_tag_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -10049,6 +10079,10 @@ static int scst_verify_dif_type2(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_ref_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -10067,6 +10101,10 @@ static int scst_verify_dif_type2(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_guard_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -10247,6 +10285,10 @@ static int scst_verify_dif_type3(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_app_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_app_tag_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -10261,6 +10303,10 @@ static int scst_verify_dif_type3(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_ref_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_ref_tag_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -10279,6 +10325,10 @@ static int scst_verify_dif_type3(struct scst_cmd *cmd)
 						dev->virt_name);
 					scst_dif_acc_guard_check_failed_scst(cmd);
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete symbolic sense name.
+							    */
 							   SCST_LOAD_SENSE(scst_logical_block_guard_check_failed));
 					res = -EIO;
 					goto out_put;
@@ -10656,6 +10706,7 @@ static int scst_init_dif_actions(struct scst_device *dev)
 				scst_set_dev_dif_action(&dev->dev_dif_rd_prot0_actions,
 							SCST_DIF_ACTION_NONE);
 
+/* checkpatch-suppress IF_1 ; Retain the existing debug or alternative implementation. */
 #if 1	/*
 	 * Workaround for Emulex ASIC errata to pass Oracle certification.
 	 *
@@ -12172,6 +12223,7 @@ static int get_cdb_info_var_len(struct scst_cmd *cmd,
 	}
 
 	ptr = &scst_scsi_op32_table[i];
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* not possible */
 	if (unlikely(!ptr))
 		goto out_unknown;
@@ -12759,6 +12811,7 @@ static int scst_null_parse(struct scst_cmd *cmd)
 	 * therefore change them only if necessary
 	 */
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 	switch (cmd->cdb[0]) {
 	default:
@@ -13231,6 +13284,7 @@ void scst_process_reset(struct scst_device *dev,
 			    dev_tgt_dev_list_entry) {
 		struct scst_session *sess = tgt_dev->sess;
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0 /* Clearing UAs and last sense isn't required by SAM and it
        * looks to be better to not clear them to not loose important
        * events, so let's disable it.
@@ -13974,6 +14028,7 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 	for (i = 0; i < 5; i++) {
 		/* Get control mode page */
 		memset(cmd, 0, sizeof(cmd));
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 		cmd[0] = MODE_SENSE_10;
 		cmd[1] = 0;
@@ -14035,6 +14090,7 @@ int scst_obtain_device_parameters(struct scst_device *dev,
 		} else {
 			scst_check_internal_sense(dev, rc, sense_buffer,
 						  sizeof(sense_buffer));
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 			if ((rc & 0xff) == SAM_STAT_CHECK_CONDITION &&
 			    scst_sense_valid(sense_buffer)) {
@@ -15415,6 +15471,15 @@ void scst_ext_unblock_dev(struct scst_device *dev, bool stpg)
 			spin_lock_bh(&dev->dev_lock);
 			while (dev->ext_blocking_pending) {
 				spin_unlock_bh(&dev->dev_lock);
+				/*
+				 * This management error-recovery loop waits for
+				 * ext_blocking_pending to clear and has no 10 ms
+				 * completion deadline. The sleep may round up to
+				 * a timer tick; dev_lock is dropped before
+				 * sleeping and reacquired before reading the
+				 * condition.
+				 */
+				/* checkpatch-suppress MSLEEP ; See the contract above. */
 				msleep(10);
 				spin_lock_bh(&dev->dev_lock);
 			}
@@ -15957,6 +16022,7 @@ static void tm_dbg_delay_cmd(struct scst_cmd *cmd)
 				       cmd, cmd->tag,
 				d / HZ, (d % HZ) * 100 / HZ, d,	tm_dbg_on_state_passes);
 			mod_timer(&tm_dbg_timer, jiffies + d);
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
 #if 0
 			tm_dbg_flags.tm_dbg_blocked = 1;
 #endif
@@ -16096,6 +16162,11 @@ void tm_dbg_release_cmd(struct scst_cmd *cmd)
 			TRACE_MGMT_DBG("Abort request for delayed cmd %p (tag=%llu), moving it to active cmd list (delayed_cmds_count=%d)",
 				       c, c->tag, tm_dbg_delayed_cmds_count);
 
+			/*
+			 * This retained debug path holds scst_tm_dbg_lock with IRQs disabled, so
+			 * it cannot take the sleeping branch.
+			 */
+			/* checkpatch-suppress IN_ATOMIC ; See the contract above. */
 			if (!(in_atomic() || in_interrupt() || irqs_disabled()))
 				msleep(2000);
 
@@ -16104,6 +16175,10 @@ void tm_dbg_release_cmd(struct scst_cmd *cmd)
 				/* Test how completed commands handled */
 				if (((scst_random() % 10) == 5)) {
 					scst_set_cmd_error(cmd,
+							   /*
+							    * checkpatch-suppress LONG_LINE ; Keep
+							    * the complete sense or DIF action name.
+							    */
 							   SCST_LOAD_SENSE(scst_sense_internal_failure));
 					/* It's completed now */
 				}

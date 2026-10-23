@@ -1,4 +1,11 @@
 /*
+ * The existing notice dedicates this code to the public domain; do not
+ * substitute a new license grant. Defer SPDX conversion pending
+ * provenance/maintainer resolution; this exception covers only the missing tag
+ * in this exact existing source.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
  * This is the header file for the MD5 message-digest algorithm.
  * The algorithm is due to Ron Rivest.  This code was
  * written by Colin Plumb in 1993, no copyright is claimed.

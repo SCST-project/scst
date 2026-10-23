@@ -1,3 +1,7 @@
+/*
+ * Retain the original licensing text; SPDX conversion requires a separate license audit.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
 #ifndef SCST_QLA2XXX_H
 #define SCST_QLA2XXX_H
 

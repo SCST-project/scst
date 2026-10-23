@@ -36,6 +36,11 @@ pid_t gettid(void);
 #ifdef EXTRACHECKS
 #define EXTRACHECKS_BUG_ON(a)	sBUG_ON(a)
 #else
+/*
+ * This disabled diagnostic or extra-check branch deliberately does not evaluate
+ * its arguments.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define EXTRACHECKS_BUG_ON(a)	do { } while (0)
 #endif
 
@@ -58,6 +63,11 @@ pid_t gettid(void);
 #define TRACE_ORDER          0x00008000
 #define TRACE_ALL            0xffffffff
 
+/*
+ * Only one logging branch executes, so the selected syslog or fprintf call
+ * evaluates the format once.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define PRINT(priority, format, args...)			\
 do {								\
 	if (log_daemon)						\
@@ -66,6 +76,11 @@ do {								\
 		fprintf(stdout, format "\n", ## args);		\
 } while (0)
 
+/*
+ * Only one logging branch executes, so the selected syslog or fprintf call
+ * evaluates the format once.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define PRINTN(priority, format, args...)			\
 do {								\
 	if (log_daemon)						\
@@ -118,7 +133,17 @@ do {								\
 
 #else  /* DEBUG || TRACING */
 
+/*
+ * This disabled diagnostic or extra-check branch deliberately does not evaluate
+ * its arguments.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define TRACE(trace, args...) do {} while (0)
+/*
+ * This disabled diagnostic or extra-check branch deliberately does not evaluate
+ * its arguments.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define PRINT_BUFFER(message, buff, len) do {} while (0)
 
 static inline int debug_init(void) { return 0; }
@@ -257,15 +282,50 @@ do {								\
 #define	NDEBUG
 #include <assert.h>
 
+/*
+ * This disabled diagnostic or extra-check branch deliberately does not evaluate
+ * its arguments.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define TRACE_MEM(format, args...) do {} while (0)
+/*
+ * This disabled diagnostic or extra-check branch deliberately does not evaluate
+ * its arguments.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define TRACE_DBG(format, args...) do {} while (0)
 #define TRACE_DBG_SPECIAL(args...) do {} while (0)
+/*
+ * This disabled diagnostic or extra-check branch deliberately does not evaluate
+ * its arguments.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define TRACE_MGMT_DBG(format, args...) do {} while (0)
+/*
+ * This disabled diagnostic or extra-check branch deliberately does not evaluate
+ * its arguments.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define TRACE_BUFFER(message, buff, len) do {} while (0)
+/*
+ * This disabled diagnostic or extra-check branch deliberately does not evaluate
+ * its arguments.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define TRACE_BUFF_FLAG(flag, message, buff, len) do {} while (0)
 #define TRACE_ENTRY() do {} while (0)
 #define TRACE_EXIT() do {} while (0)
+/*
+ * This disabled diagnostic or extra-check branch deliberately does not evaluate
+ * its arguments.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define TRACE_EXIT_RES(res) do {} while (0)
+/*
+ * This disabled diagnostic or extra-check branch deliberately does not evaluate
+ * its arguments.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_UNUSED ; See the contract above. */
 #define TRACE_EXIT_HRES(res) do {} while (0)
 
 #ifdef LOG_PREFIX

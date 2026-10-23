@@ -1,5 +1,9 @@
 // SPDX-License-Identifier: GPL-2.0-only
 /*
+ * Userspace and shared ABI headers require portable fixed-width integer types.
+ */
+/* checkpatch-suppress-file PREFER_KERNEL_TYPES ; See the contract above. */
+/*
  *  fileio.c
  *
  *  Copyright (C) 2007 - 2018 Vladislav Bolkhovitin <vst@vlnb.net>
@@ -413,6 +417,8 @@ static int start(int argc, char **argv)
 				goto out_unreg;
 		}
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
+/* checkpatch-suppress IF_1 ; Retain the existing debug or alternative implementation. */
 #if 1
 		{
 			/* Not needed, added here only as a test */

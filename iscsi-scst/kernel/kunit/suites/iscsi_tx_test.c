@@ -116,6 +116,16 @@ struct iscsi_tx_result_case {
 	int result;
 };
 
+/*
+ * This macro supplies seven separate test-case initializers with concatenated
+ * phase labels, not a comma expression.
+ */
+/* checkpatch-suppress-macro COMPLEX_MACRO ; See the contract above. */
+/*
+ * The arguments are string literals and constant states in a static test-case
+ * initializer; repetition creates distinct cases.
+ */
+/* checkpatch-suppress-macro MACRO_ARG_REUSE ; See the contract above. */
 #define TX_RESULTS(phase, state) \
 	{ phase "-closed", state, 0 }, \
 	{ phase "-io-error", state, -EIO }, \

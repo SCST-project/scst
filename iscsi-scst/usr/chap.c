@@ -811,6 +811,12 @@ int cmnd_exec_auth_chap(struct connection *conn)
 		res = chap_initiator_auth_check_response(conn);
 		if (res < 0)
 			break;
+		/*
+		 * This userspace switch uses the compiler-recognized fallthrough
+		 * comment without requiring the kernel-only fallthrough macro or
+		 * a newer compiler attribute.
+		 */
+		/* checkpatch-suppress PREFER_FALLTHROUGH ; See the contract above. */
 		/* fall through */
 	case CHAP_AUTH_STATE_RESPONSE:
 		res = chap_target_auth_create_response(conn);

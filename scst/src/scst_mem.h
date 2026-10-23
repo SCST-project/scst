@@ -66,6 +66,12 @@ struct sgv_pool_cache_acc {
 /*
  * SGV pool allocation functions
  */
+/*
+ * The declaration continues through the conditional Grsecurity no_const
+ * attribute and its semicolon. A blank line after the closing brace would split
+ * one declaration.
+ */
+/* checkpatch-suppress-begin LINE_SPACING ; See the contract above. */
 struct sgv_pool_alloc_fns {
 	struct page *(*alloc_pages_fn)(struct scatterlist *sg, gfp_t gfp_mask,
 				       void *priv);
@@ -77,6 +83,7 @@ struct sgv_pool_alloc_fns {
 __attribute__((no_const))
 #endif
 ;
+/* checkpatch-suppress-end LINE_SPACING */
 
 /*
  * SGV pool

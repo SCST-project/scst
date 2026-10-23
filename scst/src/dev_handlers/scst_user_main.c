@@ -3605,6 +3605,8 @@ static int __dev_user_set_opt(struct scst_user_dev *dev, const struct scst_user_
 		goto out;
 	}
 
+/* checkpatch-suppress IF_0 ; Retain the existing debug or alternative implementation. */
+/* checkpatch-suppress IF_1 ; Retain the existing debug or alternative implementation. */
 #if 1
 	if (dev->tst != opt->tst && dev->sdev && !list_empty(&dev->sdev->dev_tgt_dev_list)) {
 		PRINT_ERROR("On the fly setting of TST not supported. See comment in struct scst_device.");

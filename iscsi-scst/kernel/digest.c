@@ -1,4 +1,11 @@
 /*
+ * The existing GPL notice does not name a version; do not invent an only/or-
+ * later version grant. Defer SPDX conversion pending provenance/maintainer
+ * resolution; this exception covers only the missing tag in this exact existing
+ * source.
+ */
+/* checkpatch-suppress-file SPDX_LICENSE_TAG ; See the contract above. */
+/*
  *  iSCSI digest handling.
  *
  *  Copyright (C) 2004 - 2006 Xiranet Communications GmbH
