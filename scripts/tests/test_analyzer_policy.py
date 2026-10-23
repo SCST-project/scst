@@ -96,6 +96,32 @@ class PolicyTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "unsupported policy version"):
                 select()
 
+    def test_checkpatch_context_policy_rejects_ambiguous_contracts(self):
+        original = analyzer_policy.load_policy("checkpatch")
+        changes = [
+            ("code_macros", [{"name": "LINUX_.*", "constructor": "KERNEL_VERSION", "arguments": 3}]),
+            ("code_macros", [{"name": "LINUX_VERSION_CODE", "constructor": "KERNEL_.*", "arguments": 3}]),
+            ("code_macros", [{"name": "LINUX_VERSION_CODE", "constructor": "KERNEL_VERSION", "arguments": 0}]),
+            ("code_macros", [{"name": "LINUX_VERSION_CODE", "constructor": "KERNEL_VERSION", "arguments": True}]),
+            ("integer_macros", ["RHEL_MAJOR", "RHEL_MAJOR"]),
+            ("integer_macros", ["LINUX_VERSION_CODE"]),
+            ("reason", " "),
+        ]
+        for key, value in changes:
+            with self.subTest(key=key, value=value):
+                policy = copy.deepcopy(original)
+                policy["version_comparisons"][key] = value
+                self.save(policy)
+                with self.assertRaises(ValueError):
+                    analyzer_policy.read_policy(self.path, "checkpatch")
+        for names in ([], ["TRACE_.*"], ["TRACE_DBG", "TRACE_DBG"]):
+            with self.subTest(names=names):
+                policy = copy.deepcopy(original)
+                policy["logging_calls"][0]["names"] = names
+                self.save(policy)
+                with self.assertRaises(ValueError):
+                    analyzer_policy.read_policy(self.path, "checkpatch")
+
     def test_policy_drives_all_selectors_with_literal_paths(self):
         policy = copy.deepcopy(self.policy)
         policy["source_roots"] = ["source [ab]?* tree"]
@@ -148,10 +174,12 @@ class PolicyCliTests(unittest.TestCase):
         self.scripts = self.root / "scripts"
         (self.scripts / "policy").mkdir(parents=True)
         source = analyzer_policy.POLICY_PATH.parent.parent
-        for name in ("analyzer_policy.py", "lint_scope.py", "policy/common.json",
+        for name in ("analyzer_policy.py", "analyzer_setup.py", "lint_scope.py", "policy/common.json",
                      "policy/sparse.json", "policy/smatch.json", "policy/coccicheck.json",
                      "policy/cppcheck.json", "policy/checkpatch.json", "policy/scs_lint.json"):
             shutil.copyfile(source / name, self.scripts / name)
+        for name in ("style", "cppcheck", "coccinelle"):
+            shutil.copytree(source / name, self.scripts / name)
 
     def run_cli(self, *args):
         # Deliberately run away from the repository root: policy paths belong
@@ -224,7 +252,7 @@ class PolicyCliTests(unittest.TestCase):
         self.assertEqual(broken.stdout, "")
         self.assertIn("analyzer policy:", broken.stderr)
 
-    def test_basic_analyzers_inherit_common_scope_without_exceptions(self):
+    def test_analyzers_inherit_common_scope_with_separate_exception_policy(self):
         common = json.loads((self.scripts / "policy/common.json").read_text())
         for tool in ("coccicheck", "cppcheck", "checkpatch", "scs_lint"):
             with self.subTest(tool=tool):
@@ -232,7 +260,8 @@ class PolicyCliTests(unittest.TestCase):
                 self.assertEqual(result.returncode, 0, result.stderr)
                 report = json.loads(result.stdout)
                 self.assertEqual(report["effective_source_policy"], common)
-                self.assertEqual(set(report["configured_policy"]), {"version", "notes"})
+                self.assertIn("notes", report["configured_policy"])
+                self.assertEqual(report["inline_exceptions"], [])
 
 
 if __name__ == "__main__":

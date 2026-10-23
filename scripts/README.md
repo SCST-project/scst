@@ -15,14 +15,9 @@ direct callers of a relocated script must use its new directory below.
 | `sparse_smatch/` | Native Kbuild analyzers (`make sparse`, `make smatch`) and CHECK records. |
 | `coccinelle/` | Kernel semantic-patch report rules (`make coccicheck`). |
 | `cppcheck/` | Native analysis using captured compiler commands (`make cppcheck`). |
-| `style/` | Whole-file Checkpatch analysis (`make checkpatch`, `scripts/checkpatch_scan`). |
+| `style/` | Whole-file Checkpatch analysis (`make checkpatch`). |
 | `scs_lint/` | SCST code style rules (`make scs_lint`); see [SCS](../doc/scs.md). |
 | `tests/` | Isolated regression fixtures for the shared analyzer helpers (`make lint-test`). |
-
-The `checkpatch`, `checkpatch_commits` and `checkpatch_diff` helpers retain
-their existing patch/commit policy, including the ignored types in `checkpatch`.
-The kernel regression runner also retains its separate checkpatch filtering.
-`checkpatch_scan` now delegates to the unfiltered whole-file analyzer below.
 
 Use Make targets from the repository root unless a component workflow says
 otherwise. Direct scripts retain their working-directory conventions:
@@ -73,8 +68,7 @@ requires the current per-module Kbuild layout.
 
 `lint_scope.py` reads [policy/common.json](policy/common.json) for full and
 explicit-file selection. The loader rejects invalid or missing policy;
-there are no environment-based extra exclusions. Existing checkpatch wrappers
-and the kernel regression runner still use their own selection and filtering.
+there are no environment-based extra exclusions.
 
 Inspect the shared policy and eligible tracked files without running analyzers:
 
@@ -234,19 +228,67 @@ the summary links to captured commands, native XML and checker coverage.
 
 ```sh
 make checkpatch KDIR=/path/to/kernel/build
+make checkpatch CHECKPATCH_PATH=/path/to/kernel/scripts
 ```
 
 The target checks whole C files and headers selected by the common policy,
-including userspace and KUnit. Diff mode selects whole changed files. It needs
-the kernel's `checkpatch.pl`, `spelling.txt` and `const_structs.checkpatch`,
+including userspace and KUnit. It needs the kernel's `checkpatch.pl`,
+`spelling.txt` and `const_structs.checkpatch`,
 but no compilation or KUnit-enabled kernel. `CHECKPATCH_PATH` overrides `KDIR`.
 
-Native `--strict` checks run without ignored types or project exceptions;
-local `.checkpatch.conf` files are not loaded. Source files are never rewritten.
+Native `--strict` checks use the global exceptions in
+[policy/checkpatch.json](policy/checkpatch.json): invariant assertions,
+kernel-version checks and commit-submission metadata. Commit messages have
+separate Conform checks. Local `.checkpatch.conf` files are not loaded.
+Policy also recognizes complete `#if`/`#elif` expressions comparing the listed
+version macros, and format-only long lines in the listed logging calls.
+Version predicates allow `defined` guards, Boolean grouping, vendor `- 0`
+forms and matching `>> 8` series comparisons. Unknown expressions remain checked.
+Logging exceptions require a literal format argument ending the line; other
+arguments, unrelated calls and ordinary long strings remain checked.
+Other exceptions use source comments. All exceptions apply only after native
+coverage and totals are checked; raw diagnostics and policy reasons remain visible.
+Source files are never rewritten.
 Findings return 1; missing per-file completion, inconsistent totals, stderr
 or tool failures return 2. Make maps both failures to 2. Complete output and
-coverage are in `.cache/lint/checkpatch.{log,json}`. `scripts/checkpatch_scan`
-uses the same policy and exit codes; legacy patch/commit helpers remain separate.
+coverage are in `.cache/lint/checkpatch.{log,json}`.
+
+A reviewed interface spelling can use
+`checkpatch-suppress-symbol CAMELCASE symbolName=Name ; reason` in a standalone
+C comment before a use or declaration of that exact identifier. This exception
+applies to that name across selected files, avoiding Checkpatch's first-use
+ordering dependency. Other names and diagnostic categories remain checked;
+removing or renaming the annotated identifier invalidates the declaration.
+
+`COMPLEX_MACRO` begin/end blocks accept only object-like sense-key, ASC, ASCQ
+definitions, one per line, with byte-valued ASC/ASCQ. Comments are allowed;
+unrelated code or expressions invalidate the block. Other macro exceptions
+must remain attached to individual definitions.
+
+## Source exceptions and provenance
+
+Use a standalone comment immediately before the relevant construct:
+
+```c
+/* checkpatch-suppress CONST_STRUCT ; Older kernels require a mutable registration object. */
+/* cppcheck-suppress constParameterCallback symbolName=cmd ; Keep the callback ABI. */
+/* coccinelle-suppress rule_name ; Explain the reviewed exception. */
+```
+
+The parsers also support bounded `-begin`/`-end` blocks, `-macro` and `-file`
+where the tool supports them; every declaration requires a reason. File
+exceptions affect one named diagnostic, not all findings. The current
+Checkpatch file exceptions cover portable ABI integer types and unchanged
+legacy license headers. Cppcheck and Coccinelle have no file-wide exceptions.
+Checkpatch comment diagnostics attach to the next comment; other line
+exceptions attach to the next code line. A longer rationale can precede
+the marker, which then refers to it with `See the contract above.`. Checkpatch
+markers and reasons may also wrap across a standalone `/* ... */` comment.
+
+SCST contracts and reviewed exceptions come from the frozen historical branch
+at `ee5e4173fff7`. Changed historical contexts require a fresh review before
+reattaching an exception.
+Use the policy inventory above for the complete current list and reasons.
 
 ## SCST code style
 
@@ -274,7 +316,7 @@ build. The container jobs retain reports from `.cache/lint/` for seven days.
 CI fails on findings remaining after policy exceptions, just like local Make
 targets. The native-analyzer runner returns 1 for completed analysis with
 findings and 2 for build/tool failures, incomplete analysis or missing KUnit
-coverage. PRs retain the separate patch/commit Checkpatch workflow.
+coverage.
 
 ## Dependencies and tooling tests
 

@@ -3,7 +3,82 @@
   "notes": [
     "Check whole C files and headers with native Checkpatch --strict.",
     "Include userspace and KUnit sources through the common input policy.",
-    "No diagnostic exceptions, ignored types or local Checkpatch configuration.",
-    "Legacy patch and commit helpers retain their separate existing policy."
-  ]
+    "Commit messages are checked separately by Conform and review."
+  ],
+  "strict": true,
+  "max_line_length": 100,
+  "disabled_checks": [
+    {
+      "id": "AVOID_BUG",
+      "reason": "Existing invariant assertions require a separate recovery-path audit before replacement."
+    },
+    {
+      "id": "LINUX_VERSION_CODE",
+      "reason": "The out-of-tree compatibility layer supports multiple upstream and distribution kernels."
+    },
+    {
+      "id": "MISSING_SIGN_OFF",
+      "reason": "Conform and review check commit messages; source analysis does not enforce kernel patch-submission metadata."
+    },
+    {
+      "id": "COMMIT_MESSAGE",
+      "reason": "Conform and review check commit messages; source analysis does not enforce kernel patch-submission metadata."
+    },
+    {
+      "id": "EMAIL_SUBJECT",
+      "reason": "Conform and review check commit messages; source analysis does not enforce kernel patch-submission metadata."
+    },
+    {
+      "id": "UNKNOWN_COMMIT_ID",
+      "reason": "Conform and review check commit messages; source analysis does not enforce kernel patch-submission metadata."
+    },
+    {
+      "id": "NO_AUTHOR_SIGN_OFF",
+      "reason": "Conform and review check commit messages; source analysis does not enforce kernel patch-submission metadata."
+    },
+    {
+      "id": "COMMIT_LOG_USE_LINK",
+      "reason": "Conform and review check commit messages; source analysis does not enforce kernel patch-submission metadata."
+    },
+    {
+      "id": "BAD_REPORTED_BY_LINK",
+      "reason": "Conform and review check commit messages; source analysis does not enforce kernel patch-submission metadata."
+    },
+    {
+      "id": "FILE_PATH_CHANGES",
+      "reason": "Conform and review check commit messages; source analysis does not enforce kernel patch-submission metadata."
+    }
+  ],
+  "version_comparisons": {
+    "code_macros": [
+      {"name": "LINUX_VERSION_CODE", "constructor": "KERNEL_VERSION", "arguments": 3},
+      {"name": "RHEL_RELEASE_CODE", "constructor": "RHEL_RELEASE_VERSION", "arguments": 2}
+    ],
+    "integer_macros": ["RHEL_MAJOR", "RHEL_MINOR", "UTS_UBUNTU_RELEASE_ABI"],
+    "reason": "Kernel compatibility predicates compare known version constants in complete #if/#elif expressions; retain version-code-before-threshold ordering."
+  },
+  "logging_calls": [
+    {
+      "file_glob": "*",
+      "names": ["PRINT_ERROR", "PRINT_WARNING", "PRINT_WARNING_ONCE", "PRINT_INFO", "PRINT_CRIT_ERROR", "TRACE_MGMT_DBG", "TRACE_DBG", "TRACE_MEM", "TRACE_PR", "TRACE_CONN_CLOSE_DBG", "TRACE_WRITE", "TRACE_BLOCK", "TRACE_RETRY", "TRACE_SN"],
+      "reason": "Keep a complete diagnostic literal searchable, as for native kernel logging; only a format argument ending the line is exempt."
+    },
+    {
+      "file_glob": "iscsi-scst/usr/*",
+      "names": ["log_error"],
+      "reason": "Keep the daemon's complete diagnostic literal searchable; other arguments and ordinary long lines remain checked."
+    },
+    {
+      "file_glob": "usr/*",
+      "names": ["printf"],
+      "reason": "Keep a complete userspace diagnostic literal searchable; only a format argument ending the line is exempt."
+    },
+    {
+      "file_glob": "fcst/*",
+      "names": ["FT_ERR"],
+      "reason": "Keep the FC target's complete diagnostic literal searchable; other arguments and ordinary long lines remain checked."
+    }
+  ],
+  "macro_body_layouts": [],
+  "line_layouts": []
 }
