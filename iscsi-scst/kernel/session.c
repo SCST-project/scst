@@ -379,8 +379,8 @@ void iscsi_sess_force_close(struct iscsi_session *sess)
 	TRACE_EXIT();
 }
 
-#define ISCSI_SESS_BOOL_PARAM_ATTR(name, exported_name)				\
-static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
+#define ISCSI_SESS_BOOL_PARAM_ATTR(param, exported_name)				\
+static ssize_t iscsi_sess_show_##param(struct kobject *kobj,			\
 				      struct kobj_attribute *attr, char *buf)	\
 {										\
 	struct scst_session *scst_sess;						\
@@ -390,14 +390,17 @@ static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
 	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);	\
 										\
 	return sysfs_emit(buf, "%s\n",						\
-			  iscsi_get_bool_value(sess->sess_params.name));	\
+			  iscsi_get_bool_value(sess->sess_params.param));	\
 }										\
 										\
-static struct kobj_attribute iscsi_sess_attr_##name =				\
-	__ATTR(exported_name, 0444, iscsi_sess_show_##name, NULL)
+static struct kobj_attribute iscsi_sess_attr_##param = {				\
+	.attr = { .name = exported_name, .mode = 0444 },			\
+	.show = iscsi_sess_show_##param,					\
+	.store = NULL,							\
+}
 
-#define ISCSI_SESS_INT_PARAM_ATTR(name, exported_name)				\
-static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
+#define ISCSI_SESS_INT_PARAM_ATTR(param, exported_name)				\
+static ssize_t iscsi_sess_show_##param(struct kobject *kobj,			\
 				      struct kobj_attribute *attr, char *buf)	\
 {										\
 	struct scst_session *scst_sess;						\
@@ -407,14 +410,17 @@ static ssize_t iscsi_sess_show_##name(struct kobject *kobj,			\
 	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);	\
 										\
 	return sysfs_emit(buf, "%d\n",						\
-			  sess->sess_params.name);				\
+			  sess->sess_params.param);				\
 }										\
 										\
-static struct kobj_attribute iscsi_sess_attr_##name =				\
-	__ATTR(exported_name, 0444, iscsi_sess_show_##name, NULL)
+static struct kobj_attribute iscsi_sess_attr_##param = {				\
+	.attr = { .name = exported_name, .mode = 0444 },			\
+	.show = iscsi_sess_show_##param,					\
+	.store = NULL,							\
+}
 
-#define ISCSI_SESS_DIGEST_PARAM_ATTR(name, exported_name)				\
-static ssize_t iscsi_sess_show_##name(struct kobject *kobj,				\
+#define ISCSI_SESS_DIGEST_PARAM_ATTR(param, exported_name)				\
+static ssize_t iscsi_sess_show_##param(struct kobject *kobj,				\
 				      struct kobj_attribute *attr, char *buf)		\
 {											\
 	struct scst_session *scst_sess;							\
@@ -425,21 +431,24 @@ static ssize_t iscsi_sess_show_##name(struct kobject *kobj,				\
 	sess = (struct iscsi_session *)scst_sess_get_tgt_priv(scst_sess);		\
 											\
 	return sysfs_emit(buf, "%s\n",							\
-			  iscsi_get_digest_name(sess->sess_params.name, digest_name));	\
+			  iscsi_get_digest_name(sess->sess_params.param, digest_name));	\
 }											\
 											\
-static struct kobj_attribute iscsi_sess_attr_##name =					\
-	__ATTR(exported_name, 0444, iscsi_sess_show_##name, NULL)
+static struct kobj_attribute iscsi_sess_attr_##param = {					\
+	.attr = { .name = exported_name, .mode = 0444 },			\
+	.show = iscsi_sess_show_##param,					\
+	.store = NULL,							\
+}
 
-ISCSI_SESS_BOOL_PARAM_ATTR(initial_r2t, InitialR2T);
-ISCSI_SESS_BOOL_PARAM_ATTR(immediate_data, ImmediateData);
-ISCSI_SESS_INT_PARAM_ATTR(max_recv_data_length, MaxRecvDataSegmentLength);
-ISCSI_SESS_INT_PARAM_ATTR(max_xmit_data_length, MaxXmitDataSegmentLength);
-ISCSI_SESS_INT_PARAM_ATTR(max_burst_length, MaxBurstLength);
-ISCSI_SESS_INT_PARAM_ATTR(first_burst_length, FirstBurstLength);
-ISCSI_SESS_INT_PARAM_ATTR(max_outstanding_r2t, MaxOutstandingR2T);
-ISCSI_SESS_DIGEST_PARAM_ATTR(header_digest, HeaderDigest);
-ISCSI_SESS_DIGEST_PARAM_ATTR(data_digest, DataDigest);
+ISCSI_SESS_BOOL_PARAM_ATTR(initial_r2t, "InitialR2T");
+ISCSI_SESS_BOOL_PARAM_ATTR(immediate_data, "ImmediateData");
+ISCSI_SESS_INT_PARAM_ATTR(max_recv_data_length, "MaxRecvDataSegmentLength");
+ISCSI_SESS_INT_PARAM_ATTR(max_xmit_data_length, "MaxXmitDataSegmentLength");
+ISCSI_SESS_INT_PARAM_ATTR(max_burst_length, "MaxBurstLength");
+ISCSI_SESS_INT_PARAM_ATTR(first_burst_length, "FirstBurstLength");
+ISCSI_SESS_INT_PARAM_ATTR(max_outstanding_r2t, "MaxOutstandingR2T");
+ISCSI_SESS_DIGEST_PARAM_ATTR(header_digest, "HeaderDigest");
+ISCSI_SESS_DIGEST_PARAM_ATTR(data_digest, "DataDigest");
 
 static ssize_t iscsi_sess_sid_show(struct kobject *kobj, struct kobj_attribute *attr, char *buf)
 {
