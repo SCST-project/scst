@@ -925,6 +925,8 @@ int iscsi_conn_alloc(struct iscsi_session *session, struct iscsi_kern_conn_info 
 	conn->file = fget(info->fd);
 
 	res = conn_setup_sock(conn);
+	/* Socket setup can fail with -EINVAL on supported kernels before 6.5. */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	if (res != 0)
 		goto out_fput;
 

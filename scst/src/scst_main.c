@@ -2254,6 +2254,11 @@ static inline void __init scst_print_config(void)
 		PRINT_INFO("%s", config);
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=ref */
 static void scst_suspended(struct percpu_ref *ref)
 {
 	WARN_ON_ONCE(ref != &scst_cmd_count && ref != &scst_mcmd_count);

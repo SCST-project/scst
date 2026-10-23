@@ -116,6 +116,11 @@ static void lifecycle_free(struct scst_tgt_dev *td)
 	f->frees++;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=flags */
 static int lifecycle_cm_add(struct scst_acg_dev *ad, u64 lun, unsigned int *flags)
 {
 	struct kunit *test = kunit_get_current_test();
@@ -149,6 +154,11 @@ static int lifecycle_sysfs_create(struct scst_acg_dev *ad, struct kobject *paren
 	return f->sysfs_result;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=ref */
 static void lifecycle_ref_release(struct percpu_ref *ref)
 {
 }

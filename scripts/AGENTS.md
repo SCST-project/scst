@@ -16,10 +16,17 @@ under `kunit/`, also follow its [instructions](kunit/AGENTS.md).
   selection separate from diagnostic policy, retain complete raw reports, and
   propagate missing-tool and process failures. Report no eligible inputs as a
   skip; fail incomplete analyzer runs.
-- Keep input and diagnostic exclusions in `policy/`, with a reason for each
-  rule. Diagnostic exceptions must match the exact file, message and function
-  where available; resolve external headers from the actual build context.
-  Do not add environment-based filters that bypass the reviewed policy.
+- Keep shared input scope and Sparse/Smatch exceptions in `policy/`. Attach
+  Checkpatch, Cppcheck and Coccinelle exceptions to source with the supported
+  rule-specific comments and a reason. Inventory declarations separately from
+  diagnostic hits; never suppress parser, coverage or execution failures.
+  Checkpatch's version predicates and logging layouts belong in policy with
+  exact names and structural validation; do not replace them with broad filters.
+- Keep analyzer models separate from exceptions. Preserve real project bodies
+  and record omitted header coverage. Read Coccinelle macro models from current
+  definitions and expose standalone definition errors as coverage limitations.
+  Invocation and surrounding-code parser failures must remain blocking. Do not
+  add environment-based filters that bypass the reviewed policy.
 - Drivers that modify build state must hold the shared build lock around build
   log reset and build-state changes. Other checks do not need the lock.
 - Keep analyzer fixture tests isolated in temporary directories and processes.

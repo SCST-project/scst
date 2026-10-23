@@ -16,6 +16,11 @@ static int event_test_get_size(s32 *size, const void __user *arg)
 	return f->read_error;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=arg */
 static int event_test_get_payload_size(u32 *size, struct scst_event_user __user *arg)
 {
 	s32 value;
@@ -93,6 +98,11 @@ static unsigned long event_test_copy_to(void __user *to, const void *from, size_
 	return left;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=event */
 static void event_test_notify(struct scst_event *event, void *data, int status)
 {
 	struct event_test_fixture *f = data;

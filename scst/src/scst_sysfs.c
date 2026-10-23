@@ -456,6 +456,11 @@ static inline int test_sysfs_work_list(void)
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=arg */
 static int sysfs_work_thread_fn(void *arg)
 {
 	bool one_time_only = (bool)arg;
@@ -2930,6 +2935,12 @@ out:											\
 static struct kobj_attribute scst_tgt_##attr##_attr =					\
 	__ATTR(attr, 0444, scst_tgt_sysfs_##attr##_show, NULL)
 
+/*
+ * This compile-time bounds assertion deliberately accepts the zero-valued
+ * SCST_DATA_UNKNOWN index; its macro, enumeration and array declaration are
+ * audited.
+ */
+/* cppcheck-suppress unsignedLessThanZero */
 SCST_TGT_SYSFS_STAT_ATTR(cmd_count, unknown_cmd_count, SCST_DATA_UNKNOWN, >> 0);
 SCST_TGT_SYSFS_STAT_ATTR(cmd_count, write_cmd_count, SCST_DATA_WRITE, >> 0);
 SCST_TGT_SYSFS_STAT_ATTR(io_byte_count, write_io_count_kb, SCST_DATA_WRITE, >> 10);
@@ -3766,6 +3777,11 @@ static ssize_t scst_dev_block_show(struct kobject *kobj, struct kobj_attribute *
 	return ret;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=data */
 static void scst_sysfs_ext_blocking_done(struct scst_device *dev, u8 *data, int len)
 {
 	scst_event_queue_ext_blocking_done(dev, data, len);
@@ -7212,6 +7228,11 @@ out:
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=work */
 static int scst_threads_store_work_fn(struct scst_sysfs_work_item *work)
 {
 	return scst_process_threads_store(work->new_threads_num);

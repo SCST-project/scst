@@ -283,6 +283,10 @@ struct iscsi_kern_initiator_info {
 
 #define ISCSI_INITIATOR_ALLOWED	_IOW('s', 12, struct iscsi_kern_initiator_info)
 
+/*
+ * Used by the daemon; the separate kernel analysis has no caller.
+ */
+/* cppcheck-suppress unusedFunction symbolName=iscsi_is_key_internal */
 static inline int iscsi_is_key_internal(int key)
 {
 	switch (key) {

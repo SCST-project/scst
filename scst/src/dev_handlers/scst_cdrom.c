@@ -151,6 +151,11 @@ out:
 	return res;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=dev */
 static void cdrom_detach(struct scst_device *dev)
 {
 	/* Nothing to do */
@@ -171,6 +176,8 @@ out:
 	return res;
 }
 
+/* scst_block_generic_dev_done requires this mutable command callback type. */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static void cdrom_set_block_shift(struct scst_cmd *cmd, int block_shift)
 {
 	struct scst_device *dev = cmd->dev;

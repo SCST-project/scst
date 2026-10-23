@@ -1664,6 +1664,11 @@ static void scst_tgt_retry_timer_fn(struct timer_list *timer);
 static void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev);
 static void tm_dbg_deinit_tgt_dev(const struct scst_tgt_dev *tgt_dev);
 #else
+/*
+ * The disabled debug stub retains the signature of the configuration that
+ * mutates this object.
+ */
+/* cppcheck-suppress constParameterPointer */
 static inline void tm_dbg_init_tgt_dev(struct scst_tgt_dev *tgt_dev) {}
 static inline void tm_dbg_deinit_tgt_dev(const struct scst_tgt_dev *tgt_dev) {}
 #endif /* CONFIG_SCST_DEBUG_TM */
@@ -3103,6 +3108,11 @@ retry_add:
 
 		tgt_dev->inq_changed_ua_needed = inq_changed_ua_needed;
 next:
+		/*
+		 * Keep the explicit continuation at the next label used by
+		 * several LUN reassignment paths.
+		 */
+		/* cppcheck-suppress redundantContinue */
 		continue;
 	}
 
@@ -3386,6 +3396,8 @@ const char *scst_get_opcode_name(struct scst_cmd *cmd)
 EXPORT_SYMBOL(scst_get_opcode_name);
 #endif
 
+/* The caller in scst_targ.c is in a deliberately retained #if 0 debug path. */
+/* cppcheck-suppress unusedFunction */
 void scst_zero_write_rest(struct scst_cmd *cmd)
 {
 	int len, offs = 0;
@@ -5158,6 +5170,10 @@ static void scst_release_acg(struct kref *kref)
 	 */
 	rc = queue_work(scst_release_acg_wq, &release_work->work);
 	WARN_ON_ONCE(!rc);
+/*
+ * release_work is transferred to scst_release_acg_work, which frees it.
+ */
+/* cppcheck-suppress memleak symbolName=release_work */
 }
 
 void scst_put_acg(struct scst_acg *acg)
@@ -8430,6 +8446,11 @@ scst_alloc_passthrough_request(struct request_queue *q, int rw, gfp_t gfp_mask)
  * @rq: Request pointer.
  */
 static void
+/*
+ * The old-kernel branch initializes the request through scsi_req_init; keep its
+ * mutable pointer.
+ */
+/* cppcheck-suppress constParameterPointer */
 scst_init_passthrough_request(struct request *rq)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 15, 0) &&		\
@@ -10527,6 +10548,10 @@ static int scst_init_dif_actions(struct scst_device *dev)
 
 	TRACE_ENTRY();
 
+	/*
+	 * Verify the numeric protocol constant at compile time.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	BUILD_BUG_ON(SCST_DIF_ACTION_NONE != 0);
 
 	if (dev->dev_dif_type == 0 || dev->dev_dif_mode == 0) {
@@ -10939,6 +10964,10 @@ int scst_set_dif_params(struct scst_device *dev, enum scst_dif_mode dif_mode,
 
 	TRACE_ENTRY();
 
+	/*
+	 * Verify the numeric protocol constant at compile time.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	BUILD_BUG_ON(SCST_DIF_ACTION_NONE != 0);
 
 	if (((dif_mode & ~(SCST_DIF_MODE_TGT | SCST_DIF_MODE_SCST | SCST_DIF_MODE_DEV)) != 0)) {
@@ -11024,6 +11053,8 @@ out_none:
 }
 EXPORT_SYMBOL_GPL(scst_set_dif_params);
 
+/* dev_dif_fn shares the mutable command interface of DIF-processing callbacks. */
+/* cppcheck-suppress constParameterCallback symbolName=cmd */
 static int scst_dif_none(struct scst_cmd *cmd)
 {
 	int res = 0;
@@ -12712,7 +12743,15 @@ int scst_sbc_generic_parse(struct scst_cmd *cmd)
 		[SCST_LONG_TIMEOUT] = SCST_GENERIC_DISK_LONG_TIMEOUT,
 		[SCST_BOTH_TIMEOUTS] = SCST_GENERIC_DISK_LONG_TIMEOUT,
 	};
+	/*
+	 * Verify the numeric protocol constant at compile time.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	BUILD_BUG_ON(SCST_SMALL_TIMEOUT != 1);
+	/*
+	 * Verify the numeric protocol constant at compile time.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	BUILD_BUG_ON(SCST_LONG_TIMEOUT != 2);
 	BUILD_BUG_ON(SCST_BOTH_TIMEOUTS != 3);
 
@@ -12733,7 +12772,15 @@ int scst_cdrom_generic_parse(struct scst_cmd *cmd)
 		[SCST_LONG_TIMEOUT] = SCST_GENERIC_CDROM_LONG_TIMEOUT,
 		[SCST_BOTH_TIMEOUTS] = SCST_GENERIC_CDROM_LONG_TIMEOUT,
 	};
+	/*
+	 * Verify the numeric protocol constant at compile time.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	BUILD_BUG_ON(SCST_SMALL_TIMEOUT != 1);
+	/*
+	 * Verify the numeric protocol constant at compile time.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	BUILD_BUG_ON(SCST_LONG_TIMEOUT != 2);
 	BUILD_BUG_ON(SCST_BOTH_TIMEOUTS != 3);
 
@@ -12755,7 +12802,15 @@ int scst_modisk_generic_parse(struct scst_cmd *cmd)
 		[SCST_LONG_TIMEOUT] = SCST_GENERIC_MODISK_LONG_TIMEOUT,
 		[SCST_BOTH_TIMEOUTS] = SCST_GENERIC_MODISK_LONG_TIMEOUT,
 	};
+	/*
+	 * Verify the numeric protocol constant at compile time.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	BUILD_BUG_ON(SCST_SMALL_TIMEOUT != 1);
+	/*
+	 * Verify the numeric protocol constant at compile time.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	BUILD_BUG_ON(SCST_LONG_TIMEOUT != 2);
 	BUILD_BUG_ON(SCST_BOTH_TIMEOUTS != 3);
 

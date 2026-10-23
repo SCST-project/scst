@@ -321,11 +321,26 @@ static unsigned long __sgv_can_be_shrunk(void)
 }
 
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 12, 0)
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=shrinker */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=sc */
 static unsigned long sgv_can_be_shrunk(struct shrinker *shrinker, struct shrink_control *sc)
 {
 	return __sgv_can_be_shrunk();
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=sc */
 static unsigned long sgv_scan_shrink(struct shrinker *shrinker, struct shrink_control *sc)
 {
 	int freed = 0;
@@ -901,6 +916,11 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size, gfp
 			goto out_fail_free_sg_entries;
 		allowed_mem_checked = true;
 
+		/*
+		 * The memory high-water check can fail when
+		 * CONFIG_SCST_NO_TOTAL_MEM_CHECKS is disabled.
+		 */
+		/* cppcheck-suppress knownConditionTrueFalse */
 		if (unlikely(sgv_hiwmk_check(pages_to_alloc) != 0))
 			goto out_fail_free_sg_entries;
 		hiwmk_checked = true;
@@ -961,6 +981,11 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size, gfp
 
 		obj->allocator_priv = priv;
 
+		/*
+		 * The memory high-water check can fail when
+		 * CONFIG_SCST_NO_TOTAL_MEM_CHECKS is disabled.
+		 */
+		/* cppcheck-suppress knownConditionTrueFalse */
 		if (unlikely(sgv_hiwmk_check(pages_to_alloc) != 0))
 			goto out_fail_free_sg_entries;
 		hiwmk_checked = true;
@@ -995,6 +1020,11 @@ struct scatterlist *sgv_pool_alloc(struct sgv_pool *pool, unsigned int size, gfp
 		obj->sg_entries = obj->sg_entries_data;
 		sg_init_table(obj->sg_entries, pages);
 
+		/*
+		 * The memory high-water check can fail when
+		 * CONFIG_SCST_NO_TOTAL_MEM_CHECKS is disabled.
+		 */
+		/* cppcheck-suppress knownConditionTrueFalse */
 		if (unlikely(sgv_hiwmk_check(pages_to_alloc) != 0))
 			goto out_fail_free_sg_entries;
 		hiwmk_checked = true;
@@ -1219,6 +1249,11 @@ struct scatterlist *scst_alloc_sg(int size, gfp_t gfp_mask, int *count)
 	atomic_inc(&sgv_other_total_alloc);
 #endif
 
+	/*
+	 * The memory high-water check can fail when
+	 * CONFIG_SCST_NO_TOTAL_MEM_CHECKS is disabled.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	if (unlikely(sgv_hiwmk_check(pages) != 0)) {
 		if (!no_fail) {
 			res = NULL;
@@ -2091,6 +2126,11 @@ static struct attribute *sgv_def_attrs[] = {
 ATTRIBUTE_GROUPS(sgv_def);
 #endif
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=kobj */
 static void scst_sysfs_release(struct kobject *kobj)
 {
 	kfree(kobj);

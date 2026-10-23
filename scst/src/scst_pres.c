@@ -69,6 +69,8 @@
 
 #define FILE_BUFFER_SIZE	512
 
+/* Lockdep configurations pass the device's mutex to the kernel lock checker. */
+/* cppcheck-suppress constParameterPointer symbolName=dev */
 static inline void scst_assert_pr_mutex_held(struct scst_device *dev)
 {
 #if defined(CONFIG_LOCKDEP)
@@ -1073,9 +1075,12 @@ void scst_pr_cleanup(struct scst_device *dev)
 }
 
 /* Caller must hold scst_mutex and activity must be suspended. */
+/* DLM configurations update the device's cluster operations and registrations. */
+/* cppcheck-suppress-begin constParameterCallback symbolName=dev */
 int scst_pr_set_cluster_mode(struct scst_device *dev, bool cluster_mode,
 			     const char *cl_dev_id)
 {
+	/* cppcheck-suppress-end constParameterCallback symbolName=dev */
 	int res = 0;
 
 #if defined(CONFIG_DLM) || defined(CONFIG_DLM_MODULE) && \

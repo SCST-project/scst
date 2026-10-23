@@ -1297,15 +1297,32 @@ static void scst_dlm_res_unlock(struct scst_device *dev,
 	scst_dlm_remove_lock(ls, pr_lksb, PR_LOCK);
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=dev */
+/*
+ * The registered callback retains the mutable
+ * parameter type required by its interface.
+ */
+/* cppcheck-suppress-begin constParameterCallback symbolName=sess */
 static bool scst_dlm_is_rsv_holder(struct scst_device *dev,
 				   struct scst_session *sess)
 {
+	/* cppcheck-suppress-end constParameterCallback symbolName=sess */
 	return dev->reserved_by == sess;
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by
+ * its interface.
+ */
+/* cppcheck-suppress-begin constParameterCallback symbolName=sess */
 static bool scst_dlm_is_not_rsv_holder(struct scst_device *dev,
 				       struct scst_session *sess)
 {
+	/* cppcheck-suppress-end constParameterCallback symbolName=sess */
 	return dev->pr_dlm->reserved_by_nodeid && dev->reserved_by != sess;
 }
 
@@ -1496,6 +1513,11 @@ unlock_ls:
 		queue_work(pr_dlm->upd_wq, &pr_dlm->reread_lvb_work);
 }
 
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=astarg */
 static void scst_dlm_post_ast(void *astarg)
 {
 }

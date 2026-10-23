@@ -741,6 +741,10 @@ static int scst_init_cmd(struct scst_cmd *cmd, enum scst_exec_context *context)
 		 * If any data_direction not set, it's SCST_DATA_UNKNOWN,
 		 * which is 0, so we can safely | them
 		 */
+		/*
+		 * Verify the numeric protocol constant at compile time.
+		 */
+		/* cppcheck-suppress knownConditionTrueFalse */
 		BUILD_BUG_ON(SCST_DATA_UNKNOWN != 0);
 		if ((cmd->data_direction | cmd->expected_data_direction) & SCST_DATA_WRITE) {
 			if (!cmd->tgt_dev->tgt_dev_after_init_wr_atomic)
@@ -2234,6 +2238,11 @@ out_put:
  * @result:	command's execution result
  * @resid:	residual, if any
  */
+/*
+ * The registered callback retains the mutable parameter type required by its
+ * interface.
+ */
+/* cppcheck-suppress constParameterCallback symbolName=sense */
 void scst_pass_through_cmd_done(void *data, char *sense, int result, int resid)
 {
 	struct scst_cmd *cmd = data;
@@ -2618,6 +2627,11 @@ static inline int scst_real_exec(struct scst_cmd *cmd)
 	__scst_cmd_get(cmd);
 
 	res = scst_do_real_exec(cmd);
+	/*
+	 * The expected completion result is an execution invariant, with an
+	 * explicit BUG path for an invalid result.
+	 */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	if (likely(res == SCST_EXEC_COMPLETED))
 		scst_post_exec_sn(cmd, true);
 	else
@@ -4228,6 +4242,11 @@ static int __scst_init_cmd(struct scst_cmd *cmd)
 	res = scst_translate_lun(cmd);
 	if (likely(res == 0)) {
 		struct scst_tgt_dev *tgt_dev = cmd->tgt_dev;
+		/*
+		 * CONFIG_SCST_PER_DEVICE_CMD_COUNT_LIMIT increments
+		 * dev_cmd_count through this device pointer.
+		 */
+		/* cppcheck-suppress constVariablePointer */
 		struct scst_device *dev = cmd->dev;
 		bool failure = false;
 		int cnt;
@@ -4536,6 +4555,11 @@ void scst_process_active_cmd(struct scst_cmd *cmd, bool atomic)
 			break;
 
 		case SCST_CMD_STATE_EXEC_CHECK_SN:
+			/*
+			 * The task-management debug configuration supplies a
+			 * nonconstant result; retain its conditional path.
+			 */
+			/* cppcheck-suppress knownConditionTrueFalse */
 			if (tm_dbg_check_cmd(cmd) != 0) {
 				res = SCST_CMD_STATE_RES_CONT_NEXT;
 				TRACE_MGMT_DBG("Skipping cmd %p (tag %llu), because of TM DBG delay",
@@ -4753,6 +4777,8 @@ int scst_cmd_thread(void *arg)
 	while (!kthread_should_stop()) {
 		scst_wait_for_cmd(p_cmd_threads, thr);
 
+		/* CONFIG_SCST_DEBUG_TM supplies a nonconstant release predicate. */
+		/* cppcheck-suppress knownConditionTrueFalse */
 		if (tm_dbg_is_release()) {
 			spin_unlock_irq(&p_cmd_threads->cmd_list_lock);
 			tm_dbg_check_released_cmds();
@@ -5827,6 +5853,11 @@ ret:
 	return res;
 }
 
+/*
+ * The SCSI reset APIs receive a mutable device; omitted kernel bodies do not
+ * imply a read-only operation.
+ */
+/* cppcheck-suppress constParameterPointer */
 static int scst_reset_scsi_target(struct scsi_device *sdev)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
@@ -5842,6 +5873,11 @@ static int scst_reset_scsi_target(struct scsi_device *sdev)
 #endif
 }
 
+/*
+ * The SCSI reset APIs receive a mutable device; omitted kernel bodies do not
+ * imply a read-only operation.
+ */
+/* cppcheck-suppress constParameterPointer */
 static int scst_reset_scsi_device(struct scsi_device *sdev)
 {
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 2, 0)
@@ -6523,6 +6559,8 @@ static void scst_mgmt_cmd_send_done(struct scst_mgmt_cmd *mcmd)
 	TRACE_ENTRY();
 
 	mcmd->state = SCST_MCMD_STATE_FINISHED;
+	/* The strict-abort configuration makes this predicate true for ABORT TASK. */
+	/* cppcheck-suppress knownConditionTrueFalse */
 	if (scst_is_strict_mgmt_fn(mcmd->fn) && mcmd->completed_cmd_count > 0)
 		scst_mgmt_cmd_set_status(mcmd, SCST_MGMT_STATUS_TASK_NOT_EXIST);
 
