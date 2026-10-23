@@ -129,7 +129,8 @@ the kernel/tool version with the result when it affects diagnostics.
 
 ### Analyzer tooling
 
-Run `make lint-test` for isolated analyzer-tooling fixtures. See the
+Run `make lint-test` for isolated analyzer-tooling fixtures and
+`make analyzer-tests` for native model probes in the analyzer environment. See the
 [scripts guide](scripts/README.md#shared-analyzer-source-scope) for source
 selection, exact exclusions and tooling requirements.
 
