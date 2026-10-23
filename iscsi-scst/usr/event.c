@@ -537,7 +537,11 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 
 		if (target->target_params[idx] != target_keys[idx].local_def)
 			add_key_mark(res_str, sizeof(res_str), 1);
-	} else if ((idx = params_index_by_name(pp, session_keys)) >= 0) {
+		goto done;
+	}
+
+	idx = params_index_by_name(pp, session_keys);
+	if (idx >= 0) {
 		if (!target) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
@@ -549,7 +553,11 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 
 		if (target->session_params[idx] != session_keys[idx].local_def)
 			add_key_mark(res_str, sizeof(res_str), 1);
-	} else if ((idx = params_index_by_name_numwild(pp, user_keys)) >= 0) {
+		goto done;
+	}
+
+	idx = params_index_by_name_numwild(pp, user_keys);
+	if (idx >= 0) {
 		const struct iscsi_attr *user;
 
 		user = account_lookup_by_sysfs_name(target, idx, pp);
@@ -682,6 +690,7 @@ static int handle_e_get_attr_value(int fd, const struct iscsi_kern_event *event)
 		goto out_free;
 	}
 
+done:
 	send_mgmt_cmd_res(event->tid, event->cookie, E_GET_ATTR_VALUE, 0, res_str);
 
 out_free:
@@ -906,7 +915,11 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 			kernel_params_set(event->tid, session->sid.id64,
 					  key_target, 1 << idx, params);
 		}
-	} else if ((idx = params_index_by_name(pp, session_keys)) >= 0) {
+		goto done;
+	}
+
+	idx = params_index_by_name(pp, session_keys);
+	if (idx >= 0) {
 		if (!target) {
 			log_error("Target expected for attr %s", pp);
 			res = -EINVAL;
@@ -937,7 +950,11 @@ static int handle_e_set_attr_value(int fd, const struct iscsi_kern_event *event)
 		}
 
 		target->session_params[idx] = val;
-	} else if ((idx = params_index_by_name_numwild(pp, user_keys)) >= 0) {
+		goto done;
+	}
+
+	idx = params_index_by_name_numwild(pp, user_keys);
+	if (idx >= 0) {
 		const struct iscsi_attr *user;
 
 		user = account_lookup_by_sysfs_name(target, idx, pp);
