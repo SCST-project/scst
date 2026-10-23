@@ -10,7 +10,6 @@
 """Check mechanically enforceable SCST code style rules in C sources."""
 
 import argparse
-import fcntl
 import json
 import os
 import subprocess
@@ -24,7 +23,7 @@ import tree_sitter_c
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from lint_scope import select_sources  # noqa: E402
-from lint_common import entrypoint, log_path, show_log  # noqa: E402
+from lint_common import entrypoint, log_path, parser_runtime, report_lock, show_log  # noqa: E402
 
 REPOSITORY = Path(__file__).resolve().parents[2]
 VISIBILITY = (b"SCST_KUNIT_VISIBLE", b"SCST_KUNIT_VISIBLE_INLINE", b"VISIBLE_IF_KUNIT")
@@ -86,11 +85,12 @@ def main(argv: list[str] | None = None) -> int:
                     help="C source/header files; default: tracked project C sources and headers")
     args = ap.parse_args(argv)
 
-    with log_path(REPOSITORY, "scs_lint.lock", truncate=False).open("a") as lock:
-        fcntl.flock(lock, fcntl.LOCK_EX)
+    with report_lock(REPOSITORY, "scs_lint"):
         log = log_path(REPOSITORY, "scs_lint.log")
         report = {"tool": "scs_lint", "outcome": "incomplete", "exit_code": 2,
-                  "remaining": 0, "selected_files": [], "checked_files": []}
+                  "run_id": os.environ.get("SCST_LINT_RUN_ID"),
+                  "remaining": 0, "selected_files": [], "checked_files": [],
+                  "diagnostics": [], "parser_runtime": parser_runtime()}
         show_log(log)
         try:
             paths = select_sources(REPOSITORY, args.files, "scs_lint")
@@ -101,8 +101,10 @@ def main(argv: list[str] | None = None) -> int:
                     for violation in check_source(path.read_bytes(), parser):
                         message = (f"{path}:{violation.line}:{violation.column}: error: "
                                    f"{violation.rule}: {violation.message}")
-                        print(message)
+                        if os.environ.get("LINT_DEFER_REPORTS") != "1":
+                            print(message)
                         output.write(message + "\n")
+                        report["diagnostics"].append({"native": message, "rule": violation.rule})
                         report["remaining"] += 1
                     report["checked_files"].append(path.relative_to(REPOSITORY).as_posix())
                 status = int(bool(report["remaining"]))
@@ -116,6 +118,7 @@ def main(argv: list[str] | None = None) -> int:
             return status
         except (OSError, ValueError, subprocess.CalledProcessError) as exc:
             message = f"scs_lint: {exc}"
+            report["failures"] = [message]
             print(message, file=sys.stderr)
             with log.open("a") as output:
                 output.write(message + "\n")

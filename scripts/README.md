@@ -118,6 +118,17 @@ parallel jobserver. Drivers must check command results or use `check=True`.
 The entry-point helper supports command tracing with `V=1` or `--verbose`.
 Progress is separate from captured analyzer output.
 
+Make targets use `analyzer_run.py` for the same `Start`, `Run`, `Result` and
+`Reports` sections locally and in CI. Results show `PASS`, `FAIL` or `SKIP`,
+grouped findings, coverage and separate build messages. GitHub Actions folds
+policy, exception and model details; `V=1` expands them and traces commands.
+Quiet commands report progress every 30 seconds, or animate a terminal spinner.
+Coccinelle progress names the current rule; its report records rule durations.
+The `.summary.log` is the readable result, `.execution.log` retains the complete
+driver output, and `.run.json` identifies the current invocation and its status.
+Nonzero native exits carry
+their explanation separately from the final policy result.
+
 Drivers save complete stdout/stderr under `.cache/lint/`. The helpers preserve
 raw bytes without filtering. Reusing a log name replaces the previous report
 by default; callers can preserve it with `truncate=False`. There is no automatic
@@ -233,7 +244,7 @@ the wrapper does not add `--force` to explore unrelated configurations.
 sources even outside analyzer policy. Cppcheck applies its scope afterwards.
 Set `CPPCHECK_PROJECT` and `CPPCHECK_USERSPACE_PROJECT` to reuse that database;
 external database freshness is the caller's responsibility. CI always collects
-fresh commands.
+fresh commands. `make -k all-lint KUNIT_TEST=y` runs all analyzer targets.
 
 The target runs the full configured analysis, including header consumers.
 Explicit C files absent from the build cause a failure.
