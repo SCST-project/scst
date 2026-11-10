@@ -31,6 +31,10 @@ builds. Static analyzers have separate Make targets and CI jobs. The maintained
 kernel matrix is `ABT_KERNELS` in `nightly/conf/nightly.conf`; the CI subset is
 selected through `kernel/kernel-matrix` and `.github/kernel-matrix.conf`.
 
+Run `python3 -m unittest discover -s scripts/kernel -p 'test_*.py'` to check
+kernel preparation using temporary patch and Makefile fixtures, without
+downloading or compiling a kernel.
+
 `kernel/qla2xxx.py` tracks upstream QLogic commits, compares committed Linux
 and SCST driver trees, audits residual differences with an optional kernel
 profile, and exports mail patches with SCST paths. It uses
