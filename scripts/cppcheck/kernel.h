@@ -38,6 +38,12 @@
 #define __acquires(x)
 #define __acquire(x)
 #define __release(x)
+/* linux/fs_struct.h executes the scoped body once, including early returns.
+ * FS context switching and cleanup are outside this syntax model.
+ */
+#define scoped_with_init_fs() \
+	for (int scst_cppcheck_init_fs_once = 1; scst_cppcheck_init_fs_once; \
+	     scst_cppcheck_init_fs_once = 0)
 /* checkpatch-suppress-macro MACRO_ARG_UNUSED ; Lockdep metadata is outside this model. */
 #define __cond_lock(x, y) (y)
 /* linux/bitops.h ultimately supplies the unsigned-long BIT expression. */

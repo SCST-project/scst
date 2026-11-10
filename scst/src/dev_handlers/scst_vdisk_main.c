@@ -226,7 +226,7 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev, const ch
 		open_flags |= O_DSYNC;
 
 	TRACE_DBG("Opening file %s, flags 0x%x", name, open_flags);
-	fd = filp_open(name, O_LARGEFILE | open_flags, 0600);
+	fd = scst_filp_open(name, O_LARGEFILE | open_flags, 0600);
 	if (IS_ERR(fd)) {
 		if (PTR_ERR(fd) == -EMEDIUMTYPE)
 			TRACE(TRACE_MINOR, "Unable to open %s with EMEDIUMTYPE, DRBD passive?",
@@ -436,7 +436,7 @@ static int vdisk_check_tp_support(struct scst_vdisk_dev *virt_dev)
 		res = scst_open_bdev_by_path(virt_dev->filename, BLK_OPEN_READ, NULL, NULL,
 					     &bdev_desc);
 	} else {
-		fd = filp_open(virt_dev->filename, O_LARGEFILE, 0600);
+		fd = scst_filp_open(virt_dev->filename, O_LARGEFILE, 0600);
 		res = PTR_ERR_OR_ZERO(fd);
 	}
 	if (res) {
@@ -10011,7 +10011,7 @@ static void __init vdev_check_mode_pages_path(void)
 
 	TRACE_ENTRY();
 
-	res = kern_path(VDEV_MODE_PAGES_DIR, 0, &path);
+	res = scst_kern_path(VDEV_MODE_PAGES_DIR, 0, &path);
 	if (res == 0)
 		path_put(&path);
 	if (res != 0) {

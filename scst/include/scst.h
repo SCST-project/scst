@@ -5989,6 +5989,10 @@ int scst_scsi_exec_async(struct scst_cmd *cmd, void *data,
 int scst_get_file_mode(const char *path);
 bool scst_parent_dir_exists(const char *path);
 
+/* Path lookups use userspace init's FS context when called from a kthread. */
+struct file *scst_filp_open(const char *filename, int flags, umode_t mode);
+int scst_kern_path(const char *name, unsigned int flags, struct path *path);
+
 struct scst_bdev_descriptor {
 	struct block_device *bdev;
 	void *priv;

@@ -270,7 +270,7 @@ static void disk_write_pr_dump(struct scst_device *dev)
 	ssize_t written;
 	loff_t pos = 0;
 
-	f = filp_open(priv->pr_dump_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
+	f = scst_filp_open(priv->pr_dump_path, O_WRONLY | O_CREAT | O_TRUNC, 0600);
 	if (IS_ERR(f)) {
 		/*
 		 * Keep numeric error output on supported kernels without the %pe formatter.
@@ -292,7 +292,7 @@ static void disk_write_pr_dump(struct scst_device *dev)
 		PRINT_ERROR("%s: short write to PR dump file %s: %zd/%zd",
 			    dev->virt_name, priv->pr_dump_path, written,
 			    priv->pr_dump_len);
-		rc = kern_path(priv->pr_dump_path, 0, &fpath);
+		rc = scst_kern_path(priv->pr_dump_path, 0, &fpath);
 		if (!rc)
 			scst_vfs_unlink_and_put(&fpath);
 		else
