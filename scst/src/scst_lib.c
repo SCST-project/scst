@@ -22,6 +22,7 @@
 #include <linux/init.h>
 #include <linux/kernel.h>
 #include <linux/errno.h>
+#include <linux/fs_struct.h>
 #include <linux/list.h>
 #include <linux/spinlock.h>
 #include <linux/slab.h>
@@ -6253,9 +6254,45 @@ static void scst_complete_request_sense(struct scst_cmd *req_cmd)
 	TRACE_EXIT();
 }
 
-int scst_open_bdev_by_path(const char *path, blk_mode_t mode, void *holder,
-			   const struct blk_holder_ops *hops,
-			   struct scst_bdev_descriptor *bdev_desc)
+/*
+ * Borrow userspace init's FS context only for path resolution in kthreads.
+ * Callers running in a userspace task retain their own context.
+ */
+struct file *scst_filp_open(const char *filename, int flags, umode_t mode)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
+	/*
+	 * See also commit 67c54d1d730a ("fs: add scoped_with_init_fs()") # v7.3.
+	 * See also commit 32750c77e811 ("fs: start all kthreads in nullfs") # v7.3.
+	 */
+	if (tsk_is_kthread(current)) {
+		scoped_with_init_fs()
+			return filp_open(filename, flags, mode);
+	}
+#endif
+	return filp_open(filename, flags, mode);
+}
+EXPORT_SYMBOL(scst_filp_open);
+
+int scst_kern_path(const char *name, unsigned int flags, struct path *path)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
+	/*
+	 * See also commit 67c54d1d730a ("fs: add scoped_with_init_fs()") # v7.3.
+	 * See also commit 32750c77e811 ("fs: start all kthreads in nullfs") # v7.3.
+	 */
+	if (tsk_is_kthread(current)) {
+		scoped_with_init_fs()
+			return kern_path(name, flags, path);
+	}
+#endif
+	return kern_path(name, flags, path);
+}
+EXPORT_SYMBOL(scst_kern_path);
+
+static int __scst_open_bdev_by_path(const char *path, blk_mode_t mode, void *holder,
+				    const struct blk_holder_ops *hops,
+				    struct scst_bdev_descriptor *bdev_desc)
 {
 #if LINUX_VERSION_CODE < KERNEL_VERSION(6, 9, 0) &&		\
 	(!defined(RHEL_RELEASE_CODE) ||				\
@@ -6280,6 +6317,23 @@ int scst_open_bdev_by_path(const char *path, blk_mode_t mode, void *holder,
 #endif
 
 	return 0;
+}
+
+int scst_open_bdev_by_path(const char *path, blk_mode_t mode, void *holder,
+			   const struct blk_holder_ops *hops,
+			   struct scst_bdev_descriptor *bdev_desc)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(7, 3, 0)
+	/*
+	 * See also commit 67c54d1d730a ("fs: add scoped_with_init_fs()") # v7.3.
+	 * See also commit 32750c77e811 ("fs: start all kthreads in nullfs") # v7.3.
+	 */
+	if (tsk_is_kthread(current)) {
+		scoped_with_init_fs()
+			return __scst_open_bdev_by_path(path, mode, holder, hops, bdev_desc);
+	}
+#endif
+	return __scst_open_bdev_by_path(path, mode, holder, hops, bdev_desc);
 }
 EXPORT_SYMBOL(scst_open_bdev_by_path);
 
@@ -6327,7 +6381,7 @@ loff_t scst_file_size(const char *path, umode_t *mode)
 	struct inode *inode;
 	loff_t res;
 
-	filp = filp_open(path, O_LARGEFILE | O_RDONLY, 0600);
+	filp = scst_filp_open(path, O_LARGEFILE | O_RDONLY, 0600);
 	if (IS_ERR(filp))
 		return PTR_ERR(filp);
 	inode = file_inode(filp);
@@ -15635,14 +15689,14 @@ int scst_copy_file(const char *src, const char *dest)
 		goto out;
 	}
 
-	file_src = filp_open(src, O_RDONLY, 0);
+	file_src = scst_filp_open(src, O_RDONLY, 0);
 	if (IS_ERR(file_src)) {
 		res = PTR_ERR(file_src);
 		TRACE_DBG("Unable to open file '%s' - error %d", src, res);
 		goto out_free;
 	}
 
-	file_dest = filp_open(dest, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	file_dest = scst_filp_open(dest, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (IS_ERR(file_dest)) {
 		res = PTR_ERR(file_dest);
 		TRACE_DBG("Unable to open backup file '%s' - error %d", dest,
@@ -15698,7 +15752,7 @@ int scst_remove_file(const char *name)
 
 	TRACE_ENTRY();
 
-	res = kern_path(name, 0, &path);
+	res = scst_kern_path(name, 0, &path);
 	if (!res)
 		scst_vfs_unlink_and_put(&path);
 	else
@@ -15724,7 +15778,7 @@ int scst_write_file_transactional(const char *name, const char *name1,
 	if (res != 0 && (res != -ENOENT))
 		goto out;
 
-	file = filp_open(name, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	file = scst_filp_open(name, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (IS_ERR(file)) {
 		res = PTR_ERR(file);
 		PRINT_ERROR("Unable to (re)create file '%s' - error %d",
@@ -15803,7 +15857,7 @@ static int __scst_read_file_transactional(const char *file_name, const char *sig
 		goto out;
 	}
 
-	file = filp_open(file_name, O_RDONLY, 0);
+	file = scst_filp_open(file_name, O_RDONLY, 0);
 	if (IS_ERR(file)) {
 		res = PTR_ERR(file);
 		TRACE_DBG("Unable to open file '%s' - error %d", file_name, res);
@@ -15874,7 +15928,7 @@ int scst_get_file_mode(const char *path)
 	struct file *file;
 	int res;
 
-	file = filp_open(path, O_RDONLY, 0400);
+	file = scst_filp_open(path, O_RDONLY, 0400);
 	if (IS_ERR(file)) {
 		res = PTR_ERR(file);
 		goto out;

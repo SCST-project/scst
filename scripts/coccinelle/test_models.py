@@ -61,6 +61,17 @@ class NativeModelTests(unittest.TestCase):
         self.check(source)
         self.check(source.replace("probe();", "other();"), expected=0)
 
+    def test_init_fs_scope_retains_body_and_early_return(self):
+        for body in ("{ probe(); }", "return probe();"):
+            source = ("int fixture(int kthread) { if (kthread) { "
+                      "scoped_with_init_fs() " + body + " } return fallback(); }\n")
+            with self.subTest(body=body):
+                self.check(source)
+                self.check(source.replace("probe()", "other()"), expected=0)
+                self.check(source, pattern="return@p fallback(...);")
+                self.check(source, pattern="return@p probe(...);",
+                           expected=int(body.startswith("return")))
+
     def test_current_sysfs_macro_retains_generated_function(self):
         source = 'ISCSI_SESS_BOOL_PARAM_ATTR(initial_r2t, "InitialR2T");\n'
         self.check(source, pattern="iscsi_get_bool_value@p(...)")

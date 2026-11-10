@@ -21,6 +21,11 @@
 /* checkpatch-suppress MACRO_ARG_UNUSED ; Coccinelle iterator parser token. */
 #define for_each_possible_cpu(cpu) YACFE_ITERATOR
 
+/* FS scope: retain the following statement, including an early return.
+ * Kernel FS context switching and cleanup are outside this parser model.
+ */
+#define scoped_with_init_fs() YACFE_ITERATOR
+
 /* String-valued fragments, including hashes from generated headers. */
 #define SCST_VERSION_NAME YACFE_STRING
 #define SCST_VERSION_STRING_SUFFIX YACFE_STRING

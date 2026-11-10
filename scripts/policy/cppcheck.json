@@ -168,6 +168,19 @@
     },
     {
       "profiles": [
+        "kernel"
+      ],
+      "source_roots": [
+        "scst"
+      ],
+      "dependency_headers": [],
+      "headers": [
+        "linux/fs_struct.h"
+      ],
+      "reason": "scoped_with_init_fs() is modeled in scripts/cppcheck/kernel.h to retain the scoped body and early returns; kernel FS context switching and cleanup are outside coverage."
+    },
+    {
+      "profiles": [
         "userspace"
       ],
       "source_roots": [

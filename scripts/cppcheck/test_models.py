@@ -142,6 +142,16 @@ void fixture(struct scatterlist *head)
                 self.check(source, "arrayIndexOutOfBounds")
                 self.check(source.replace("values[3]", "values[1]"))
 
+    def test_init_fs_scope_body_and_early_return_remain_visible(self):
+        for body in ("{ values[3] = 1; }", "return values[3];"):
+            source = "int fixture(void) { int values[2] = { 0 }; " \
+                     "scoped_with_init_fs() " + body + " return 0; }"
+            with self.subTest(body=body):
+                self.check(source, "arrayIndexOutOfBounds")
+                self.check(source.replace("values[3]", "values[1]"))
+        self.check("int fixture(void) { int value; "
+                   "scoped_with_init_fs() { value = 1; } return value; }")
+
     def test_trace_assignment_body_remains_visible(self):
         source = """
 struct payload { int value; };

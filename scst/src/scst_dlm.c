@@ -653,7 +653,7 @@ static int scst_read_file(const char *path, char *buf, int buf_len)
 	loff_t pos;
 	int ret;
 
-	f = filp_open(path, 0, 0400);
+	f = scst_filp_open(path, 0, 0400);
 	if (IS_ERR(f)) {
 		ret = PTR_ERR(f);
 		goto out;
@@ -765,7 +765,7 @@ int scst_dlm_read_nodeids(char **entries)
 	if (!*entries)
 		return -ENOMEM;
 
-	comms = filp_open(scst_dlm_comms_dir, 0, 0400);
+	comms = scst_filp_open(scst_dlm_comms_dir, 0, 0400);
 	if (IS_ERR(comms))
 		return PTR_ERR(comms);
 #ifndef HAVE_ITERATE_DIR

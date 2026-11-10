@@ -640,7 +640,7 @@ static int scst_pr_do_load_device_file(struct scst_device *dev, const char *file
 		goto out;
 	}
 
-	file = filp_open(file_name, O_RDONLY, 0);
+	file = scst_filp_open(file_name, O_RDONLY, 0);
 	if (IS_ERR(file)) {
 		res = PTR_ERR(file);
 		TRACE_PR("Unable to open file '%s' - error %d", file_name, res);
@@ -844,7 +844,7 @@ void scst_pr_sync_device_file(struct scst_device *dev)
 
 	scst_copy_file(dev->pr_file_name, dev->pr_file_name1);
 
-	file = filp_open(dev->pr_file_name, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+	file = scst_filp_open(dev->pr_file_name, O_WRONLY | O_CREAT | O_TRUNC, 0644);
 	if (IS_ERR(file)) {
 		res = PTR_ERR(file);
 		PRINT_ERROR("Unable to (re)create PR file '%s' - error %d",
@@ -970,7 +970,7 @@ write_error_close:
 		struct path path;
 		int rc;
 
-		rc = kern_path(dev->pr_file_name, 0, &path);
+		rc = scst_kern_path(dev->pr_file_name, 0, &path);
 		if (!rc)
 			scst_vfs_unlink_and_put(&path);
 		else
