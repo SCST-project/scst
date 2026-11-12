@@ -338,6 +338,14 @@ out_rep:
 		PRINT_ERROR("%s() failed: %d",
 			    async ? "bio_alloc" : "blkdev_issue_flush", res);
 
+	if (res && cmd) {
+		if (async)
+			/* Allocation failed before any flush BIO was submitted. */
+			scst_set_busy(cmd);
+		else
+			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
+	}
+
 	if (async && cmd) {
 		cmd->completed = 1;
 		cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT, scst_estimate_context());
@@ -1445,8 +1453,15 @@ static int vdisk_fsync_blockio(loff_t loff, loff_t len, struct scst_device *dev,
 		loff = (loff >> dev->block_shift) << SCST_DIF_TAG_SHIFT;
 		len = (len >> dev->block_shift) << SCST_DIF_TAG_SHIFT;
 		res = __vdisk_fsync_fileio(loff, len, dev, cmd, virt_dev->dif_fd);
-		if (unlikely(res != 0))
+		if (unlikely(res != 0)) {
+			/* No flush BIO will be submitted to complete this command. */
+			if (async && cmd) {
+				cmd->completed = 1;
+				cmd->scst_cmd_done(cmd, SCST_CMD_STATE_DEFAULT,
+						   scst_estimate_context());
+			}
 			goto out;
+		}
 	}
 
 	res = vdisk_blockio_flush(virt_dev->bdev_desc.bdev, gfp_flags, true, cmd, async);
