@@ -276,6 +276,48 @@ out_put:
 	TRACE_EXIT();
 }
 
+static struct bio *vdisk_alloc_flush_bio(gfp_t gfp_mask)
+{
+	return bio_alloc(/*bdev=*/NULL, 0, /*opf=*/0, gfp_mask);
+}
+
+static void vdisk_submit_flush_bio(struct bio *bio)
+{
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0) ||	\
+	(defined(CONFIG_SUSE_KERNEL) &&			\
+	 LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
+	/*
+	 * For the introduction of REQ_PREFLUSH, see also commit
+	 * 28a8f0d317bf ("block, drivers, fs: rename REQ_FLUSH to
+	 * REQ_PREFLUSH") # v4.8.
+	 */
+	bio->bi_opf = REQ_OP_WRITE | REQ_PREFLUSH;
+	submit_bio(bio);
+#else
+	/*
+	 * For the introduction of WRITE_FLUSH, see also commit
+	 * 4fed947cb311 ("block: implement REQ_FLUSH/FUA based
+	 * interface for FLUSH/FUA requests") # v2.6.37.
+	 */
+	submit_bio(WRITE_FLUSH, bio);
+#endif
+}
+
+static int vdisk_issue_flush(struct block_device *bdev, gfp_t gfp_mask)
+{
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||	\
+	 RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 4)
+	return blkdev_issue_flush(bdev, gfp_mask, NULL);
+#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 12, 0) && \
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||	\
+	 RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 6)
+	return blkdev_issue_flush(bdev, gfp_mask);
+#else
+	return blkdev_issue_flush(bdev);
+#endif
+}
+
 SCST_KUNIT_VISIBLE
 int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask, bool report_error,
 			struct scst_cmd *cmd, bool async)
@@ -289,7 +331,7 @@ int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask, bool report_e
 	if (async) {
 		struct bio *bio;
 
-		bio = bio_alloc(/*bdev=*/NULL, 0, /*opf=*/0, gfp_mask);
+		bio = vdisk_alloc_flush_bio(gfp_mask);
 		if (!bio) {
 			res = -ENOMEM;
 			goto out_rep;
@@ -300,37 +342,10 @@ int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask, bool report_e
 
 		bio_set_dev(bio, bdev);
 
-#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0) ||	\
-	(defined(CONFIG_SUSE_KERNEL) &&			\
-	 LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
-		/*
-		 * For the introduction of REQ_PREFLUSH, see also commit
-		 * 28a8f0d317bf ("block, drivers, fs: rename REQ_FLUSH to
-		 * REQ_PREFLUSH") # v4.8.
-		 */
-		bio->bi_opf = REQ_OP_WRITE | REQ_PREFLUSH;
-		submit_bio(bio);
-#else
-		/*
-		 * For the introduction of WRITE_FLUSH, see also commit
-		 * 4fed947cb311 ("block: implement REQ_FLUSH/FUA based
-		 * interface for FLUSH/FUA requests") # v2.6.37.
-		 */
-		submit_bio(WRITE_FLUSH, bio);
-#endif
+		vdisk_submit_flush_bio(bio);
 		goto out;
 	} else {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||	\
-	 RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 4)
-		res = blkdev_issue_flush(bdev, gfp_mask, NULL);
-#elif LINUX_VERSION_CODE < KERNEL_VERSION(5, 12, 0) && \
-	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||	\
-	 RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 6)
-		res = blkdev_issue_flush(bdev, gfp_mask);
-#else
-		res = blkdev_issue_flush(bdev);
-#endif
+		res = vdisk_issue_flush(bdev, gfp_mask);
 	}
 
 out_rep:
