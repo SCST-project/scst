@@ -108,6 +108,10 @@ static const struct vdisk_flush_case vdisk_flush_cases[] = {
 	  .blocks = 1 },
 	{ .name = "dif_error_skips_block_flush", .blockio = true, .dif_shift = 9,
 	  .dif_error = -EIO, .files = 1, .error = -EIO },
+	{ .name = "async_dif_error_completes", .async = true, .blockio = true, .dif_shift = 9,
+	  .dif_error = -EIO, .files = 1, .error = -EIO },
+	{ .name = "commandless_dif_error", .async = true, .no_cmd = true,
+	  .blockio = true, .dif_shift = 9, .dif_error = -EIO, .files = 1, .error = -EIO },
 };
 
 static void vdisk_flush_desc(const struct vdisk_flush_case *p, char *desc)
@@ -146,6 +150,11 @@ static void vdisk_flush_test(struct kunit *test)
 	if (p->async && !p->no_cmd) {
 		KUNIT_EXPECT_EQ(test, f->completion_state, SCST_CMD_STATE_DEFAULT);
 		KUNIT_EXPECT_TRUE(test, f->completed_before_callback);
+		if (p->error)
+			vdisk_test_expect_sense(test, &f->response, MEDIUM_ERROR, 0x03, 0);
+		else
+			vdisk_test_expect_response(test, &f->response, SAM_STAT_GOOD,
+						   sizeof(f->written));
 	}
 	KUNIT_EXPECT_EQ(test, !!f->cmd.completed, (p->async || p->error) && !p->no_cmd);
 	KUNIT_EXPECT_EQ(test, f->cmd.status,
@@ -158,6 +167,64 @@ static void vdisk_flush_test(struct kunit *test)
 					p->dif_shift == 9 ? 128 : 16,
 					p->dif_shift == 9 ? 191 : 23);
 	}
+}
+
+struct vdisk_sync_dif_error_case {
+	const char *name;
+	int error;
+	unsigned int commands;
+	bool immed;
+	u8 status;
+};
+
+static const struct vdisk_sync_dif_error_case vdisk_sync_dif_errors[] = {
+	{ "io_error", -EIO, 1, false, SAM_STAT_CHECK_CONDITION },
+	{ "busy", -ENOMEM, 1, false, SAM_STAT_BUSY },
+	{ "task_set_full", -ENOMEM, 2, false, SAM_STAT_TASK_SET_FULL },
+	{ "immed_io_error", -EIO, 1, true, SAM_STAT_GOOD },
+	{ "immed_memory_pressure", -ENOMEM, 1, true, SAM_STAT_GOOD },
+};
+
+static void vdisk_sync_dif_error_desc(const struct vdisk_sync_dif_error_case *p, char *desc)
+{
+	snprintf(desc, KUNIT_PARAM_DESC_SIZE, "%s", p->name);
+}
+
+KUNIT_ARRAY_PARAM(vdisk_sync_dif_error, vdisk_sync_dif_errors, vdisk_sync_dif_error_desc);
+
+static void vdisk_sync_dif_error_test(struct kunit *test)
+{
+	const struct vdisk_sync_dif_error_case *p = test->param_value;
+	struct vdisk_test_fixture *f = test->priv;
+
+	f->vdev.blockio = true;
+	f->vdev.bdev_desc.bdev = &f->bdev;
+	f->vdev.dif_fd = &f->dif.file;
+	f->dif.sync_result = p->error;
+	atomic_set(&f->sess.sess_cmd_count, p->commands);
+	f->cmd.cdb[0] = SYNCHRONIZE_CACHE;
+	f->cmd.cdb[1] = p->immed ? 2 : 0;
+	f->cmd.data_direction = SCST_DATA_NONE;
+	f->cmd.data_len = 4096;
+	f->cmd.bufflen = 0;
+	f->cmd.resp_data_len = 0;
+
+	KUNIT_EXPECT_EQ(test, vdisk_synchronize_cache(&f->params), RUNNING_ASYNC);
+	KUNIT_EXPECT_EQ(test, f->completions, 1U);
+	KUNIT_EXPECT_EQ(test, f->completion_state, SCST_CMD_STATE_DEFAULT);
+	KUNIT_EXPECT_TRUE(test, f->completed_before_callback);
+	KUNIT_EXPECT_EQ(test, f->cmd.status, p->status);
+	KUNIT_EXPECT_EQ(test, f->cmd.resp_data_len, 0);
+	vdisk_test_expect_response(test, &f->response, p->status, 0);
+	if (p->status == SAM_STAT_CHECK_CONDITION)
+		vdisk_test_expect_sense(test, &f->response, MEDIUM_ERROR, 0x03, 0);
+	KUNIT_EXPECT_EQ(test, f->flush_count, 1U);
+	KUNIT_EXPECT_EQ(test, f->block_flush_count, 0U);
+	vdisk_test_expect_flush(test, 0, &f->dif.file, 128, 191);
+	/* IMMED must complete before syncing DIF and retain the command meanwhile. */
+	KUNIT_EXPECT_EQ(test, f->flushes[0].completions, p->immed ? 1U : 0U);
+	KUNIT_EXPECT_EQ(test, f->flushes[0].cmd_refs, p->immed ? 2 : 1);
+	KUNIT_EXPECT_EQ(test, kref_read(&f->cmd.cmd_ref), 1U);
 }
 
 struct vdisk_backend_case {
@@ -232,6 +299,7 @@ static void vdisk_backend_test(struct kunit *test)
 static struct kunit_case vdisk_sync_cases[] = {
 	KUNIT_CASE_PARAM(vdisk_range_test, vdisk_range_gen_params),
 	KUNIT_CASE_PARAM(vdisk_flush_test, vdisk_flush_gen_params),
+	KUNIT_CASE_PARAM(vdisk_sync_dif_error_test, vdisk_sync_dif_error_gen_params),
 	KUNIT_CASE_PARAM(vdisk_backend_test, vdisk_backend_gen_params),
 	{}
 };

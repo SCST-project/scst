@@ -121,13 +121,47 @@ static int vdisk_test_no_dif(struct scst_cmd *cmd)
 	return 0;
 }
 
+void vdisk_test_save_response(struct vdisk_test_response *response, const struct scst_cmd *cmd)
+{
+	size_t len = min_t(size_t, cmd->sense_valid_len, sizeof(response->sense));
+
+	response->status = cmd->status;
+	response->resp_data_len = cmd->resp_data_len;
+	response->sense_valid_len = cmd->sense_valid_len;
+	if (cmd->sense)
+		memcpy(response->sense, cmd->sense, min_t(size_t, len, cmd->sense_buflen));
+}
+
+void vdisk_test_expect_response(struct kunit *test, const struct vdisk_test_response *response,
+				u8 status, int resp_data_len)
+{
+	KUNIT_EXPECT_EQ(test, response->status, status);
+	KUNIT_EXPECT_EQ(test, response->resp_data_len, resp_data_len);
+	if (status != SAM_STAT_CHECK_CONDITION)
+		KUNIT_EXPECT_EQ(test, response->sense_valid_len, 0);
+}
+
+void vdisk_test_expect_sense(struct kunit *test, const struct vdisk_test_response *response,
+			     u8 key, u8 asc, u8 ascq)
+{
+	vdisk_test_expect_response(test, response, SAM_STAT_CHECK_CONDITION, 0);
+	KUNIT_ASSERT_GE(test, response->sense_valid_len, 14);
+	KUNIT_EXPECT_EQ(test, response->sense[0] & 0x7f, 0x70);
+	KUNIT_EXPECT_EQ(test, response->sense[2] & 0xf, key);
+	KUNIT_EXPECT_EQ(test, response->sense[12], asc);
+	KUNIT_EXPECT_EQ(test, response->sense[13], ascq);
+}
+
 static void vdisk_test_done(struct scst_cmd *cmd, int state, enum scst_exec_context context)
 {
 	struct vdisk_test_fixture *f = container_of(cmd, struct vdisk_test_fixture, cmd);
 
-	f->completions++;
-	f->completion_state = state;
-	f->completed_before_callback = cmd->completed;
+	/* Preserve the response observed by the first completion callback. */
+	if (!f->completions++) {
+		f->completion_state = state;
+		f->completed_before_callback = cmd->completed;
+		vdisk_test_save_response(&f->response, cmd);
+	}
 }
 
 int vdisk_test_init(struct kunit *test)

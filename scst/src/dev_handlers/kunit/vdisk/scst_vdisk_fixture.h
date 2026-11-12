@@ -8,6 +8,13 @@
 
 struct vdisk_test_fixture;
 
+struct vdisk_test_response {
+	u8 status;
+	int resp_data_len;
+	unsigned short sense_valid_len;
+	u8 sense[SCST_SENSE_BUFFERSIZE];
+};
+
 struct vdisk_test_file {
 	struct file file;
 	struct inode inode;
@@ -52,6 +59,7 @@ struct vdisk_test_fixture {
 	unsigned int completions;
 	int completion_state;
 	bool completed_before_callback;
+	struct vdisk_test_response response;
 	struct vdisk_test_flush flushes[2];
 	unsigned int flush_count;
 	unsigned int block_flush_count;
@@ -61,6 +69,11 @@ struct vdisk_test_fixture {
 
 int vdisk_test_init(struct kunit *test);
 void vdisk_test_exit(struct kunit *test);
+void vdisk_test_save_response(struct vdisk_test_response *response, const struct scst_cmd *cmd);
+void vdisk_test_expect_response(struct kunit *test, const struct vdisk_test_response *response,
+				u8 status, int resp_data_len);
+void vdisk_test_expect_sense(struct kunit *test, const struct vdisk_test_response *response,
+			     u8 key, u8 asc, u8 ascq);
 void vdisk_test_expect_flush(struct kunit *test, unsigned int n, struct file *file,
 			     loff_t start, loff_t end);
 
