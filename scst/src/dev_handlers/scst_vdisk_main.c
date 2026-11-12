@@ -276,13 +276,19 @@ out_put:
 	TRACE_EXIT();
 }
 
-static struct bio *vdisk_alloc_flush_bio(gfp_t gfp_mask)
+SCST_KUNIT_VISIBLE
+struct bio *vdisk_alloc_flush_bio(gfp_t gfp_mask)
 {
+	SCST_KUNIT_REDIRECT(vdisk_alloc_flush_bio, gfp_mask);
+
 	return bio_alloc(/*bdev=*/NULL, 0, /*opf=*/0, gfp_mask);
 }
 
-static void vdisk_submit_flush_bio(struct bio *bio)
+SCST_KUNIT_VISIBLE
+void vdisk_submit_flush_bio(struct bio *bio)
 {
+	SCST_KUNIT_REDIRECT(vdisk_submit_flush_bio, bio);
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 8, 0) ||	\
 	(defined(CONFIG_SUSE_KERNEL) &&			\
 	 LINUX_VERSION_CODE >= KERNEL_VERSION(4, 4, 0))
@@ -303,8 +309,11 @@ static void vdisk_submit_flush_bio(struct bio *bio)
 #endif
 }
 
-static int vdisk_issue_flush(struct block_device *bdev, gfp_t gfp_mask)
+SCST_KUNIT_VISIBLE
+int vdisk_issue_flush(struct block_device *bdev, gfp_t gfp_mask)
 {
+	SCST_KUNIT_REDIRECT(vdisk_issue_flush, bdev, gfp_mask);
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5, 8, 0) && \
 	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 8 ||	\
 	 RHEL_MAJOR - 0 == 8 && RHEL_MINOR - 0 < 4)
@@ -1599,7 +1608,8 @@ enum compl_status_e vdisk_synchronize_cache(struct vdisk_cmd_params *p)
 	return res;
 }
 
-static enum compl_status_e vdisk_exec_start_stop(struct vdisk_cmd_params *p)
+SCST_KUNIT_VISIBLE
+enum compl_status_e vdisk_exec_start_stop(struct vdisk_cmd_params *p)
 {
 	struct scst_cmd *cmd = p->cmd;
 	struct scst_device *dev = cmd->dev;
@@ -2931,9 +2941,12 @@ out:
 }
 
 /* Note: Updates *@loff if reading succeeded except for NULLIO devices. */
-static ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
-			      size_t len, loff_t *loff)
+SCST_KUNIT_VISIBLE
+ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
+		       size_t len, loff_t *loff)
 {
+	SCST_KUNIT_REDIRECT(vdev_read_sync, virt_dev, buf, len, loff);
+
 	if (virt_dev->nullio) {
 		return len;
 	} else if (virt_dev->blockio) {
@@ -6282,7 +6295,8 @@ out:
 	return res;
 }
 
-static enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p)
+SCST_KUNIT_VISIBLE
+enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p)
 {
 	return vdev_verify(p->cmd, p->loff);
 }

@@ -7,6 +7,14 @@
 #ifdef SCST_KUNIT_ENABLED
 
 struct vdisk_cmd_params;
+struct scst_vdisk_dev;
+
+struct bio *vdisk_alloc_flush_bio(gfp_t gfp_mask);
+void vdisk_submit_flush_bio(struct bio *bio);
+int vdisk_issue_flush(struct block_device *bdev, gfp_t gfp_mask);
+ssize_t vdev_read_sync(struct scst_vdisk_dev *virt_dev, void *buf, size_t len, loff_t *loff);
+enum compl_status_e vdev_exec_verify(struct vdisk_cmd_params *p);
+enum compl_status_e vdisk_exec_start_stop(struct vdisk_cmd_params *p);
 
 int vdisk_blockio_flush(struct block_device *bdev, gfp_t gfp_mask, bool report_error,
 			struct scst_cmd *cmd, bool async);
