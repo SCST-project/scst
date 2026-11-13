@@ -51,8 +51,14 @@ kernel diagnostics and incomplete reports fail the run. Package artifacts
 are attached to the Packages workflow; upstream master builds also update
 the `master-rpm` prerelease snapshot.
 
-Analyzer jobs fail on remaining findings and print them in job logs; container
-jobs also retain reports as artifacts. The
+Analyzer jobs fail on remaining findings, print them in job logs and retain
+reports as artifacts. Each job prepares its own dependencies. Checkpatch uses
+current Linux `master` from GitHub, including its dictionaries and documentation;
+Sparse and Smatch use current `master` from `bvanassche/sparse` and
+`error27/smatch` on GitHub without version pins. Each CI run and rerun refreshes
+the selected analyzer's source layer and records the fetched commit.
+Common tooling fixtures run separately, and native
+model probes run with their corresponding analyzer. The
 [analyzer guide](../scripts/README.md#analyzer-ci) covers reproduction and
 the distinction between findings and incomplete analysis.
 

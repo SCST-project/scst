@@ -133,12 +133,73 @@ class AnalyzerTestsTests(unittest.TestCase):
             self.assertEqual(driver.suites(Path("/repo")), [
                 "scripts/coccinelle/test_rules.py", "scripts/cppcheck/test_models.py",
                 "scripts/style/test_native.py", "scripts/tests/test_a.py"])
+            selected = []
+            for group, expected in (
+                    ("common", ["scripts/tests/test_a.py"]),
+                    ("checkpatch", ["scripts/style/test_native.py"]),
+                    ("cppcheck", ["scripts/cppcheck/test_models.py"]),
+                    ("coccicheck", ["scripts/coccinelle/test_rules.py"])):
+                with self.subTest(group=group):
+                    actual = driver.suites(Path("/repo"), group)
+                    self.assertEqual(actual, expected)
+                    selected.extend(actual)
+            self.assertEqual(sorted(selected), driver.suites(Path("/repo")))
+
+    def test_empty_selected_group_is_incomplete(self):
+        with tempfile.TemporaryDirectory() as temporary, \
+                patch.object(driver.subprocess, "check_output", return_value="scripts/tests/test_a.py\0"), \
+                patch.dict(os.environ, GITHUB_STEP_SUMMARY=""), \
+                contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+            root = Path(temporary)
+            self.assertEqual(driver.execute(root, "checkpatch"), 1)
+            report = json.loads(next((root / ".cache/lint").glob(
+                "analyzer-tests-*/tests.json")).read_text())
+            self.assertEqual(report["group"], "checkpatch")
+            self.assertEqual(report["state"], "incomplete")
+            self.assertIn("No tracked analyzer test suites found", report["failures"])
 
     def test_missing_tools_fail_instead_of_skipping_native_tests(self):
         with tempfile.TemporaryDirectory() as temporary, \
                 patch.object(driver.shutil, "which", return_value=None):
             with self.assertRaisesRegex(ValueError, "Missing analyzer-test prerequisites:.*cppcheck"):
-                driver.prerequisites({"KDIR": temporary})
+                driver.prerequisites({"CHECKPATCH_PATH": temporary, "COCCI_RULES_PATH": temporary})
+
+    def test_each_group_requires_only_its_tools_and_assets(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for group, available, files in (
+                    ("common", {"git", "make", "cc", "cpp"}, ()),
+                    ("checkpatch", {"git", "perl", "diff"},
+                     ("checkpatch.pl", "spelling.txt", "const_structs.checkpatch")),
+                    ("cppcheck", {"cppcheck", "cc"}, ()),
+                    ("coccicheck", {"spatch", "cpp"},
+                     ("api/stream_open.cocci", "misc/add_namespace.cocci"))):
+                with self.subTest(group=group):
+                    assets = root / group
+                    for name in files:
+                        path = assets / name
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        path.touch()
+                    env = dict(PATH="/selected/bin", CHECKPATCH_PATH=str(assets),
+                               COCCI_RULES_PATH=str(assets))
+
+                    def which(name, *, path):
+                        self.assertEqual(path, env["PATH"])
+                        return "/selected/bin/" + name if name in available else None
+
+                    with patch.object(driver.shutil, "which", side_effect=which):
+                        driver.prerequisites(env, group)
+                    for absent in sorted(available):
+                        with patch.object(driver.shutil, "which", side_effect=lambda name, **kw:
+                                          None if name == absent else "/selected/bin/" + name):
+                            with self.assertRaisesRegex(ValueError, absent):
+                                driver.prerequisites(env, group)
+                    for name in files:
+                        (assets / name).unlink()
+                        with patch.object(driver.shutil, "which", side_effect=which), \
+                                self.assertRaisesRegex(ValueError, name):
+                            driver.prerequisites(env, group)
+                        (assets / name).touch()
 
     def test_environment_isolates_make_git_and_outer_reports(self):
         with patch.dict(os.environ, {"KDIR": "/selected/kernel", "GITHUB_ACTIONS": "true",
@@ -146,11 +207,25 @@ class AnalyzerTestsTests(unittest.TestCase):
                                      "SCST_LINT_RUN_ID": "outer", "LINT_DEFER_REPORTS": "1",
                                      "CPPCHECK_PROJECT": "/stale/commands.json"}, clear=True):
             env = driver.environment()
-        self.assertEqual(env["SCST_LINT_KDIR"], "/selected/kernel")
         self.assertEqual(env["CHECKPATCH_PATH"], "/selected/kernel/scripts")
+        self.assertEqual(env["COCCI_RULES_PATH"], "/selected/kernel/scripts/coccinelle")
         for name in ("GITHUB_ACTIONS", "MAKEFLAGS", "GIT_DIR", "SCST_LINT_RUN_ID",
-                     "LINT_DEFER_REPORTS", "CPPCHECK_PROJECT"):
+                     "LINT_DEFER_REPORTS", "CPPCHECK_PROJECT", "KDIR", "SCST_LINT_KDIR"):
             self.assertNotIn(name, env)
+
+    def test_only_selected_source_assets_are_inherited(self):
+        with patch.dict(os.environ, {"KDIR": "/unused/kernel", "KUNIT_TEST": "y",
+                                     "KUNIT_LABEL": "ALL", "CHECKPATCH_PATH": "/selected/checkpatch",
+                                     "COCCI_RULES_PATH": "/selected/rules"}, clear=True):
+            for group in driver.GROUP_DIRS:
+                with self.subTest(group=group):
+                    env = driver.environment(group)
+                    self.assertEqual(env.get("CHECKPATCH_PATH"),
+                                     "/selected/checkpatch" if group == "checkpatch" else None)
+                    self.assertEqual(env.get("COCCI_RULES_PATH"),
+                                     "/selected/rules" if group == "coccicheck" else None)
+                    for name in ("KDIR", "KUNIT_TEST", "KUNIT_LABEL"):
+                        self.assertNotIn(name, env)
 
 
 if __name__ == "__main__":

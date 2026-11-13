@@ -187,33 +187,52 @@ Exceptions match exact paths, messages and functions where applicable.
 There are no free-form ignore patterns; inspect reasons with
 `make analyzer-policy ANALYZER=smatch`.
 
-Install Sparse and Smatch with matching `smatch_data`. Use `SMATCH_DATA_DIR`
-if Smatch cannot find its installed data. The selected kernel must accept
-the checker; recent kernels may require a newer frontend.
+Install the selected checker; Smatch also needs matching `smatch_data`.
+Smatch builds its own frontend and does not need standalone Sparse.
+Use `SMATCH_DATA_DIR` if Smatch cannot find its installed data. The selected
+kernel must accept the checker; recent kernels may require a newer frontend.
 
 Build the CI tool environment with:
 
 ```sh
-docker build -f scripts/ci/analyzers.Dockerfile -t scst-analyzers:local .
+DOCKER_BUILDKIT=1 docker build -f scripts/ci/analyzers.Dockerfile \
+    --build-arg ANALYZER_REFRESH="$(date +%s%N)" \
+    --target sparse -t scst-analyzers:local .
 ```
 
-Tool revisions are in [ci/analyzers.env](ci/analyzers.env); kernel headers
-and checksums are in `ci/kernel.env` and `ci/kernel.SHA256SUMS`. The image
+Select `sparse`, `smatch`, `cppcheck`, `coccicheck` or `analyzer-tests` as the
+target. BuildKit builds only the selected stage and its dependencies.
+Sparse and Smatch follow the current `master` branches of
+[bvanassche/sparse](https://github.com/bvanassche/sparse) and
+[error27/smatch](https://github.com/error27/smatch), without version pins.
+CI changes `ANALYZER_REFRESH` on each run and rerun to refresh the selected
+source layer without invalidating its package or kernel layers. The local
+command above does the same for `sparse` or `smatch`; omit this build argument
+for other targets. Analyzer versions follow upstream or distribution updates
+by default; pin an analyzer only to address a demonstrated compatibility problem.
+Source fetches make up to three attempts with bounded low-speed waits and
+backoff; exhausted failures still fail image preparation. Kernel headers and
+checksums are in `ci/kernel.env` and `ci/kernel.SHA256SUMS`. The Smatch stage
 includes the [Smatch frontend fix](sparse_smatch/patches/typeof-address-space.patch)
 needed for current kernel RCU headers and an
 [installation fix](sparse_smatch/patches/install-assets.patch) separating data
 and manual-page targets. Distribution tool packages follow Fedora updates;
-the whole environment is not version-locked. Tool provenance is recorded under
+the whole environment is not version-locked. Tool provenance, including the
+requested reference and actual fetched commit, is recorded under
 `/usr/local/share/scst-ci/` inside the image.
 
 ## Coccinelle
 
 ```sh
 make coccicheck KDIR=/path/to/kernel/build
+# Or supply just the rules, without a prepared kernel:
+make coccicheck COCCI_RULES_PATH=/path/to/scripts/coccinelle
 ```
 
-Install `spatch` with Python support and kernel sources containing
-`scripts/coccinelle/`. Rules declaring `report` mode run on the shared source
+Install `spatch` with Python support, the C preprocessor `cpp` used by iterator
+models, and kernel rules from `scripts/coccinelle/`.
+`COCCI_RULES_PATH` takes precedence over the kernel path. Rules declaring
+`report` mode run on the shared source
 scope, including userspace and KUnit files; other rules are listed as skipped.
 No build is needed. The wrapper extends installed parser hints with SCST
 contracts and current source definitions, without pinned macro hashes.
@@ -360,11 +379,31 @@ The [workflow](../.github/workflows/analyzers.yml) runs on PRs targeting `master
 pushes to `master` and manual dispatch. Updating a PR cancels its older run.
 Separate jobs run `make sparse`, `make smatch`,
 `make checkpatch`, `make coccicheck` and `make cppcheck`, including KUnit sources.
-`Analyzer tests` runs `make analyzer-tests` in the same container, alongside
-the analyzer jobs. It checks script fixtures and native model probes without
-building or executing SCST. A parallel `SCST code style` job runs `make scs_lint`
-without a kernel build. CI prints active findings, coverage and visible advice; complete inventories
-and native streams remain in `.cache/lint/`. The container jobs retain these
+Each job prepares only its own analyzer and assets:
+
+| Job | Environment and downloaded inputs |
+| --- | --- |
+| Sparse | Build toolchain, prepared kernel RPM, current `bvanassche/sparse` master from GitHub. |
+| Smatch | Build toolchain, prepared kernel RPM, current `error27/smatch` master and its data; no standalone Sparse. |
+| Cppcheck | Build toolchain, prepared kernel RPM, distribution Cppcheck; no Sparse or Smatch. |
+| Coccinelle | Distribution Coccinelle, the `cpp` preprocessor and rules extracted from the same pinned kernel RPM; no kernel build toolchain or other analyzers. |
+| Checkpatch | Runner Python, Git and Perl; Checkpatch files from current Linux `master` on GitHub. |
+| Analyzer tests | Common script fixtures, Git, Make and a C compiler; no native analyzers or kernel download. |
+| SCST code style | Python, uv and the style driver's dependencies; no kernel or other analyzers. |
+
+Checkpatch acquisition runs outside Docker caching on every CI invocation.
+`ci/fetch-checkpatch` resolves `torvalds/linux` `master` once, then downloads
+`scripts/checkpatch.pl`, `scripts/spelling.txt`, `scripts/const_structs.checkpatch`
+and `Documentation/dev-tools/checkpatch.rst` from that revision. No commit is
+pinned in the repository; the resolved SHA and file hashes record the inputs
+used by that run. Downloads retry transient failures, and an incomplete set
+fails preparation. The fetch log and complete tool snapshot are artifacts.
+
+`Analyzer tests` runs the `common` group. Native Checkpatch, Cppcheck and
+Coccinelle probes run before analysis in their respective jobs, using the same
+tools and assets as that analysis. These fixtures do not build or execute SCST.
+CI prints active findings, coverage and visible advice; complete inventories
+and native streams remain in `.cache/lint/`. All analyzer jobs retain these
 reports for seven days.
 
 PR and manual runs fail on findings remaining after policy exceptions or
@@ -383,12 +422,20 @@ Python standard library. Run its fixtures from the repository root:
 ```sh
 make lint-test                  # PYTHON defaults to python3
 make analyzer-tests KDIR=/path/to/current/kernel/build
+# Run one dependency group:
+make analyzer-tests ANALYZER_TEST_GROUP=common
+make analyzer-tests ANALYZER_TEST_GROUP=checkpatch CHECKPATCH_PATH=/path/to/scripts
 ```
 
 The fixtures use temporary repositories, files and child processes. They do
 not build SCST, load modules or access live devices.
 
-`analyzer-tests` additionally requires the CI analyzer tools and kernel scripts.
+`analyzer-tests` defaults to `ANALYZER_TEST_GROUP=all`, preserving the complete
+suite selection. The `common`, `checkpatch`, `cppcheck` and `coccicheck` groups
+partition that selection; each requires only its own tools and assets.
+Native groups require Checkpatch and its data, Cppcheck and a C compiler, or
+Coccinelle with `cpp` and kernel rules, respectively. `CHECKPATCH_PATH` and
+`COCCI_RULES_PATH` may supply assets independently of `KDIR`.
 Real Checkpatch, Cppcheck and Coccinelle check small C inputs: valid examples
 must pass, and deliberate bugs must retain their expected diagnostics through
 the production models. Each suite runs in a separate process; missing tools,

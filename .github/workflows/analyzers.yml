@@ -45,6 +45,35 @@ jobs:
           retention-days: 7
           path: .cache/lint/
 
+  checkpatch:
+    name: checkpatch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    continue-on-error: ${{ github.event_name == 'push' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Fetch Checkpatch and data from current Linux master
+        run: |
+          bash scripts/ci/fetch-checkpatch "$RUNNER_TEMP/checkpatch" \
+            2>&1 | tee "$RUNNER_TEMP/checkpatch-fetch.log"
+          echo "CHECKPATCH_PATH=$RUNNER_TEMP/checkpatch/scripts" >> "$GITHUB_ENV"
+      - name: Test Checkpatch integration
+        run: make analyzer-tests ANALYZER_TEST_GROUP=checkpatch
+      - name: Run make checkpatch
+        run: python3 -B scripts/ci/run-analyzer.py checkpatch
+      - name: Save complete analyzer evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: checkpatch-evidence
+          retention-days: 7
+          path: |
+            ${{ runner.temp }}/checkpatch-fetch.log
+            ${{ runner.temp }}/checkpatch/
+            .cache/lint/
+
   native:
     name: ${{ matrix.analyzer == 'analyzer-tests' && 'Analyzer tests' || matrix.analyzer }}
     runs-on: ubuntu-24.04
@@ -57,7 +86,6 @@ jobs:
           - analyzer-tests
           - sparse
           - smatch
-          - checkpatch
           - coccicheck
           - cppcheck
     steps:
@@ -65,25 +93,31 @@ jobs:
         with:
           persist-credentials: false
       - name: Prepare analyzer environment
+        env:
+          DOCKER_BUILDKIT: "1"
+          ANALYZER: ${{ matrix.analyzer }}
         run: |
-          docker build -f scripts/ci/analyzers.Dockerfile -t scst-analyzers:local . \
+          build_args=()
+          if [[ "$ANALYZER" == sparse || "$ANALYZER" == smatch ]]; then
+            build_args+=(--build-arg "ANALYZER_REFRESH=$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT")
+          fi
+          docker build -f scripts/ci/analyzers.Dockerfile --target "$ANALYZER" \
+            "${build_args[@]}" -t scst-analyzers:local . \
             2>&1 | tee "$RUNNER_TEMP/analyzer-image.log"
       - name: Run make ${{ matrix.analyzer }}
         env:
           ANALYZER: ${{ matrix.analyzer }}
         run: |
-          source scripts/ci/kernel.env
           docker run --rm --init --network=none --cap-drop=ALL \
             --security-opt=no-new-privileges --user "$(id -u):$(id -g)" \
             --env HOME=/tmp --env GITHUB_ACTIONS=true \
             --env GITHUB_STEP_SUMMARY=/scst/.cache/analyzer-summary \
-            --env "KDIR=/usr/src/kernels/$KERNEL_BUILD.x86_64" \
             --mount "type=bind,src=$PWD,dst=/scst" scst-analyzers:local \
-            sh -c 'if [ "$1" = analyzer-tests ]; then
-              exec make analyzer-tests
-            else
-              exec python3 -B scripts/ci/run-analyzer.py "$1"
-            fi' -- "$ANALYZER"
+            sh -ec 'case "$1" in
+              analyzer-tests) exec make analyzer-tests ANALYZER_TEST_GROUP=common ;;
+              coccicheck|cppcheck) make analyzer-tests ANALYZER_TEST_GROUP="$1" ;;
+            esac
+            exec python3 -B scripts/ci/run-analyzer.py "$1"' -- "$ANALYZER"
       - name: Publish summary
         if: always()
         run: |

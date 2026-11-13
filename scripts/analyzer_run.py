@@ -17,6 +17,7 @@ from analyzer_policy import inline_inventory, integration, load_policy, source_p
 from analyzer_report import LABELS, markdown_block, render
 from lint_common import Interrupted, entrypoint, print_phase, report_lock, report_section, run
 from style.checkpatch import checker_path
+from coccinelle.coccicheck import rules_path
 
 ROOT = Path(__file__).resolve().parents[1]
 DRIVERS = {"sparse": "sparse_smatch/smp.py", "smatch": "sparse_smatch/smp.py",
@@ -49,21 +50,25 @@ def metadata(tool, environment):
     binary = checker_path() if tool == "checkpatch" else Path(shutil.which(name) or name)
     version = probe([str(binary), "--version"])
     provenance = Path("/usr/local/share/scst-ci") / (tool + "-source.txt")
+    if tool == "checkpatch" and binary.with_name("checkpatch-source.txt").is_file():
+        provenance = binary.with_name("checkpatch-source.txt")
     kernel = Path(environment.get("SCST_LINT_KDIR") or environment.get("KDIR") or
                   f"/lib/modules/{environment.get('KVER') or os.uname().release}/build")
+    kbuild = tool in {"sparse", "smatch", "cppcheck"}
+    support_tools = (("make", "gcc", "ld", "pahole", "python3") if kbuild else
+                     ("cpp", "python3") if tool == "coccicheck" else ())
     result = {
         "commit": probe(["git", "-C", str(ROOT), "rev-parse", "HEAD"]),
         "branch": probe(["git", "-C", str(ROOT), "branch", "--show-current"]),
         "worktree": probe(["git", "-C", str(ROOT), "status", "--porcelain"]),
-        "kernel": str(kernel.resolve()) if tool != "scs_lint" else None,
-        "kernel_config_sha256": digest(kernel / ".config") if tool != "scs_lint" else None,
+        "kernel": str(kernel.resolve()) if kbuild else None,
+        "kernel_config_sha256": digest(kernel / ".config") if kbuild else None,
         "tool": str(binary), "tool_sha256": digest(binary), "version": version,
         "source_provenance": provenance.read_text() if provenance.exists() else "unavailable",
         "configuration": build_configuration(environment) if tool in
                          {"sparse", "smatch", "cppcheck"} else {},
         "environment_tools": {name: probe([name, "--version"])
-                              for name in ("make", "gcc", "ld", "pahole", "python3")
-                              if tool in {"sparse", "smatch", "cppcheck", "coccicheck"}},
+                              for name in support_tools},
     }
     if not provenance.exists() and binary.is_file() and shutil.which("rpm"):
         package = probe(["rpm", "-qf", str(binary.resolve())])
@@ -72,6 +77,12 @@ def metadata(tool, environment):
     if tool == "checkpatch":
         result["data_sha256"] = {name: digest(binary.with_name(name))
                                  for name in ("spelling.txt", "const_structs.checkpatch")}
+        result["data_sha256"]["Documentation/dev-tools/checkpatch.rst"] = digest(
+            binary.parent.parent / "Documentation/dev-tools/checkpatch.rst")
+    if tool == "coccicheck":
+        result["rules"] = str(rules_path(environment))
+        source = Path("/usr/local/share/scst-ci/coccinelle-rules-source.txt")
+        result["rules_source_provenance"] = source.read_text() if source.is_file() else "unavailable"
     if tool == "scs_lint":
         driver = ROOT / "scripts/scs_lint/scs_lint.py"
         result.update(driver=str(driver), driver_sha256=digest(driver),
@@ -156,6 +167,9 @@ def print_metadata(tool, data, policy):
     print(f"  Commit: {value(data['commit'])}\n  Branch: {branch}; worktree: {worktree}")
     if data['kernel']:
         print(f"  Kernel build tree: {data['kernel']}")
+    if data.get("rules"):
+        print(f"  Coccinelle rules: {data['rules']}")
+        print(f"  Rules source: {data['rules_source_provenance'].strip()}")
     print(f"\nTool: {data.get('driver', data['tool'])}")
     version = value(data["version"])
     if tool == "checkpatch":

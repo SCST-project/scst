@@ -17,9 +17,12 @@ import unittest
 sys.dont_write_bytecode = True
 from compile_commands import write_json
 from lint_common import entrypoint, run
+from coccinelle.coccicheck import rules_path
 
 ROOT = Path(__file__).resolve().parents[1]
-SUITE_DIRS = {"tests", "style", "sparse_smatch", "cppcheck", "coccinelle"}
+GROUP_DIRS = {"common": {"tests", "sparse_smatch"}, "checkpatch": {"style"},
+              "cppcheck": {"cppcheck"}, "coccicheck": {"coccinelle"}}
+SUITE_DIRS = set().union(*GROUP_DIRS.values())
 # Temporary, explicit exceptions for the upstream Coccinelle variadic bug.
 # Match both the test identity and reason; unrelated skips still fail CI.
 KNOWN_SKIPS = {
@@ -34,11 +37,12 @@ KNOWN_SKIPS = {
 }
 
 
-def suites(root):
+def suites(root, group="all"):
+    directories = SUITE_DIRS if group == "all" else GROUP_DIRS[group]
     names = subprocess.check_output(
         ["git", "-C", str(root), "ls-files", "-z", "scripts"], text=True).split("\0")
     return sorted(name for name in names if len(Path(name).parts) == 3
-                  and Path(name).parts[1] in SUITE_DIRS and Path(name).match("test_*.py"))
+                  and Path(name).parts[1] in directories and Path(name).match("test_*.py"))
 
 
 def passed(row, status, suite=None):
@@ -96,48 +100,61 @@ def run_suite(path, output):
     return int(row["state"] != "passed")
 
 
-def environment():
+def environment(group="all"):
     # Test fixtures own their build/report overrides and temporary repositories.
     kernel = Path(os.environ.get("SCST_LINT_KDIR") or os.environ.get("KDIR") or
                   f"/lib/modules/{os.environ.get('KVER') or os.uname().release}/build").resolve()
     env = {key: value for key, value in os.environ.items()
            if not key.startswith(("CI_", "GITHUB_", "LINT_", "SCST_LINT_", "GIT_"))
            and key not in {"MAKEFLAGS", "MFLAGS", "MAKELEVEL", "MAKEOVERRIDES", "GNUMAKEFLAGS",
-                           "CPPCHECK_PROJECT", "CPPCHECK_USERSPACE_PROJECT", "CHECKPATCH_PATH"}}
-    env.update(PYTHONDONTWRITEBYTECODE="1", KDIR=str(kernel), SCST_LINT_KDIR=str(kernel),
-               CHECKPATCH_PATH=str(kernel / "scripts"))
+                           "CPPCHECK_PROJECT", "CPPCHECK_USERSPACE_PROJECT", "CHECKPATCH_PATH",
+                           "COCCI_RULES_PATH", "KDIR", "KVER", "KUNIT_TEST", "KUNIT_LABEL"}}
+    env["PYTHONDONTWRITEBYTECODE"] = "1"
+    if group in {"all", "checkpatch"}:
+        env["CHECKPATCH_PATH"] = str(Path(os.environ.get("CHECKPATCH_PATH") or
+                                         kernel / "scripts").resolve())
+    if group in {"all", "coccicheck"}:
+        env["COCCI_RULES_PATH"] = str(rules_path())
     return env
 
 
-def prerequisites(env):
-    missing = [tool for tool in ("git", "make", "cc", "cpp", "perl", "cppcheck", "spatch")
-               if not shutil.which(tool)]
-    kernel = Path(env["KDIR"])
-    for name in ("scripts/checkpatch.pl", "scripts/spelling.txt", "scripts/const_structs.checkpatch",
-                 "scripts/coccinelle/api/stream_open.cocci",
-                 "scripts/coccinelle/misc/add_namespace.cocci"):
-        if not (kernel / name).is_file():
-            missing.append(str(kernel / name))
+def prerequisites(env, group="all"):
+    tools = {"common": {"git", "make", "cc", "cpp"}, "checkpatch": {"git", "perl", "diff"},
+             "cppcheck": {"cppcheck", "cc"}, "coccicheck": {"spatch", "cpp"}}
+    selected = set().union(*tools.values()) if group == "all" else tools[group]
+    missing = [tool for tool in sorted(selected) if not shutil.which(tool, path=env.get("PATH"))]
+    files = []
+    if group in {"all", "checkpatch"}:
+        directory = Path(env["CHECKPATCH_PATH"])
+        files += [directory / name for name in
+                  ("checkpatch.pl", "spelling.txt", "const_structs.checkpatch")]
+    if group in {"all", "coccicheck"}:
+        directory = Path(env["COCCI_RULES_PATH"])
+        files += [directory / name for name in ("api/stream_open.cocci", "misc/add_namespace.cocci")]
+    missing += [str(path) for path in files if not path.is_file()]
     if missing:
         raise ValueError("Missing analyzer-test prerequisites: " + ", ".join(missing))
 
 
-def execute(root):
+def execute(root, group="all"):
     reports = root / ".cache/lint"
     reports.mkdir(parents=True, exist_ok=True)
     directory = Path(tempfile.mkdtemp(prefix="analyzer-tests-", dir=reports))
     manifest = directory / "tests.json"
-    report = dict(state="started", suites=[], failures=[])
+    report = dict(state="started", group=group, suites=[], failures=[])
     write_json(manifest, report)
     started = time.monotonic()
-    print(f"Analyzer tests: Python {sys.version.split()[0]}; reports: {directory}", flush=True)
+    print(f"Analyzer tests ({group}): Python {sys.version.split()[0]}; reports: {directory}", flush=True)
     try:
-        selected = suites(root)
+        selected = suites(root, group)
         if not selected:
             raise ValueError("No tracked analyzer test suites found")
-        env = environment()
-        prerequisites(env)
-        print(f"Kernel tools: {env['KDIR']}; {len(selected)} test suites", flush=True)
+        env = environment(group)
+        prerequisites(env, group)
+        print(f"Selected group: {group}; {len(selected)} test suites", flush=True)
+        for name in ("CHECKPATCH_PATH", "COCCI_RULES_PATH"):
+            if name in env:
+                print(f"  {name}={env[name]}", flush=True)
         for name in selected:
             stem = name.replace("/", "_").removesuffix(".py")
             log, result_file = directory / (stem + ".log"), directory / (stem + ".json")
@@ -180,7 +197,7 @@ def execute(root):
             report["state"] = "incomplete"
         report["seconds"] = round(time.monotonic() - started, 1)
         write_json(manifest, report)
-        summary = (f"Analyzer tests: {report['state'].upper()}; "
+        summary = (f"Analyzer tests ({group}): {report['state'].upper()}; "
                    f"{sum(row.get('tests', 0) for row in report['suites'])} tests; "
                    f"{sum(row.get('skipped', 0) for row in report['suites'])} skipped; "
                    f"{report['seconds']}s\nReports: {directory}\n")
@@ -195,12 +212,14 @@ def execute(root):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--group", choices=("all", *GROUP_DIRS), default="all",
+                        help="run common fixtures or one analyzer's native probes (default: all)")
     parser.add_argument("--suite", type=Path, help=argparse.SUPPRESS)
     parser.add_argument("--result", type=Path, help=argparse.SUPPRESS)
     args = parser.parse_args()
     if bool(args.suite) != bool(args.result):
         parser.error("--suite and --result must be supplied together")
-    return run_suite(args.suite, args.result) if args.suite else execute(ROOT)
+    return run_suite(args.suite, args.result) if args.suite else execute(ROOT, args.group)
 
 
 if __name__ == "__main__":

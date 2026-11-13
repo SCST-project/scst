@@ -1,60 +1,105 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-2.0-only
-# Run only while building the dedicated analyzer container.
+# Run only while building the selected analyzer container stage.
 set -euo pipefail
 HERE=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
-# shellcheck source=analyzers.env
-source "$HERE/analyzers.env"
-# shellcheck source=kernel.env
-source "$HERE/kernel.env"
-install -d /usr/local/share/scst-ci
 
-package="kernel-devel-$KERNEL_BUILD.x86_64.rpm"
-(
-    cd /tmp
-    curl --fail --location --retry 3 \
-        "https://kojipkgs.fedoraproject.org/packages/kernel/${KERNEL_BUILD%-*}/${KERNEL_BUILD#*-}/x86_64/$package" \
-        --output "$package"
-    awk -v package="$package" '$2 == package {print; found=1} END {if (!found) exit 1}' \
-        "$HERE/kernel.SHA256SUMS" | sha256sum --check
-    dnf install -y --setopt=install_weak_deps=False "./$package"
-    test -s "/usr/src/kernels/$KERNEL_BUILD.x86_64/Module.symvers"
-    rm "$package"
-)
-dnf clean all
+extract_kernel()
+{
+    # shellcheck source=kernel.env
+    source "$HERE/kernel.env"
+    local package="kernel-devel-$KERNEL_BUILD.x86_64.rpm"
+    local repository="https://kojipkgs.fedoraproject.org/packages/kernel"
+    local url="$repository/${KERNEL_BUILD%-*}/${KERNEL_BUILD#*-}/x86_64/$package"
+
+    (
+        cd /tmp
+        curl --fail --location --retry 3 --retry-all-errors \
+            --connect-timeout 15 --max-time 300 "$url" --output "$package"
+        awk -v package="$package" '$2 == package {print; found=1} END {if (!found) exit 1}' \
+            "$HERE/kernel.SHA256SUMS" | sha256sum --check
+        mkdir kernel-package
+        cd kernel-package
+        rpm2cpio "../$package" | cpio --extract --make-directories --quiet
+        mv "usr/src/kernels/$KERNEL_BUILD.x86_64" /opt/kernel
+        test -s /opt/kernel/Module.symvers
+        test -d /opt/kernel/scripts/coccinelle
+        printf 'Package: %s\nURL: %s\n' "$package" "$url" \
+            > /usr/local/share/scst-ci/coccinelle-rules-source.txt
+        sha256sum "../$package" >> /usr/local/share/scst-ci/coccinelle-rules-source.txt
+        cd /tmp
+        # Build stages install the RPM with its declared dependencies. The
+        # Coccinelle stage needs only the extracted rules, not those packages.
+        mv "$package" /opt/kernel-devel.rpm
+        rm -rf kernel-package
+    )
+}
 
 fetch_source()
 {
-    local name=$1 repository=$2 revision=$3
+    local name=$1 repository=$2 reference=$3
+    local attempt status delay revision
+
     git init "/opt/$name"
     git -C "/opt/$name" remote add origin "$repository"
-    git -C "/opt/$name" fetch --depth 1 origin "$revision"
+    for attempt in 1 2 3; do
+        printf 'Fetching %s reference %s (attempt %d/3)\n' "$name" "$reference" "$attempt" >&2
+        if git -C "/opt/$name" -c http.lowSpeedLimit=1024 -c http.lowSpeedTime=30 \
+                fetch --depth 1 origin "$reference"; then
+            break
+        else
+            status=$?
+        fi
+        printf 'Fetch of %s failed (attempt %d/3, exit %d)\n' \
+            "$name" "$attempt" "$status" >&2
+        if (( attempt == 3 )); then
+            return "$status"
+        fi
+        delay=$((attempt * 10))
+        printf 'Retrying %s fetch in %d seconds\n' "$name" "$delay" >&2
+        sleep "$delay"
+    done
     git -C "/opt/$name" checkout --detach FETCH_HEAD
-    test "$(git -C "/opt/$name" rev-parse HEAD)" = "$revision"
-    printf 'Repository: %s\nCommit: %s\n' "$repository" "$revision" \
+    revision=$(git -C "/opt/$name" rev-parse HEAD)
+    # Branches follow their fetched tip; pinned commits must still match exactly.
+    if [[ "$reference" != refs/heads/* ]]; then
+        test "$revision" = "$reference"
+    fi
+    printf 'Repository: %s\nReference: %s\nCommit: %s\n' "$repository" "$reference" "$revision" \
         > "/usr/local/share/scst-ci/$name-source.txt"
 }
 
-fetch_source sparse https://git.kernel.org/pub/scm/devel/sparse/sparse.git "$SPARSE_REVISION"
-CFLAGS='-O2 -g -std=gnu99' make -C /opt/sparse -j"$(nproc)" sparse
-install /opt/sparse/sparse /usr/local/bin/sparse
-
-fetch_source smatch https://github.com/error27/smatch.git "$SMATCH_REVISION"
-for patch in "$HERE/typeof-address-space.patch" "$HERE/install-assets.patch"; do
-    git -C /opt/smatch apply --check "$patch"
-    git -C /opt/smatch apply "$patch"
-    sha256sum "$patch" >> /usr/local/share/scst-ci/smatch-source.txt
-done
-CFLAGS='-O2 -g -std=gnu99' make -C /opt/smatch -j"$(nproc)" PREFIX=/usr/local smatch
-# Do not replace standalone Sparse with Smatch's bundled frontend.
-make -C /opt/smatch PREFIX=/usr/local INST_PROGRAMS=smatch install-bin install-assets
-test -s /usr/local/share/smatch/smatch_data/kernel.unreachable.turn_off
-for tool in sparse smatch; do
-    "$tool" --version >> "/usr/local/share/scst-ci/$tool-source.txt"
-    sha256sum "$(command -v "$tool")" >> "/usr/local/share/scst-ci/$tool-source.txt"
-done
-# Record all installed Smatch model contents, without adding project models.
-(cd /usr/local/share/smatch/smatch_data &&
-    find . -type f -print0 | sort -z | xargs -0 sha256sum) \
-    > /usr/local/share/scst-ci/smatch-data.sha256
-rm -rf /opt/sparse /opt/smatch
+install -d /usr/local/share/scst-ci
+case "${1:-}" in
+    kernel)
+        extract_kernel
+        exit 0
+        ;;
+    sparse)
+        fetch_source sparse https://github.com/bvanassche/sparse.git refs/heads/master
+        CFLAGS='-O2 -g -std=gnu99' make -C /opt/sparse -j"$(nproc)" sparse
+        install /opt/sparse/sparse /usr/local/bin/sparse
+        ;;
+    smatch)
+        fetch_source smatch https://github.com/error27/smatch.git refs/heads/master
+        for patch in "$HERE/typeof-address-space.patch" "$HERE/install-assets.patch"; do
+            git -C /opt/smatch apply --check "$patch"
+            git -C /opt/smatch apply "$patch"
+            sha256sum "$patch" >> /usr/local/share/scst-ci/smatch-source.txt
+        done
+        CFLAGS='-O2 -g -std=gnu99' make -C /opt/smatch -j"$(nproc)" PREFIX=/usr/local smatch
+        # Smatch builds its own frontend; do not install its standalone Sparse.
+        make -C /opt/smatch PREFIX=/usr/local INST_PROGRAMS=smatch install-bin install-assets
+        test -s /usr/local/share/smatch/smatch_data/kernel.unreachable.turn_off
+        (cd /usr/local/share/smatch/smatch_data &&
+            find . -type f -print0 | sort -z | xargs -0 sha256sum) \
+            > /usr/local/share/scst-ci/smatch-data.sha256
+        ;;
+    *)
+        printf 'Usage: %s {kernel|sparse|smatch}\n' "$0" >&2
+        exit 2
+        ;;
+esac
+"$1" --version >> "/usr/local/share/scst-ci/$1-source.txt"
+sha256sum "$(command -v "$1")" >> "/usr/local/share/scst-ci/$1-source.txt"
+rm -rf "/opt/$1"
