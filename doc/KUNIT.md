@@ -72,6 +72,12 @@ files. Base labels come directly from suite registrations:
 | `isert-scst.ko` | `ISER` |
 | `qla2x00tgt.ko` | `QLA` |
 
+`VDISK` includes `scst-VDISK-blockio`, which checks backend transport-error sense,
+unchanged error mappings, BIO completion ordering, flush, discard and VERIFY.
+It uses a private unregistered disk and stubs backend calls; it does not submit
+I/O to a real device. Initiator failover and ALUA/backend lifecycle behavior
+require separate integration tests.
+
 `ISER` selects `scst-ISER-cq`, which tests CQ poll errors, batch sizes and
 completion ordering inside `isert-scst.ko` using private RDMA fixtures.
 No RDMA device is needed. Detecting out-of-bounds pointer formation on a
