@@ -239,6 +239,70 @@ static struct file *vdev_open_fd(const struct scst_vdisk_dev *virt_dev, const ch
 	return fd;
 }
 
+/*
+ * ENOLINK identifies a backend transport failure, not a medium error or an
+ * ALUA state change. Keep the existing per-operation sense for other errors.
+ */
+static void vdisk_blockio_set_read_error(struct scst_cmd *cmd, int error)
+{
+	switch (error) {
+	case -ENOLINK:
+		/* LOGICAL UNIT COMMUNICATION FAILURE */
+		scst_set_cmd_error(cmd, NOT_READY, 0x08, 0);
+		break;
+	default:
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_read_error));
+		break;
+	}
+}
+
+static void vdisk_blockio_set_write_error(struct scst_cmd *cmd, int error)
+{
+	switch (error) {
+	case -ENOLINK:
+		/* LOGICAL UNIT COMMUNICATION FAILURE */
+		scst_set_cmd_error(cmd, NOT_READY, 0x08, 0);
+		break;
+	case -ENOSPC: {
+		const struct scst_vdisk_dev *virt_dev = cmd->dev->dh_priv;
+
+		WARN_ON(!virt_dev->thin_provisioned);
+		scst_set_cmd_error(cmd,
+				   SCST_LOAD_SENSE(scst_space_allocation_failed_write_protect));
+		break;
+	}
+	default:
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
+		break;
+	}
+}
+
+static void vdisk_blockio_set_flush_error(struct scst_cmd *cmd, int error)
+{
+	switch (error) {
+	case -ENOLINK:
+		/* LOGICAL UNIT COMMUNICATION FAILURE */
+		scst_set_cmd_error(cmd, NOT_READY, 0x08, 0);
+		break;
+	default:
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
+		break;
+	}
+}
+
+static void vdisk_blockio_set_discard_error(struct scst_cmd *cmd, int error)
+{
+	switch (error) {
+	case -ENOLINK:
+		/* LOGICAL UNIT COMMUNICATION FAILURE */
+		scst_set_cmd_error(cmd, NOT_READY, 0x08, 0);
+		break;
+	default:
+		scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
+		break;
+	}
+}
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(4, 3, 0)
 static void vdev_flush_end_io(struct bio *bio, int error)
 #else
@@ -261,7 +325,7 @@ static void vdev_flush_end_io(struct bio *bio)
 		PRINT_ERROR("FLUSH bio failed: %d (cmd %p)",
 			    error, cmd);
 		if (cmd)
-			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
+			vdisk_blockio_set_flush_error(cmd, error);
 	}
 
 	if (!cmd)
@@ -367,7 +431,7 @@ out_rep:
 			/* Allocation failed before any flush BIO was submitted. */
 			scst_set_busy(cmd);
 		else
-			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
+			vdisk_blockio_set_flush_error(cmd, res);
 	}
 
 	if (async && cmd) {
@@ -1811,7 +1875,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd, struct scst_vdisk_dev *virt_d
 		if (unlikely(err != 0)) {
 			PRINT_ERROR("blkdev_issue_discard() for LBA %lld, blocks %lld failed: %d",
 				    (unsigned long long)start_lba, blocks, err);
-			scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_write_error));
+			vdisk_blockio_set_discard_error(cmd, err);
 			res = -EIO;
 			goto out;
 		}
@@ -3017,6 +3081,8 @@ static enum compl_status_e vdev_verify(struct scst_cmd *cmd, loff_t loff)
 				    (unsigned long long)err, len_mem);
 			if (err == -EAGAIN)
 				scst_set_busy(cmd);
+			else if (virt_dev->blockio && err < 0)
+				vdisk_blockio_set_read_error(cmd, err);
 			else
 				scst_set_cmd_error(cmd, SCST_LOAD_SENSE(scst_sense_read_error));
 			if (compare)
@@ -5757,24 +5823,9 @@ static void blockio_endio(struct bio *bio)
 #else
 		if (op_is_write(bio_op(bio))) {
 #endif
-			if (error == -ENOSPC) {
-				const struct scst_vdisk_dev *virt_dev =
-					blockio_work->cmd->dev->dh_priv;
-
-				WARN_ON(!virt_dev->thin_provisioned);
-				scst_set_cmd_error(blockio_work->cmd,
-						   /*
-						    * checkpatch-suppress LONG_LINE ; Keep the
-						    * complete symbolic sense name.
-						    */
-						   SCST_LOAD_SENSE(scst_space_allocation_failed_write_protect));
-			} else {
-				scst_set_cmd_error(blockio_work->cmd,
-						   SCST_LOAD_SENSE(scst_sense_write_error));
-			}
+			vdisk_blockio_set_write_error(blockio_work->cmd, error);
 		} else {
-			scst_set_cmd_error(blockio_work->cmd,
-					   SCST_LOAD_SENSE(scst_sense_read_error));
+			vdisk_blockio_set_read_error(blockio_work->cmd, error);
 		}
 
 		spin_unlock_irqrestore(&vdev_err_lock, flags);
