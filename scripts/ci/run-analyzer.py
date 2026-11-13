@@ -18,6 +18,7 @@ from analyzer_policy import source_policy  # noqa: E402
 from analyzer_report import markdown_block  # noqa: E402
 from lint_common import entrypoint, report_lock, run  # noqa: E402
 from style.checkpatch import checker_path  # noqa: E402
+from coccinelle.coccicheck import rules_path  # noqa: E402
 
 TOOLS = {"sparse": "sparse", "smatch": "smatch", "coccicheck": "spatch", "cppcheck": "cppcheck",
          "checkpatch": "checkpatch.pl"}
@@ -97,10 +98,12 @@ def main():
 
 
 def analyze(tool, lock_fd):
-    kernel = Path(os.environ.get("SCST_LINT_KDIR") or os.environ.get("KDIR", ""))
-    config_path = kernel / ".config"
-    config = config_path.read_text() if config_path.is_file() else ""
-    if tool != "checkpatch":
+    kernel = None
+    config = ""
+    if tool in {"sparse", "smatch", "cppcheck"}:
+        kernel = Path(os.environ.get("SCST_LINT_KDIR") or os.environ.get("KDIR", "")).resolve()
+        config_path = kernel / ".config"
+        config = config_path.read_text() if config_path.is_file() else ""
         if not (kernel / "Module.symvers").is_file():
             raise ValueError("Set KDIR to a prepared kernel build tree with Module.symvers")
         if not any(line in {"CONFIG_KUNIT=y", "CONFIG_KUNIT=m"} for line in config.splitlines()):
@@ -114,16 +117,31 @@ def analyze(tool, lock_fd):
     # Keep the existing preparation gate; the common Make frontend owns
     # metadata and the human-readable report for both local and CI runs.
     subprocess.check_output([executable, "--version"], text=True)
-    (directory / "kernel.config").write_text(config)
+    if kernel is not None:
+        (directory / "kernel.config").write_text(config)
     models = provenance.with_name("smatch-data.sha256")
     if tool == "smatch" and models.exists():
         shutil.copyfile(models, directory / "smatch-data.sha256")
     identity = str(uuid.uuid4())
-    env = dict(os.environ, KDIR=str(kernel.resolve()), SCST_LINT_KDIR=str(kernel.resolve()),
-               KUNIT_TEST="y", KUNIT_LABEL="ALL", LINT_DEFER_REPORTS="1",
+    env = dict(os.environ, LINT_DEFER_REPORTS="1",
                CPPCHECK_PROJECT="", CPPCHECK_USERSPACE_PROJECT="",
                SCST_LINT_RUN_ID=identity, SCST_LINT_CI_WRAPPER="1",
                LINT_REPORT_LOCK_TOOL=tool, LINT_REPORT_LOCK_FD=str(lock_fd))
+    command = ["make", "-j2", tool]
+    if kernel is not None:
+        env.update(KDIR=str(kernel), SCST_LINT_KDIR=str(kernel), KUNIT_TEST="y", KUNIT_LABEL="ALL")
+        command += [f"KDIR={kernel}", "KUNIT_TEST=y", "KUNIT_LABEL=ALL", "WERROR=n"]
+    else:
+        # Resolve source assets before removing irrelevant build overrides.
+        if tool == "checkpatch":
+            env["CHECKPATCH_PATH"] = str(Path(executable).parent)
+        else:
+            rules = rules_path()
+            if not any(rules.rglob("*.cocci")):
+                raise ValueError(f"no kernel Coccinelle rules in {rules}")
+            env["COCCI_RULES_PATH"] = str(rules)
+        for name in ("KDIR", "SCST_LINT_KDIR", "KVER", "KUNIT_TEST", "KUNIT_LABEL"):
+            env.pop(name, None)
     report = {}
     frontend = {}
     try:
@@ -131,8 +149,7 @@ def analyze(tool, lock_fd):
         # report distinguishes them; neither a failed make nor a report alone
         # is sufficient to classify the run as completed source findings.
         # The frontend in turn gives the driver time to stop native children.
-        result = run(["make", "-j2", tool, f"KDIR={kernel.resolve()}",
-                      "KUNIT_TEST=y", "KUNIT_LABEL=ALL", "WERROR=n"], cwd=ROOT, env=env,
+        result = run(command, cwd=ROOT, env=env,
                      pass_fds=(lock_fd,), cancel_timeout=20)
     finally:
         path = directory / f"{tool}.json"

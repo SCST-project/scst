@@ -11,12 +11,21 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from analyzer_policy import read_policy, load_policy
 from coccinelle.coccicheck import (COMPLETE, FINDING, STARTED, ROOT, coverage,
-                                  publish_progress, rule_options)
+                                  publish_progress, rule_options, rules_path)
 from coccinelle.exceptions import source_exceptions
 from coccinelle.compat import adapt
 
 
 class CoccinelleTests(unittest.TestCase):
+    def test_rules_can_be_supplied_without_a_kernel_tree(self):
+        self.assertEqual(rules_path({"COCCI_RULES_PATH": "/rules", "KDIR": "/unused"}),
+                         Path("/rules"))
+        self.assertEqual(rules_path({"KDIR": "/kernel"}), Path("/kernel/scripts/coccinelle"))
+        self.assertEqual(rules_path({"SCST_LINT_KDIR": "/lint", "KDIR": "/kernel"}),
+                         Path("/lint/scripts/coccinelle"))
+        self.assertEqual(rules_path({"KVER": "fixture"}),
+                         Path("/lib/modules/fixture/build/scripts/coccinelle").resolve())
+
     def setUp(self):
         self.source = Path("/tmp/scst/timeout.c")
         self.log = f"{STARTED}\nHANDLING: {self.source}\ntrying timeout\n{COMPLETE}\n"

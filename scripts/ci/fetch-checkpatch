@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# SPDX-License-Identifier: GPL-2.0-only
+# Fetch a consistent snapshot of the current Linux master, without a stored pin.
+set -euo pipefail
+
+if (( $# != 1 )) || [[ -e $1 || -L $1 ]]; then
+    printf 'Usage: %s NEW_DESTINATION\n' "$0" >&2
+    exit 2
+fi
+destination=$1
+repository=https://github.com/torvalds/linux.git
+ref=refs/heads/master
+staging=$(mktemp -d "${destination}.XXXXXX")
+trap 'rm -rf "$staging"' EXIT
+
+for attempt in 1 2 3; do
+    if remote_head=$(timeout 60 git -c http.lowSpeedLimit=1024 -c http.lowSpeedTime=30 \
+            ls-remote --exit-code "$repository" "$ref"); then
+        break
+    else
+        status=$?
+    fi
+    printf 'Resolving Linux master failed (attempt %d/3, exit %d)\n' "$attempt" "$status" >&2
+    if (( attempt == 3 )); then
+        exit "$status"
+    fi
+    sleep "$((attempt * 10))"
+done
+read -r revision resolved_ref <<< "$remote_head"
+if [[ ! $revision =~ ^[0-9a-f]{40}$ || $resolved_ref != "$ref" || $remote_head == *$'\n'* ]]; then
+    printf 'Invalid Linux master reference: %s\n' "$remote_head" >&2
+    exit 1
+fi
+printf 'Fetching Checkpatch from %s %s (%s)\n' "$repository" "$ref" "$revision"
+
+files=(scripts/checkpatch.pl scripts/spelling.txt scripts/const_structs.checkpatch
+       Documentation/dev-tools/checkpatch.rst)
+for file in "${files[@]}"; do
+    mkdir -p "$staging/$(dirname "$file")"
+    curl --fail --location --retry 3 --retry-all-errors \
+        --connect-timeout 15 --max-time 120 \
+        "https://raw.githubusercontent.com/torvalds/linux/$revision/$file" \
+        --output "$staging/$file"
+    test -s "$staging/$file"
+done
+chmod 755 "$staging/scripts/checkpatch.pl"
+(
+    printf 'Repository: %s\nRef: %s\nCommit: %s\n' "$repository" "$ref" "$revision"
+    cd "$staging"
+    sha256sum "${files[@]}"
+) > "$staging/scripts/checkpatch-source.txt"
+mv -T "$staging" "$destination"

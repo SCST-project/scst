@@ -29,7 +29,7 @@ class AnalyzerCiTests(unittest.TestCase):
             "sparse smatch coccicheck cppcheck checkpatch:\n"
             f"\t@FIXTURE_TOOL=$@ {shlex.quote(sys.executable)} -B scripts/analyzer_run.py $@\n"
             "\t@exit $(FIXTURE_MAKE_TAIL_EXIT)\n")
-        for name in ("git", "sparse", "smatch", "spatch", "cppcheck"):
+        for name in ("git", "sparse", "smatch", "spatch", "cppcheck", "cpp"):
             path = self.bin / name
             path.write_text(f"#!{sys.executable}\nprint('fixture-version')\n")
             path.chmod(0o755)
@@ -43,6 +43,9 @@ class AnalyzerCiTests(unittest.TestCase):
         checker.chmod(0o755)
         for name in ("spelling.txt", "const_structs.checkpatch"):
             checker.with_name(name).touch()
+        rules = kernel / "scripts/coccinelle"
+        rules.mkdir()
+        (rules / "fixture.cocci").write_text("// fixture rule\n")
         self.env = dict(os.environ, KDIR=str(kernel), SCST_LINT_KDIR=str(kernel),
                         PATH=str(self.bin), MAKEFLAGS="", MFLAGS="", MAKEOVERRIDES="",
                         GNUMAKEFLAGS="", FIXTURE_STATUS="0", FIXTURE_MAKE_TAIL_EXIT="0",
@@ -50,21 +53,26 @@ class AnalyzerCiTests(unittest.TestCase):
                         FIXTURE_OUTCOME="clean", FIXTURE_COVERAGE="full")
         self.env.pop("GITHUB_STEP_SUMMARY", None)
         self.env.pop("CHECKPATCH_PATH", None)
+        self.env.pop("COCCI_RULES_PATH", None)
         driver = self.root / "scripts/sparse_smatch/smp.py"
         driver.write_text('''import json, os, sys
 from pathlib import Path
 root = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(root / 'scripts'))
 from lint_common import report_lock
-assert os.environ['KUNIT_TEST'] == 'y'
-assert os.environ['KUNIT_LABEL'] == 'ALL'
+tool = os.environ['FIXTURE_TOOL']
+if tool in ('sparse', 'smatch', 'cppcheck'):
+    assert os.environ['KUNIT_TEST'] == 'y'
+    assert os.environ['KUNIT_LABEL'] == 'ALL'
+else:
+    assert not any(name in os.environ for name in
+                   ('KDIR', 'SCST_LINT_KDIR', 'KVER', 'KUNIT_TEST', 'KUNIT_LABEL'))
 assert os.environ['LINT_DEFER_REPORTS'] == '1'
 assert os.environ['CPPCHECK_PROJECT'] == ''
 assert os.environ['CPPCHECK_USERSPACE_PROJECT'] == ''
 status = int(os.environ['FIXTURE_STATUS'])
 directory = root / '.cache/lint'
 directory.mkdir(parents=True, exist_ok=True)
-tool = os.environ['FIXTURE_TOOL']
 with report_lock(root, tool) as lock_fd:
     assert lock_fd == int(os.environ['LINT_REPORT_LOCK_FD'])
 if os.environ.get('FIXTURE_NO_REPORT'):
@@ -193,15 +201,49 @@ sys.exit(status)
         result = self.run_ci("checkpatch")
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
 
-    def test_checkpatch_needs_tool_data_but_not_a_prepared_kunit_kernel(self):
-        (self.root / "kernel/.config").unlink()
-        (self.root / "kernel/Module.symvers").unlink()
+    def test_checkpatch_needs_only_its_own_tool_and_data(self):
+        assets = self.root / "checkpatch"
+        (self.root / "kernel/scripts").rename(assets)
+        shutil.rmtree(self.root / "kernel")
+        self.env["CHECKPATCH_PATH"] = str(assets)
+        for name in ("sparse", "smatch", "cppcheck", "spatch"):
+            (self.bin / name).unlink()
         result = self.run_ci("checkpatch")
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        (self.root / "kernel/scripts/spelling.txt").unlink()
+        self.assertFalse((self.root / ".cache/lint/kernel.config").exists())
+        (assets / "spelling.txt").unlink()
         result = self.run_ci("checkpatch")
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn("missing Checkpatch tool/data", result.stderr)
+
+    def test_coccicheck_needs_no_prepared_kernel_or_other_analyzers(self):
+        rules = self.root / "rules"
+        (self.root / "kernel/scripts/coccinelle").rename(rules)
+        shutil.rmtree(self.root / "kernel")
+        self.env["COCCI_RULES_PATH"] = str(rules)
+        for name in ("sparse", "smatch", "cppcheck"):
+            (self.bin / name).unlink()
+        result = self.run_ci("coccicheck")
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertFalse((self.root / ".cache/lint/kernel.config").exists())
+        (rules / "fixture.cocci").unlink()
+        result = self.run_ci("coccicheck")
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("no kernel Coccinelle rules", result.stderr)
+
+    def test_build_analyzers_need_only_the_selected_checker(self):
+        for tool in ("sparse", "smatch", "cppcheck"):
+            with self.subTest(tool=tool):
+                for name in ("sparse", "smatch", "cppcheck", "spatch"):
+                    (self.bin / name).chmod(0o755 if name == tool else 0o644)
+                result = self.run_ci(tool)
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        (self.root / "kernel/Module.symvers").unlink()
+        for tool in ("sparse", "smatch", "cppcheck"):
+            with self.subTest(tool=tool):
+                result = self.run_ci(tool)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn("prepared kernel build tree", result.stderr)
 
     def test_make_failure_without_a_new_report_cannot_reuse_previous_results(self):
         self.assertEqual(self.run_ci().returncode, 0)

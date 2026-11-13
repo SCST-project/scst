@@ -1,6 +1,5 @@
 """Exercise private kernel rule adaptations with native positive and negative matches."""
 
-import os
 from pathlib import Path
 import shutil
 import subprocess
@@ -9,7 +8,7 @@ import tempfile
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from coccinelle.coccicheck import coverage, instrument_rule, rule_options
+from coccinelle.coccicheck import coverage, instrument_rule, rule_options, rules_path
 from coccinelle.compat import adapt
 from coccinelle.model import prepare
 
@@ -18,9 +17,7 @@ class NativeRuleTests(unittest.TestCase):
     def check(self, name, source, expected):
         spatch = shutil.which("spatch")
         self.assertTrue(spatch, "spatch is required")
-        kernel = Path(os.environ.get("SCST_LINT_KDIR") or os.environ.get("KDIR") or
-                      f"/lib/modules/{os.uname().release}/build")
-        original = kernel / "scripts/coccinelle" / name
+        original = rules_path() / name
         before = original.read_bytes()
         text, _ = adapt(original, before.decode())
         with tempfile.TemporaryDirectory(prefix="scst-cocci-rule-") as temporary:

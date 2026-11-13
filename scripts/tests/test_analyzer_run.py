@@ -202,6 +202,39 @@ sys.exit(0)
 
 
 class MetadataTests(unittest.TestCase):
+    def test_source_analyzers_do_not_probe_build_dependencies(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            binary = root / "scripts/checkpatch.pl"
+            binary.parent.mkdir()
+            binary.write_text("fixture checker\n")
+            for name in ("spelling.txt", "const_structs.checkpatch", "checkpatch-source.txt"):
+                binary.with_name(name).write_text(name + "\n")
+            doc = root / "Documentation/dev-tools/checkpatch.rst"
+            doc.parent.mkdir(parents=True)
+            doc.write_text("fixture documentation\n")
+            for tool in ("checkpatch", "coccicheck"):
+                with self.subTest(tool=tool), \
+                        patch.object(analyzer_run, "checker_path", return_value=binary), \
+                        patch.object(analyzer_run.shutil, "which", return_value=None), \
+                        patch.object(analyzer_run, "probe", return_value=dict(status=0, output="")) as probe:
+                    data = analyzer_run.metadata(tool, {"KDIR": "/absent/kernel",
+                                                        "COCCI_RULES_PATH": str(root / "rules")})
+                    self.assertIsNone(data["kernel"])
+                    self.assertIsNone(data["kernel_config_sha256"])
+                    support = ["cpp", "python3"] if tool == "coccicheck" else []
+                    self.assertEqual(list(data["environment_tools"]), support)
+                    self.assertFalse(data["configuration"])
+                    self.assertEqual([call.args[0][0] for call in probe.call_args_list],
+                                     [str(binary) if tool == "checkpatch" else "spatch",
+                                      "git", "git", "git", *support])
+                    if tool == "checkpatch":
+                        self.assertEqual(data["source_provenance"], "checkpatch-source.txt\n")
+                        self.assertEqual(data["data_sha256"]["Documentation/dev-tools/checkpatch.rst"],
+                                         analyzer_run.digest(doc))
+                    else:
+                        self.assertEqual(data["rules"], str(root / "rules"))
+
     def test_build_defaults_and_overrides_are_described(self):
         defaults = analyzer_run.build_configuration({})
         self.assertIn('newer QLogic tree', defaults['QLA_32GBIT'])

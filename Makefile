@@ -330,9 +330,10 @@ lint-test:
 	PYTHONDONTWRITEBYTECODE=1 $(PYTHON) -m unittest discover -s scripts/tests -v
 
 .PHONY: analyzer-tests
+ANALYZER_TEST_GROUP ?= all
 analyzer-tests: export SCST_LINT_KDIR := $(KDIR)
 analyzer-tests:
-	+@$(PYTHON) -B scripts/analyzer_tests.py
+	+@$(PYTHON) -B scripts/analyzer_tests.py --group "$(ANALYZER_TEST_GROUP)"
 
 .PHONY: all-lint
 all-lint: sparse smatch coccicheck cppcheck checkpatch scs_lint

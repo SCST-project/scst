@@ -41,6 +41,15 @@ COMPLETE = "SCST_COCCI_COMPLETE"
 FINDING = "SCST_COCCI_FINDING"
 
 
+def rules_path(environment=None):
+    env = os.environ if environment is None else environment
+    if env.get("COCCI_RULES_PATH"):
+        return Path(env["COCCI_RULES_PATH"]).resolve()
+    kernel = Path(env.get("SCST_LINT_KDIR") or env.get("KDIR") or
+                  f"/lib/modules/{env.get('KVER') or os.uname().release}/build")
+    return (kernel / "scripts/coccinelle").resolve()
+
+
 def metadata(text, name):
     match = re.search(r"^//[^\S\n]*" + name + r":[^\S\n]*(.*)$", text, re.MULTILINE)
     return match[1] if match else ""
@@ -180,9 +189,7 @@ def main():
             spatch = shutil.which("spatch")
             if not spatch:
                 raise ValueError("spatch is not installed")
-            kernel = Path(os.environ.get("SCST_LINT_KDIR") or os.environ.get("KDIR") or
-                          f"/lib/modules/{os.uname().release}/build")
-            directory = kernel / "scripts/coccinelle"
+            directory = rules_path()
             paths = sorted(directory.rglob("*.cocci"))
             if not paths:
                 raise ValueError(f"no kernel Coccinelle rules in {directory}")
