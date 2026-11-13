@@ -1844,8 +1844,18 @@ static int vdisk_unmap_file_range(struct scst_cmd *cmd, struct scst_vdisk_dev *v
 	return res;
 }
 
-static int vdisk_unmap_range(struct scst_cmd *cmd, struct scst_vdisk_dev *virt_dev,
-			     u64 start_lba, u64 blocks)
+SCST_KUNIT_VISIBLE
+int vdisk_issue_discard(struct block_device *bdev, sector_t start, sector_t sectors,
+			gfp_t gfp_mask)
+{
+	SCST_KUNIT_REDIRECT(vdisk_issue_discard, bdev, start, sectors, gfp_mask);
+
+	return blkdev_issue_discard(bdev, start, sectors, gfp_mask);
+}
+
+SCST_KUNIT_VISIBLE
+int vdisk_unmap_range(struct scst_cmd *cmd, struct scst_vdisk_dev *virt_dev,
+		      u64 start_lba, u64 blocks)
 {
 	int res, err;
 
@@ -1871,7 +1881,7 @@ static int vdisk_unmap_range(struct scst_cmd *cmd, struct scst_vdisk_dev *virt_d
 		sector_t nr_sects = blocks << (cmd->dev->block_shift - 9);
 		gfp_t gfp = cmd->cmd_gfp_mask;
 
-		err = blkdev_issue_discard(bdev, start_sector, nr_sects, gfp);
+		err = vdisk_issue_discard(bdev, start_sector, nr_sects, gfp);
 		if (unlikely(err != 0)) {
 			PRINT_ERROR("blkdev_issue_discard() for LBA %lld, blocks %lld failed: %d",
 				    (unsigned long long)start_lba, blocks, err);
@@ -2916,6 +2926,28 @@ static void blockio_end_sync_io(struct bio *bio)
 	complete(&s->c);
 }
 
+SCST_KUNIT_VISIBLE
+struct bio *vdisk_alloc_bio(int nr_vecs, gfp_t gfp_mask, struct bio_set *bs)
+{
+	SCST_KUNIT_REDIRECT(vdisk_alloc_bio, nr_vecs, gfp_mask, bs);
+
+	return bio_alloc_bioset(/*bdev=*/NULL, nr_vecs, /*opf=*/0, gfp_mask, bs);
+}
+
+SCST_KUNIT_VISIBLE
+void vdisk_submit_bio(struct bio *bio)
+{
+	SCST_KUNIT_REDIRECT(vdisk_submit_bio, bio);
+
+#if (!defined(CONFIG_SUSE_KERNEL) &&			 \
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)) || \
+	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
+	submit_bio(bio->bi_rw, bio);
+#else
+	submit_bio(bio);
+#endif
+}
+
 /*
  * blockio_read_sync() - read up to @len bytes from a block I/O device
  *
@@ -2948,8 +2980,7 @@ static ssize_t blockio_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 	max_nr_vecs = min(bio_get_nr_vecs(bdev), BIO_MAX_VECS);
 #endif
 
-	bio = bio_alloc_bioset(/*bdev=*/NULL, max_nr_vecs, /*opf=*/0,
-			       GFP_KERNEL, virt_dev->vdisk_bioset);
+	bio = vdisk_alloc_bio(max_nr_vecs, GFP_KERNEL, virt_dev->vdisk_bioset);
 	if (!bio)
 		goto out;
 
@@ -2983,13 +3014,7 @@ static ssize_t blockio_read_sync(struct scst_vdisk_dev *virt_dev, void *buf,
 			}
 		}
 	}
-#if (!defined(CONFIG_SUSE_KERNEL) &&			 \
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)) || \
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
-	submit_bio(bio->bi_rw, bio);
-#else
-	submit_bio(bio);
-#endif
+	vdisk_submit_bio(bio);
 	wait_for_completion(&s.c);
 	ret = (unsigned long)s.error;
 	if (likely(ret == 0)) {
@@ -5973,7 +5998,8 @@ static void vdisk_blk_add_dif(struct bio *bio, gfp_t gfp_mask, const struct scst
 }
 #endif /* defined(CONFIG_BLK_DEV_INTEGRITY) */
 
-static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
+SCST_KUNIT_VISIBLE
+void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 {
 	struct scst_cmd *cmd = p->cmd;
 	u64 lba_start = scst_cmd_get_lba(cmd);
@@ -6069,8 +6095,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 			int rc;
 
 			if (need_new_bio) {
-				bio = bio_alloc_bioset(/*bdev=*/NULL, max_nr_vecs, /*opf=*/0,
-						       gfp_mask, bs);
+				bio = vdisk_alloc_bio(max_nr_vecs, gfp_mask, bs);
 				if (!bio) {
 					PRINT_ERROR("Failed to create bio for data segment %d (cmd %p)",
 						    cmd->get_sg_buf_entry_num, cmd);
@@ -6163,13 +6188,7 @@ static void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua)
 		hbio = hbio->bi_next;
 		bio->bi_next = NULL;
 
-#if (!defined(CONFIG_SUSE_KERNEL) &&			 \
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 8, 0)) || \
-	LINUX_VERSION_CODE < KERNEL_VERSION(4, 4, 0)
-		submit_bio(bio->bi_rw, bio);
-#else
-		submit_bio(bio);
-#endif
+		vdisk_submit_bio(bio);
 	}
 
 	blk_finish_plug(&plug);
