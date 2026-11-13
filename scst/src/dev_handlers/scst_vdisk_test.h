@@ -9,6 +9,13 @@
 struct vdisk_cmd_params;
 struct scst_vdisk_dev;
 
+struct bio *vdisk_alloc_bio(int nr_vecs, gfp_t gfp_mask, struct bio_set *bs);
+void vdisk_submit_bio(struct bio *bio);
+void blockio_exec_rw(struct vdisk_cmd_params *p, bool write, bool fua);
+int vdisk_issue_discard(struct block_device *bdev, sector_t start, sector_t sectors,
+			gfp_t gfp_mask);
+int vdisk_unmap_range(struct scst_cmd *cmd, struct scst_vdisk_dev *virt_dev,
+		      u64 start_lba, u64 blocks);
 struct bio *vdisk_alloc_flush_bio(gfp_t gfp_mask);
 void vdisk_submit_flush_bio(struct bio *bio);
 int vdisk_issue_flush(struct block_device *bdev, gfp_t gfp_mask);
