@@ -2085,11 +2085,12 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, u8 *buffer, int buffer_size
 	scope = cmd->cdb[2] >> 4;
 	type = cmd->cdb[2] & 0x0f;
 
-	if (!scst_pr_type_valid(type)) {
-		TRACE_PR("Invalid reservation type %d", type);
-		scst_set_invalid_field_in_cdb(cmd, 1, SCST_INVAL_FIELD_BIT_OFFS_VALID);
-		goto out;
-	}
+	/*
+	 * TYPE is validated only on the paths that establish a reservation.
+	 * When PREEMPT merely removes registrations (no reservation is held, or
+	 * the service action key does not identify the holder), SPC-4 ignores
+	 * TYPE, so a reserved value must not fail the command.
+	 */
 
 	reg = tgt_dev->registrant;
 
@@ -2114,15 +2115,15 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, u8 *buffer, int buffer_size
 		list_for_each_entry_safe(r, rt, &preempt_list, aux_list_entry) {
 			if (abort)
 				scst_pr_abort_reg(dev, cmd, r);
-			if (r != reg) {
+			/* Only the unit attention is skipped for the caller. */
+			if (r != reg)
 				scst_pr_send_ua_reg(dev, r,
 						    /*
 						     * checkpatch-suppress LONG_LINE ; Keep the
 						     * complete symbolic sense name.
 						     */
 						    SCST_LOAD_SENSE(scst_sense_registrations_preempted));
-				scst_pr_remove_registrant(dev, r);
-			}
+			scst_pr_remove_registrant(dev, r);
 		}
 		goto done;
 	}
@@ -2130,6 +2131,12 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, u8 *buffer, int buffer_size
 	if (dev->pr_type == TYPE_WRITE_EXCLUSIVE_ALL_REG ||
 	    dev->pr_type == TYPE_EXCLUSIVE_ACCESS_ALL_REG) {
 		if (action_key == 0) {
+			if (!scst_pr_type_valid(type)) {
+				TRACE_PR("Invalid reservation type %d", type);
+				scst_set_invalid_field_in_cdb(cmd, 2,
+							      SCST_INVAL_FIELD_BIT_OFFS_VALID);
+				goto out;
+			}
 			scst_pr_find_registrants_list_all(dev, reg, &preempt_list);
 			list_for_each_entry_safe(r, rt, &preempt_list, aux_list_entry) {
 				sBUG_ON(r == reg);
@@ -2151,15 +2158,15 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, u8 *buffer, int buffer_size
 			list_for_each_entry_safe(r, rt, &preempt_list, aux_list_entry) {
 				if (abort)
 					scst_pr_abort_reg(dev, cmd, r);
-				if (r != reg) {
+				/* Only the unit attention is skipped for the caller. */
+				if (r != reg)
 					scst_pr_send_ua_reg(dev, r,
 							    /*
 							     * checkpatch-suppress LONG_LINE ; Keep
 							     * the complete symbolic sense name.
 							     */
 							    SCST_LOAD_SENSE(scst_sense_registrations_preempted));
-					scst_pr_remove_registrant(dev, r);
-				}
+				scst_pr_remove_registrant(dev, r);
 			}
 		}
 		goto done;
@@ -2187,6 +2194,13 @@ static void scst_pr_do_preempt(struct scst_cmd *cmd, u8 *buffer, int buffer_size
 			}
 			goto done;
 		}
+	}
+
+	/* Reservation transfer: TYPE is applied here, so it must be valid. */
+	if (!scst_pr_type_valid(type)) {
+		TRACE_PR("Invalid reservation type %d", type);
+		scst_set_invalid_field_in_cdb(cmd, 2, SCST_INVAL_FIELD_BIT_OFFS_VALID);
+		goto out;
 	}
 
 	scst_pr_find_registrants_list_key(dev, action_key, &preempt_list);
