@@ -194,8 +194,6 @@ three-way application. Preserve the provenance marker when adapting a patch.
 Keep new SCST behavior and compatibility backports in separate commits after
 the upstream import. Only minimal context relocation belongs in the import;
 intermediate commits may fail to compile. Validate the final adapted series.
-The repository skill is
-[`scst-qla2xxx-update`](../.agents/skills/scst-qla2xxx-update/SKILL.md).
 
 ## Record reviewed exceptions and continue
 
