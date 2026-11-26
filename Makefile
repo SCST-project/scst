@@ -114,7 +114,7 @@ DEBIAN_REVISION := 1.1
 RPMTOPDIR ?= $(shell if [ $$(id -u) = 0 ]; then echo /usr/src/packages;\
 		else echo $$PWD/rpmbuilddir; fi)
 DOCKER ?= docker
-DOCKER_RPM_TARGET ?= rocky-10.2
+DOCKER_RPM_TARGET ?= rocky-10.3
 DOCKER_RPM_CONTEXT ?= docker/rpm
 DOCKER_RPM_DOCKERFILE ?= $(DOCKER_RPM_CONTEXT)/Dockerfile
 DOCKER_RPM_IMAGE ?= scst-rpm-builder:$(DOCKER_RPM_TARGET)
