@@ -8563,7 +8563,9 @@ scst_alloc_bio(unsigned short nr_vecs, gfp_t gfp_mask)
 
 	bio = bio_kmalloc(nr_vecs, gfp_mask);
 	if (bio) {
-#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 18, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 18, 0) &&		\
+	(!defined(RHEL_RELEASE_CODE) ||				\
+	 RHEL_RELEASE_CODE - 0 < RHEL_RELEASE_VERSION(10, 3))
 		bio_init(bio, NULL, bio->bi_inline_vecs, nr_vecs, 0);
 #else
 		bio_init(bio, NULL, bio_inline_vecs(bio), nr_vecs, 0);
