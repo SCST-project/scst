@@ -1443,7 +1443,7 @@ static __always_inline size_t __must_check size_add(size_t addend1, size_t adden
 	struct_size((type *)NULL, member, count)
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0) && !defined(__set_flex_counter)
 /*
  * See also commit 81cee9166a90 ("compiler_types: Introduce __flex_counter()
  * and family") # v7.0.
@@ -1729,6 +1729,9 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 18, 39)) &&		\
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 12, 0) >> 8 ||	\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 97)) &&		\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 9 ||			\
+	 RHEL_MAJOR - 0 == 9 && RHEL_MINOR - 0 < 9 ||			\
+	 RHEL_MAJOR - 0 == 10 && RHEL_MINOR - 0 < 3) &&			\
 	(!defined(UTS_UBUNTU_RELEASE_ABI) ||				\
 	 LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 8, 0) >> 8 ||	\
 	 UTS_UBUNTU_RELEASE_ABI - 0 < 147 ||				\
@@ -1753,6 +1756,9 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 #if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0) &&			\
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 18, 0) >> 8 ||	\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 18, 33)) &&		\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 9 ||			\
+	 RHEL_MAJOR - 0 == 9 && RHEL_MINOR - 0 < 9 ||			\
+	 RHEL_MAJOR - 0 == 10 && RHEL_MINOR - 0 < 3) &&			\
 	(!defined(UTS_UBUNTU_RELEASE_ABI) ||				\
 	 LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 8, 0) >> 8 ||	\
 	 UTS_UBUNTU_RELEASE_ABI - 0 < 147 ||				\
@@ -1772,7 +1778,10 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 })
 #endif
 
-#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0)
+#if LINUX_VERSION_CODE < KERNEL_VERSION(7, 0, 0) &&			\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 9 ||			\
+	 RHEL_MAJOR - 0 == 9 && RHEL_MINOR - 0 < 9 ||			\
+	 RHEL_MAJOR - 0 == 10 && RHEL_MINOR - 0 < 3)
 /*
  * See also commit 2932ba8d9c99 ("slab: Introduce kmalloc_obj() and family") # v7.0.
  * See also commit 3bf5e19c804d # v6.18.33.
@@ -1831,6 +1840,9 @@ static inline struct kmem_cache *kmem_cache_create_usercopy(const char *name,
 	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 18, 39)) &&		\
 	(LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 12, 0) >> 8 ||	\
 	 LINUX_VERSION_CODE < KERNEL_VERSION(6, 12, 97)) &&		\
+	(!defined(RHEL_MAJOR) || RHEL_MAJOR - 0 < 9 ||			\
+	 RHEL_MAJOR - 0 == 9 && RHEL_MINOR - 0 < 9 ||			\
+	 RHEL_MAJOR - 0 == 10 && RHEL_MINOR - 0 < 3) &&			\
 	(!defined(UTS_UBUNTU_RELEASE_ABI) ||				\
 	 LINUX_VERSION_CODE >> 8 != KERNEL_VERSION(6, 8, 0) >> 8 ||	\
 	 UTS_UBUNTU_RELEASE_ABI - 0 < 147 ||				\
