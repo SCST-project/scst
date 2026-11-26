@@ -307,6 +307,12 @@ CONFIG_LTO_CLANG				\
 "
   local enable="CONFIG_UNWINDER_FRAME_POINTER"
 
+  # RHEL 9.9 and 10.3 ship without Xen PV. Their paravirt MSR helpers
+  # still use the old names and cannot compile with PARAVIRT_XXL.
+  case "$1" in
+    5.14.0-*.el9_9|6.12.0-*.el10_3) disable="$disable CONFIG_XEN_PV" ;;
+  esac
+
   # SCST does not need event tracing on supported kernels
   disable="$disable CONFIG_EVENT_TRACING"
 
